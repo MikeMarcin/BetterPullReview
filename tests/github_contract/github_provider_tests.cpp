@@ -1644,14 +1644,14 @@ namespace {
 		fixture.Provider->probe_capabilities({ }, std::move(capability));
 		expect(terminals == 2 && fixture.Effects.pending() == 0U, "logging copy failure preserves original capability refusal terminal");
 	}
-	void test_sanitized_provider_logging()
+	auto test_sanitized_provider_logging(const bool aAuditContent = false) -> bool
 	{
 		const auto       log = std::make_shared<recording_log>();
 		provider_fixture fixture{ application::github_authentication_transport::native_https, log };
 		const auto       request             = capability_request_for(fixture, account_lease(fixture));
-		fixture.Transport->CapabilityHandler = [](const github_capability_probe_wire_request& aWire, std::stop_token) {
+		fixture.Transport->CapabilityHandler = [aAuditContent](const github_capability_probe_wire_request& aWire, std::stop_token) {
 			auto response             = supported_capability_response();
-			response.Body             = R"({"errors":[{"message":"Unknown schema field newField","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})";
+			response.Body             = aAuditContent ? R"({"errors":[{"message":"private source canary alpha runtime-only-fixture-secret","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})" : R"({"errors":[{"message":"Unknown schema field newField","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})";
 			const std::string secret  = "runtime-only-fixture-secret";
 			const auto        summary = sanitize_capability_error(response.Body, std::as_bytes(std::span{ secret }));
 			return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response), .Summary = summary };
@@ -1662,6 +1662,7 @@ namespace {
 		const auto& detail = log->Events[log->Events.size() - 2U];
 		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value() && detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "provider forwards only sanitized useful detail with request and status");
 		expect(log->Events.back().Outcome == application::diagnostic_outcome::failed, "failure terminal remains explicit");
+		return detail.Summary.text().find("private source canary") == std::string_view::npos;
 	}
 	void test_pull_request_attempt_diagnostic_propagation()
 	{
@@ -1682,8 +1683,8 @@ namespace {
 				   && error.LastReadOperation == application::diagnostic_paged_operation::get_repository
 				   && !error.ValidationError,
 			   "provider terminal carries last attempted page despite absent HTTP response");
-		expect(std::ranges::none_of(log->Events, [](const auto& event) {
-				   return event.Operation == application::diagnostic_operation::pull_request;
+		expect(std::ranges::none_of(log->Events, [](const auto& aEvent) {
+				   return aEvent.Operation == application::diagnostic_operation::pull_request;
 			   }),
 			   "transport failure invents no response_received event");
 	}
@@ -2038,12 +2039,12 @@ namespace {
 			provider_fixture fixture{ application::github_authentication_transport::github_cli };
 			fixture.Factory->CliEnabled    = true;
 			bool changed                   = false;
-			fixture.Transport->ReadHandler = [&](const github_wire_request& wire, std::stop_token) -> github_wire_completion {
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
 				auto response = viewer_response();
 				if (changed) {
 					response.Body = R"({"id":1001,"login":"renamed","name":"Changed","node_id":"U_other"})";
 				}
-				return github_wire_success{ .Correlation = wire.Correlation, .Response = std::move(response) };
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 			};
 			auto  viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
 			auto& success = std::get<application::github_viewer_success>(viewer);
@@ -2328,11 +2329,16 @@ namespace {
 
 }
 
-int main()
+int main(int aArgc, char** aArgv)
 {
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
+		const auto safe = test_sanitized_provider_logging(true);
+		std::cout << "provider-content-audit content_retained=" << !safe << '\n';
+		return safe ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 	test_window_read_authentication_provenance();
 	test_personal_discovery_entry();
-	test_sanitized_provider_logging();
+	static_cast<void>(test_sanitized_provider_logging());
 	test_pull_request_attempt_diagnostic_propagation();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();

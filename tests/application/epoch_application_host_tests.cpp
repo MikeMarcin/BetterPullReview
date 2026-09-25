@@ -3217,10 +3217,17 @@ namespace {
 				expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) { return aEvent.Operation == application::diagnostic_operation::epoch && aEvent.Outcome == application::diagnostic_outcome::failed && aEvent.EpochStage == expectedStage && aEvent.EpochFailure == expectedFailure && aEvent.Summary.text().empty(); }), "exact typed stage failure is recorded without raw details");
 			}
 		}
-		auto    log = std::make_shared<recording_epoch_log>();
-		fixture value{ { }, log };
-		establish_ready_comparison(value);
-		expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.Outcome == application::diagnostic_outcome::succeeded; }), "successful preparation still yields exact comparison and stage evidence");
+		for (const auto sinkStatus : { status::available, status::unavailable, status::full, status::dropped, status::closed }) {
+			auto log    = std::make_shared<recording_epoch_log>();
+			log->Status = sinkStatus;
+			fixture value{ { }, log };
+			establish_ready_comparison(value);
+			expect(std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 1, "each log status preserves the one durable catalog commit");
+			expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.Outcome == application::diagnostic_outcome::succeeded; }), "successful preparation still yields exact comparison and stage evidence");
+			value.Host->shutdown();
+			drain(value);
+			expect(value.Host->is_quiescent(), "log refusal cannot suppress orderly terminal drainage");
+		}
 	}
 
 	void successful_append_preserves_exact_order()

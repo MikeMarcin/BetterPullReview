@@ -7,7 +7,10 @@
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <atomic>
 #include <barrier>
+#include <charconv>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -31,6 +34,110 @@ namespace {
 		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aPath), "test owner creates private root before logger admission");
 		return std::filesystem::canonical(aPath);
 	}
+
+	// Opt-in acceptance probe: a nonzero result preserves the open BPR-0971
+	// finding without treating the present retention policy as a regression contract.
+	auto audit_content_policy(const std::filesystem::path& aRoot) -> int
+	{
+		using namespace bpr;
+		adapters::logging::quill_log log{ aRoot };
+		const std::string            credential = "synthetic-active-credential";
+		const std::array             bodies{
+			R"({"errors":[{"message":"private source canary alpha synthetic-active-credential"}]})",
+			R"({"errors":[{"type":"private source canary beta"}]})",
+			R"({"errors":[{"extensions":{"type":"private source canary gamma"}}]})",
+			R"({"errors":[{"extensions":{"code":"private source canary delta"}}]})"
+		};
+		for (const auto* body : bodies) {
+			const auto summary = adapters::github::detail::sanitize_capability_error(body, std::as_bytes(std::span{ credential }));
+			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 200U, .Summary = summary }) == application::diagnostic_log_status::available, "content audit reaches the real diagnostic sink");
+		}
+		log.close();
+		const auto bytes    = read(aRoot / "logs/diagnostics.log");
+		const auto exported = application::prepare_release_diagnostics(bytes, core::release_maintenance_revision{ 1U });
+		expect(exported && exported->Descriptor.Records == bodies.size(), "content audit reaches the actual export classifier");
+		const bool credentialRetained = bytes.find(credential) != std::string::npos;
+		const bool contentRetained    = bytes.find("private source canary") != std::string::npos;
+		const bool exportRetained     = exported->Bytes.find("canary") != std::string::npos;
+		std::cout << "diagnostic-content-audit credential_retained=" << credentialRetained
+				  << " content_retained=" << contentRetained << " export_retained=" << exportRetained << '\n';
+		return credentialRetained || contentRetained || exportRetained ? EXIT_FAILURE : EXIT_SUCCESS;
+	}
+
+	void hostile_summary_limits(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		const std::string credential = "synthetic-bound-credential";
+		const std::array  bodies{
+			std::string(1024U * 1024U + 1U, 'x'),
+			std::string{ R"({"errors":[{"message":")" } + std::string(8193U, 'x') + R"("}]})",
+			std::string{ R"({"errors":[{"message":")" } + std::string(2048U, ' ') + R"("}]})",
+			std::string{ R"({"errors":[{"message":"private content canary"}],"errors":[]})" },
+			std::string{ R"({"errors":[{"message":42,"source":"private content canary"}]})" }
+		};
+		adapters::logging::quill_log log{ aRoot };
+		for (const auto& body : bodies) {
+			const auto summary = adapters::github::detail::sanitize_capability_error(body, std::as_bytes(std::span{ credential }));
+			expect(summary.text().empty() && (summary.State == application::diagnostic_summary_state::omitted_limit || summary.State == application::diagnostic_summary_state::omitted_invalid), "oversized or malformed summary has only an omission reason");
+			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Summary = summary }) == application::diagnostic_log_status::available, "omitted summary reaches the real diagnostic file without raw fallback");
+		}
+		log.close();
+		const auto bytes = read(aRoot / "logs/diagnostics.log");
+		expect(bytes.find("canary") == std::string::npos && bytes.find("xxxxxxxx") == std::string::npos, "malformed and oversized source is absent from retained diagnostics");
+	}
+
+	void stress_loss_reporting(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		using clock                               = std::chrono::steady_clock;
+		using status                              = application::diagnostic_log_status;
+		constexpr std::uint64_t      maximumBytes = 256U * 1024U * 1024U;
+		adapters::logging::quill_log log{ aRoot, maximumBytes };
+		std::atomic<std::uint64_t>   dropped{ 0U };
+		std::barrier                 ready{ 8 };
+		std::vector<std::jthread>    writers;
+		writers.reserve(8U);
+		const auto started = clock::now();
+		for (std::size_t writer = 0U; writer < 8U; ++writer) {
+			writers.emplace_back([&] {
+				auto event = application::diagnostic_event{ };
+				event.Summary.Text.fill('x');
+				event.Summary.Size = static_cast<std::uint16_t>(event.Summary.Text.size());
+				ready.arrive_and_wait();
+				for (std::size_t index = 0U; index < 10000U; ++index) {
+					if (log.record(event) == status::dropped) {
+						++dropped;
+					}
+				}
+			});
+		}
+		writers.clear();
+		expect(dropped != 0U, "concurrent pressure produces observed loss");
+		const auto deadline    = clock::now() + std::chrono::seconds{ 5 };
+		auto       finalStatus = status::dropped;
+		while (finalStatus == status::dropped && clock::now() < deadline) {
+			finalStatus = log.record({ .Request = 971U });
+			if (finalStatus == status::dropped) {
+				++dropped;
+				std::this_thread::yield();
+			}
+		}
+		expect(finalStatus == status::available, "diagnostic loss is followed by an admitted final summary");
+		const auto closeStarted = clock::now();
+		log.close();
+		const auto closeMs = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - closeStarted).count();
+		const auto bytes   = read(aRoot / "logs/diagnostics.log");
+		const auto marker  = bytes.find("request=971 ");
+		expect(marker != std::string::npos, "final accepted record survives ordinary close");
+		const auto    count    = bytes.find("dropped=", marker);
+		std::uint64_t reported = 0U;
+		expect(count != std::string::npos && std::from_chars(bytes.data() + count + 8U, bytes.data() + bytes.size(), reported).ec == std::errc{ }, "final record carries a numeric loss count");
+		expect(reported == dropped.load(), "every observed drop is reported exactly once after pressure subsides");
+		expect(bytes.size() <= maximumBytes, "stress preserves the configured file ceiling");
+		std::cout << "logging-stress attempts=80000 dropped=" << reported << " bytes=" << bytes.size()
+				  << " elapsed_ms=" << std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - started).count()
+				  << " close_ms=" << closeMs << '\n';
+	}
 }
 int main(int aArgc, char** aArgv)
 try {
@@ -48,6 +155,11 @@ try {
 	expect(temporary.isValid(), "temporary root");
 	const auto root = private_root(std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() });
 	const auto file = root / "logs/diagnostics.log";
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
+		return audit_content_policy(root);
+	}
+	hostile_summary_limits(private_root(root / "limits"));
+	stress_loss_reporting(private_root(root / "stress"));
 	{
 		adapters::logging::quill_log log{ root };
 		expect(log.status() == status::available, "available local sink");

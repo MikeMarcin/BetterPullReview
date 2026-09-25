@@ -39,6 +39,20 @@ try {
 	expect(temporary.isValid(), "private test root");
 	const auto root = bpr::e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "native private root before composed startup");
+	const auto scenario = aArgc == 2 ? std::string_view{ aArgv[1] } : std::string_view{ };
+	if (scenario == "--full-log") {
+		std::filesystem::create_directory(root / "logs");
+		std::filesystem::permissions(root / "logs", std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		std::ofstream full{ root / "logs/diagnostics.log", std::ios::binary };
+		full.seekp(16U * 1024U * 1024U - 1U);
+		full.put('x');
+		full.close();
+		std::filesystem::permissions(root / "logs/diagnostics.log", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
+	} else if (scenario == "--unavailable-log") {
+		std::ofstream unavailable{ root / "logs" };
+		unavailable << "synthetic logger obstruction";
+	}
+
 	bpr::app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
@@ -68,6 +82,12 @@ try {
 		expect(!app->status().DisplayedComparison, "failed cache preparation cannot display a comparison");
 		app->begin_shutdown();
 		wait_for([&app] { return app->status().ShutdownComplete; });
+	}
+	if (!scenario.empty()) {
+		expect(scenario == "--full-log" || scenario == "--unavailable-log", "known failure scenario");
+		expect(scenario == "--full-log" ? std::filesystem::file_size(root / "logs/diagnostics.log") == 16U * 1024U * 1024U : std::filesystem::is_regular_file(root / "logs"), "refused diagnostic target is unchanged after authenticated workflow and shutdown");
+		std::cout << "application-logging-failure-isolation:pass\n";
+		return EXIT_SUCCESS;
 	}
 	std::ifstream     stream{ root / "logs/diagnostics.log" };
 	const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };

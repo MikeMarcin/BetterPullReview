@@ -2609,6 +2609,10 @@ bpr_enable_hardening(test_application_logging)
 bpr_enable_warnings(test_application_logging)
 bpr_add_network_isolated_test(NAME application_logging WINDOWS_UNCONTAINED COMMAND test_application_logging)
 set_tests_properties(application_logging PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 30)
+foreach(scenario full unavailable)
+    bpr_add_network_isolated_test(NAME application_logging_${scenario} WINDOWS_UNCONTAINED COMMAND test_application_logging --${scenario}-log)
+    set_tests_properties(application_logging_${scenario} PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 30)
+endforeach()
 
 # Real normal controls, typed fake server, real SQLite; no live effects.
 bpr_add_executable(test_better_pull_review_review_submission_composition_public_path review_submission_composition_public_path.cpp)
