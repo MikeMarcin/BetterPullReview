@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1142"
 title: "Compact the per-line measurement record: a format key instead of a copied format list, compact width and height, and an in-band reuse marker"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
