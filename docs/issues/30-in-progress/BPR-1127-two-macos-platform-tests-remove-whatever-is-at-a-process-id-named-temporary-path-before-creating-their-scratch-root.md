@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1127"
 title: "Two macOS platform tests remove whatever is at a process-id-named temporary path before creating their scratch root"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
