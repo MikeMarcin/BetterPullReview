@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1131"
 title: "Document tabs in the core and the host"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
