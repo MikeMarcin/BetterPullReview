@@ -346,3 +346,108 @@ not committed.
 their rows pass. So does the syntax contract's. No root is left. The
 Windows run, which also compiles the helper's Windows branch there, is
 still owed.
+
+## Windows at `83e4ab72` (bpr-main-win, 2026-09-25): the helper compiles; the two rows inside the AppContainer are refused access to their own root
+
+**MSVC compiles `scratch_root.hpp`'s Windows branch, and four of the six rows
+pass. The two rows that run inside the AppContainer fail:** each is denied
+access to the new root it just made there.
+
+The run was in the station's main checkout at `83e4ab72`, which contains
+`ad117024`. The tree held bpr-main-win's uncommitted [[BPR-1123]],
+[[BPR-1124]] and [[BPR-1125]] edits, none of which these six rows build or
+read. Windows 11 25H2, MSVC 19.51, Qt 6.11.2.
+
+- **Build.** `build/windows-dev` (Visual Studio 18, Debug) was rebuilt with no
+  error and no compiler warning, in 16 min 17 s. So the Windows branch of
+  `make_directory_at_random_name` compiles; there is no compile finding.
+- **Rows.** The command owed above, run from a `.cmd`, at
+  2026-09-25T03:45:50Z to 03:46:01Z:
+
+| Row | Registered | Result |
+| --- | --- | --- |
+| `msvc_secure_crt_contract` | contained | pass, 0.65 s |
+| `sqlite_review_ledger_storage` | Windows-uncontained | pass, 2.27 s |
+| `sqlite_queue_enrollment_storage` | Windows-uncontained | pass, 2.16 s |
+| `sqlite_workbench_settings_storage` | Windows-uncontained | pass, 4.05 s |
+| `sqlite_appearance_settings_storage` | contained | **fail**, 0.03 s |
+| `syntax_classification_contract` | contained | **fail**, 0.23 s |
+
+The two failures, verbatim:
+
+```text
+sqlite_appearance_settings_storage:
+FAILED: unexpected exception: canonical: Access is denied.: "C:\Users\mikem\AppData\Local\Packages\bprautomatedtest\AC\Temp\bpr-appearance-7dec1f7dcbc81182"
+
+syntax_classification_contract:
+FAILED: unexpected exception: create_directories: Access is denied.: "C:/Users/mikem/AppData/Local/Packages/bprautomatedtest/AC/Temp/bpr-syntax-canary-control-hyYGyK\syntax"
+```
+
+**Why.** A contained row runs with the AppContainer's token, and its
+temporary directory is the container's own,
+`%LOCALAPPDATA%\Packages\bprautomatedtest\AC\Temp`. That directory grants
+the container's SID full control, which a new child inherits:
+
+```text
+...\AC\Temp  S-1-15-2-2501375856-1686288671-3684386043-353760509-1080245170-1858810467-2136715157:(I)(OI)(CI)(CR)(F)
+             NT AUTHORITY\SYSTEM:(I)(OI)(CI)(F)
+             BUILTIN\Administrators:(I)(OI)(CI)(F)
+             JAEGAW\mikem:(I)(OI)(CI)(F)
+             Mandatory Label\Low Mandatory Level:(I)(OI)(CI)(NW)
+```
+
+An AppContainer's access check needs the container's SID granted as well as
+the user's. The rows that pass run uncontained, with the user's own token.
+The two failures differ:
+
+- **`syntax_classification_contract`.** Its control root is now a
+  `QTemporaryDir`: the six-character suffix is Qt's. The root it left behind
+  carries an explicit list, not the inherited one. It gives full control to
+  the owner, gives read-control, synchronize and read-attributes to
+  `Everyone` and the low-integrity label, and names no container SID. So the
+  contained row cannot create `syntax` inside its own root:
+
+```text
+...\AC\Temp\bpr-syntax-canary-control-hyYGyK  JAEGAW\mikem:(OI)(CI)(F)
+                                              Mandatory Label\Low Mandatory Level:(OI)(CI)(Rc,S,RA)
+                                              Everyone:(OI)(CI)(Rc,S,RA)
+                                              Mandatory Label\Low Mandatory Level:(I)(OI)(CI)(NW)
+```
+
+- **`sqlite_appearance_settings_storage`.** Its root is the helper's
+  `bpr-appearance-<64-bit hex>`, narrowed by `make_storage_root_owner_private`.
+  That function's descriptor does name the container SID when the process
+  runs in one: `private_security::load` reads `TokenAppContainerSid`. Even so,
+  `std::filesystem::canonical` on the root is denied. The row removed the
+  root as it failed, so its list could not be read here, and which access
+  is missing is not established. Before `ad117024` the same course resolved
+  a root that inherited `AC\Temp`'s list, and the row passed on Windows at
+  `3f8f954d`.
+
+This is the case this card's plan expected might fail: a course that relied
+on the temporary directory's inherited access list. It is not a
+portability slip, so nothing was changed here. Next steps for the owner:
+
+- read the appearance root's list at the moment `canonical` is denied, with
+  [[BPR-1121]]'s no-unwind trial;
+- make the syntax control root in a way that grants the container SID, for
+  example with the shared helper.
+
+**Leftovers.** Checked before and after, by the five prefixes, in `%TEMP%`
+and in the container's temporary directory:
+
+- `%TEMP%`: no `bpr-appearance-`, `bpr-queue-`, `bpr-workbench-` or
+  `bpr-syntax-canary-control-` entry. There are 77 `bpr-ledger-preflight-*`
+  directories, the same 77 before and after the run. They are dated
+  2026-08-18T18:42 to 2026-09-23T20:49 and are made by the product's review
+  ledger preflight (`src/adapters/sqlite/src/review_ledger_database.cpp:910`),
+  not by these rows, whose roots have no `preflight-` part. They are recorded
+  here and were left alone.
+- `AC\Temp`: **`bpr-syntax-canary-control-hyYGyK`**, left by the failed
+  syntax row, empty, with the narrowed list above. It was removed afterwards
+  by its exact name. The failed appearance row left no
+  `bpr-appearance-` root there. The only other entry, `qt_temp-dxnvpP`,
+  dates from 18:35, before the run, and was left alone.
+
+The card stays In Progress. The logs are station records under
+`build/logs/bpr-1126-main-win/`, not committed.
