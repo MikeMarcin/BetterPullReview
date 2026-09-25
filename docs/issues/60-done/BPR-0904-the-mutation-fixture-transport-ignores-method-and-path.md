@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0904"
 title: "The mutation fixtures' transport ignores method and path, so no row can fail a wrong request URL"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-007 scout, surveying BPR-0896","found_at":"424a64cc","run":"run-20260916-stations","dispatch":"dsp-007","milestone_plan":{"id":"bpr-0904-request-shapes","path":"docs/rfcs/plans/bpr-0904-request-shapes/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1 Wrong request path fails a row, then restoration passes","outcome":"pass","revision":"9df1255df0a9733891aca44fdb0207da95fb28fa","evidence":{"kind":"command","detail":"Temporarily compiling GET /users made both observe_then_immediate_revalidate_then_submit and dispositions_and_old_reviews exit 1 at unscripted request #2. Compiler restored byte for byte; final focused CTest 5/5 pass."}},{"criterion":"AC2 Every review_mutation_operation has an independent exercised request-shape pin","outcome":"pass","revision":"9df1255df0a9733891aca44fdb0207da95fb28fa","evidence":{"kind":"command","detail":"All 11 enum values: exact methods and GitHub.com/GHES paths, plus kind/name for five GraphQL operations. Exactly one compiled fixture per pin/server. Appended unpinned probe enum fails the contract TU at expected_request_shape with -Werror,-Wswitch; restored."}},{"criterion":"AC3 Measured row impact is recorded","outcome":"pass","revision":"9df1255df0a9733891aca44fdb0207da95fb28fa","evidence":{"kind":"command","detail":"Historical keyed conversion: 0/20 existing in-process rows and both restart courses broken. Current 24 rows (21 mutation, 3 submission) pass individually using canonical private TMPDIR; 0 request-shape failures, no fixture answers changed. Baseline and final focused CTest 5/5 pass. Initial standalone submission root precondition failures recorded."}},{"criterion":"AC4 Egress validator guarantee is accurate","outcome":"pass","revision":"9df1255df0a9733891aca44fdb0207da95fb28fa","evidence":{"kind":"command","detail":"Header, round-trip contract, current card diagnosis and transport comments state canonical consistency and compiler/provenance limitations. No product behavior changed; submission negative control reaches unscripted refusal after canonical comparison passes."}},{"criterion":"Documentation and style","outcome":"pass","revision":"9df1255df0a9733891aca44fdb0207da95fb28fa","evidence":{"kind":"command","detail":"DOCUMENTATION_OK and 64 documentation regression tests pass with installed MASK helper PYTHONPATH. Format and git diff --check pass; focused clang-tidy exits 0, five displayed pre-existing header warnings, no changed-code findings."}}]
 ---
 
 # BPR-0904: The mutation fixtures' transport ignores method and path, so no row can fail a wrong request URL
@@ -43,12 +44,14 @@ reconciliation derived from a mutation's own path — is unpinned. [[BPR-0896]]
 is what that costs: a request that no real server can answer, on the operation
 a reviewer uses most, sitting in a suite that was green throughout.
 
-There is a second layer to it. `validate_outbound_review_mutation_request`
-(`src/adapters/github/src/github_mutation_contract.cpp:1424-1462`) exists to
-catch exactly this class of fault on egress, but it validates by **recompiling
-the canonical form and comparing**. When the compiler is wrong the canonical
-form is wrong in the same way, so the malformed request passes its own
-self-check. A validator that reproduces the thing it validates cannot fail.
+There is a second limitation. `validate_outbound_review_mutation_request`
+checks **canonical consistency by recompiling and comparing**. It can reject
+wire fields that disagree with the supplied semantic request and compiler;
+it cannot independently detect a defect shared with that compiler. When the
+compiler constructs the wrong endpoint, the same wrong endpoint passes this
+check. It also does not prove that the supplied semantic request was unchanged
+or authorized. The original spike's broader statement that this check cannot
+fail was overstated; the compiler-defect blind spot is the defect here.
 
 ## Scope
 
@@ -272,3 +275,70 @@ Three changes touch this card's surface:
   how this transport is keyed.
 
 Nothing in this card's own scope was chosen or closed by that work.
+
+## Execution record
+
+### Chosen and verified, 2026-09-25 — assignment-r1
+
+The independent BPR-0904 assignment from the coordinator adopts the bounded
+[request-shape plan](../../rfcs/plans/bpr-0904-request-shapes/milestone-plan.json)
+on branch `codex/bpr-0904-request-shapes`, based on
+`9a0b44d56ab645de10afffd7e69a4ca0a3fe8891`. Implementation candidate:
+`9df1255df0a9733891aca44fdb0207da95fb28fa`.
+
+**Decision: retain the keyed transports already landed by dsp-009.** The
+mutation suite keeps a FIFO per method/path/GraphQL-name key; the submission
+suite keeps its stateful server handlers behind the same independent keys.
+No transport behavior changed in this slice. The historical conversion cost
+remains exactly 0 of 20 pre-existing in-process rows and both restart courses.
+The current surface is 24 rows: 21 mutation and 3 submission, all passing
+individually with `--only` under a private canonical `TMPDIR`. The five focused
+CTest courses pass both before this slice and on the final candidate, including
+both restart drivers. Current request-shape failures: 0 of 24 rows; no row's
+scripted answers needed repair. The first direct submission runs failed at
+`submission store opens` under macOS's symlinked default temporary path; using
+the canonical private root supplied the same precondition as CTest, and all
+three passed. This was a harness precondition, not a request-shape failure.
+
+**Every operation is independently pinned and exercised.**
+`expected_request_shape` in `github_mutation_contract_tests.cpp` exhausts the
+actual `review_mutation_operation` enum without a default. For both server
+contracts, the exchange course compiles and checks each of its 11 operations
+against independent literal method/path expectations; the five GraphQL
+operations additionally pin the document kind and exact operation name. The
+course scans the enum's entire uint8 range and requires exactly one compiled
+fixture for every pin. A new enum value without a switch case is a build error;
+a new pin without a compiled fixture fails the course. No operation is omitted.
+
+The earlier unused-answer suggestion is deliberately not implemented. Refusal
+courses may prepare answers beyond the phase they are meant to stop at, and
+the submission transport is a stateful server with four available handlers.
+Only consumed answers demonstrate request shape. Exhaustive compiled-fixture
+coverage supplies the missing per-operation proof without making unused
+answers a new fixture error. Both transport comments now state that limit.
+
+**Negative controls.** Temporarily changing the compiler's viewer path from
+`/user` to `/users` made `observe_then_immediate_revalidate_then_submit` and
+`dispositions_and_old_reviews` exit 1 at
+`FAILED: unscripted request #2: GET /users (operation observe_viewer, body empty)`.
+The submission transport's preceding canonical-consistency assertion still
+passed, directly demonstrating that limitation. The compiler source was
+restored byte for byte and all three targets rebuilt; the five focused courses
+then passed. Separately, appending `bpr0904_unpinned_probe` to the enum and
+syntax-checking the contract test failed at `expected_request_shape` with
+`-Werror,-Wswitch`. The enum was restored byte for byte. The first expanded
+GHES matrix failed because its whole-review fixture still named the GitHub.com
+server; the final helper now binds every fixture to the selected server.
+
+**Egress guarantee.** Keep the existing function and behavior as a canonical
+consistency check. A second hand-maintained product compiler would duplicate
+the same assumptions without an independent server oracle. The header and
+[round-trip contract](../../architecture/review-round-trip.md) now explicitly
+state that the check detects disagreement with compilation, not compiler
+correctness, original semantic provenance or authorization. Independent wire
+expectations and fixture refusal supply the request-shape evidence. No live
+GitHub request, native transport qualification or new human acceptance is
+claimed.
+
+The [checkpoint](../../verification/BPR-0904.md) records commands, exact
+candidate, remaining ownership and integration handoff.
