@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -56,10 +56,24 @@ remain unattributed and cannot inherit a login. Both switch directions, restart,
 offline Resume and delayed old-account completion are exercised through safe
 composition. This is partial AC2 evidence and a bounded AC3 repair; the canonical
 acceptance criteria are unchanged and unfinished. The
-[current handoff](../../rfcs/plans/bpr0969-offline-inventory/recent-identity-handoff.json)
+[Recent slice handoff](../../rfcs/plans/bpr0969-offline-inventory/recent-identity-handoff.json)
 retains the exact candidate, verification and remaining obligations.
 
-Next, define the durable snapshot/admission/freshness contract needed for
-cached-review restart. Existing retained Git/catalog records must not grant
-offline account authority. Reuse relevant passing evidence with its actual
-input limits.
+The [durable overview slice](../../verification/BPR-0969-durable-overview-2026-09-25.md)
+under `r4-standalone-durable-snapshot-20260925` persists bounded overview metadata
+from accepted reads. After current-process authentication, a transport-failed
+open can display the exact account/destination's retained overview with unknown
+freshness and exact base/head IDs. It creates no accepted snapshot, source,
+conversation, epoch or mutation authority. Actual process restart, corrupt-store
+refusal, account/destination isolation and reconnection use safe composition;
+core/host controls cover cancellation and stale identity. The canonical AC2/AC3
+remain unfinished and this card returns to Backlog. The
+[current handoff](../../rfcs/plans/bpr0969-offline-inventory/durable-snapshot-handoff.json)
+binds candidate, verification, scope limits and the next action.
+
+Next, design current offline account admission without treating a saved credential,
+Recent row or retained Git/catalog identity as present authority. Complete durable
+source/conversation snapshots and exact changed-revision recovery under that
+contract. Preserve unavailable versus observed-empty data and reconnect to server
+truth. No disconnected authentication, native/human acceptance or full cached-review
+mode is claimed by the overview slice.

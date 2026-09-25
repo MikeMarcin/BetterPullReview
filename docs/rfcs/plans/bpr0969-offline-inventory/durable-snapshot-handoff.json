@@ -1,0 +1,259 @@
+{
+  "schema": "bpr0969.durable-snapshot-handoff.v1",
+  "assignment": "/root/bpr0969_durable_snapshot; bounded durable overview, admission and freshness milestone",
+  "mandate_revision": "r4-standalone-durable-snapshot-20260925",
+  "owner": "/root/bpr0969_durable_snapshot",
+  "status": "Four bounded exits complete; canonical AC2/AC3 unfinished; BPR-0969 returned to Backlog. Exclusive writer released with final handoff.",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0969-durable-snapshot",
+  "branch": "main",
+  "baseline": "0810d10e53510baf011deced3330aebfda2d9b12",
+  "source_candidate": "7da4f8f3b316668180bdd122b5fafbebf74c7e67",
+  "checkpoint_revision": "0810d10e53510baf011deced3330aebfda2d9b12",
+  "documentation_commit": "The explicit documentation-only commit containing this handoff records final tracker and verification state. Runtime evidence binds the source candidate above.",
+  "completed_commits": [
+    "c038cf35e5b03cbbf60565ca8f25251573d95742",
+    "0cf4dbffedf2cf351c04dcf4d46c0efb9ed8d413",
+    "220e2b1962321e381ef9a51febccf520dca5e221",
+    "7da4f8f3b316668180bdd122b5fafbebf74c7e67"
+  ],
+  "selection": "coordinator-implementer revision 2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "host_load": "not_verified",
+    "inherited_preflight": "incomplete / state.drift / host_load=not_verified. No MASK/tool-state repair or readiness/observed-serving claim."
+  },
+  "product_change": "Validated accepted reads optionally persist bounded historical overview metadata, exact host/account/destination and numeric/revision evidence. Core admission after current authenticated transport-failed read, worker-only SQLite effects, decision-lane stale/cancellation checks, explicit Qt unknown-freshness/unavailable presentation. No cached accepted snapshot, epoch, source, conversation or mutation authority. Profile purge includes the store.",
+  "changed_source_paths": [
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/sqlite/CMakeLists.txt",
+    "src/adapters/sqlite/include/bpr/adapters/sqlite/cached_review_overview_store.hpp",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp",
+    "src/app/src/github_application.cpp",
+    "src/application/include/bpr/application/cached_review_overview_port.hpp",
+    "src/application/include/bpr/application/github_projection.hpp",
+    "src/application/include/bpr/application/github_window_read_host.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/core/CMakeLists.txt",
+    "src/core/include/bpr/core/cached_review_overview.hpp",
+    "src/core/src/cached_review_overview.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/core/github_window_read_tests.cpp",
+    "tests/end_to_end/offline_inventory_contract.py",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp",
+    "tests/sqlite_contract/CMakeLists.txt",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp",
+    "tests/sqlite_contract/release_maintenance_files_tests.cpp"
+  ],
+  "source_hashes": {
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp": "72d55671aea1efbb589d317fe61b0d07ba8b445764a06f426a156c8d12134c70",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "8d5a4c39c0be0eaded7dfa32edf7bc5570942338ad5ae3683a28d4e8171e8f8e",
+    "src/adapters/qt/src/pull_request_overview_page.cpp": "07be3f65190fa307dd9f154a335a2781f6fc01e2655f83fa10066fc81444c18c",
+    "src/adapters/qt/src/workbench_window.cpp": "ee5386d3fe72b9fa5f652ba8d3d5f5e7f82cfe5aacac4908063cf6a890326ba3",
+    "src/adapters/sqlite/CMakeLists.txt": "3ac8097fa28a8057d50bfcbf5a3c36caf5a53b1eaee399f17c458248b97d1672",
+    "src/adapters/sqlite/include/bpr/adapters/sqlite/cached_review_overview_store.hpp": "ebd20b3763072e67b08d1b2b22342bda55101fe36e20d9256fdf801418f6845b",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp": "a2bc8317c4dfe8b7253aa0b40d81e9af2508f9a8bb91add48456cf056b2d115d",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp": "dc525c731dee4124a6bf458c633b07fdfb80de549904378295a3cd9bd3fdec93",
+    "src/app/src/github_application.cpp": "3c8bf2e71451cbc7883953b30a08e2e1a9a748ce08d91bebf67a0c728a447257",
+    "src/application/include/bpr/application/cached_review_overview_port.hpp": "6e3f69636966e3c12cab88068cd4a09d2041d5681770d3702b51ef785e4eb97f",
+    "src/application/include/bpr/application/github_projection.hpp": "3010df0cb6153b1ad541ffb267a8b7fea1c4f26cfb4009357c13748159cb8c7b",
+    "src/application/include/bpr/application/github_window_read_host.hpp": "e8e2e00843cee609d1b0462ae53fac46c06c87624e2344050e04673d4f871cad",
+    "src/application/src/github_window_read_host.cpp": "b114a7108124448808cb89667fe1a3cc57929d9f4d16067844242acab56dd7c2",
+    "src/core/CMakeLists.txt": "530db5265a7ef3c1d1b84b631e0f693155872ffa67460a9cfbdb802d94e1f688",
+    "src/core/include/bpr/core/cached_review_overview.hpp": "f077d1db8a7876fb84e8df7ef7795c4eeed1225e78dd8f2bf41a84c55790cb69",
+    "src/core/src/cached_review_overview.cpp": "f5b046d033acdecbe98b602a505fc109401af2cecc5b1ae53911d07868a83066",
+    "tests/application/github_window_read_host_tests.cpp": "cf5a1e4e1d3f56906146640bfc047763f0d14c5c7f24d58b9159cf531f7f577a",
+    "tests/core/github_window_read_tests.cpp": "ab1e7541cce34f856be528aaab28fc4b6f3403c28942f9765e8e88a44296730f",
+    "tests/end_to_end/offline_inventory_contract.py": "f408cc61072c2b8f64358c02b7892b9ee5cd1438f5790c2b57d350004ee9500c",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp": "3de55d5782477a2421d9caac5b15e233ccd7ca3ab2ff1b45f7fa5baf59975d02",
+    "tests/sqlite_contract/CMakeLists.txt": "7f11b0d55fbc0fb7e9937eeb619e38f5ad2a71c14118590bcfa78fc2f4c3af53",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp": "7c762bbb1ab01e84a65bfbf8947292f5ce5ec2c8cc77714d90eddfeeaf9662d6",
+    "tests/sqlite_contract/release_maintenance_files_tests.cpp": "0e42ab257d1eb9da0b1d22beed91e3a0f6812de3381b208cf19764a6b340d4ee"
+  },
+  "executable": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/offline_inventory_public_path",
+    "sha256": "7e45006bd71f500b4402646a18ab3e4cac4b5188ca82cef545a1637ddb3b9f8b"
+  },
+  "verification": {
+    "final_source": "7/7 pass in 95.08s against rebuilt 7da4f8f3; inventory 30.35s and account isolation 60.98s.",
+    "integration_before_cast_only_correction": "9/9 pass in 222.60s at 220e2b19; unchanged architecture boundaries 24.64s / contract 101.82s reused.",
+    "core_only": "Configure/build plus core and both architecture tests 3/3 pass 126.80s; core bytes unchanged in final SQLite cast correction.",
+    "network_manifest": "1/1 pass 6.68s.",
+    "failing_before": "Original 0810d10 product/CMake with new public assertion fails in 19.42s at cached Overview visibility after restart. Baseline product bytes restored; task backup deleted after source commit.",
+    "negative_controls": "Cancelled cache completion, stale identity, permission error, foreign key/numeric identity, malformed/oversized records, unknown schema/digest corruption, eviction, COMMIT-wins-late-cancellation, shutdown; actual separate corrupt-store process refuses Overview then reconnects.",
+    "rendered": "Final cached account 910001 Overview raster inspected; unknown freshness plus source/conversations unavailable and disabled review entry. Corrupt-store Home raster inspected. Exact base/head asserted. macOS arm64 Qt offscreen; no human/native compositor verdict.",
+    "format": "19 touched C++ files pass clang-format 23.1.1; git diff --check pass.",
+    "tidy": "New core policy and SQLite serializer pass clang-tidy warnings-as-errors after explicit unsigned byte shift correction; 8 suppressed non-user warnings.",
+    "documentation": "DOCUMENTATION_OK; 64/64 regression tests pass in 1.834s; scoped board valid, 1,186 cards.",
+    "self_review": "Reviewed exact authority fingerprint/current request admission, provisional versus accepted data, bounded serialization/eviction/integrity, durable COMMIT, worker lifetime and outstanding drain, cached Home/foreign-destination clearing, purge inclusion, and unchanged live snapshot/source semantics.",
+    "checkpoint": "Shared consistency checker: action=stop, engineering_acceptance=not-evaluated. AC3 pending; four bounded exits pass; return at assigned boundary. No whole-card acceptance.",
+    "final_rows": [
+      {
+        "test": "core_github_window_read",
+        "seconds": 0.05,
+        "result": "pass"
+      },
+      {
+        "test": "application_github_window_read_host",
+        "seconds": 0.06,
+        "result": "pass"
+      },
+      {
+        "test": "sqlite_release_maintenance_files",
+        "seconds": 0.38,
+        "result": "pass"
+      },
+      {
+        "test": "sqlite_cached_review_overview",
+        "seconds": 0.27,
+        "result": "pass"
+      },
+      {
+        "test": "qt_composed_github_scale_100",
+        "seconds": 2.98,
+        "result": "pass"
+      },
+      {
+        "test": "application_offline_inventory",
+        "seconds": 30.35,
+        "result": "pass"
+      },
+      {
+        "test": "application_recent_account_isolation",
+        "seconds": 60.98,
+        "result": "pass"
+      }
+    ],
+    "integration_rows": [
+      {
+        "test": "architecture_boundaries",
+        "seconds": 24.64,
+        "result": "pass"
+      },
+      {
+        "test": "architecture_boundary_contract",
+        "seconds": 101.82,
+        "result": "pass"
+      },
+      {
+        "test": "core_github_window_read",
+        "seconds": 0.06,
+        "result": "pass"
+      },
+      {
+        "test": "application_github_window_read_host",
+        "seconds": 0.06,
+        "result": "pass"
+      },
+      {
+        "test": "sqlite_release_maintenance_files",
+        "seconds": 0.09,
+        "result": "pass"
+      },
+      {
+        "test": "sqlite_cached_review_overview",
+        "seconds": 0.07,
+        "result": "pass"
+      },
+      {
+        "test": "qt_composed_github_scale_100",
+        "seconds": 3.47,
+        "result": "pass"
+      },
+      {
+        "test": "application_offline_inventory",
+        "seconds": 31.44,
+        "result": "pass"
+      },
+      {
+        "test": "application_recent_account_isolation",
+        "seconds": 60.93,
+        "result": "pass"
+      }
+    ]
+  },
+  "commands": [
+    "cmake --build --preset dev --target test_offline_inventory_public_path test_better_pull_review_application_github_window_read_host_tests test_better_pull_review_github_window_read_tests test_cached_review_overview_storage test_release_maintenance_files test_better_pull_review_qt_github_tests",
+    "cmake --build --preset dev --target test_offline_inventory_public_path test_cached_review_overview_storage test_release_maintenance_files",
+    "BPR_OFFLINE_RENDER_DIR=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0969-durable-snapshot ctest --preset dev -R '^(application_offline_inventory|application_recent_account_isolation|sqlite_cached_review_overview|sqlite_release_maintenance_files|core_github_window_read|application_github_window_read_host|qt_composed_github_scale_100)$' --output-on-failure",
+    "ctest --preset dev -R '^test_network_isolation_manifest$' --output-on-failure",
+    "cmake --preset core-only",
+    "cmake --build --preset core-only --target test_better_pull_review_github_window_read_tests",
+    "ctest --preset core-only -R '^(core_github_window_read|architecture_boundaries|architecture_boundary_contract)$' --output-on-failure",
+    "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/core/src/cached_review_overview.cpp src/adapters/sqlite/src/cached_review_overview_store.cpp",
+    "python3 scripts/verify_documentation.py --root .",
+    "python3 tests/scripts/verify_documentation_tests.py"
+  ],
+  "runtime_evidence_hashes": {
+    "baseline.log": "42d84449476d6576f27bdf19c8d6c2f817e418c3629a78eb6931d88afa9fd37f",
+    "board-validation.json": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24",
+    "build-before.log": "ad746d3162fb3c6a9d3bac25d56a91f6dfa84dd8d96b9ef3495e006e8e66f88d",
+    "build-core.log": "2cf67f1692a03f193f377f42eb2c251255050cb037afac86ab4aac276d670e6e",
+    "build-course.log": "eb4a6590961bf73dad1745865676fafbf98acc1534650d994ae8f0cc851c5cb6",
+    "build-first.log": "b68f5747d93ce256db6510e380b0c925fcf3ca26be3a1b2b491ca33e6d7e464f",
+    "build-host.log": "df61fa83c5c5a3c67289c96c559fb57f5fca7ea45f1eb8facd5e7fc6ee4d1ed9",
+    "build-presentation.log": "47f9de10775922ec77bdab2292b2dac28b972f56047818ece2ff5c597b537fae",
+    "build-second.log": "48bae53cf64e4ba2529c83d8d2b3ac4f760895664e56d257a5ca380b650536ca",
+    "build-storage-final.log": "1956ba24822e7238ea02e877d3a4b18e261eab075c31e1eda569f6d631c63813",
+    "build-storage.log": "ee0a2134cdf9a72d8a531def5fb1abaa3ab18188129c614bec5be76e9c274b37",
+    "candidate-build.log": "e224e30030a77be6098b89427b73f426b9be24835b24745603532cdfb1659231",
+    "candidate-rebuild.log": "a991d4f526649091e8469adae112112eea6d9f9cb7320f36f1fd2e10989e6dc8",
+    "core-build.log": "2fbde14182b231c33b6fa7bfd590978b8ac3d0a3062c3bcfa96aeaa75c3ff32f",
+    "core-configure.log": "fe1451c3cd405023ec8b69f15acf5cb0ba234e36458f02a78f50e2c667e0f910",
+    "core-verification.log": "5f12ffbad8864be141b95e52858f1a8a6ef0a6873c3906872d9d144706fa9062",
+    "course-first.log": "854d8c39941651d7e021a7abeb31a39f327aef786c432adeb7449c1c8ba35b49",
+    "course-second.log": "ab56124a97b2990b558ce2cb1d392de127d9d24ee3421a240421899d26355f7f",
+    "docs-tests.log": "d5a07e8cb704d92e077fd318c622b07d8ff7ff3ea3007226bf1f69b1468eba2b",
+    "docs.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+    "exact-candidate-integration.log": "55a88fd048d27ccd84b525a41b167eb68e9a8e92d94282e0e67f1c7f16d2219c",
+    "failed-refresh.png": "9b1568e97b17becf820d5893bfe032237c58c497afd753bf80fe462e8fa4171c",
+    "failing-before.log": "21202b32e99096b2f939a0b343314f16488d352af2fe3cf8ebd6465cff96f5ee",
+    "final-source-build.log": "87b81745f45ac95516a23327a7c4dbb614a4c33e946d624bd2dad66902209fd7",
+    "final-source-verification.log": "14692ac7ed31a779ba29d271324c08f4c931dc7514b6572076a081dc313dcd63",
+    "format-check.log": "b89674db30a2cc87dd5b6a2f39408ea4efcbfb035dcddd7cf23755b95b12e0dd",
+    "identity-legacy.png": "f7bdfec30a8c036805a9bcd224bc6014a66f5b612c2c50bf7f436daba797a2ea",
+    "identity-other-account.png": "349df5ca886146fa337eb8f34c438943ebbb6fb106fdfa3cfa7b71df4614edbf",
+    "identity-second-account-offline.png": "440a5126e4bc6ee065659266e848c45875251da541b37a26f62432f0164c6557",
+    "layers-final.log": "d36c533845cded7895dba10015c02378e0540c9c5ef0f6f35e37ed31c2df164c",
+    "layers-first.log": "16b38979101eec34955e0f3bb661bf2feaed9e05165bbaa16f20d56c3fab574f",
+    "network-manifest.log": "bf4e6e7178b8693f1a3299f9fa1536695551a33f2505648e1ee630f3138c43c8",
+    "online-seed.png": "886817e27b32d8c60b4ec480abc0e4d455ebe51c5342fb208c70a406ae8efe7f",
+    "other-repository-offline.png": "50dcf7349146cfbd27ce48bb0a6473424a71c01ae81e19892bc2a180453a87fd",
+    "refresh-reconnected.png": "9a5cd2cf6236506afb750d1bb998ed23b31caf18d095e389689a8f7924741238",
+    "restart-corrupt-offline.png": "01ac06b38618de96e7e83ca20788f10058a41cdc1b2150a0ee29de6c707c2a5b",
+    "restart-offline.png": "9c4a748e0e2e02d48cd8d40cc54e1b1fafba0f8deb2446d3b1b769fd31e26cb8",
+    "restart-read-offline.png": "e75e9e78d6feea4b3ddd99d2545c803244c97fe093be33903981b1b7922ee9d8",
+    "restart-reconnected.png": "74ab571ac5f637006f830c29dac9007aa0f57e9f0428896308c6d13bfc083d8f",
+    "storage-first.log": "761620f2cd6d3616dcaf6ef10e06943d5c7487609600d84f34c0ab8211dcfe4c",
+    "tidy-final.log": "019bbb1cde1ac0be447ee79298e7736d6bafb44b3d9e2f3d686b454670e8d2ae",
+    "tidy.log": "7bd6abaf8a58fa9a7dbf91f7b04ed65002ac92aa41e4cd0bde6703fbbb0eb649",
+    "worktrees.txt": "670ec5b5e150a1e47f999b09b9b6fdbf3824982c76dfdfd0c8d45355e9e175ca",
+    "docs-final.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+  },
+  "pending": [
+    "Canonical AC2/AC3 and full cached-review mode remain unfinished.",
+    "Disconnected startup authentication/admission: current-process authenticated /user remains required. Never infer current account authority from cached credential/Recent/Git/overview.",
+    "Durable source/file catalogs/conversations, unavailable versus observed-empty semantics, and complete changed-base/head restart recovery.",
+    "A locator-only historical overview cannot establish current numeric repository ownership after rename/reuse or current permission; existing rows are not deleted on denial.",
+    "Cache is optional: one pending save per window may skip later accepted observations; record is previously persisted, not guaranteed newest.",
+    "Native human/compositor/accessibility and Windows/Linux evidence deferred; broader crash/concurrency/platform cases not claimed."
+  ],
+  "next_action": "Coordinator may push committed slices after writer release. A separately assigned milestone should define disconnected account admission and then full exact-revision source/conversation snapshot composition; preserve canonical unfinished criteria and existing evidence limits.",
+  "review_handoff": {
+    "new_session": null,
+    "required_human_evidence": "pending",
+    "protected_rfc0052": "Existing candidate/session/server/waiter untouched; no copied acceptance and no review interpretation."
+  },
+  "ownership": {
+    "exclusive_writer_released": "On this leaf final report; no more repository writes afterward.",
+    "task_commands": "All task build/test/format/tidy commands collected; no task processes, servers, agents or worktrees remain. Final documentation/check helper operations are synchronous.",
+    "other_writers": "No other writer authorized while this milestone held main. Other worktrees inventoried read-only and untouched.",
+    "cleanup": "Removed task-owned baseline product backup and adopted proposal; private temporary application roots self-cleaned. Ignored safe logs/rasters retained.",
+    "push": "None; coordinator owns push after release."
+  }
+}

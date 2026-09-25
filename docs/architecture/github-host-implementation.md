@@ -1702,6 +1702,39 @@ the sign-out interval before the old accepted model is released. Legacy
 unattributed entries cannot acquire a current account merely by loading. This
 changes restoration metadata admission, not Git/cache or epoch authority.
 
+BPR-0969 also retains a bounded historical overview in profile-private
+`state/v1/review-overviews.sqlite3`. Only a validated provider observation
+accepted by the core can schedule a save. A serial host effect performs the
+SQLite work; the decision lane counts and drains its completion. Each window
+permits one outstanding save, so another accepted read during that save can
+leave the previous persisted observation. The cache is optional and never
+promises the latest server state.
+
+The exact key includes the complete host-profile authority fingerprint
+(including profile revision), host, profile, accepted numeric account, repository
+locator and PR number. The record preserves numeric repository/PR IDs and exact
+base/head commit IDs. A load is eligible only after a current authenticated read
+exhausts its transport retries without an accepted in-memory snapshot. The core
+rechecks current session/generation/request/account, exact key and any expected
+numeric repository/PR identity before publishing historical metadata. Cancellation,
+identity retirement, permission errors, corrupt data and foreign keys cannot
+publish it. A locator alone cannot prove current repository ownership or current
+head while disconnected; this view grants neither current access nor revision
+authority.
+
+The overview says “Cached overview · freshness unknown,” exposes exact retained
+base/head IDs, and marks source, file catalog, conversations and review state
+unavailable. It creates no accepted snapshot, epoch handoff, markdown-link or
+mutation authority. Reopening online obtains a new server observation and clears
+the cached marker. Ten records share the profile; each payload is bounded to
+272 KiB, the body to 256 KiB, and the database to 2048 pages. Version, schema,
+record bounds and SHA-256 integrity are checked before content is returned.
+Profile purge includes this store and its SQLite sidecars. This is historical
+metadata after current-process authentication; startup with `/user` unreachable
+still exposes no authenticated cache. Full offline account admission and durable
+source/conversation snapshots remain open in
+[BPR-0969](../issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md).
+
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's
 syntactically valid capability facts are not observations. Only the exact

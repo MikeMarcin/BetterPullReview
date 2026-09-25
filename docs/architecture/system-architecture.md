@@ -210,6 +210,18 @@ payloads are unchanged. The ten-entry bound remains shared by the profile.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 
+The subsequent BPR-0969 overview store retains at most ten accepted historical
+PR overviews, partitioned by complete profile-revision/host authority, exact
+account and destination. The application host performs bounded SQLite effects
+on its serial worker and the core admits a cached observation only after a
+current authenticated read fails for transport loss. Qt labels its freshness
+unknown and source/conversations unavailable; it receives no current snapshot,
+epoch or mutation authority. An offline startup still cannot authenticate the
+account or expose its cache. The [GitHub host contract](github-host-implementation.md)
+describes this boundary; the
+[durable overview evidence](../verification/BPR-0969-durable-overview-2026-09-25.md)
+leaves full offline review and disconnected authentication pending.
+
 [[BPR-1131]] adds RFC-BPR-0052's document tabs to the same authority. The
 core's `document_tabs_state` holds one window's tabs for the pull request it
 shows: the window's comparison, which new tabs take, and each tab's identity
