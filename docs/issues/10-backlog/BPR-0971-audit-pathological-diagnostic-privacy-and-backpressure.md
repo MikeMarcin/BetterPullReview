@@ -6,7 +6,7 @@ status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693"}
+metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0971-diagnostics","path":"docs/rfcs/plans/bpr0971-diagnostics/milestone-plan.json"}}
 ---
 
 # Audit pathological diagnostic privacy and backpressure
