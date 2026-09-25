@@ -1119,6 +1119,19 @@ set_tests_properties(application_large_review_benchmark PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "LARGE_REVIEW_COMPOSED_BENCHMARK_OK")
 
+# BPR-0967: control the timing probe with known synchronous and terminal stalls.
+bpr_add_network_isolated_test(
+    NAME application_large_review_timing_control
+    WINDOWS_UNCONTAINED
+    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        $<TARGET_FILE:Git::Git>
+        "${CMAKE_CURRENT_BINARY_DIR}/large-review-timing-control.json"
+        "${CMAKE_CURRENT_BINARY_DIR}/large-review-timing-control.png"
+        --timing-control)
+set_tests_properties(application_large_review_timing_control PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "LARGE_REVIEW_TIMING_CONTROL_OK")
+
 bpr_add_network_isolated_test(
     NAME application_unavailable_diff_public_path
     WINDOWS_UNCONTAINED
@@ -1163,6 +1176,17 @@ set_tests_properties(application_first_tab_comparison PROPERTIES
     PASS_REGULAR_EXPRESSION "FIRST_TAB_COMPARISON_OK")
 
 if(APPLE)
+    # Measurements and exact public outcomes, with unmet input budgets retained in JSON.
+    bpr_add_network_isolated_test(
+        NAME application_large_review_responsiveness
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.png"
+            --responsiveness)
+    set_tests_properties(application_large_review_responsiveness PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESPONSIVENESS_MEASURED")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
