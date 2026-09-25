@@ -1,0 +1,31 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0019-closeout",
+  "scope": {
+    "issues": [
+      "BPR-0295"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "ordinary-closeout",
+      "outcome": "Complete BPR-0295 ordinary final-candidate verification and close RFC-BPR-0019 only when all unchanged criteria and independent acceptance are supplied; otherwise preserve exact blockers and hand off.",
+      "work": [
+        {
+          "issue": "BPR-0295"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Every original RFC-BPR-0019 criterion and BPR-0295 closeout gate has exact candidate evidence, with prior rights and visual decisions retained under their original identities.",
+        "Focused current asset regeneration, schema, descriptor, boundary and documentation checks pass, and any mismatch to the original three-clip, resource-budget or no-runtime contract is explicitly reconciled by authorized acceptance before closure.",
+        "Required independent ordinary closeout review is supplied separately and all material findings are resolved; self-review does not satisfy it.",
+        "BPR-0295 is Done and RFC-BPR-0019 is Auto-Verified only after every required criterion and predecessor gate is accepted.",
+        "A durable checkpoint records candidate revisions, changed paths, commands, verification, protected historical assets, pending obligations and next action, with task-owned commands quiescent."
+      ],
+      "boundary": "Run rfc0019-20260925-parallel, segment rfc0019-closeout-r1, mandate r1. Exclusive leaf /root/rfc0019_closeout in /Users/jaeger/.codex/worktrees/rfc0019-closeout/BetterPullReview on codex/rfc0019-closeout based on fc4b39e8c3a54ecf931d74071d7793e5e4112496. No acceptance amendments, live GitHub mutations, push, main merge, RFC0052 edits or delegation. Preserve original source plan and all owner decisions. Stop here if human or independent acceptance remains unavailable."
+    }
+  ],
+  "unplanned_work": []
+}
