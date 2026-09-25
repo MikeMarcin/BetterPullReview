@@ -1,0 +1,130 @@
+{
+  "schema": "bpr0969.conversations-handoff.v1",
+  "assignment": "/root/bpr0969_conversations",
+  "mandate_revision": "r4-standalone-conversations-20260925",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0969-conversations",
+  "branch": "main",
+  "baseline": "69d96f27add5c318fa724abdaa918cd7c229f9d9",
+  "source_candidate": "b4a4f43ae19872432fb74a3e1fd244e9507e2166",
+  "status": "Thread-history candidate committed and verified. Same implementer retains exclusive writer and continues full remaining BPR-0969 AC2/AC3 within durable-cached-overview.",
+  "selection": "coordinator-implementer revision 2, Codex native rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "inherited_preflight": "incomplete / state.drift / host_load=not_verified",
+    "repair_or_readiness_claim": false
+  },
+  "scope": "Coordinator accepted bounded historical thread roots/replies in atomic overview; current-process independently accepted authenticated account mandatory. No current snapshot, epoch, source navigation, permission or mutation authority.",
+  "verification": {
+    "baseline": "application_offline_inventory passed 34.72s",
+    "failing_before": "Baseline product plus new public thread assertion failed at restart-read in 19.31s; build/bpr0969-conversations/failing-before.log",
+    "final_focused": "7/7 pass114.77s; restart44.94s; account isolation63.16s. Product sources unchanged by later diagnostic and reconnect assertion.",
+    "exact_candidate": "Committed b4a4f43a rebuilt; actual six-process offline/restart/reconnect course passed43.78s.",
+    "core_only": "Configure/build passed; core read and both architecture gates3/3 pass123.28s.",
+    "format_tidy": "13 C++ files format pass; core/host/SQLite strict tidy pass;9 non-user warnings suppressed. git diff --check pass.",
+    "documentation": "DOCUMENTATION_OK;64 regression tests pass2.226s.",
+    "rendered": "Inspected full-window historical thread body/reply and previous-catalogue unavailable rasters; macOS arm64 Qt6.11.2 offscreen only.",
+    "self_review": "Atomic exact key/base/head record, optional collection absence, bounded decode and unique ordered reply identities, lifecycle cancellations, inert literal reader and cleared fresh projection. No independent-review claim."
+  },
+  "pending": [
+    "Full BPR-0969 AC2/AC3 remains unfinished; this is not a milestone completion.",
+    "General comments and review summaries, exact retained-source reading/selected-revision composition, changed-revision reconnect presentation and missing-material cases.",
+    "Disconnected account admission policy: cached credential/Recent/Git/overview cannot establish present account authority.",
+    "Required native/human evidence and wider crash/concurrency remain unobserved; Windows/Linux owner-deferred."
+  ],
+  "commands": {
+    "active": [],
+    "writer": "RETAINED by /root/bpr0969_conversations; same milestone continues. No other writer authorized.",
+    "completed": "All current build/test/tidy/documentation sessions collected. Ignored synthetic logs/rasters retained; test-owned temporary roots removed by their drivers. No task server/worktree/child.",
+    "protected": "RFC0052 candidate/session/server/waiter untouched; no new attended session; no push."
+  },
+  "next_action": "Amend and rebind durable-cached-overview to full remaining AC2/AC3; same writer continues independent source/conversation/reconnection work. Record any disconnected-account policy decision precisely without granting cached authority.",
+  "completed_commits": [
+    "9baf7fab",
+    "e3cab1f3a8f4ebf25b7376da24b4add9ec575ab3",
+    "b4a4f43ae19872432fb74a3e1fd244e9507e2166"
+  ],
+  "amendment": "Latest coordinator correction following owner objection to small milestones supersedes the proposed release: retain writer, commit current candidate/evidence, bind full remaining AC2/AC3, continue same milestone until real exit or concrete policy/human/native blocker. No successor micro-slice or turnover.",
+  "changed_paths": [
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp",
+    "src/application/include/bpr/application/github_projection.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/core/include/bpr/core/cached_review_overview.hpp",
+    "src/core/src/cached_review_overview.cpp",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/core/github_window_read_tests.cpp",
+    "tests/end_to_end/offline_inventory_contract.py",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp"
+  ],
+  "source_hashes": {
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp": "21ca08a540369bbbd4eb24f095f5bcf894cff1649194a291592f3acc1163c44e",
+    "src/adapters/qt/src/pull_request_overview_page.cpp": "5f856bed9115191cb98f8177a5668cb2bc661d2161eb355fece63f7c356f56fe",
+    "src/adapters/qt/src/workbench_window.cpp": "ab006fa482a55186d2bb39f96020673bf1d9a813a1b6333d0981afecb9828c67",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp": "3eb4198dd98ee3a87eb440171a15bf8d82d706b66f6966ef033262787096f815",
+    "src/application/include/bpr/application/github_projection.hpp": "4d0ac51167b5affbf0b187e523d4964a7b5ecadf823930367cad9c73e678527a",
+    "src/application/src/github_window_read_host.cpp": "4af62a4cf88e3778927f554988aa04f0dab55e70551c6d5762c0a24f731151d8",
+    "src/core/include/bpr/core/cached_review_overview.hpp": "407f4ee706ac304d05e8ca8dd48d19e689cfc897b84a4eb8ff1690b7eecf22af",
+    "src/core/src/cached_review_overview.cpp": "2c1ebdaa9cf961e519f32058c31eb9e1866c52e88da7f0f7bec2288383f5f903",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp": "fd0058081a64a631d37bb9e18575cd193bd657f95955a63398404cb2ad1b8659",
+    "tests/application/github_window_read_host_tests.cpp": "fc8891d707b4fdb9e1a153c29587dc3b77a4a8c402b97347b4e51725df9272b3",
+    "tests/core/github_window_read_tests.cpp": "72a4125eb52436bb8ce8545e23468a0816809716b0c27f01efa99fc7d0c6765d",
+    "tests/end_to_end/offline_inventory_contract.py": "b6ca41de4f3e621ab107b3450c10568ecb840e2107d35b468c704755a85bbe11",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp": "4ff0d6ba3ca719114bc0efc14c90a25504ada2de45e082617fc501f7aeef4b84",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp": "4f84b526027e4d3a93ac4f30e8a414aaa91e259da5e03539c4a3655b886d7a95"
+  },
+  "executable": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/offline_inventory_public_path",
+    "sha256": "32b6583b941f5f4926763a97eeead3fae39b42f51226d3fde2c68364910130d9"
+  },
+  "runtime_evidence_hashes": {
+    "restart-read-offline.png": "8d51c60fe068025f0e4d0708611fe0c606f45f1d435c88fd96b3767db664db76",
+    "failing-before.log": "cc3e68885c9ffc588016c5ea3cdc702ed6e6b2ef6db8b39d8108fdb2f266576e",
+    "exact-build.log": "eb4a6590961bf73dad1745865676fafbf98acc1534650d994ae8f0cc851c5cb6",
+    "final-verification.log": "c81d5cce76c8cbc2aaf36a7fd418fb0d06a323bb48504f65f65057784fbf21cd",
+    "restart-catalogue-offline.png": "f86723b633c2c259adf0a734f6871b9a5970b517a07496c22c36b660e6e32e9d",
+    "format.log": "e6d5ab01796977bfb49732bf68445648545c1e1298ee91c140a2871bf9ca6e40",
+    "format-check.log": "5ab2d634e7921bf28b0ae316aabed90e917e6d3f76b8d963076b7899fe28c581",
+    "restart-legacy-offline.png": "44ae1111e10e0b7290a618a5d267d160e32639b59274b8ad4c88e96d8c469d5e",
+    "first-verification.log": "7050a2dee27cdd5016eba83c6cdc1506dd021418c7dd0f3d99529a74f48112fa",
+    "first-build.log": "0b5bfc5b975c668f0e31e7fb6ddf8df820b74e25bd56bfcdab6df30ce2cb4ef7",
+    "restart-corrupt-offline.png": "88b62c56ac33841efff0de3e29899bd1e1ac14b1891645158794ba45581a37d0",
+    "core-verification.log": "5e8baf8915bb1f5ddfe3c826c1c6214bb5cf457da3326679e64f19f64a8aa76f",
+    "identity-second-account-offline.png": "27dbd8438f10cafdecbe7e30e6f2b6830116d9b730232a240712446e8a432b04",
+    "identity-legacy.png": "f7bdfec30a8c036805a9bcd224bc6014a66f5b612c2c50bf7f436daba797a2ea",
+    "failed-refresh.png": "9b1568e97b17becf820d5893bfe032237c58c497afd753bf80fe462e8fa4171c",
+    "restart-offline.png": "9c4a748e0e2e02d48cd8d40cc54e1b1fafba0f8deb2446d3b1b769fd31e26cb8",
+    "docs-tests.log": "7d865b4f947b4feb749b33865ba69215c231d14aec77aa6433db3d36019f3d80",
+    "docs.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+    "board-validation.json": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24",
+    "refresh-reconnected.png": "9a5cd2cf6236506afb750d1bb998ed23b31caf18d095e389689a8f7924741238",
+    "tidy.log": "3d79970ddbbde8d053e6ca3ba6e453d8e16ea122f82c6be5d9fd712bc5062a38",
+    "exact-public-verification.log": "4bb78e0890e00ae0bd119a517efc4c11f6875e0e275e5abfec7c29e7abe056d6",
+    "identity-other-account.png": "349df5ca886146fa337eb8f34c438943ebbb6fb106fdfa3cfa7b71df4614edbf",
+    "refine-format.log": "c09cc946a7756d06ab1e23cddbffb8dd8779e2ef8b601731eb153cd9a18a8dca",
+    "core-build.log": "2fbde14182b231c33b6fa7bfd590978b8ac3d0a3062c3bcfa96aeaa75c3ff32f",
+    "other-repository-offline.png": "a89a39b81d67c2e6e87c13afa2f078daa25e8880ce4057f1b0c2bb63e458ed75",
+    "refine-build.log": "e5928a529fe15c285e3b6421d98d35da154d4a551777ba778c144bd85e05d261",
+    "core-configure.log": "0e2df061ca28f370a8e817ad18682d02fe6980c4850ba8ae8f30d02e55d06ac4",
+    "online-seed.png": "886817e27b32d8c60b4ec480abc0e4d455ebe51c5342fb208c70a406ae8efe7f",
+    "final-format.log": "4e6ba57648ecf5c3ab6c0ec1ce6fd2e1bd63b6840c9632fc850966aee64e1e70",
+    "failing-before-build.log": "eb4a6590961bf73dad1745865676fafbf98acc1534650d994ae8f0cc851c5cb6",
+    "restart-reconnected.png": "74ab571ac5f637006f830c29dac9007aa0f57e9f0428896308c6d13bfc083d8f"
+  },
+  "review_handoff": {
+    "new_session": null,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [
+      "b4a4f43ae19872432fb74a3e1fd244e9507e2166"
+    ],
+    "required_human_evidence": "pending",
+    "protected_rfc0052": "untouched"
+  }
+}

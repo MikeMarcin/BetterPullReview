@@ -83,8 +83,25 @@ AC2/AC3 remain unfinished. The
 [current handoff](../../rfcs/plans/bpr0969-offline-inventory/review-content-handoff.json)
 records the exact source, evidence, pending work and writer release.
 
-Next, continue durable conversation/thread or exact retained-source composition
-under current-process authenticated admission. Disconnected account admission
+The [historical thread continuation](../../verification/BPR-0969-thread-history-2026-09-25.md)
+under `r4-standalone-conversations-20260925` retains complete bounded review-thread
+collections, including roots/replies, stable identities and inert anchor/resolution
+observations, in that same atomic overview record. Current-process authenticated
+transport-failure admission is unchanged. Its read-only reader says freshness
+unknown and distinguishes unavailable from observed empty. Actual restart,
+legacy payloads, both account directions, changed-server recovery and owning-layer
+cancellation/stale-session/bounds controls pass. General comments, review summaries,
+source composition, disconnected admission and full AC2/AC3 remain unfinished.
+The coordinator accepted this bounded slice. The
+[thread handoff](../../rfcs/plans/bpr0969-offline-inventory/conversations-handoff.json)
+binds candidate `b4a4f43ae19872432fb74a3e1fd244e9507e2166`, exact evidence and
+remaining obligations; no native/human or full cached-review acceptance is claimed.
+
+Latest owner/coordinator steering retains the same implementer and writer for
+`durable-cached-overview` until full remaining AC2/AC3 reaches an actual exit or a
+concrete policy/human/native blocker. This candidate is progress within that
+milestone. Continue the integrated general-comment/review-summary, retained-source,
+revision-recovery and freshness outcome under current-process authentication. Disconnected account admission
 remains separate: never treat a saved credential, Recent row or retained Git/
 catalogue identity as present account authority. Complete changed-revision recovery
 without silently presenting historical content as current. Preserve unavailable

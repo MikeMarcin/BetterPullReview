@@ -1739,18 +1739,45 @@ catalogues explicitly say zero files observed. The SQL table/schema version and
 key encoding stay unchanged. An older reader refuses the new trailing payload;
 it does not reinterpret it. Unknown extensions and corrupt records fail closed.
 Qt presents historical rows in the Overview table with source activation disabled
-and hides unavailable conversation/progress columns. Source, conversations and
+and hides unavailable conversation/progress columns. Source and current
 review state still say unavailable. It creates no accepted snapshot, epoch
 handoff, markdown-link or mutation authority. Reopening online obtains a new
 server observation, clears cached revision descriptions and restores current
 columns and file activation. Ten records share the profile; each payload is
-bounded to 416 KiB, the body to 256 KiB, and the database to 2048 pages. Version,
+bounded to 560 KiB, the body to 256 KiB, and the database to 2048 pages. Version,
 schema, record bounds and SHA-256 integrity are checked before content is returned.
 Profile purge includes this store and its SQLite sidecars. This is historical
 metadata after current-process authentication; startup with `/user` unreachable
 still exposes no authenticated cache. Full offline account admission and durable
-source/conversation snapshots remain open in
+source composition and general-comment/review-summary snapshots remain open in
 [BPR-0969](../issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md).
+
+The subsequent thread-history continuation adds a version-three payload
+extension to this same atomic observation. It preserves complete review-thread
+collections with thread/comment IDs, ordered reply-to IDs, author login, body,
+path, original/current line observations, side, file-level subject, resolution,
+outdated and deleted facts. These remain observations made alongside the retained
+base/head, not anchors authorized for a current comparison. There is no independent
+thread cache key or lookup that can combine different overview revisions.
+
+The optional collection distinguishes unavailable (including older payloads or
+an excessive collection) from an observed empty collection. Bounds are 128 threads,
+512 comments in total, 64 KiB per body and a conservative 128 KiB aggregate encoded
+budget. Duplicate IDs, foreign/forward reply links, invalid anchors, unknown
+extensions and corrupt bytes fail closed. The host omits an excessive collection
+whole while replacing the overview, never preserving old threads under new
+base/head IDs. Existing session/cancellation, key and numeric-identity admission
+checks cover the entire record unchanged.
+
+Overview shows a plain-text read-only historical reader with explicit unknown
+freshness, prior resolution wording and inert anchor observations. Links and
+anchors grant no navigation; the live conversation model, reply/resolve actions,
+receipt state, epoch handoff and mutation lease remain unavailable. Missing and
+empty collections have different headings. A newly accepted server read removes
+all historical text and labels. General comments, review summaries, disconnected
+authentication and retained source composition are still pending. The
+[thread-history evidence](../verification/BPR-0969-thread-history-2026-09-25.md)
+records the bounded Mac fixture claim and its limits.
 
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's

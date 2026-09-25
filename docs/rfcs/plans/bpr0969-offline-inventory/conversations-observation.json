@@ -1,0 +1,226 @@
+{
+  "run_id": "bpr0969-20260925",
+  "segment_id": "conversations",
+  "mandate_revision": "r4-standalone-conversations-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0969-offline-inventory",
+    "plan_path": "docs/rfcs/plans/bpr0969-offline-inventory/milestone-plan.json",
+    "milestone_id": "durable-cached-overview",
+    "definition_fingerprint": "sha256:9b6ff909851cd4706ad93f76d5c8a5579764bb7a69c79d8b23b9c4cd16e92ec1",
+    "obligations": [
+      {
+        "id": "BPR-0969:AC3",
+        "source": "BPR-0969",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:440a0b38d5f2e41fbf26901dcfb60007606be1211a19cdc97049d0e34c9963bf"
+      }
+    ],
+    "obligation_fingerprint": "sha256:4ea4554fc64af044c7b13af8b7d19d8e7221567df23d34a7adf6a55bd397b233",
+    "exit_criteria": [
+      {
+        "id": "durable-cached-overview:exit:1",
+        "text": "Demonstrate the missing durable overview through real composition and a failing-before assertion."
+      },
+      {
+        "id": "durable-cached-overview:exit:2",
+        "text": "Persist only validated accepted overview evidence under exact profile revision, host authority, account, repository and PR identity with bounded storage and exact revision content."
+      },
+      {
+        "id": "durable-cached-overview:exit:3",
+        "text": "Admit cached metadata only for a current authenticated read that failed for transport loss; refuse cancellation, stale session, foreign authority and corrupt data; reconnect to server truth."
+      },
+      {
+        "id": "durable-cached-overview:exit:4",
+        "text": "Verify rendered cached/unavailable wording, owning-layer negative controls and actual process restart; record exact candidate, pending full AC2/AC3, command quiescence and writer release."
+      },
+      {
+        "id": "durable-cached-overview:exit:5",
+        "text": "Demonstrate missing durable file catalogue through the real restart composition and a failing-before assertion."
+      },
+      {
+        "id": "durable-cached-overview:exit:6",
+        "text": "Retain exact current and previous paths, provider change kinds and counts with complete overview authority and revisions; distinguish unavailable from observed empty and bound optional content without truncation."
+      },
+      {
+        "id": "durable-cached-overview:exit:7",
+        "text": "Verify account/repository/profile/revision isolation, cancellation and stale session refusal, corrupt and legacy records, and reconnect server truth through focused public and owning-layer controls."
+      },
+      {
+        "id": "durable-cached-overview:exit:8",
+        "text": "Record exact candidate, rendered read-only catalogue evidence, pending source/conversations and full AC2/AC3, command quiescence and writer release."
+      },
+      {
+        "id": "durable-cached-overview:exit:9",
+        "text": "Demonstrate missing durable review-thread history with a failing-before real restart composition assertion."
+      },
+      {
+        "id": "durable-cached-overview:exit:10",
+        "text": "Retain bounded complete thread collections with exact identities, roots/replies, anchor observations and resolution/outdated facts in the atomic overview revision; distinguish unavailable from observed empty."
+      },
+      {
+        "id": "durable-cached-overview:exit:11",
+        "text": "Verify inert historical rendering, exact authority and revision isolation, cancelled and stale-session refusal, legacy/corrupt/over-limit content and reconnect server truth through focused composition and owning-layer checks."
+      },
+      {
+        "id": "durable-cached-overview:exit:12",
+        "text": "Record exact source candidate, commands and results, remaining full AC2/AC3 and general-comment/review/source obligations, quiescent commands and explicit writer release."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:82f823bb12dad7263584f5d6bc3585d6f90751e660d6171df3b37de653c70fc7",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "durable-cached-overview",
+  "disposition": "continue-milestone",
+  "candidate_revision": "b4a4f43ae19872432fb74a3e1fd244e9507e2166",
+  "handoff_ref": "docs/rfcs/plans/bpr0969-offline-inventory/conversations-handoff.json",
+  "required_pending": [
+    "Canonical AC2/AC3 unfinished; general comments, review summaries, exact source composition, disconnected account admission, wider native/human evidence."
+  ],
+  "evidence_refs": [
+    "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+    "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+    "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0969:AC3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:6",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:7",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:8",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md",
+        "docs/verification/BPR-0969-durable-overview-2026-09-25.md",
+        "docs/verification/BPR-0969-file-catalogue-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:9",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:10",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:11",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "durable-cached-overview:exit:12",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-thread-history-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "continue",
+    "next_milestone": "durable-cached-overview",
+    "reason": "current-milestone",
+    "detail": "Latest owner/coordinator correction: retain same writer, continue full remaining AC2/AC3 in the existing milestone. Current thread candidate is a verified commit, not a milestone exit."
+  },
+  "ownership": "active"
+}

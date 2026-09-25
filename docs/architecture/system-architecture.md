@@ -218,8 +218,11 @@ current authenticated read fails for transport loss. The same atomic historical
 record optionally retains a bounded changed-file catalogue with current/previous
 paths and provider change kinds/counts at those exact accepted base/head IDs.
 Qt labels freshness unknown, renders those rows without source navigation and
-keeps source/conversations/progress unavailable. Missing or legacy catalogues
-remain distinct from observed empty. It receives no current snapshot, epoch or
+keeps source/current-conversation actions/progress unavailable. A subsequent
+optional collection in the same record retains bounded historical thread roots
+and replies, rendered as plain read-only text with unknown freshness and inert
+anchor observations. General comments and review summaries remain unavailable.
+Missing, legacy or excessive collections remain distinct from observed empty. It receives no current snapshot, epoch or
 mutation authority. An offline startup still cannot authenticate the
 account or expose its cache. The [GitHub host contract](github-host-implementation.md)
 describes this boundary; the
