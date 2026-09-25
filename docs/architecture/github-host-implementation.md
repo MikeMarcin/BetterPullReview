@@ -1686,6 +1686,17 @@ catalog/ref authority mismatch, object-format mismatch, or stale generation
 fails closed. Provider clone URLs and raw `HeadRef` text are never cache,
 path, ref, or transport authority.
 
+The window's accepted PR snapshot is held in memory. A failed same-target
+refresh retains that observation and its displayed source; the workbench says
+that previously loaded review data has unknown freshness. A successful new
+observation clears this notice. Recent titles/destinations and exact reading
+positions persist separately from the snapshot, Git objects and epoch catalog.
+They do not make PR metadata or conversations reopenable offline after restart.
+Recent navigation records are profile-private and filtered by host/access mode;
+they do not carry an account key. Same-profile account-switch title isolation
+remains an explicit limitation in the
+[BPR-0969 inventory](../verification/BPR-0969-offline-inventory-2026-09-25.md).
+
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's
 syntactically valid capability facts are not observations. Only the exact

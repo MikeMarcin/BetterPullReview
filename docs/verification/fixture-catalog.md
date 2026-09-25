@@ -1704,6 +1704,22 @@ currently fails: the second primary and secondary requests reach the transport
 within the two-second interval. The card preserves cancellation, authority
 replacement, exact file-selection retention and retry-policy obligations.
 
+`application_offline_inventory` (BPR-0969) runs the real desktop composition in
+three processes over the same private data root and synthetic vault pipe. It
+uses `profile_window_restoration_v1`, installed Git and a test-only transport
+refusal switch under denied network access. The course checks retained live
+snapshot/source after failed Refresh, a visible unknown-freshness notice,
+changed server-thread adoption on recovery, another-repository failure, Recent
+Resume while offline after account validation, and a fully offline account
+restart. The driver compares retained Git-pack hashes and exact catalog
+authority, material trees and commit anchors after each orderly Quit.
+`BPR_OFFLINE_RENDER_DIR` optionally saves synthetic full-window rasters to an
+existing local directory. The [inventory](BPR-0969-offline-inventory-2026-09-25.md)
+distinguishes unavailable content from empty filtered views, durable Recent
+navigation from snapshots, and profile-private Recent titles from account-bound
+epoch content. This regression inventories current limits; it does not certify
+complete BPR-0969 AC2/AC3 or offline restart content availability.
+
 BPR-0624 records the initial Mac baseline; BPR-0627 tracks its measured UI stalls.
 These checks do not establish 32 application epochs, memory/pruning ceilings,
 scrolling responsiveness during active work, universal timing budgets or native

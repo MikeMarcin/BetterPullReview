@@ -1,0 +1,103 @@
+{
+  "schema": "bpr0969.offline-inventory-handoff.v1",
+  "assignment": "/root/bpr0969_offline_inventory; bounded AC1 offline/restart inventory plus demonstrated narrow repair only",
+  "mandate_revision": "r4-standalone-offline-inventory-20260925",
+  "owner": "/root/bpr0969_offline_inventory",
+  "status": "Assigned inventory milestone complete; full BPR-0969 remains Backlog with AC2/AC3 pending.",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0969-offline-inventory",
+  "branch": "main",
+  "baseline": "552d0e02c65668b0d49f0050bf0c778e077fc2df",
+  "source_candidate": "b3197149a74bbb8030a3d4a534e956b11a64ed9f",
+  "checkpoint_revision": "b3197149a74bbb8030a3d4a534e956b11a64ed9f",
+  "documentation_commit": "The explicit documentation-only commit containing this handoff records final tracker and verification state; source candidate and executable remain as above.",
+  "completed_commits": [
+    "bef59b0a",
+    "5e11850955ea4986254196ca75428c2076c2267e",
+    "b3197149a74bbb8030a3d4a534e956b11a64ed9f"
+  ],
+  "selection": "coordinator-implementer recipe revision 2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "host_load": "not_verified",
+    "inherited_preflight": "Prior handoffs record MASK readiness drift/artifact.corrupt and workflow not_declared; this slice performs no skill repair or independent observed-serving claim."
+  },
+  "product_change": "Qt workbench status labels retained live review data with unknown freshness after failed refresh. No persistence, offline authority, core, host, Git or epoch policy change.",
+  "changed_source_paths": [
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/offline_inventory_contract.py",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp"
+  ],
+  "source_hashes": {
+    "src/adapters/qt/src/workbench_window.cpp": "16aa6bdf5d1ae6b5d517ca93f873788db6e698603023c9b1b8b57de6ac9733de",
+    "src/app/src/github_application_fixture_access.hpp": "ce0e4a8939a6e2ffdb5b26f7025413f785c13ac90035fa1cd6ae41993f5e1318",
+    "src/app/src/github_public_path_fixture.cpp": "10057b24363e957652b04497d3eaab6a261b858f49060aafa45525cea5350c71",
+    "tests/end_to_end/CMakeLists.txt": "d8febc3342c0e41733642db2abdcd27d96fcabca2626073a9911141f11c2f2d5",
+    "tests/end_to_end/offline_inventory_contract.py": "fd87d7f668d6e1d04b0af8dc14bcb66042cbab223105200e4892d11ed9ac045f",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp": "0f07707464193096afc3d1bcb26fb7340f8c76903b4e1155b186e6f305ba9e9b"
+  },
+  "executable": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/offline_inventory_public_path",
+    "sha256": "6eb8fceb2da785646e6df259d79799ec649ae12e520878997e06c186b59d7ff6"
+  },
+  "verification": {
+    "integration": "6/6 pass in 65.60 s: architecture boundaries, network isolation manifest, window read host, Qt composed GitHub scale100, two-account profile isolation, composed offline inventory.",
+    "final_course": "Three actual process lifetimes pass in 24.14 s after adding read-only durable catalog checks; one unchanged pack, one epoch, two anchors and exact authority/scope/material rows.",
+    "failing_before": "Visible retained-data freshness assertion fails against pre-repair Qt status in 17.30 s. Final failed refresh shows notice; successful changed-thread server observation removes it; unavailable and initial online states refuse it.",
+    "rendered": "Inspected generated 1500x950 failed-refresh QWidget raster; both populated panes and freshness notice are visible. Offscreen Qt6.11.2 on macOS26.6.2 arm64, not native compositor/human evidence.",
+    "format": "Four touched C++ files pass canonical format check; git diff --check passes.",
+    "documentation": "DOCUMENTATION_OK; 64/64 documentation regression tests pass in 1.927 s (negative fixtures intentionally print ERROR); scoped board valid with 1,186 cards; git diff --check passes.",
+    "self_review": "Reviewed exact snapshot/key/document preservation, current-target-only Qt state, recovery new snapshot identity, unavailable-versus-zero rows, Recent account-key gap, commit anchors versus material trees, read-only closed SQLite handles, public Quit-to-quiescence and bounded synthetic vault pipes.",
+    "reused": "Baseline affected rate-limit rendered course passes 11.98 s; existing host cancellation and profile-isolation courses retain their actual input limits.",
+    "local_logs": [
+      "failing-before.log",
+      "integration.log",
+      "final-course.log",
+      "final-course-corrected.log",
+      "format-final.log"
+    ],
+    "checkpoint": "Shared consistency checker returns action=stop and engineering_acceptance=not-evaluated. All assigned AC1/exits pass; full-card AC2/AC3 are unplanned required follow-up, retained in pending rather than claimed complete."
+  },
+  "evidence": "docs/verification/BPR-0969-offline-inventory-2026-09-25.md",
+  "pending": [
+    "BPR-0969 AC2/AC3 are outside the completed inventory milestone and remain unfinished on the Backlog card.",
+    "Offline restart cannot reopen accepted PR metadata, threads or source merely from durable Git/catalog data; durable snapshot/admission/freshness design remains pending.",
+    "Recent titles/destinations are profile-private and host/mode filtered without an account column; same-profile account-switch title isolation is not established.",
+    "Broader changed-head/revision/authority and active Git outage/cancellation courses, public preview, accepted empty thread results and crash restart are unobserved.",
+    "Required native/human acceptance is not supplied; Windows/Linux remain user-deferred."
+  ],
+  "next_action": "Coordinator may accept this bounded AC1 milestone. Next separately assigned safe milestone should diagnose same-profile Recent account-switch title/destination behavior; then define durable review snapshot and offline authority/freshness admission before implementing restart content. Do not infer complete AC2/AC3 acceptance.",
+  "review_handoff": {
+    "required_new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Existing RFC0052 14-question attended session/server/waiter untouched."
+  },
+  "ownership": {
+    "writer": "Release exclusive main writer to coordinator after the documentation commit and final status; no other main writer assigned during this slice.",
+    "commands": "All task-owned builds/tests have completed and their sessions were collected; no task-owned server or background process is handed off.",
+    "temporary_work": "Driver-created private data roots were removed after process exit. Ignored local logs, rasters and proposal remain under the named runtime root for reproducibility.",
+    "other_worktrees": "Other worktrees were not edited; final worktree inventory recorded locally. No comparative head audit against an unrecorded baseline is claimed.",
+    "remote_effects": "No live account, live network, remote mutation, push, release, or Claude Code.",
+    "protection": "RFC0052 protected candidate/session/server/waiter not changed or stopped."
+  },
+  "documentation_paths": [
+    "docs/architecture/github-host-implementation.md",
+    "docs/issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md",
+    "docs/issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md (returned to Backlog)",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/verification/fixture-catalog.md",
+    "docs/verification/BPR-0969-offline-inventory-2026-09-25.md",
+    "docs/rfcs/plans/bpr0969-offline-inventory/MILESTONES.md",
+    "docs/rfcs/plans/bpr0969-offline-inventory/observation.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/check-result.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/handoff.json"
+  ]
+}

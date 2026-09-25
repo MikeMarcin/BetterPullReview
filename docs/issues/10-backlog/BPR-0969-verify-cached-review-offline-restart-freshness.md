@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -36,3 +36,20 @@ candidate. Reuse relevant passing evidence with its actual input limits.
 Use safe fixtures; no live account, private-target access, remote mutation or
 release is authorized by this card. Required native or human evidence remains
 pending until actually observed.
+
+## Execution record
+
+The bounded [Mac inventory](../../verification/BPR-0969-offline-inventory-2026-09-25.md)
+is complete at source `b3197149a74bbb8030a3d4a534e956b11a64ed9f` under
+`r4-standalone-offline-inventory-20260925`. Its three-process course demonstrates
+retained live snapshot/source after refresh failure, unavailable content after
+offline Resume/restart, and unchanged durable Git/epoch identities. The visible
+failed-refresh freshness notice has a failing-before control and a successful
+changed-server-thread recovery. It adds no offline account authority or durable
+PR snapshot. The second and third acceptance criteria remain pending; this card
+is unfinished.
+
+Next, diagnose same-profile Recent account-switch title/destination isolation:
+those profile-private records currently lack an account key. Then define the
+durable snapshot/admission/freshness contract needed for cached-review restart.
+Reuse relevant passing evidence with its actual input limits.

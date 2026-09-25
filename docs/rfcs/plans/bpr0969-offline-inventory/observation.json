@@ -1,0 +1,118 @@
+{
+  "run_id": "bpr0969-20260925",
+  "segment_id": "offline-inventory",
+  "mandate_revision": "r4-standalone-offline-inventory-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0969-offline-inventory",
+    "plan_path": "docs/rfcs/plans/bpr0969-offline-inventory/milestone-plan.json",
+    "milestone_id": "inventory-offline-reopen",
+    "definition_fingerprint": "sha256:7987097e714dd90ee3b63e14d15ce3487b360dc242afff807632d501f703efd2",
+    "obligations": [
+      {
+        "id": "BPR-0969:AC1",
+        "source": "BPR-0969",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:440a0b38d5f2e41fbf26901dcfb60007606be1211a19cdc97049d0e34c9963bf"
+      }
+    ],
+    "obligation_fingerprint": "sha256:ddab3b9c77f6d0019101993568ce8bb39ac8f3cba82b2b276b1f133cd0def2c3",
+    "exit_criteria": [
+      {
+        "id": "inventory-offline-reopen:exit:1",
+        "text": "Trace the public offline and restart entry points and exact authority and revision boundaries."
+      },
+      {
+        "id": "inventory-offline-reopen:exit:2",
+        "text": "Exercise a safe real-composition course early and record runtime observations with unavailable versus empty semantics."
+      },
+      {
+        "id": "inventory-offline-reopen:exit:3",
+        "text": "Implement only a demonstrated narrow repair with negative controls, or preserve the exact larger limitation and next milestone."
+      },
+      {
+        "id": "inventory-offline-reopen:exit:4",
+        "text": "Record exact candidate, focused verification, remaining AC2/AC3 obligations and quiescent ownership handoff."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "inventory-offline-reopen",
+  "disposition": "milestone-complete",
+  "candidate_revision": "b3197149a74bbb8030a3d4a534e956b11a64ed9f",
+  "handoff_ref": "docs/rfcs/plans/bpr0969-offline-inventory/handoff.json",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0969:AC1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "inventory-offline-reopen:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "inventory-offline-reopen:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "inventory-offline-reopen:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "inventory-offline-reopen:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0969-offline-inventory-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "integrated-boundary",
+    "detail": "The assigned AC1 inventory and narrow visible-freshness repair are complete. Return to coordinator at this bounded boundary; unplanned full-card AC2/AC3 and same-profile Recent isolation remain pending in the handoff and Backlog card."
+  },
+  "ownership": "quiescent"
+}
