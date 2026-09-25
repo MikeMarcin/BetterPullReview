@@ -458,7 +458,7 @@ it, `scripts/verify_dif_asset_boundaries.py`'s `app-release` profile passes
 the bundled layout: ten accepted strips, in the bundle and not in the image.
 That verifier's `dev` and `core-only` profiles cannot pass on Windows for an
 older reason: `dif_assets_contract` runs uncontained there, so its registration
-has no network-isolation launcher. A card for that is requested.
+has no network-isolation launcher. That is [[BPR-1125]].
 
 **Defender before the first launch, read-only.** Read with
 `Get-MpThreatDetection`, `Get-MpComputerStatus`, `Get-MpPreference` fields and
