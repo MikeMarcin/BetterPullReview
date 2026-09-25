@@ -45,3 +45,19 @@ a broken server, and the caller cannot tell which it met.
   product reports, and both still refuse.
 - A contract row covers each, so the distinction cannot silently collapse again.
 - No caller's refusal behaviour changes.
+
+## Assignment and plan — 2026-09-25
+
+Run `bpr0898-20260925-parallel`, segment `s1`, mandate
+`owner-20260925-unattended-parallel`; isolated branch
+`codex/bpr0898-diagnostic`, base `fc4b39e8`. The bounded plan and current
+continuation are in [the card checkpoint](../_checkpoints/BPR-0898/checkpoint.json).
+The installed implement-rfc plan discovery returned absent and its checkpoint
+binder requires an adopted milestone. This independent card has no RFC; the
+coordinator authorized the narrow board claim/finish procedure. No RFC is invented.
+
+Preserve null-node versus malformed-response diagnostics in thread preflight
+and reply reconciliation, carry them to product presentation, and retain all
+refusal and retry behavior. Verify the parser, public mutation session and
+presentation with recorded fixtures; no live GitHub mutation is authorized.
+Build and CTest execution await the coordinator's build-ownership release.

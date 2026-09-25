@@ -1,0 +1,52 @@
+{
+  "assignment": "BPR-0898",
+  "run_id": "bpr0898-20260925-parallel",
+  "segment_id": "s1",
+  "mandate_revision": "owner-20260925-unattended-parallel",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr0898-diagnostic/BetterPullReview",
+  "branch": "codex/bpr0898-diagnostic",
+  "base_revision": "fc4b39e8c3a54ecf931d74071d7793e5e4112496",
+  "claim_revision": "07dae9dc1226c4f404c36d58b4cc3937f243bedb",
+  "scope": "Distinguish invisible thread nodes from malformed server responses without changing mutation refusal or retry behavior.",
+  "plan": [
+    "Preserve explicit null-node and malformed-response failures in both thread observation parsers and the mutation failure mapping.",
+    "Carry diagnostics through application naming and Qt presentation, retaining safe retry classification.",
+    "Add contract, session/coordinator and presentation rows proving distinct diagnostics and zero writes on refusal.",
+    "After coordinator releases build ownership, run focused verification, formatting, tidy and documentation gates; self-review and finish the card with explicit-path commits."
+  ],
+  "acceptance": [
+    "An invisible node and an unparseable response are distinguishable in what the product reports, and both still refuse.",
+    "A contract row covers each, so the distinction cannot silently collapse again.",
+    "No caller's refusal behaviour changes."
+  ],
+  "plan_binding": "milestone_plan discover returned absent; milestone_checkpoint bind refused with resolve/adopt the authored plan before binding. Card has rfcs=[]; coordinator authorized narrow board claim/finish without inventing an RFC.",
+  "command_state": "No background commands or review server. Build, CTest and tidy are held pending coordinator release.",
+  "next_action": "After coordinator release, configure this worktree dev graph with the existing source archive cache; build only focused test targets, run selected CTest rows serially and tidy the changed translation units.",
+  "candidate_revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
+  "app_retry_commit": "8a250c39",
+  "status": "candidate-awaiting-build-window",
+  "verification": {
+    "format": "11 changed C++ files pass clang-format 23.1.1",
+    "documentation": "DOCUMENTATION_OK",
+    "documentation_verifier": "64 tests pass",
+    "build_ctest_tidy": "not started; coordinator holds resource window"
+  },
+  "integration_obligations": [
+    "Cherry-pick the scoped branch commits after RFC-0052 M2.",
+    "Reconcile isolated app retry predicate 8a250c39 in github_application.cpp.",
+    "Review and reseal the two affected composition source digests on final main.",
+    "Run application_composition_contract and application_review_round_trip_composition_contract on the integrated candidate.",
+    "Finish BPR-0898 only after the remaining gates pass."
+  ],
+  "focused_tests": [
+    "github_mutation_contract",
+    "live_review_mutation_provider",
+    "live_review_mutation_restart_recovery",
+    "application_review_mutation",
+    "application_review_mutation_application_host",
+    "qt_review_draft_editor",
+    "native_https_transport_contract",
+    "native_https_transport_fixture",
+    "architecture_boundaries"
+  ]
+}
