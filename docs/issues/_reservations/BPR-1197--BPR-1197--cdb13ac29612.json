@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1197"
+  ],
+  "reserve_for": "bpr1132-status-refusal",
+  "purpose": "copyable missing-material status after RFC-0052 tabs",
+  "created": "2026-09-25T13:41:28.526731+00:00",
+  "base": "d50f2f03bb799d7eac4c861bc0bc5f96b81f91b7"
+}
