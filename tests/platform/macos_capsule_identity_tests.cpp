@@ -11,6 +11,7 @@
 /// and hermetic; a timing-dependent reproduction is not evidence" — so nothing
 /// in this file sleeps, spawns, or retries.
 
+#include "../support/test_expectation.hpp"
 #include "designated_live_macos_capsule_identity.hpp"
 
 #include <fcntl.h>
@@ -109,14 +110,35 @@ namespace {
 	private:
 		std::optional<int> Descriptor;
 	};
+
+	/// \brief Makes the course's root in the system temporary directory, the
+	/// way `mkdtemp` does: at a random name, only if nothing is at that name,
+	/// mode `0700`.
+	/// \details [[BPR-1127]]. The root used to be named from the process id,
+	/// and whatever was already at that name was removed first. Nothing that
+	/// is already there is removed or reused now.
+	/// \returns The root, which the caller owns from the return, or nothing.
+	[[nodiscard]] auto make_scratch_root() -> std::optional<std::filesystem::path>
+	{
+		auto pattern = (std::filesystem::temp_directory_path() / "bpr-capsule-identity-XXXXXX").string();
+		if (::mkdtemp(pattern.data()) == nullptr) {
+			return std::nullopt;
+		}
+		return std::filesystem::path{ pattern };
+	}
 } // namespace
 
 auto main() -> int
-{
-	const auto base = std::filesystem::temp_directory_path()
-		/ ("bpr-capsule-identity-" + std::to_string(::getpid()));
-	std::filesystem::remove_all(base);
-	std::filesystem::create_directories(base);
+try {
+	const auto made = make_scratch_root();
+	expect(made.has_value(), "the scratch root is made at a name nothing had");
+	if (!made.has_value()) {
+		return EXIT_FAILURE;
+	}
+	// [[BPR-1121]]. Owned from the moment it exists, and removed with
+	// everything in it however `main` ends.
+	const auto  owned = bpr::tests::scratch_guard{ *made };
+	const auto& base  = *made;
 
 	const auto root = base / "capsule";
 	std::filesystem::create_directory(root);
@@ -128,7 +150,6 @@ auto main() -> int
 	const auto captured = identity::capture(retained.get());
 	expect(captured.has_value(), "the capsule captures completely");
 	if (!captured.has_value()) {
-		std::filesystem::remove_all(base);
 		return EXIT_FAILURE;
 	}
 	expect(
@@ -181,9 +202,10 @@ auto main() -> int
 			"an entry removed after the capture is refused");
 	}
 
-	std::filesystem::remove_all(base);
 	if (failures == 0) {
 		std::cout << "macos-capsule-identity-tests:pass\n";
 	}
 	return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

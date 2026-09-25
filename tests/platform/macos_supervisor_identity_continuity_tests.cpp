@@ -1,6 +1,7 @@
 /// \file
 /// \brief Production-shaped retained supervisor identity continuity checks.
 
+#include "../support/test_expectation.hpp"
 #include "designated_live_macos_capsule_identity.hpp"
 #include "designated_live_macos_supervisor_identity.hpp"
 #include "designated_live_macos_supervisor_launch.hpp"
@@ -505,6 +506,23 @@ namespace {
 		std::filesystem::rename(replacement, aFixture.Root);
 	}
 
+	/// \brief Makes the course's root in the system temporary directory, the
+	/// way `mkdtemp` does: at a random name, only if nothing is at that name,
+	/// mode `0700`.
+	/// \details [[BPR-1127]]. The root used to be named from the process id.
+	/// Whatever was already at that name was removed first, and the root was
+	/// then narrowed with `permissions`, which follows a link. Nothing that is
+	/// already there is removed, reused or narrowed now.
+	/// \returns The root, which the caller owns from the return, or nothing.
+	[[nodiscard]] auto make_scratch_root() -> std::optional<std::filesystem::path>
+	{
+		auto pattern = (std::filesystem::temp_directory_path() / "bpr-supervisor-identity-XXXXXX").string();
+		if (::mkdtemp(pattern.data()) == nullptr) {
+			return std::nullopt;
+		}
+		return std::filesystem::path{ pattern };
+	}
+
 	void replace_verifier_with_fake_success(const fixture& aFixture)
 	{
 		const auto verifier = aFixture.Root / verifier_relative;
@@ -518,7 +536,7 @@ namespace {
 } // namespace
 
 auto main(int argc, char** argv) -> int
-{
+try {
 	if (argc == 3 && argv != nullptr && argv[1] != nullptr && argv[2] != nullptr
 		&& std::string_view{ argv[1] } == "--identity-child") {
 		write_file(argv[2], "resumed\n");
@@ -527,11 +545,16 @@ auto main(int argc, char** argv) -> int
 	if (argc != 2 || argv == nullptr || argv[1] == nullptr) {
 		return EXIT_FAILURE;
 	}
-	const auto base = std::filesystem::temp_directory_path()
-		/ ("bpr-supervisor-identity-" + std::to_string(::getpid()));
-	std::filesystem::remove_all(base);
-	std::filesystem::create_directories(base);
-	std::filesystem::permissions(base, std::filesystem::perms::owner_all);
+	const auto made = make_scratch_root();
+	expect(made.has_value(), "the scratch root is made at a name nothing had");
+	if (!made.has_value()) {
+		return EXIT_FAILURE;
+	}
+	// [[BPR-1121]]. Owned from the moment it exists, and removed with
+	// everything in it however `main` ends.
+	const auto  owned = bpr::tests::scratch_guard{ *made };
+	const auto& base  = *made;
+
 	const auto verifier       = std::filesystem::canonical(argv[1]);
 	const auto verifierDigest = sha256_hex(file_bytes(verifier));
 
@@ -889,9 +912,10 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 
-	std::filesystem::remove_all(base);
 	if (failures == 0) {
 		std::cout << "macos-supervisor-identity-continuity-tests:pass\n";
 	}
 	return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }
