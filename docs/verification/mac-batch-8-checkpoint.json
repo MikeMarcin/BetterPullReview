@@ -1,0 +1,60 @@
+{
+ "schema": "bpr.milestone_checkpoint",
+ "schema_version": 1,
+ "milestone": "Mac batch 8",
+ "station": "bpr-main-mac",
+ "branch": "main",
+ "date": "2026-09-24",
+ "mandate": "implement available unattended work, focus on closing out rfcs; revise stale cards and rfcs; push and pull as needed; continue any mac work that becomes available",
+ "source": "coordinator assignment: BPR-1116, BPR-1111, BPR-1112 (all Ready); coordinator aside: owed macOS runs for BPR-1114 and BPR-1115",
+ "state": "complete",
+ "cards": [
+  {
+   "card": "BPR-1116",
+   "state": "Done",
+   "commits": ["f3d94f65", "b71456a1", "d01f506c"],
+   "result": "the owner's keep-grant rule while the application runs: an accepted renewal that gives up ends the session visibly and keeps the grant (resumed from its own binding, failed at once, device chain released); the rotation barrier writes no tombstone; a restored session with no refresh slot stays signed in and says it does not renew. Unit and composed in-process courses (offline, refused) fail with the erasure restored; AC4 set 12/12 including application_composition_contract"
+  },
+  {
+   "card": "BPR-1111",
+   "state": "Done",
+   "commits": ["9bf06725", "f9c42297", "55fd5e89"],
+   "result": "every device-binding read is classified through classify_sqlite_result plus the read scope's limits; quick_check's unread-page findings are judged by their code (found while building the injection); the post-snapshot re-read is gone; faults injected through the connection's own I/O methods and the hard heap limit; lane test counts terminals per request; 23 new assertions fail on the unchanged product"
+  },
+  {
+   "card": "BPR-1112",
+   "state": "Done",
+   "commits": ["7a0e0406", "b7caeb2f", "f85d2f9e"],
+   "result": "run_turn's catch fails queued withdrawn requests before rethrowing; the immediate path swallows a throwing terminal; start_delete builds its handler before any state change (the unchanged product fails the new allocation-failure sweep at the handler's allocation); finding 1 measured latent (0 of 7 post-withdrawal allocation failures escape a shutdown or a Sign out turn), shown by a design trial; AC4 revised for AC1/AC2 under the owner's authority to revise stale cards"
+  }
+ ],
+ "coordinator_asides": [
+  {
+   "card": "BPR-1114",
+   "state": "Done",
+   "commits": ["07b55c0d"],
+   "result": "owed macOS rows pass at d01f506c (contains 3c3c34d8): github_cli_process_runner, gh_cli_transport, gh_cli_git_smart_transport, architecture_boundaries, architecture_boundary_contract; the macOS preprocessed runner differs only in the inert portable seam"
+  },
+  {
+   "card": "BPR-1115",
+   "state": "Done",
+   "commits": ["07b55c0d"],
+   "result": "owed macOS rows pass at d01f506c: git_process_contract, git_cache_contract and both boundary rows; the macOS preprocessed Git runner is byte-identical before and after"
+  }
+ ],
+ "upkeep": [
+  "BPR-0644 (Parked): pointer to BPR-1116; its account-mismatch owner question untouched",
+  "BPR-0884 (Done): pointer to BPR-1111",
+  "BPR-1048 (Done): pointer to BPR-1112",
+  "docs/architecture/github-host-implementation.md and security-threat-model.md state the in-process keep-grant rule, the classified-read rule and the throwing-turn rule"
+ ],
+ "integration_pass": "16 of 16 at 3bcee50a (build/dev rebuilt, no warning or error line): core_boundary_contract, architecture_boundaries, application_github_host, application_device_authorization_host, _refresh, _public_path, _registered_course, _refresh_course, _orphan_course, sqlite_private_store_open, sqlite_device_binding_storage, application_composition_contract 241.0 s, application_review_round_trip_composition_contract, application_device_binding_restart 30.0 s, _launch_renewal 67.0 s, _relaunch 10.1 s",
+ "ids_allocated": {},
+ "owed_elsewhere": [
+  "Windows and Linux, ordinary confirmation (one platform meets each card's acceptance): ctest --test-dir <build> --output-on-failure -R \"^(application_github_host|application_device_authorization_host|application_device_authorization_refresh|application_device_authorization_public_path|sqlite_device_binding_storage|sqlite_private_store_open|application_device_binding_restart|application_device_binding_launch_renewal|application_device_binding_relaunch)$\"",
+  "Windows: application_device_binding_launch_renewal now runs about 30 s longer (in-process offline retries); its TIMEOUT is 180 s. sqlite_device_binding_storage's fault injection runs over win32-longpath. application_github_host replaces global operator new in its test binary (MSVC sized delete provided)",
+  "BPR-1121 (bpr-main-linux, In Progress) lists device_binding_storage and device_binding_launch_renewal among its fifty sources; both changed here (f9c42297, b71456a1), and the launch renewal course gained two QTemporaryDir roots of the class it fixes. Its AC6 owes macOS runs once it lands"
+ ],
+ "commands_running": [],
+ "next_action": "coordinator: no Ready card is eligible on macOS; BPR-1121's macOS AC6 is the next Mac work once bpr-main-linux lands it"
+}
