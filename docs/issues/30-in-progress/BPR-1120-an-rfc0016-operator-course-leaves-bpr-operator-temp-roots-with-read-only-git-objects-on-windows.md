@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1120"
 title: "An rfc0016 operator course leaves bpr-operator-* temp roots containing read-only Git objects on Windows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
