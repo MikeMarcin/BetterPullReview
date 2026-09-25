@@ -1,0 +1,61 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "head": "444f3e10",
+  "session": "df5859c784ba447497026d6cd81af810",
+  "sequence_after_preparation": 4,
+  "state": "/Users/jaeger/.mask/attended-review/owner-decisions-20260925-bpr0653-v001/session.json (external --state; not committed)",
+  "scope": "A new session holding only BPR-0653's Windows capture question. No earlier session's candidates are carried into it: the checkout session cbd48b91000b00f1e72e1ad62c7c384c and the scoped session 7083474240820608cdf9ff551ddd298f are left untouched.",
+  "owner_feedback_applied": [
+    "Sessions are scoped only to the current questions: a new session with its own --state directory, no old items.",
+    "Every multiple-choice item has an 'Other' write-in: 'Other: my answer is in the note', and every item has the free-text note."
+  ],
+  "media_rule": "candidate-manifest.json names each image by repository path and sha256. The manifest given to init replaced each 'path' (and dropped 'sha256') with url = 'data:image/png;base64,' + base64(file bytes); the fingerprint binds those bytes. source-manifest.txt binds the capture folder's 39 PNGs, capture.json and index.md for the documentation gate while this packet is pending.",
+  "page": {
+    "path": "offline-package/index.html",
+    "digest": "sha256:cad470c4087b700e5b330ae3f7f00b95140c3b8f4c4ff01460febaa9075768b3",
+    "note": "The review.html asset with the status --full snapshot at sequence 4: exactly the one candidate below."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0653-windows-capture-150-v001",
+      "revision": "727ad9d7 (capture of exe 6aa27c8d…98ac4, source 85e522d8)",
+      "fingerprint": "b086dd44326bf32cef5d0703988972e3cd5839786c5cc2434ae66c009e39e775",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md",
+      "criteria": [
+        "AC2",
+        "AC4"
+      ],
+      "commits": [
+        "727ad9d7",
+        "85e522d8"
+      ],
+      "capture": "docs/verification/BPR-0653-2026-09-25",
+      "executable_sha256": "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4",
+      "bundle_sha256": "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91",
+      "scale": "150% (system DPI 144) only; 100% not captured",
+      "driver": "station-driven, not owner-driven",
+      "question": "Do you accept BPR-0653's Windows caption and strip visuals as the station captured them at 150%?",
+      "answer": {
+        "options": [
+          "Accept the Windows caption and strip visuals as captured at 150%",
+          "Reject: what is wrong is in the note",
+          "Other: my answer is in the note"
+        ],
+        "note": "free text"
+      },
+      "media": 39,
+      "protected_paths": [
+        "docs/verification/BPR-0653-2026-09-25",
+        "docs/verification/reviews/owner-decisions-20260925-bpr0653-v001"
+      ]
+    }
+  ],
+  "not_asked": {
+    "BPR-0653 100% scale": "Changing Windows' display scale is a system setting on the owner's machine; deferred and still owed on the card.",
+    "BPR-0653-windows-capture-v001": "The unprepared candidate in session cbd48b91 is not re-asked there; this session's candidate replaces its ask for 150%.",
+    "everything else": "Only this question is in scope for this session."
+  }
+}

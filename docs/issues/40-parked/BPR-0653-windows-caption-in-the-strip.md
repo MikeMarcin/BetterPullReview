@@ -1100,3 +1100,28 @@ gesture. The pointer never moved.
 **Where the card stands.** Criteria 2 and 4 now have their captures. The card
 stays parked on human-review for the owner's remote review of them. Criterion
 3 is unchanged.
+
+## The owner's remote review, prepared 2026-09-25 (main, Mac)
+
+The station's capture is in front of the owner as one question in a new,
+scoped attended session. No earlier item is on the page.
+
+- Session `df5859c784ba447497026d6cd81af810`, state
+  `/Users/jaeger/.mask/attended-review/owner-decisions-20260925-bpr0653-v001`
+  (external, not committed), ready at sequence 4. Packet:
+  [owner-decisions-20260925-bpr0653-v001](../../verification/reviews/owner-decisions-20260925-bpr0653-v001/operator-packet.md).
+- Candidate `BPR-0653-windows-capture-150-v001`, revision `727ad9d7` (capture
+  of image `6aa27c8d…98ac4`, source `85e522d8`), fingerprint
+  `b086dd44326bf32cef5d0703988972e3cd5839786c5cc2434ae66c009e39e775`.
+  It carries all 39 images, and each one hashes to `capture.json`.
+- The one question: accept the Windows caption and strip visuals as captured
+  at 150%, reject with a note, or Other (write-in).
+- The item says plainly that the captures are station-driven, not
+  owner-driven, and that 100% was not captured: changing the display scale is
+  a system setting, and it is deferred. It also lists what is not pictured:
+  edge snap, a pull request open, the 1920x1080 maximized size, and the
+  maximizing double-click. The course asserts that double-click.
+
+Unless the owner amends the criteria, **100% stays owed**. An accept covers
+150% on this exact capture only. Criteria 2 and 4 stay pending until the verdict is recorded
+here. Criterion 3 is unchanged. The card stays parked on human-review.

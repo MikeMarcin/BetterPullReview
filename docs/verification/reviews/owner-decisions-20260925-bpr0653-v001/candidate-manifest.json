@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0653-windows-capture-150-v001",
+      "title": "BPR-0653: the Windows caption buttons and strip, as the station captured them at 150%",
+      "revision": "727ad9d7 (capture of exe 6aa27c8d…98ac4, source 85e522d8)",
+      "criteria": [
+        "Do you accept BPR-0653's Windows caption and strip visuals as the station captured them at 150% (DPI 144): the strip as the title row with Minimize, Maximize and Close at rest, hovered and pressed; the snap layouts flyout on hovering Maximize; a drag of empty strip space; Maximize by a click, and a restore by a double-click on empty strip space? 100% was not captured."
+      ],
+      "options": [
+        "Accept the Windows caption and strip visuals as captured at 150%",
+        "Reject: what is wrong is in the note",
+        "Other: my answer is in the note"
+      ],
+      "content": "What this is. BPR-0653's criteria 2 and 4 ask for an attended capture on the Windows station at 100% and 150%: the strip as the title row with the caption buttons, the snap layouts flyout from hovering Maximize, dragging empty strip space, and double-click to maximize and restore. You could not reach the Windows machine, so the station captured them itself and you review them here. This is the only question in this session.\n\nSTATION-DRIVEN, NOT OWNER-DRIVEN. No person moved the pointer. The script tests/scripts/windows_caption_capture.ps1 drove real pointer input (SendInput) on JaegAW. Before every move and press it checked the window was in front, was the window under the point, and that the point's own WM_NCHITTEST answer was the expected part. Every held button was released on empty strip space, so no button fired except the one click on Maximize.\n\n150% ONLY; 100% WAS NOT CAPTURED. The display ran at the scale Windows is set to, DPI 144 (150%) on the 3840x2160 panel, unchanged and with no Qt scale override. Capturing 100% means changing Windows' display scale, a system setting on your machine; that is deferred. Your verdict covers 150% only, and 100% stays open on the card whatever you answer.\n\nThe candidate. One launch of BPR-0974's Defender-clean tests-disabled image, from installed\\: better_pull_review.exe SHA-256 6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4, resource bundle ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91, source 85e522d8, which carries this card's title row. Run with --render-evidence: signed out, on a private temporary profile. 2026-09-25 04:29:54Z to 04:30:23Z, exit 0 after WM_CLOSE, and Defender recorded nothing.\n\nThe images. 13 states, three images each, 39 in all, below in capture order: the window's visible frame (downscaled to 1920 wide, factor 0.998; the maximized one 0.500), then the strip and the caption-button area at full physical resolution. Click any image to see it at full size. All 39 match the SHA-256 in capture.json.\n\nRead them with these facts:\n- The drag shows in the frame coordinates, not in the pictures. Each image is the window alone, so before, mid and after look alike. The frame's top-left went 958,384, then 1038,444 with the button held, then 1118,504: exactly the pointer's travel, +160,+120 physical pixels. The labels carry each frame.\n- The double-click was captured restoring, not maximizing. A click on Maximize maximized the window; a double-click on empty strip space then restored the same frame. The maximizing double-click is asserted by the application_windows_title_row course (a posted WM_NCLBUTTONDBLCLK), not pictured.\n- Not captured, beyond 100%: releasing a drag against the screen edge (edge snap); a pull request open (the window shows Home, signed out, so the epoch line is not in view; criterion 1 already passed by command); and the 1920x1080 maximized size (this panel's maximized frame is 3840x2088 physical, 2560x1392 at 150%).\n- Redacted: in four window images (hover-maximize, snap-flyout, pressed-maximize, maximized) other applications' content was filled with the surrounding colour: two app icons in the flyout's recent snap groups, and a notification toast. Nothing of the app was covered. capture.json keeps each rectangle and the SHA-256 of the bytes as captured; the originals stay station records and are not committed.\n- Measured by the preparer, for you to judge: zoomed in, the edges of the Maximize, Restore and Close glyphs carry colour fringes (for example (69,143,213) and (201,143,79) at rest), the mark of sub-pixel anti-aliasing. Minimize, a horizontal bar, shows almost none.\n- Home's sign-in text says \"signs this Mac in\" on Windows. That is BPR-1137, a separate card, and not this question.\n\nWhere the images live. docs/verification/BPR-0653-2026-09-25/, exactly as the station committed them in 727ad9d7. docs/AGENTS.md says screenshots are not to be checked in as substitutes for runtime proof. These are human-review artifacts for this question; the runtime proof beside them stays the application_windows_title_row course.\n\nHow to answer. Choose one option and press Save selection. The note takes any explanation; with Reject or Other, say what you want in it.",
+      "launch": {
+        "label": "Open the capture's index (every state's rects, time and SHA-256)",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/verification/BPR-0653-2026-09-25/index.md"
+      },
+      "paths": [
+        "docs/verification/BPR-0653-2026-09-25",
+        "docs/verification/reviews/owner-decisions-20260925-bpr0653-v001"
+      ],
+      "resources": [],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md",
+        "card_section": "The capture, taken 2026-09-25T04:29:54Z to 04:30:23Z (bpr-main-win): ready for the owner's remote review",
+        "criteria": [
+          "AC2",
+          "AC4"
+        ],
+        "capture": "docs/verification/BPR-0653-2026-09-25",
+        "capture_commit": "727ad9d7",
+        "executable_sha256": "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4",
+        "bundle_sha256": "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91",
+        "source": "85e522d86f29230454c72b4d965fa2e06986e394",
+        "system_dpi": 144,
+        "system_scale_percent": 150,
+        "not_captured": [
+          "100% display scale (a system setting; deferred)",
+          "edge snap (a drag released against the screen edge)",
+          "a pull request open (Home, signed out)",
+          "the 1920x1080 maximized size",
+          "the maximizing double-click (asserted by application_windows_title_row)"
+        ],
+        "driver": "station-driven (windows_caption_capture.ps1, SendInput), not owner-driven",
+        "supersedes": "BPR-0653-windows-capture-v001 in session cbd48b91 (never prepared, never asked)"
+      },
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/rest-window.png",
+          "label": "01 rest: the three caption buttons at rest, the pointer parked outside them. window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/rest-strip.png",
+          "label": "01 rest: the three caption buttons at rest, the pointer parked outside them. strip, full resolution",
+          "sha256": "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/rest-caption-buttons.png",
+          "label": "01 rest: the three caption buttons at rest, the pointer parked outside them. caption buttons, full resolution",
+          "sha256": "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-minimize-window.png",
+          "label": "02 hover-minimize: Minimize hovered. window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "3076bdfca511abd0280af65759cd2fa252e7baa9657204201a65d9b189a6de71"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-minimize-strip.png",
+          "label": "02 hover-minimize: Minimize hovered. strip, full resolution",
+          "sha256": "a6eda02004a14110f51d2edfb2329a943e72bed1f786773c5b2e64a0524ca6b5"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-minimize-caption-buttons.png",
+          "label": "02 hover-minimize: Minimize hovered. caption buttons, full resolution",
+          "sha256": "7a295882ef251881a06b70205783a4f8c346f44cb0e44e01d23f24120b2af046"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-minimize-window.png",
+          "label": "03 pressed-minimize: Minimize pressed and held (released on empty strip space, so nothing fired). window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "c466491a67dd7459e803d63f106ac2471ed2b808d5e2f5da882350341e4aa9ff"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-minimize-strip.png",
+          "label": "03 pressed-minimize: Minimize pressed and held (released on empty strip space, so nothing fired). strip, full resolution",
+          "sha256": "e212a72ea27abc7737a4c58bdd39e5cd36478015e5c50d2ccfcacc7f93594eb6"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-minimize-caption-buttons.png",
+          "label": "03 pressed-minimize: Minimize pressed and held (released on empty strip space, so nothing fired). caption buttons, full resolution",
+          "sha256": "865dc6ce936a10565fd52765648d0b6e8c02e9c0e2a0e6a20fc91e2e0e23154f"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-maximize-window.png",
+          "label": "04 hover-maximize: Maximize hovered, the snap layouts flyout already shown. window (frame at 958,384, 1924x1232 physical; shown at 0.998). Redacted: 3 rectangle(s) of another application's content filled with the surrounding colour",
+          "sha256": "94e4af3a6d4600b0a80b8ecd1022cbddaedab35527f330a25f51eeadd87d8b48"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-maximize-strip.png",
+          "label": "04 hover-maximize: Maximize hovered, the snap layouts flyout already shown. strip, full resolution",
+          "sha256": "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-maximize-caption-buttons.png",
+          "label": "04 hover-maximize: Maximize hovered, the snap layouts flyout already shown. caption buttons, full resolution",
+          "sha256": "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/snap-flyout-window.png",
+          "label": "05 snap-flyout: the snap layouts flyout 4.6 s into the hover (byte-identical to hover-maximize: the flyout was already up). window (frame at 958,384, 1924x1232 physical; shown at 0.998). Redacted: 3 rectangle(s) of another application's content filled with the surrounding colour",
+          "sha256": "94e4af3a6d4600b0a80b8ecd1022cbddaedab35527f330a25f51eeadd87d8b48"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/snap-flyout-strip.png",
+          "label": "05 snap-flyout: the snap layouts flyout 4.6 s into the hover (byte-identical to hover-maximize: the flyout was already up). strip, full resolution",
+          "sha256": "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/snap-flyout-caption-buttons.png",
+          "label": "05 snap-flyout: the snap layouts flyout 4.6 s into the hover (byte-identical to hover-maximize: the flyout was already up). caption buttons, full resolution",
+          "sha256": "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-maximize-window.png",
+          "label": "06 pressed-maximize: Maximize pressed and held, the flyout still up (released on empty strip space). window (frame at 958,384, 1924x1232 physical; shown at 0.998). Redacted: 3 rectangle(s) of another application's content filled with the surrounding colour",
+          "sha256": "8063fdff314656d19be67762581f7cc901955e8dbbc4c9020cb7ed583b15a7e0"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-maximize-strip.png",
+          "label": "06 pressed-maximize: Maximize pressed and held, the flyout still up (released on empty strip space). strip, full resolution",
+          "sha256": "0e2361daaf959d68a677ea1736a5da96e02b013bc3d41a511da14c17f61c0a30"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-maximize-caption-buttons.png",
+          "label": "06 pressed-maximize: Maximize pressed and held, the flyout still up (released on empty strip space). caption buttons, full resolution",
+          "sha256": "f449315a62e0f358cf2a4f75f2708bbdce7afbb1ec78044324b6718130703819"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-close-window.png",
+          "label": "07 hover-close: Close hovered. window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "d377312c117588030ea5c8b5d3b305f0a39e9228ef1ba618cefc4bba92daf704"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-close-strip.png",
+          "label": "07 hover-close: Close hovered. strip, full resolution",
+          "sha256": "beb5ea82df07dfb63536cf54f7c6c8fb91f4e56b853cc7eb35f2ea4345351329"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/hover-close-caption-buttons.png",
+          "label": "07 hover-close: Close hovered. caption buttons, full resolution",
+          "sha256": "4fdfdfe49c719e5ac9d7eb6b77731434aedfccbee11c892d1ca4cdd1bdc9688b"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-close-window.png",
+          "label": "08 pressed-close: Close pressed and held (released on empty strip space, so the window did not close). window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "56d06fd8082da6dbc3471ad896c21c1cb4f57931e09c284db5062c7bbc79797c"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-close-strip.png",
+          "label": "08 pressed-close: Close pressed and held (released on empty strip space, so the window did not close). strip, full resolution",
+          "sha256": "466055cc78375955b72a10b058960524731aad31efb4b1166941d0905fc7d9db"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/pressed-close-caption-buttons.png",
+          "label": "08 pressed-close: Close pressed and held (released on empty strip space, so the window did not close). caption buttons, full resolution",
+          "sha256": "a994f912768d4a9c2347fae85f4c963420df247005050af0a9ccbc9a2d5ec6f3"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-before-window.png",
+          "label": "09 drag-before: before a drag of empty strip space. window (frame at 958,384, 1924x1232 physical; shown at 0.998)",
+          "sha256": "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-before-strip.png",
+          "label": "09 drag-before: before a drag of empty strip space. strip, full resolution",
+          "sha256": "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-before-caption-buttons.png",
+          "label": "09 drag-before: before a drag of empty strip space. caption buttons, full resolution",
+          "sha256": "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-mid-window.png",
+          "label": "10 drag-mid: mid-drag, the left button held on empty strip space. window (frame at 1038,444, 1924x1232 physical; shown at 0.998)",
+          "sha256": "d15dede853b358fd42096438c69612cc386a6cf487cd60a50776f5e460e75cc1"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-mid-strip.png",
+          "label": "10 drag-mid: mid-drag, the left button held on empty strip space. strip, full resolution",
+          "sha256": "002053016e8487ef955bb36565622101d4869455a9354508bf7d4e74d9b484ab"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-mid-caption-buttons.png",
+          "label": "10 drag-mid: mid-drag, the left button held on empty strip space. caption buttons, full resolution",
+          "sha256": "1520d790f16df85d08e9ac34896f01a40fdb23312b31e810f92cefa784f4e38e"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-after-window.png",
+          "label": "11 drag-after: after the drag. window (frame at 1118,504, 1924x1232 physical; shown at 0.998)",
+          "sha256": "281b7190d51baab333e231462a32eb51fdcc805e44eb45cfde8bd3e790b58a28"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-after-strip.png",
+          "label": "11 drag-after: after the drag. strip, full resolution",
+          "sha256": "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/drag-after-caption-buttons.png",
+          "label": "11 drag-after: after the drag. caption buttons, full resolution",
+          "sha256": "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/maximized-window.png",
+          "label": "12 maximized: maximized by a click on Maximize; the glyph is now Restore. window (frame at 0,0, 3840x2088 physical, maximized; shown at 0.500). Redacted: 1 rectangle(s) of another application's content filled with the surrounding colour",
+          "sha256": "b5bca421fe29846f0ca07b7d2685a078665684167af65339ec26044c51d08f06"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/maximized-strip.png",
+          "label": "12 maximized: maximized by a click on Maximize; the glyph is now Restore. strip, full resolution",
+          "sha256": "52c1c87a5f93177af657402d0aeba06d840af0178c5dddd2091dbeb1f1d77980"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/maximized-caption-buttons.png",
+          "label": "12 maximized: maximized by a click on Maximize; the glyph is now Restore. caption buttons, full resolution",
+          "sha256": "e44a00496cd1adb5de3236de3ca6952c3709133cabe49a689050190756c341cf"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/restored-window.png",
+          "label": "13 restored: restored by a double-click on empty strip space. window (frame at 1118,504, 1924x1232 physical; shown at 0.998)",
+          "sha256": "ffb5ec25b186349c4486cacf4c49c375bd5c7813ce80bd169635e82400d85401"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/restored-strip.png",
+          "label": "13 restored: restored by a double-click on empty strip space. strip, full resolution",
+          "sha256": "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0653-2026-09-25/restored-caption-buttons.png",
+          "label": "13 restored: restored by a double-click on empty strip space. caption buttons, full resolution",
+          "sha256": "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d"
+        }
+      ]
+    }
+  ]
+}
