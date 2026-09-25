@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0905"
 title: "Four more bounds are sized for a quiet host, one has already expired, and nothing says what margin a bound needs"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -202,7 +202,7 @@ Product candidate `eb55ff7f` (documentation-only continuation `50e33ccb`),
 macOS 26.6.2 arm64, Qt 6.11.2, Debug:
 
 - The four corrected rows passed 4/4, 218.81 seconds total: SQLite 40.84 s,
-  ledger 36.34 s, defect 51.22 s, saved-server 90.39 s. The initial ledger
+  ledger 36.34 s, defect 51.22 s, saved-server 90.38 s. The initial ledger
   single phase had the temporary maximum allowance in that pass; its final
   split was then verified independently as below.
 - Final integration passed 5/5: ordinary public path, production composition
