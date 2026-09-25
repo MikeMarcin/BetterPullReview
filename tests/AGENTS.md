@@ -24,9 +24,15 @@ Tests are direct evidence, not naming evidence.
 - End-to-end tests use the real composition root.
 - A scratch root in the system temporary directory is made by the test at a
   random name, only if nothing is at that name, owner-private, and removed
-  only by the test that made it: `mkdtemp`, `QTemporaryDir`, or the SQLite
-  contracts' `tests/sqlite_contract/scratch_root.hpp`. Never remove a fixed
-  or predictable temporary path before creating it (BPR-1126).
+  only by the test that made it: `mkdtemp`, `QTemporaryDir`, the SQLite
+  contracts' `tests/sqlite_contract/scratch_root.hpp`, or, on POSIX,
+  `bpr::tests::make_scratch_directory` in `tests/support/scratch_directory.hpp`.
+  Never remove a fixed or predictable temporary path before creating it
+  (BPR-1126). Never name a root from the clock, a counter or the process id
+  and then use whatever is already at that name. A file that a child process
+  writes goes inside such a root, not directly in the temporary directory
+  (BPR-1128). On Windows a root must also carry the access its row needs: a
+  row inside the AppContainer needs the container's SID.
 - A course's application data root is the `data` child of a temporary
   directory the course has narrowed to owner-private, made by that language's
   helper (`docs/development/build-and-test.md`, "A course's data root sits one

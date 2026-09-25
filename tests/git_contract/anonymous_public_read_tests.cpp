@@ -9,6 +9,7 @@
 // credential discovery is structurally impossible rather than merely
 // unconfigured. A signed-out materialization runs under exactly that
 // environment.
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/application/git_cache_port.hpp"
@@ -56,11 +57,18 @@ namespace {
 	public:
 		temporary_root()
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			const auto seed = std::to_string(
 				std::chrono::steady_clock::now().time_since_epoch().count());
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-git-anon-" + seed);
 			std::filesystem::create_directories(Path);
+#else
+			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			Path = bpr::tests::make_scratch_directory("bpr-git-anon");
+#endif
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(

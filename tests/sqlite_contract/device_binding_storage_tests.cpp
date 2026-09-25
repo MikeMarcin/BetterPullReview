@@ -3,13 +3,13 @@
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
+#include "scratch_root.hpp"
 
 #include <sqlite3.h>
 #if !defined(_WIN32)
 	#include <sys/wait.h>
 	#include <unistd.h>
 #endif
-#include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>
@@ -538,11 +538,11 @@ namespace {
 }
 int main()
 try {
-	const auto root = std::filesystem::canonical(std::filesystem::temp_directory_path()) / ("bpr-device-binding-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-	std::filesystem::create_directory(root);
-	// [[BPR-1121]]. Owned from here, so a failure anywhere below removes it.
-	const bpr::tests::scratch_guard owned{ root };
-	expect(bpr::adapters::sqlite::make_storage_root_owner_private(root), "scratch root is owner-private under the canonical storage policy");
+	// [[BPR-1128]]. Made by the SQLite contracts' helper ([[BPR-1126]]) at a name
+	// nothing had, owner-private from creation, and removed only by this owner,
+	// on every way out of `main`.
+	const auto  scratch = bpr::tests::sqlite_contract::scratch_root{ "device-binding" };
+	const auto& root    = scratch.path();
 #if !defined(_WIN32)
 	in_child(seed, root);
 	in_child(reopen, root);
@@ -558,11 +558,13 @@ try {
 	expect(!adapters::sqlite::make_device_binding_store(root)->load({ }), "unknown schema object refuses whole catalog");
 	mutate(root, "DROP TABLE extra; PRAGMA ignore_check_constraints=ON; UPDATE device_binding SET access_expiry=issued");
 	expect(!adapters::sqlite::make_device_binding_store(root)->load({ }), "corrupt lifetime refuses whole catalog");
-	std::filesystem::remove_all(root);
+	// A root that does not exist yet. It is under the one this course owns, so
+	// nothing else can be at its name.
+	const auto       absent = root / "absent";
 	std::stop_source stop;
 	stop.request_stop();
-	expect(!adapters::sqlite::make_device_binding_store(root)->load(stop.get_token()), "cancelled load refuses before filesystem work");
-	expect(!std::filesystem::exists(root), "cancelled load creates no root");
+	expect(!adapters::sqlite::make_device_binding_store(absent)->load(stop.get_token()), "cancelled load refuses before filesystem work");
+	expect(!std::filesystem::exists(absent), "cancelled load creates no root");
 	nested_progress_scopes();
 	std::cout << "device-binding-storage-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -1,3 +1,4 @@
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "windows_system_root.hpp"
@@ -323,6 +324,9 @@ namespace {
 	public:
 		explicit temporary_root(const std::string_view aLabel)
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			const auto seed = std::to_string(
 				std::chrono::steady_clock::now()
 					.time_since_epoch()
@@ -330,6 +334,10 @@ namespace {
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-" + std::string{ aLabel } + "-" + seed);
 			std::filesystem::create_directories(Path);
+#else
+			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			Path = bpr::tests::make_scratch_directory("bpr-" + std::string{ aLabel });
+#endif
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(

@@ -6,6 +6,7 @@
 // Git server does. Everything else is the production composition: the epoch
 // application host, the protocol request and parser, the installed Git cache
 // and its process runner, and the SQLite epoch catalog.
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -191,6 +192,9 @@ namespace {
 	public:
 		explicit temporary_root(const std::string_view aLabel)
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			Path = std::filesystem::temp_directory_path()
 				/ (std::string{ "bpr-haves-" } + std::string{ aLabel } + "-"
 				   + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -199,6 +203,15 @@ namespace {
 			}
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
+#else
+			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation,
+			// and owned from then, so a failure below removes it.
+			Path      = bpr::tests::make_scratch_directory(std::string{ "bpr-haves-" } + std::string{ aLabel });
+			auto made = bpr::tests::scratch_guard{ Path };
+			for (const auto* child : { "git", "catalog", "server", "home", "xdg" }) {
+				std::filesystem::create_directories(Path / child);
+			}
+#endif
 			for (const auto* child : { "", "git", "catalog" }) {
 				std::filesystem::permissions(Path / child, std::filesystem::perms::owner_all,
 											 std::filesystem::perm_options::replace);

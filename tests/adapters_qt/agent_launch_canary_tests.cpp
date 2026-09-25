@@ -1,6 +1,7 @@
 /// \file
 /// \brief Hostile real-process coverage for agent protocol and teardown policy.
 
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/application/agent_launch.hpp"
@@ -676,15 +677,27 @@ namespace {
 	void test_timeout_terminates_the_descendant_process_tree()
 	{
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		std::error_code ignored;
+#if defined(_WIN32)
+		// [[BPR-1128]]. Windows keeps its marker as it was until it has a helper
+		// of its own.
 		const auto marker = std::filesystem::temp_directory_path()
 			/ ("bpr-agent-descendant-"
 			   + std::to_string(
 				   std::chrono::steady_clock::now().time_since_epoch().count()));
-		std::error_code ignored;
 		std::filesystem::remove(marker, ignored);
 		// [[BPR-1121]]. The descendant writes it; owned from here, so a failure
 		// below removes it.
 		const bpr::tests::scratch_guard ownedMarker{ marker };
+#else
+		// [[BPR-1128]]. The descendant writes its heartbeat into a directory this
+		// course made at a name nothing had, mode `0700`. Nothing is removed
+		// before it is written, no link at a known name is written through, and
+		// the directory goes, marker and all, however the course ends.
+		const auto                      directory = bpr::tests::make_scratch_directory("bpr-agent-descendant");
+		const bpr::tests::scratch_guard ownedDirectory{ directory };
+		const auto                      marker = directory / "heartbeat";
+#endif
 
 		auto launched = request(core::agent_protocol::external_terminal);
 		launched.Arguments.insert(

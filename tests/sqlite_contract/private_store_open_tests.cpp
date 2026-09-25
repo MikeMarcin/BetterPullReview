@@ -17,6 +17,7 @@
 // 3. (POSIX) Every store file is owner-only. The course runs under umask 0,
 //    so only the stores themselves can narrow what SQLite creates, and it
 //    fails for any store file created at SQLite's own default mode (0644).
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
@@ -68,9 +69,16 @@ namespace {
 	public:
 		explicit scratch_root(std::filesystem::path aName)
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			aName += "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
 			Path = std::filesystem::canonical(std::filesystem::temp_directory_path()) / aName;
 			std::filesystem::create_directory(Path);
+#else
+			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			Path = bpr::tests::make_scratch_directory(aName);
+#endif
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "scratch root is owner-private");

@@ -1,5 +1,6 @@
 #include "platform_test_support.hpp"
 
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -18,7 +19,6 @@
 
 #if !defined(_WIN32)
 	#include <sys/stat.h>
-	#include <unistd.h>
 #endif
 
 namespace {
@@ -33,20 +33,21 @@ namespace {
 	public:
 		temporary_directory()
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			auto seed = std::to_string(reinterpret_cast<std::uintptr_t>(this));
-#if !defined(_WIN32)
-			seed += "-" + std::to_string(static_cast<std::uint64_t>(::getpid()));
-#endif
-			Path = std::filesystem::temp_directory_path()
+			Path      = std::filesystem::temp_directory_path()
 				/ ("bpr-mutation-recovery-" + seed);
 			std::filesystem::create_directory(Path);
-#if defined(_WIN32)
 			// There was no Windows arm here at all, so the root was never made
 			// owner-private and the store refused it — correctly, and in a way
 			// that read like a product defect. `0700` has no Win32 equivalent
 			// that `chmod` can express; the suite's own helper writes the DACL.
 			Private = test_platform::make_owner_private(Path, true);
 #else
+			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			Path    = bpr::tests::make_scratch_directory("bpr-mutation-recovery");
 			Private = ::chmod(Path.c_str(), 0700) == 0;
 #endif
 		}

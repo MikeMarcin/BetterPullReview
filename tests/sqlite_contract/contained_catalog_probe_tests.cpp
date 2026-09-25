@@ -8,6 +8,7 @@
 // treats an escaped exception as the failure it is. On the other
 // platforms the sandbox leaves the chain readable and the same probe
 // asserts the constructive answer arrives just as promptly.
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 
@@ -27,6 +28,10 @@ namespace {
 int main()
 try {
 	namespace sqlite_adapter = bpr::adapters::sqlite;
+#if defined(_WIN32)
+	// [[BPR-1128]]. Windows keeps its root as it was until it has a helper of
+	// its own. This row runs inside the AppContainer, and the root inherits the
+	// container's own temporary directory's access.
 	std::error_code error;
 	const auto      base = std::filesystem::temp_directory_path(error);
 	expect(!error, "temporary directory is available");
@@ -38,6 +43,12 @@ try {
 	// [[BPR-1121]]. Owned from here, so every way out removes it.
 	const bpr::tests::scratch_guard owned{ root };
 	expect(!error, "probe root creates");
+#else
+	// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation, and
+	// owned from here, so every way out removes it.
+	const auto                      root = bpr::tests::make_scratch_directory("bpr-contained-catalog-probe");
+	const bpr::tests::scratch_guard owned{ root };
+#endif
 
 	const auto started = std::chrono::steady_clock::now();
 	auto       typed   = false;

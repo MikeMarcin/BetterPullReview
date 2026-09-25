@@ -2,8 +2,8 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "scratch_root.hpp"
 
-#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -21,26 +21,18 @@ namespace {
 	using namespace bpr::application;
 	using namespace bpr::adapters::sqlite;
 	using bpr::tests::expect;
-	class scratch_directory final
+	/// \brief This contract's scratch root: `bpr-0694-roots-` and a random part.
+	/// \details [[BPR-1128]]. Made by the SQLite contracts' helper ([[BPR-1126]])
+	/// at a name nothing had, owner-private from creation, and removed only by
+	/// the course that made it.
+	class scratch_directory final : public bpr::tests::sqlite_contract::scratch_root
 	{
 	public:
 		scratch_directory()
+			: scratch_root{ "0694-roots" }
+			, Path{ path() }
 		{
-			Path = std::filesystem::temp_directory_path() / ("bpr-0694-roots-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-			std::filesystem::create_directory(Path);
-			// [[BPR-1121]]. Removed again if the rest of construction fails.
-			auto made = bpr::tests::scratch_guard{ Path };
-			expect(make_storage_root_owner_private(Path), "new test root uses canonical private storage policy");
-			Path = std::filesystem::canonical(Path);
-			made.release();
 		}
-		~scratch_directory()
-		{
-			std::error_code ignored;
-			std::filesystem::remove_all(Path, ignored);
-		}
-		scratch_directory(const scratch_directory&)                                     = delete;
-		auto                  operator=(const scratch_directory&) -> scratch_directory& = delete;
 		std::filesystem::path Path;
 	};
 	[[nodiscard]] auto registry() -> profile_registry_snapshot

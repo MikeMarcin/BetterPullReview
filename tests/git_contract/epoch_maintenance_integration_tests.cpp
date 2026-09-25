@@ -1,5 +1,6 @@
 #include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
 #include "../sqlite_contract/platform_test_support.hpp"
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -564,12 +565,24 @@ namespace {
 		explicit temporary_root(const std::string_view aLabel, std::optional<std::filesystem::path> aExisting = { })
 			: Owned{ !aExisting }
 		{
+#if defined(_WIN32)
+			// [[BPR-1128]]. Windows keeps its root as it was until it has a
+			// helper of its own.
 			Path = aExisting ? *aExisting : std::filesystem::temp_directory_path() / (std::string{ "bpr-maintenance-" } + std::string{ aLabel } + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directories(Path / "git");
 			std::filesystem::create_directories(Path / "catalog");
 			// [[BPR-1121]]. A root made here is removed again if the rest of
 			// construction fails; an existing one is left, as its owner is.
 			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
+#else
+			// [[BPR-1128]]. A root made here is made at a name nothing had, mode
+			// `0700` from creation, and owned from then, so a failure below
+			// removes it. An existing one is left, as its owner is.
+			Path      = aExisting ? *aExisting : bpr::tests::make_scratch_directory(std::string{ "bpr-maintenance-" } + std::string{ aLabel });
+			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
+			std::filesystem::create_directories(Path / "git");
+			std::filesystem::create_directories(Path / "catalog");
+#endif
 			std::filesystem::permissions(Path,
 										 std::filesystem::perms::owner_all,
 										 std::filesystem::perm_options::replace);
