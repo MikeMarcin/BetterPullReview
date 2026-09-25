@@ -387,3 +387,111 @@ do the authentiode signing eventually, but not at this moment"). It stays
 RFC-BPR-0038's release work ([[BPR-0960]]). These three changes lower the
 static signals, and BPR-1110 already found they cannot remove the risk:
 reputation and a signer are what the cloud verdict leans on.
+
+## The candidate, bpr-main-win, 2026-09-24
+
+**Source and build.** `main` at `85e522d86f29230454c72b4d965fa2e06986e394`,
+pushed through the station gate. It was cloned clean into the new task root
+`C:/Users/mikem/bpr0974-candidate-85e522d8`, which holds `source/`, `b/` and
+`installed/`; the clone was still clean after the install.
+
+- Preset `windows-app-release`: Ninja, Release, `BUILD_TESTING=OFF`,
+  `BPR_DISTRIBUTION_BUILD=ON`.
+- MSVC 19.51.36257.0 (toolset 14.51.36231) and Qt 6.11.2, from the checkout's
+  CPM cache. KSyntaxHighlighting 6.28.1 was built with `QRC_SYNTAX=OFF`.
+- `cmake --install b --prefix installed` deployed the restricted runtime,
+  notices, SBOM and separate source asset. The notice was VS 18's
+  `Licenses/1033/Redist.txt`. The upstream source archives were copied from
+  the BPR-0014 M9 task root; the install verified their digests and used no
+  network.
+
+**Bytes.**
+
+- `installed/better_pull_review.exe`, SHA-256
+  `6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4`, is
+  byte-identical to `b/src/app/better_pull_review.exe`.
+- `installed/better_pull_review.rcc`, SHA-256
+  `ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91`, is
+  3,543,222 bytes. The image carries this digest.
+- The agent supervisor is `f951e65c…` and the MCP context helper `9fd2d9b8…`.
+- `installed/sbom.spdx.json` is `3431ca1b…`.
+
+The task root's own `scripts/verify_release_package.py` reports
+`RELEASE_PACKAGE_OK` over `installed/`:
+
+- 23 files, bound to the SBOM;
+- 16 PE images, the first-party ones through their linker maps;
+- the bundle as declared runtime data;
+- the separate source asset `11babc5f…`.
+
+The M9 audit is not trust or release approval.
+
+**Static properties against BPR-1110's flagged image.** The flagged file is
+quarantined, so its column is BPR-1110's: its own linker map and its
+structurally identical M9 sibling `67f5e514`, measured again here with the
+same reader. The candidate's column was read from its files, which were not
+run.
+
+| | Flagged image, `2d3bdbdf` | Candidate, `85e522d8` |
+|---|---|---|
+| Size | 12,931,584 bytes (the sibling) | 9,640,960 bytes |
+| Whole-file entropy | 7.063 bits/byte | 6.466 |
+| `.text` | 6,822,912 bytes, 6.342 | 7,026,176 bytes, 6.339 |
+| `.rdata` | 5,107,712 bytes, 7.573 | 1,602,560 bytes, 5.937 |
+| Qt resource blobs in the image | 3,572,480 bytes at 7.965: syntax 1,643,632, Dif 1,580,128, icon 294,944, theme 53,776 | 53,776 bytes at 7.994, theme only |
+| `VERSIONINFO` | absent | GameCoreTech, BetterPullReview, 0.1.3, `better_pull_review.exe` |
+| Debug directory | `coffgrp` only | CodeView (RSDS) naming `better_pull_review.pdb` only, `VC_FEATURE`, `coffgrp` |
+| Resources | icon x8, icon group, manifest | the same, and `VERSION` (676 bytes) |
+| Helpers | no `VERSIONINFO`, `coffgrp` only | `VERSIONINFO` each, and CodeView naming their bare PDB file |
+| Beside the image | nothing | `better_pull_review.rcc`, 7.959 bits/byte: 10 strips (1,580,075 bytes, uncompressed), 9 icons (294,896), 459 syntax files and index (1,641,783, zlib) |
+| Signed, subsystem, hardening | no; console; ASLR (high entropy), NX, CFG | unchanged |
+
+`.text` grew because `85e522d8` carries two days of product changes since
+`2d3bdbdf`, not because of these three changes. The image contains no build
+path to a PDB. The bundle digest occurs once in the image, as does the refusal
+line.
+
+**A trial image, not the candidate.** Before pushing, the checkout's
+`build/windows-app-release` built the same product tree (unpushed `020f9ed5`,
+image `517f6b8a…`) to catch configure and link errors. It was never run. On
+it, `scripts/verify_dif_asset_boundaries.py`'s `app-release` profile passes
+the bundled layout: ten accepted strips, in the bundle and not in the image.
+That verifier's `dev` and `core-only` profiles cannot pass on Windows for an
+older reason: `dif_assets_contract` runs uncontained there, so its registration
+has no network-isolation launcher. A card for that is requested.
+
+**Defender before the first launch, read-only.** Read with
+`Get-MpThreatDetection`, `Get-MpComputerStatus`, `Get-MpPreference` fields and
+the operational log, at 2026-09-25T01:44:39Z and again at 02:05:13Z, after the
+candidate was built, installed and read:
+
+- The same three detections as before: the two 2026-09-22 BetterPullReview
+  ones and the unrelated 2026-09-21 command-line verdict.
+- The newest operational record is 6545 (01:35:16Z). No event 1116 or 1117
+  appears in the last 24 hours.
+- Client 4.18.26080.4, engine 1.1.26080.3, signatures 1.459.384.0.
+- Real-time and tamper protection are on, with Advanced MAPS and
+  `SubmitSamplesConsent=1`.
+
+Building, installing and reading the candidate and the trial produced no
+Defender event.
+
+**Not yet done: the first launch.** It is a foreground run and waits for the
+coordinator's clearance. It launches `installed/better_pull_review.exe` once,
+with `--render-evidence` and no value, so the run gets a private temporary
+profile, as the 2026-09-22 course did. It waits for the window, holds 8
+seconds, posts `WM_CLOSE`, and waits for exit. It then reads, without changing
+anything, `Get-MpThreatDetection` and every operational event after record
+6545, printing the full text of events 1116, 1117, 2010 and their
+neighbours, 20 seconds after exit. The script is
+`build/logs/bpr-0974-main-win/first-launch.ps1` on the station. If Defender
+flags the image, that is recorded here and nothing is retried, rebuilt,
+restored or excluded.
+
+**Where the criteria stand.** AC1, as the owner's disposition amends it:
+
+- the three changes are in the image;
+- its source, build and digests are recorded above;
+- **pending:** that Defender does not detect that digest on its first launch.
+
+AC2 through AC4 run on this image once AC1 holds.

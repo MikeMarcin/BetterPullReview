@@ -2752,8 +2752,10 @@ if(WIN32)
             BPR_EXTERNAL_QT_RESOURCES=1
             "BPR_TEST_RESOURCE_BUNDLE=\"${bpr_resource_bundle}\""
             "BPR_TEST_IMAGE_BUNDLE=\"$<TARGET_FILE_DIR:test_better_pull_review_installed_resources_contract>/${BPR_QT_RESOURCE_BUNDLE_NAME}\""
-            "BPR_TEST_ICON_ROOT=\"${PROJECT_SOURCE_DIR}/packaging/icons/png\""
-            "BPR_TEST_DIF_ROOT=\"${PROJECT_SOURCE_DIR}/src/adapters/qt/assets/dif/generated\""
+            # The source root only: the Dif boundary verifier admits no graph
+            # reference to the Dif asset tree but the accepted products
+            # themselves, so the test names that directory in its source.
+            "BPR_TEST_SOURCE_ROOT=\"${PROJECT_SOURCE_DIR}\""
             "BPR_TEST_SYNTAX_COLLECTION=\"${bpr_syntax_collection}\""
             "BPR_TEST_SYNTAX_INDEX=\"${bpr_syntax_index}\""
     )

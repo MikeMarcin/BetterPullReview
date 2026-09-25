@@ -237,8 +237,9 @@ endfunction()
 # that embeds its resources gets an empty owner and behaves as before. Both
 # files join the source inventory and the production manifest. The
 # full-application and mutation-branch pins are unchanged. Covers 1347f776..the
-# BPR-0974 commit; 9577a516 touched only fixture sources outside the manifest.
-# Review recorded on BPR-0974.
+# BPR-0974 commit (85e522d8); 9577a516 and 518fcc37, rebased beneath it,
+# touched only fixture sources outside the manifest. Review recorded on
+# BPR-0974.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")

@@ -166,7 +166,7 @@ namespace {
 
 			for (const auto size : { 16, 24, 32, 40, 48, 64, 128, 256, 512 }) {
 				const auto name = QStringLiteral("%1x%1/better_pull_review.png").arg(size);
-				expect(file_bytes(QStringLiteral(":/icons/") + name) == file_bytes(QStringLiteral(BPR_TEST_ICON_ROOT "/") + name),
+				expect(file_bytes(QStringLiteral(":/icons/") + name) == file_bytes(QStringLiteral(BPR_TEST_SOURCE_ROOT "/packaging/icons/png/") + name),
 					   "every icon size is the packaged PNG");
 			}
 
@@ -177,7 +177,7 @@ namespace {
 				expect(resource.isValid(), "every accepted Dif strip is bundled");
 				expect(resource.compressionAlgorithm() == QResource::NoCompression, "every Dif strip is stored uncompressed, as the runtime requires");
 				expect(QByteArray::fromRawData(reinterpret_cast<const char*>(resource.data()), resource.size())
-						   == file_bytes(QStringLiteral(BPR_TEST_DIF_ROOT "/") + name),
+						   == file_bytes(QStringLiteral(BPR_TEST_SOURCE_ROOT "/src/adapters/qt/assets/dif/generated/") + name),
 					   "every Dif strip is the accepted generated product");
 			}
 			expect(QDir{ QStringLiteral(":/bpr/dif") }.entryList(QDir::Files).size() == static_cast<qsizetype>(strips.size()),
