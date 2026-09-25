@@ -113,6 +113,14 @@ namespace bpr::app::detail {
 		std::uint32_t             RetryAfterSeconds = 2U;
 	};
 
+	/// \brief BPR-0969's safe network-loss control, shared by wire and smart-Git fixtures.
+	struct github_offline_fixture
+	{
+		std::atomic_bool      Offline{ false };
+		std::atomic<unsigned> WireRefusals{ 0U };
+		std::atomic<unsigned> GitRefusals{ 0U };
+	};
+
 	/// \brief [[BPR-1198]]. Read-only identities at an epoch refresh boundary.
 	struct epoch_refresh_identity_evidence
 	{
@@ -224,7 +232,8 @@ namespace bpr::app::detail {
 		/// [[BPR-0657]]. Lets a course refresh the pull request: the recorded
 		/// read script is replayed for each session the product establishes,
 		/// with the fixture's replies and resolutions overlaid.
-		bool RepeatReadSessions = false;
+		bool                                    RepeatReadSessions = false;
+		std::shared_ptr<github_offline_fixture> Offline;
 		/// [[BPR-0657]]. Whether the fixture's mutation provider resolves
 		/// threads. Off, the composed editor reports the degradation, which
 		/// the round-trip course pins; on, the threaded-reply course resolves.

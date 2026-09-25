@@ -3106,3 +3106,17 @@ bpr_add_network_isolated_test(NAME application_rate_limit_render_recovery WINDOW
 set_tests_properties(application_rate_limit_render_recovery PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "rate-limit-public-path:render-and-recovery-pass")
+
+# BPR-0969 inventories present behavior without claiming full offline acceptance.
+bpr_add_executable(test_offline_inventory_public_path offline_inventory_public_path_tests.cpp)
+target_link_libraries(test_offline_inventory_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_offline_inventory_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_offline_inventory_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_offline_inventory_public_path)
+bpr_enable_warnings(test_offline_inventory_public_path)
+bpr_add_network_isolated_test(NAME application_offline_inventory WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/offline_inventory_contract.py"
+    --application $<TARGET_FILE:test_offline_inventory_public_path>)
+set_tests_properties(application_offline_inventory PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
+    PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")

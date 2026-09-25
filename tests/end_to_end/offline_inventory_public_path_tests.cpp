@@ -1,0 +1,259 @@
+// BPR-0969 inventories current behavior; success does not certify offline mode.
+#include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/workbench_landing.hpp"
+
+#include <QAction>
+#include <QApplication>
+#include <QElapsedTimer>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListView>
+#include <QListWidget>
+#include <QPixmap>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QSysInfo>
+#include <QThread>
+
+#include <array>
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+
+namespace {
+	using namespace bpr;
+	using tests::expect;
+	using access = app::detail::github_application_fixture_access;
+
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (!aCondition() && elapsed.elapsed() < 30000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		expect(aCondition(), aMessage);
+	}
+
+	const auto freshnessNotice = QStringLiteral("Refresh failed. Showing previously loaded review data; freshness is unknown.");
+
+	auto visible_freshness_notice(qt::workbench_window& aWindow) -> bool
+	{
+		for (auto* label : aWindow.findChildren<QLabel*>()) {
+			if (label->isVisible() && label->text().startsWith(freshnessNotice)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void report(app::github_application& aOwner, qt::workbench_window& aWindow, const char* aStage)
+	{
+		QApplication::processEvents();
+		const auto snapshot = access::large_review_snapshot(aOwner);
+		std::cerr << "stage=" << aStage << " snapshot=" << bool(snapshot)
+				  << " home=" << aWindow.showing_home()
+				  << " source=" << bool(aWindow.comparison_surface()->current_result())
+				  << " comparison=" << aWindow.epoch_selectors()->comparison_available()
+				  << " threads_model_rows=" << aWindow.conversation_model()->rowCount()
+				  << " availability=" << aWindow.conversation_panel()->availability_label()->text().toStdString()
+				  << " diagnostic=" << aWindow.session_panel()->diagnostic_text() << '\n';
+		if (snapshot) {
+			std::cerr << "authority=" << snapshot->Profile.value() << ':' << snapshot->Host.value() << ':'
+					  << snapshot->Account.value() << ':' << snapshot->Repository.Repository.value() << ':'
+					  << snapshot->PullRequest.PullRequest.value() << " snapshot_id=" << snapshot->Snapshot.value()
+					  << " base=" << snapshot->PullRequest.BaseOid.value() << " head=" << snapshot->PullRequest.HeadOid.value()
+					  << " files=" << snapshot->Files.size() << " threads=" << snapshot->ReviewThreads.size()
+					  << " threads_availability=" << static_cast<int>(snapshot->ReviewThreadsAvailability) << '\n';
+		}
+		for (auto* label : aWindow.findChildren<QLabel*>()) {
+			const auto text = label->text();
+			if (label->isVisible() && (text.contains(QStringLiteral("cache"), Qt::CaseInsensitive) || text.contains(QStringLiteral("stale"), Qt::CaseInsensitive) || text.contains(QStringLiteral("network"), Qt::CaseInsensitive) || text.contains(QStringLiteral("unavailable"), Qt::CaseInsensitive))) {
+				std::cerr << "visible_label=" << text.toStdString() << '\n';
+			}
+		}
+		const auto image = aWindow.grab();
+		expect(!image.isNull(), "full window capture exists");
+		const auto render = qEnvironmentVariable("BPR_OFFLINE_RENDER_DIR");
+		if (!render.isEmpty()) {
+			expect(image.save(render + QLatin1Char{ '/' } + QString::fromUtf8(aStage) + QStringLiteral(".png")), "offline inventory raster saved");
+		}
+	}
+
+	void open(qt::workbench_window& aWindow, const QString& aLocator)
+	{
+		if (!aWindow.showing_home()) {
+			aWindow.home_action()->trigger();
+		}
+		aWindow.home_open_bar()->setText(aLocator);
+		aWindow.home_open_action()->trigger();
+	}
+
+	void select_source(app::github_application& aOwner, qt::workbench_window& aWindow)
+	{
+		wait_for([&] { return aOwner.status().EpochStatus == core::epoch_status::ready; }, "retained epoch ready");
+		app::detail::course_modality_step modality{ .Modality = qt::review_modality::review,
+													.Needs    = { .Comparison = true, .FilesDrawer = true } };
+		wait_for([&] { return access::enter_course_modality(aOwner, modality) != app::detail::course_modality_result::pending; }, "Review modality settles");
+		expect(modality.Result == app::detail::course_modality_result::entered, "Review exposes real source and file drawer");
+		auto*       files = aWindow.files_drawer()->contents_view();
+		QModelIndex selected;
+		wait_for([&] {
+			for (int row = 0; row < files->model()->rowCount(); ++row) {
+				const auto index = files->model()->index(row, 0);
+				if (index.data().toString() == QStringLiteral("review.cpp")) {
+					selected = index;
+					return true;
+				}
+			}
+			return false;
+		},
+				 "exact fixture file listed");
+		files->selectionModel()->setCurrentIndex(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		auto* surface = aWindow.comparison_surface();
+		wait_for([&] { return surface->isVisible() && surface->current_result() && surface->current_context() && !surface->geometry_pending(); }, "installed Git source rendered");
+		const auto snapshot = access::large_review_snapshot(aOwner);
+		expect(snapshot && snapshot->Files.size() == 2U && !snapshot->ReviewThreads.empty(), "exact two-file review has observed threads");
+		expect(aWindow.epoch_selectors()->left_oid_editor()->text().toStdString() == snapshot->PullRequest.BaseOid.value()
+				   && aWindow.epoch_selectors()->right_oid_editor()->text().toStdString() == snapshot->PullRequest.HeadOid.value(),
+			   "selected source exact accepted base and head");
+		expect(!surface->left_pane()->toPlainText().isEmpty() && !surface->right_pane()->toPlainText().isEmpty(), "both exact source documents populated");
+		expect(surface->select_conversation_line(core::diff_side::right, 3U), "save exact reading position");
+	}
+
+	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
+	{
+		expect(!access::large_review_snapshot(aOwner), "failed open has no accepted observation, not an empty review");
+		expect(!visible_freshness_notice(aWindow), "unavailable review never claims to display retained data");
+		expect(aWindow.conversation_model()->rowCount() == 0
+				   && aWindow.conversation_panel()->availability_label()->text().contains(QStringLiteral("unavailable")),
+			   "zero thread rows explicitly mean unavailable");
+		expect(!aWindow.comparison_surface()->current_result() && !aWindow.epoch_selectors()->comparison_available(), "retained disk objects alone do not reopen a comparison");
+	}
+}
+
+auto main(int aArgc, char** aArgv) -> int
+try {
+	expect(aArgc == 3, "phase and absolute private data root required");
+	const auto phase = std::string_view{ aArgv[1] };
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline", "known offline phase");
+	std::array<char, 2049U> bytes{ };
+	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
+	const auto   vaultBytes = std::string{ bytes.data(), static_cast<std::size_t>(std::cin.gcount()) };
+	QApplication application{ aArgc, aArgv };
+	QApplication::setQuitOnLastWindowClosed(false);
+	std::cerr << "phase=" << phase << " platform=" << QSysInfo::productType().toStdString() << " arch=" << QSysInfo::currentCpuArchitecture().toStdString() << " qt=" << qVersion() << " backend=" << QGuiApplication::platformName().toStdString() << '\n';
+	auto offline     = std::make_shared<app::detail::github_offline_fixture>();
+	offline->Offline = phase == "restart-offline";
+	app::detail::github_public_path_fixture_options options;
+	options.ApplicationDataRoot = std::filesystem::path{ aArgv[2] };
+	expect(options.ApplicationDataRoot->is_absolute(), "absolute private root");
+	options.RegisteredDeviceCourse = true;
+	options.PersistDeviceBindings  = true;
+	options.RepeatReadSessions     = true;
+	options.IndependentWindowReads = true;
+	options.Offline                = offline;
+	options.SharedDeviceVault      = vaultBytes.empty() ? app::detail::make_shared_github_fixture_vault() : app::detail::import_github_fixture_vault(vaultBytes);
+	expect(options.SharedDeviceVault != nullptr, "synthetic vault restored");
+	app::github_application* owner    = nullptr;
+	bool                     terminal = false;
+	auto                     desktop  = access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
+															  [&](auto result) { terminal = true; if (result) { owner = *result; } });
+	wait_for([&] { return terminal; }, "desktop startup terminal");
+	expect(owner != nullptr, "desktop admitted");
+	owner->show();
+	wait_for([&] { return owner->windows().size() == 1U; }, "one restored window");
+	auto& window = *owner->window(owner->windows().front());
+	window.resize(1500, 950);
+	const auto locator = QStringLiteral("https://github.com/octo-org/review-repository/pull/17");
+	if (phase == "restart-offline") {
+		wait_for([&] { return offline->WireRefusals.load() > 0U && window.session_panel()->status() == core::github_status::session_failed; }, "offline restart cannot revalidate account");
+		expect_unavailable(*owner, window);
+		expect(window.showing_home() && window.home_recent_list()->count() == 0, "unvalidated account cannot expose authenticated Recent entries");
+		report(*owner, window, "restart-offline");
+	} else {
+		if (phase == "seed") {
+			window.home_landing()->primary_button()->click();
+		}
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "exact fixture account accepted");
+		if (phase == "restart-read") {
+			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
+			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
+			expect(window.home_recent_list()->item(0)->text().contains(QStringLiteral("octo-org/review-repository#17")), "Recent names exact target");
+			offline->Offline = true;
+			window.home_recent_list()->setCurrentRow(0);
+			wait_for([&] { return window.home_recent_resume_action()->isEnabled(); }, "saved reading offers Resume");
+			window.home_recent_resume_action()->trigger();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "offline Resume reaches wire failure");
+			expect(offline->WireRefusals.load() > 0U, "Resume actually attempts provider read");
+			expect_unavailable(*owner, window);
+			report(*owner, window, "restart-read-offline");
+			offline->Offline = false;
+		}
+		open(window, locator);
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "online original review accepted");
+		select_source(*owner, window);
+		const auto snapshot = access::large_review_snapshot(*owner);
+		expect(!visible_freshness_notice(window), "accepted online data clears failed-refresh notice");
+		const auto key   = window.comparison_surface()->current_context()->Key;
+		const auto left  = window.comparison_surface()->left_pane()->toPlainText();
+		const auto right = window.comparison_surface()->right_pane()->toPlainText();
+		report(*owner, window, phase == "seed" ? "online-seed" : "restart-reconnected");
+		if (phase == "seed") {
+			offline->Offline = true;
+			window.github_refresh_action()->trigger();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "network loss refresh terminal");
+			expect(offline->WireRefusals.load() > 0U && access::large_review_snapshot(*owner) == snapshot, "failed refresh preserves exact in-memory accepted snapshot");
+			report(*owner, window, "failed-refresh");
+			expect(visible_freshness_notice(window), "failed refresh visibly labels retained data and unknown freshness");
+			expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key
+					   && window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right,
+				   "failed refresh retains exact source identity and documents");
+			std::cerr << "retained_source_key=" << (window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key)
+					  << " retained_source_text=" << (window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right) << '\n';
+			offline->Offline = false;
+			access::stage_server_conversation(*owner, std::string{ snapshot->ReviewThreads.front().Thread.value() }, true);
+			window.github_refresh_action()->trigger();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "reconnection refresh accepts server truth");
+			const auto recovered = access::large_review_snapshot(*owner);
+			expect(recovered && recovered->Snapshot != snapshot->Snapshot && recovered->Profile == snapshot->Profile
+					   && recovered->Host == snapshot->Host && recovered->Account == snapshot->Account && recovered->Repository == snapshot->Repository
+					   && recovered->PullRequest == snapshot->PullRequest && recovered->ReviewThreads.front().Comments.front().Body == "Edited server root",
+				   "fresh exact-authority snapshot adopts changed server conversation");
+			expect(!visible_freshness_notice(window), "successful refresh removes failed-refresh notice");
+			expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key, "metadata refresh preserves exact retained comparison");
+			report(*owner, window, "refresh-reconnected");
+			offline->Offline = true;
+			open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "other repository offline terminal");
+			expect_unavailable(*owner, window);
+			report(*owner, window, "other-repository-offline");
+			offline->Offline = false;
+			open(window, locator);
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "original repository recovery");
+			select_source(*owner, window);
+			expect(window.comparison_surface()->current_context()->Key == key, "exact retained revision identity restored after failure");
+		}
+	}
+	expect(access::review_mutation_evidence(*owner).Submissions == 0U, "inventory performs no mutation");
+	std::cerr << "wire_refusals=" << offline->WireRefusals.load() << " git_refusals=" << offline->GitRefusals.load() << '\n';
+	auto* quit = window.findChild<QAction*>(QStringLiteral("quitProfilesAction"));
+	expect(quit != nullptr && quit->isEnabled(), "public Quit available");
+	quit->trigger();
+	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains persisted reading and all services");
+	desktop.reset();
+	const auto exported = app::detail::export_github_fixture_vault(options.SharedDeviceVault);
+	expect(exported.size() <= 2048U, "synthetic vault output bounded");
+	std::cout.write(exported.data(), static_cast<std::streamsize>(exported.size()));
+	std::cerr << "offline-inventory:" << phase << ":pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
+}

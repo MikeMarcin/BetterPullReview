@@ -1227,6 +1227,7 @@ namespace bpr::app::detail {
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
 			std::shared_ptr<github_rate_limit_fixture>       RateLimit;
+			std::shared_ptr<github_offline_fixture>          Offline;
 			std::size_t                                      DiscoverySearches    = 0U;
 			std::size_t                                      DiscoveryDetailReads = 0U;
 			std::vector<std::string>                         DiscoverySearchTerms;
@@ -1446,6 +1447,11 @@ namespace bpr::app::detail {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::cancelled } };
 				}
+				if (State->Offline && State->Offline->Offline.load()) {
+					++State->Offline->GitRefusals;
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::unavailable } };
+				}
 				if (aRequest.Context != Context) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
@@ -1470,6 +1476,11 @@ namespace bpr::app::detail {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::cancelled } };
 				}
+				if (State->Offline && State->Offline->Offline.load()) {
+					++State->Offline->GitRefusals;
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::unavailable } };
+				}
 				if (aRequest.Context != Context) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
@@ -1493,6 +1504,11 @@ namespace bpr::app::detail {
 				if (aStop.stop_requested() || revoked()) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::cancelled } };
+				}
+				if (State->Offline && State->Offline->Offline.load()) {
+					++State->Offline->GitRefusals;
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::unavailable } };
 				}
 				if (aRequest.Context != Context) {
 					return std::unexpected{ application::git_smart_transport_error{
@@ -1736,6 +1752,11 @@ namespace bpr::app::detail {
 						.Error       = provider_error(
 							application::github_provider_failure::authentication),
 					};
+				}
+				if (State->Offline && State->Offline->Offline.load()) {
+					++State->Offline->WireRefusals;
+					return github_wire_error{ .Correlation = aRequest.Correlation,
+											  .Error       = provider_error(application::github_provider_failure::network) };
 				}
 				if (Role == fixture_transport_role::account && State->RateLimit
 					&& aRequest.Wire.Operation == read_operation::get_repository
@@ -3413,6 +3434,7 @@ namespace bpr::app::detail {
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);
+			Recording->Offline                 = std::move(aOptions.Offline);
 			Factory                            = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                         = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since
