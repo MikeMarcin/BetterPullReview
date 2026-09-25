@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -68,12 +68,25 @@ conversation, epoch or mutation authority. Actual process restart, corrupt-store
 refusal, account/destination isolation and reconnection use safe composition;
 core/host controls cover cancellation and stale identity. The canonical AC2/AC3
 remain unfinished and this card returns to Backlog. The
-[current handoff](../../rfcs/plans/bpr0969-offline-inventory/durable-snapshot-handoff.json)
+[overview handoff](../../rfcs/plans/bpr0969-offline-inventory/durable-snapshot-handoff.json)
 binds candidate, verification, scope limits and the next action.
 
-Next, design current offline account admission without treating a saved credential,
-Recent row or retained Git/catalog identity as present authority. Complete durable
-source/conversation snapshots and exact changed-revision recovery under that
-contract. Preserve unavailable versus observed-empty data and reconnect to server
-truth. No disconnected authentication, native/human acceptance or full cached-review
-mode is claimed by the overview slice.
+The [historical file catalogue continuation](../../verification/BPR-0969-file-catalogue-2026-09-25.md)
+under `r4-standalone-review-content-20260925` extends that same atomic overview
+with bounded exact current/previous paths, provider change kinds and reported
+line counts. Its catalogue remains historical evidence of the accepted base/head;
+it supplies no source navigation or current review authority. The coordinator
+explicitly accepted this independently useful slice. Actual restart and legacy
+payload courses plus owning-layer empty, bounds, changed-base/head, cancellation,
+stale-session and corruption controls retain unavailable semantics. The canonical
+AC2/AC3 remain unfinished. The
+[current handoff](../../rfcs/plans/bpr0969-offline-inventory/review-content-handoff.json)
+records the exact source, evidence, pending work and writer release.
+
+Next, continue durable conversation/thread or exact retained-source composition
+under current-process authenticated admission. Disconnected account admission
+remains separate: never treat a saved credential, Recent row or retained Git/
+catalogue identity as present account authority. Complete changed-revision recovery
+without silently presenting historical content as current. Preserve unavailable
+versus observed-empty data and reconnect to server truth. No disconnected
+authentication, native/human acceptance or full cached-review mode is claimed.

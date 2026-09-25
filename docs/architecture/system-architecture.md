@@ -214,9 +214,13 @@ The subsequent BPR-0969 overview store retains at most ten accepted historical
 PR overviews, partitioned by complete profile-revision/host authority, exact
 account and destination. The application host performs bounded SQLite effects
 on its serial worker and the core admits a cached observation only after a
-current authenticated read fails for transport loss. Qt labels its freshness
-unknown and source/conversations unavailable; it receives no current snapshot,
-epoch or mutation authority. An offline startup still cannot authenticate the
+current authenticated read fails for transport loss. The same atomic historical
+record optionally retains a bounded changed-file catalogue with current/previous
+paths and provider change kinds/counts at those exact accepted base/head IDs.
+Qt labels freshness unknown, renders those rows without source navigation and
+keeps source/conversations/progress unavailable. Missing or legacy catalogues
+remain distinct from observed empty. It receives no current snapshot, epoch or
+mutation authority. An offline startup still cannot authenticate the
 account or expose its cache. The [GitHub host contract](github-host-implementation.md)
 describes this boundary; the
 [durable overview evidence](../verification/BPR-0969-durable-overview-2026-09-25.md)

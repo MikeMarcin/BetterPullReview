@@ -1722,18 +1722,35 @@ publish it. A locator alone cannot prove current repository ownership or current
 head while disconnected; this view grants neither current access nor revision
 authority.
 
-The overview says “Cached overview · freshness unknown,” exposes exact retained
-base/head IDs, and marks source, file catalog, conversations and review state
-unavailable. It creates no accepted snapshot, epoch handoff, markdown-link or
-mutation authority. Reopening online obtains a new server observation and clears
-the cached marker. Ten records share the profile; each payload is bounded to
-272 KiB, the body to 256 KiB, and the database to 2048 pages. Version, schema,
-record bounds and SHA-256 integrity are checked before content is returned.
+The overview says “Cached overview · freshness unknown” and exposes exact retained
+base/head IDs. Its optional historical changed-file catalogue preserves current
+and previous paths, provider change kinds and additions/deletions from that same
+accepted observation. These are GitHub's reported changes, not a recomputed
+base-tip/head comparison. The catalogue and overview share one payload, integrity
+digest and atomic replacement; no separate key can attach another revision's
+files. The core bounds it to 1,024 unique paths and a conservative 128 KiB encoded
+budget, with each path at most 4,096 bytes. An excessive catalogue is omitted in
+full while the new overview replaces the old one. No truncation or old catalogue
+is presented as the new observation.
+
+The version-two payload extension distinguishes unavailable from observed empty.
+Original payloads remain readable with the catalogue unavailable; new empty
+catalogues explicitly say zero files observed. The SQL table/schema version and
+key encoding stay unchanged. An older reader refuses the new trailing payload;
+it does not reinterpret it. Unknown extensions and corrupt records fail closed.
+Qt presents historical rows in the Overview table with source activation disabled
+and hides unavailable conversation/progress columns. Source, conversations and
+review state still say unavailable. It creates no accepted snapshot, epoch
+handoff, markdown-link or mutation authority. Reopening online obtains a new
+server observation, clears cached revision descriptions and restores current
+columns and file activation. Ten records share the profile; each payload is
+bounded to 416 KiB, the body to 256 KiB, and the database to 2048 pages. Version,
+schema, record bounds and SHA-256 integrity are checked before content is returned.
 Profile purge includes this store and its SQLite sidecars. This is historical
 metadata after current-process authentication; startup with `/user` unreachable
 still exposes no authenticated cache. Full offline account admission and durable
 source/conversation snapshots remain open in
-[BPR-0969](../issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md).
+[BPR-0969](../issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md).
 
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's

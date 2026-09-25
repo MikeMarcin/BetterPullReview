@@ -1705,7 +1705,7 @@ within the two-second interval. The card preserves cancellation, authority
 replacement, exact file-selection retention and retry-policy obligations.
 
 `application_offline_inventory` (BPR-0969) runs the real desktop composition in
-three processes over the same private data root and synthetic vault pipe. It
+five processes over the same private data root and synthetic vault pipe. It
 uses `profile_window_restoration_v1`, installed Git and a test-only transport
 refusal switch under denied network access. The course checks retained live
 snapshot/source after failed Refresh, a visible unknown-freshness notice,
@@ -1719,6 +1719,13 @@ distinguishes unavailable content from empty filtered views, durable Recent
 navigation from snapshots, and profile-private Recent titles from account-bound
 epoch content. This regression inventories current limits; it does not certify
 complete BPR-0969 AC2/AC3 or offline restart content availability.
+The catalogue continuation asserts both exact historical file rows and reported
+counts after authenticated offline Resume, an inert file activation, hidden
+unavailable progress/conversation columns, legacy payload refusal to claim empty,
+corrupt-payload refusal and fresh server recovery. Separate host/SQLite/Qt checks
+cover changed base/head replacement, rename provenance, observed empty and
+bounded omission. See the [catalogue evidence](BPR-0969-file-catalogue-2026-09-25.md).
+This exposes no cached source or conversations.
 
 
 `application_recent_account_isolation` (BPR-0969) extends the same offline
