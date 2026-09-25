@@ -1733,7 +1733,7 @@ Profile purge includes this store and its SQLite sidecars. This is historical
 metadata after current-process authentication; startup with `/user` unreachable
 still exposes no authenticated cache. Full offline account admission and durable
 source/conversation snapshots remain open in
-[BPR-0969](../issues/20-ready/BPR-0969-verify-cached-review-offline-restart-freshness.md).
+[BPR-0969](../issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md).
 
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's
