@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0904"
 title: "The mutation fixtures' transport ignores method and path, so no row can fail a wrong request URL"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"dsp-007 scout, surveying BPR-0896","found_at":"424a64cc","run":"run-20260916-stations","dispatch":"dsp-007"}
+metadata: {"found_by":"dsp-007 scout, surveying BPR-0896","found_at":"424a64cc","run":"run-20260916-stations","dispatch":"dsp-007","milestone_plan":{"id":"bpr-0904-request-shapes","path":"docs/rfcs/plans/bpr-0904-request-shapes/milestone-plan.json"}}
 ---
 
 # BPR-0904: The mutation fixtures' transport ignores method and path, so no row can fail a wrong request URL

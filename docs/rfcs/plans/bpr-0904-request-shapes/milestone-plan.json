@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-0904-request-shapes",
+  "scope": {
+    "issues": [
+      "BPR-0904"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "request-shapes",
+      "outcome": "Retain independently keyed mutation fixture transports and pin every declared operation method, path and GraphQL operation with measured failure evidence.",
+      "work": [
+        {
+          "issue": "BPR-0904"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A deliberate wrong request path fails a fixture row, and restoring the candidate passes.",
+        "Every review_mutation_operation has an independent request-shape pin; adding an unpinned enum value is visibly refused.",
+        "Record measured row impact of keyed dispatch, preserving dsp-009 historical counts and current candidate counts.",
+        "Describe the egress validator as canonical consistency checking and document its compiler-defect limitation."
+      ],
+      "boundary": "Assignment BPR-0904 unattended parallel r1 from coordinator /root on 2026-09-25; isolated codex/bpr-0904-request-shapes at 9a0b44d56ab645de10afffd7e69a4ca0a3fe8891. Only this card, mutation fixtures/contract tests, minimal contract documentation and checkpoint. No live GitHub mutation, no other checkout, no RFC-0052 review candidate, no delegation."
+    }
+  ],
+  "unplanned_work": []
+}
