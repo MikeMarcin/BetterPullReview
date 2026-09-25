@@ -146,3 +146,137 @@ id before it starts.
   hold only sentinel data the trial wrote. A link's target is in a sentinel
   directory the trial made. Every plant is removed by its exact name
   afterwards.
+
+## Fixed on POSIX at `c11929e2`, verified on Linux — bpr-main-linux, 2026-09-25
+
+Claimed at `e449fa9f`. The change is one commit, `c11929e2`, rebased over
+commits that change only `docs/`. It touches
+`tests/fixtures/agent/agent_canary_main.cpp` and `tests/AGENTS.md`. The
+course, product sources, row registrations and composition pins are
+unchanged.
+
+### The change
+
+- `default_descendant_marker` in the canary. As `…-crash-descendant-wait` it
+  returns `.bpr-crash-heartbeat` in the working directory, as before.
+  Otherwise, on POSIX, it returns `.bpr-descendant-heartbeat` beside the
+  canary's own executable, or nothing when that path is relative. Then the
+  canary prints no marker and exits 31. On Windows it returns `HEAD`'s
+  `bpr-agent-descendant-<pid>` in the temporary directory, in an
+  `#if defined(_WIN32)` branch marked `[[BPR-1139]]`.
+- `tests/AGENTS.md`: a fixture that the application launches, and so cannot
+  be given a path, writes beside its own executable, which the course copies
+  into its root.
+
+### Verification on Linux
+
+WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2, `build/dev` Debug with warnings as
+errors. No build had a `warning:` line. Every run went through `ctest`,
+serially and offscreen. `DISPLAY`, `WAYLAND_DISPLAY` and
+`DBUS_SESSION_BUS_ADDRESS` were unset, `HOME` and the XDG roots were fresh
+absolute paths, and no run added a `bpr-` name to `/run/user/1000`.
+
+**AC1, `HEAD` (`e449fa9f`).** A trial hook, not committed, replaced the pid
+in the marker's name with `4242424242`. No process can have that id
+(`pid_max` is 4194304). `TMPDIR` was unset.
+
+| Plant at `/tmp/bpr-agent-descendant-4242424242`, seen absent first | `HEAD` | Candidate |
+| --- | --- | --- |
+| A 35-byte sentinel file | Appended to: the poll saw 695 bytes, the sentinel text and 660 heartbeat bytes. Removed at the course's end. The row passes | Left: same inode and bytes. The poll never saw it grow |
+| A link to a sentinel file in a sentinel directory the trial made | Followed: 665 heartbeat bytes appended to the sentinel file. The link removed. The row passes | Left: same inode and target. The sentinel file is unchanged |
+| A link to an absent name in that directory | Followed: the descendant created `written-through` there and wrote 662 bytes. The link removed. The row passes | Left. Nothing created |
+
+Other runs, each with a private `TMPDIR`:
+- A watch at `HEAD` saw the marker at the top of `TMPDIR`, mode `0644`.
+- The same watch with the candidate saw only the course's root at the top.
+  The marker was `<root>/data/.bpr-descendant-heartbeat`. `data` and the
+  root are both mode `0700`, owned by this user. Nothing was left.
+
+**AC4, forced failures.** A trial hook in the course, not committed, failed
+one check by name (`BPR_TRIAL_FAIL_AT`). With `BPR_TRIAL_NO_UNWIND`, `fail`
+ended with `std::exit` instead of returning: the negative control, as in
+[[BPR-1121]]'s trial. There were four points: `running-course`,
+`descendant-start`, `typed-terminal-cleanup` and `descendant-stop`.
+
+| | Returning (as committed) | `std::exit` (control) |
+| --- | --- | --- |
+| `HEAD` | 4 of 4 fail with their reason and leave `bpr-agent-descendant-4242424242` | 4 of 4 leave that and the course's root (28 entries) |
+| Candidate | 4 of 4 fail with their reason and leave nothing | 4 of 4 leave the course's root (28 entries), with the marker in it |
+
+Two negative controls used canary hooks, not committed:
+- A descendant that calls `setpgid(0, 0)` escapes the supervisor's group
+  kill. It beats for 25 s. The course fails at `descendant-stop`. The
+  course's root was still removed. Nothing was left after 30 s, and no
+  heartbeat process remained.
+  - A first try beat for only 5 s. That ran out before the course
+    cancelled, at about 6.6 s, so the row passed. That run is a
+    calibration, not evidence.
+- A descendant that writes `<marker>.elsewhere` fails the course at
+  `descendant-start`, and nothing is left.
+
+**AC3, the rows.** Two runs at `HEAD` were compared, 13 of 13, to find what
+varies between runs: only timings. Then the candidate was compared with
+`HEAD`. All 13 rows pass, and each prints the same lines as at `HEAD` once
+timings are normalized:
+- the eight `application_agent_invocation_*_contract` rows;
+- `application_agent_crash_recovery` and
+  `application_agent_materialization_crash_recovery`;
+- `application_agent_finding_protocol`, `qt_agent_launch_canary` and
+  `agent_parent_death`.
+
+No run added a top-level `/tmp` entry.
+
+Every hook was restored to its recorded SHA-256. The committed diff is
+byte-identical to the tested candidate. The rebuilt canary and course carry
+no `BPR_TRIAL`, `TRIAL_FORCING` or `setpgid` symbol. The cancellation row
+was run once more on that build, and passed with the same output.
+
+**AC6, the gates.**
+- Pass: `/usr/bin/clang-format` 22 `--dry-run -Werror` and
+  `git diff --check`.
+- Pass: `architecture_boundaries`, `architecture_boundary_contract`,
+  `coding_format_check` and `msvc_secure_crt_contract`.
+- `_coding-standard/scripts/tidy.py --paths
+  tests/fixtures/agent/agent_canary_main.cpp`: `clang-tidy passed`.
+- `DOCUMENTATION_OK` after the rebase.
+
+These station records are not committed. They are in
+`build/logs/bpr-1139/`:
+- `candidate.patch`, which is the commit;
+- the build logs, `gates.log` and `tidy-candidate.log`;
+- `head-baseline/`, `head-pinned/`, `candidate/`, `candidate-forced/`,
+  `candidate-nc/` and `candidate-final/`, holding the per-run logs and
+  JSON;
+- `trial/`, holding `trial.py`, `compare.py`, `apply_hooks.py` and
+  `bpr_trial_course_hook.hpp`, and the sentinel directories.
+
+### Evidence owed (AC5)
+
+On the macOS station:
+
+```sh
+cmake --build --preset dev
+ctest --preset dev -j1 --output-on-failure -R '^(application_agent_invocation_(composition|construction_cut|launcher_construction_cut|gesture_cut|cancellation|staleness|cleanup_retry|workspace_diagnostic)_contract|application_agent_(materialization_)?crash_recovery|application_agent_finding_protocol|qt_agent_launch_canary|agent_parent_death)$'
+ls "${TMPDIR:-/tmp}" | grep '^bpr-agent-descendant-'
+```
+
+Every row should pass, and the `ls` should print nothing.
+
+On the Windows station, which still compiles `HEAD`'s marker:
+
+```powershell
+cmake --build --preset windows-dev
+ctest --preset windows-dev -j1 --output-on-failure -R "^(application_agent_invocation_(composition|construction_cut|launcher_construction_cut|gesture_cut|cancellation|staleness|cleanup_retry|workspace_diagnostic)_contract|application_agent_(materialization_)?crash_recovery|application_agent_finding_protocol|qt_agent_launch_canary|agent_parent_death|msvc_secure_crt_contract)$"
+```
+
+Every row should pass. The card stays In Progress on this station's claim
+until both runs are supplied.
+
+### Owed to bpr-main-win
+
+On Windows the marker is still `bpr-agent-descendant-<pid>` in the
+temporary directory (`grep -rn 'BPR-1139\]\]. Windows keeps'
+tests/fixtures`). The fix belongs with [[BPR-1138]]'s Windows access work,
+or with a card of its own; the title was given to the coordinator. The
+POSIX design, a marker beside the executable in the course's data root,
+needs the canary to have access to that root on Windows.
