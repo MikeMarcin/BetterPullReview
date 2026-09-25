@@ -368,3 +368,97 @@ From the Windows station, the same selection, including
 `application_windows_profile_storage_startup_contract`. On each station, one
 forced failure while a root exists should show the root removed. The card
 stays In Progress on this station's claim until those runs are supplied.
+
+## macOS, AC2 and AC6 (bpr-main-mac, 2026-09-24)
+
+Station `bpr-main-mac`: macOS 26.6.2 (25G83) on Apple Silicon, Apple clang
+21.0.0 (`clang-2100.1.1.101`), Qt 6.11.2, `build/dev` Debug with warnings
+as errors. This entry supplies the macOS runs that AC6 owes. It does not
+move the card, which stays on bpr-main-linux's claim. The Windows run is
+still owed.
+
+### The build and the four sources
+
+At `be8b0fad`, which contains `98dbf662`, `cmake --build --preset dev`
+exited 0 after 167 steps, 56 of them compiles. It printed no `warning:`
+line.
+
+| Source built only elsewhere | macOS |
+| --- | --- |
+| `tests/github_contract/gh_cli_git_smart_transport_tests.cpp` | compiled and linked in that build, no warning |
+| `tests/end_to_end/release_update_transaction_tests.cpp` | compiled and linked in that build, no warning |
+| `tests/end_to_end/profile_empty_desktop_native_menu_bar_tests.cpp` | compiled and linked in that build, no warning, with Qt's private QPA headers |
+| `tests/end_to_end/windows_profile_storage_startup_contract_tests.cpp` | not compilable here. It includes `<windows.h>` at line 31, outside any `#if`, and is registered only under `WIN32` (`tests/end_to_end/CMakeLists.txt:2705`). A syntax-only compile with a neighbouring target's flags stops at `fatal error: 'windows.h' file not found`. It stays owed to Windows |
+
+### The rows
+
+The card's command, serial and verbose, with the native menu-bar row left
+out (`-E '^application_profile_empty_desktop_native_menu_bar$'`), ran from
+02:39:43Z to 03:16:11Z. On macOS the selection matches 80 rows. These
+include the macOS-only rows and some rows outside the class that the same
+patterns match.
+
+| Check | Result |
+| --- | --- |
+| 79 rows, at `be8b0fad` | **79 of 79 passed**, in 2,188.30 s. Among them are `gh_cli_git_smart_transport` (11.76 s), `release_update_transaction` (0.53 s) and `application_device_flow_cli_choice` (22.54 s). The slowest, `application_profile_window_review_restoration_public_path` (595.52 s of its 1,800 s timeout), is outside the class |
+| `application_profile_empty_desktop_native_menu_bar` | **not run.** It sets `QT_QPA_PLATFORM=cocoa` and needs the owner's Aqua session. It was built |
+| `/private/tmp` and the user's `$TMPDIR`, listed before and after | `/private/tmp` gained no entry. `$TMPDIR` gained only Chrome's and a desktop indexer's files |
+
+On macOS a ctest run cannot show a leftover ([[BPR-1047]]). The runner
+gives the row its own `/tmp/bpr-net-*/fixture` as `TMPDIR` and removes it
+when the row ends. The trial below is what shows whether roots are removed.
+
+### A forced failure while a root exists
+
+**Method.** A scratch driver, not committed, ran each row's command
+directly, as [[BPR-1051]]'s macOS run did. It read the row from
+`ctest --show-only=json-v1`. It made the runner's layout but kept it: a
+root `bpr1121-direct-XXXXXXXX/` in this session's scratch directory, and a
+`fixture/` child, mode `0700`, as `TMPDIR`. It wrote the profile with the
+runner's own `write_profile()`. It gave the child the row's environment and
+environment changes and the runner's four variables. It ran
+`/usr/bin/sandbox-exec -f <profile> <command>` from the row's working
+directory, judged the row by CTest's rule, and then listed `fixture/`
+three levels deep.
+
+**The trial hook** is Linux's, rebuilt here and never committed. It sits
+in the shared `expect`. `BPR_TRIAL_FAIL_MESSAGE` fails the first
+expectation whose message contains the text. `BPR_TRIAL_NO_UNWIND` makes
+`fail()` take its `std::exit` branch, which is the negative control that
+shows the trial can see a leak. The header's SHA-256 was `1a2cdc9d…c6c25`
+before, `aee74901…edba` with the hook, and `1a2cdc9d…c6c25` again after
+the restore. `git diff` was then empty. The header was touched, because
+the copy kept its old time, and the 49 dependent compiles were redone
+with no warning. `strings` finds no `BPR_TRIAL` in the rebuilt
+executables.
+
+The trials ran at `b8944a06`. Neither trial source nor the header differs
+from `98dbf662`.
+
+| Row, and the expectation failed | Root that exists at that point | Candidate | `std::exit` (control) |
+| --- | --- | --- | --- |
+| `qt_markdown_body_1_0`, `negative control: default Qt document reads the existing file` (the 25th) | the resource `QTemporaryDir`, holding `canary.png` | exit 1, the `FAILED:` line, `fixture/` empty | exit 1, the same line, and it left `better_pull_review_markdown_body_view_tests-XHqXMC/canary.png` |
+| `application_device_binding_restart`, `first refresh remains deferred after resume` (the 12th) | the course's `QTemporaryDir` data root, with the second application running on it | exit 1 after 6.68 s, the `FAILED:` line, `fixture/` empty | exit 1, and it left `device_binding_restart-lLWaVm/` with `data/` (`agent-workspace-ownership-v1/`, `logs/`, `state/`) and `data-agent-workspaces-v1/` |
+
+The same hook also failed five more rows of the class for [[BPR-1126]]:
+the four sqlite storage contracts and `syntax_classification_contract`.
+Each left no root, and each control left one. That card has the
+details.
+
+Unforced, the two rows passed by the direct route with `fixture/` empty.
+They passed before the hook, and again after the restore. They also
+passed through ctest after the restore. `/private/tmp` gained no entry in
+any run. The kept roots were removed by exact name afterwards.
+
+The logs, the driver, the hook's patch and the per-run JSON are station
+records under `build/logs/bpr-1121-mac/` and are not committed.
+
+### Acceptance state after this run
+
+- **AC6 on macOS: met, except for one row that needs the owner.** The
+  three macOS-only sources compile with no warning, and 79 of the 79 rows
+  run here pass. `application_profile_empty_desktop_native_menu_bar` was
+  built but not run, because it needs the owner's Aqua session. The
+  Windows-only source and the Windows rows are still owed.
+- **AC2, repeated on macOS:** a failure while a root exists removes the
+  root. The `std::exit` control leaves it by the same route.
