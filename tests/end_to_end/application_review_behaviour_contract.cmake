@@ -65,6 +65,14 @@ function(bpr_run_behaviour_phase fixture fixture_label root phase)
         )
     endif()
     if(phase STREQUAL "seed")
+        # [[BPR-1198]]. Start review opens a document tab. A refreshed seed
+        # must finish presenting that exact focused view, not pass in the
+        # temporary empty gap while the tab is still loading.
+        if(NOT probe_output MATCHES "EPOCH_REFRESH_PRESENTATION_OK:focused=1:roots=4")
+            message(FATAL_ERROR "review behaviour ${fixture} seed omitted reconciled tab focus\n${probe_output}")
+        endif()
+        string(REGEX MATCH "EPOCH_REFRESH_IDENTITY:[^\n]*" identity_marker "${probe_output}")
+        message(STATUS "review behaviour ${fixture} seed ${identity_marker}")
         set(phase_marker "REVIEW_BEHAVIOUR_SEEDED:continue=review:filter=unread:honoured=1:start=review:start-publication=none:continue-publication=none")
     else()
         set(phase_marker "REVIEW_BEHAVIOUR:continue=review:filter=unread:honoured=1")

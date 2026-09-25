@@ -987,6 +987,8 @@ namespace {
 		// composed. Off by default and named by its own flag, so no existing
 		// row's output changes and no row can pass this by accident.
 		bool                                      CapabilityProbe = false;
+		QString                                   LastEpochRefreshIdentity;
+		bool                                      LastEpochRefreshFocused = false;
 		QString                                   LastEpochStatus;
 		QString                                   LastEpochComparison;
 		QString                                   LastEpochLeft;
@@ -2746,6 +2748,76 @@ namespace {
 		return aValue;
 	}
 
+	[[nodiscard]] auto fixture_epoch_refresh_identity_text(
+		const bpr::app::detail::epoch_refresh_identity_evidence& aIdentity,
+		const bpr::qt::workbench_window&                         aWindow) -> QString
+	{
+		const auto file = [](const std::optional<bpr::core::file_identity>& aFile) {
+			if (!aFile) {
+				return QStringLiteral("none");
+			}
+			return diff_evidence_identity_hex(*aFile);
+		};
+		const auto pair = [](const std::optional<bpr::core::comparison_pair>& aPair) {
+			if (!aPair) {
+				return QStringLiteral("none");
+			}
+			const auto oid = [](const bpr::core::git_commit_oid& aOid) {
+				const auto canonical = bpr::core::canonical_hex(aOid);
+				const auto text      = canonical.view();
+				return QString::fromLatin1(text.data(), static_cast<qsizetype>(text.size()));
+			};
+			return oid(aPair->Left.Commit) + QLatin1Char{ '/' } + oid(aPair->Right.Commit);
+		};
+		const auto context = aWindow.comparison_surface()->current_context();
+		const auto anchor  = aWindow.conversation_panel()->anchor_line();
+		return QStringLiteral("host_file=%1 tab_id=%2 tab_file=%3 tab_pair=%4 tab_state=%5 tab_pending=%6 accepted_pair=%7 comparison_pending=%8 published_file=%9 published_pair=%10 displayed_file=%11 publication_displayed=%12 anchor_file=%13 anchor_line=%14 displayed_pair=%15 exact_tab_pair=%16 exact_published_pair=%17")
+			.arg(file(aIdentity.SelectedFile))
+			.arg(aIdentity.ActiveTab ? QString::number(aIdentity.ActiveTab->Id.value()) : QStringLiteral("none"))
+			.arg(file(aIdentity.ActiveTab ? aIdentity.ActiveTab->View.File : std::nullopt))
+			.arg(pair(aIdentity.ActiveTab ? std::optional{ aIdentity.ActiveTab->View.Comparison } : std::nullopt))
+			.arg(aIdentity.ActiveTab ? static_cast<int>(aIdentity.ActiveTab->State) : -1)
+			.arg(aIdentity.TabPending)
+			.arg(pair(aIdentity.AcceptedComparison))
+			.arg(aIdentity.ComparisonPending)
+			.arg(file(aIdentity.PublishedFile))
+			.arg(pair(aIdentity.PublishedComparison))
+			.arg(file(context ? std::optional{ context->Key.File } : std::nullopt))
+			.arg(aIdentity.PublicationDisplayed)
+			.arg(file(aWindow.conversation_panel()->anchor_file()))
+			.arg(anchor ? QStringLiteral("%1/%2").arg(static_cast<int>(anchor->Side)).arg(anchor->Line) : QStringLiteral("none"))
+			.arg(pair(aIdentity.PublicationDisplayed ? aIdentity.PublishedComparison : std::nullopt))
+			.arg(aIdentity.ActiveTab && aIdentity.AcceptedComparison == std::optional{ aIdentity.ActiveTab->View.Comparison })
+			.arg(aIdentity.PublishedComparison.has_value() && aIdentity.PublishedComparison == aIdentity.AcceptedComparison);
+	}
+
+	/// \brief [[BPR-1198]]. A refreshed tab must finish presenting its exact
+	/// view; the temporary empty gap is not an unselected terminal.
+	[[nodiscard]] auto fixture_epoch_refresh_identity_passed(
+		const bpr::app::detail::epoch_refresh_identity_evidence& aIdentity,
+		const bpr::qt::workbench_window&                         aWindow) -> bool
+	{
+		const auto& context = aWindow.comparison_surface()->current_context();
+		const auto* panel   = aWindow.conversation_panel();
+		if (aIdentity.ComparisonPending || aIdentity.TabPending || panel->anchor_line()) {
+			return false;
+		}
+		if (!aIdentity.ActiveTab) {
+			return !aIdentity.SelectedFile && !aIdentity.PublishedFile
+				&& !context && !panel->anchor_file();
+		}
+		const auto& tab = *aIdentity.ActiveTab;
+		return tab.State == bpr::core::document_tab_view_state::ready
+			&& tab.View.File == std::optional{ bpr::core::file_identity_of("review.cpp") }
+		&& aIdentity.SelectedFile == tab.View.File
+			&& aIdentity.PublishedFile == aIdentity.SelectedFile
+			&& context && context->Key.File == aIdentity.SelectedFile
+			&& aIdentity.AcceptedComparison == std::optional{ tab.View.Comparison }
+		&& aIdentity.PublishedComparison == aIdentity.AcceptedComparison
+			&& aIdentity.PublicationDisplayed
+			&& panel->anchor_file() == aIdentity.SelectedFile;
+	}
+
 	[[nodiscard]] auto fixture_presentation_passed(
 		bpr::qt::workbench_window&      aWindow,
 		const std::string_view          aExpectedActiveHostText,
@@ -4308,7 +4380,9 @@ namespace {
 				const auto identities = fixture_conversation_identities(
 					*window.conversation_model());
 				const auto& expectedIdentities
-					= aRun.Expectations.ExpectedConversationIdentities;
+					= aRun.LastEpochRefreshFocused
+					? aRun.Expectations.ExpectedFocusedConversationIdentities
+					: aRun.Expectations.ExpectedConversationIdentities;
 				const auto expectedThreadValid
 					= !aRun.Expectations.ExpectedThreadId.has_value()
 					|| window.conversation_model()
@@ -4361,7 +4435,7 @@ namespace {
 						title != nullptr ? title->text() : QString{ }));
 				report(
 					"conversation-roots",
-					aRun.Expectations.ExpectedConversationRows,
+					aRun.LastEpochRefreshFocused ? aRun.Expectations.ExpectedFocusedConversationRows : aRun.Expectations.ExpectedConversationRows,
 					window.conversation_model()->rowCount());
 				report(
 					"expected-thread-valid",
@@ -4376,6 +4450,7 @@ namespace {
 					static_cast<int>(
 						bpr::core::epoch_primary_cause::force_push_rebase),
 					causeActual);
+				stream << "EPOCH_REFRESH_IDENTITY:" << aRun.LastEpochRefreshIdentity << '\n';
 				stream << "EPOCH_REFRESH_PRESENTATION_IDENTITIES:expected=";
 				for (const auto& identity : expectedIdentities) {
 					stream << QString::fromStdString(identity) << ',';
@@ -6394,15 +6469,14 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_refresh: {
-				const auto evidence = bpr::app::detail::
+				const auto identity            = bpr::app::detail::github_application_fixture_access::epoch_refresh_identity(aApplication);
+				aRun->LastEpochRefreshIdentity = fixture_epoch_refresh_identity_text(identity, window);
+				aRun->LastEpochRefreshFocused  = identity.ActiveTab.has_value();
+				const auto evidence            = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				if (fixture_presentation_passed(
-						window,
-						aRun->ExpectedActiveHostText,
-						aRun->Expectations)
-					&& !window.comparison_surface()->current_context().has_value()
-					&& !window.conversation_panel()->anchor_file().has_value()
-					&& !window.conversation_panel()->anchor_line().has_value()
+				if (fixture_epoch_refresh_identity_passed(identity, window)
+					&& fixture_presentation_passed(window, aRun->ExpectedActiveHostText,
+												   aRun->Expectations, aRun->LastEpochRefreshFocused)
 					&& fixture_epoch_pair_passed(
 						window,
 						evidence.BaseOid,
@@ -6411,6 +6485,10 @@ namespace {
 						*window.epoch_selectors()->history_model(),
 						2U,
 						bpr::core::epoch_primary_cause::force_push_rebase)) {
+					QTextStream{ stdout }
+						<< "EPOCH_REFRESH_PRESENTATION_OK:focused=" << aRun->LastEpochRefreshFocused
+						<< ":roots=" << window.conversation_model()->rowCount() << '\n'
+						<< "EPOCH_REFRESH_IDENTITY:" << aRun->LastEpochRefreshIdentity << '\n';
 					window.epoch_selectors()->whole_pr_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::epoch_whole_pr);

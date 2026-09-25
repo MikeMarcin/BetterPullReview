@@ -13,6 +13,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
 #include <atomic>
@@ -110,6 +111,19 @@ namespace bpr::app::detail {
 		std::atomic<unsigned>     Responses{ 0U };
 		std::atomic<std::int64_t> LastResponseNanoseconds{ 0 };
 		std::uint32_t             RetryAfterSeconds = 2U;
+	};
+
+	/// \brief [[BPR-1198]]. Read-only identities at an epoch refresh boundary.
+	struct epoch_refresh_identity_evidence
+	{
+		std::optional<core::file_identity>   SelectedFile;
+		std::optional<core::document_tab>    ActiveTab;
+		std::optional<core::comparison_pair> AcceptedComparison;
+		std::optional<core::comparison_pair> PublishedComparison;
+		std::optional<core::file_identity>   PublishedFile;
+		bool                                 ComparisonPending    = false;
+		bool                                 TabPending           = false;
+		bool                                 PublicationDisplayed = false;
 	};
 
 	struct github_public_path_fixture_options
@@ -938,6 +952,9 @@ namespace bpr::app::detail {
 		/// wrong modality from any other stall in one run.
 		[[nodiscard]] static auto course_modality_facts(
 			const github_application& aApplication) -> QString;
+		/// \brief Observes the exact host, tab and displayed-publication identities.
+		[[nodiscard]] static auto epoch_refresh_identity(
+			const github_application& aApplication) -> epoch_refresh_identity_evidence;
 		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,

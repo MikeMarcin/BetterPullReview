@@ -15149,6 +15149,35 @@ namespace bpr::app {
 		return report("COURSE_MODALITY_STALLED", bound);
 	}
 
+	auto detail::github_application_fixture_access::epoch_refresh_identity(
+		const github_application& aApplication) -> epoch_refresh_identity_evidence
+	{
+		auto              result         = epoch_refresh_identity_evidence{ };
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| implementation->EpochHost == nullptr || implementation->TabHost == nullptr) {
+			return result;
+		}
+		result.SelectedFile       = implementation->WorkbenchHost->selected();
+		const auto& epoch         = implementation->EpochHost->state();
+		result.AcceptedComparison = epoch.AcceptedComparison;
+		result.ComparisonPending  = epoch.PendingComparison.has_value();
+		const auto& tabs          = implementation->TabHost->state();
+		if (const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr) {
+			result.ActiveTab = *active;
+		}
+		result.TabPending = tabs.Pending.has_value();
+		if (const auto& publication = implementation->SelectedDiffPublication; publication) {
+			result.PublishedFile        = publication->Request.File.File;
+			result.PublishedComparison  = publication->Request.Diff.Comparison;
+			const auto* surface         = implementation->Window->comparison_surface();
+			result.PublicationDisplayed = surface->current_result() && surface->current_context()
+				&& surface->current_context()->Key == publication->Key;
+		}
+		return result;
+	}
+
 	auto detail::github_application_fixture_access::evidence(
 		const github_application& aApplication) noexcept
 		-> detail::github_public_path_fixture_evidence

@@ -299,6 +299,12 @@ endfunction()
 # first-file observation at f6de40b6 plus this patch. The test-only passive
 # sampler reports accepted/window/active pairs; production ownership stays in
 # the existing tab and epoch hosts. No mutation/provider/credential path changed.
+# BPR-1198 reseal: f6de40b6..this candidate adds only a BPR_BUILD_TESTING
+# read-only refresh identity observation to github_application.cpp. main.cpp
+# reconciles the automated course's expected roots with the exact ready tab,
+# selected file, accepted/published pair and rendered publication, and reports
+# the last pre-shutdown identity. Production control flow and the mutation
+# branch are unchanged. Complete scope review is recorded on BPR-1198.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -317,7 +323,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c5d02aff600f061d41148f7a05c2b020655130aaecc8780c1b718dd91977f3f4"
+		"0bcd0185d53661b46b87a182797b5e32fabb11624e2e8302eec12959726ea6d6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
