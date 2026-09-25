@@ -35,7 +35,7 @@
         {
           "issue": "BPR-0969",
           "criteria": [
-            "AC4"
+            "AC2"
           ]
         }
       ],
@@ -55,7 +55,6 @@
     {
       "issue": "BPR-0969",
       "criteria": [
-        "AC2",
         "AC3"
       ]
     }

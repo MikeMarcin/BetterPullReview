@@ -27,7 +27,7 @@ Inventory actual cached metadata, source, threads and retained epochs through sa
 
 Diagnose and repair demonstrated same-profile Recent title, destination and saved-reading isolation across account changes and offline restart; full offline snapshot AC2/AC3 remain pending.
 
-**Work:** `BPR-0969` [AC4]
+**Work:** `BPR-0969` [AC2]
 
 **Prerequisites:** inventory-offline-reopen
 
@@ -47,7 +47,6 @@ Diagnose and repair demonstrated same-profile Recent title, destination and save
   {
     "issue": "BPR-0969",
     "criteria": [
-      "AC2",
       "AC3"
     ]
   }

@@ -29,8 +29,6 @@ BPR-0161 and current queue tests cover typed offline/recovery and stale-session 
 - AC2: Exercise network loss and restart through safe real composition, verifying cached/stale labeling and exact account/repository/revision isolation. Reconnection must adopt server truth without silently implying prior freshness.
 - AC3: Implement any demonstrated missing required behavior within its owning core/host/Qt boundary, with exact-candidate rendered checks, cancellation and stale-session negative controls; retain all unsupported cases explicitly.
 
-- AC4: As a bounded decomposition of AC2/AC3, isolate same-profile Recent titles, destinations and saved reading by the accepted account through switches and restart, including safe legacy migration; no complete cached-review mode is implied.
-
 ## Continuation
 
 Start with the inventory or diagnosis above on a separately assigned exact
