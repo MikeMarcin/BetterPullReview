@@ -1,3 +1,4 @@
+#include "../support/capability_error_content_canaries.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_provider.hpp"
@@ -1644,25 +1645,29 @@ namespace {
 		fixture.Provider->probe_capabilities({ }, std::move(capability));
 		expect(terminals == 2 && fixture.Effects.pending() == 0U, "logging copy failure preserves original capability refusal terminal");
 	}
-	auto test_sanitized_provider_logging(const bool aAuditContent = false) -> bool
+	auto test_sanitized_provider_logging(const bpr::tests::capability_error_content_canary* aCanary = nullptr) -> bool
 	{
 		const auto       log = std::make_shared<recording_log>();
 		provider_fixture fixture{ application::github_authentication_transport::native_https, log };
 		const auto       request             = capability_request_for(fixture, account_lease(fixture));
-		fixture.Transport->CapabilityHandler = [aAuditContent](const github_capability_probe_wire_request& aWire, std::stop_token) {
-			auto response             = supported_capability_response();
-			response.Body             = aAuditContent ? R"({"errors":[{"message":"private source canary alpha runtime-only-fixture-secret","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})" : R"({"errors":[{"message":"Unknown schema field newField","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})";
-			const std::string secret  = "runtime-only-fixture-secret";
-			const auto        summary = sanitize_capability_error(response.Body, std::as_bytes(std::span{ secret }));
+		fixture.Transport->CapabilityHandler = [aCanary](const github_capability_probe_wire_request& aWire, std::stop_token) {
+			auto response      = supported_capability_response();
+			response.Body      = aCanary ? aCanary->Body : R"({"errors":[{"message":"Unknown schema field newField","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})";
+			const auto secret  = bpr::tests::capability_error_canary_credential;
+			const auto summary = sanitize_capability_error(response.Body, std::as_bytes(std::span{ secret }));
 			return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response), .Summary = summary };
 		};
 		const auto completion = run_capability(fixture, request);
 		expect(std::holds_alternative<application::github_capability_error>(completion), "logging preserves capability failure");
 		expect(log->Events.size() >= 5U, "viewer and capability outcomes logged");
 		const auto& detail = log->Events[log->Events.size() - 2U];
-		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value() && detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "provider forwards only sanitized useful detail with request and status");
+		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value(), "provider forwards sanitized detail with request and status");
+		if (!aCanary) {
+			expect(detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos && detail.Summary.text().find("newField") != std::string_view::npos, "provider retains useful unknown code and schema detail");
+		}
+		expect(detail.Summary.text().find(bpr::tests::capability_error_canary_credential) == std::string_view::npos, "provider never records the active credential");
 		expect(log->Events.back().Outcome == application::diagnostic_outcome::failed, "failure terminal remains explicit");
-		return detail.Summary.text().find("private source canary") == std::string_view::npos;
+		return !aCanary || detail.Summary.text().find(aCanary->Marker) == std::string_view::npos;
 	}
 	void test_pull_request_attempt_diagnostic_propagation()
 	{
@@ -2332,9 +2337,15 @@ namespace {
 int main(int aArgc, char** aArgv)
 {
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
-		const auto safe = test_sanitized_provider_logging(true);
-		std::cout << "provider-content-audit content_retained=" << !safe << '\n';
-		return safe ? EXIT_SUCCESS : EXIT_FAILURE;
+		static_cast<void>(test_sanitized_provider_logging());
+		bool contentRetained = false;
+		for (const auto& canary : bpr::tests::capability_error_content_canaries) {
+			const bool retained = !test_sanitized_provider_logging(&canary);
+			contentRetained     = retained || contentRetained;
+			std::cout << "provider-content-case=" << canary.Name << " retained=" << retained << '\n';
+		}
+		std::cout << "provider-content-audit content_retained=" << contentRetained << '\n';
+		return contentRetained ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
 	test_window_read_authentication_provenance();
 	test_personal_discovery_entry();

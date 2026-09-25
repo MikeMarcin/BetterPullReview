@@ -1,3 +1,4 @@
+#include "../support/capability_error_content_canaries.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
@@ -41,24 +42,25 @@ namespace {
 	{
 		using namespace bpr;
 		adapters::logging::quill_log log{ aRoot };
-		const std::string            credential = "synthetic-active-credential";
-		const std::array             bodies{
-			R"({"errors":[{"message":"private source canary alpha synthetic-active-credential"}]})",
-			R"({"errors":[{"type":"private source canary beta"}]})",
-			R"({"errors":[{"extensions":{"type":"private source canary gamma"}}]})",
-			R"({"errors":[{"extensions":{"code":"private source canary delta"}}]})"
-		};
-		for (const auto* body : bodies) {
-			const auto summary = adapters::github::detail::sanitize_capability_error(body, std::as_bytes(std::span{ credential }));
+		const auto                   credential = std::as_bytes(std::span{ tests::capability_error_canary_credential });
+		for (const auto& canary : tests::capability_error_content_canaries) {
+			const auto summary = adapters::github::detail::sanitize_capability_error(canary.Body, credential);
 			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 200U, .Summary = summary }) == application::diagnostic_log_status::available, "content audit reaches the real diagnostic sink");
 		}
 		log.close();
 		const auto bytes    = read(aRoot / "logs/diagnostics.log");
 		const auto exported = application::prepare_release_diagnostics(bytes, core::release_maintenance_revision{ 1U });
-		expect(exported && exported->Descriptor.Records == bodies.size(), "content audit reaches the actual export classifier");
-		const bool credentialRetained = bytes.find(credential) != std::string::npos;
-		const bool contentRetained    = bytes.find("private source canary") != std::string::npos;
-		const bool exportRetained     = exported->Bytes.find("canary") != std::string::npos;
+		expect(exported && exported->Descriptor.Records == tests::capability_error_content_canaries.size(), "content audit reaches the actual export classifier");
+		const bool credentialRetained = bytes.find(tests::capability_error_canary_credential) != std::string::npos;
+		bool       contentRetained    = false;
+		bool       exportRetained     = false;
+		for (const auto& canary : tests::capability_error_content_canaries) {
+			const bool retained        = bytes.find(canary.Marker) != std::string::npos;
+			const bool exportedContent = exported->Bytes.find(canary.Marker) != std::string::npos;
+			contentRetained            = retained || contentRetained;
+			exportRetained             = exportedContent || exportRetained;
+			std::cout << "diagnostic-content-case=" << canary.Name << " retained=" << retained << " exported=" << exportedContent << '\n';
+		}
 		std::cout << "diagnostic-content-audit credential_retained=" << credentialRetained
 				  << " content_retained=" << contentRetained << " export_retained=" << exportRetained << '\n';
 		return credentialRetained || contentRetained || exportRetained ? EXIT_FAILURE : EXIT_SUCCESS;

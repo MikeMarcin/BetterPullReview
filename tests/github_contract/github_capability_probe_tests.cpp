@@ -1,3 +1,4 @@
+#include "../support/capability_error_content_canaries.hpp"
 #include "canonical_json_expectations.hpp"
 #include "fixture_json.hpp"
 #include "github_capability_probe.hpp"
@@ -1842,6 +1843,24 @@ namespace {
 		const auto        selective         = sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField abcd%2Befgh%2Fijkl"}]})", std::as_bytes(std::span{ punctuationSecret }));
 		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("newField") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
 	}
+	// Opt-in acceptance probe: failure records the open privacy finding; it
+	// must not make retention of a synthetic content marker a passing contract.
+	auto audit_capability_error_content() -> int
+	{
+		const auto credential         = std::as_bytes(std::span{ capability_error_canary_credential });
+		bool       contentRetained    = false;
+		bool       credentialRetained = false;
+		for (const auto& canary : capability_error_content_canaries) {
+			const auto summary  = sanitize_capability_error(canary.Body, credential);
+			const bool retained = summary.text().find(canary.Marker) != std::string_view::npos;
+			contentRetained     = retained || contentRetained;
+			credentialRetained  = summary.text().find(capability_error_canary_credential) != std::string_view::npos || credentialRetained;
+			std::cout << "sanitizer-content-case=" << canary.Name << " retained=" << retained << '\n';
+		}
+		std::cout << "sanitizer-content-audit credential_retained=" << credentialRetained << " content_retained=" << contentRetained << '\n';
+		return credentialRetained || contentRetained ? EXIT_FAILURE : EXIT_SUCCESS;
+	}
+
 	void test_glaze_capability_raw_json_boundaries()
 	{
 		constexpr std::string_view secret     = "synthetic_boundary_credential";
@@ -1943,11 +1962,14 @@ namespace {
 
 } // namespace
 
-int main()
+int main(int aArgc, char** aArgv)
 {
+	test_safe_capability_error_logging();
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
+		return audit_capability_error_content();
+	}
 	test_capability_batch_aggregate_bounds();
 	test_nine_part_capability_plan();
-	test_safe_capability_error_logging();
 	test_glaze_capability_raw_json_boundaries();
 	test_closed_capability_refusal_details();
 	test_graphql_error_code_details_do_not_change_refusal();
