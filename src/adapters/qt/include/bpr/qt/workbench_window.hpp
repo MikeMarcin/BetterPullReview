@@ -540,7 +540,15 @@ namespace bpr::qt {
 		/// marked while a review draft is kept.
 		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
+		///
+		/// \details [[BPR-1133]]. It answers the selected review thread when
+		/// there is one, and comments on the current line otherwise; its text
+		/// and tooltip name that target ("Comment on line 431…", "Reply to
+		/// tbutler's thread…").
 		[[nodiscard]] auto comment_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1133]]. Comment's arrow menu: the target-named command,
+		/// where RFC-BPR-0048's labels will be offered.
+		[[nodiscard]] auto comment_menu() const noexcept -> QMenu*;
 #if defined(_WIN32)
 		/// \brief Which part of the Windows title row a window point falls on.
 		///
@@ -1053,6 +1061,20 @@ namespace bpr::qt {
 		void apply_review_bar_width();
 		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
 		void update_compose_mark();
+		/// \brief [[BPR-1133]]. The review thread Comment answers: the one the
+		/// reviewer chose, or the one on the line they selected.
+		[[nodiscard]] auto comment_reply_thread() const -> std::optional<std::string>;
+		/// \brief [[BPR-1133]]. What Comment would start, in words; empty when
+		/// neither a thread nor a line is selected.
+		[[nodiscard]] auto comment_target_text() const -> QString;
+		/// \brief [[BPR-1133]]. Names Comment's target on the command, its
+		/// tooltip and its presenter.
+		void update_comment_target();
+		/// \brief [[BPR-1133]]. Comment's gesture: a reply to the selected
+		/// thread, or a comment on the current line.
+		void comment_or_reply();
+		/// \brief The one Reply path, from a card or from Comment.
+		void reply_to_thread(const std::string& aIdentity);
 		void apply_review_details_visibility();
 		void update_home_landing();
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
@@ -1275,6 +1297,8 @@ namespace bpr::qt {
 		QAction*            UpdatesLineAction   = nullptr;
 		QAction*            ComposeReviewAction = nullptr;
 		QAction*            CommentAction       = nullptr;
+		/// [[BPR-1133]]. Comment's arrow menu.
+		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact = false;
 #if defined(_WIN32)

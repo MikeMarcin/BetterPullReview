@@ -1123,13 +1123,33 @@ namespace bpr::qt {
 			action->setShortcut(QKeySequence{ aKey });
 			action->setShortcutContext(Qt::WindowShortcut);
 			addAction(action);
-			connect(action, &QAction::triggered, this, [this, aInline] { open_review_composition(aInline); });
+			connect(action, &QAction::triggered, this, [this, aInline] {
+				// [[BPR-1133]]. Comment answers the selected thread when there
+				// is one, and comments on the current line otherwise.
+				if (aInline) {
+					comment_or_reply();
+				} else {
+					open_review_composition(false);
+				}
+			});
 			return action;
 		};
 		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), QStringLiteral("Alt+R"), false);
 		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), QStringLiteral("Alt+C"), true);
 		ReviewBar->addAction(ComposeReviewAction);
 		ReviewBar->addAction(CommentAction);
+		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
+		// Comment would start: "Comment on line 431…" or "Reply to tbutler's
+		// thread…". RFC-BPR-0048's labels will be offered beneath it; until then
+		// it offers the plain comment alone, and no label is invented here.
+		CommentMenu = new QMenu{ this };
+		CommentMenu->setObjectName(QStringLiteral("commentMenu"));
+		CommentMenu->addAction(CommentAction);
+		connect(CommentMenu, &QMenu::aboutToShow, this, [this] { update_comment_target(); });
+		if (auto* const commentButton = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); commentButton != nullptr) {
+			commentButton->setMenu(CommentMenu);
+			commentButton->setPopupMode(QToolButton::MenuButtonPopup);
+		}
 		PullRequestMenu->addSeparator();
 		PullRequestMenu->addAction(ComposeReviewAction);
 		PullRequestMenu->addAction(CommentAction);
@@ -1390,22 +1410,6 @@ namespace bpr::qt {
 				// given up by any later card gesture.
 				DeferredReply.reset();
 				switch (aAction) {
-				case card_action::comment_here: {
-					// A comment on the thread's line: the thread becomes
-					// current, which reveals its line, the line is selected as
-					// a click would, and the draft editor takes focus.
-					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
-					if (index.isValid()) {
-						ConversationPanel->view()->setCurrentIndex(index);
-					}
-					if (select_thread_line(aIdentity) && ReviewEditor != nullptr) {
-						open_review_composition(true);
-					} else {
-						ConversationPanel->present_notice(
-							tr("Open this thread in code before drafting on its line."));
-					}
-					break;
-				}
 				case card_action::publish_draft:
 					if (ReviewEditor != nullptr) {
 						ReviewEditor->publish_action()->trigger();
@@ -1450,24 +1454,11 @@ namespace bpr::qt {
 					});
 					break;
 				}
-				case card_action::reply: {
-					// [[BPR-0649]], [[BPR-0657]], [[BPR-1046]]. The feed's Reply:
-					// the thread becomes current and its line is selected, which
-					// composes the draft on that line; only then is the thread
-					// named, so that draft answers it and no draft on another
-					// line can. While the thread's own file is still loading,
-					// the reply waits for its comparison instead of refusing.
-					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
-					if (index.isValid()) {
-						ConversationPanel->choose(index);
-					}
-					if (thread_comparison_loading(aIdentity)) {
-						DeferredReply = aIdentity;
-						break;
-					}
-					begin_thread_reply(aIdentity);
+				case card_action::reply:
+					// [[BPR-1133]]. Beside the code as in Discuss: every card
+					// answers its own thread, through the one Reply path.
+					reply_to_thread(aIdentity);
 					break;
-				}
 				case card_action::open_in_code: {
 					// [[BPR-0649]]. Back to Read at the thread's line: the
 					// file the thread names is selected through the same
@@ -1549,6 +1540,7 @@ namespace bpr::qt {
 				}
 				update_strip_positions();
 				update_home_landing();
+				update_comment_target();
 			});
 		ReviewSubmissionEditor = new review_submission_editor{
 			[this](review_submission_editor_intent aIntent) {
@@ -2076,6 +2068,8 @@ namespace bpr::qt {
 					synchronize_selected_conversation(aCurrent);
 				}
 				update_defect_surface();
+				// [[BPR-1133]]. A thread chosen is what Comment now answers.
+				update_comment_target();
 			});
 		update_defect_surface();
 	}
@@ -5196,6 +5190,11 @@ namespace bpr::qt {
 		return CommentAction;
 	}
 
+	auto workbench_window::comment_menu() const noexcept -> QMenu*
+	{
+		return CommentMenu;
+	}
+
 	void workbench_window::update_new_comment_group()
 	{
 		if (NextNewCommentAction == nullptr || ConversationPanel == nullptr
@@ -5244,9 +5243,7 @@ namespace bpr::qt {
 			: QStringLiteral("Compose review (%1)").arg(key(ComposeReviewAction));
 		ComposeReviewAction->setToolTip(compose);
 		ComposeReviewAction->setStatusTip(compose);
-		const auto comment = QStringLiteral("Comment (%1)").arg(key(CommentAction));
-		CommentAction->setToolTip(comment);
-		CommentAction->setStatusTip(comment);
+		update_comment_target();
 		if (ReviewBar == nullptr) {
 			return;
 		}
@@ -5260,10 +5257,112 @@ namespace bpr::qt {
 				button->update();
 			}
 		}
+	}
+
+	auto workbench_window::comment_reply_thread() const -> std::optional<std::string>
+	{
+		if (ConversationPanel == nullptr) {
+			return std::nullopt;
+		}
+		auto root = ConversationPanel->view()->currentIndex();
+		while (root.isValid() && root.parent().isValid()) {
+			root = root.parent();
+		}
+		if (!root.isValid()
+			|| root.data(github_conversation_model::anchor_availability_role).toInt()
+				!= static_cast<int>(application::github_conversation_anchor_availability::current)) {
+			return std::nullopt;
+		}
+		auto identity = ConversationPanel->model()->id_for_index(root);
+		if (!identity.starts_with("review-thread:")) {
+			return std::nullopt;
+		}
+		// The reviewer's choice of thread, or the thread on the line they
+		// selected: outside Discuss the panel lists only that line's threads
+		// while a line is selected, so its current row is one of them. A row
+		// that is current only by default otherwise answers nothing.
+		const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
+		if (ConversationPanel->current_is_default() && (discuss || !ConversationPanel->anchor_line().has_value())) {
+			return std::nullopt;
+		}
+		return identity;
+	}
+
+	auto workbench_window::comment_target_text() const -> QString
+	{
+		if (const auto thread = comment_reply_thread(); thread.has_value()) {
+			const auto author = ConversationPanel->model()->index_for_id(*thread).data(github_conversation_model::author_login_role).toString();
+			return author.isEmpty() ? tr("&Reply to the selected thread…") : tr("&Reply to %1's thread…").arg(author);
+		}
+		const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
+		if (!discuss && ComparisonSurface != nullptr) {
+			if (const auto selection = ComparisonSurface->selection(); selection.has_value()) {
+				return tr("Co&mment on line %1…").arg(static_cast<qulonglong>(selection->PreferredLine.Line) + 1U);
+			}
+		}
+		return { };
+	}
+
+	void workbench_window::update_comment_target()
+	{
+		if (CommentAction == nullptr) {
+			return;
+		}
+		// [[BPR-1133]]. The command names what it would start, in the bar's
+		// tooltip, in its arrow's menu and in the Pull Request menu.
+		const auto target = comment_target_text();
+		auto       words  = target;
+		words.remove(QLatin1Char{ '&' });
+		words.remove(QChar{ 0x2026 });
+		const auto key  = CommentAction->shortcut().toString(QKeySequence::NativeText);
+		const auto text = target.isEmpty() ? tr("Co&mment") : target;
+		if (CommentAction->text() != text) {
+			CommentAction->setText(text);
+		}
+		const auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
+		CommentAction->setToolTip(tip);
+		CommentAction->setStatusTip(tip);
+		if (ReviewBar == nullptr) {
+			return;
+		}
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); button != nullptr) {
 			button->setAccessibleName(QStringLiteral("Comment"));
-			button->setAccessibleDescription(QStringLiteral("Open the comment page on the retained draft without submitting"));
+			button->setAccessibleDescription(words.isEmpty()
+												 ? QStringLiteral("Open the comment page on the retained draft without submitting")
+												 : QStringLiteral("%1, on the comment page, without submitting").arg(words));
 		}
+	}
+
+	void workbench_window::comment_or_reply()
+	{
+		update_comment_target();
+		if (const auto thread = comment_reply_thread(); thread.has_value()) {
+			reply_to_thread(*thread);
+			return;
+		}
+		open_review_composition(true);
+	}
+
+	void workbench_window::reply_to_thread(const std::string& aIdentity)
+	{
+		// [[BPR-0649]], [[BPR-0657]], [[BPR-1046]]. The thread becomes current
+		// and its line is selected, which composes the draft on that line; only
+		// then is the thread named, so that draft answers it and no draft on
+		// another line can. While the thread's own file is still loading, the
+		// reply waits for its comparison instead of refusing.
+		DeferredReply.reset();
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+		if (index.isValid()) {
+			ConversationPanel->choose(index);
+		}
+		if (thread_comparison_loading(aIdentity)) {
+			DeferredReply = aIdentity;
+			return;
+		}
+		begin_thread_reply(aIdentity);
 	}
 
 	void workbench_window::step_to_next_new_comment()
@@ -5383,31 +5482,46 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 			return false;
 		}
-		auto root = ConversationPanel->model()->index_for_id(aIdentity);
+		// The thread's anchor, from the panel's list when it holds the thread.
+		// [[BPR-1133]]. Otherwise from its card: while a line is selected the
+		// list holds only that line's threads, and a card beside the code can
+		// answer a thread on another line.
+		auto path     = QString{ };
+		auto side     = std::optional<core::diff_side>{ };
+		auto oneBased = std::uint64_t{ 0U };
+		auto current  = false;
+		auto root     = ConversationPanel->model()->index_for_id(aIdentity);
 		while (root.isValid() && root.parent().isValid()) {
 			root = root.parent();
 		}
-		if (!root.isValid()
-			|| root.data(github_conversation_model::anchor_availability_role).toInt()
-				!= static_cast<int>(application::github_conversation_anchor_availability::current)) {
-			return false;
+		if (root.isValid()) {
+			current = root.data(github_conversation_model::anchor_availability_role).toInt()
+				== static_cast<int>(application::github_conversation_anchor_availability::current);
+			path                 = root.data(github_conversation_model::path_role).toString();
+			auto       validLine = false;
+			const auto line      = root.data(github_conversation_model::line_role).toULongLong(&validLine);
+			oneBased             = validLine ? line : 0U;
+			if (const auto sideValue = root.data(github_conversation_model::diff_side_role); sideValue.isValid()) {
+				side = github_conversation_source_side(sideValue.toInt());
+			}
+		} else if (ConversationPanel->cards() != nullptr) {
+			const auto& cards = ConversationPanel->cards()->cards();
+			const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
+			if (card != cards.end() && !card->Draft) {
+				current  = !card->AnchorUnavailable;
+				path     = card->Path;
+				side     = card->Side;
+				oneBased = card->Line.value_or(0U);
+			}
 		}
 		const auto context = ComparisonSurface->current_context();
-		const auto path    = root.data(
-									 github_conversation_model::path_role)
-								 .toString();
-		if (!context.has_value() || path.isEmpty()
+		if (!current || !context.has_value() || path.isEmpty()
 			|| context->Key.File != core::file_identity_of(path.toStdString())) {
 			return false;
 		}
-		bool       validLine = false;
-		const auto oneBased  = root.data(github_conversation_model::line_role).toULongLong(&validLine);
-		const auto sideValue = root.data(github_conversation_model::diff_side_role);
-		if (!validLine || oneBased == 0U || oneBased > std::numeric_limits<std::uint32_t>::max()
-			|| !sideValue.isValid()) {
+		if (oneBased == 0U || oneBased > std::numeric_limits<std::uint32_t>::max()) {
 			return false;
 		}
-		const auto side = github_conversation_source_side(sideValue.toInt());
 		if (!side.has_value()
 			|| (*side == core::diff_side::left
 					? !LeftConversationEndpointCurrent

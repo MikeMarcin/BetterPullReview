@@ -204,8 +204,8 @@ namespace {
 		expect(card.Posts.front().Mine && !card.Posts[1].Mine,
 			   "my posts are marked mine by login");
 		expect(card.Rect.height() > 24 * 20 && card.Actions.size() == 1U
-				   && card.Actions.front().first == qt::card_action::comment_here,
-			   "the card is as tall as its posts and offers a comment on its line");
+				   && card.Actions.front().first == qt::card_action::reply,
+			   "the card is as tall as its posts and offers Reply to its own thread ([[BPR-1133]])");
 		expect(view.verticalScrollBar()->maximum() > 0,
 			   "a card taller than the view scrolls within it");
 		expect(view.marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 41U }
@@ -250,7 +250,7 @@ namespace {
 			   "the unread posts are the ones the state names, and the first post unread makes the thread new");
 		expect(view.unread_post_count() == 3U, "the count is over every card");
 		expect(card.Actions.size() == 2U && card.Actions.back().first == qt::card_action::mark_read,
-			   "a thread with unread posts offers Mark read after Comment here");
+			   "a thread with unread posts offers Mark read after Reply");
 		expect(view.unread_threads_in_file_order() == std::vector<std::string>{ root, "t-after" },
 			   "the unread threads of the whole pull request come in file order, the read one absent");
 		expect(view.unread_marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 4U, 41U },
@@ -372,9 +372,11 @@ namespace {
 		view.set_filters(qt::discuss_filters{ });
 		view.set_feed(false);
 		QApplication::processEvents();
+		const auto readActions = view.cards().empty() ? std::vector<qt::card_action>{ } : actionsOf(view.cards()[0]);
 		expect(!view.feed() && view.cards().size() == 3U && view.cards()[0].Posts.front().Role.isEmpty()
-				   && actionsOf(view.cards()[0]).front() == qt::card_action::comment_here,
-			   "leaving the feed restores the Read cards");
+				   && !readActions.empty() && readActions.front() == qt::card_action::reply
+				   && std::ranges::find(readActions, qt::card_action::open_in_code) == readActions.end(),
+			   "leaving the feed restores the Read cards: Reply beside the code, and no Open in code");
 		view.hide();
 	}
 
@@ -688,9 +690,9 @@ namespace {
 		auto       pressAction = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ action }, QPointF{ action },
 											  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(view.viewport(), &pressAction);
-		expect(actions.size() == 1U && actions.front().first == qt::card_action::comment_here
+		expect(actions.size() == 1U && actions.front().first == qt::card_action::reply
 				   && actions.front().second == "t-early",
-			   "a press on Comment here reports the action for that thread");
+			   "a press on a card's Reply reports the action for that card's own thread");
 		const auto hit = view.hit_test(view.cards()[2].Rect.center());
 		expect(hit.has_value() && hit->first == 2U && !hit->second.has_value(), "hit testing names the card");
 		view.set_current_thread("c-late");

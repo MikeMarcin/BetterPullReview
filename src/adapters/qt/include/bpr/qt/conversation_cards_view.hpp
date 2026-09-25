@@ -36,15 +36,14 @@ namespace bpr::qt {
 
 	/// \brief What a press on a card asks for.
 	enum class card_action : std::uint8_t {
-		/// Start a draft on this thread's line.
-		comment_here,
 		publish_draft,
 		edit_draft,
 		delete_draft,
 		/// Read this thread up to its latest post ([[BPR-0656]]).
 		mark_read,
-		/// Start a reply on this thread ([[BPR-0649]]; the feed's name for
-		/// a comment on its line).
+		/// Start a reply on this thread ([[BPR-0649]]). [[BPR-1133]]: every
+		/// thread card offers it, beside the code as in Discuss, through the
+		/// one path the feed's Reply takes; no card starts a second thread.
 		reply,
 		/// Return to Read at this thread's line ([[BPR-0649]]).
 		open_in_code,

@@ -5671,6 +5671,172 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1133]]. RFC-BPR-0052 AC-08: Comment, the review bar's icon
+	/// and Option-C, starts a comment on the current line or a reply to the
+	/// selected thread, and its menu names the target; its arrow offers the
+	/// plain comment alone until RFC-BPR-0048's labels. Every thread card
+	/// beside the code offers Reply, which answers its own thread through the
+	/// Discuss path, and nothing publishes without the explicit Publish.
+	void test_comment_names_its_target_and_every_card_replies()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		process_events();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 12"), std::string{ "line 12" }.size(), "changed line 12");
+		const auto diff    = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto       replies = std::vector<std::string>{ };
+		window.set_review_reply_dispatch([&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
+		auto drafts = std::vector<core::review_draft_command>{ };
+		window.set_review_draft_dispatch([&drafts](core::review_draft_command aCommand) { drafts.push_back(std::move(aCommand)); });
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" },
+			  application::github_conversation_projection{
+				  .Id                 = "review-thread:t5",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "jiayincaonv",
+				  .Path               = "src/file.cpp",
+				  .Line               = 5U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t5-1",
+				  .ParentId    = "review-thread:t5",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "jiayincaonv",
+				  .Body        = "Guarding on view data validity avoids the null deref.",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("two conversations"));
+		// Before any comparison there is no line, and no thread chosen.
+		emit window.comment_menu()->aboutToShow();
+		expect(window.comment_action()->text() == QStringLiteral("Co&mment")
+				   && window.comment_action()->toolTip() == QStringLiteral("Comment (%1)").arg(window.comment_action()->shortcut().toString(QKeySequence::NativeText)),
+			   "with neither a line nor a thread selected Comment names no target");
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+
+		auto* const comment = window.comment_action();
+		auto* const menu    = window.comment_menu();
+		auto* const button  = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(comment));
+		auto* const stack   = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		expect(button != nullptr && button->popupMode() == QToolButton::MenuButtonPopup && button->menu() == menu
+				   && menu != nullptr && menu->actions() == QList<QAction*>{ comment } && stack != nullptr && page != nullptr,
+			   "Comment's arrow opens a menu that offers the plain comment alone, and no label");
+		const auto key       = comment->shortcut().toString(QKeySequence::NativeText);
+		const auto showsMenu = [menu] { emit menu->aboutToShow(); };
+		const auto back      = [&window] {
+			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QApplication::sendEvent(window.focusWidget() != nullptr ? window.focusWidget() : &window, &press);
+			process_events();
+		};
+		const auto publishes = [&drafts] {
+			return std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
+				return aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			});
+		};
+		showsMenu();
+		expect(comment->text() == QStringLiteral("Co&mment on line 13…"),
+			   "a comparison opens on its first change, whose line Comment names");
+
+		// A line with no thread: Comment comments on it.
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 9U), "line 10 is selected as a click would");
+		process_events();
+		showsMenu();
+		expect(comment->text() == QStringLiteral("Co&mment on line 10…")
+				   && comment->toolTip() == QStringLiteral("Comment on line 10 (%1)").arg(key)
+				   && window.pull_request_menu()->actions().contains(comment),
+			   "the menu, the tooltip and the Pull Request menu name the line Comment would start on");
+		comment->trigger();
+		process_events();
+		expect(stack->currentWidget() == page && replies.empty(), "Comment opens the inline page on the line's draft, answering no thread");
+		back();
+		expect(stack->currentWidget() != page, "Esc returns from the page");
+
+		// The line of a thread: Comment answers it.
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22 is selected as a click would");
+		process_events();
+		showsMenu();
+		expect(comment->text() == QStringLiteral("&Reply to tbutler's thread…")
+				   && comment->toolTip() == QStringLiteral("Reply to tbutler's thread (%1)").arg(key),
+			   "on a thread's line the menu and the tooltip name the thread Comment answers");
+		comment->trigger();
+		process_events();
+		expect(replies == std::vector<std::string>{ "review-thread:t22" } && stack->currentWidget() == page,
+			   "Comment (Option-C) names the selected thread and opens the inline page on the reply draft");
+		back();
+
+		// A card beside the code: Reply, never a second thread. The other
+		// thread's line is selected first, so the card's Reply has to find its
+		// own; the cards are rebuilt by that, so they are read after it
+		// ([[BPR-1029]]).
+		window.choose_modality(qt::review_modality::review);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 4U), "line 5 is selected");
+		process_events();
+		showsMenu();
+		expect(comment->text() == QStringLiteral("&Reply to jiayincaonv's thread…"), "Comment now names the thread on line 5");
+		const auto& cards = window.conversation_panel()->cards()->cards();
+		const auto  card  = std::ranges::find(cards, std::string{ "review-thread:t22" }, &qt::thread_card::Id);
+		expect(window.conversation_panel()->cards()->isVisible() && !window.conversation_panel()->cards()->feed() && card != cards.end(),
+			   "both threads' cards sit beside the code");
+		save_render(window, QStringLiteral("comment-reply-cards"));
+		menu->popup(button->mapToGlobal(QPoint{ 0, button->height() }));
+		process_events();
+		const auto menuRender = menu->grab();
+		expect(!menuRender.isNull() && menu->isVisible(), "Comment's menu opens from its arrow");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(menuRender.save(QStringLiteral("%1/%2-comment-menu.png").arg(file.path(), file.completeBaseName()), "PNG"),
+				   "the menu render is saved for inspection");
+		}
+		menu->hide();
+		process_events();
+		const auto reply = std::ranges::find(card->Actions, qt::card_action::reply, &std::pair<qt::card_action, QRect>::first);
+		expect(reply != card->Actions.end()
+				   && std::ranges::all_of(card->Actions, [](const auto& aAction) {
+						  return aAction.first == qt::card_action::reply || aAction.first == qt::card_action::mark_read
+							  || aAction.first == qt::card_action::resolve || aAction.first == qt::card_action::unresolve;
+					  }),
+			   "the card beside the code offers Reply and nothing that starts a second thread");
+		const auto replyPoint = reply->second.center()
+			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
+		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ replyPoint }, QPointF{ replyPoint }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+		process_events();
+		expect(replies == std::vector<std::string>{ "review-thread:t22", "review-thread:t22" } && stack->currentWidget() == page
+				   && window.comparison_surface()->selection().has_value()
+				   && window.comparison_surface()->selection()->PreferredLine.Line == 21U,
+			   "the card's Reply selects its own thread's line and answers that thread on the inline page");
+		back();
+		expect(publishes() == 0, "nothing was published: Comment and Reply only open the page, and Publish stays the page's");
+		window.hide();
+	}
+
 	void test_composed_epoch_selectors_show_exact_retained_epochs()
 	{
 		std::vector<application::epoch_intent> epochs;
@@ -10033,6 +10199,7 @@ auto main(int argc, char** argv) -> int
 	test_the_review_bar_yields_dates_then_words();
 	test_the_title_row_and_review_bar_render();
 	test_the_updates_line_folds_from_the_review_bar();
+	test_comment_names_its_target_and_every_card_replies();
 	test_strip_is_the_title_row();
 	test_the_epoch_row_spans_the_window_in_every_modality();
 	test_rails_reopen_their_drawers();

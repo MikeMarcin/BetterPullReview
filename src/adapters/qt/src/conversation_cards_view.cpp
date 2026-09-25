@@ -80,8 +80,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto action_text(const card_action aAction) -> QString
 		{
 			switch (aAction) {
-			case card_action::comment_here:
-				return QStringLiteral("Comment here");
 			case card_action::publish_draft:
 				return QStringLiteral("Publish");
 			case card_action::edit_draft:
@@ -551,7 +549,7 @@ namespace bpr::qt {
 		auto actionX = card_padding + avatar_column;
 		auto actions = aCard.Draft
 			? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }
-			: std::vector{ Feed ? card_action::reply : card_action::comment_here };
+			: std::vector{ card_action::reply };
 		if (!aCard.Draft && Compact && !has_code_anchor(aCard)) {
 			actions.clear();
 		}

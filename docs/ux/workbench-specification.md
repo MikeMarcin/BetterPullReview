@@ -57,8 +57,24 @@ state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
-Pull Request menu, and Esc returns from either composition page. Nothing else
-sits between the title row and the Updates line, except the readiness line
+Pull Request menu, and Esc returns from either composition page.
+
+**Comment and Reply** ([[BPR-1133]]). Comment answers the selected review
+thread when there is one (the thread the reviewer chose, or the thread on the
+line they selected) and otherwise starts a comment on the current line. It
+names that target wherever it is offered: its tooltip ("Comment on line 431
+(⌥C)", "Reply to tbutler's thread (⌥C)"), the Pull Request menu, and the menu
+its arrow opens on the review bar, which offers that plain comment alone; it is
+where RFC-BPR-0048's Conventional Comments labels will be offered, and no label
+is offered before then. Either way it opens the inline composition page on the
+line's draft or on the reply draft; nothing is published without the page's
+explicit Publish. Every thread card offers **Reply**, beside the code as in
+Discuss, through the one Reply path: the card's thread becomes current, its
+line is selected (even when another line was), and the draft on that line
+answers it. No card offers a comment that would start a second thread on the
+same line.
+
+Nothing else sits between the title row and the Updates line, except the readiness line
 ([[BPR-0795]]) while a pull request loads, which sits between the bar and the
 line until the owner answers [[BPR-1130]]'s question about where its words go.
 The composition entry row is gone. Home has no review bar.
@@ -86,8 +102,7 @@ row with the caption; their sentence is the comparison menu's tooltip, and
 loading or an unreadable pair is the readiness line's to say.
 
 Still to come under RFC-BPR-0052: document tabs fill the comparison's header
-([[BPR-1132]]), and Comment names its target and every thread card offers Reply
-([[BPR-1133]]). Until they land those parts are as described here.
+([[BPR-1132]]). Until they land that part is as described here.
 
 The chrome is inside the review state's space budget ([[BPR-0246]]). In Review
 at 1280x1000 with every drawer collapsed, the comparison takes 879/1000 of the
@@ -482,7 +497,7 @@ never invents enabled state.
 | Open private review progress | `Alt+Shift+4` |
 | Toggle source line numbers | `Alt+Shift+5` |
 | Compose review | `Alt+R` (Option-R) |
-| Comment | `Alt+C` (Option-C) |
+| Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Back from a composition page | `Esc` |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
