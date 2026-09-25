@@ -20,16 +20,55 @@
     "No caller's refusal behaviour changes."
   ],
   "plan_binding": "milestone_plan discover returned absent; milestone_checkpoint bind refused with resolve/adopt the authored plan before binding. Card has rfcs=[]; coordinator authorized narrow board claim/finish without inventing an RFC.",
-  "command_state": "No background commands or review server. Build, CTest and tidy are held pending coordinator release.",
-  "next_action": "After coordinator release, configure this worktree dev graph with the existing source archive cache; build only focused test targets, run selected CTest rows serially and tidy the changed translation units.",
+  "command_state": "Quiescent: configure, build, all CTest rows, format, tidy and documentation commands exited. No task-owned background process, descendant agent, review server, live GitHub request or remote mutation.",
+  "next_action": "Coordinator cherry-picks the branch after RFC-0052, reconciles isolated app hunk, reviews/reseals the two affected composition digests, runs both composition contracts plus focused final checks, dispositions baseline tidy findings, then finishes BPR-0898 via issue_board finish.",
   "candidate_revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
   "app_retry_commit": "8a250c39",
-  "status": "candidate-awaiting-build-window",
+  "status": "focused-verification-complete-integration-pending",
   "verification": {
-    "format": "11 changed C++ files pass clang-format 23.1.1",
-    "documentation": "DOCUMENTATION_OK",
-    "documentation_verifier": "64 tests pass",
-    "build_ctest_tidy": "not started; coordinator holds resource window"
+    "configure": {
+      "command": "cmake --preset dev -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache -DBPR_DEPENDENCY_OFFLINE=ON",
+      "exit_code": 0,
+      "platform": "macOS arm64, AppleClang 21.0.0, Qt 6.11.2"
+    },
+    "build": {
+      "command": "cmake --build --preset dev --parallel 4 --target test_better_pull_review_github_mutation_contract_tests test_better_pull_review_live_review_mutation_provider_tests test_better_pull_review_native_https_transport_tests test_better_pull_review_qt_review_draft_editor_tests test_better_pull_review_review_mutation_tests test_better_pull_review_review_mutation_application_host_tests",
+      "exit_code": 0,
+      "result": "All six focused executables built; 229 build steps."
+    },
+    "ctest": {
+      "command": "ctest --preset dev --output-on-failure --parallel 1 -R '^(github_mutation_contract|live_review_mutation_provider|live_review_mutation_restart_recovery|application_review_mutation|application_review_mutation_application_host|qt_review_draft_editor|native_https_transport_contract|native_https_transport_fixture|architecture_boundaries|architecture_boundary_contract)$'",
+      "exit_code": 0,
+      "passed": 10,
+      "failed": 0,
+      "elapsed_seconds": 124.61,
+      "log": "build/dev/Testing/Temporary/LastTest.log"
+    },
+    "format": {
+      "command": "python3 _coding-standard/scripts/format_check.py --root . src/adapters/github/src/github_mutation_contract.cpp src/adapters/github/src/github_mutation_contract.hpp src/adapters/github/src/native_https_transport.cpp src/adapters/qt/src/review_draft_editor.cpp src/app/src/github_application.cpp src/application/include/bpr/application/review_mutation_port.hpp src/application/src/review_mutation_contract.cpp tests/adapters_qt/review_draft_editor_tests.cpp tests/github_contract/github_mutation_contract_tests.cpp tests/github_contract/live_review_mutation_provider_tests.cpp tests/github_contract/native_https_transport_tests.cpp",
+      "exit_code": 0,
+      "tool": "clang-format 23.1.1"
+    },
+    "documentation": {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK"
+    },
+    "documentation_verifier": {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "exit_code": 0,
+      "passed": 64
+    },
+    "tidy": {
+      "command": "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/github/src/github_mutation_contract.cpp src/adapters/github/src/native_https_transport.cpp src/adapters/qt/src/review_draft_editor.cpp src/app/src/github_application.cpp src/application/src/review_mutation_contract.cpp tests/adapters_qt/review_draft_editor_tests.cpp tests/github_contract/github_mutation_contract_tests.cpp tests/github_contract/live_review_mutation_provider_tests.cpp tests/github_contract/native_https_transport_tests.cpp",
+      "exit_code": 1,
+      "tool": "clang-tidy 23.1.1",
+      "log": "build/dev/bpr0898-tidy.log",
+      "diagnostics": 13,
+      "changed_line_diagnostics": 0,
+      "baseline_audit": "build/dev/bpr0898-tidy-baseline.json",
+      "disposition": "All reported lines are unchanged and present at fc4b39e8. No rules disabled, no baseline files changed. Raw gate remains failing."
+    }
   },
   "integration_obligations": [
     "Cherry-pick the scoped branch commits after RFC-0052 M2.",
@@ -48,5 +87,60 @@
     "native_https_transport_contract",
     "native_https_transport_fixture",
     "architecture_boundaries"
-  ]
+  ],
+  "verified_revision": "664b544f",
+  "source_revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
+  "changed_paths": [
+    "docs/architecture/review-round-trip.md",
+    "docs/issues/30-in-progress/BPR-0898-an-invisible-node-and-a-broken-server-are-reported-identically.md",
+    "docs/issues/_checkpoints/BPR-0898/checkpoint.json",
+    "docs/issues/_checkpoints/BPR-0898/strategy-selection.json",
+    "src/adapters/github/src/github_mutation_contract.cpp",
+    "src/adapters/github/src/github_mutation_contract.hpp",
+    "src/adapters/github/src/native_https_transport.cpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/app/src/github_application.cpp",
+    "src/application/include/bpr/application/review_mutation_port.hpp",
+    "src/application/src/review_mutation_contract.cpp",
+    "tests/adapters_qt/review_draft_editor_tests.cpp",
+    "tests/github_contract/github_mutation_contract_tests.cpp",
+    "tests/github_contract/live_review_mutation_provider_tests.cpp",
+    "tests/github_contract/native_https_transport_tests.cpp"
+  ],
+  "tidy_baseline_findings": [
+    "github_mutation_contract.cpp:683-685: three existing Glaze option names trigger readability-identifier-naming.",
+    "home_view_state.hpp:35: existing promoted uint8_t bitwise expression triggers bugprone-signed-bitwise in three translation units.",
+    "github_application.cpp:8209: existing exact_current name triggers readability-identifier-naming.",
+    "dif_runtime.hpp:1, canonical_json_expectations.hpp:1 and fixture_json.hpp:1: existing pragma-once declarations trigger portability-avoid-pragma-once.",
+    "fixture_json.hpp:19-21: three existing Glaze option names trigger readability-identifier-naming."
+  ],
+  "acceptance_records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
+      "evidence": "Parser/session/coordinator fixtures preserve target_unavailable versus malformed_response; real Qt editor labels distinguish access from invalid server response. Each preflight/refused baseline issues observations only."
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
+      "evidence": "Contract rows cover null node, undecodable JSON, missing node, invalid node shape and both thread preflight/reply reconciliation. Session rows bind both resolve/unresolve and replies."
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pending",
+      "revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
+      "evidence": "Focused session/host/coordinator/restart/native suites pass and refuse without writes or recovery admission. The app retry predicate was self-reviewed and analyzed, but final combined composition execution and its pins remain with the coordinator; whole-card refusal/retry integration is pending."
+    }
+  ],
+  "self_review": "The enum additions append without changing existing values. Required node fields remain required through a typed nullable variant. Identity mismatch and request validation keep their old refusal. Coordinator and host forward failures; Qt changes only fixed text. Native malformed failures retain transmission classification. The app retry predicate preserves the original draft/idempotency identity. No endpoint, credential, authority, persistence or automatic retry change.",
+  "setup_and_failures": [
+    "Initial documentation gate could not import board_model because the isolated worktree lacked its ignored installed-skill link; restoring .agents/skills/implement-rfc to the assigned installed MASK package fixed the gate.",
+    "Initial board move used ready instead of canonical 20-ready and was refused; corrected canonical move required an explicit preparation commit before claim. Claim succeeded at 07dae9dc.",
+    "Milestone discovery absent/bind refusal is preserved under plan_binding; no RFC was invented.",
+    "Raw tidy failed only on the recorded baseline lines; runtime tests had no failures or skips."
+  ],
+  "review_handoff": "No human or independent acceptance is required by this card. No attended session or server created. Combined-main integration remains the coordinator's responsibility.",
+  "ownership": "Only the assigned branch/worktree was edited. The coordinator owns primary checkout and composition pins. Ignored local build evidence and the installed-skill link remain for inspection."
 }

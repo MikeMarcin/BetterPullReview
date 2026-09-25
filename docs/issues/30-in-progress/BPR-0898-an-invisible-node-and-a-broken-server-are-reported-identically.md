@@ -60,4 +60,61 @@ Preserve null-node versus malformed-response diagnostics in thread preflight
 and reply reconciliation, carry them to product presentation, and retain all
 refusal and retry behavior. Verify the parser, public mutation session and
 presentation with recorded fixtures; no live GitHub mutation is authorized.
-Build and CTest execution await the coordinator's build-ownership release.
+The coordinator released build ownership after RFC-0052's resource-sensitive checks;
+the focused isolated verification below is complete.
+
+## Implementation and verification — 2026-09-25
+
+Source candidate `9a2a8dd3` plus the isolated retry hunk `8a250c39`, verified
+at branch revision `664b544f`. An explicit null thread node now reports
+`target_unavailable`; invalid JSON or required structure reports
+`malformed_response`. Both the thread preflight and reply reconciliation keep
+the distinction. The native HTTPS mutation mapping preserves malformed responses
+as well. The host/coordinator forward the typed failure, resolution reports its
+stable name, and the real Qt draft editor gives distinct access and server-response
+messages. The app retains the existing safe retry identity for both new values.
+
+| Criterion | Focused evidence | Result |
+|---|---|---|
+| Different product diagnostics; both refuse | Contract and mutation-session rows, coordinator diagnostic names, actual Qt editor label assertions | Pass |
+| A contract row for each | Null node, invalid JSON, absent/mistyped/incomplete node; preflight and reply baseline | Pass |
+| Refusal behavior retained | Focused refusal/recovery suites pass; combined app retry/composition checks remain with the coordinator | Pending integration |
+
+The six focused test executables build successfully on macOS arm64 with
+AppleClang 21.0.0 and Qt 6.11.2. The ten serial CTest rows listed in the
+checkpoint pass (124.61 seconds), including both architecture gates, native
+HTTPS loopback behavior, SQLite-backed restart recovery and the Qt editor.
+The 11 changed C++ files pass clang-format 23.1.1. The documentation gate and
+all 64 documentation-verifier tests pass.
+
+The raw nine-translation-unit clang-tidy 23.1.1 command exits 1 on 13 existing
+diagnostics: Glaze's lowercase option members, the unchanged Home uint8_t
+bitwise expression, the existing `exact_current` local name, and existing
+`#pragma once` headers. Every reported line is unchanged and present at base
+`fc4b39e8`; none intersects a changed line. The checkpoint names every finding.
+No rule was disabled and no unrelated source was changed. This is a failing
+raw tidy gate, not a claimed clean run.
+
+Self-review confirmed that enum values are appended, required node fields remain
+required, authority mismatches keep their prior refusal, and native transmission
+classification and durable recovery remain intact. Documentation impact is
+recorded in [Review Round Trip](../../architecture/review-round-trip.md).
+Core decisions, endpoints, credentials, persistence and automatic retries have
+no semantic change.
+
+## Integration handoff
+
+The card remains **In Progress** by coordinator direction. Its final primary
+candidate must include RFC-0052's separate composition changes. The coordinator
+owns the source-digest reseals in
+`tests/end_to_end/application_review_round_trip_composition_contract.cmake`,
+`application_composition_contract`, and
+`application_review_round_trip_composition_contract`; these have not been
+claimed passing on this branch. Disposition the baseline tidy findings before
+final card acceptance. The app-only commit names the exact retry predicate to
+reconcile in `github_application.cpp`.
+
+All task-owned commands are finished. No live GitHub mutation, attended server,
+push, or primary-checkout edit occurred. The durable checkpoint records source
+and base identities, changed paths, full commands, evidence, remaining gates
+and the coordinator's next action.
