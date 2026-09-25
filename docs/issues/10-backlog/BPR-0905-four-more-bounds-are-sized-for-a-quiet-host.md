@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"dsp-007, from BPR-0901's fix and bpr-linux's BPR-0880 full-suite runs","found_at":"22023667","run":"run-20260916-stations","dispatch":"dsp-007"}
+metadata: {"found_by":"dsp-007, from BPR-0901's fix and bpr-linux's BPR-0880 full-suite runs","found_at":"22023667","run":"run-20260916-stations","dispatch":"dsp-007","milestone_plan":{"id":"bpr0905-run-bounds","path":"docs/rfcs/plans/bpr0905-run-bounds/milestone-plan.json"}}
 ---
 
 # BPR-0905: Four more bounds are sized for a quiet host, one has already expired

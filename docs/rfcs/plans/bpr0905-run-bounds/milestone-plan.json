@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr0905-run-bounds",
+  "scope": {
+    "issues": [
+      "BPR-0905"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "honest-run-bounds",
+      "outcome": "The four recorded thin bounds have explicit derivations; passing application runs expose elapsed time and expiry diagnostics name the clock; a source/measurement survey and authoring rule preserve unmeasured platform obligations.",
+      "work": [
+        {
+          "issue": "BPR-0905"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All four rows pass under full-suite contention on every supported platform and each bound derivation is recorded.",
+        "The remaining bounds survey and sizing/diagnostic rule are recorded with BPR-0901 and BPR-0893 links.",
+        "Application budget expiry names itself in the actionable failure headline; successful runs expose elapsed time; focused positive and negative public-path checks pass."
+      ],
+      "boundary": "Standalone BPR-0905 at 97a7564b. Mac implementation and verification authorized; new Windows/Linux runs explicitly deferred by owner, acceptance retained pending. No primary checkout writes or push."
+    }
+  ],
+  "unplanned_work": []
+}
