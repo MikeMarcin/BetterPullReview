@@ -479,10 +479,11 @@ calls `::getpid()`. The macOS SDK declares it without `noexcept`
 `__THROW`. This is recorded for AC7 on this card's claim. Nothing was
 changed here.
 
-### The header's static state, fixed on Linux — bpr-main-linux, 2026-09-24
+### The header's static state, fixed at `053abefe` on Linux — bpr-main-linux, 2026-09-24
 
-The coordinator asked for this fix, for AC7. The commit that adds this
-section changes only `tests/support/test_expectation.hpp`, and this card.
+The coordinator asked for this fix, for AC7. The commit, `053abefe`, pushed
+without a rebase, changes only `tests/support/test_expectation.hpp` and this
+card.
 
 - **The change.** `detail::process_id()` is a `noexcept` wrapper for
   `::getpid()`, compiled only where there is one. `State`'s initializer and

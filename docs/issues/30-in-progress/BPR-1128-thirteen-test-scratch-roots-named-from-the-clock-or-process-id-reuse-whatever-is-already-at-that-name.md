@@ -61,28 +61,44 @@ same with `bpr-agent-pre-assignment-<clock>` (lines 1044 to 1049).
 
 ## Scope
 
-- Every root in the table is made by one shared helper that any test can use:
-  under a random name, created only if nothing is at that name,
-  owner-private before anything is written in it (mode `0700` on POSIX),
-  owned from creation by [[BPR-1121]]'s `scratch_guard`, and removed only by
-  the test that made it. [[BPR-1126]]'s `tests/sqlite_contract/scratch_root.hpp`
-  is that helper today, but it narrows with the SQLite adapter's rule, which
-  the Git contracts do not link. The shared part moves to `tests/support/`,
-  and the SQLite contracts keep their rule on top of it.
-- The canary's descendant writes its marker into a directory the test made
-  that way, instead of at a name the test first removed.
-- Sources this station cannot build are not edited blind. Row 13 and the
-  Windows-only marker are built only on Windows. The card records the exact
-  change for that station.
-- `tests/AGENTS.md` names the shared helper.
+Revised 2026-09-24, before the change was committed, on the coordinator's
+direction. The Windows station is changing the Windows branch of
+`tests/sqlite_contract/scratch_root.hpp`: [[BPR-1126]]'s two rows inside the
+AppContainer are refused access to their own roots. So that helper is neither
+moved nor edited here. No new helper copies its owner-only access list on
+Windows. The scope first said that helper's shared part would move to
+`tests/support/` and make every root.
+
+- On POSIX, every root in rows 1 to 12, and the directory holding the
+  canary's marker, is made by `mkdtemp`:
+  - under a random name, and only if nothing is at that name;
+  - mode `0700` from creation;
+  - owned from creation by [[BPR-1121]]'s `scratch_guard`;
+  - removed only by the test that made it.
+- The four roots narrowed by the stores' own rule under a plain label, rows
+  2, 3, 4 and 6, use the SQLite contracts' helper, unchanged, on every
+  platform. The rest use a new POSIX-only helper,
+  `bpr::tests::make_scratch_directory` in `tests/support/scratch_directory.hpp`.
+- The canary's descendant writes its marker into such a directory, instead of
+  at a name the test first removed.
+- On Windows, rows 1, 5 and 7 to 12, and the marker, still make their roots
+  as `HEAD` did. Each keeps `HEAD`'s code in an `#if defined(_WIN32)` branch
+  marked `[[BPR-1128]]`. Row 13 and the Windows-only marker are built only on
+  Windows, and are not edited blind. The follow-up is to unify the two
+  helpers after the Windows station's fix lands, with a Windows branch that
+  gives each row the access it needs, and to move these Windows roots onto
+  it. Its title is given below.
+- `tests/AGENTS.md` names both helpers.
 
 ## Acceptance
 
-- AC1: Each root in rows 1 to 12, and the directory holding the canary's
-  marker, is made by the shared helper: under a random name, created only if
-  nothing is at the name, owner-private before anything is written in it,
-  and owned from creation. None of these sources reuses what is at a name,
-  or removes anything before it makes a root.
+- AC1: On POSIX, each root in rows 1 to 12, and the directory holding the
+  canary's marker, is made by `mkdtemp` through one of the two helpers:
+  under a random name, created only if nothing is at the name, mode `0700`
+  before anything is written in it, and owned from creation. None of these
+  sources reuses what is at a name, or removes anything before it makes a
+  root. Revised 2026-09-24, before the change was committed, with the scope.
+  It said one shared helper, on every platform.
 - AC2: Negative control. At `HEAD`, a trial hook pins each source's name to a
   value the trial knows. The hook is never committed. A sentinel directory
   planted at the first pinned name is reused by the row, and removed at its
@@ -92,14 +108,23 @@ same with `bpr-agent-pre-assignment-<clock>` (lines 1044 to 1049).
   is written through by the descendant. With the candidate, every plant, and
   the sentinel directory's contents, are left exactly as they were.
 - AC3: The Linux rows pass with the candidate and print the same lines as at
-  `HEAD`, apart from random names and timings. A passing run leaves no
-  root. Forced failures, made with [[BPR-1121]]'s trial mechanism, leave none
+  `HEAD`, apart from random names and timings. One line changes on purpose.
+  `contained_catalog_probe` prints the catalog's answer. For a root with the
+  umask's mode it was a refusal, `2` (`invalid_permissions`). For an
+  owner-private root it is `constructed`. A passing run leaves no root.
+  Forced failures, made with [[BPR-1121]]'s trial mechanism, leave none
   either. With unwinding turned off, the same failures do leave roots: the
-  negative control that shows the trial can see a leak.
+  negative control that shows the trial can see a leak. Revised 2026-09-24,
+  before the change was committed. The probe's line was found to change, for
+  the reason given.
 - AC4: The change is portable. The sources build, and their rows pass, on
-  macOS and Windows. The helper's Windows branch is compiled first on
-  Windows. On the Windows station, row 13 and the Windows-only marker are
-  changed as this card records, and `qt_agent_launch_canary` passes.
+  macOS and Windows. On Windows, rows 2, 3, 4 and 6 now use the SQLite
+  helper's Windows branch. [[BPR-1126]]'s uncontained rows pass with it, and
+  these four are uncontained. The other changed sources compile `HEAD`'s code
+  there, and the new helper declares nothing there. Revised 2026-09-24,
+  before the change was committed, with the scope. It said that row 13 and
+  the Windows-only marker would be changed on the Windows station under this
+  card. They move to the follow-up.
 - AC5: Gates: `/usr/bin/clang-format` 22, `git diff --check`,
   `architecture_boundaries`, `msvc_secure_crt_contract`, `DOCUMENTATION_OK`,
   and no scoped `tidy.py` finding on a changed line.
@@ -108,7 +133,10 @@ same with `bpr-agent-pre-assignment-<clock>` (lines 1044 to 1049).
 
 - Test sources and test support only. No product source, no row
   registration and no composition pin.
-- The two macOS-only roots are BPR-1127's, the Mac integrator's card:
+- `tests/sqlite_contract/scratch_root.hpp` is not edited or moved. Its
+  Windows branch is the Windows station's change.
+- The two macOS-only roots are BPR-1127's, done on the Mac with its own
+  `mkdtemp` and `scratch_guard`:
   `tests/platform/macos_capsule_identity_tests.cpp` and
   `tests/platform/macos_supervisor_identity_continuity_tests.cpp`. They are
   not touched here.
@@ -119,3 +147,197 @@ same with `bpr-agent-pre-assignment-<clock>` (lines 1044 to 1049).
 - Trial plants are made only at paths the trial checked were absent. They
   hold only sentinel data the trial wrote. A link's target is a sentinel the
   trial made. Every plant is removed by its exact name afterwards.
+
+## Fixed on POSIX at `b16bf039`, verified on Linux — bpr-main-linux, 2026-09-24
+
+Claimed at `5a405fd2`. The change is one commit, `b16bf039`. It touches
+test sources, one new test-support header and `tests/AGENTS.md`. No product
+source, row registration or composition pin changed, and
+`tests/sqlite_contract/scratch_root.hpp` is unchanged.
+
+It was verified as `437726cd`, on `0453103d`. `b16bf039` is that commit
+rebased over twelve commits, which change none of its 15 files and no
+source its 18 rows build: only `src/adapters/qt`, its tests, scripts and
+cards.
+
+The coordinator also asked for a fix to [[BPR-1121]]'s shared header, for
+that card's AC7. It is a separate commit, `053abefe`, recorded on that card.
+
+### The change
+
+- **`tests/support/scratch_directory.hpp`**, new, POSIX only.
+  `bpr::tests::make_scratch_directory(stem)` makes `<stem>-XXXXXX` in the
+  temporary directory with `mkdtemp`: at a name nothing had, mode `0700`.
+  It holds a `scratch_guard` until the directory is resolved, then returns
+  the resolved path. The caller owns it from then. On Windows the header
+  declares nothing.
+- **Rows 2, 3, 4 and 6** use [[BPR-1126]]'s `sqlite_contract::scratch_root`,
+  unchanged, with the labels `0694-roots`, `0691-registry`,
+  `0709-restoration` and `device-binding`. Their own constructors, clock
+  names, removals and narrowing calls are gone. The helper narrows by the
+  stores' rule on Windows, and `mkdtemp` makes `0700` on POSIX.
+  - Row 6's course used to remove its whole root midway. Its guard then
+    removed whatever was at that name at exit.
+  - Its cancelled-load check now uses a name under the root that was never
+    made. So nothing but the owner removes the root.
+- **Rows 1, 5 and 7 to 12** call the POSIX helper, in place of the lines
+  that named and made the root. On Windows each keeps `HEAD`'s statements,
+  in an `#if defined(_WIN32)` branch marked `[[BPR-1128]]`.
+  - Row 1 keeps its `chmod` and its DACL. Row 5 keeps its names and the
+    stores' rule.
+  - On POSIX, rows 11 and 12 now take their guard before they make the
+    root's children. Row 12 still adopts a root its driver made, as before.
+- **The canary's marker** is `heartbeat`, in a `bpr-agent-descendant-XXXXXX`
+  directory the course made and guards. On Windows it is `HEAD`'s marker.
+- **`tests/AGENTS.md`** names both helpers, and forbids a clock, counter or
+  process-id name that uses what is already there. It says a child's file
+  goes inside such a root, and that a Windows root must carry the access its
+  row needs.
+
+A first candidate, not committed, moved the SQLite helper's generic part to
+`tests/support/`. It was set aside on the coordinator's direction (see
+Scope). Its trials are kept with the station records and are not evidence
+for this commit.
+
+### Verification on Linux
+
+WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2. `build/dev` is Debug, with warnings
+as errors.
+
+- The whole graph was rebuilt with the candidate, with no `warning:` line.
+- `build/core-only` compiled the sources of rows 1 to 7, with none either.
+- Every run went through `ctest`, serially and offscreen. `DISPLAY`,
+  `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` were unset. `TMPDIR` was
+  unset unless a trial below sets it. `HOME` and the XDG roots were fresh
+  absolute paths.
+- No run added a `bpr-` name to `/run/user/1000`.
+
+**AC2, the negative control at `HEAD`.** These are `b8944a06`'s sources,
+built at `5a405fd2`. A trial hook, not committed, sat only in the lines that
+compute each name. When `BPR_TRIAL_NAME_SEED` is set, it returns a value the
+trial chose in place of the clock (rows 2 to 12, and the marker), and in
+place of the address and process id (row 1). With it, each row made its
+roots at names the trial knew, such as `bpr-git-cache-4242420000` and
+`bpr-mutation-recovery-4242420000-77777`. A plant went at each row's first
+name in `/tmp`, after the trial saw that name was absent. Afterwards the
+sources were restored to their recorded SHA-256, and `git diff` was empty.
+The executables were rebuilt, and `strings` finds no `BPR_TRIAL` in them.
+
+| Plant at the first name | `HEAD` | Candidate |
+| --- | --- | --- |
+| A sentinel directory holding a sentinel file | All 14 rows use it: the course's own files appear in it. All 14 remove it at the end, sentinel file and all, and pass | All 14 left, with the same inode and bytes |
+| A link to a sentinel directory, mode `0755` | The seven Git rows (8 to 12) follow it. They narrow the target to `0700`, work in it and remove it, sentinel file and all, and pass. Rows 1 to 6 narrow the target to `0700` through the link, then refuse it and fail, and the link is removed. Row 7 refuses it (`CONTAINED_CATALOG_PROBE_OK:1`) and removes the link | All 14 links left, with the same inode and target. Each target is left at `0755`, with its file |
+| At the canary's marker: a sentinel file | Removed before the descendant writes. The course then writes its own file there and removes it | Left |
+| At the marker: a sentinel directory | The course fails (`cannot get file size: Is a directory`), and its guard removes the directory, sentinel file and all | Left |
+| At the marker: a link to a sentinel file, put back by a thread whenever it is missing | Followed on the first run. The descendant appended 74 bytes of heartbeat to the sentinel file, and the row passes | The link is never removed. The thread put it back 0 times in 5 runs, and the file is unchanged |
+
+**AC1, the roots as made.** A trial polled a private, empty `TMPDIR` while
+each row ran.
+
+- Every root the poll saw was a real directory that this user owns, mode
+  `0700`, at a random name such as `bpr-git-cache-C7GgB5` or
+  `bpr-0883-日本語-😀-HMjUgv`.
+- It saw 6 roots for row 1, 30 for row 3, 41 for row 4, 2 for row 5, 1 for
+  rows 6 and 7, 4 for row 8, 3 for row 9, 26 for row 10, 1 for each of
+  row 11's three rows, and 4 for row 12. It also saw the canary's marker
+  directory.
+- The poll is too slow for row 2's roots, which live for well under a
+  millisecond. Its forced failures below show them.
+- The directory was empty after every run.
+- The canary's working directory, made at line 364 and not in this card's
+  class, keeps the umask's mode.
+
+**AC3, the rows.**
+
+| Check | Result |
+| --- | --- |
+| Integration: all 56 Linux rows of [[BPR-1121]]'s class, which include this card's 18, after the whole graph was rebuilt | 56 of 56 pass. Compared with the same rows at `053abefe`, before this change. The other commits since then change only the Qt diff workbench. 52 print the same bytes; `application_profile_management_public_path`, `qt_agent_launch_canary` and `qt_markdown_body_1_0` differ only in a random temporary name or a millisecond timing; and the probe prints `constructed` where it printed `2` (AC3). No row added a top-level `/tmp` entry |
+| A passing run's top-level `/tmp` entries | none added |
+| Forced failures with [[BPR-1121]]'s trial hook in the shared `expect`, not committed, each run with its own private `TMPDIR`. N was a third and two thirds of each row's count, or 1 for the probe, whose count is 2. The canary also failed at `the descendant wrote its heartbeat`, inside the marker's course | 30 of 30 fail with their `FAILED:` line and leave nothing |
+| The same failures with unwinding turned off (`BPR_TRIAL_NO_UNWIND`), the negative control | 28 of 30 leave the root that existed. The other two are the canary's failures at N = 99 and 199, where no root exists: neither variant leaves one |
+
+The hooked header was restored to its recorded SHA-256, and the graph was
+rebuilt. `strings` finds no `BPR_TRIAL` in any of the 46 rebuilt executables.
+
+**AC5, the gates.**
+
+| Gate | Result |
+| --- | --- |
+| `/usr/bin/clang-format` 22 `--dry-run -Werror` on the header and the 13 sources; `git diff --check` | pass |
+| `architecture_boundaries`, `coding_format_check`, `msvc_secure_crt_contract` | pass |
+| `_coding-standard/scripts/tidy.py` on the 13 sources, which also covers the new header | three findings, all on lines this change does not touch: `epoch_catalog_legacy_fixture.hpp:1` (`pragma once`), `git_cache_contract_tests.cpp:1351` and `haves_trimmed_pack_integration_tests.cpp:100`. None in the new header |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+The logs are station records and are not committed. They are in
+`build/logs/bpr-1128/`:
+
+- `candidate2.patch`, the change as tested, on `candidate2.base`, and
+  `candidate2-committed.patch`, the commit, which matches it;
+- `build-*.log`, `gates.log`, `tidy-candidate2.log`,
+  `integration-candidate2.log` and its comparison;
+- `trial/`, holding the hooks and their appliers (`pin_names.py`,
+  `bpr_name_pin.hpp`, `apply_hooks.py`, `bpr_trial_hook.hpp`), the drivers
+  `trial.py` and `forced.py`, and the per-run logs and `results.json` files
+  in `head-baseline/`, `head-pinned/`, `candidate2/` and `forced2/`.
+
+### Evidence owed elsewhere (AC4)
+
+On the macOS station:
+
+```sh
+cmake --build --preset dev
+ctest --preset dev -j1 --output-on-failure -R '^(sqlite_(review_mutation_recovery_storage|profile_storage_root|profile_registry_storage|window_review_restoration_storage|private_store_open|device_binding_storage)|contained_catalog_probe|git_(anonymous_public_read|cache_contract|process_contract|haves_trimmed_pack_(update|missing-object|unconnected))|epoch_(maintenance_integration|kill_recovery|transaction_kill_recovery)|qt_agent_launch_canary|agent_parent_death)$'
+```
+
+On the Windows station, after its change to the SQLite helper:
+
+```powershell
+cmake --build --preset windows-dev
+ctest --preset windows-dev -j1 --output-on-failure -R "^(sqlite_(review_mutation_recovery_storage|profile_storage_root|profile_registry_storage|window_review_restoration_storage|private_store_open|device_binding_storage)|contained_catalog_probe|git_(anonymous_public_read|cache_contract|process_contract|haves_trimmed_pack_(update|missing-object|unconnected))|epoch_(maintenance_integration|kill_recovery|transaction_kill_recovery)|qt_agent_launch_canary|agent_parent_death|msvc_secure_crt_contract)$"
+```
+
+On each station, every row should pass. Afterwards the temporary directory
+should hold no entry starting `bpr-mutation-recovery-`, `bpr-0694-roots-`,
+`bpr-0691-registry-`, `bpr-0709-restoration-`, `bpr-0883-`,
+`bpr-device-binding-`, `bpr-contained-catalog-probe-`, `bpr-git-`,
+`bpr-haves-`, `bpr-maintenance-` or `bpr-agent-descendant-`. On Windows that
+includes the AppContainer's own temporary directory, for the probe and the
+canary, which run inside it. The card stays In Progress on this station's
+claim until those runs are supplied.
+
+### Left for the follow-up (title given)
+
+Once the Windows station's change to `tests/sqlite_contract/scratch_root.hpp`
+has landed, unify it with `tests/support/scratch_directory.hpp` into one
+helper with a Windows branch. That branch makes a directory at a random name
+only if nothing is there, and gives it the access its row needs. A row
+inside the AppContainer needs the container's SID. Neither
+`QTemporaryDir`'s access list nor an owner-only list gives it that
+([[BPR-1126]]'s Windows record). Then move onto it:
+
+- the Windows branch of each source marked `[[BPR-1128]]. Windows keeps its
+  root as it was` (`grep -rn 'BPR-1128\]\]. Windows keeps' tests`). These
+  are rows 1, 5 and 7 to 12, and the canary's marker. The probe and the
+  canary run inside the AppContainer;
+- row 13, `bpr-agent-breakaway-<clock>`, in
+  `test_breakaway_descendant_dies_with_supervised_job`. It is made with
+  `create_directory` and removed at the course's end;
+- the Windows-only marker `bpr-agent-pre-assignment-<clock>`, in
+  `test_windows_assignment_failure_has_no_pre_assignment_side_effect`. It is
+  removed before the child could write it.
+
+### Seen, not changed (title given)
+
+The canary fixture has a marker of its own.
+`tests/fixtures/agent/agent_canary_main.cpp`, lines 711 to 727, names a
+default heartbeat marker `bpr-agent-descendant-<pid>` in the temporary
+directory when it runs as `…-descendant-wait` without `--spawn-descendant`.
+Its descendant appends to that name with `std::ofstream` (`heartbeat`, lines
+379 to 387), which follows a link. `application_agent_invocation_cancellation_contract`
+runs it that way
+(`tests/end_to_end/agent_invocation_composition_public_path.cpp`, line 634),
+reads the name back (lines 1396 to 1398), and removes the file at its end
+(lines 1459 to 1471). So whatever is at that pid-named name is used and then
+removed, and a failing course leaves the file. Nothing removes the name
+before the descendant writes, so it is not this card's marker. It needs the
+fixture and the end-to-end course to change together.
