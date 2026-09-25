@@ -59,6 +59,20 @@ void operator delete(void* aBlock) noexcept { std::free(aBlock); }
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* aBlock, std::size_t) noexcept { std::free(aBlock); }
 
+// [[BPR-1124]]. Whether the two allocation sweeps may fail every allocation in
+// turn. MSVC's checked standard library (`_ITERATOR_DEBUG_LEVEL` 1 or 2) gives
+// each container a proxy, and allocates it inside noexcept moves, a
+// std::vector's move constructor among them. A std::bad_alloc injected there
+// can only reach std::terminate, and it says nothing about the product: a
+// Release build (level 0) makes no such allocation, and neither libc++ nor
+// libstdc++ allocates in those moves. So the sweeps run everywhere except in a
+// checked MSVC build, which prints that they did not.
+#if defined(_ITERATOR_DEBUG_LEVEL) && _ITERATOR_DEBUG_LEVEL != 0
+	#define BPR_TEST_ALLOCATION_SWEEPS 0
+#else
+	#define BPR_TEST_ALLOCATION_SWEEPS 1
+#endif
+
 namespace {
 	using namespace bpr;
 
@@ -5852,6 +5866,9 @@ namespace {
 	// if one did.
 	void test_a_shutdown_that_fails_after_a_withdrawal_still_runs_its_failure()
 	{
+#if !BPR_TEST_ALLOCATION_SWEEPS
+		std::cout << "BPR-1112 throwing shutdown: not run, because _ITERATOR_DEBUG_LEVEL " << _ITERATOR_DEBUG_LEVEL << " allocates inside noexcept moves ([[BPR-1124]])\n";
+#else
 		auto thrown = std::size_t{ 0U };
 		auto steps  = 0LL;
 		for (;; ++steps) {
@@ -5872,6 +5889,7 @@ namespace {
 		}
 		std::cout << "BPR-1112 throwing shutdown: " << steps << " allocations after the withdrawal failed in turn, " << thrown << " ended the turn in an exception\n";
 		expect(steps > 0, "the shutdown allocates after the withdrawal, so the sweep failed something");
+#endif
 	}
 
 	// [[BPR-1112]]. `start_delete` builds its terminal handler before it
@@ -5881,6 +5899,9 @@ namespace {
 	// And the host always reaches quiescence.
 	void test_a_failed_allocation_in_start_delete_changes_nothing()
 	{
+#if !BPR_TEST_ALLOCATION_SWEEPS
+		std::cout << "BPR-1112 start_delete: not run, because _ITERATOR_DEBUG_LEVEL " << _ITERATOR_DEBUG_LEVEL << " allocates inside noexcept moves ([[BPR-1124]])\n";
+#else
 		auto changed = std::size_t{ 0U };
 		auto steps   = 0LL;
 		for (;; ++steps) {
@@ -5932,6 +5953,7 @@ namespace {
 		}
 		std::cout << "BPR-1112 start_delete: " << steps << " allocations failed in turn\n";
 		expect(steps > 0 && changed == 0U, "start_delete: no failed allocation changes durability without a request or a terminal");
+#endif
 	}
 
 	// The launch restore's erase of a binding whose refresh lifetime elapsed.
