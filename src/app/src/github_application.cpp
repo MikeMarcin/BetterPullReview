@@ -9407,8 +9407,9 @@ namespace bpr::app {
 					RetryableReviewDraft.reset();
 				}
 			} else if (
-				aTerminal.Result.error()
-					== application::review_mutation_failure::unavailable
+				(aTerminal.Result.error() == application::review_mutation_failure::unavailable
+				 || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable
+				 || aTerminal.Result.error() == application::review_mutation_failure::malformed_response)
 				&& SelectedDiffPublication.has_value()
 				&& ReviewDraft->Anchor.Comparison
 					== core::comparison_digest(SelectedDiffPublication->Key)) {
