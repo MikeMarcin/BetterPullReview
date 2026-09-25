@@ -367,3 +367,51 @@ The acceptance record above is unchanged, and the card stays parked on AC4.
 The log is a station record under
 `build/logs/bpr-main-linux-20260924/batch7-linux/bpr-1107-rows.log` and is
 not committed.
+
+## Windows at `3f8f954d` (bpr-main-win, 2026-09-24): 13 of 16 pass, and the three workbench rows fail on [[BPR-1032]]'s change, not this one
+
+`3f8f954d` contains `eb9a94a9`. The tree is `build/dev` (MSVC 19.51 Debug,
+Qt 6.11.2), rebuilt at `3f8f954d`, `ninja` exit 0. The rows ran with
+`ctest --preset dev -j1 --output-on-failure`, offscreen, each contained or
+Windows-uncontained as registered.
+
+| Row | Result |
+| --- | --- |
+| `core_appearance_policy` | pass, 0.04 s |
+| `qt_code_sample_painter` | pass, 0.18 s |
+| `qt_type_preview` | pass, 0.39 s |
+| `qt_theme_preview_strip` | pass, 2.13 s |
+| `qt_diff_workbench_scale_100` | **fail**, 2.16 s |
+| `qt_diff_workbench_scale_125` | **fail**, 2.32 s |
+| `qt_diff_workbench_scale_200` | **fail**, 2.66 s |
+| `qt_appearance_settings_panel` | pass, 4.14 s |
+| `qt_appearance_profile` | pass, 1.99 s |
+| `sqlite_appearance_settings_storage` | pass, 6.56 s; the store's version 8 |
+| `application_appearance_host` | pass, 0.05 s |
+| `application_appearance_profile_consumers` | pass, 0.03 s |
+| `application_native_appearance_probe_contract` | pass, 15.05 s |
+| `application_appearance_theme_customization_contract` | pass, 27.59 s |
+| `application_appearance_gesture_contract` | pass, 36.05 s |
+| `application_appearance_store_fallback_contract` | pass, 23.54 s |
+
+**The three failures are not this card's.** Each stops at the suite's first
+numbering check, [[BPR-0455]]'s "past a one-sided block the two panes show
+different numbers on the same row". That check runs before any white-space
+check. A reverted trial names the cause. At `3f8f954d`, with only
+`measured_alignment_axis.cpp` put back as it was before [[BPR-1032]]'s
+`27c35729`, the suite passes in full (`diff-workbench-tests:pass`). That run
+includes `test_white_space_design_captures` and the white-space choices in
+`test_selected_composition`, at scale 1.0. On Windows, BPR-1032's
+measurement stops the shared scrollbar about a quarter of the way down; its
+post-close note has the numbers. The fix needs a follow-up card, whose title
+has gone to the integrator. Until it lands, this card's AC2 rows cannot pass
+on Windows.
+
+`%TEMP%` gained no entry from the batch. The negative control (the drawing
+switched off) was not repeated here; it is the macOS run above.
+`application_large_review_history` was not run.
+
+The acceptance record above is unchanged, and the card stays parked on AC4.
+The logs are station records under `build/logs/batch7-main-win/`
+(`rows-3f8f954d.log`, `trial-revert-1032-*.log`, `probe-*.log`), and are not
+committed.

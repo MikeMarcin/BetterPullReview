@@ -249,3 +249,22 @@ The logs are station records under
 `build/logs/bpr-main-linux-20260924/bpr-1051/full-sweep-09f3d48f.log`. The
 acceptance record above is unchanged. Windows has not been run from this
 station.
+
+## Post-close: Windows at `3f8f954d` (bpr-main-win, 2026-09-24)
+
+**AC2's three rows pass on Windows.** `3f8f954d` contains `b9d6bb26`. The
+tree is `build/dev` (MSVC 19.51 Debug, Qt 6.11.2), rebuilt at `3f8f954d`
+with `ninja` exit 0. The rows ran with `ctest --preset dev -j1
+--output-on-failure`, contained and offscreen as registered, at 00:10Z–00:17Z
+on 2026-09-25.
+
+| Row | Result |
+| --- | --- |
+| `qt_anonymous_public_preview_scale_100` | pass, 5.48 s |
+| `qt_anonymous_public_preview_scale_125` | pass, 5.52 s |
+| `qt_anonymous_public_preview_scale_200` | pass, 5.61 s |
+
+In the same batch, `qt_composed_github_scale_100/125/200` passed in 40.14,
+40.88 and 44.99 s. `%TEMP%` gained no entry from the batch. The acceptance
+record above is unchanged. The log is a station record,
+`build/logs/batch7-main-win/rows-3f8f954d.log`, and is not committed.

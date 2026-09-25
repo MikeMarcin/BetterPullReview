@@ -384,3 +384,27 @@ one rendered question. The logs are station records under
 `bpr-0803-rows.log`, `bpr-0803-leftover-listing.txt`,
 `bpr-0803-leftover-diagnostics.log`, `build-dev-bpr0803-registration.log`
 and `bpr-0803-registration-manifest.log`.
+
+## Windows at `3f8f954d` (bpr-main-win, 2026-09-24): the Qt rows pass, and the composed course is not registered
+
+**The portable half passes on Windows, and `89907c1f` holds here.** The card
+is macOS, and its Qt change is portable. `3f8f954d` contains `9577a516` and
+`89907c1f`. The tree is `build/dev` (MSVC 19.51 Debug, Qt 6.11.2),
+reconfigured and rebuilt at `3f8f954d`, `ninja` exit 0. The rows ran with
+`ctest --preset dev -j1 --output-on-failure`, contained and offscreen as
+registered.
+
+| Row | Result |
+| --- | --- |
+| `qt_composed_github_scale_100` | pass, 40.14 s |
+| `qt_composed_github_scale_125` | pass, 40.88 s |
+| `qt_composed_github_scale_200` | pass, 44.99 s |
+| `ctest -N -R '^application_device_flow_cli_choice$'` | Total Tests: 0, so the row is not registered on Windows |
+| `test_network_isolation_manifest` | Red by design, as [[BPR-1108]] records: exactly its 12 findings for its four rows (3 each), and none for `application_device_flow_cli_choice` |
+
+The three Qt rows include `test_the_code_stays_beside_the_github_cli_choice`
+and the untouched signed-out offer assertion. `%TEMP%` gained no entry from
+the batch. The acceptance record above is unchanged, and the card stays
+parked on its one rendered question. The logs are station records under
+`build/logs/batch7-main-win/` (`rows-3f8f954d.log`,
+`manifest-3f8f954d.log`), and are not committed.

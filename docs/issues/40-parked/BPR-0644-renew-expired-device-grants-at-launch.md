@@ -417,3 +417,31 @@ The acceptance record above is unchanged, and the card stays parked on its
 owner question. The logs are station records under
 `build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
 `bpr-0644-rows.log` and `bpr-0644-relaunch-verbose.log`.
+
+## Windows at `3f8f954d` (bpr-main-win, 2026-09-24)
+
+**The keep-grant policy's courses pass on Windows, and so do the pins
+`1347f776` resealed.** `3f8f954d` contains `1347f776`, and also
+[[BPR-1116]]'s `b71456a1` and [[BPR-1111]]'s `f9c42297`. The tree is
+`build/dev` (MSVC 19.51 Debug, Qt 6.11.2), rebuilt at `3f8f954d`, `ninja`
+exit 0. The rows ran with `ctest --preset dev -j1 --output-on-failure`,
+offscreen, each contained or Windows-uncontained as registered. The courses
+use the fixture's synthetic vault, not Credential Manager.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | pass, 0.10 s |
+| `application_device_authorization_refresh` | pass, 0.03 s |
+| `application_device_binding_launch_renewal` | pass, 86.49 s |
+| `application_device_binding_relaunch` | pass, 17.55 s; its pass expression is `DEVICE_BINDING_RELAUNCH_OK` |
+| `application_review_round_trip_composition_contract` | pass, 7.07 s |
+| `application_composition_contract` | pass, 580.98 s |
+
+The round-trip contract's pass shows that the pins resealed with the
+`BPR-0644 reseal` note match the Windows checkout. `%TEMP%` gained no entry
+from these runs. The negative controls were not repeated here; they are the
+macOS runs above.
+
+The acceptance record above is unchanged, and the card stays parked on its
+owner question. The logs are station records under `build/logs/batch7-main-win/`
+(`rows-3f8f954d.log`, `composition-3f8f954d.log`), and are not committed.
