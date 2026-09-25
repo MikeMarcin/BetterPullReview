@@ -90,9 +90,9 @@ namespace bpr::e2e::large_review {
 	struct resource_sample
 	{
 		std::string   Phase;
-		std::uint64_t ResidentBytes = 0, PhysicalFootprintBytes = 0, LiveHeapBytes = 0, DiffCacheBytes = 0;
+		std::uint64_t ResidentBytes = 0, PhysicalFootprintBytes = 0, LifetimePeakFootprintBytes = 0, LiveHeapBytes = 0, DiffCacheBytes = 0;
 		// Above the course's first (before_application) sample.
-		std::uint64_t FootprintGrowthBytes = 0, LiveHeapGrowthBytes = 0;
+		std::uint64_t FootprintGrowthBytes = 0, LifetimePeakGrowthBytes = 0, LiveHeapGrowthBytes = 0;
 		std::size_t   DiffCacheEntries = 0, DiffJobs = 0, EpochJobs = 0;
 	};
 
@@ -213,11 +213,14 @@ namespace bpr::e2e::large_review {
 		mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
 		require(task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&information), &count) == KERN_SUCCESS,
 				"native process memory sample failed");
+		require(count >= TASK_VM_INFO_REV3_COUNT && information.ledger_phys_footprint_peak >= 0,
+				"native process peak footprint sample unavailable");
 		malloc_statistics_t heap{ };
 		malloc_zone_statistics(nullptr, &heap);
-		sample.ResidentBytes          = information.resident_size;
-		sample.PhysicalFootprintBytes = information.phys_footprint;
-		sample.LiveHeapBytes          = heap.size_in_use;
+		sample.ResidentBytes              = information.resident_size;
+		sample.PhysicalFootprintBytes     = information.phys_footprint;
+		sample.LifetimePeakFootprintBytes = static_cast<std::uint64_t>(information.ledger_phys_footprint_peak);
+		sample.LiveHeapBytes              = heap.size_in_use;
 		if (aApplication) {
 			const auto work         = access::diff_work_evidence(*aApplication);
 			sample.DiffCacheBytes   = work.CacheBytes;
@@ -234,14 +237,20 @@ namespace bpr::e2e::large_review {
 		if (!aReport.Resources.empty()) {
 			const auto& baseline        = aReport.Resources.front();
 			sample.FootprintGrowthBytes = growth(sample.PhysicalFootprintBytes, baseline.PhysicalFootprintBytes);
-			sample.LiveHeapGrowthBytes  = growth(sample.LiveHeapBytes, baseline.LiveHeapBytes);
+			// The native peak is process-lifetime, so this is a conservative
+			// upper bound on growth since the before_application sample. It
+			// includes any earlier startup peak above that sampled baseline.
+			sample.LifetimePeakGrowthBytes = growth(sample.LifetimePeakFootprintBytes, baseline.PhysicalFootprintBytes);
+			sample.LiveHeapGrowthBytes     = growth(sample.LiveHeapBytes, baseline.LiveHeapBytes);
 		}
 		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
 		if (!aReport.Resources.empty()) {
-			require(sample.FootprintGrowthBytes
-						<= (aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
-													: aReport.SampledFootprintGrowthLimitBytes),
+			const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
+																: aReport.SampledFootprintGrowthLimitBytes;
+			require(sample.FootprintGrowthBytes <= footprintLimit,
 					"sampled Mac fixture footprint growth exceeded its budget");
+			require(sample.LifetimePeakGrowthBytes <= footprintLimit,
+					"Mac fixture lifetime peak footprint growth exceeded its budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
 				const auto cleanupLimit = sample.Phase == "application_destroyed"
