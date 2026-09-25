@@ -405,6 +405,8 @@ set_tests_properties(sqlite_private_store_open PROPERTIES TIMEOUT 60 PASS_REGULA
 
 bpr_add_executable(test_device_binding_storage device_binding_storage_tests.cpp)
 target_link_libraries(test_device_binding_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+# [[BPR-1111]]. The read classifier's pin for results no contract can inject.
+target_compile_definitions(test_device_binding_storage PRIVATE BPR_SQLITE_TESTING=1)
 bpr_enable_hardening(test_device_binding_storage)
 bpr_enable_warnings(test_device_binding_storage)
 bpr_add_network_isolated_test(NAME sqlite_device_binding_storage WINDOWS_UNCONTAINED COMMAND test_device_binding_storage)

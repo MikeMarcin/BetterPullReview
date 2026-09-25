@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_TESTING_HPP
 
 #if defined(BPR_SQLITE_TESTING)
+	#include "bpr/application/device_binding_store.hpp"
 	#include "bpr/application/epoch_catalog_port.hpp"
 
 	#include <cstdint>
@@ -36,6 +37,13 @@ namespace bpr::adapters::sqlite::detail::testing {
 	/// \brief Computes the classify sqlite result code result.
 	[[nodiscard]] auto classify_sqlite_result_code(int aResultCode) noexcept
 		-> application::epoch_catalog_failure;
+
+	// [[BPR-1111]]. How the device-binding store judges one of its reads that
+	// SQLite failed with `aResultCode`, for the results a contract cannot make
+	// SQLite produce on demand: the WAL-index protocol and recovery codes.
+	/// \brief Classifies a failed device-binding read without a live connection.
+	[[nodiscard]] auto classify_device_binding_read(int aResultCode, bool aStopRequested) noexcept
+		-> application::device_binding_failure;
 
 	// [[BPR-0813]]. Where a private store's open has reached: its file was
 	// admitted, or SQLite has opened it. The observer receives the store file's

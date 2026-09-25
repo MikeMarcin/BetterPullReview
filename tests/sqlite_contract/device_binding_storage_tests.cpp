@@ -1,6 +1,7 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 
 #include <sqlite3.h>
 #if !defined(_WIN32)
@@ -318,6 +319,150 @@ namespace {
 		expect(adapters::sqlite::make_device_binding_store(latched)->load({ }).has_value(), "the repaired file is valid, so the refusal above is the latch");
 	}
 
+	// [[BPR-1111]]. The main file's reads fail on demand, as a failing disk or
+	// a vanished network share makes them fail: the store's connection keeps
+	// its own I/O methods, wrapped. The `Occurrence`-th run of `Statement`
+	// arms the failure, after releasing the pages the connection has cached,
+	// and that run's next read of the file answers SQLITE_IOERR_READ.
+	struct read_fault
+	{
+		static inline const sqlite3_io_methods* Original = nullptr;
+		static inline sqlite3_io_methods        Methods{ };
+		static inline std::string_view          Statement;
+		static inline int                       Occurrence = 0;
+		static inline bool                      Armed      = false;
+		static inline int                       Injected   = 0;
+		static auto                             read(sqlite3_file* aFile, void* aBuffer, int aAmount, sqlite3_int64 aOffset) -> int
+		{
+			if (std::exchange(Armed, false)) {
+				++Injected;
+				return SQLITE_IOERR_READ;
+			}
+			return Original->xRead(aFile, aBuffer, aAmount, aOffset);
+		}
+		static auto trace(unsigned int, void*, void* aStatement, void*) -> int
+		{
+			auto* const statement = static_cast<sqlite3_stmt*>(aStatement);
+			const auto* sql       = sqlite3_sql(statement);
+			if (Occurrence == 0 || sql == nullptr || std::string_view{ sql } != Statement) {
+				return 0;
+			}
+			--Occurrence;
+			if (Occurrence == 0) {
+				static_cast<void>(sqlite3_db_release_memory(sqlite3_db_handle(statement)));
+				Armed = true;
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			sqlite3_file* file = nullptr;
+			if (sqlite3_file_control(aDatabase, "main", SQLITE_FCNTL_FILE_POINTER, static_cast<void*>(&file)) != SQLITE_OK || file == nullptr || file->pMethods == nullptr) {
+				return SQLITE_ERROR;
+			}
+			if (file->pMethods != &Methods) {
+				Original       = file->pMethods;
+				Methods        = *Original;
+				Methods.xRead  = read;
+				file->pMethods = &Methods;
+			}
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT, trace, nullptr);
+		}
+	};
+	// [[BPR-1111]]. Every SQLite allocation fails from the end of `Statement`'s
+	// run until the connection closes, as it does when the process runs out of
+	// memory: the statement the store prepares next meets SQLITE_NOMEM. The
+	// heap limits are the process's, so both are put back when it closes.
+	struct memory_fault
+	{
+		static inline std::string_view Statement;
+		static inline bool             Active    = false;
+		static inline sqlite3_int64    PriorSoft = 0;
+		static auto                    trace(unsigned int aEvent, void*, void* aSubject, void*) -> int
+		{
+			if (aEvent == SQLITE_TRACE_CLOSE) {
+				if (std::exchange(Active, false)) {
+					static_cast<void>(sqlite3_hard_heap_limit64(0));
+					static_cast<void>(sqlite3_soft_heap_limit64(PriorSoft));
+				}
+				return 0;
+			}
+			const auto* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(aSubject));
+			if (!Statement.empty() && sql != nullptr && std::string_view{ sql } == Statement) {
+				Statement = { };
+				Active    = true;
+				PriorSoft = sqlite3_soft_heap_limit64(-1);
+				static_cast<void>(sqlite3_hard_heap_limit64(1));
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_PROFILE | SQLITE_TRACE_CLOSE, trace, nullptr);
+		}
+	};
+	constexpr std::string_view current_rows = "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone,bpr_profile FROM device_binding LIMIT 65";
+	// A failure the environment caused is not a verdict on the file: the call
+	// reports `unavailable`, and the same store reads the file on its next
+	// call. Each fault is injected into one real read and counted.
+	void transient_read_failures(const std::filesystem::path& aRoot)
+	{
+		using application::device_binding_failure;
+		const auto root = aRoot / "transient";
+		std::filesystem::create_directory(root);
+		expect(adapters::sqlite::make_storage_root_owner_private(root), "fixture root is owner-private under the canonical storage policy");
+		seed(root);
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(read_fault::install)) == SQLITE_OK, "register the read fault");
+		struct injected_read
+		{
+			std::string_view Statement;
+			int              Occurrence;
+			std::string_view Where;
+		};
+		for (const auto& [statement, occurrence, where] : {
+				 injected_read{ "PRAGMA quick_check", 1, "a failed page read inside quick_check, one of the judgement's later reads" },
+				 injected_read{ "SELECT profile FROM binding_scope", 1, "a failed step of the judgement's scope read" },
+				 injected_read{ current_rows, 1, "a failed step of the judgement's row read" },
+				 injected_read{ current_rows, 2, "a failed step of the load's row read, after the judgement" },
+			 }) {
+			auto store             = adapters::sqlite::make_device_binding_store(root);
+			read_fault::Injected   = 0;
+			read_fault::Statement  = statement;
+			read_fault::Occurrence = occurrence;
+			const auto failed      = store->load({ });
+			expect(read_fault::Injected == 1 && !read_fault::Armed, std::string{ where } + ": the fault was injected once");
+			expect(!failed && failed.error() == device_binding_failure::unavailable, std::string{ where } + " is unavailable, not corrupt");
+			const auto rows = store->load({ });
+			expect(rows && rows->size() == 1U && rows->front() == record(), std::string{ where } + ": the same store reads the file on its next call");
+		}
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(read_fault::install)) == 1, "remove the read fault");
+		// Out of memory when the judgement prepares its row read.
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(memory_fault::install)) == SQLITE_OK, "register the memory fault");
+		{
+			auto store                = adapters::sqlite::make_device_binding_store(root);
+			memory_fault::Statement   = "SELECT count(*) FROM binding_scope";
+			const auto failed         = store->load({ });
+			const auto armedAndLifted = memory_fault::Statement.empty() && !memory_fault::Active;
+			expect(armedAndLifted && sqlite3_hard_heap_limit64(-1) == 0 && sqlite3_soft_heap_limit64(-1) == memory_fault::PriorSoft, "the memory fault ran and was lifted when its connection closed");
+			expect(!failed && failed.error() == device_binding_failure::unavailable, "a failed prepare of the judgement's row read is unavailable, not corrupt");
+			const auto rows = store->load({ });
+			expect(rows && rows->size() == 1U && rows->front() == record(), "a failed prepare: the same store reads the file on its next call");
+		}
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(memory_fault::install)) == 1, "remove the memory fault");
+		// The results no contract can make SQLite produce on demand, pinned at
+		// the classifier the reads share. PROTOCOL and BUSY_RECOVERY come from
+		// the WAL index while another connection holds or recovers it.
+		const auto judged = [](const int aCode, const bool aStop = false) { return adapters::sqlite::detail::testing::classify_device_binding_read(aCode, aStop); };
+		for (const auto code : { SQLITE_IOERR, SQLITE_IOERR_READ, SQLITE_IOERR_SHORT_READ, SQLITE_IOERR_SHMMAP, SQLITE_NOMEM, SQLITE_PROTOCOL, SQLITE_BUSY, SQLITE_BUSY_RECOVERY, SQLITE_BUSY_SNAPSHOT, SQLITE_LOCKED, SQLITE_CANTOPEN, SQLITE_FULL, SQLITE_ERROR }) {
+			expect(judged(code) == device_binding_failure::unavailable, "an environment failure is unavailable: " + std::to_string(code));
+		}
+		for (const auto code : { SQLITE_CORRUPT, SQLITE_CORRUPT_INDEX, SQLITE_NOTADB, SQLITE_TOOBIG, SQLITE_INTERRUPT }) {
+			expect(judged(code) == device_binding_failure::corrupt, "a verdict on the file is corrupt: " + std::to_string(code));
+		}
+		expect(judged(SQLITE_INTERRUPT, true) == device_binding_failure::cancelled && judged(SQLITE_IOERR_READ, true) == device_binding_failure::cancelled,
+			   "a read that was asked to stop is cancelled");
+	}
+
 	// [[BPR-0887]]. SQLite keeps one progress handler per connection. A nested
 	// scope used to clear it on the way out, so a store's step ceiling lapsed at
 	// the first nested execute. These checks read the handler by its effect: the
@@ -411,6 +556,7 @@ int main()
 	bounded_preflight(root);
 	scoped_storage_and_migration(root);
 	contention_and_corruption(root);
+	transient_read_failures(root);
 	mutate(root, "CREATE TABLE extra(value TEXT)");
 	expect(!adapters::sqlite::make_device_binding_store(root)->load({ }), "unknown schema object refuses whole catalog");
 	mutate(root, "DROP TABLE extra; PRAGMA ignore_check_constraints=ON; UPDATE device_binding SET access_expiry=issued");

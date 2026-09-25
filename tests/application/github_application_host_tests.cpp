@@ -5503,9 +5503,18 @@ namespace {
 	};
 	// A refused effect post leaves the job to report `unavailable` through the
 	// decision lane. When that post is refused too, the lane must stay drainable.
+	// [[BPR-1111]]. Every request's terminals are counted: an admitted request
+	// gets exactly one, and a withdrawn one none.
 	void test_device_binding_persistence_stays_drainable_when_its_posts_are_refused()
 	{
 		using result = application::device_binding_load_result;
+		struct terminals
+		{
+			std::size_t           Count = 0U;
+			std::optional<result> Last;
+			[[nodiscard]] auto    once() const -> bool { return Count == 1U && Last.has_value(); }
+			[[nodiscard]] auto    once_with(const application::device_binding_failure aFailure) const -> bool { return once() && !Last->has_value() && Last->error() == aFailure; }
+		};
 		binding_store                           store;
 		refusable_executor                      effects;
 		refusable_executor                      lane;
@@ -5514,9 +5523,12 @@ namespace {
 			effects.Refuse = aRefuse;
 			lane.Refuse    = aRefuse;
 		};
-		const auto refused = [&persistence](std::optional<result>& aResult) {
+		const auto refused = [&persistence](terminals& aTerminals) {
 			try {
-				persistence.load([&aResult](result aLoaded) { aResult = std::move(aLoaded); });
+				persistence.load([&aTerminals](result aLoaded) {
+					++aTerminals.Count;
+					aTerminals.Last = std::move(aLoaded);
+				});
 			} catch (const std::runtime_error&) {
 				return true;
 			}
@@ -5524,20 +5536,20 @@ namespace {
 		};
 
 		// Admission: neither the effect nor its failure terminal can be posted.
-		std::optional<result> withdrawn;
+		terminals withdrawn;
 		refuse(true);
 		expect(refused(withdrawn) && persistence.is_quiescent(), "a request whose effect and terminal are both refused is withdrawn, and the caller sees the refusal");
 		refuse(false);
-		std::optional<result> next;
+		terminals next;
 		expect(!refused(next), "the next request is admitted");
 		effects.Inner.drain();
 		lane.Inner.drain();
-		expect(!withdrawn && next && next->has_value() && persistence.is_quiescent(), "a withdrawn request has no terminal, and the next one is served");
+		expect(withdrawn.Count == 0U && next.once() && next.Last->has_value() && persistence.is_quiescent(), "a withdrawn request has no terminal, and the next one has exactly one");
 
 		// A queued successor: the lane turn that finishes its predecessor can
 		// post neither the successor's effect nor its terminal.
-		std::optional<result> first;
-		std::optional<result> second;
+		terminals first;
+		terminals second;
 		expect(!refused(first) && !refused(second), "two requests are queued");
 		effects.Inner.drain();
 		refuse(true);
@@ -5547,21 +5559,22 @@ namespace {
 		} catch (...) {
 			escaped = true;
 		}
-		expect(!escaped && first && first->has_value() && second && !second->has_value() && second->error() == application::device_binding_failure::unavailable,
-			   "the successor reports unavailable in the same lane turn, after its predecessor");
+		expect(!escaped && first.once() && first.Last->has_value() && second.once_with(application::device_binding_failure::unavailable),
+			   "the successor reports unavailable exactly once in the same lane turn, after its predecessor's one terminal");
 		expect(persistence.is_quiescent() && std::ranges::count(store.Operations, "load") == 2, "the successor never reached the store, and the lane is quiescent");
 		refuse(false);
-		std::optional<result> after;
+		terminals after;
 		expect(!refused(after), "a request after the stranded successor is admitted");
 		effects.Inner.drain();
 		lane.Inner.drain();
-		expect(after && after->has_value() && persistence.is_quiescent(), "the lane serves the request after the stranded successor");
+		expect(after.once() && after.Last->has_value() && persistence.is_quiescent(), "the lane serves the request after the stranded successor, once");
+		expect(first.Count == 1U && second.Count == 1U && next.Count == 1U && withdrawn.Count == 0U, "no earlier request gets a second terminal later");
 
 		// A closing refusal whose own terminal cannot be posted is not left pending.
 		persistence.cancel_pending();
 		lane.Refuse = true;
-		std::optional<result> closing;
-		expect(refused(closing) && !closing && persistence.is_quiescent(), "a refusal whose terminal is refused leaves nothing pending");
+		terminals closing;
+		expect(refused(closing) && closing.Count == 0U && persistence.is_quiescent(), "a refusal whose terminal is refused leaves nothing pending and no terminal");
 	}
 
 	// [[BPR-1048]]. A host whose persistence lane can be made to withdraw a

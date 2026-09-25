@@ -1,5 +1,8 @@
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 
+#if defined(BPR_SQLITE_TESTING)
+	#include "bpr/adapters/sqlite/testing.hpp"
+#endif
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
 #include "storage_internal.hpp"
@@ -9,6 +12,7 @@
 #include <optional>
 #include <sqlite3.h>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace bpr::adapters::sqlite {
@@ -50,6 +54,112 @@ namespace bpr::adapters::sqlite {
 				&& bind_text(aStatement, 4, aAuthority.Hostname.value())
 				&& bind_text(aStatement, 5, std::to_string(aAuthority.Account.value()))
 				&& sqlite3_bind_int(aStatement, 6, static_cast<int>(aAuthority.ServerContract)) == SQLITE_OK;
+		}
+
+		// [[BPR-1111]]. What a failed SQLite call at one of the store's reads
+		// says about the file. SQLite's own finding that the file is corrupt or
+		// not a database is a verdict. So are the read scope's two limits on
+		// hostile content: the step ceiling, which is an interrupt nobody asked
+		// for, and the length limit. Every other result is the environment --
+		// I/O, memory, the WAL-index locking protocol, recovery, contention --
+		// and is `unavailable`, as `detail::classify_sqlite_result` classifies
+		// it. A read that was asked to stop is `cancelled`.
+		auto read_failure(const int aResultCode, const std::stop_token& aStop) noexcept -> device_binding_failure
+		{
+			if (aStop.stop_requested()) {
+				return device_binding_failure::cancelled;
+			}
+			if ((static_cast<unsigned>(aResultCode) & 0xFFU) == SQLITE_TOOBIG) {
+				return device_binding_failure::corrupt;
+			}
+			switch (detail::classify_sqlite_result(aResultCode)) {
+			case detail::sqlite_result_classification::integrity_failure:
+			case detail::sqlite_result_classification::cancelled:
+				return device_binding_failure::corrupt;
+			case detail::sqlite_result_classification::unavailable:
+			case detail::sqlite_result_classification::busy:
+			case detail::sqlite_result_classification::quota_exceeded:
+				return device_binding_failure::unavailable;
+			}
+			return device_binding_failure::unavailable;
+		}
+		auto prepare_read(sqlite3* aDatabase, const std::string_view aSql, const std::stop_token& aStop) -> std::expected<detail::statement, device_binding_failure>
+		{
+			detail::statement statement;
+			const auto        code = sqlite3_prepare_v3(aDatabase, aSql.data(), static_cast<int>(aSql.size()), SQLITE_PREPARE_PERSISTENT | SQLITE_PREPARE_NO_VTAB, &statement.Value, nullptr);
+			if (code != SQLITE_OK || statement.Value == nullptr) {
+				return std::unexpected(read_failure(code, aStop));
+			}
+			return statement;
+		}
+		// One row with one value of `aType`, then the end. No row, another type
+		// or a second row is a verdict on the file; a failed step is classified.
+		auto read_value(sqlite3* aDatabase, const std::string_view aSql, const int aType, const std::stop_token& aStop) -> std::expected<detail::statement, device_binding_failure>
+		{
+			auto statement = prepare_read(aDatabase, aSql, aStop);
+			if (!statement) {
+				return statement;
+			}
+			const auto step = sqlite3_step(statement->Value);
+			if (step == SQLITE_DONE || (step == SQLITE_ROW && sqlite3_column_type(statement->Value, 0) != aType)) {
+				return corrupt();
+			}
+			if (step != SQLITE_ROW) {
+				return std::unexpected(read_failure(step, aStop));
+			}
+			return statement;
+		}
+		auto read_end(detail::statement& aStatement, const std::stop_token& aStop) -> device_binding_result
+		{
+			const auto step = sqlite3_step(aStatement.Value);
+			if (step == SQLITE_ROW) {
+				return corrupt();
+			}
+			return step == SQLITE_DONE ? device_binding_result{ } : device_binding_result{ std::unexpected(read_failure(step, aStop)) };
+		}
+		auto read_integer(sqlite3* aDatabase, const std::string_view aSql, const std::stop_token& aStop) -> std::expected<std::int64_t, device_binding_failure>
+		{
+			auto statement = read_value(aDatabase, aSql, SQLITE_INTEGER, aStop);
+			if (!statement) {
+				return std::unexpected(statement.error());
+			}
+			const auto value = sqlite3_column_int64(statement->Value, 0);
+			if (auto end = read_end(*statement, aStop); !end) {
+				return std::unexpected(end.error());
+			}
+			return value;
+		}
+		auto read_text(sqlite3* aDatabase, const std::string_view aSql, const std::stop_token& aStop) -> std::expected<std::string, device_binding_failure>
+		{
+			auto statement = read_value(aDatabase, aSql, SQLITE_TEXT, aStop);
+			if (!statement) {
+				return std::unexpected(statement.error());
+			}
+			auto value = std::string{ text_of(statement->Value, 0) };
+			if (auto end = read_end(*statement, aStop); !end) {
+				return std::unexpected(end.error());
+			}
+			return value;
+		}
+		// SQLite's quick_check does not fail when it cannot read a page. It
+		// reports the page as one of its findings, "unable to get the page.
+		// error code=N", and the pages behind it as never used. Such a report
+		// is about the read, not the file, and N classifies it.
+		auto unread_page(const std::string_view aFindings, const std::stop_token& aStop) -> std::optional<device_binding_failure>
+		{
+			constexpr std::string_view marker = "unable to get the page. error code=";
+			for (auto at = aFindings.find(marker); at != std::string_view::npos; at = aFindings.find(marker, at + marker.size())) {
+				const auto* const begin  = aFindings.data() + at + marker.size();
+				auto              code   = 0;
+				const auto        parsed = std::from_chars(begin, aFindings.data() + aFindings.size(), code);
+				if (parsed.ec != std::errc{ }) {
+					continue;
+				}
+				if (const auto failure = read_failure(code, aStop); failure != device_binding_failure::corrupt) {
+					return failure;
+				}
+			}
+			return std::nullopt;
 		}
 
 		// Connection-local limits and progress checks must precede all untrusted reads.
@@ -141,9 +251,11 @@ namespace bpr::adapters::sqlite {
 		private:
 			auto read_rows(std::stop_token aStop, bool aLegacy = false) -> application::device_binding_load_result
 			{
-				auto statement = detail::prepare(Database, aLegacy ? "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone FROM device_binding LIMIT 65" : "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone,bpr_profile FROM device_binding LIMIT 65");
+				// [[BPR-1111]]. A failed prepare or step is classified: only a
+				// verdict on the file is `corrupt`.
+				auto statement = prepare_read(Database, aLegacy ? "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone FROM device_binding LIMIT 65" : "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone,bpr_profile FROM device_binding LIMIT 65", aStop);
 				if (!statement) {
-					return corrupt();
+					return std::unexpected(statement.error());
 				}
 				std::vector<application::device_binding_record> rows;
 				for (;;) {
@@ -154,7 +266,10 @@ namespace bpr::adapters::sqlite {
 					if (step == SQLITE_DONE) {
 						return rows;
 					}
-					if (step != SQLITE_ROW || rows.size() >= application::maximum_device_bindings) {
+					if (step != SQLITE_ROW) {
+						return std::unexpected(read_failure(step, aStop));
+					}
+					if (rows.size() >= application::maximum_device_bindings) {
 						return corrupt();
 					}
 					const auto server    = sqlite3_column_int64(statement->Value, 5);
@@ -250,11 +365,16 @@ namespace bpr::adapters::sqlite {
 			enum class catalog_kind { fresh,
 									  legacy,
 									  current };
-			// `corrupt` means the admitted file was read and judged. The judgement
-			// reads inside one transaction, so after its first read holds a snapshot
-			// no read can meet another connection's lock or see another writer's
-			// commit. A failed first read, a failed configuration and a failed
-			// migration are contention or environment and report `unavailable`.
+			// `corrupt` means the admitted file was read and judged. Every read the
+			// judgement makes is in `inspect`, inside one read transaction, so after
+			// its first read holds a snapshot no read can meet another connection's
+			// lock or see another writer's commit ([[BPR-0884]]). A read that fails
+			// is judged by SQLite's result ([[BPR-1111]], `read_failure`): only
+			// corruption and the read scope's limits are verdicts, and I/O, memory,
+			// protocol, recovery and contention report `unavailable`. A failed
+			// configuration and a failed migration report `unavailable` too. The
+			// migration reads back what it wrote inside its own write transaction,
+			// and nothing is read after it.
 			auto establish(std::stop_token aStop) -> device_binding_result
 			{
 				if (!detail::execute(Database, "BEGIN", aStop)) {
@@ -273,20 +393,22 @@ namespace bpr::adapters::sqlite {
 					static_cast<void>(detail::execute(Database, "ROLLBACK"));
 					return std::unexpected(device_binding_failure::unavailable);
 				}
-				auto rows = read_rows(aStop);
-				return rows ? device_binding_result{ } : device_binding_result{ std::unexpected(rows.error()) };
+				return { };
 			}
 			auto inspect(std::stop_token aStop) -> std::expected<catalog_kind, device_binding_failure>
 			{
-				auto version = detail::scalar_integer(Database, "PRAGMA user_version");
+				// Each read in turn: the first that fails decides, by what failed.
+				const auto version = read_integer(Database, "PRAGMA user_version", aStop);
 				if (!version) {
-					// SQLite's own finding that this is not a database is a verdict.
-					return std::unexpected(version.error() == detail::failure::integrity_failure ? device_binding_failure::corrupt : device_binding_failure::unavailable);
+					return std::unexpected(version.error());
 				}
-				auto identity = detail::scalar_integer(Database, "PRAGMA application_id");
-				auto count    = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema");
-				if (!identity || !count) {
-					return corrupt();
+				const auto identity = read_integer(Database, "PRAGMA application_id", aStop);
+				if (!identity) {
+					return std::unexpected(identity.error());
+				}
+				const auto count = read_integer(Database, "SELECT count(*) FROM sqlite_schema", aStop);
+				if (!count) {
+					return std::unexpected(count.error());
 				}
 				const auto fresh  = *version == 0 && *identity == 0 && *count == 0;
 				const auto legacy = *version == 1 && *identity == ApplicationId;
@@ -299,24 +421,59 @@ namespace bpr::adapters::sqlite {
 				if (fresh) {
 					return catalog_kind::fresh;
 				}
-				auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
-				auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-				auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
-				if (!schema || *schema != (legacy ? LegacySchema : std::string_view{ Schema }) || !objects || *objects != (legacy ? 1 : 2) || !integrity || *integrity != "ok") {
-					return corrupt();
+				const auto schema = read_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'", aStop);
+				if (!schema || *schema != (legacy ? LegacySchema : std::string_view{ Schema })) {
+					return schema ? corrupt() : std::unexpected(schema.error());
+				}
+				const auto objects = read_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'", aStop);
+				if (!objects || *objects != (legacy ? 1 : 2)) {
+					return objects ? corrupt() : std::unexpected(objects.error());
+				}
+				if (auto checked = quick_check(aStop); !checked) {
+					return std::unexpected(checked.error());
 				}
 				if (!legacy) {
-					auto scopeSchema = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='binding_scope' AND type='table'");
-					auto scope       = detail::scalar_text(Database, "SELECT profile FROM binding_scope");
-					auto scopes      = detail::scalar_integer(Database, "SELECT count(*) FROM binding_scope");
-					if (!scopeSchema || *scopeSchema != ScopeSchema || !scope || *scope != std::to_string(BprProfile.value()) || !scopes || *scopes != 1) {
-						return corrupt();
+					const auto scopeSchema = read_text(Database, "SELECT sql FROM sqlite_schema WHERE name='binding_scope' AND type='table'", aStop);
+					if (!scopeSchema || *scopeSchema != ScopeSchema) {
+						return scopeSchema ? corrupt() : std::unexpected(scopeSchema.error());
+					}
+					const auto scope = read_text(Database, "SELECT profile FROM binding_scope", aStop);
+					if (!scope || *scope != std::to_string(BprProfile.value())) {
+						return scope ? corrupt() : std::unexpected(scope.error());
+					}
+					const auto scopes = read_integer(Database, "SELECT count(*) FROM binding_scope", aStop);
+					if (!scopes || *scopes != 1) {
+						return scopes ? corrupt() : std::unexpected(scopes.error());
 					}
 				}
-				if (!read_rows(aStop, legacy)) {
-					return corrupt();
+				if (auto rows = read_rows(aStop, legacy); !rows) {
+					return std::unexpected(rows.error());
 				}
 				return legacy ? catalog_kind::legacy : catalog_kind::current;
+			}
+			// The file passes only when quick_check finds nothing: one row, "ok".
+			auto quick_check(std::stop_token aStop) -> device_binding_result
+			{
+				auto statement = prepare_read(Database, "PRAGMA quick_check", aStop);
+				if (!statement) {
+					return std::unexpected(statement.error());
+				}
+				auto findings = std::size_t{ 0U };
+				auto clean    = false;
+				for (;;) {
+					const auto step = sqlite3_step(statement->Value);
+					if (step == SQLITE_DONE) {
+						return findings == 1U && clean ? device_binding_result{ } : corrupt();
+					}
+					if (step != SQLITE_ROW) {
+						return std::unexpected(read_failure(step, aStop));
+					}
+					const auto finding = text_of(statement->Value, 0);
+					if (const auto unread = unread_page(finding, aStop); unread.has_value()) {
+						return std::unexpected(*unread);
+					}
+					clean = ++findings == 1U && finding == "ok";
+				}
 			}
 			auto migrate(const bool aLegacy, std::stop_token aStop) -> bool
 			{
@@ -344,4 +501,14 @@ namespace bpr::adapters::sqlite {
 	{
 		return std::make_unique<sqlite_device_binding_store>(std::move(aStorageRoot), aBprProfile);
 	}
+#if defined(BPR_SQLITE_TESTING)
+	auto detail::testing::classify_device_binding_read(const int aResultCode, const bool aStopRequested) noexcept -> application::device_binding_failure
+	{
+		std::stop_source stop;
+		if (aStopRequested) {
+			static_cast<void>(stop.request_stop());
+		}
+		return read_failure(aResultCode, stop.get_token());
+	}
+#endif
 }

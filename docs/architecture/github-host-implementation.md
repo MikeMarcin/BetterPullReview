@@ -1399,6 +1399,17 @@ connection, and a failed configuration or migration. Each closes the
 connection and reports `cancelled` or `unavailable`, and the next call admits,
 opens and judges the file again ([[BPR-0884]]).
 
+A read that SQLite fails is judged by SQLite's result, at every read, not only
+the first ([[BPR-1111]]). SQLite's own finding that the file is corrupt or not
+a database is a verdict. So are the read scope's step ceiling and length
+limit, which only hostile content reaches. Every other result is `unavailable`:
+I/O, memory, the WAL-index locking protocol, recovery and contention.
+`PRAGMA quick_check` reports a page it could not read as one of its findings
+rather than failing, so a finding that names such a read is judged by its
+result code as well. Every read the judgement makes is inside its snapshot. The
+row read that followed the snapshot's end is gone, and a migration reads back
+what it wrote inside its own write transaction.
+
 Every metadata request the lane admits has exactly one terminal. A request
 whose effect cannot be posted reports `unavailable`. If the decision lane
 refuses that terminal too, a new request is withdrawn and the call throws. A
