@@ -808,3 +808,33 @@ AC1, AC3 and AC4 are met. **AC2 is not**: it waits for the Application menu's
 accessibility defect to be corrected, then for one more cleared course run of
 a candidate carrying the fix. That needs a new tests-disabled image, whose
 first launch is its own Defender verdict. The card stays **In Progress**.
+
+## Checkpoint, 2026-09-25 (bpr-main-win, wind-down): the claim is kept
+
+The owner asked the stations to wind down, and asked them to release the
+claims they would not finish. This one stays In Progress.
+
+Moving the card rewrites the link to it in
+`docs/verification/BPR-0653-2026-09-25/index.md`. That file is the capture
+index the owner reviewed. The review packet's `source-manifest.txt` pins it
+by hash, and the documentation gate refuses the changed bytes. Neither file
+may be rewritten to allow the move.
+
+Where the card stands has not changed: AC1, AC3 and AC4 are met, and AC2 is
+not.
+AC2 waits on [[BPR-1136]]: the strip's Application menu exposes no items to
+UI Automation when it opens a second time. That card is reserved and not yet
+written.
+
+- **Evidence.** The checkpoint and the logs are station records under
+  `build/logs/bpr-0974-main-win/`. The owner's BPR-0653 image
+  `C:\Users\mikem\bpr0974-candidate-85e522d8\` stays reserved and must not
+  be touched.
+- **Next, in order** (the station's intended queue):
+  1. BPR-1128's Windows rows.
+  2. [[BPR-1138]].
+  3. [[BPR-1136]], after RFC-BPR-0052's milestone 1 lands.
+  4. A new tests-disabled `windows-app-release` image in a new directory,
+     with its own first-launch Defender check (foreground).
+  5. This card's AC2 course on that image (foreground). Then record which
+     image met each criterion.

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1033"
 title: "Windows: application_uiforetw_selected_diff_contract fails at UIFORETW_CAPTURE_FIRST_TARGET_FAILED without naming which of its nine conditions is false"
-status: "In Progress"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -249,3 +249,17 @@ the width and 835/1000 of the height, meeting [[BPR-1036]]'s macOS floor;
 `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, `UIFORETW_NAVIGATION_ROW_UNEXPECTED`
 nor `UIFORETW_CAPTURE_LAYOUT_FAILED` printed. **AC3 on macOS is met.** This
 note does not claim, move or finish this card; bpr-main-win owns it.
+
+## Released to Ready, 2026-09-25 (bpr-main-win, wind-down)
+
+The owner asked the stations to wind down, so this card's claim is released.
+Its evidence is all recorded above:
+
+- AC1 and AC2 on Windows, at `585d8846` plus the change;
+- AC3 on Linux, after [[BPR-1036]];
+- AC3 on macOS, at `b18888aa`.
+
+What remains: `application_uiforetw_selected_diff_contract`, once more on
+Windows at the current main revision, because the workbench has changed
+since `585d8846`. Then the finish decision. Both need no owner, and neither
+needs the foreground.
