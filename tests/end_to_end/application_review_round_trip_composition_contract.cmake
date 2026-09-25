@@ -38,6 +38,10 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1132 reseal: fb4b8364..the BPR-1132 product commit. Per-window
+# document-tab composition, exact restoration and gesture precedence, shutdown,
+# and test-build UIforETW tab-strip geometry. No intervening pinned-scope commit;
+# mutation branch unchanged. Full source review recorded on BPR-1132.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -286,7 +290,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8b36d1d86ab974b0bc244120a5b890e11666ccd77cf92922bfa4462dd4265294"
+		"c709fbd57b1780de084e18ed8d5fec7ca6d6ce5e7fc03869038e501c91060a6c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -429,7 +433,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4909b222d582ec3151185b8af8f4f9b437b0592b4a32c07cd1c54b7ff3a213e8"
+        "f8518f6d133dd67b6da7ed3d0355f4b1ca138a19f02dcf17d5f8096dc51ecfac"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

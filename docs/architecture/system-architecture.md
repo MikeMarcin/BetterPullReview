@@ -204,8 +204,15 @@ on its tab as unavailable and is never retargeted. The restoration store's
 version four keeps a window's collection with its record and with the
 recently viewed entry, so Resume brings the tabs back; tab identities are not
 durable and a restored collection mints fresh ones in order. Version-three
-files gain the two empty tab tables transactionally. The tab strip and its
-composition into the window belong to [[BPR-1132]].
+files gain the two empty tab tables transactionally. [[BPR-1132]] composes one
+`document_tab_host` per window. Its exact loads use the existing epoch and
+selected-diff hosts and the reading-restoration stages; a tab is ready only
+when its requested view is presented. File and comparison gestures are observed
+back into the active tab. A background tab creates no load. Qt receives only
+`document_tabs_projection.hpp`, sends typed tab intents, and presents the
+header, menus and older-pair notice. Tabs persist through the existing
+restoration host, and shutdown drains their posted terminals on the decision
+lane before releasing the window.
 
 ## Diagnostic logging boundary
 

@@ -951,6 +951,20 @@ namespace bpr::qt {
 		return AnchorFile;
 	}
 
+	auto github_conversation_panel::current_head_thread_count(const core::file_identity& aFile) const -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (std::size_t index = 0; index < Retained.size() && index < RetainedFiles.size(); ++index) {
+			const auto& node = Retained[index];
+			count += !node.ParentId.has_value() && node.Kind == application::github_conversation_kind::review_thread
+					&& node.AnchorAvailability == application::github_conversation_anchor_availability::current
+					&& RetainedFiles[index] == aFile
+				? 1U
+				: 0U;
+		}
+		return count;
+	}
+
 	auto github_conversation_panel::anchor_line() const noexcept
 		-> const std::optional<core::source_line_ref>&
 	{

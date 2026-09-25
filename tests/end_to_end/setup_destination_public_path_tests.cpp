@@ -59,13 +59,16 @@ namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 	using bpr::tests::expect;
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { })
 	{
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
 		while (!aCondition() && elapsed.elapsed() < 15000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+		}
+		if (!aCondition() && aDiagnostic) {
+			aDiagnostic();
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -1232,7 +1235,13 @@ namespace {
 						== aRightFirst
 						&& !recoveredSurface->geometry_pending();
 				},
-				"installed Git presents exact recovered file content");
+				"installed Git presents exact recovered file content", [&] { std::cerr << "recovered-source wanted=" << aPath
+																					   << " file=" << (recoveredSurface->current_context() && recoveredSurface->current_context()->Key.File == core::file_identity_of(aPath))
+																					   << " left=" << recoveredSurface->left_pane()->document()->firstBlock().text().toStdString()
+																					   << " right=" << recoveredSurface->right_pane()->document()->firstBlock().text().toStdString()
+																					   << " geometry=" << recoveredSurface->geometry_pending()
+																					   << " modality=" << static_cast<int>(updatedWindow.current_modality())
+																					   << " status=" << updatedWindow.status_text().toStdString() << '\n'; });
 		};
 		selectExact(
 			recoveredReview,
@@ -1382,6 +1391,13 @@ try {
 		std::cout << "link-location-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
+#if defined(__APPLE__)
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--cli-source-update")) {
+		run_cli_source_update_course();
+		std::cout << "cli-source-update-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+#endif
 	run_course(false);
 	run_course(true);
 	run_link_location_course();

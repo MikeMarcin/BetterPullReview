@@ -1000,6 +1000,17 @@ set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
     TIMEOUT 30
 )
 
+# [[BPR-1132]]. Rendered document header, tab keys, file gestures and older-pair notice.
+foreach(bpr_tab_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_tab_whole "${bpr_tab_scale} / 100")
+    math(EXPR bpr_tab_fraction "${bpr_tab_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_document_tabs_scale_${bpr_tab_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --document-tabs)
+    set_tests_properties(qt_document_tabs_scale_${bpr_tab_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_tab_whole}.${bpr_tab_fraction};BPR_EXPECTED_QT_SCALE=${bpr_tab_whole}.${bpr_tab_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/document-tabs-${bpr_tab_scale}.png"
+        PASS_REGULAR_EXPRESSION "document-tabs:pass" TIMEOUT 120)
+endforeach()
+
 # [[BPR-0981]]. RFC-BPR-0025 AC-09: the declared focus order with both drawer
 # filters and the files order selector, at each scale the window rows use.
 foreach(bpr_focus_order_scale IN ITEMS 100 125 200)

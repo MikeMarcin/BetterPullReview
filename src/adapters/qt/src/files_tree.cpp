@@ -2,11 +2,14 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
+#include <QContextMenuEvent>
 #include <QFont>
 #include <QFontMetrics>
 #include <QHash>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
 #include <QPen>
@@ -570,6 +573,68 @@ namespace bpr::qt {
 	void files_tree_view::set_select_dispatch(files_tree_select_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
+	}
+
+	void files_tree_view::set_new_tab_dispatch(files_tree_select_dispatch aDispatch)
+	{
+		NewTabDispatch = std::move(aDispatch);
+	}
+
+	auto files_tree_view::make_file_menu(const QModelIndex& aIndex, QWidget* const aParent) -> QMenu*
+	{
+		const auto file = Model->file_at(aIndex);
+		if (!file.has_value()) {
+			return nullptr;
+		}
+		auto* const menu   = new QMenu{ aParent };
+		auto* const action = menu->addAction(QStringLiteral("Open in New Tab"));
+		menu->setObjectName(QStringLiteral("filesTreeMenu"));
+		action->setObjectName(QStringLiteral("filesTreeOpenInNewTab"));
+		action->setEnabled(static_cast<bool>(NewTabDispatch));
+		connect(action, &QAction::triggered, this, [this, chosen = *file] {
+			if (NewTabDispatch) {
+				NewTabDispatch(chosen);
+			}
+		});
+		return menu;
+	}
+
+	void files_tree_view::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		// [[BPR-1132]]. Cmd-click (Ctrl-click on Windows and Linux) opens the
+		// file in a tab of its own and leaves the active tab's file chosen.
+		if (aEvent->button() == Qt::LeftButton && (aEvent->modifiers() & Qt::ControlModifier) != 0 && NewTabDispatch) {
+			if (const auto file = Model->file_at(indexAt(aEvent->position().toPoint())); file.has_value()) {
+				NewTabDispatch(*file);
+				aEvent->accept();
+				return;
+			}
+		}
+		// Closing the final document tab leaves the file cursor in place.
+		// Clicking that same row is still an explicit request to open it;
+		// currentChanged only covers a move to a different row.
+		const auto repeated = aEvent->button() == Qt::LeftButton && aEvent->modifiers() == Qt::NoModifier
+				&& indexAt(aEvent->position().toPoint()) == currentIndex()
+			? Model->file_at(currentIndex())
+			: std::nullopt;
+		QTreeView::mousePressEvent(aEvent);
+		if (repeated && !Applying && Dispatch) {
+			Dispatch(*repeated);
+		}
+	}
+
+	void files_tree_view::contextMenuEvent(QContextMenuEvent* const aEvent)
+	{
+		// [[BPR-1034]]. A heap menu that deletes itself on close, opened with
+		// popup(), so the window can go while it is open.
+		auto* const menu = make_file_menu(indexAt(aEvent->pos()), this);
+		if (menu == nullptr) {
+			QTreeView::contextMenuEvent(aEvent);
+			return;
+		}
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->popup(aEvent->globalPos());
+		aEvent->accept();
 	}
 
 	void files_tree_view::apply(const std::vector<workbench_drawer_row>& aRows)

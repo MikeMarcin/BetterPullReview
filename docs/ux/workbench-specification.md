@@ -7,8 +7,8 @@ for the scopes reconciled under RFC-BPR-0028:
 [Settings and direct sign-in](../rfcs/RFC-BPR-0018-robust-settings-center.md),
 [BPR profiles and independent windows](../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md),
 [review drawers and navigation](../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md)
-(browser-style tabs stay registered but unscheduled until
-[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md) schedules them),
+(document tabs are implemented by
+[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)),
 and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
 Their entry and closeout cards, [[BPR-0592]] through [[BPR-0599]], are Done.
 Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
@@ -101,14 +101,39 @@ so; both tooltips carry the statement. The line's "pair ready" words left its
 row with the caption; their sentence is the comparison menu's tooltip, and
 loading or an unreadable pair is the readiness line's to say.
 
-Still to come under RFC-BPR-0052: document tabs fill the comparison's header
-([[BPR-1132]]). Until they land that part is as described here.
+**Document tabs fill the comparison's header** ([[BPR-1132]]), replacing
+its status row. Each tab keeps an exact file, comparison and semantic reading
+position. Clicking a file or using previous/next file changes the active tab;
+Cmd-click (Ctrl-click elsewhere) and **Open in New Tab** open a background tab
+on the window's comparison. **Duplicate Tab** and the strip's **+** copy and
+activate the exact view. Names elide from the left, retain enough path to tell
+same-named files apart, and expose the full path in the tooltip. A tab with its
+own comparison carries a date pill and names the pair accessibly. When the
+strip cannot fit every tab, it shows the active tab and **+N**, a menu of the
+others. Loading, refusal and approximate-alignment status appear at its right.
+
+The tab menu offers Duplicate, Close, Close Other Tabs, **Use the Window's
+Comparison**, and **Make New Tabs Use This Comparison**. Ctrl+Tab and
+Ctrl+Shift+Tab step between tabs on every platform; Cmd-W (Ctrl+W elsewhere)
+closes the active tab, choosing the next neighbour or the previous one at the
+end. Closing the last tab leaves the pull request and its file chooser open.
+Overview and Discuss show the window's comparison; Read and Review show the
+active tab's. Resume restores the retained tab order, active tab, exact pairs
+and reading positions. Unavailable material stays unavailable on its own tab.
+
+An older-pair tab places only threads belonging to its revisions and disables
+new Comment when neither endpoint is current. The Comments tray counts current
+threads on later updates of that file and offers **Show them**. It activates an
+existing same-file tab on the window's pair, returns this tab to that pair, or
+opens Discuss. Later threads remain listed with unavailable code anchors; the
+owner's choice about hiding them until Show them is pending, as is whether
+**+** should duplicate the active view.
 
 The chrome is inside the review state's space budget ([[BPR-0246]]). In Review
-at 1280x1000 with every drawer collapsed, the comparison takes 879/1000 of the
-window's height on macOS with the Updates line folded and 845/1000 with it
+at 1280x1000 with every drawer collapsed, the comparison takes 872/1000 of the
+window's height on macOS with the Updates line folded and 838/1000 with it
 open (offscreen, where the menu bar takes a row), measured with the 28-pixel
-review bar and the 34-pixel timeline; the Linux figures, 884 and 850, are
+review bar, the 28-pixel tab strip and the 34-pixel timeline; the Linux figures, 876 and 842, are
 derived from the Linux stack [[BPR-1036]] measured until the Linux station
 measures them, and Windows keeps the owner's 850 for the open line, so 884
 folded. `application_uiforetw_selected_diff_contract` holds those floors both

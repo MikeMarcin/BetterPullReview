@@ -116,6 +116,10 @@ namespace bpr::qt {
 			-> const std::optional<core::file_identity>&;
 		[[nodiscard]] auto anchor_line() const noexcept
 			-> const std::optional<core::source_line_ref>&;
+		/// \brief [[BPR-1132]]. How many review threads of one file are
+		/// anchored on the pull request's current head, placed or not: what a
+		/// tab over an older pair says are on later updates.
+		[[nodiscard]] auto current_head_thread_count(const core::file_identity& aFile) const -> std::size_t;
 
 		/// \brief [[BPR-0985]]. Whether the current row is the one the panel
 		/// made current to show a detail, rather than one the reviewer chose.

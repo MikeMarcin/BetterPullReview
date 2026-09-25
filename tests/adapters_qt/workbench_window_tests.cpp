@@ -5,6 +5,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -5837,6 +5838,171 @@ namespace {
 		window.hide();
 	}
 
+	void window_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
+
+	// [[BPR-1132]]. The assembled comparison header, file gestures and older-pair notice.
+	void test_document_tabs_present_exact_views_and_translate_gestures()
+	{
+		qt::workbench_window window;
+		window.resize(1280, 852);
+		window.show();
+		const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE", QStringLiteral("1.0")).toDouble();
+		expect(std::abs(window.devicePixelRatioF() - expectedScale) < 0.001, "tab course runs at its declared scale");
+		window.publish(every_primary_command_offered());
+		window.choose_modality(qt::review_modality::review);
+		const auto file      = core::file_identity_of("src/file.cpp");
+		const auto otherFile = core::file_identity_of("tests/file.cpp");
+		window.publish(application::workbench_projection{ .Files = std::vector<application::workbench_file_projection>{
+															  { .File = file, .Path = "src/file.cpp" }, { .File = otherFile, .Path = "tests/file.cpp" } } });
+		const auto old  = epoch_row(1);
+		const auto now  = epoch_row(2);
+		const auto pair = [](const auto& aRow) { return core::comparison_pair{
+													 epoch_anchor(aRow, core::comparison_anchor_kind::epoch_base), epoch_anchor(aRow, core::comparison_anchor_kind::epoch_head)
+												 }; };
+		window.publish(retained_epochs({ old, now }));
+		window.publish(resolved_pair_update(pair(old)));
+		auto intents = std::vector<core::document_tab_intent>{ };
+		window.set_document_tab_dispatch([&](const auto& aIntent) { intents.push_back(aIntent); });
+		auto projection = application::document_tabs_projection{
+			.Tabs             = { { .Id = core::document_tab_id{ 1 }, .View = { pair(old), file, { } }, .State = core::document_tab_view_state::ready, .Active = true, .OwnComparison = true },
+								  { .Id = core::document_tab_id{ 2 }, .View = { pair(now), file, { } }, .State = core::document_tab_view_state::ready },
+								  { .Id = core::document_tab_id{ 3 }, .View = { pair(now), otherFile, { } }, .State = core::document_tab_view_state::ready } },
+			.WindowComparison = pair(now)
+		};
+		window.publish(projection);
+		process_events();
+		auto* strip = window.document_tabs();
+		auto* bar   = strip->tab_bar();
+		expect(strip->isVisible() && bar->elideMode() == Qt::ElideLeft, "comparison header has tabs with left elision");
+		expect(strip->tabs()[0].Name == QStringLiteral("src/file.cpp") && strip->tabs()[2].Name == QStringLiteral("tests/file.cpp"), "equal basenames retain distinguishing paths");
+		expect(!strip->tabs()[0].OwnPair.isEmpty() && strip->tabs()[1].OwnPair.isEmpty(), "only a distinct pair carries a pill");
+		expect(bar->accessibleTabName(0).contains(QStringLiteral("comparing")) && bar->tabToolTip(0).contains(QStringLiteral("src/file.cpp")), "own pair and full path are accessible");
+		expect(!bar->findChildren<QWidget*>(QStringLiteral("documentTabPairPill")).isEmpty(), "own pair is rendered as a pill");
+		const auto unchanged = bar->tabButton(0, QTabBar::LeftSide);
+		window.publish(projection);
+		expect(bar->tabButton(0, QTabBar::LeftSide) == unchanged && intents.empty(), "unchanged projection preserves widgets and sends no intent");
+		auto       menu        = std::unique_ptr<QMenu>{ strip->make_tab_menu(core::document_tab_id{ 1 }, &window) };
+		const auto triggerMenu = [&](const char* aName) { auto* action = menu->findChild<QAction*>(QString::fromLatin1(aName)); expect(action && action->isEnabled(), "tab menu command available"); action->trigger(); };
+		triggerMenu("documentTabDuplicate");
+		expect(std::get<core::duplicate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "Duplicate names its exact tab");
+		triggerMenu("documentTabClose");
+		expect(std::get<core::close_tab_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "Close names its exact tab");
+		triggerMenu("documentTabCloseOthers");
+		expect(std::get<core::close_other_tabs_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "Close others preserves its exact tab");
+		triggerMenu("documentTabReturnToWindow");
+		expect(std::holds_alternative<core::return_tab_to_window_comparison_intent>(intents.back()), "return to window is a semantic intent");
+		triggerMenu("documentTabMakeWindow");
+		expect(std::holds_alternative<core::make_tab_comparison_window_intent>(intents.back()), "make window is a semantic intent");
+		strip->new_tab_button()->click();
+		expect(std::get<core::duplicate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "plus duplicates active exact view");
+		window.activateWindow();
+		bar->setFocus(Qt::OtherFocusReason);
+		process_events();
+		const auto pressShortcut = [&](QAction* aAction) {
+			const auto combination = aAction->shortcut()[0];
+			const auto count       = intents.size();
+			window_key(window, combination.key(), combination.keyboardModifiers());
+			expect(intents.size() == count + 1U, "tab shortcut dispatches exactly one semantic intent");
+		};
+		pressShortcut(window.next_tab_action());
+		expect(std::get<core::activate_adjacent_tab_intent>(intents.back()).Direction == core::change_navigation_direction::next, "next tab translates");
+		pressShortcut(window.previous_tab_action());
+		expect(std::get<core::activate_adjacent_tab_intent>(intents.back()).Direction == core::change_navigation_direction::previous, "previous tab translates");
+		pressShortcut(window.close_tab_action());
+		expect(std::get<core::close_tab_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "close key names active tab");
+#if defined(Q_OS_MACOS)
+		expect(window.next_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && window.previous_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+			   "macOS tab navigation uses physical Control");
+#else
+		expect(window.next_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && window.previous_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+			   "tab navigation uses Control");
+#endif
+		expect(window.close_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }, "platform Close Tab key is bound");
+		auto sequences = QList<QKeySequence>{ };
+		for (auto* action : window.findChildren<QAction*>()) {
+			if (!action->shortcut().isEmpty()) {
+				expect(!sequences.contains(action->shortcut()), "assembled keys are unique");
+				sequences.push_back(action->shortcut());
+			}
+		}
+		auto* files = window.files_tree();
+		files->expandAll();
+		process_events();
+		const auto index    = files->tree_model()->index_for_file(otherFile);
+		auto       fileMenu = std::unique_ptr<QMenu>{ files->make_file_menu(index, &window) };
+		expect(fileMenu && fileMenu->actions().size() == 1, "file offers one new-tab menu command");
+		fileMenu->actions().front()->trigger();
+		expect(std::get<core::open_in_new_tab_intent>(intents.back()).File == otherFile, "file menu carries exact identity");
+		const auto  before        = files->currentIndex();
+		const auto  centre        = QPointF{ files->visualRect(index).center() };
+		const auto  previousCount = intents.size();
+		QMouseEvent click{ QEvent::MouseButtonPress, centre, QPointF{ files->viewport()->mapToGlobal(centre.toPoint()) }, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier };
+		QApplication::sendEvent(files->viewport(), &click);
+		expect(intents.size() == previousCount + 1U && std::get<core::open_in_new_tab_intent>(intents.back()).File == otherFile && files->currentIndex() == before, "Cmd/Ctrl click opens a background tab without selecting its file");
+		auto selectedFiles = std::vector<core::workbench_file_id>{ };
+		window.set_dispatch([&](const core::workbench_interaction_intent& aIntent) {
+			if (const auto* selected = std::get_if<core::select_workbench_file_intent>(&aIntent)) {
+				selectedFiles.push_back(selected->File);
+			}
+		});
+		files->select_file(otherFile);
+		QMouseEvent repeat{ QEvent::MouseButtonPress, centre, QPointF{ files->viewport()->mapToGlobal(centre.toPoint()) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(files->viewport(), &repeat);
+		QMouseEvent release{ QEvent::MouseButtonRelease, centre, QPointF{ files->viewport()->mapToGlobal(centre.toPoint()) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(files->viewport(), &release);
+		expect(selectedFiles == std::vector{ otherFile }, "clicking the retained file dispatches exactly once even without a cursor change");
+		QApplication::sendEvent(files->viewport(), &repeat);
+		QApplication::sendEvent(files->viewport(), &release);
+		expect(selectedFiles == std::vector{ otherFile, otherFile }, "repeating the click after both tree and list cursors agree still dispatches once");
+		files->select_file(files->tree_model()->file_at(before));
+		window.conversation_panel()->adopt({ application::github_conversation_projection{
+											   .Id = "review-thread:later", .Kind = application::github_conversation_kind::review_thread, .Path = "src/file.cpp", .Line = 1U, .DiffSide = application::github_conversation_diff_side::right, .AnchorAvailability = application::github_conversation_anchor_availability::current } },
+										   QStringLiteral("one later thread"));
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, file)));
+		window.set_conversation_endpoint_placement(false, false);
+		process_events();
+		expect(window.older_pair_notice()->isVisible() && window.older_pair_notice_text().contains(QStringLiteral("One thread is on later updates")), "older-pair notice counts later threads of this file");
+		expect(!window.comment_action()->isEnabled(), "new Comment is unavailable off current head");
+		window.show_later_threads_button()->click();
+		expect(std::get<core::activate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 2 }, "Show them routes to same-file window-pair sibling");
+		auto single = projection;
+		single.Tabs.resize(1U);
+		window.publish(single);
+		window.show_later_threads_button()->click();
+		expect(std::get<core::return_tab_to_window_comparison_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "without a sibling Show them explicitly returns the active tab to the window pair");
+		single.Tabs.front().OwnComparison = false;
+		window.publish(single);
+		const auto beforeDiscuss = intents.size();
+		window.show_later_threads_button()->click();
+		expect(window.current_modality() == qt::review_modality::discuss && intents.size() == beforeDiscuss, "when the window pair is also old Show them opens Discuss without retargeting a tab");
+		window.choose_modality(qt::review_modality::review);
+		window.publish(projection);
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		expect(window.older_pair_notice()->isHidden(), "current-head comparison has no later-pair notice");
+		window.set_conversation_endpoint_placement(false, false);
+		for (int id = 4; id <= 12; ++id) {
+			projection.Tabs.push_back({ .Id = core::document_tab_id{ static_cast<std::uint64_t>(id) }, .View = { pair(now), otherFile, { } } });
+		}
+		window.publish(projection);
+		for (const auto width : { 1280, 1100, window.minimumWidth() }) {
+			window.resize(width, 852);
+			process_events();
+			expect(strip->collapsed() && bar->count() == 1 && strip->tab_at(0) == core::document_tab_id{ 1 }, "width floor retains exact active tab");
+			expect(strip->overflow_button()->isVisible() && strip->overflow_button()->text() == QStringLiteral("+11"), "width floor counts every other tab");
+			emit strip->overflow_button()->menu()->aboutToShow();
+			expect(strip->overflow_button()->menu()->actions().size() == 11, "overflow makes every hidden tab reachable");
+			expect(window.focus_order().contains(bar) && window.focus_order().contains(strip->overflow_button()) && window.focus_order().contains(strip->new_tab_button()), "tab controls are declared focus stops at every width");
+			expect(!strip->overflow_button()->accessibleName().isEmpty() && !bar->accessibleTabName(0).isEmpty(), "collapsed controls retain accessible names");
+			save_render(window, QStringLiteral("document-tabs-%1").arg(width));
+		}
+		strip->overflow_button()->menu()->actions().front()->trigger();
+		expect(std::get<core::activate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 2 }, "overflow gesture names its exact tab");
+		window.hide();
+	}
+
 	void test_composed_epoch_selectors_show_exact_retained_epochs()
 	{
 		std::vector<application::epoch_intent> epochs;
@@ -10109,6 +10275,11 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
 		test_comments_filter_and_return_comparison_preferences_apply_on_open();
 		std::cout << "shared-snapshot-navigation:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {
+		test_document_tabs_present_exact_views_and_translate_gestures();
+		std::cout << "document-tabs:pass\n";
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0981]]. The declared focus order alone, at each registered scale:

@@ -124,6 +124,11 @@ namespace bpr::qt {
 		///
 		/// \details Empty unless both handles sit on updates with a known date.
 		[[nodiscard]] auto selection_dates() const -> std::optional<std::pair<QString, QString>>;
+		/// \brief [[BPR-1132]]. The dates of any pair's two updates, for a
+		/// document tab's label; empty unless both are on the line with a date.
+		[[nodiscard]] auto dates_of(
+			const core::comparison_anchor_identity& aLeft,
+			const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>;
 		[[nodiscard]] auto label_shown(std::size_t aUpdate) const -> bool;
 		[[nodiscard]] auto node_tooltip(std::size_t aUpdate) const -> QString;
 		[[nodiscard]] auto identity_of(const epoch_line_stop& aStop) const

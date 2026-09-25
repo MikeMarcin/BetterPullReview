@@ -3001,6 +3001,14 @@ bpr_add_network_isolated_test(NAME application_profile_window_review_restoration
 set_tests_properties(application_profile_window_review_restoration_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=${CMAKE_BINARY_DIR}/bpr0710-restoration-artifacts" TIMEOUT 1800)
 
+# [[BPR-1132]]. Same composition and native Windows limitation as the reading course.
+bpr_add_network_isolated_test(NAME application_document_tabs_restoration_public_path WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/document_tabs_restoration_contract.py"
+    --application $<TARGET_FILE:test_profile_window_review_restoration_public_path>)
+set_tests_properties(application_document_tabs_restoration_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=${CMAKE_BINARY_DIR}/bpr1132-tabs-artifacts"
+    TIMEOUT 600 PASS_REGULAR_EXPRESSION "DOCUMENT_TABS_RESTORATION_OK")
+
 # One three-commit ordinary update is observed again after physical catalogue loss.
 bpr_add_network_isolated_test(
     NAME application_epoch_ordinary_update_recreated

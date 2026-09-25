@@ -20,6 +20,10 @@
 #include <span>
 #include <vector>
 
+class QContextMenuEvent;
+class QMenu;
+class QMouseEvent;
+
 namespace bpr::qt {
 	class appearance_profile;
 	/// \brief The files drawer's three orders ([[BPR-0658]]).
@@ -153,6 +157,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto tree_model() const noexcept -> files_tree_model*;
 		[[nodiscard]] auto delegate() const noexcept -> files_tree_delegate*;
 		void               set_select_dispatch(files_tree_select_dispatch aDispatch);
+		/// \brief [[BPR-1132]]. Cmd-click (Ctrl-click) on a file row, and its
+		/// menu's Open in New Tab, report the file here instead of choosing it.
+		void set_new_tab_dispatch(files_tree_select_dispatch aDispatch);
+		/// \brief The menu a right-click on a file row opens; the caller owns it.
+		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
 		void               adopt_appearance(const appearance_profile& aProfile);
@@ -164,11 +173,14 @@ namespace bpr::qt {
 	protected:
 		void currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
+		void mousePressEvent(QMouseEvent* aEvent) override;
+		void contextMenuEvent(QContextMenuEvent* aEvent) override;
 
 	private:
 		files_tree_model*                      Model    = nullptr;
 		files_tree_delegate*                   Delegate = nullptr;
 		files_tree_select_dispatch             Dispatch;
+		files_tree_select_dispatch             NewTabDispatch;
 		std::optional<core::workbench_file_id> SelectedFile;
 		bool                                   Applying = false;
 	};

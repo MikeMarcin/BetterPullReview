@@ -176,6 +176,15 @@ namespace bpr::qt {
 		void set_reading_gesture_sink(std::function<void()> aSink);
 		/// \brief Observes Qt-local selections without replacing the application sink.
 		void set_selection_observer(selection_observer aObserver);
+		/// \brief [[BPR-1132]]. Hides the status row, for a composition whose
+		/// comparison header says it instead; the status is still kept.
+		void set_status_shown(bool aShown);
+		/// \brief [[BPR-1132]]. Reports each status: its words, and whether they
+		/// say more than that the comparison is ready (loading, a refusal, an
+		/// approximate alignment).
+		void set_status_observer(std::function<void(const QString&, bool)> aObserver);
+		/// \brief Whether the status says more than that the diff is ready.
+		[[nodiscard]] auto status_notable() const noexcept -> bool;
 		/// \brief Selects and reveals one exact zero-based conversation anchor.
 		/// \brief [[BPR-0657]]. Selects a conversation's line as a click on it
 		/// would, so a draft started from its card anchors there; the anchor the
@@ -373,7 +382,7 @@ namespace bpr::qt {
 		void update_detail();
 		void update_selection_paint();
 		void announce_accessible_status(QString aText);
-		void update_status(QString aText);
+		void update_status(QString aText, bool aRoutine = false);
 		void emit_selection(bool aInteractive = false) noexcept;
 		void emit_reading_gesture() noexcept;
 		void emit_selection_observer(bool aInteractive) noexcept;
@@ -413,11 +422,14 @@ namespace bpr::qt {
 		/// A removed/added viewport row can belong to the opposite side from
 		/// the semantic selection. Keep its side after the pending reveal is
 		/// consumed so the next presentation flip measures the same document.
-		std::optional<core::diff_side>       PresentationReadingSide;
-		selection_observer                   SelectionObserver;
-		std::function<void()>                FrameObserver;
-		std::optional<core::source_line_ref> ConversationAnchor;
-		measured_alignment_axis_cache        AxisCache;
+		std::optional<core::diff_side> PresentationReadingSide;
+		selection_observer             SelectionObserver;
+		/// [[BPR-1132]]. The status's observer, and whether it is routine.
+		std::function<void(const QString&, bool)> StatusObserver;
+		bool                                      StatusRoutine = false;
+		std::function<void()>                     FrameObserver;
+		std::optional<core::source_line_ref>      ConversationAnchor;
+		measured_alignment_axis_cache             AxisCache;
 		/// [[BPR-1123]]. Each source pane's recorded block heights, cleared
 		/// whenever its text is replaced.
 		pane_block_heights        LeftHeights;

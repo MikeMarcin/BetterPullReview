@@ -3,7 +3,9 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -19,13 +21,17 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMenu>
 #include <QMetaObject>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTextDocument>
 #include <QThread>
+#include <QToolButton>
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -217,6 +223,10 @@ namespace {
 		auto&                                           window = *aOwner.window(aContext);
 		std::optional<core::comparison_anchor_identity> expectedLeft;
 		std::optional<core::comparison_anchor_identity> expectedRight;
+		// Read and Review own the active tab's pair; Overview and Discuss own
+		// the window's. Enter the reading surface before changing its pair.
+		window.modality()->action(qt::review_modality::read)->trigger();
+		QApplication::processEvents();
 		wait_for([&] { const auto status = aOwner.status(aContext); return status && status->EpochStatus == core::epoch_status::ready; }, "reading epoch ready");
 		if (aRow == 1 || aCrossUpload) {
 			auto&      controls         = *window.epoch_selectors();
@@ -254,7 +264,6 @@ namespace {
 			controls.right_selector()->setCurrentIndex(right);
 			wait_for([&] { return controls.left_selector()->currentIndex() == left && controls.right_selector()->currentIndex() == right; }, "exact retained pair accepted");
 		}
-		window.modality()->action(qt::review_modality::read)->trigger();
 		auto*       files = window.files_drawer()->contents_view();
 		const auto  path  = aRow == 0 ? QStringLiteral("review.cpp") : QStringLiteral("secondary.cpp");
 		QModelIndex selected;
@@ -268,17 +277,42 @@ namespace {
 						   && surface->current_context()->Key.File == core::file_identity_of(path.toStdString())
 						   && (!expectedLeft || surface->current_context()->Key.LeftAnchor == expectedLeft)
 						   && (!expectedRight || surface->current_context()->Key.RightAnchor == expectedRight)
-						   && !surface->geometry_pending(); }, "installed Git produces exact semantic file comparison", { }, 60000);
+						   && !surface->geometry_pending(); }, "installed Git produces exact semantic file comparison", [&] {
+			std::cerr << "reading row=" << aRow << " cross=" << aCrossUpload << " path=" << path.toStdString()
+				<< " result=" << bool(surface->current_result()) << " context=" << bool(surface->current_context())
+				<< " geometry=" << surface->geometry_pending() << " epoch=" << static_cast<int>(aOwner.status(aContext)->EpochStatus)
+				<< " status=" << window.status_text().toStdString() << '\n';
+			if (surface->current_context()) {
+				const auto& key = surface->current_context()->Key;
+				std::cerr << "file-match=" << (key.File == core::file_identity_of(path.toStdString()))
+					<< " left-match=" << (!expectedLeft || key.LeftAnchor == expectedLeft)
+					<< " right-match=" << (!expectedRight || key.RightAnchor == expectedRight) << '\n';
+			}
+			for (const auto& tab : window.document_tabs()->tabs()) {
+				std::cerr << "tab=" << tab.Id.value() << " active=" << tab.Active << " state=" << static_cast<int>(tab.State)
+					<< " own=" << tab.OwnComparison << " path=" << tab.Path.toStdString() << '\n';
+			} }, 60000);
 		expect(surface->select_conversation_line(core::diff_side::right, aRow == 0 ? 3U : 1U), "public line gesture selects exact semantic location");
 	}
 	void restored_reading(qt::workbench_window& aWindow, const core::window_review_position& aExpected, const std::function<void()>& aDiagnostic = { })
 	{
 		auto* surface = aWindow.comparison_surface();
-		wait_for([&] { return surface->current_context() && surface->selection() && !surface->geometry_pending(); }, "restart restores semantic reading without a file gesture", [&] { std::cerr << "restored-reading context=" << bool(surface->current_context()) << " result=" << bool(surface->current_result())
+		wait_for([&] { return surface->current_context() && surface->current_result() && surface->selection() && !surface->geometry_pending()
+						   && core::parse_git_commit_oid(aWindow.epoch_selectors()->left_oid_editor()->text().toStdString())
+						   && core::parse_git_commit_oid(aWindow.epoch_selectors()->right_oid_editor()->text().toStdString())
+						   && reading(aWindow) == aExpected; }, "restart restores semantic reading without a file gesture", [&] { std::cerr << "restored-reading context=" << bool(surface->current_context()) << " result=" << bool(surface->current_result())
 																																																 << " semantic=" << bool(surface->current_semantic_index()) << " selection=" << bool(surface->selection())
 																																																 << " geometry=" << surface->geometry_pending() << " status=" << aWindow.status_text().toStdString()
 				<< " notice=" << aWindow.home_open_notice()->text().toStdString() << '\n';
-			if (aDiagnostic) { aDiagnostic(); } }, 60000);
+			std::cerr << " expected-line=" << (aExpected.Selection ? aExpected.Selection->PreferredLine.Line : 99999U)
+                << " actual-line=" << (surface->selection() ? surface->selection()->PreferredLine.Line : 99999U)
+                << " left-commit=" << (core::parse_git_commit_oid(aWindow.epoch_selectors()->left_oid_editor()->text().toStdString()) == aExpected.Comparison.Left.Commit)
+                << " right-commit=" << (core::parse_git_commit_oid(aWindow.epoch_selectors()->right_oid_editor()->text().toStdString()) == aExpected.Comparison.Right.Commit)
+                << " file=" << (surface->current_context() && aExpected.File == surface->current_context()->Key.File)
+                << " selection=" << (surface->selection() == aExpected.Selection)
+                << " left-text=" << aWindow.epoch_selectors()->left_oid_editor()->text().toStdString()
+                << " right-text=" << aWindow.epoch_selectors()->right_oid_editor()->text().toStdString() << '\n';
+            if (aDiagnostic) { aDiagnostic(); } }, 60000);
 		expect(reading(aWindow) == aExpected, "restart preserves exact anchors, commit OIDs, file and complete semantic identity");
 	}
 	auto read_vault() -> std::string
@@ -428,7 +462,7 @@ auto main(int aArgc, char** aArgv) -> int
 	std::optional<application::window_review_snapshot> expectedReadings;
 	std::optional<core::window_review_position>        replacementReading;
 	const auto                                         readingRace = phase == "auth-reading-gesture" || phase == "auth-reading-unchanged" || phase == "auth-reading-home";
-	if (phase == "auth-restore" || phase == "auth-advance" || readingRace) {
+	if (phase == "auth-restore" || phase == "auth-advance" || phase.starts_with("tabs-") || readingRace) {
 		const auto retained = restoration_store(root)->load({ });
 		expect(retained.has_value() && retained->Records.size() == 2U, "restart reads two durable positions");
 		expectedReadings = *retained;
@@ -554,6 +588,104 @@ auto main(int aArgc, char** aArgv) -> int
 				   && firstReading.Selection->PreferredLine.Line != secondReading.Selection->PreferredLine.Line,
 			   "independent windows retain distinct cross-upload pairs, files and semantic lines");
 		seededReadings = { firstReading, secondReading };
+	} else if (phase == "tabs-edit" || phase == "tabs-restore") {
+		if (phase == "tabs-restore") {
+			const auto& record = expectedReadings->Records[0];
+			const auto& tabs   = *record.Tabs;
+			std::cerr << "saved-tabs count=" << tabs.Tabs.size() << " active=" << *tabs.Active
+					  << " position-equals-active=" << (record.Position == std::optional{ tabs.Tabs[*tabs.Active] })
+					  << " position-line=" << (record.Position->Selection ? record.Position->Selection->PreferredLine.Line : 99999U)
+					  << " active-line=" << (tabs.Tabs[*tabs.Active].Selection ? tabs.Tabs[*tabs.Active].Selection->PreferredLine.Line : 99999U) << '\n';
+		}
+		home_lists_recent(*owner, firstContext, std::vector{ 18, 17 });
+		resume_recent(*owner, firstContext, 17);
+		accepted(*owner, firstContext, 17);
+		restored_reading(*first, *expectedReadings->Records[0].Position);
+		auto* strip = first->document_tabs();
+		wait_for([&] { return !strip->tabs().empty(); }, "Resume publishes document tabs");
+		const auto activate = [&](int aIndex, const core::window_review_position& aView) {
+			std::cerr << "tabs-course:activate " << aIndex << '\n';
+			strip->tab_bar()->setCurrentIndex(aIndex);
+			wait_for([&] { return first->comparison_surface()->current_result() && first->comparison_surface()->selection()
+							   && !first->comparison_surface()->geometry_pending()
+							   && core::parse_git_commit_oid(first->epoch_selectors()->left_oid_editor()->text().toStdString())
+							   && core::parse_git_commit_oid(first->epoch_selectors()->right_oid_editor()->text().toStdString())
+							   && reading(*first) == aView; }, "tab switch presents exact pair, file and semantic reading", [&] {
+				const auto* surface = first->comparison_surface();
+				std::cerr << "tab-switch result=" << bool(surface->current_result()) << " selection=" << bool(surface->selection())
+					<< " left=" << first->epoch_selectors()->left_oid_editor()->text().toStdString()
+					<< " right=" << first->epoch_selectors()->right_oid_editor()->text().toStdString() << '\n';
+				for (const auto& tab : strip->tabs()) { std::cerr << "tab " << tab.Id.value() << " active=" << tab.Active << " state=" << static_cast<int>(tab.State) << '\n'; } }, 60000);
+		};
+		if (phase == "tabs-edit") {
+			std::cerr << "tabs-course:open-background\n";
+			const auto original = reading(*first);
+			auto*      files    = first->files_tree();
+			const auto index    = files->tree_model()->index_for_file(*original.File);
+			auto       menu     = std::unique_ptr<QMenu>{ files->make_file_menu(index, first) };
+			expect(menu && menu->actions().size() == 1, "file menu offers Open in New Tab");
+			menu->actions().front()->trigger();
+			wait_for([&] { return strip->tabs().size() == 2U; }, "Open in New Tab adds one background view");
+			expect(strip->tabs()[0].Active && reading(*first) == original, "background open preserves active reading");
+			first->next_tab_action()->trigger();
+			wait_for([&] { return strip->tabs()[1].Active; }, "next tab activates new file view");
+			std::cerr << "tabs-course:select-distinct-pair\n";
+			select_reading(*owner, firstContext, 1);
+			select_reading(*owner, firstContext, 0);
+			const auto changed = reading(*first);
+			expect(changed.File == original.File && changed.Comparison != original.Comparison, "two tabs compare distinct exact pairs of one file");
+			wait_for([&] { return strip->tabs()[0].OwnComparison; }, "older tab label identifies its own pair");
+			std::cerr << "tabs-course:modality-round-trip\n";
+			activate(0, original);
+			first->modality()->action(qt::review_modality::discuss)->trigger();
+			wait_for([&] { return core::parse_git_commit_oid(first->epoch_selectors()->right_oid_editor()->text().toStdString()) == changed.Comparison.Right.Commit; }, "Discuss presents window comparison");
+			first->modality()->action(qt::review_modality::read)->trigger();
+			activate(0, original);
+			activate(1, changed);
+			std::cerr << "tabs-course:duplicate-reading\n";
+			strip->new_tab_button()->click();
+			wait_for([&] { return strip->tabs().size() == 3U && strip->tabs()[2].Active; }, "plus duplicates exact active view");
+			expect(reading(*first) == changed, "duplicate preserves exact semantic reading");
+			expect(first->comparison_surface()->select_conversation_line(core::diff_side::right, 1U), "duplicate takes a distinct reading position");
+			const auto duplicateReading = reading(*first);
+			expect(duplicateReading.Selection != changed.Selection, "same-pair tabs have distinct semantic positions");
+			QApplication::processEvents();
+			activate(1, changed);
+			activate(2, duplicateReading);
+			first->close_tab_action()->trigger();
+			wait_for([&] { return strip->tabs().size() == 2U && strip->tabs()[1].Active; }, "close chooses left neighbour at end");
+			activate(0, original);
+		} else {
+			const auto& saved = *expectedReadings->Records[0].Tabs;
+			expect(saved.Tabs.size() == 2U && strip->tabs().size() == 2U, "restart retains both document tabs");
+			expect(saved.Tabs[0].File == saved.Tabs[1].File && saved.Tabs[0].Comparison != saved.Tabs[1].Comparison, "durable tabs retain distinct pairs of one file");
+			expect(strip->tabs()[*saved.Active].Active, "restart retains active tab in order");
+			activate(1, saved.Tabs[1]);
+			activate(0, saved.Tabs[0]);
+			first->close_tab_action()->trigger();
+			wait_for([&] { return strip->tabs().size() == 1U; }, "closing first tab leaves its right neighbour");
+			first->close_tab_action()->trigger();
+			wait_for([&] { return strip->tabs().empty() && !first->comparison_surface()->current_result(); }, "closing final tab clears its comparison");
+			settle(100);
+			expect(strip->tabs().empty(), "late projection does not recreate a closed final tab");
+			auto* files = first->files_tree();
+			if (!files->isVisible()) {
+				first->files_drawer_toggle_action()->trigger();
+			}
+			wait_for([&] { return files->isVisible(); }, "Files drawer is visible for the reopen click");
+			const auto index = files->tree_model()->index_for_file(*saved.Tabs[0].File);
+			expect(index.isValid() && files->currentIndex() == index, "file cursor remains after last tab closes");
+			files->scrollTo(index);
+			wait_for([&] { return !files->visualRect(index).isEmpty() && files->viewport()->rect().contains(files->visualRect(index).center()) && files->indexAt(files->visualRect(index).center()) == index; }, "retained file has a visible click target");
+			const auto point = files->visualRect(index).center();
+			auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ files->viewport()->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(files->viewport(), &press);
+			auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, QPointF{ files->viewport()->mapToGlobal(point) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(files->viewport(), &release);
+			settle(100);
+			std::cerr << "tabs-reopen count=" << strip->tabs().size() << " result=" << bool(first->comparison_surface()->current_result()) << " click=" << point.x() << "," << point.y() << " target=" << (files->indexAt(point) == index) << '\n';
+			wait_for([&] { return strip->tabs().size() == 1U && first->comparison_surface()->current_result(); }, "clicking the retained file opens a new first tab");
+		}
 	} else if (readingRace) {
 		home_lists_recent(*owner, firstContext, { 18, 17 });
 		resume_recent(*owner, firstContext, 17);

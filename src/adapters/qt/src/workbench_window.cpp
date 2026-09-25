@@ -1294,7 +1294,23 @@ namespace bpr::qt {
 		auto* const comparisonColumn = new QVBoxLayout{ ComparisonPage };
 		comparisonColumn->setContentsMargins(0, 0, 0, 0);
 		comparisonColumn->setSpacing(0);
+		// [[BPR-1132]]. RFC-BPR-0052: the comparison's header is the document
+		// tab strip. It takes the diff status row's place, and says the status
+		// at its right while the status has more to say than "ready".
+		DocumentTabs = new document_tab_strip{ ComparisonPage };
+		DocumentTabs->set_dispatch([this](const core::document_tab_intent& aIntent) {
+			if (DocumentTabDispatch) {
+				DocumentTabDispatch(aIntent);
+			}
+		});
+		comparisonColumn->addWidget(DocumentTabs);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
+		ComparisonSurface->set_status_shown(false);
+		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
+			if (DocumentTabs != nullptr) {
+				DocumentTabs->set_status(aText, aNotable);
+			}
+		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
 		OverviewPage->set_entry_dispatch(
 			[this](const application::overview_entry_kind aEntry, const QString& aPath) {
@@ -1613,6 +1629,28 @@ namespace bpr::qt {
 			"Reveal the next thread with a post newer than what you have read"));
 		commentsTools->addWidget(NextNewCommentButton);
 		commentsLayout->addLayout(commentsTools);
+		// [[BPR-1132]]. A tab over an older pair places only its own
+		// revisions' threads; this says how many of the file's are on later
+		// updates and routes to them.
+		OlderPairNotice = new QWidget{ commentsContents };
+		OlderPairNotice->setObjectName(QStringLiteral("olderPairNotice"));
+		auto* const olderPair = new QVBoxLayout{ OlderPairNotice };
+		olderPair->setContentsMargins(8, 6, 8, 6);
+		olderPair->setSpacing(4);
+		OlderPairText = new QLabel{ OlderPairNotice };
+		OlderPairText->setObjectName(QStringLiteral("olderPairNoticeText"));
+		OlderPairText->setAccessibleName(QStringLiteral("Threads on later updates"));
+		OlderPairText->setTextFormat(Qt::PlainText);
+		OlderPairText->setWordWrap(true);
+		ShowLaterThreads = new QPushButton{ tr("Show them"), OlderPairNotice };
+		ShowLaterThreads->setObjectName(QStringLiteral("showLaterThreads"));
+		ShowLaterThreads->setAccessibleDescription(QStringLiteral(
+			"Shows this file's threads on later updates"));
+		olderPair->addWidget(OlderPairText);
+		olderPair->addWidget(ShowLaterThreads, 0, Qt::AlignLeft);
+		OlderPairNotice->hide();
+		commentsLayout->addWidget(OlderPairNotice);
+		connect(ShowLaterThreads, &QPushButton::clicked, this, [this] { show_later_threads(); });
 		auto* const conversationHost   = new QWidget{ commentsContents };
 		auto* const conversationLayout = new QVBoxLayout{ conversationHost };
 		ConversationLayout             = conversationLayout;
@@ -2318,15 +2356,26 @@ namespace bpr::qt {
 			surfaceColumn->addWidget(FilesFilterNotice);
 			FilesTree = new files_tree_view{ filesSurface };
 			surfaceColumn->addWidget(FilesTree, 1);
+			// [[BPR-1132]]. Cmd-click (Ctrl-click) and Open in New Tab.
+			FilesTree->set_new_tab_dispatch([this](const core::workbench_file_id& aFile) {
+				if (DocumentTabDispatch) {
+					DocumentTabDispatch(core::open_in_new_tab_intent{ .File = aFile });
+				}
+			});
 			FilesTree->set_select_dispatch([this](const core::workbench_file_id& aFile) {
-				// The list's selection is the one that dispatches.
+				// The list's selection normally dispatches. A repeated tree
+				// click is still an explicit open when its cursor is unchanged.
 				if (ApplyingFileSelection || Drawers[0].Panel->contents() == nullptr
 					|| Drawers[0].Panel->contents_view() == nullptr) {
 					return;
 				}
 				const auto index = Drawers[0].Panel->contents()->index_for_file(aFile);
 				if (index.isValid()) {
-					Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+					if (Drawers[0].Panel->contents_view()->currentIndex() == index) {
+						dispatch_file_selection(index);
+					} else {
+						Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+					}
 				}
 			});
 			connect(FilesOrderSelector, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] {
@@ -4381,6 +4430,9 @@ namespace bpr::qt {
 		++Statistics.EpochUpdates;
 		// [[BPR-1130]]. The disclosure repeats the line's mark and statement.
 		apply_updates_line();
+		// [[BPR-1132]]. The tabs name their pairs by the line's dates.
+		present_document_tabs();
+		update_older_pair_notice();
 		update_status_text();
 		// Deliberately silent. The composed control already announced this exact
 		// change, and a second announcement of the same fact is the duplicated
@@ -5074,6 +5126,7 @@ namespace bpr::qt {
 
 	void workbench_window::refresh_cards()
 	{
+		update_older_pair_notice();
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
@@ -5193,6 +5246,206 @@ namespace bpr::qt {
 	auto workbench_window::comment_menu() const noexcept -> QMenu*
 	{
 		return CommentMenu;
+	}
+
+	void workbench_window::publish(const application::document_tabs_projection& aProjection)
+	{
+		TabsProjection = aProjection;
+		present_document_tabs();
+		update_older_pair_notice();
+		update_comment_target();
+	}
+
+	void workbench_window::set_document_tab_dispatch(document_tab_dispatch aDispatch)
+	{
+		DocumentTabDispatch = std::move(aDispatch);
+		update_tab_actions();
+	}
+
+	auto workbench_window::document_tabs() const noexcept -> document_tab_strip*
+	{
+		return DocumentTabs;
+	}
+
+	auto workbench_window::next_tab_action() const noexcept -> QAction*
+	{
+		return NextTabAction;
+	}
+
+	auto workbench_window::previous_tab_action() const noexcept -> QAction*
+	{
+		return PreviousTabAction;
+	}
+
+	auto workbench_window::close_tab_action() const noexcept -> QAction*
+	{
+		return CloseTabAction;
+	}
+
+	auto workbench_window::older_pair_notice() const noexcept -> QWidget*
+	{
+		return OlderPairNotice;
+	}
+
+	auto workbench_window::older_pair_notice_text() const -> QString
+	{
+		return OlderPairText != nullptr ? OlderPairText->text() : QString{ };
+	}
+
+	auto workbench_window::show_later_threads_button() const noexcept -> QPushButton*
+	{
+		return ShowLaterThreads;
+	}
+
+	auto workbench_window::path_of(const core::file_identity& aFile) const -> QString
+	{
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model == nullptr) {
+			return { };
+		}
+		for (int row = 0; row < model->rowCount(); ++row) {
+			const auto index = model->index(row, 0);
+			if (model->file_at(index) == aFile) {
+				return model->data(index, Qt::DisplayRole).toString();
+			}
+		}
+		return { };
+	}
+
+	auto workbench_window::pair_text(const core::comparison_pair& aPair, const bool aShort) const -> QString
+	{
+		const auto* const line  = EpochSelectors != nullptr ? EpochSelectors->line() : nullptr;
+		const auto        dates = line != nullptr ? line->dates_of(aPair.Left.Identity, aPair.Right.Identity) : std::nullopt;
+		if (!dates.has_value()) {
+			return QStringLiteral("update %1 → %2").arg(aPair.Left.Identity.Epoch.value()).arg(aPair.Right.Identity.Epoch.value());
+		}
+		// "Feb 4 → 9" when both are in one month, as the design's pill reads.
+		const auto& [from, to] = *dates;
+		const auto month       = from.section(QLatin1Char{ ' ' }, 0, 0);
+		if (aShort && !month.isEmpty() && to.section(QLatin1Char{ ' ' }, 0, 0) == month) {
+			return QStringLiteral("%1 → %2").arg(from, to.section(QLatin1Char{ ' ' }, 1));
+		}
+		return QStringLiteral("%1 → %2").arg(from, to);
+	}
+
+	auto workbench_window::comparing_off_current_head() const -> bool
+	{
+		return ComparisonSurface != nullptr && ComparisonSurface->current_context().has_value()
+			&& !LeftConversationEndpointCurrent && !RightConversationEndpointCurrent;
+	}
+
+	void workbench_window::present_document_tabs()
+	{
+		if (DocumentTabs == nullptr) {
+			return;
+		}
+		auto tabs = std::vector<document_tab_presentation>{ };
+		if (TabsProjection.has_value()) {
+			tabs.reserve(TabsProjection->Tabs.size());
+			for (const auto& entry : TabsProjection->Tabs) {
+				tabs.push_back(document_tab_presentation{
+					.Id            = entry.Id,
+					.Path          = entry.View.File ? path_of(*entry.View.File) : QString{ },
+					.OwnPair       = entry.OwnComparison ? pair_text(entry.View.Comparison, true) : QString{ },
+					.Pair          = pair_text(entry.View.Comparison, false),
+					.State         = entry.State,
+					.Active        = entry.Active,
+					.OwnComparison = entry.OwnComparison,
+				});
+			}
+			// A tab's name is its file's, with as much of the path before it
+			// as tells it apart from another tab's file of the same name.
+			const auto suffix = [](const QString& aPath, const qsizetype aParts) {
+				const auto parts = aPath.split(QLatin1Char{ '/' }, Qt::SkipEmptyParts);
+				return parts.mid(std::max<qsizetype>(0, parts.size() - aParts)).join(QLatin1Char{ '/' });
+			};
+			for (auto& tab : tabs) {
+				if (tab.Path.isEmpty()) {
+					tab.Name = tr("Unlisted file");
+					continue;
+				}
+				for (qsizetype parts = 1;; ++parts) {
+					tab.Name         = suffix(tab.Path, parts);
+					const auto clash = std::ranges::any_of(tabs, [&tab, &suffix, parts](const document_tab_presentation& aOther) {
+						return !aOther.Path.isEmpty() && aOther.Path != tab.Path && suffix(aOther.Path, parts) == tab.Name;
+					});
+					if (!clash || tab.Name == tab.Path) {
+						break;
+					}
+				}
+			}
+		}
+		DocumentTabs->present(std::move(tabs));
+		update_tab_actions();
+	}
+
+	void workbench_window::update_tab_actions()
+	{
+		const auto count  = TabsProjection.has_value() ? TabsProjection->Tabs.size() : 0U;
+		const auto active = TabsProjection.has_value()
+			&& std::ranges::any_of(TabsProjection->Tabs, &application::document_tab_entry::Active);
+		const auto wired = static_cast<bool>(DocumentTabDispatch);
+		if (NextTabAction != nullptr) {
+			NextTabAction->setEnabled(wired && count > 1U);
+			PreviousTabAction->setEnabled(wired && count > 1U);
+			CloseTabAction->setEnabled(wired && active);
+		}
+	}
+
+	void workbench_window::update_older_pair_notice()
+	{
+		if (OlderPairNotice == nullptr || ConversationPanel == nullptr) {
+			return;
+		}
+		const auto active    = TabsProjection.has_value()
+			? std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active)
+			: std::vector<application::document_tab_entry>::const_iterator{ };
+		const auto hasActive = TabsProjection.has_value() && active != TabsProjection->Tabs.end() && active->View.File.has_value();
+		auto       later     = std::size_t{ 0U };
+		if (hasActive && comparing_off_current_head()) {
+			later = ConversationPanel->current_head_thread_count(*active->View.File);
+		}
+		if (later == 0U) {
+			OlderPairNotice->hide();
+			return;
+		}
+		static constexpr auto words   = std::array{ "One thread is", "Two threads are", "Three threads are", "Four threads are", "Five threads are",
+													"Six threads are", "Seven threads are", "Eight threads are", "Nine threads are" };
+		const auto            counted = later <= words.size() ? QString::fromLatin1(words[later - 1U]) : tr("%1 threads are").arg(later);
+		const auto            text    = tr("No threads on %1. %2 on later updates of this file.").arg(pair_text(active->View.Comparison, false), counted);
+		if (OlderPairText->text() != text) {
+			OlderPairText->setText(text);
+			OlderPairText->setAccessibleDescription(text);
+		}
+		OlderPairNotice->show();
+	}
+
+	void workbench_window::show_later_threads()
+	{
+		if (!DocumentTabDispatch || !TabsProjection.has_value()) {
+			return;
+		}
+		const auto& tabs   = TabsProjection->Tabs;
+		const auto  active = std::ranges::find(tabs, true, &application::document_tab_entry::Active);
+		if (active == tabs.end() || !active->View.File.has_value()) {
+			return;
+		}
+		// A tab of this file on the window's comparison shows its threads
+		// where they sit; then this tab back on the window's comparison, which
+		// the reviewer asked for; and the pull request's conversation in
+		// Discuss when the window's comparison is no later than this tab's.
+		const auto sibling = std::ranges::find_if(tabs, [&active](const application::document_tab_entry& aTab) {
+			return !aTab.Active && !aTab.OwnComparison && aTab.View.File == active->View.File;
+		});
+		if (sibling != tabs.end()) {
+			DocumentTabDispatch(core::activate_tab_intent{ .Tab = sibling->Id });
+			return;
+		}
+		if (active->OwnComparison) {
+			DocumentTabDispatch(core::return_tab_to_window_comparison_intent{ .Tab = active->Id });
+			return;
+		}
+		choose_modality(review_modality::discuss);
 	}
 
 	void workbench_window::update_new_comment_group()
@@ -5319,7 +5572,14 @@ namespace bpr::qt {
 		if (CommentAction->text() != text) {
 			CommentAction->setText(text);
 		}
-		const auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
+		// [[BPR-1132]]. A tab over an older pair offers no new comment off the
+		// pull request's current head.
+		const auto offHead = comparing_off_current_head();
+		CommentAction->setEnabled(!offHead);
+		auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
+		if (offHead) {
+			tip = QStringLiteral("Comments go on the pull request's current head; this tab compares an earlier update");
+		}
 		CommentAction->setToolTip(tip);
 		CommentAction->setStatusTip(tip);
 		if (ReviewBar == nullptr) {
@@ -8350,6 +8610,13 @@ namespace bpr::qt {
 		append(EpochSelectors->right_selector());
 		append(EpochSelectors->left_oid_editor());
 		append(EpochSelectors->right_oid_editor());
+		// [[BPR-1132]]. The comparison's header: the tabs, the count of the
+		// ones the width floor leaves out, and the new-tab button.
+		if (DocumentTabs != nullptr) {
+			append(DocumentTabs->tab_bar());
+			append(DocumentTabs->overflow_button());
+			append(DocumentTabs->new_tab_button());
+		}
 		// One stop stands for the whole composed comparison surface: its last.
 		// Everything before it inside that surface is RFC-BPR-0004's declared
 		// order, which the shell reports through that card rather than restating
@@ -8392,6 +8659,8 @@ namespace bpr::qt {
 		ApplyingConversationAnchor = false;
 		synchronize_selected_conversation(chosen_conversation());
 		update_defect_surface();
+		update_comment_target();
+		update_older_pair_notice();
 		// [[BPR-1046]]. The composition places the endpoints once a
 		// comparison has arrived, which is when a waiting reply can select
 		// its thread's line.
@@ -8880,6 +9149,49 @@ namespace bpr::qt {
 		ViewMenu->addAction(UpdatesLineAction);
 		connect(UpdatesLineAction, &QAction::triggered, this, [this] {
 			dispatch_updates_line_toggle();
+		});
+		// [[BPR-1132]]. The tab keys, window-owned: Ctrl+Tab and Ctrl+Shift+Tab
+		// move between the tabs (the Control key on macOS too, where Qt names
+		// it Meta), and Cmd-W (Ctrl+W) closes the active tab. Nothing had
+		// Cmd-W before, so no window command moves to Cmd-Shift-W.
+		const auto tabAction = [this](const QString& aText, const QString& aName, const QKeySequence& aKey) {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aName);
+			action->setShortcut(aKey);
+			action->setShortcutContext(Qt::WindowShortcut);
+			action->setEnabled(false);
+			addAction(action);
+			return action;
+		};
+#if defined(Q_OS_MACOS)
+		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Tab") });
+		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Shift+Tab") });
+#else
+		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Tab") });
+		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") });
+#endif
+		CloseTabAction = tabAction(tr("Close Tab"), QStringLiteral("closeDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+W") });
+		ViewMenu->addAction(NextTabAction);
+		ViewMenu->addAction(PreviousTabAction);
+		fileMenu->addAction(CloseTabAction);
+		connect(NextTabAction, &QAction::triggered, this, [this] {
+			if (DocumentTabDispatch) {
+				DocumentTabDispatch(core::activate_adjacent_tab_intent{ .Direction = core::change_navigation_direction::next });
+			}
+		});
+		connect(PreviousTabAction, &QAction::triggered, this, [this] {
+			if (DocumentTabDispatch) {
+				DocumentTabDispatch(core::activate_adjacent_tab_intent{ .Direction = core::change_navigation_direction::previous });
+			}
+		});
+		connect(CloseTabAction, &QAction::triggered, this, [this] {
+			if (!DocumentTabDispatch || !TabsProjection) {
+				return;
+			}
+			const auto active = std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active);
+			if (active != TabsProjection->Tabs.end()) {
+				DocumentTabDispatch(core::close_tab_intent{ .Tab = active->Id });
+			}
 		});
 		// [[BPR-0646]]. Settings is a window, reached by the platform's
 		// preferences shortcut; on macOS the role places it in the app menu.

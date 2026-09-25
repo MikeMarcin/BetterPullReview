@@ -1064,7 +1064,10 @@ namespace bpr::qt {
 				   : QStringLiteral("Diff ready — %1 semantic changes"))
 				  .arg(CurrentResult->Alignment.Groups.size())
 			: reason_text(CurrentResult->Alignment.Diagnostic.Code);
-		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
+		// [[BPR-1132]]. A ready, exact alignment is routine; a header that
+		// shows the status only when it says more leaves it unsaid.
+		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }),
+					  CurrentResult->Alignment.Content == core::diff_content_state::text && !CurrentResult->AlignmentApproximate);
 		update_detail();
 		update_selection_paint();
 		schedule_geometry_rebuild(
@@ -2759,10 +2762,32 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::update_status(QString aText)
+	void diff_workbench::set_status_shown(const bool aShown)
+	{
+		Status->setVisible(aShown);
+	}
+
+	void diff_workbench::set_status_observer(std::function<void(const QString&, bool)> aObserver)
+	{
+		StatusObserver = std::move(aObserver);
+		if (StatusObserver) {
+			StatusObserver(Status->text(), !StatusRoutine);
+		}
+	}
+
+	auto diff_workbench::status_notable() const noexcept -> bool
+	{
+		return !StatusRoutine;
+	}
+
+	void diff_workbench::update_status(QString aText, const bool aRoutine)
 	{
 		Status->setText(std::move(aText));
 		Status->setAccessibleDescription(Status->text());
+		StatusRoutine = aRoutine;
+		if (StatusObserver) {
+			StatusObserver(Status->text(), !StatusRoutine);
+		}
 		announce_accessible_status(Status->text());
 	}
 

@@ -62,16 +62,20 @@ bpr_private_data_root(BPR_ROOT)
 # Linux [[BPR-1036]]'s stack gave 834 with the captioned line, so 884 and 850,
 # derived until the Linux station measures them. Windows has no menu bar row
 # and keeps the owner's 850 budget ([[BPR-0246]]) for the open line, so 884
-# folded, unmeasured until the Windows station runs this course.
+# folded, unmeasured until the Windows station runs this course. [[BPR-1132]]:
+# the comparison's header is the 28-pixel document tab strip, in place of the
+# diff status row and its spacing: 872 folded and 838 open on macOS as
+# measured, 876 and 842 on Linux derived from the same stack, and on Windows 884
+# and the owner's 850.
 if(CMAKE_HOST_APPLE)
-    set(bpr_comparison_open_height_floor 845)
-    set(bpr_comparison_height_floor 879)
+    set(bpr_comparison_open_height_floor 838)
+    set(bpr_comparison_height_floor 872)
 elseif(CMAKE_HOST_WIN32)
     set(bpr_comparison_open_height_floor 850)
     set(bpr_comparison_height_floor 884)
 else()
-    set(bpr_comparison_open_height_floor 850)
-    set(bpr_comparison_height_floor 884)
+    set(bpr_comparison_open_height_floor 842)
+    set(bpr_comparison_height_floor 876)
 endif()
 
 set(bpr_evidence_root "${BPR_ROOT}/evidence")
@@ -187,7 +191,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
-        "\"schema\": \"bpr.uiforetw_intraline_capture.v6\""
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v7\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -329,6 +333,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         repositories_drawer_rect_in_splitter
         review_details_rect_in_window
         updates_line_open_rect_in_window
+        document_tabs_rect_in_window
     )
         foreach(component IN ITEMS x y width height)
             string(JSON "${rect}_${component}" GET
@@ -525,6 +530,22 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             "review_bar_bottom=${review_bar_bottom} "
             "folded=${comparison_height} open=${open_comparison_height} "
             "open_height_floor=${bpr_comparison_open_height_floor}"
+        )
+    endif()
+    # [[BPR-1132]]. The comparison's header is the document tab strip: one
+    # 28-pixel row directly under the review bar while the line is folded, as
+    # the capture is, with the comparison directly beneath it.
+    math(EXPR document_tabs_bottom
+        "${document_tabs_rect_in_window_y} + ${document_tabs_rect_in_window_height}")
+    if(NOT document_tabs_rect_in_window_y EQUAL review_bar_bottom
+            OR NOT document_tabs_rect_in_window_height EQUAL 28
+            OR NOT comparison_rect_in_window_y EQUAL document_tabs_bottom
+            OR document_tabs_rect_in_window_width LESS comparison_rect_in_window_width)
+        message(FATAL_ERROR
+            "UIforETW ${profile} the comparison's header is not the tab strip: "
+            "tabs=${document_tabs_rect_in_window_x},${document_tabs_rect_in_window_y} "
+            "${document_tabs_rect_in_window_width}x${document_tabs_rect_in_window_height} "
+            "review_bar_bottom=${review_bar_bottom} comparison_top=${comparison_rect_in_window_y}"
         )
     endif()
     math(EXPR comparison_right

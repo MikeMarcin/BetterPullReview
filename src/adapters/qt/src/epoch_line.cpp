@@ -366,6 +366,19 @@ namespace bpr::qt {
 		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
 	}
 
+	auto epoch_line::dates_of(
+		const core::comparison_anchor_identity& aLeft,
+		const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>
+	{
+		const auto left  = stop_for(aLeft);
+		const auto right = stop_for(aRight);
+		if (!left || !right || left->Update >= Updates.size() || right->Update >= Updates.size()
+			|| Updates[left->Update].Date.isEmpty() || Updates[right->Update].Date.isEmpty()) {
+			return std::nullopt;
+		}
+		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
+	}
+
 	auto epoch_line::label_shown(const std::size_t aUpdate) const -> bool
 	{
 		// Dense histories keep the labels that carry meaning -- the ends, the

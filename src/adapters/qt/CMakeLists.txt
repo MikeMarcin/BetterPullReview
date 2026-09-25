@@ -25,6 +25,7 @@ add_library(
         src/settings_window.cpp
         src/profile_management_window.cpp
         src/workbench_strip.cpp
+        src/document_tab_strip.cpp
         src/native_window_chrome.cpp
         src/epoch_line.cpp
         src/workbench_landing.cpp

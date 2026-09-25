@@ -5,6 +5,7 @@
 #include "bpr/application/setup_destination_projection.hpp"
 
 #include "bpr/application/device_authorization_projection.hpp"
+#include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
@@ -15,6 +16,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
@@ -549,6 +551,26 @@ namespace bpr::qt {
 		/// \brief [[BPR-1133]]. Comment's arrow menu: the target-named command,
 		/// where RFC-BPR-0048's labels will be offered.
 		[[nodiscard]] auto comment_menu() const noexcept -> QMenu*;
+		/// \brief [[BPR-1132]]. Shows the window's document tabs, as the host
+		/// published them, in the comparison's header.
+		void publish(const application::document_tabs_projection& aProjection);
+		/// \brief [[BPR-1132]]. Where every tab gesture goes: the strip, the
+		/// Files tree's Cmd-click and Open in New Tab, the tab keys and the
+		/// older-pair notice's Show them.
+		void set_document_tab_dispatch(document_tab_dispatch aDispatch);
+		/// \brief [[BPR-1132]]. The comparison's header: the document tabs.
+		[[nodiscard]] auto document_tabs() const noexcept -> document_tab_strip*;
+		/// \brief [[BPR-1132]]. Ctrl+Tab and Ctrl+Shift+Tab (the Control key on
+		/// macOS too), window-owned.
+		[[nodiscard]] auto next_tab_action() const noexcept -> QAction*;
+		[[nodiscard]] auto previous_tab_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1132]]. Cmd-W (Ctrl+W): closes the active tab.
+		[[nodiscard]] auto close_tab_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1132]]. The Comments tab's notice for a tab over an
+		/// older pair: how many threads are on later updates, and Show them.
+		[[nodiscard]] auto older_pair_notice() const noexcept -> QWidget*;
+		[[nodiscard]] auto older_pair_notice_text() const -> QString;
+		[[nodiscard]] auto show_later_threads_button() const noexcept -> QPushButton*;
 #if defined(_WIN32)
 		/// \brief Which part of the Windows title row a window point falls on.
 		///
@@ -1075,8 +1097,24 @@ namespace bpr::qt {
 		void comment_or_reply();
 		/// \brief The one Reply path, from a card or from Comment.
 		void reply_to_thread(const std::string& aIdentity);
-		void apply_review_details_visibility();
-		void update_home_landing();
+		/// \brief [[BPR-1132]]. Gives the strip the words for the published tabs.
+		void present_document_tabs();
+		/// \brief [[BPR-1132]]. The tab keys follow how many tabs there are.
+		void update_tab_actions();
+		/// \brief [[BPR-1132]]. Shows or hides the older-pair notice.
+		void update_older_pair_notice();
+		/// \brief [[BPR-1132]]. Show them: the file's threads where they sit.
+		void show_later_threads();
+		/// \brief [[BPR-1132]]. A pair in words: "Feb 4 → Feb 9", or short,
+		/// "Feb 4 → 9", for a tab's pill.
+		[[nodiscard]] auto pair_text(const core::comparison_pair& aPair, bool aShort) const -> QString;
+		/// \brief [[BPR-1132]]. A file's path, as the files drawer lists it.
+		[[nodiscard]] auto path_of(const core::file_identity& aFile) const -> QString;
+		/// \brief [[BPR-1132]]. Whether the comparison shown is off the pull
+		/// request's current head, where no new comment may start.
+		[[nodiscard]] auto comparing_off_current_head() const -> bool;
+		void               apply_review_details_visibility();
+		void               update_home_landing();
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
 		/// or under it as the first-launch card.
 		void place_home_landing();
@@ -1299,6 +1337,18 @@ namespace bpr::qt {
 		QAction*            CommentAction       = nullptr;
 		/// [[BPR-1133]]. Comment's arrow menu.
 		QMenu* CommentMenu = nullptr;
+		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
+		/// the tabs the host last published, the tab keys and the older-pair
+		/// notice.
+		document_tab_strip*                                  DocumentTabs = nullptr;
+		document_tab_dispatch                                DocumentTabDispatch;
+		std::optional<application::document_tabs_projection> TabsProjection;
+		QAction*                                             NextTabAction     = nullptr;
+		QAction*                                             PreviousTabAction = nullptr;
+		QAction*                                             CloseTabAction    = nullptr;
+		QWidget*                                             OlderPairNotice   = nullptr;
+		QLabel*                                              OlderPairText     = nullptr;
+		QPushButton*                                         ShowLaterThreads  = nullptr;
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact = false;
 #if defined(_WIN32)

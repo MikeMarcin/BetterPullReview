@@ -15,7 +15,7 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 def run(application, phase, root, vault=b""):
     generation = (1 if phase.endswith("seed") else
                   2 if phase == "auth-advance" or phase.startswith("anonymous") or phase == "capability" else
-                  4 if phase == "auth-close" else 5 if phase == "auth-verify" else 3)
+                  4 if phase in {"tabs-restore", "auth-close"} else 5 if phase == "auth-verify" else 3)
     result = subprocess.run([application, phase, str(root), str(generation)], input=vault,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             timeout=180, check=False)

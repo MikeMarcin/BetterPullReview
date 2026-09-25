@@ -84,6 +84,7 @@
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/diff_application_host.hpp"
+#include "bpr/application/document_tab_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
@@ -3739,11 +3740,12 @@ namespace bpr::app {
 	public:
 		using publication_sink = std::function<void(
 			const application::diff_publication&)>;
+		using failure_sink     = std::function<void(const application::diff_failure_publication&)>;
 
 		composition_diff_projection(
 			application::diff_projection_port& aTarget,
 			publication_sink                   aPublication,
-			std::function<void()>              aFailure = { })
+			failure_sink                       aFailure = { })
 			: Target{ &aTarget }
 			, Publication{ std::move(aPublication) }
 			, Failure{ std::move(aFailure) }
@@ -3762,7 +3764,7 @@ namespace bpr::app {
 		{
 			Target->fail(aFailure);
 			if (Failure) {
-				Failure();
+				Failure(aFailure);
 			}
 		}
 
@@ -3775,7 +3777,7 @@ namespace bpr::app {
 	private:
 		application::diff_projection_port* Target = nullptr;
 		publication_sink                   Publication;
-		std::function<void()>              Failure;
+		failure_sink                       Failure;
 	};
 
 #if defined(BPR_BUILD_TESTING)
@@ -6115,6 +6117,23 @@ namespace bpr::app {
 			if (aSuccess) {
 				AcceptedReadingPosition = pending.Position;
 				restoration_notice({ });
+				// Resume returns the saved file in Read. Leaving it on Overview
+				// would immediately replace an older tab's pair with the window's.
+				if (pending.Position && pending.Position->File) {
+					TabModality = core::workbench_modality::read;
+					Window->choose_modality(qt::review_modality::read);
+				}
+				// [[BPR-1132]]. Resume brings the tabs back once the active
+				// tab's reading is on screen; its load completes from there.
+				if (pending.Tabs.has_value() && TabHost != nullptr) {
+					abandon_tab_load();
+					ObservedTabFile = WorkbenchHost->selected();
+					TabHost->restore(*pending.Tabs);
+					if (pending.Tabs->Tabs.empty()) {
+						clear_diff_selection();
+					}
+				}
+				schedule_tab_presentation();
 			} else {
 				clear_diff_selection();
 				Window->choose_home(true);
@@ -6158,6 +6177,256 @@ namespace bpr::app {
 			case core::window_reading_restore_action::wait:        break;
 			}
 		}
+		// [[BPR-1132]]. The window's document tabs: [[BPR-1131]]'s host, whose
+		// loads this composition presents through the epoch and workbench
+		// hosts. The reviewer's own choices of file and comparison are
+		// reflected into the active tab (the observer); switching, closing,
+		// duplicating, returning and restoring tabs are presented exactly, by
+		// the stages Resume uses (the driver), and completed or refused for the
+		// load in force only.
+		struct document_tab_ports final
+			: application::document_tab_view_port,
+			  application::document_tabs_projection_port
+		{
+			explicit document_tab_ports(implementation& aOwner)
+				: Owner{ aOwner }
+			{
+			}
+			void load(const core::document_tab_view_request& aRequest) override
+			{
+				Owner.present_tab(aRequest);
+			}
+			void publish(const application::document_tabs_projection& aProjection) override
+			{
+				if (!Owner.Closing && Owner.Window != nullptr) {
+					Owner.Window->publish(aProjection);
+				}
+			}
+			implementation& Owner;
+		};
+		std::unique_ptr<document_tab_ports>             TabPorts;
+		std::unique_ptr<application::document_tab_host> TabHost;
+		std::optional<core::document_tab_view_request>  TabLoad;
+		std::optional<core::window_reading_restoration> TabDriver;
+		std::optional<core::document_tab_view_request>  TabPresented;
+		std::optional<core::workbench_modality>         TabModality;
+		std::optional<core::file_identity>              ObservedTabFile;
+		bool                                            TabAdvanceQueued = false;
+		bool                                            TabFailed        = false;
+		/// \brief Whether the modality shows a tab (Read and Review) or the
+		/// window's comparison (Overview and Discuss, which have no tab).
+		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
+		{
+			return aModality == core::workbench_modality::read || aModality == core::workbench_modality::review;
+		}
+		[[nodiscard]] auto tab_view_presented(const core::window_review_position& aView) const -> bool
+		{
+			const auto& epoch   = EpochHost->state();
+			const auto* surface = Window->comparison_surface();
+			return !epoch.PendingComparison && epoch.AcceptedComparison == std::optional{ aView.Comparison }
+			&& aView.File.has_value() && WorkbenchHost->selected() == aView.File
+				&& SelectedDiffPublication && SelectedDiffPublication->Request.File.File == aView.File
+				&& SelectedDiffPublication->Request.Diff.Comparison == aView.Comparison
+				&& surface->current_result() && surface->current_context()
+				&& surface->current_context()->Key == SelectedDiffPublication->Key
+				&& (!aView.Selection || surface->selection() == aView.Selection);
+		}
+		void present_tab(const core::document_tab_view_request& aRequest)
+		{
+			if (Closing || TabHost == nullptr || EpochHost == nullptr || WorkbenchHost == nullptr) {
+				return;
+			}
+			TabLoad   = aRequest;
+			TabFailed = false;
+			// A load the reviewer's own gesture already put on screen, as a
+			// choice of file or of comparison is, completes at once.
+			if (!ReadingRestoration && tab_view_presented(aRequest.View)) {
+				TabDriver.reset();
+				finish_tab_load(core::document_tab_view_outcome::ready);
+				return;
+			}
+			TabDriver.emplace(aRequest.View);
+			schedule_tab_presentation();
+		}
+		void finish_tab_load(const core::document_tab_view_outcome aOutcome)
+		{
+			const auto request = std::exchange(TabLoad, std::nullopt);
+			TabDriver.reset();
+			if (!request || TabHost == nullptr) {
+				return;
+			}
+			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
+			TabHost->complete(request->Request, aOutcome);
+		}
+		/// \brief A reviewer's gesture during a load: the load in force is
+		/// left, and the gesture is what the active tab takes next.
+		void abandon_tab_load()
+		{
+			TabDriver.reset();
+			TabLoad.reset();
+		}
+		void schedule_tab_presentation()
+		{
+			if (Closing || TabHost == nullptr || TabAdvanceQueued) {
+				return;
+			}
+			TabAdvanceQueued = true;
+			DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired()) {
+					return;
+				}
+				TabAdvanceQueued = false;
+				advance_tab_presentation();
+			});
+		}
+		void advance_tab_presentation()
+		{
+			if (Closing || TabHost == nullptr || EpochHost == nullptr || WorkbenchHost == nullptr || Window == nullptr) {
+				return;
+			}
+			// A Resume in progress owns the comparison and the file until it
+			// finishes; the tabs it brings are adopted then.
+			if (ReadingRestoration || PendingRestoration) {
+				return;
+			}
+			const auto modality = WorkbenchHost->state().Modality;
+			if (const auto previous = std::exchange(TabModality, modality);
+				previous.has_value() && tab_modality(*previous) != tab_modality(modality)) {
+				// Overview and Discuss have no tab: they show the window's
+				// comparison. Back in Read or Review the active tab's exact
+				// file, pair and reading position return.
+				abandon_tab_load();
+				const auto& tabs = TabHost->state();
+				if (tab_modality(modality) && tabs.Active) {
+					// Returning from a page with no tab restores the complete
+					// active view, including its own semantic reading position.
+					TabHost->refresh();
+					return;
+				}
+				const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+				const auto  target = tab_modality(modality)
+					? (active != nullptr ? std::optional{ active->View.Comparison } : std::nullopt)
+					: tabs.WindowComparison;
+				if (target.has_value() && EpochHost->state().AcceptedComparison != target && EpochHost->state().Catalog) {
+					EpochHost->dispatch(core::select_comparison_anchors_intent{ target->Left.Identity, target->Right.Identity, EpochHost->state().Catalog->Revision });
+					return;
+				}
+			}
+			if (TabDriver && TabLoad) {
+				drive_tab();
+				return;
+			}
+			observe_tab_changes();
+		}
+		void drive_tab()
+		{
+			const auto& position    = TabDriver->position();
+			const auto* surface     = Window->comparison_surface();
+			const auto& publication = SelectedDiffPublication;
+			const auto  diffReady   = publication && position.File == publication->Request.File.File
+				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
+				&& surface->current_context() && surface->current_context()->Key == publication->Key;
+			const auto action = TabDriver->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && std::ranges::find(WorkbenchHost->actionable(), *position.File) != WorkbenchHost->actionable().end(), .Failed = TabFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
+			switch (action) {
+			case core::window_reading_restore_action::select_comparison:
+				if (EpochHost->state().AcceptedComparison != std::optional{ position.Comparison }) {
+					EpochHost->dispatch(core::select_comparison_anchors_intent{ position.Comparison.Left.Identity, position.Comparison.Right.Identity, EpochHost->state().Catalog->Revision });
+				}
+				schedule_tab_presentation();
+				break;
+			case core::window_reading_restore_action::select_file:
+				if (WorkbenchHost->selected() == position.File) {
+					// A file gesture or the epoch's accepted comparison already
+					// starts this exact request. Adopt its pending or published
+					// work instead of superseding it with a second request.
+					if (!SelectedDiffRequest || SelectedDiffRequest->File.File != position.File
+						|| SelectedDiffRequest->Diff.Comparison != position.Comparison
+						|| SelectedDiffRequest->Context.Generation != WorkbenchHost->generation()
+						|| EpochHost->context(SelectedDiffRequest->WorkbenchAuthority) != std::optional{ SelectedDiffRequest->Diff }) {
+						WorkbenchHost->refresh_selected_diff();
+					}
+				} else {
+					WorkbenchHost->apply(core::select_workbench_file_intent{ *position.File });
+				}
+				schedule_tab_presentation();
+				break;
+			case core::window_reading_restore_action::select_location:
+				finish_tab_load(Window->comparison_surface()->restore_selection(*position.Selection)
+									? core::document_tab_view_outcome::ready
+									: core::document_tab_view_outcome::unavailable);
+				break;
+			case core::window_reading_restore_action::complete:
+				finish_tab_load(core::document_tab_view_outcome::ready);
+				break;
+			case core::window_reading_restore_action::unavailable:
+
+#if defined(BPR_BUILD_TESTING)
+				QTextStream{ stderr } << "TAB_RESTORE_UNAVAILABLE:failed=" << TabFailed
+									  << " epoch_status=" << static_cast<int>(EpochHost->state().Status)
+									  << " pair=" << (EpochHost->state().AcceptedComparison == std::optional{ position.Comparison })
+									  << " diff=" << diffReady << " semantic=" << bool(surface->current_semantic_index()) << '\n';
+#endif
+				finish_tab_load(core::document_tab_view_outcome::unavailable);
+				break;
+			case core::window_reading_restore_action::wait:
+				break;
+			}
+		}
+		/// \brief Reflects the reviewer's own choices into the tabs.
+		void observe_tab_changes()
+		{
+			const auto& epoch = EpochHost->state();
+			if (epoch.PendingComparison || !epoch.AcceptedComparison || !core::available_for_diff(*epoch.AcceptedComparison)) {
+				return;
+			}
+			const auto& accepted = *epoch.AcceptedComparison;
+			if (!TabHost->state().WindowComparison.has_value()) {
+				TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
+			}
+			if (!tab_modality(WorkbenchHost->state().Modality)) {
+				if (TabHost->state().WindowComparison != std::optional{ accepted }) {
+					TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
+				}
+				return;
+			}
+			const auto activeTab = [this]() -> const core::document_tab* {
+				const auto& tabs = TabHost->state();
+				return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+			};
+			if (const auto* active = activeTab(); active != nullptr && active->View.Comparison != accepted) {
+				TabHost->apply(core::select_tab_comparison_intent{ .Comparison = accepted });
+			}
+			const auto selected     = WorkbenchHost->selected();
+			const auto previousFile = std::exchange(ObservedTabFile, selected);
+			if (const auto* active = activeTab(); selected.has_value()
+				&& (active != nullptr ? active->View.File != selected : previousFile != selected)) {
+				TabHost->apply(core::open_in_active_tab_intent{ .File = *selected });
+			}
+			observe_tab_reading();
+		}
+		// The reading position of the view on screen, for the load that
+		// presented it. A tab gesture queues behind this observation.
+		void observe_tab_reading()
+		{
+			const auto& tabs    = TabHost->state();
+			const auto* active  = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+			const auto* surface = Window->comparison_surface();
+			if (active != nullptr && TabPresented && TabPresented->Tab == active->Id && SelectedDiffPublication
+				&& SelectedDiffPublication->Request.File.File == active->View.File
+				&& SelectedDiffPublication->Request.Diff.Comparison == active->View.Comparison
+				&& surface->current_context() && surface->current_context()->Key == SelectedDiffPublication->Key
+				&& surface->selection() != active->View.Selection) {
+				TabHost->observe_reading_position(TabPresented->Request, surface->selection());
+			}
+		}
+		/// \brief Keeps the tabs with the window's accepted destination.
+		void retain_tabs(const core::window_review_tabs& aTabs)
+		{
+			if (Closing || PendingRestoration || ReadingRestoreUnavailable || !ReadingDestination || !Profile->ReviewRestoration) {
+				return;
+			}
+			static_cast<void>(Profile->ReviewRestoration->accepted_tabs(DraftWindow, *ReadingDestination, aTabs));
+		}
 		void retain_reading_position()
 		{
 			if (Closing || PendingRestoration || ReadingRestoreUnavailable || !ReadingDestination || !EpochHost
@@ -6185,6 +6454,7 @@ namespace bpr::app {
 		{
 			Window->publish(aProjection);
 			schedule_reading_restoration();
+			schedule_tab_presentation();
 			schedule_link_location();
 		}
 		void fail(const application::workbench_failure_publication& aFailure) override
@@ -6285,6 +6555,13 @@ namespace bpr::app {
 					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number };
 					if (ReadingDestination != destination) {
 						AcceptedReadingPosition.reset();
+						// [[BPR-1132]]. Another pull request: its tabs start again.
+						if (ReadingDestination.has_value() && TabHost != nullptr) {
+							abandon_tab_load();
+							TabPresented.reset();
+							ObservedTabFile.reset();
+							TabHost->reset();
+						}
 					}
 					ReadingDestination = destination;
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
@@ -6527,8 +6804,13 @@ namespace bpr::app {
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
 					retain_reading_position();
+					schedule_tab_presentation();
 				});
-			Window->comparison_surface()->set_reading_gesture_sink([this] { cancel_restoration(false, true); retain_reading_position(); });
+			Window->comparison_surface()->set_reading_gesture_sink([this] {
+				cancel_restoration(false, true);
+				retain_reading_position();
+				schedule_tab_presentation();
+			});
 			Window->set_defect_dispatch(
 				[this](core::defect_command aCommand) {
 					dispatch_defect(std::move(aCommand));
@@ -7017,9 +7299,28 @@ namespace bpr::app {
 					correlate_defects();
 					retain_reading_position();
 					schedule_reading_restoration();
+					schedule_tab_presentation();
 					schedule_link_location();
 				},
-				[this] { if (ReadingRestoration) { ReadingFailed = true; schedule_reading_restoration(); } });
+				[this](const application::diff_failure_publication& aFailure) {
+					const auto current = SelectedDiffPublication && SelectedDiffPublication->Key == aFailure.Context.Key;
+					if (current) {
+						SelectedDiffRequest.reset();
+					}
+					if (ReadingRestoration) {
+						ReadingFailed = true;
+						schedule_reading_restoration();
+					}
+					// Leaving Discuss may cancel its window-pair diff while the
+					// tab is already restoring another exact pair. That failure
+					// belongs to the view left behind, not the requested tab.
+					if (current && TabDriver
+						&& TabDriver->position().File == SelectedDiffPublication->Request.File.File
+						&& TabDriver->position().Comparison == SelectedDiffPublication->Request.Diff.Comparison) {
+						TabFailed = true;
+						schedule_tab_presentation();
+					}
+				});
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
 					.ApplicationSession = WindowSession,
@@ -7100,6 +7401,35 @@ namespace bpr::app {
 				this,
 				Profile->WorkbenchPreferences.get(),
 				aConfig.Profile);
+			// [[BPR-1132]]. The window's document tabs. Their gestures reach the
+			// tab host; its loads are presented through the hosts above; its
+			// collection is kept with the window's accepted destination.
+			TabPorts = std::make_unique<document_tab_ports>(*this);
+			TabHost  = std::make_unique<application::document_tab_host>(
+				DecisionLane, *TabPorts, *TabPorts,
+				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
+			Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {
+				if (Closing || TabHost == nullptr) {
+					return;
+				}
+				observe_tab_reading();
+				DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }, intent = aIntent] {
+					if (weak.expired() || Closing || TabHost == nullptr) {
+						return;
+					}
+					cancel_restoration(false, true);
+					TabHost->apply(intent);
+					// A background open or closing an inactive tab must leave
+					// the active load running. The core names any replacement.
+					if (TabLoad && TabHost->state().Pending != TabLoad) {
+						abandon_tab_load();
+					}
+					if (!TabHost->state().Active) {
+						ObservedTabFile = WorkbenchHost->selected();
+						clear_diff_selection();
+					}
+				});
+			});
 			// Reads the current durable or session layout. Restoring never writes
 			// it back, so merely launching still leaves a fresh store fresh.
 			// [[BPR-0742]]. Session defaults over a store that could not open load
@@ -7812,11 +8142,27 @@ namespace bpr::app {
 			}
 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
 				cancel_restoration(false, true);
+				abandon_tab_load();
+				// A file gesture immediately after returning from Discuss wins
+				// over the still-queued restoration of the previous tab view.
+				TabModality = WorkbenchHost->state().Modality;
+			}
+			// [[BPR-1132]]. A modality change decides whether the comparison
+			// shows the active tab's pair or the window's.
+			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
+				schedule_tab_presentation();
 			}
 #if defined(BPR_BUILD_TESTING)
 			++WorkbenchIntentDispatches;
 #endif
+			// Clicking the retained file after closing the final tab is still
+			// an explicit open, even when the file cursor itself is unchanged.
+			const auto* selected = std::get_if<core::select_workbench_file_intent>(&aIntent);
+			const auto  openFile = selected != nullptr ? std::optional{ selected->File } : std::nullopt;
 			WorkbenchHost->apply(std::move(aIntent));
+			if (openFile && TabHost && !TabHost->state().Active) {
+				TabHost->apply(core::open_in_active_tab_intent{ .File = *openFile });
+			}
 		}
 
 		void dispatch_workbench_change(
@@ -10265,6 +10611,10 @@ namespace bpr::app {
 					return;
 				}
 				pending.File = file;
+				// A link is an explicit new reading choice. Entering Read must
+				// not restore the tab's previous file over that choice.
+				abandon_tab_load();
+				TabModality = core::workbench_modality::read;
 				Window->choose_home(false);
 				Window->choose_modality(qt::review_modality::read);
 				if (WorkbenchHost->selected() != file) {
@@ -10469,6 +10819,7 @@ namespace bpr::app {
 				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
 				cancel_restoration(false, true);
+				abandon_tab_load();
 				clear_diff_selection();
 			}
 			if (const auto* deletion = std::get_if<core::delete_repository_cache_intent>(&aIntent)) {
@@ -11767,6 +12118,7 @@ namespace bpr::app {
 			}
 			retain_reading_position();
 			schedule_reading_restoration();
+			schedule_tab_presentation();
 			schedule_link_location();
 		}
 
@@ -11782,6 +12134,7 @@ namespace bpr::app {
 					std::nullopt,
 					qt::review_draft_editor_clear_reason::selection_invalidated);
 			}
+			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
@@ -11821,6 +12174,7 @@ namespace bpr::app {
 				return;
 			}
 			clear_diff_selection();
+			SelectedDiffRequest = aRequest;
 			if (Window != nullptr) {
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				Window->clear_review_ledger(!ReviewLedgerAvailable);
@@ -11859,6 +12213,14 @@ namespace bpr::app {
 		{
 			if (Closing || Window == nullptr) {
 				return;
+			}
+			if (SelectedDiffRequest == std::optional{ aFailure.Request }) {
+				SelectedDiffRequest.reset();
+				if (TabDriver && TabDriver->position().File == aFailure.Request.File.File
+					&& TabDriver->position().Comparison == aFailure.Request.Diff.Comparison) {
+					TabFailed = true;
+					schedule_tab_presentation();
+				}
 			}
 			if (ReadingRestoration) {
 				ReadingFailed = true;
@@ -12525,6 +12887,9 @@ namespace bpr::app {
 					WorkbenchHost->shutdown();
 				}
 			}
+			if (TabHost) {
+				TabHost->shutdown();
+			}
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
 			}
@@ -12571,6 +12936,7 @@ namespace bpr::app {
 					   std::memory_order_acquire)
 					!= 0U
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
+				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
@@ -13270,6 +13636,7 @@ namespace bpr::app {
 		decltype(github_profile_runtime::ActiveQueueNotifications)&     ActiveQueueNotifications = Profile->ActiveQueueNotifications;
 		decltype(github_profile_runtime::GithubProjectionFanOut)&       GithubProjectionFanOut   = Profile->GithubProjectionFanOut;
 		decltype(github_profile_runtime::Host)&                         Host                     = Profile->Host;
+		std::optional<application::workbench_selected_diff_request>     SelectedDiffRequest;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
 		{
@@ -16395,6 +16762,18 @@ namespace bpr::app {
 				&& key.Algorithm == core::supported_diff_algorithm_revision;
 			if (!probe.Evidence.SelectedDiffRequest
 				|| !probe.Evidence.ExactComparison) {
+				QTextStream stream{ stdout };
+				stream << "WORKBENCH_SELECTED_DIFF_FACTS:begins=" << static_cast<qulonglong>(implementation->SelectedDiffBegins - probe.SelectedDiffBegins)
+					   << " publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications - probe.SelectedDiffPublications)
+					   << " authority=" << truth(request.WorkbenchAuthority == probe.Authority)
+					   << " generation=" << truth(request.Context.Generation == host->generation())
+					   << " file=" << truth(request.File.File == probe.ExpectedFiles.front())
+					   << " presentation_path=" << truth(request.File.PresentationPath == "review.cpp")
+					   << " current_path=" << truth(request.File.CurrentPath == std::filesystem::path{ "review.cpp" })
+					   << " previous_path=" << present(request.File.PreviousPath.has_value())
+					   << " modified=" << truth(request.File.Change == application::workbench_file_change_kind::modified)
+					   << " exact_comparison=" << truth(probe.Evidence.ExactComparison) << '\n';
+				stream.flush();
 				return fail();
 			}
 			const auto& groups   = comparison->current_result()->Alignment.Groups;
@@ -17277,29 +17656,29 @@ namespace bpr::app {
 		/// \details The height floors are the measured stacks'. [[BPR-1130]]:
 		/// RFC-BPR-0052's Updates line folds, a new window starts folded, and
 		/// open its timeline is one 34-pixel row with no caption, so the stack
-		/// is taken both ways. Measured on macOS, folded, it is the menu bar
-		/// 20, the title row 30, the review bar 28, the diff status 15, 6 of
-		/// margins and the status bar 22: the comparison is 879. Open, the
-		/// timeline's 34 sit under the bar: 845 (829 with [[BPR-1129]]'s
-		/// 50-pixel captioned line). On Linux [[BPR-1036]]'s stack gave 834
-		/// with the captioned line, so 850 open and 884 folded, derived until
-		/// the Linux station measures them. Windows has no menu bar row and
-		/// keeps the owner's 850 budget ([[BPR-0246]]) for the open line, the
-		/// tighter state, and so 884 folded, unmeasured until the Windows
-		/// station runs this course. The folded stack is the open one less the
-		/// timeline's row exactly, on every platform. Any further row that
-		/// takes height fails and is named. The course script asserts the same
-		/// floors.
+		/// is taken both ways. [[BPR-1132]]: the comparison's header is the
+		/// 28-pixel document tab strip, in place of the diff status row and its
+		/// spacing. Measured on macOS, folded, the stack is the menu bar 20, the
+		/// title row 30, the review bar 28, the tab strip 28 and the status bar
+		/// 22: the comparison is 872. Open, the timeline's 34 sit under the bar:
+		/// 838. On Linux [[BPR-1036]]'s stack (a 14-pixel status and 6 of
+		/// spacing) gives 876 folded and 842 open, derived until the Linux
+		/// station measures them. Windows has no menu bar row and keeps the
+		/// owner's 850 budget ([[BPR-0246]]) for the open line, the tighter
+		/// state, and so 884 folded, unmeasured until the Windows station runs
+		/// this course. The folded stack is the open one less the timeline's
+		/// row exactly, on every platform. Any further row that takes height
+		/// fails and is named. The course script asserts the same floors.
 		inline constexpr int uiforetw_capture_width_floor = 750;
 	#if defined(__APPLE__)
-		inline constexpr int uiforetw_capture_open_height_floor   = 845;
-		inline constexpr int uiforetw_capture_folded_height_floor = 879;
+		inline constexpr int uiforetw_capture_open_height_floor   = 838;
+		inline constexpr int uiforetw_capture_folded_height_floor = 872;
 	#elif defined(_WIN32)
 		inline constexpr int uiforetw_capture_open_height_floor   = 850;
 		inline constexpr int uiforetw_capture_folded_height_floor = 884;
 	#else
-		inline constexpr int uiforetw_capture_open_height_floor   = 850;
-		inline constexpr int uiforetw_capture_folded_height_floor = 884;
+		inline constexpr int uiforetw_capture_open_height_floor   = 842;
+		inline constexpr int uiforetw_capture_folded_height_floor = 876;
 	#endif
 
 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
@@ -17385,6 +17764,7 @@ namespace bpr::app {
 					<< " strip=" << row(aWindow.primary_toolbar())
 					<< " review_bar=" << row(aWindow.review_bar())
 					<< " epoch_line=" << row(aWindow.epoch_selectors())
+					<< " tabs=" << row(aWindow.document_tabs())
 					<< " comparison=" << comparison.left() << ',' << comparison.top() << ' '
 					<< comparison.width() << 'x' << comparison.height()
 					<< " status_bar=" << row(aWindow.statusBar())
@@ -19562,7 +19942,7 @@ namespace bpr::app {
 		};
 		auto facts = capture_object(
 			"schema",
-			"bpr.uiforetw_intraline_capture.v6",
+			"bpr.uiforetw_intraline_capture.v7",
 			"appearance",
 			appearance_mode_name(aMode).toStdString(),
 			"qt_platform",
@@ -19709,6 +20089,8 @@ namespace bpr::app {
 			openComparison.height(),
 			"updates_line_open_height_ratio_permille",
 			openHeightRatio,
+			"document_tabs_rect_in_window",
+			rectangle_json(inWindow(*window->document_tabs())),
 			"left_horizontal_offset",
 			workbench->left_pane()->horizontalScrollBar()->value(),
 			"right_horizontal_offset",
