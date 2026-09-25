@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0945"
 title: "Resolve existing strict tidy diagnostics in shared Qt and Home headers"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: P2

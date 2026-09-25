@@ -52,7 +52,7 @@ criterion text.
 | [BPR-0825](../issues/60-done/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md) | Parked, standalone: shared Windows private-descriptor ownership decision. Native supervisor/ACE/junction fixes remain accepted only as recorded. |
 | [BPR-0940](../issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md) | Backlog, standalone: existing composed GitHub/window-layout failures and current benchmark visible-page mismatch. |
 | [BPR-0944](../issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md) | Backlog, standalone: Whole PR basis, readable partial pane and missing-earlier explanation. Not fixed. |
-| [BPR-0945](../issues/20-ready/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md) | Backlog, standalone: existing strict-tidy header diagnostics. No tidy pass inferred. |
+| [BPR-0945](../issues/30-in-progress/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md) | Backlog, standalone: existing strict-tidy header diagnostics. No tidy pass inferred. |
 
 BPR-0934 Overview folder collapse remains RFC0037 work. BPR-0966's later Dif
 workshop cue mismatch remains a separate follow-up from RFC0012. No historical
