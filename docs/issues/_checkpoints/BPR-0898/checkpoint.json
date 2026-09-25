@@ -20,11 +20,11 @@
     "No caller's refusal behaviour changes."
   ],
   "plan_binding": "milestone_plan discover returned absent; milestone_checkpoint bind refused with resolve/adopt the authored plan before binding. Card has rfcs=[]; coordinator authorized narrow board claim/finish without inventing an RFC.",
-  "command_state": "Quiescent: configure, build, all CTest rows, format, tidy and documentation commands exited. No task-owned background process, descendant agent, review server, live GitHub request or remote mutation.",
-  "next_action": "Coordinator cherry-picks the branch after RFC-0052, reconciles isolated app hunk, reviews/reseals the two affected composition digests, runs both composition contracts plus focused final checks, dispositions baseline tidy findings, then finishes BPR-0898 via issue_board finish.",
+  "command_state": "Combined-main dev build and six focused CTest rows exited successfully; isolated verification remains recorded below. No task-owned live GitHub mutation or remote command.",
+  "next_action": "Finish BPR-0898 with the reviewed composition reseal and acceptance records; documentation gate and board validation precede push.",
   "candidate_revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
   "app_retry_commit": "8a250c39",
-  "status": "focused-verification-complete-integration-pending",
+  "status": "combined-integration-verified",
   "verification": {
     "configure": {
       "command": "cmake --preset dev -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache -DBPR_DEPENDENCY_OFFLINE=ON",
@@ -129,9 +129,9 @@
     },
     {
       "criterion": "AC3",
-      "outcome": "pending",
-      "revision": "9a2a8dd3ea878f046bbd91a118406bf58ed764f2",
-      "evidence": "Focused session/host/coordinator/restart/native suites pass and refuse without writes or recovery admission. The app retry predicate was self-reviewed and analyzed, but final combined composition execution and its pins remain with the coordinator; whole-card refusal/retry integration is pending."
+      "outcome": "pass",
+      "revision": "a39cfc91 plus combined composition reseal",
+      "evidence": "Combined-main dev build and six serial focused CTest rows pass, including application_composition_contract and application_review_round_trip_composition_contract (223.30 s). App-only hunk preserves draft/idempotency identity for both new refusal diagnostics; no automatic retry or mutation is added. Full app and production manifest digests are resealed; mutation branch digest unchanged."
     }
   ],
   "self_review": "The enum additions append without changing existing values. Required node fields remain required through a typed nullable variant. Identity mismatch and request validation keep their old refusal. Coordinator and host forward failures; Qt changes only fixed text. Native malformed failures retain transmission classification. The app retry predicate preserves the original draft/idempotency identity. No endpoint, credential, authority, persistence or automatic retry change.",
@@ -141,6 +141,16 @@
     "Milestone discovery absent/bind refusal is preserved under plan_binding; no RFC was invented.",
     "Raw tidy failed only on the recorded baseline lines; runtime tests had no failures or skips."
   ],
-  "review_handoff": "No human or independent acceptance is required by this card. No attended session or server created. Combined-main integration remains the coordinator's responsibility.",
-  "ownership": "Only the assigned branch/worktree was edited. The coordinator owns primary checkout and composition pins. Ignored local build evidence and the installed-skill link remain for inspection."
+  "review_handoff": "No human acceptance is required by this card. Combined-main integration is verified; RFC-0052 attended review is a separate pending session.",
+  "ownership": "Only the assigned branch/worktree was edited. The coordinator owns primary checkout and composition pins. Ignored local build evidence and the installed-skill link remain for inspection.",
+  "integration_verification": {
+    "source_revision": "a39cfc91",
+    "reviewed_app_commit": "12830eff",
+    "build": "cmake --build --preset dev --parallel 4: pass",
+    "ctest": "ctest --test-dir build/dev -j1 -R ^(application_composition_contract|application_review_round_trip_composition_contract|application_review_mutation_application_host|application_review_mutation|qt_review_draft_editor|github_mutation_contract)$ --output-on-failure: 6/6 pass, 223.30 s",
+    "pin_full_application": "f8d04c4eff35dc98e377ac7038d18f73e3453e394f671c4bef4d06b0439c68b6",
+    "pin_production_manifest": "af474811f3ed788dbb34a5182d1280c66688d3e71c33c1aa4ea63c7b4650492b",
+    "pin_mutation_branch": "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a (unchanged)",
+    "tidy_disposition": "Raw isolated tidy exited 1 on 13 baseline-only diagnostics present at fc4b39e8; no changed-line diagnostic and no rule disabled."
+  }
 }

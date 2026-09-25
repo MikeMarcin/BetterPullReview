@@ -42,6 +42,12 @@ endfunction()
 # document-tab composition, exact restoration and gesture precedence, shutdown,
 # and test-build UIforETW tab-strip geometry. No intervening pinned-scope commit;
 # mutation branch unchanged. Full source review recorded on BPR-1132.
+# BPR-0898 reseal: 0994aa0e..12830eff changes only the application failure
+# predicate for a kept review draft. target_unavailable and malformed_response
+# now retain the draft under the same exact selected comparison as unavailable;
+# the operation still fails and no retry or mutation is started. The production
+# mutation branch is unchanged. Review and focused refusal evidence are on
+# BPR-0898; no other commit in this range changed the pinned application scope.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -290,7 +296,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c709fbd57b1780de084e18ed8d5fec7ca6d6ce5e7fc03869038e501c91060a6c"
+		"f8d04c4eff35dc98e377ac7038d18f73e3453e394f671c4bef4d06b0439c68b6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -433,7 +439,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f8518f6d133dd67b6da7ed3d0355f4b1ca138a19f02dcf17d5f8096dc51ecfac"
+        "af474811f3ed788dbb34a5182d1280c66688d3e71c33c1aa4ea63c7b4650492b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

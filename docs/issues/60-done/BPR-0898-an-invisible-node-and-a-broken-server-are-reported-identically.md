@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0898"
 title: "A node the account cannot see and a genuinely broken server are reported identically"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-006 worker on BPR-0879","found_at":"5c8ee790","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a39cfc91","evidence":{"kind":"observation","detail":"Explicit null thread node reports target_unavailable and malformed or unparseable response reports malformed_response through session, coordinator and Qt draft editor; both refuse without a mutation. Isolated 10-row suite and combined six-row suite passed."}},{"criterion":"AC2","outcome":"pass","revision":"a39cfc91","evidence":{"kind":"command","detail":"github_mutation_contract and live_review_mutation_provider fixture rows cover null, missing, mistyped and malformed nodes for thread preflight and reply reconciliation; isolated focused suite 10/10 passed and combined github_mutation_contract passed."}},{"criterion":"AC3","outcome":"pass","revision":"a39cfc91","evidence":{"kind":"command","detail":"Combined-main dev build passed. Serial CTest 6/6 passed in 223.30 s, including application_composition_contract and application_review_round_trip_composition_contract. Reviewed app hunk keeps the same draft and idempotency identity under both new failures, without automatic retry or mutation; two source pins resealed and mutation-branch pin unchanged. Raw isolated clang-tidy findings are 13 unchanged baseline diagnostics only."}}]
 ---
 
 # BPR-0898: A node the account cannot see and a genuinely broken server are reported identically
@@ -78,7 +79,7 @@ messages. The app retains the existing safe retry identity for both new values.
 |---|---|---|
 | Different product diagnostics; both refuse | Contract and mutation-session rows, coordinator diagnostic names, actual Qt editor label assertions | Pass |
 | A contract row for each | Null node, invalid JSON, absent/mistyped/incomplete node; preflight and reply baseline | Pass |
-| Refusal behavior retained | Focused refusal/recovery suites pass; combined app retry/composition checks remain with the coordinator | Pending integration |
+| Refusal behavior retained | Focused refusal/recovery suites and combined app retry/composition checks pass | Pass |
 
 The six focused test executables build successfully on macOS arm64 with
 AppleClang 21.0.0 and Qt 6.11.2. The ten serial CTest rows listed in the
@@ -102,19 +103,27 @@ recorded in [Review Round Trip](../../architecture/review-round-trip.md).
 Core decisions, endpoints, credentials, persistence and automatic retries have
 no semantic change.
 
-## Integration handoff
+## Combined integration — 2026-09-25
 
-The card remains **In Progress** by coordinator direction. Its final primary
-candidate must include RFC-0052's separate composition changes. The coordinator
-owns the source-digest reseals in
-`tests/end_to_end/application_review_round_trip_composition_contract.cmake`,
-`application_composition_contract`, and
-`application_review_round_trip_composition_contract`; these have not been
-claimed passing on this branch. Disposition the baseline tidy findings before
-final card acceptance. The app-only commit names the exact retry predicate to
-reconcile in `github_application.cpp`.
+The isolated work was cherry-picked onto main as `5012f795` through `a39cfc91`,
+after RFC-BPR-0052's m2 product and finish. The app-only hunk at `12830eff`
+keeps a draft under the same selected comparison for `target_unavailable` and
+`malformed_response`, just as for `unavailable`; it neither retries the failed
+operation nor issues a mutation. Review of that exact hunk and the intervening
+pinned app history found no other unreviewed pinned-scope change. The full app
+and production manifest digests were resealed; the production mutation-branch
+digest is unchanged.
 
-All task-owned commands are finished. No live GitHub mutation, attended server,
-push, or primary-checkout edit occurred. The durable checkpoint records source
-and base identities, changed paths, full commands, evidence, remaining gates
-and the coordinator's next action.
+The combined macOS dev build passed. Serial CTest on combined main passed 6/6:
+`application_review_mutation_application_host`, `application_review_mutation`,
+`qt_review_draft_editor`, `github_mutation_contract`,
+`application_composition_contract` and
+`application_review_round_trip_composition_contract` (223.30 seconds). The
+isolated ten-row suite remains valid for unchanged adapter and host paths.
+The 13 clang-tidy diagnostics were checked against the base and changed lines;
+all are existing findings outside this card's edits, as itemized in the
+checkpoint. The raw tidy command is recorded as failed, while changed-line
+tidy has no finding. No rule was disabled or unrelated source changed.
+
+No live GitHub mutation was performed. The durable checkpoint records the
+isolated commands and the combined acceptance evidence.
