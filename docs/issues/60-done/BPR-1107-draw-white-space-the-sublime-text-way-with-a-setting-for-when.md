@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1107"
 title: "Draw white space the Sublime Text way, dots for spaces and lines for tabs, with a setting for when"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"origin":"owner rejection of attended candidate BPR-0986-rendered-panes-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 6b7243c3-f194-4396-a3b9-0f8309dabfcf, 2026-09-24","origin_rfc":"RFC-BPR-0034","related_rfcs":["RFC-BPR-0006","RFC-BPR-0018"],"related_cards":["BPR-0986","BPR-0790","BPR-0791"],"owner_reference":"docs/verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","owner_decisions":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","drawing":"5a19ba24-8687-4719-bdca-294d1b1a02c7 accept (tab is a line, not line + dot)","choices":"0eb6d682-db01-4e68-be37-a16bd03745ba accept, default renamed Selection"}}
-acceptance: [{"criterion":"AC1 A design page shows the drawing and the setting on the four themes, with the owner's reference beside it, rendered and inspected headless","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"artifact","detail":"docs/design/BPR-1107-white-space-v1.html: the owner's reference beside the panes, the panes in all four themes, the Type card in all four themes, each choice in Light and Dark, the proposed default and what is left out. Every image is a real capture from gated courses (BPR_WHITE_SPACE_CAPTURE_DIR in qt_diff_workbench_scale_200 and qt_appearance_settings_panel). Rendered headless with Chrome --headless=new --screenshot at 1360 px and inspected.","path":"docs/design/BPR-1107-white-space-v1.html"}},{"criterion":"AC2 The review panes and the preview draw spaces as dots and tabs as lines to their stop, through one shared painter, for each setting value offered; qt_diff_workbench_scale_100/125/200, qt_code_sample_painter, qt_type_preview and qt_theme_preview_strip pin it, and each fails with the drawing switched off","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"command","detail":"paint_white_space is the one renderer (panes and preview through paint_white_space_of_block, tiles through paint_code_sample); the core decides which characters (core::white_space_drawn). The six rows pass and each fails with the drawing switched off: qt_code_sample_painter 'one mark per white space character', qt_theme_preview_strip 'all draws the snippet's spaces on the tiles', qt_type_preview 'under the selection, the selected row's two tabs and three spaces', qt_diff_workbench_scale_100/125/200 'every choice but none draws something on these lines'."}},{"criterion":"AC3 The setting is a live control on the Appearance page and persists; qt_appearance_settings_panel, qt_appearance_profile, sqlite_appearance_settings_storage and the appearance end-to-end contracts pass","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"command","detail":"White space row beneath Tab width dispatches the typography intent (test_white_space_is_a_row_beside_tab_width); appearance store version 8 round-trips every choice, migrates version 7 to the default and refuses a value past the CHECK (test_white_space_round_trips_migrates_and_refuses). qt_appearance_settings_panel, qt_appearance_profile, sqlite_appearance_settings_storage, application_appearance_host and the four appearance end-to-end contracts pass in the 34-row selection."}},{"criterion":"AC4 The owner accepts the rendered drawing and the setting in an attended session: one question for the drawing and one for the setting's choices and default","outcome":"pending","revision":"eb9a94a9","evidence":{"kind":"observation","detail":"Prepared, not asked: two questions on the card's owner-ask section, bound to eb9a94a9 and the design page.","path":"docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md#owner-asks--parked-on-human-review-ac4-two-questions"}}]
+metadata: {"origin":"owner rejection of attended candidate BPR-0986-rendered-panes-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 6b7243c3-f194-4396-a3b9-0f8309dabfcf, 2026-09-24","origin_rfc":"RFC-BPR-0034","related_rfcs":["RFC-BPR-0006","RFC-BPR-0018"],"related_cards":["BPR-0986","BPR-0790","BPR-0791"],"owner_reference":"docs/verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","owner_decisions":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","drawing":"5a19ba24-8687-4719-bdca-294d1b1a02c7 accept (tab is a line, not line + dot)","choices":"0eb6d682-db01-4e68-be37-a16bd03745ba accept, default renamed Selection"},"design_page":"docs/design/BPR-1107-white-space-v2.html"}
+acceptance: [{"criterion":"AC1 A design page shows the drawing and the setting on the four themes, with the owner's reference beside it, rendered and inspected headless","outcome":"pass","revision":"c664ead1","evidence":{"kind":"artifact","detail":"docs/design/BPR-1107-white-space-v2.html, the page as accepted with the owner's two corrections: his own text enlarged in Light and Dark, the panes in all four themes, the Type card in all four themes showing Selection, each choice in Light and Dark, the default and what is left out. Every image is a real capture from the gated courses (BPR_WHITE_SPACE_CAPTURE_DIR in qt_diff_workbench_scale_200 and qt_appearance_settings_panel) under docs/verification/BPR-1107-white-space-drawing/v2/. Rendered headless with Chrome --headless=new --screenshot at 1360 px and inspected. v1 (eb9a94a9) is kept as reviewed, with a pointer.","path":"docs/design/BPR-1107-white-space-v2.html"}},{"criterion":"AC2 The review panes and the preview draw spaces as dots and tabs as lines to their stop, through one shared painter, for each setting value offered; qt_diff_workbench_scale_100/125/200, qt_code_sample_painter, qt_type_preview and qt_theme_preview_strip pin it, and each fails with the drawing switched off","outcome":"pass","revision":"c664ead1","evidence":{"kind":"command","detail":"At eb9a94a9: paint_white_space is the one renderer (panes and preview through paint_white_space_of_block, tiles through paint_code_sample); the core decides which characters (core::white_space_drawn); the six rows pass and each fails with the drawing switched off. At c664ead1 the painter is unchanged and qt_code_sample_painter adds test_the_owners_example_draws_a_tab_as_a_line_alone on the owner's text byte for byte: 29 marks, each tab lit across its cell and at most two rows tall, each space a centred dot at least three rows tall, nothing on a letter. A painter that adds a dot near a tab's end fails it ('a tab is a line alone: no dot anywhere on it'). The six rows pass on macOS at c664ead1.","path":"docs/issues/60-done/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md#the-two-corrections-built-mac-2026-09-25-c664ead1"}},{"criterion":"AC3 The setting is a live control on the Appearance page and persists; qt_appearance_settings_panel, qt_appearance_profile, sqlite_appearance_settings_storage and the appearance end-to-end contracts pass","outcome":"pass","revision":"c664ead1","evidence":{"kind":"command","detail":"White space row beneath Tab width dispatches the typography intent; the default choice is labelled Selection (qt_appearance_settings_panel pins the six labels) and the preview caption says 'white space drawn in the selection' (qt_type_preview). Appearance store version 8 round-trips every choice, migrates version 7 to the default and refuses a value past the CHECK; the stored value of the renamed choice is unchanged (ordinal 1, stable name selection). 22 of 22 appearance, settings-window and end-to-end rows pass at c664ead1.","path":"docs/issues/60-done/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md#the-two-corrections-built-mac-2026-09-25-c664ead1"}},{"criterion":"AC4 The owner accepts the rendered drawing and the setting in an attended session: one question for the drawing and one for the setting's choices and default","outcome":"pass","revision":"c664ead1","evidence":{"kind":"observation","detail":"Owner verdicts, attended session 7083474240820608cdf9ff551ddd298f, packet docs/verification/reviews/owner-decisions-20260924-scoped-v001, both actor human with fingerprints equal to the prepared candidates' in session-identity.json. The drawing: candidate BPR-1107-white-space-drawing-v001 (eb9a94a9), fingerprint 141b09411933203f185dfb4abe4953ee86cc4a39e4e6cf5457ef5642cd054357, decision 5a19ba24-8687-4719-bdca-294d1b1a02c7, sequence 30, 2026-09-25T00:42:22Z: accept, note ending 'Just be sure tab renders as line not a line + dot, dot is space'. The choices: candidate BPR-1107-white-space-choices-v001 (eb9a94a9), fingerprint d787c4e10d188e9943f9c92792f9faf7317dfcfec0ac872bd3cdfeab08ca69a9, decision 0eb6d682-db01-4e68-be37-a16bd03745ba, sequence 29, 2026-09-25T00:16:27Z: 'Accept the six choices, default Under the selection', note 'Just call it selection.' Both corrections are made at c664ead1: the default is labelled Selection, and a tab is a line alone, checked on the owner's own text. The drawing is unchanged, so no further confirmation is asked.","path":"docs/issues/60-done/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md#owner-verdicts-2026-09-25-the-drawing-and-the-six-choices-accepted-with-two-corrections-attended-session-70834742"}}]
 ---
 
 # BPR-1107: Draw white space the Sublime Text way, dots for spaces and lines for tabs, with a setting for when
@@ -472,3 +472,85 @@ to make before Done:
 
 The card leaves human-review for **Ready** on macOS for those two
 corrections.
+
+## The two corrections, built (Mac, 2026-09-25, `c664ead1`)
+
+**The name.** The White space row's second item says **Selection**. The
+preview's caption says "white space drawn in the selection". The source
+comments and test messages that named the choice use the same word. The
+stored value is unchanged: ordinal 1, stable name `selection`, appearance
+store version 8. So nothing migrates, and a profile saved with the old label
+still reads as Selection. RFC-BPR-0034's follow-on note names it too.
+
+**A tab is a line alone.** The painter was already right, and it is
+unchanged: `paint_white_space` draws one mark per white space character, a
+line for a tab and a dot for a space. The dots after the tabs in v1's
+captures came from the capture fixture, which had copied the reference
+picture's stray spaces (`\t\t 2 tabs.` and `\t 1 tab.`).
+
+- **The fixture.** `test_white_space_design_captures` now uses the owner's
+  text from his note, byte for byte. Two trailing spaces are still added to
+  its first line, so Trailing has something to draw.
+- **The check.** New in `qt_code_sample_painter`:
+  `test_the_owners_example_draws_a_tab_as_a_line_alone`. It lays out the
+  owner's three lines in a `QPlainTextEdit` and paints them with All through
+  `paint_white_space_of_block`, the panes' own path. It then reads every
+  character's cell at the row's middle:
+  - a tab is lit all the way across its cell, and never more than two pixel
+    rows tall (a line, with no dot on it);
+  - a space is lit at its centre, at least three rows tall, and not at its
+    edges (a dot, not a line);
+  - a letter's cell has nothing drawn in it, so no dot follows a tab where
+    the owner's text has none.
+
+  It counts 29 marks: 18 spaces, then two tabs and a space, then two tabs and
+  six spaces. The offscreen host answers the fixed font with the proportional
+  system face (a 6 px space), so the check sets 12 px of letter spacing to
+  give every cell room.
+- **Negative controls.** A painter that also draws a dot near a tab's end
+  fails the new check at "a tab is a line alone: no dot anywhere on it". A
+  dot drawn just past a tab's stop fails the existing
+  `test_white_space_is_dots_and_lines_to_the_stop`. Restored byte for byte,
+  both pass.
+
+**Rendered.** [Design page v2](../../design/BPR-1107-white-space-v2.html),
+with its captures under
+[`BPR-1107-white-space-drawing/v2/`](../../verification/BPR-1107-white-space-drawing/v2),
+written by the same gated courses (`BPR_WHITE_SPACE_CAPTURE_DIR`). It opens
+with the owner's lines enlarged, in Light and Dark. Line 2 is two lines and
+then "2 tabs.", and line 3 is a line, "1 tab.", a short line to the stop, and
+"Another tab". The Type card shows Selection. The page was rendered headless
+with Chrome (`--headless=new --screenshot`) at 1360 px and inspected: every
+image loads. [v1](../../design/BPR-1107-white-space-v1.html) is kept as the
+owner reviewed it, with a pointer to v2.
+
+**Verification** (macOS 26.6.2 arm64, `build/dev`, Qt 6.11.2, at `c664ead1`):
+
+- 22 of 22 pass: `core_appearance_policy`, `qt_code_sample_painter`,
+  `qt_type_preview`, `qt_theme_preview_strip`,
+  `qt_diff_workbench_scale_100/125/200`, `qt_appearance_settings_panel`,
+  `qt_appearance_profile`, `sqlite_appearance_settings_storage`,
+  `qt_syntax_pane_composition`, `application_appearance_host`,
+  `application_appearance_profile_consumers`,
+  `application_native_appearance_probe_contract`, the three appearance
+  end-to-end contracts, `qt_settings_window` at 100/125/150/200 and
+  `qt_surface_capture_course_scale_100`.
+- `qt_appearance_settings_panel` pins the six labels, Selection second.
+  `qt_type_preview` pins the caption's "white space drawn in the selection",
+  and that it never says "under the selection".
+- clang-format 23.1.1 passes all eleven touched files. The project tidy
+  script reports nothing on the touched lines. Its two findings are the
+  pre-existing ones in `appearance_settings_database.cpp`, at 168 and 1229.
+
+**AC4 holds on the owner's verdicts, with both corrections made.** The
+drawing itself did not change, and his condition, that a tab is a line
+alone, is now checked on his own text. The rename is exactly what he asked
+for. No further confirmation is asked. Every criterion is met, and the card is
+**Done**.
+
+**Owed elsewhere, ordinary confirmation.** Linux passed AC2 and AC3's rows at
+`45191097`, before this change. A rerun of `qt_code_sample_painter`,
+`qt_type_preview` and `qt_appearance_settings_panel` there would cover the
+new check and the label. On Windows, `qt_diff_workbench_scale_100/125/200`
+fail on [[BPR-1032]]'s measurement, not on white space (see the Windows
+record above). That follow-up is reserved as BPR-1123 for bpr-main-win.
