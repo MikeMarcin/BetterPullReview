@@ -105,3 +105,62 @@ m2's cards ([[BPR-1130]], [[BPR-1132]], [[BPR-1133]]) moved to Ready in
   floors re-taken open and folded), [[BPR-1132]] (the tab strip, composing
   [[BPR-1131]]'s host over the epoch and workbench hosts), and [[BPR-1133]]
   (Comment's arrow and target, and Reply on every thread card).
+
+### m2-fold-tab-strip-comment-reply: two of three cards done on macOS; stopped at the owner's wind-down, 2026-09-25
+
+| Card | State | Product commit | Finish | Record |
+| --- | --- | --- | --- | --- |
+| [[BPR-1130]] the Updates line folds and loses its permanent caption | Done on macOS | `fb4b8364` | `7444aeb8` | On the card |
+| [[BPR-1133]] Comment names its target, and every thread card replies | Done on macOS | `7c99a1eb` | `6db29f76` | On the card |
+| [[BPR-1132]] the document tab strip in the comparison's header | In Progress (claimed `9d1b17a4`) | none on main | — | Checkpoint on the card |
+
+- **Done.** [[BPR-1130]]: the Updates disclosure folds the timeline from the
+  review bar and by keyboard (the View menu's Updates Line, Space on the
+  disclosure; no new key); the fold is core state kept in each window's own
+  layout record (settings store version ten), a new window starts folded, and
+  nothing folds on its own; the line is 34 pixels with no caption, its statement
+  is its tooltip and description, and incomplete or ambiguous history is a mark
+  on the line and on the disclosure. [[BPR-0795]]'s readiness row is unchanged
+  pending the owner's answer. [[BPR-1133]]: Comment answers the selected thread
+  or comments on the current line and names the target in its tooltip, the Pull
+  Request menu and its arrow's menu (the plain comment alone until
+  RFC-BPR-0048); every card beside the code offers Reply through the Discuss
+  path; nothing publishes without Publish. Both have negative controls, renders
+  at 100, 125 and 200 percent, and their records on the cards.
+- **Work in progress.** [[BPR-1132]] is a patch, not on main:
+  [wip/README.md](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/wip/README.md)
+  (`BPR-1132-document-tab-strip.patch` against `c0fdd70a`, SHA-256
+  `830375e7239d9328585f0ba6dbbb3758200fa26288f6cb6c76fc37ba3f53eb0c`). It
+  builds and passes the courses the README lists; the two
+  `github_application.cpp` pins fail until resealed, and its Qt tests, composed
+  course, format, tidy, specification and record are still to write.
+- **Measured floors (macOS 26.6.2 arm64, 1280x1000, offscreen, all four
+  appearance profiles).** On main at `fb4b8364`: 879 folded and 845 open (the
+  menu bar 20, title row 30, review bar 28, diff status 15, 6 of spacing, status
+  bar 22; open adds the timeline at 78+34), asserted by the capture and its
+  course script. On the [[BPR-1132]] patch: 872 folded and 838 open (the
+  28-pixel tab strip in place of the status row and its spacing). Linux is
+  derived from [[BPR-1036]]'s stack (884 and 850 on main, 876 and 842 on the
+  patch); Windows keeps the owner's 850 for the open line (884 folded) and is
+  unmeasured. If Windows measures below 850, that is the owner's decision, and
+  no floor is lowered here.
+- **Owner asks (no session prepared; one question per criterion).** On
+  [[BPR-1129]] (four; its fourth, the comparison 6 pixels shorter, is answered
+  by the measurement: 879 folded and 845 open against 829), [[BPR-1134]] (two),
+  [[BPR-1130]] (four: where the readiness words go, which the card must ask
+  before [[BPR-0795]]'s row changes; the fold; the incomplete-history mark; the
+  line's "pair ready" words now in the comparison menu's tooltip),
+  [[BPR-1133]] (three: replying on a thread's line; the arrow's menu until
+  RFC-BPR-0048; Reply on the cards beside the code), and two prepared on
+  [[BPR-1132]]'s checkpoint for when it is done ("+" duplicating the tab; the
+  older-pair notice above unplaced later threads).
+- **Owed runs (the stations are idle; nothing was run on them).** Windows
+  (bpr-main-win) and Linux (bpr-main-linux), each with the exact command on its
+  card: [[BPR-1129]], [[BPR-1131]], [[BPR-1134]] (m1), [[BPR-1130]] (with both
+  heights read from `capture-facts.json`: `comparison_rect_in_window.height` and
+  `updates_line_open_comparison_height`), and [[BPR-1133]].
+- **Not this milestone's failure.** `application_agent_finding_dif_context_contract`
+  as [[BPR-0966]] records.
+- **Next step.** Apply the [[BPR-1132]] patch at the current main, finish it
+  (its checkpoint lists what remains), then run m2's integration pass and
+  record it here; m3 follows once m2's exits hold.

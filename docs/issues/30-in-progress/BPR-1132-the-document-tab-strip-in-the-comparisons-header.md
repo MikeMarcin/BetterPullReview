@@ -53,3 +53,39 @@ focused courses named here and the documentation gate, and record exact
 commands, results and the producing revision. The owner's attended look at
 the built chrome on macOS and Windows is evidence this card cannot supply by
 itself.
+
+## Checkpoint: in progress, stopped at the owner's wind-down (2026-09-25)
+
+Claimed at `9d1b17a4`. No product code for this card is on main. The work in
+progress is a patch against `c0fdd70a`, with what it holds, its state and how
+to resume it:
+[wip/README.md](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/wip/README.md)
+(`BPR-1132-document-tab-strip.patch`, SHA-256
+`830375e7239d9328585f0ba6dbbb3758200fa26288f6cb6c76fc37ba3f53eb0c`).
+
+- **Built on the patch:** the tab strip in the comparison's header (in place of
+  the diff status row), the tab menu and "+", the width floor's "+N", Cmd-click
+  and Open in New Tab in the Files tree, the tab keys (Ctrl+Tab, Ctrl+Shift+Tab,
+  Cmd-W; nothing had Cmd-W before, so no window command moves), the older-pair
+  notice with Show them, Comment disabled off the current head, and the
+  composition's per-window tab host (presenting loads through the epoch and
+  workbench hosts, Overview and Discuss on the window's comparison,
+  persistence, Resume, reset, shutdown).
+- **Measured on the patch (macOS, 1280x1000, offscreen):** 872 folded and 838
+  open, with the 28-pixel strip where the 15-pixel status and 6 of spacing were.
+- **Passing on the patch:** the build, the window and focus-order courses at
+  100 percent, the UIforETW capture at 872 and 838, and nine composed and
+  end-to-end courses (listed in the README).
+- **Not yet:** the Qt tests for the strip, keys, gestures, notice and Comment;
+  the composed course (open in a new tab, two pairs of one file, close,
+  restart, return); the reseal of the two `github_application.cpp` pins; format,
+  tidy, the specification and this card's record.
+- **Owner asks prepared for when it is done** (one question per criterion):
+  1. The "+" at the strip's end opens the active tab's exact view in a new tab.
+     Is that what the design's "+" should do?
+  2. On a tab over an older pair the Comments tab shows "No threads on Feb 4 →
+     Feb 9. Two threads are on later updates of this file." with Show them, above
+     the thread list, where the later threads stay listed but unplaced. Should
+     they be hidden until Show them?
+- **Next step:** apply the patch at the current main, finish the list above,
+  then the m2 integration pass.

@@ -1,0 +1,1960 @@
+diff --git a/src/adapters/qt/CMakeLists.txt b/src/adapters/qt/CMakeLists.txt
+index 1b314277..8b9f34ae 100644
+--- a/src/adapters/qt/CMakeLists.txt
++++ b/src/adapters/qt/CMakeLists.txt
+@@ -25,6 +25,7 @@ add_library(
+         src/settings_window.cpp
+         src/profile_management_window.cpp
+         src/workbench_strip.cpp
++        src/document_tab_strip.cpp
+         src/native_window_chrome.cpp
+         src/epoch_line.cpp
+         src/workbench_landing.cpp
+diff --git a/src/adapters/qt/include/bpr/qt/diff_workbench.hpp b/src/adapters/qt/include/bpr/qt/diff_workbench.hpp
+index 35173564..02990069 100644
+--- a/src/adapters/qt/include/bpr/qt/diff_workbench.hpp
++++ b/src/adapters/qt/include/bpr/qt/diff_workbench.hpp
+@@ -176,6 +176,15 @@ namespace bpr::qt {
+ 		void set_reading_gesture_sink(std::function<void()> aSink);
+ 		/// \brief Observes Qt-local selections without replacing the application sink.
+ 		void set_selection_observer(selection_observer aObserver);
++		/// \brief [[BPR-1132]]. Hides the status row, for a composition whose
++		/// comparison header says it instead; the status is still kept.
++		void set_status_shown(bool aShown);
++		/// \brief [[BPR-1132]]. Reports each status: its words, and whether they
++		/// say more than that the comparison is ready (loading, a refusal, an
++		/// approximate alignment).
++		void set_status_observer(std::function<void(const QString&, bool)> aObserver);
++		/// \brief Whether the status says more than that the diff is ready.
++		[[nodiscard]] auto status_notable() const noexcept -> bool;
+ 		/// \brief Selects and reveals one exact zero-based conversation anchor.
+ 		/// \brief [[BPR-0657]]. Selects a conversation's line as a click on it
+ 		/// would, so a draft started from its card anchors there; the anchor the
+@@ -373,7 +382,7 @@ namespace bpr::qt {
+ 		void update_detail();
+ 		void update_selection_paint();
+ 		void announce_accessible_status(QString aText);
+-		void update_status(QString aText);
++		void update_status(QString aText, bool aRoutine = false);
+ 		void emit_selection(bool aInteractive = false) noexcept;
+ 		void emit_reading_gesture() noexcept;
+ 		void emit_selection_observer(bool aInteractive) noexcept;
+@@ -415,6 +424,9 @@ namespace bpr::qt {
+ 		/// consumed so the next presentation flip measures the same document.
+ 		std::optional<core::diff_side>       PresentationReadingSide;
+ 		selection_observer                   SelectionObserver;
++		/// [[BPR-1132]]. The status's observer, and whether it is routine.
++		std::function<void(const QString&, bool)> StatusObserver;
++		bool                                      StatusRoutine = false;
+ 		std::function<void()>                FrameObserver;
+ 		std::optional<core::source_line_ref> ConversationAnchor;
+ 		measured_alignment_axis_cache        AxisCache;
+diff --git a/src/adapters/qt/include/bpr/qt/document_tab_strip.hpp b/src/adapters/qt/include/bpr/qt/document_tab_strip.hpp
+new file mode 100644
+index 00000000..fe5c88d2
+--- /dev/null
++++ b/src/adapters/qt/include/bpr/qt/document_tab_strip.hpp
+@@ -0,0 +1,120 @@
++#ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DOCUMENT_TAB_STRIP_HPP
++#define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DOCUMENT_TAB_STRIP_HPP
++
++#include "bpr/core/document_tabs.hpp"
++
++#include <QString>
++#include <QWidget>
++
++#include <cstddef>
++#include <functional>
++#include <optional>
++#include <vector>
++
++class QLabel;
++class QMenu;
++class QResizeEvent;
++class QTabBar;
++class QToolButton;
++
++namespace bpr::qt {
++	/// \brief [[BPR-1132]]. One document tab as the strip shows it.
++	///
++	/// \details The window supplies the words: the strip decides nothing and
++	/// knows no path, pair or history of its own.
++	struct document_tab_presentation
++	{
++		core::document_tab_id Id;
++		/// The file's name, with as much of its path as tells it apart from
++		/// the other tabs' files.
++		QString Name;
++		/// The whole path, for the tooltip and accessibility.
++		QString Path;
++		/// "Feb 4 → 9" on a tab with its own pair; empty on a tab that has the
++		/// window's comparison.
++		QString OwnPair;
++		/// The tab's pair in words, "Feb 4 → Feb 9", for the tooltip.
++		QString Pair;
++		core::document_tab_view_state State         = core::document_tab_view_state::idle;
++		bool                          Active        = false;
++		bool                          OwnComparison = false;
++
++		auto operator==(const document_tab_presentation&) const -> bool = default;
++	};
++
++	/// \brief A tab gesture, as the core names it.
++	using document_tab_dispatch = std::function<void(const core::document_tab_intent&)>;
++
++	/// \brief [[BPR-1132]]. RFC-BPR-0052's comparison header: the document
++	/// tabs.
++	///
++	/// \details One tab per exact view (a file, a comparison and a reading
++	/// position), in the core's order. Names elide from the left, where file
++	/// names differ; a tab with its own pair carries it in a pill. When the
++	/// tabs do not fit, as at a platform's width floor, the strip shows the
++	/// active tab and a count of the rest, which opens a menu of them. Each
++	/// tab's menu offers Duplicate Tab, Close Tab, Close Other Tabs, returning
++	/// the tab to the window's comparison and making its pair the one new tabs
++	/// take. The comparison's status (loading, a refusal, an approximate
++	/// alignment) sits at the strip's right while it has something to say.
++	/// Every gesture leaves as a core intent; what is shown is what the core
++	/// published.
++	class document_tab_strip final : public QWidget
++	{
++	public:
++		/// \brief The design's row: 28 pixels.
++		static constexpr int height_pixels = 28;
++
++		explicit document_tab_strip(QWidget* aParent = nullptr);
++
++		void set_dispatch(document_tab_dispatch aDispatch);
++		/// \brief Shows the tabs the core published, in order.
++		void present(std::vector<document_tab_presentation> aTabs);
++		/// \brief The comparison's status; shown only while `aNotable`.
++		void set_status(const QString& aText, bool aNotable);
++
++		[[nodiscard]] auto tabs() const noexcept -> const std::vector<document_tab_presentation>&;
++		[[nodiscard]] auto tab_bar() const noexcept -> QTabBar*;
++		/// \brief "+2": the tabs the width floor leaves out, as a menu.
++		[[nodiscard]] auto overflow_button() const noexcept -> QToolButton*;
++		/// \brief "+": a new tab of the active tab's exact view.
++		[[nodiscard]] auto new_tab_button() const noexcept -> QToolButton*;
++		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
++		/// \brief Whether only the active tab and a count are shown.
++		[[nodiscard]] auto collapsed() const noexcept -> bool;
++		/// \brief The tab the bar shows at `aIndex`.
++		[[nodiscard]] auto tab_at(int aIndex) const -> std::optional<core::document_tab_id>;
++		/// \brief The bar index of a shown tab.
++		[[nodiscard]] auto index_of(core::document_tab_id aTab) const -> std::optional<int>;
++		/// \brief A tab's menu, built as a right-click builds it; the caller
++		/// owns it.
++		[[nodiscard]] auto make_tab_menu(core::document_tab_id aTab, QWidget* aParent) -> QMenu*;
++
++		[[nodiscard]] auto sizeHint() const -> QSize override;
++		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
++
++	protected:
++		void resizeEvent(QResizeEvent* aEvent) override;
++
++	private:
++		void rebuild();
++		[[nodiscard]] auto fits_whole() const -> bool;
++		[[nodiscard]] auto active() const -> const document_tab_presentation*;
++		void               send(const core::document_tab_intent& aIntent) const;
++		void               open_tab_menu(const QPoint& aAt);
++		void               populate_overflow();
++
++		document_tab_dispatch                  Dispatch;
++		std::vector<document_tab_presentation> Tabs;
++		/// The tabs the bar shows, in its order.
++		std::vector<core::document_tab_id> Shown;
++		QTabBar*                           Bar        = nullptr;
++		QToolButton*                       Overflow   = nullptr;
++		QToolButton*                       NewTab     = nullptr;
++		QLabel*                            Status     = nullptr;
++		bool                               Collapsed  = false;
++		bool                               Rebuilding = false;
++	};
++} // namespace bpr::qt
++
++#endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DOCUMENT_TAB_STRIP_HPP
+diff --git a/src/adapters/qt/include/bpr/qt/epoch_line.hpp b/src/adapters/qt/include/bpr/qt/epoch_line.hpp
+index 49062f43..76166b85 100644
+--- a/src/adapters/qt/include/bpr/qt/epoch_line.hpp
++++ b/src/adapters/qt/include/bpr/qt/epoch_line.hpp
+@@ -124,6 +124,11 @@ namespace bpr::qt {
+ 		///
+ 		/// \details Empty unless both handles sit on updates with a known date.
+ 		[[nodiscard]] auto selection_dates() const -> std::optional<std::pair<QString, QString>>;
++		/// \brief [[BPR-1132]]. The dates of any pair's two updates, for a
++		/// document tab's label; empty unless both are on the line with a date.
++		[[nodiscard]] auto dates_of(
++			const core::comparison_anchor_identity& aLeft,
++			const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>;
+ 		[[nodiscard]] auto label_shown(std::size_t aUpdate) const -> bool;
+ 		[[nodiscard]] auto node_tooltip(std::size_t aUpdate) const -> QString;
+ 		[[nodiscard]] auto identity_of(const epoch_line_stop& aStop) const
+diff --git a/src/adapters/qt/include/bpr/qt/files_tree.hpp b/src/adapters/qt/include/bpr/qt/files_tree.hpp
+index fc592763..61f9db99 100644
+--- a/src/adapters/qt/include/bpr/qt/files_tree.hpp
++++ b/src/adapters/qt/include/bpr/qt/files_tree.hpp
+@@ -20,6 +20,10 @@
+ #include <span>
+ #include <vector>
+ 
++class QContextMenuEvent;
++class QMenu;
++class QMouseEvent;
++
+ namespace bpr::qt {
+ 	class appearance_profile;
+ 	/// \brief The files drawer's three orders ([[BPR-0658]]).
+@@ -153,6 +157,11 @@ namespace bpr::qt {
+ 		[[nodiscard]] auto tree_model() const noexcept -> files_tree_model*;
+ 		[[nodiscard]] auto delegate() const noexcept -> files_tree_delegate*;
+ 		void               set_select_dispatch(files_tree_select_dispatch aDispatch);
++		/// \brief [[BPR-1132]]. Cmd-click (Ctrl-click) on a file row, and its
++		/// menu's Open in New Tab, report the file here instead of choosing it.
++		void set_new_tab_dispatch(files_tree_select_dispatch aDispatch);
++		/// \brief The menu a right-click on a file row opens; the caller owns it.
++		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
+ 		void               apply(const std::vector<workbench_drawer_row>& aRows);
+ 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
+ 		void               adopt_appearance(const appearance_profile& aProfile);
+@@ -164,11 +173,14 @@ namespace bpr::qt {
+ 	protected:
+ 		void currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious) override;
+ 		void keyPressEvent(QKeyEvent* aEvent) override;
++		void mousePressEvent(QMouseEvent* aEvent) override;
++		void contextMenuEvent(QContextMenuEvent* aEvent) override;
+ 
+ 	private:
+ 		files_tree_model*                      Model    = nullptr;
+ 		files_tree_delegate*                   Delegate = nullptr;
+ 		files_tree_select_dispatch             Dispatch;
++		files_tree_select_dispatch             NewTabDispatch;
+ 		std::optional<core::workbench_file_id> SelectedFile;
+ 		bool                                   Applying = false;
+ 	};
+diff --git a/src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp b/src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp
+index 94352c4e..83401899 100644
+--- a/src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp
++++ b/src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp
+@@ -116,6 +116,10 @@ namespace bpr::qt {
+ 			-> const std::optional<core::file_identity>&;
+ 		[[nodiscard]] auto anchor_line() const noexcept
+ 			-> const std::optional<core::source_line_ref>&;
++		/// \brief [[BPR-1132]]. How many review threads of one file are
++		/// anchored on the pull request's current head, placed or not: what a
++		/// tab over an older pair says are on later updates.
++		[[nodiscard]] auto current_head_thread_count(const core::file_identity& aFile) const -> std::size_t;
+ 
+ 		/// \brief [[BPR-0985]]. Whether the current row is the one the panel
+ 		/// made current to show a detail, rather than one the reviewer chose.
+diff --git a/src/adapters/qt/include/bpr/qt/workbench_window.hpp b/src/adapters/qt/include/bpr/qt/workbench_window.hpp
+index 61178724..6a274f13 100644
+--- a/src/adapters/qt/include/bpr/qt/workbench_window.hpp
++++ b/src/adapters/qt/include/bpr/qt/workbench_window.hpp
+@@ -5,6 +5,7 @@
+ #include "bpr/application/setup_destination_projection.hpp"
+ 
+ #include "bpr/application/device_authorization_projection.hpp"
++#include "bpr/application/document_tabs_projection.hpp"
+ #include "bpr/application/epoch_projection.hpp"
+ #include "bpr/application/public_preview_projection.hpp"
+ #include "bpr/application/review_ledger_application_host.hpp"
+@@ -15,6 +16,7 @@
+ #include "bpr/qt/agent_launch_panel.hpp"
+ #include "bpr/qt/appearance_settings_panel.hpp"
+ #include "bpr/qt/defect_card_view.hpp"
++#include "bpr/qt/document_tab_strip.hpp"
+ #include "bpr/qt/files_tree.hpp"
+ #include "bpr/qt/github_conversation_panel.hpp"
+ #include "bpr/qt/github_pull_request_panel.hpp"
+@@ -549,6 +551,26 @@ namespace bpr::qt {
+ 		/// \brief [[BPR-1133]]. Comment's arrow menu: the target-named command,
+ 		/// where RFC-BPR-0048's labels will be offered.
+ 		[[nodiscard]] auto comment_menu() const noexcept -> QMenu*;
++		/// \brief [[BPR-1132]]. Shows the window's document tabs, as the host
++		/// published them, in the comparison's header.
++		void publish(const application::document_tabs_projection& aProjection);
++		/// \brief [[BPR-1132]]. Where every tab gesture goes: the strip, the
++		/// Files tree's Cmd-click and Open in New Tab, the tab keys and the
++		/// older-pair notice's Show them.
++		void set_document_tab_dispatch(document_tab_dispatch aDispatch);
++		/// \brief [[BPR-1132]]. The comparison's header: the document tabs.
++		[[nodiscard]] auto document_tabs() const noexcept -> document_tab_strip*;
++		/// \brief [[BPR-1132]]. Ctrl+Tab and Ctrl+Shift+Tab (the Control key on
++		/// macOS too), window-owned.
++		[[nodiscard]] auto next_tab_action() const noexcept -> QAction*;
++		[[nodiscard]] auto previous_tab_action() const noexcept -> QAction*;
++		/// \brief [[BPR-1132]]. Cmd-W (Ctrl+W): closes the active tab.
++		[[nodiscard]] auto close_tab_action() const noexcept -> QAction*;
++		/// \brief [[BPR-1132]]. The Comments tab's notice for a tab over an
++		/// older pair: how many threads are on later updates, and Show them.
++		[[nodiscard]] auto older_pair_notice() const noexcept -> QWidget*;
++		[[nodiscard]] auto older_pair_notice_text() const -> QString;
++		[[nodiscard]] auto show_later_threads_button() const noexcept -> QPushButton*;
+ #if defined(_WIN32)
+ 		/// \brief Which part of the Windows title row a window point falls on.
+ 		///
+@@ -1075,6 +1097,22 @@ namespace bpr::qt {
+ 		void comment_or_reply();
+ 		/// \brief The one Reply path, from a card or from Comment.
+ 		void reply_to_thread(const std::string& aIdentity);
++		/// \brief [[BPR-1132]]. Gives the strip the words for the published tabs.
++		void present_document_tabs();
++		/// \brief [[BPR-1132]]. The tab keys follow how many tabs there are.
++		void update_tab_actions();
++		/// \brief [[BPR-1132]]. Shows or hides the older-pair notice.
++		void update_older_pair_notice();
++		/// \brief [[BPR-1132]]. Show them: the file's threads where they sit.
++		void show_later_threads();
++		/// \brief [[BPR-1132]]. A pair in words: "Feb 4 → Feb 9", or short,
++		/// "Feb 4 → 9", for a tab's pill.
++		[[nodiscard]] auto pair_text(const core::comparison_pair& aPair, bool aShort) const -> QString;
++		/// \brief [[BPR-1132]]. A file's path, as the files drawer lists it.
++		[[nodiscard]] auto path_of(const core::file_identity& aFile) const -> QString;
++		/// \brief [[BPR-1132]]. Whether the comparison shown is off the pull
++		/// request's current head, where no new comment may start.
++		[[nodiscard]] auto comparing_off_current_head() const -> bool;
+ 		void apply_review_details_visibility();
+ 		void update_home_landing();
+ 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
+@@ -1299,6 +1337,18 @@ namespace bpr::qt {
+ 		QAction*            CommentAction       = nullptr;
+ 		/// [[BPR-1133]]. Comment's arrow menu.
+ 		QMenu* CommentMenu = nullptr;
++		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
++		/// the tabs the host last published, the tab keys and the older-pair
++		/// notice.
++		document_tab_strip*                                   DocumentTabs = nullptr;
++		document_tab_dispatch                                 DocumentTabDispatch;
++		std::optional<application::document_tabs_projection> TabsProjection;
++		QAction*                                              NextTabAction     = nullptr;
++		QAction*                                              PreviousTabAction = nullptr;
++		QAction*                                              CloseTabAction    = nullptr;
++		QWidget*                                              OlderPairNotice   = nullptr;
++		QLabel*                                               OlderPairText     = nullptr;
++		QPushButton*                                          ShowLaterThreads  = nullptr;
+ 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
+ 		bool ReviewBarCompact = false;
+ #if defined(_WIN32)
+diff --git a/src/adapters/qt/src/diff_workbench.cpp b/src/adapters/qt/src/diff_workbench.cpp
+index b97831b0..e6d2c8aa 100644
+--- a/src/adapters/qt/src/diff_workbench.cpp
++++ b/src/adapters/qt/src/diff_workbench.cpp
+@@ -1064,7 +1064,10 @@ namespace bpr::qt {
+ 				   : QStringLiteral("Diff ready — %1 semantic changes"))
+ 				  .arg(CurrentResult->Alignment.Groups.size())
+ 			: reason_text(CurrentResult->Alignment.Diagnostic.Code);
+-		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
++		// [[BPR-1132]]. A ready, exact alignment is routine; a header that
++		// shows the status only when it says more leaves it unsaid.
++		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }),
++					  CurrentResult->Alignment.Content == core::diff_content_state::text && !CurrentResult->AlignmentApproximate);
+ 		update_detail();
+ 		update_selection_paint();
+ 		schedule_geometry_rebuild(
+@@ -2759,10 +2762,32 @@ namespace bpr::qt {
+ 		}
+ 	}
+ 
+-	void diff_workbench::update_status(QString aText)
++	void diff_workbench::set_status_shown(const bool aShown)
++	{
++		Status->setVisible(aShown);
++	}
++
++	void diff_workbench::set_status_observer(std::function<void(const QString&, bool)> aObserver)
++	{
++		StatusObserver = std::move(aObserver);
++		if (StatusObserver) {
++			StatusObserver(Status->text(), !StatusRoutine);
++		}
++	}
++
++	auto diff_workbench::status_notable() const noexcept -> bool
++	{
++		return !StatusRoutine;
++	}
++
++	void diff_workbench::update_status(QString aText, const bool aRoutine)
+ 	{
+ 		Status->setText(std::move(aText));
+ 		Status->setAccessibleDescription(Status->text());
++		StatusRoutine = aRoutine;
++		if (StatusObserver) {
++			StatusObserver(Status->text(), !StatusRoutine);
++		}
+ 		announce_accessible_status(Status->text());
+ 	}
+ 
+diff --git a/src/adapters/qt/src/document_tab_strip.cpp b/src/adapters/qt/src/document_tab_strip.cpp
+new file mode 100644
+index 00000000..fab694eb
+--- /dev/null
++++ b/src/adapters/qt/src/document_tab_strip.cpp
+@@ -0,0 +1,439 @@
++#include "bpr/qt/document_tab_strip.hpp"
++
++#include <QAction>
++#include <QFontMetrics>
++#include <QHBoxLayout>
++#include <QLabel>
++#include <QMenu>
++#include <QPaintEvent>
++#include <QPainter>
++#include <QResizeEvent>
++#include <QSignalBlocker>
++#include <QStyle>
++#include <QTabBar>
++#include <QToolButton>
++
++#include <algorithm>
++#include <numeric>
++#include <utility>
++
++namespace bpr::qt {
++	namespace {
++		/// \brief What a tab takes beside its name: the style's padding, its
++		/// close button and the gaps around them. An estimate, used only to
++		/// decide whether every tab fits; the bar lays itself out.
++		constexpr int tab_overhead = 48;
++		constexpr int pill_padding = 6;
++		constexpr int pill_height  = 16;
++
++		/// \brief A tab's own pair, in a pill beside its name.
++		class pair_pill final : public QWidget
++		{
++		public:
++			pair_pill(QString aText, QWidget* aParent)
++				: QWidget{ aParent }
++				, Text{ std::move(aText) }
++			{
++				setObjectName(QStringLiteral("documentTabPairPill"));
++				setAttribute(Qt::WA_TransparentForMouseEvents, true);
++				setFocusPolicy(Qt::NoFocus);
++				setFixedSize(sizeHint());
++			}
++
++			[[nodiscard]] auto text() const -> const QString&
++			{
++				return Text;
++			}
++
++			[[nodiscard]] auto sizeHint() const -> QSize override
++			{
++				auto small = font();
++				small.setPointSizeF(small.pointSizeF() * 0.85);
++				small.setBold(true);
++				return QSize{ QFontMetrics{ small }.horizontalAdvance(Text) + (2 * pill_padding) + 4, pill_height };
++			}
++
++		protected:
++			void paintEvent(QPaintEvent* aEvent) override
++			{
++				static_cast<void>(aEvent);
++				auto painter = QPainter{ this };
++				painter.setRenderHint(QPainter::Antialiasing, true);
++				painter.setPen(Qt::NoPen);
++				painter.setBrush(palette().color(QPalette::Active, QPalette::Highlight));
++				const auto box = QRectF{ 2.0, 0.5, static_cast<qreal>(width()) - 2.5, static_cast<qreal>(height()) - 1.0 };
++				painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
++				auto small = font();
++				small.setPointSizeF(small.pointSizeF() * 0.85);
++				small.setBold(true);
++				painter.setFont(small);
++				painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
++				painter.drawText(box, Qt::AlignCenter | Qt::TextSingleLine, Text);
++			}
++
++		private:
++			QString Text;
++		};
++
++		/// \brief One line of status, elided at the right to the room it has;
++		/// the whole sentence is its tooltip and description.
++		class status_line final : public QLabel
++		{
++		public:
++			explicit status_line(QWidget* aParent)
++				: QLabel{ aParent }
++			{
++				setObjectName(QStringLiteral("documentTabStatus"));
++				setAccessibleName(QStringLiteral("Comparison status"));
++				setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
++				setForegroundRole(QPalette::PlaceholderText);
++				setTextFormat(Qt::PlainText);
++			}
++
++		protected:
++			void paintEvent(QPaintEvent* aEvent) override
++			{
++				static_cast<void>(aEvent);
++				auto painter = QPainter{ this };
++				painter.setPen(palette().color(QPalette::Active, foregroundRole()));
++				const auto room = contentsRect().adjusted(6, 0, -8, 0);
++				painter.drawText(room, Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine,
++								 fontMetrics().elidedText(text(), Qt::ElideRight, std::max(1, room.width())));
++			}
++		};
++
++		[[nodiscard]] auto state_words(const core::document_tab_view_state aState) -> QString
++		{
++			switch (aState) {
++			case core::document_tab_view_state::loading:
++				return QStringLiteral("Loading");
++			case core::document_tab_view_state::unavailable:
++				return QStringLiteral("Unavailable: its file or its comparison is gone");
++			case core::document_tab_view_state::idle:
++			case core::document_tab_view_state::ready:
++				break;
++			}
++			return { };
++		}
++	} // namespace
++
++	document_tab_strip::document_tab_strip(QWidget* const aParent)
++		: QWidget{ aParent }
++	{
++		setObjectName(QStringLiteral("documentTabStrip"));
++		setAccessibleName(QStringLiteral("Document tabs"));
++		setAccessibleDescription(QStringLiteral(
++			"One tab per file, comparison and reading position. Ctrl+Tab and "
++			"Ctrl+Shift+Tab move between them; the close key closes the active one"));
++		setFixedHeight(height_pixels);
++		setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
++		setBackgroundRole(QPalette::Window);
++		setAutoFillBackground(true);
++
++		auto* const layout = new QHBoxLayout{ this };
++		layout->setContentsMargins(0, 0, 0, 0);
++		layout->setSpacing(0);
++
++		Bar = new QTabBar{ this };
++		Bar->setObjectName(QStringLiteral("documentTabBar"));
++		Bar->setAccessibleName(QStringLiteral("Document tabs"));
++		Bar->setAccessibleDescription(QStringLiteral(
++			"This window's tabs: each a file, a comparison and a reading position. "
++			"The arrow keys choose one; its menu duplicates, closes or changes its comparison"));
++		Bar->setDocumentMode(true);
++		Bar->setTabsClosable(true);
++		Bar->setExpanding(false);
++		Bar->setUsesScrollButtons(false);
++		Bar->setElideMode(Qt::ElideLeft);
++		Bar->setDrawBase(false);
++		Bar->setMovable(false);
++		Bar->setFocusPolicy(Qt::StrongFocus);
++		Bar->setContextMenuPolicy(Qt::CustomContextMenu);
++		layout->addWidget(Bar);
++
++		Overflow = new QToolButton{ this };
++		Overflow->setObjectName(QStringLiteral("documentTabOverflow"));
++		Overflow->setAutoRaise(true);
++		Overflow->setPopupMode(QToolButton::InstantPopup);
++		Overflow->setFocusPolicy(Qt::StrongFocus);
++		Overflow->setAccessibleName(QStringLiteral("More tabs"));
++		Overflow->setAccessibleDescription(QStringLiteral("The tabs the strip has no room for"));
++		Overflow->setMenu(new QMenu{ Overflow });
++		Overflow->menu()->setObjectName(QStringLiteral("documentTabOverflowMenu"));
++		Overflow->hide();
++		layout->addWidget(Overflow);
++
++		NewTab = new QToolButton{ this };
++		NewTab->setObjectName(QStringLiteral("documentTabNew"));
++		NewTab->setAutoRaise(true);
++		NewTab->setText(QStringLiteral("+"));
++		NewTab->setFocusPolicy(Qt::StrongFocus);
++		NewTab->setAccessibleName(QStringLiteral("New tab"));
++		NewTab->setAccessibleDescription(QStringLiteral("Opens the active tab's file and comparison in a tab of its own"));
++		NewTab->setToolTip(QStringLiteral("New tab: this file and comparison, in a tab of its own"));
++		NewTab->setEnabled(false);
++		layout->addWidget(NewTab);
++
++		Status = new status_line{ this };
++		Status->hide();
++		layout->addWidget(Status, 1);
++
++		connect(Bar, &QTabBar::currentChanged, this, [this](const int aIndex) {
++			if (Rebuilding) {
++				return;
++			}
++			if (const auto tab = tab_at(aIndex); tab.has_value()) {
++				send(core::activate_tab_intent{ .Tab = *tab });
++			}
++		});
++		connect(Bar, &QTabBar::tabCloseRequested, this, [this](const int aIndex) {
++			if (const auto tab = tab_at(aIndex); tab.has_value()) {
++				send(core::close_tab_intent{ .Tab = *tab });
++			}
++		});
++		connect(Bar, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) { open_tab_menu(aAt); });
++		connect(NewTab, &QToolButton::clicked, this, [this] {
++			if (const auto* const current = active(); current != nullptr) {
++				send(core::duplicate_tab_intent{ .Tab = current->Id });
++			}
++		});
++		connect(Overflow->menu(), &QMenu::aboutToShow, this, [this] { populate_overflow(); });
++	}
++
++	void document_tab_strip::set_dispatch(document_tab_dispatch aDispatch)
++	{
++		Dispatch = std::move(aDispatch);
++	}
++
++	void document_tab_strip::present(std::vector<document_tab_presentation> aTabs)
++	{
++		if (aTabs == Tabs && Collapsed == !fits_whole()) {
++			return;
++		}
++		Tabs = std::move(aTabs);
++		rebuild();
++	}
++
++	void document_tab_strip::set_status(const QString& aText, const bool aNotable)
++	{
++		Status->setText(aText);
++		Status->setToolTip(aText);
++		Status->setAccessibleDescription(aText);
++		Status->setVisible(aNotable && !aText.isEmpty());
++		Status->update();
++	}
++
++	auto document_tab_strip::tabs() const noexcept -> const std::vector<document_tab_presentation>&
++	{
++		return Tabs;
++	}
++
++	auto document_tab_strip::tab_bar() const noexcept -> QTabBar*
++	{
++		return Bar;
++	}
++
++	auto document_tab_strip::overflow_button() const noexcept -> QToolButton*
++	{
++		return Overflow;
++	}
++
++	auto document_tab_strip::new_tab_button() const noexcept -> QToolButton*
++	{
++		return NewTab;
++	}
++
++	auto document_tab_strip::status_label() const noexcept -> QLabel*
++	{
++		return Status;
++	}
++
++	auto document_tab_strip::collapsed() const noexcept -> bool
++	{
++		return Collapsed;
++	}
++
++	auto document_tab_strip::tab_at(const int aIndex) const -> std::optional<core::document_tab_id>
++	{
++		if (aIndex < 0 || static_cast<std::size_t>(aIndex) >= Shown.size()) {
++			return std::nullopt;
++		}
++		return Shown[static_cast<std::size_t>(aIndex)];
++	}
++
++	auto document_tab_strip::index_of(const core::document_tab_id aTab) const -> std::optional<int>
++	{
++		const auto found = std::ranges::find(Shown, aTab);
++		return found == Shown.end() ? std::nullopt : std::optional{ static_cast<int>(std::distance(Shown.begin(), found)) };
++	}
++
++	auto document_tab_strip::make_tab_menu(const core::document_tab_id aTab, QWidget* const aParent) -> QMenu*
++	{
++		const auto found = std::ranges::find(Tabs, aTab, &document_tab_presentation::Id);
++		if (found == Tabs.end()) {
++			return nullptr;
++		}
++		const auto tab  = *found;
++		auto*      menu = new QMenu{ aParent };
++		menu->setObjectName(QStringLiteral("documentTabMenu"));
++		const auto add = [this, menu](const QString& aText, const char* aName, core::document_tab_intent aIntent, const bool aEnabled) {
++			auto* const action = menu->addAction(aText);
++			action->setObjectName(QString::fromLatin1(aName));
++			action->setEnabled(aEnabled);
++			connect(action, &QAction::triggered, this, [this, intent = std::move(aIntent)] { send(intent); });
++			return action;
++		};
++		add(QStringLiteral("Duplicate Tab"), "documentTabDuplicate", core::duplicate_tab_intent{ .Tab = tab.Id }, true);
++		add(QStringLiteral("Close Tab"), "documentTabClose", core::close_tab_intent{ .Tab = tab.Id }, true);
++		add(QStringLiteral("Close Other Tabs"), "documentTabCloseOthers", core::close_other_tabs_intent{ .Tab = tab.Id }, Tabs.size() > 1U);
++		menu->addSeparator();
++		add(QStringLiteral("Use the Window's Comparison"), "documentTabReturnToWindow",
++			core::return_tab_to_window_comparison_intent{ .Tab = tab.Id }, tab.OwnComparison);
++		add(QStringLiteral("Make New Tabs Use This Comparison"), "documentTabMakeWindow",
++			core::make_tab_comparison_window_intent{ .Tab = tab.Id }, tab.OwnComparison);
++		return menu;
++	}
++
++	auto document_tab_strip::sizeHint() const -> QSize
++	{
++		return QSize{ 240, height_pixels };
++	}
++
++	auto document_tab_strip::minimumSizeHint() const -> QSize
++	{
++		return QSize{ 0, height_pixels };
++	}
++
++	void document_tab_strip::resizeEvent(QResizeEvent* const aEvent)
++	{
++		QWidget::resizeEvent(aEvent);
++		if (Collapsed == fits_whole()) {
++			rebuild();
++		}
++	}
++
++	auto document_tab_strip::fits_whole() const -> bool
++	{
++		if (Tabs.size() <= 1U || width() <= 0) {
++			return true;
++		}
++		const auto metrics = Bar->fontMetrics();
++		auto       total   = NewTab->sizeHint().width();
++		for (const auto& tab : Tabs) {
++			total += std::min(metrics.horizontalAdvance(tab.Name), 240) + tab_overhead;
++			if (tab.OwnComparison) {
++				total += metrics.horizontalAdvance(tab.OwnPair) + (2 * pill_padding) + 8;
++			}
++		}
++		return total <= width();
++	}
++
++	auto document_tab_strip::active() const -> const document_tab_presentation*
++	{
++		const auto found = std::ranges::find(Tabs, true, &document_tab_presentation::Active);
++		return found == Tabs.end() ? nullptr : &*found;
++	}
++
++	void document_tab_strip::send(const core::document_tab_intent& aIntent) const
++	{
++		if (Dispatch) {
++			Dispatch(aIntent);
++		}
++	}
++
++	void document_tab_strip::rebuild()
++	{
++		Rebuilding = true;
++		{
++			const QSignalBlocker blocker{ Bar };
++			while (Bar->count() > 0) {
++				Bar->removeTab(0);
++			}
++			Shown.clear();
++			Collapsed = !fits_whole();
++			const auto pillSide = static_cast<QTabBar::ButtonPosition>(
++									  Bar->style()->styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, Bar))
++					== QTabBar::LeftSide
++				? QTabBar::RightSide
++				: QTabBar::LeftSide;
++			auto current = -1;
++			for (const auto& tab : Tabs) {
++				if (Collapsed && !tab.Active) {
++					continue;
++				}
++				const auto state = state_words(tab.State);
++				const auto label = tab.State == core::document_tab_view_state::unavailable
++					? QStringLiteral("%1 (unavailable)").arg(tab.Name)
++					: tab.Name;
++				const auto index = Bar->addTab(label);
++				auto       tip   = tab.Path;
++				if (!tab.Pair.isEmpty()) {
++					tip.append(QStringLiteral("\n%1 %2").arg(tab.OwnComparison ? QStringLiteral("Its own comparison:") : QStringLiteral("The window's comparison:"), tab.Pair));
++				}
++				if (!state.isEmpty()) {
++					tip.append(QStringLiteral("\n%1").arg(state));
++				}
++				Bar->setTabToolTip(index, tip);
++				auto accessible = tab.Name;
++				if (tab.OwnComparison && !tab.Pair.isEmpty()) {
++					accessible.append(QStringLiteral(", comparing %1").arg(tab.Pair));
++				}
++				if (!state.isEmpty()) {
++					accessible.append(QStringLiteral(", %1").arg(state.toLower()));
++				}
++				Bar->setAccessibleTabName(index, accessible);
++				if (tab.OwnComparison && !tab.OwnPair.isEmpty()) {
++					Bar->setTabButton(index, pillSide, new pair_pill{ tab.OwnPair, Bar });
++				}
++				Shown.push_back(tab.Id);
++				if (tab.Active) {
++					current = index;
++				}
++			}
++			if (current >= 0) {
++				Bar->setCurrentIndex(current);
++			}
++		}
++		const auto hidden = Collapsed ? Tabs.size() - Shown.size() : 0U;
++		Overflow->setVisible(hidden > 0U);
++		Overflow->setText(QStringLiteral("+%1").arg(hidden));
++		Overflow->setToolTip(hidden == 1U ? QStringLiteral("One more tab") : QStringLiteral("%1 more tabs").arg(hidden));
++		Overflow->setAccessibleDescription(Overflow->toolTip());
++		NewTab->setEnabled(active() != nullptr);
++		Rebuilding = false;
++		updateGeometry();
++	}
++
++	void document_tab_strip::open_tab_menu(const QPoint& aAt)
++	{
++		const auto tab = tab_at(Bar->tabAt(aAt));
++		if (!tab.has_value()) {
++			return;
++		}
++		// [[BPR-1034]]. A heap menu that deletes itself on close, opened with
++		// popup(): anything that destroys the window while it is open takes
++		// the menu with it, and no frame here waits for it.
++		auto* const menu = make_tab_menu(*tab, this);
++		if (menu == nullptr) {
++			return;
++		}
++		menu->setAttribute(Qt::WA_DeleteOnClose);
++		menu->popup(Bar->mapToGlobal(aAt));
++	}
++
++	void document_tab_strip::populate_overflow()
++	{
++		auto* const menu = Overflow->menu();
++		menu->clear();
++		for (const auto& tab : Tabs) {
++			if (tab.Active) {
++				continue;
++			}
++			auto* const action = menu->addAction(tab.OwnComparison && !tab.OwnPair.isEmpty()
++													  ? QStringLiteral("%1 · %2").arg(tab.Name, tab.OwnPair)
++													  : tab.Name);
++			action->setToolTip(tab.Path);
++			connect(action, &QAction::triggered, this, [this, id = tab.Id] { send(core::activate_tab_intent{ .Tab = id }); });
++		}
++	}
++} // namespace bpr::qt
+diff --git a/src/adapters/qt/src/epoch_line.cpp b/src/adapters/qt/src/epoch_line.cpp
+index 02331aa0..6240ecf7 100644
+--- a/src/adapters/qt/src/epoch_line.cpp
++++ b/src/adapters/qt/src/epoch_line.cpp
+@@ -366,6 +366,19 @@ namespace bpr::qt {
+ 		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
+ 	}
+ 
++	auto epoch_line::dates_of(
++		const core::comparison_anchor_identity& aLeft,
++		const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>
++	{
++		const auto left  = stop_for(aLeft);
++		const auto right = stop_for(aRight);
++		if (!left || !right || left->Update >= Updates.size() || right->Update >= Updates.size()
++			|| Updates[left->Update].Date.isEmpty() || Updates[right->Update].Date.isEmpty()) {
++			return std::nullopt;
++		}
++		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
++	}
++
+ 	auto epoch_line::label_shown(const std::size_t aUpdate) const -> bool
+ 	{
+ 		// Dense histories keep the labels that carry meaning -- the ends, the
+diff --git a/src/adapters/qt/src/files_tree.cpp b/src/adapters/qt/src/files_tree.cpp
+index 409ed3ca..ae8ced23 100644
+--- a/src/adapters/qt/src/files_tree.cpp
++++ b/src/adapters/qt/src/files_tree.cpp
+@@ -6,7 +6,10 @@
+ #include <QFontMetrics>
+ #include <QHash>
+ #include <QHeaderView>
++#include <QContextMenuEvent>
+ #include <QKeyEvent>
++#include <QMenu>
++#include <QMouseEvent>
+ #include <QPainter>
+ #include <QPalette>
+ #include <QPen>
+@@ -572,6 +575,58 @@ namespace bpr::qt {
+ 		Dispatch = std::move(aDispatch);
+ 	}
+ 
++	void files_tree_view::set_new_tab_dispatch(files_tree_select_dispatch aDispatch)
++	{
++		NewTabDispatch = std::move(aDispatch);
++	}
++
++	auto files_tree_view::make_file_menu(const QModelIndex& aIndex, QWidget* const aParent) -> QMenu*
++	{
++		const auto file = Model->file_at(aIndex);
++		if (!file.has_value()) {
++			return nullptr;
++		}
++		auto* const menu   = new QMenu{ aParent };
++		auto* const action = menu->addAction(QStringLiteral("Open in New Tab"));
++		menu->setObjectName(QStringLiteral("filesTreeMenu"));
++		action->setObjectName(QStringLiteral("filesTreeOpenInNewTab"));
++		action->setEnabled(static_cast<bool>(NewTabDispatch));
++		connect(action, &QAction::triggered, this, [this, chosen = *file] {
++			if (NewTabDispatch) {
++				NewTabDispatch(chosen);
++			}
++		});
++		return menu;
++	}
++
++	void files_tree_view::mousePressEvent(QMouseEvent* const aEvent)
++	{
++		// [[BPR-1132]]. Cmd-click (Ctrl-click on Windows and Linux) opens the
++		// file in a tab of its own and leaves the active tab's file chosen.
++		if (aEvent->button() == Qt::LeftButton && (aEvent->modifiers() & Qt::ControlModifier) != 0 && NewTabDispatch) {
++			if (const auto file = Model->file_at(indexAt(aEvent->position().toPoint())); file.has_value()) {
++				NewTabDispatch(*file);
++				aEvent->accept();
++				return;
++			}
++		}
++		QTreeView::mousePressEvent(aEvent);
++	}
++
++	void files_tree_view::contextMenuEvent(QContextMenuEvent* const aEvent)
++	{
++		// [[BPR-1034]]. A heap menu that deletes itself on close, opened with
++		// popup(), so the window can go while it is open.
++		auto* const menu = make_file_menu(indexAt(aEvent->pos()), this);
++		if (menu == nullptr) {
++			QTreeView::contextMenuEvent(aEvent);
++			return;
++		}
++		menu->setAttribute(Qt::WA_DeleteOnClose);
++		menu->popup(aEvent->globalPos());
++		aEvent->accept();
++	}
++
+ 	void files_tree_view::apply(const std::vector<workbench_drawer_row>& aRows)
+ 	{
+ 		const auto applying = QScopedValueRollback{ Applying, true };
+diff --git a/src/adapters/qt/src/github_conversation_panel.cpp b/src/adapters/qt/src/github_conversation_panel.cpp
+index d6ec6cbd..a839544d 100644
+--- a/src/adapters/qt/src/github_conversation_panel.cpp
++++ b/src/adapters/qt/src/github_conversation_panel.cpp
+@@ -951,6 +951,20 @@ namespace bpr::qt {
+ 		return AnchorFile;
+ 	}
+ 
++	auto github_conversation_panel::current_head_thread_count(const core::file_identity& aFile) const -> std::size_t
++	{
++		auto count = std::size_t{ 0U };
++		for (std::size_t index = 0; index < Retained.size() && index < RetainedFiles.size(); ++index) {
++			const auto& node = Retained[index];
++			count += !node.ParentId.has_value() && node.Kind == application::github_conversation_kind::review_thread
++					&& node.AnchorAvailability == application::github_conversation_anchor_availability::current
++					&& RetainedFiles[index] == aFile
++				? 1U
++				: 0U;
++		}
++		return count;
++	}
++
+ 	auto github_conversation_panel::anchor_line() const noexcept
+ 		-> const std::optional<core::source_line_ref>&
+ 	{
+diff --git a/src/adapters/qt/src/workbench_window.cpp b/src/adapters/qt/src/workbench_window.cpp
+index ac475c73..311fa04f 100644
+--- a/src/adapters/qt/src/workbench_window.cpp
++++ b/src/adapters/qt/src/workbench_window.cpp
+@@ -1294,7 +1294,23 @@ namespace bpr::qt {
+ 		auto* const comparisonColumn = new QVBoxLayout{ ComparisonPage };
+ 		comparisonColumn->setContentsMargins(0, 0, 0, 0);
+ 		comparisonColumn->setSpacing(0);
++		// [[BPR-1132]]. RFC-BPR-0052: the comparison's header is the document
++		// tab strip. It takes the diff status row's place, and says the status
++		// at its right while the status has more to say than "ready".
++		DocumentTabs = new document_tab_strip{ ComparisonPage };
++		DocumentTabs->set_dispatch([this](const core::document_tab_intent& aIntent) {
++			if (DocumentTabDispatch) {
++				DocumentTabDispatch(aIntent);
++			}
++		});
++		comparisonColumn->addWidget(DocumentTabs);
+ 		comparisonColumn->addWidget(ComparisonSurface, 1);
++		ComparisonSurface->set_status_shown(false);
++		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
++			if (DocumentTabs != nullptr) {
++				DocumentTabs->set_status(aText, aNotable);
++			}
++		});
+ 		OverviewPage = new pull_request_overview_page{ CentreStack };
+ 		OverviewPage->set_entry_dispatch(
+ 			[this](const application::overview_entry_kind aEntry, const QString& aPath) {
+@@ -1613,6 +1629,28 @@ namespace bpr::qt {
+ 			"Reveal the next thread with a post newer than what you have read"));
+ 		commentsTools->addWidget(NextNewCommentButton);
+ 		commentsLayout->addLayout(commentsTools);
++		// [[BPR-1132]]. A tab over an older pair places only its own
++		// revisions' threads; this says how many of the file's are on later
++		// updates and routes to them.
++		OlderPairNotice = new QWidget{ commentsContents };
++		OlderPairNotice->setObjectName(QStringLiteral("olderPairNotice"));
++		auto* const olderPair = new QVBoxLayout{ OlderPairNotice };
++		olderPair->setContentsMargins(8, 6, 8, 6);
++		olderPair->setSpacing(4);
++		OlderPairText = new QLabel{ OlderPairNotice };
++		OlderPairText->setObjectName(QStringLiteral("olderPairNoticeText"));
++		OlderPairText->setAccessibleName(QStringLiteral("Threads on later updates"));
++		OlderPairText->setTextFormat(Qt::PlainText);
++		OlderPairText->setWordWrap(true);
++		ShowLaterThreads = new QPushButton{ tr("Show them"), OlderPairNotice };
++		ShowLaterThreads->setObjectName(QStringLiteral("showLaterThreads"));
++		ShowLaterThreads->setAccessibleDescription(QStringLiteral(
++			"Shows this file's threads on the updates where they sit, without changing this tab"));
++		olderPair->addWidget(OlderPairText);
++		olderPair->addWidget(ShowLaterThreads, 0, Qt::AlignLeft);
++		OlderPairNotice->hide();
++		commentsLayout->addWidget(OlderPairNotice);
++		connect(ShowLaterThreads, &QPushButton::clicked, this, [this] { show_later_threads(); });
+ 		auto* const conversationHost   = new QWidget{ commentsContents };
+ 		auto* const conversationLayout = new QVBoxLayout{ conversationHost };
+ 		ConversationLayout             = conversationLayout;
+@@ -2318,6 +2356,12 @@ namespace bpr::qt {
+ 			surfaceColumn->addWidget(FilesFilterNotice);
+ 			FilesTree = new files_tree_view{ filesSurface };
+ 			surfaceColumn->addWidget(FilesTree, 1);
++			// [[BPR-1132]]. Cmd-click (Ctrl-click) and Open in New Tab.
++			FilesTree->set_new_tab_dispatch([this](const core::workbench_file_id& aFile) {
++				if (DocumentTabDispatch) {
++					DocumentTabDispatch(core::open_in_new_tab_intent{ .File = aFile });
++				}
++			});
+ 			FilesTree->set_select_dispatch([this](const core::workbench_file_id& aFile) {
+ 				// The list's selection is the one that dispatches.
+ 				if (ApplyingFileSelection || Drawers[0].Panel->contents() == nullptr
+@@ -4381,6 +4425,9 @@ namespace bpr::qt {
+ 		++Statistics.EpochUpdates;
+ 		// [[BPR-1130]]. The disclosure repeats the line's mark and statement.
+ 		apply_updates_line();
++		// [[BPR-1132]]. The tabs name their pairs by the line's dates.
++		present_document_tabs();
++		update_older_pair_notice();
+ 		update_status_text();
+ 		// Deliberately silent. The composed control already announced this exact
+ 		// change, and a second announcement of the same fact is the duplicated
+@@ -5074,6 +5121,7 @@ namespace bpr::qt {
+ 
+ 	void workbench_window::refresh_cards()
+ 	{
++		update_older_pair_notice();
+ 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+ 			return;
+ 		}
+@@ -5195,6 +5243,206 @@ namespace bpr::qt {
+ 		return CommentMenu;
+ 	}
+ 
++	void workbench_window::publish(const application::document_tabs_projection& aProjection)
++	{
++		TabsProjection = aProjection;
++		present_document_tabs();
++		update_older_pair_notice();
++		update_comment_target();
++	}
++
++	void workbench_window::set_document_tab_dispatch(document_tab_dispatch aDispatch)
++	{
++		DocumentTabDispatch = std::move(aDispatch);
++		update_tab_actions();
++	}
++
++	auto workbench_window::document_tabs() const noexcept -> document_tab_strip*
++	{
++		return DocumentTabs;
++	}
++
++	auto workbench_window::next_tab_action() const noexcept -> QAction*
++	{
++		return NextTabAction;
++	}
++
++	auto workbench_window::previous_tab_action() const noexcept -> QAction*
++	{
++		return PreviousTabAction;
++	}
++
++	auto workbench_window::close_tab_action() const noexcept -> QAction*
++	{
++		return CloseTabAction;
++	}
++
++	auto workbench_window::older_pair_notice() const noexcept -> QWidget*
++	{
++		return OlderPairNotice;
++	}
++
++	auto workbench_window::older_pair_notice_text() const -> QString
++	{
++		return OlderPairText != nullptr ? OlderPairText->text() : QString{ };
++	}
++
++	auto workbench_window::show_later_threads_button() const noexcept -> QPushButton*
++	{
++		return ShowLaterThreads;
++	}
++
++	auto workbench_window::path_of(const core::file_identity& aFile) const -> QString
++	{
++		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
++		if (model == nullptr) {
++			return { };
++		}
++		for (int row = 0; row < model->rowCount(); ++row) {
++			const auto index = model->index(row, 0);
++			if (model->file_at(index) == aFile) {
++				return model->data(index, Qt::DisplayRole).toString();
++			}
++		}
++		return { };
++	}
++
++	auto workbench_window::pair_text(const core::comparison_pair& aPair, const bool aShort) const -> QString
++	{
++		const auto* const line  = EpochSelectors != nullptr ? EpochSelectors->line() : nullptr;
++		const auto        dates = line != nullptr ? line->dates_of(aPair.Left.Identity, aPair.Right.Identity) : std::nullopt;
++		if (!dates.has_value()) {
++			return QStringLiteral("update %1 → %2").arg(aPair.Left.Identity.Epoch.value()).arg(aPair.Right.Identity.Epoch.value());
++		}
++		// "Feb 4 → 9" when both are in one month, as the design's pill reads.
++		const auto& [from, to] = *dates;
++		const auto month       = from.section(QLatin1Char{ ' ' }, 0, 0);
++		if (aShort && !month.isEmpty() && to.section(QLatin1Char{ ' ' }, 0, 0) == month) {
++			return QStringLiteral("%1 → %2").arg(from, to.section(QLatin1Char{ ' ' }, 1));
++		}
++		return QStringLiteral("%1 → %2").arg(from, to);
++	}
++
++	auto workbench_window::comparing_off_current_head() const -> bool
++	{
++		return ComparisonSurface != nullptr && ComparisonSurface->current_context().has_value()
++			&& !LeftConversationEndpointCurrent && !RightConversationEndpointCurrent;
++	}
++
++	void workbench_window::present_document_tabs()
++	{
++		if (DocumentTabs == nullptr) {
++			return;
++		}
++		auto tabs = std::vector<document_tab_presentation>{ };
++		if (TabsProjection.has_value()) {
++			tabs.reserve(TabsProjection->Tabs.size());
++			for (const auto& entry : TabsProjection->Tabs) {
++				tabs.push_back(document_tab_presentation{
++					.Id            = entry.Id,
++					.Path          = entry.View.File ? path_of(*entry.View.File) : QString{ },
++					.OwnPair       = entry.OwnComparison ? pair_text(entry.View.Comparison, true) : QString{ },
++					.Pair          = pair_text(entry.View.Comparison, false),
++					.State         = entry.State,
++					.Active        = entry.Active,
++					.OwnComparison = entry.OwnComparison,
++				});
++			}
++			// A tab's name is its file's, with as much of the path before it
++			// as tells it apart from another tab's file of the same name.
++			const auto suffix = [](const QString& aPath, const qsizetype aParts) {
++				const auto parts = aPath.split(QLatin1Char{ '/' }, Qt::SkipEmptyParts);
++				return parts.mid(std::max<qsizetype>(0, parts.size() - aParts)).join(QLatin1Char{ '/' });
++			};
++			for (auto& tab : tabs) {
++				if (tab.Path.isEmpty()) {
++					tab.Name = tr("Unlisted file");
++					continue;
++				}
++				for (qsizetype parts = 1;; ++parts) {
++					tab.Name         = suffix(tab.Path, parts);
++					const auto clash = std::ranges::any_of(tabs, [&tab, &suffix, parts](const document_tab_presentation& aOther) {
++						return !aOther.Path.isEmpty() && aOther.Path != tab.Path && suffix(aOther.Path, parts) == tab.Name;
++					});
++					if (!clash || tab.Name == tab.Path) {
++						break;
++					}
++				}
++			}
++		}
++		DocumentTabs->present(std::move(tabs));
++		update_tab_actions();
++	}
++
++	void workbench_window::update_tab_actions()
++	{
++		const auto count  = TabsProjection.has_value() ? TabsProjection->Tabs.size() : 0U;
++		const auto active = TabsProjection.has_value()
++			&& std::ranges::any_of(TabsProjection->Tabs, &application::document_tab_entry::Active);
++		const auto wired = static_cast<bool>(DocumentTabDispatch);
++		if (NextTabAction != nullptr) {
++			NextTabAction->setEnabled(wired && count > 1U);
++			PreviousTabAction->setEnabled(wired && count > 1U);
++			CloseTabAction->setEnabled(wired && active);
++		}
++	}
++
++	void workbench_window::update_older_pair_notice()
++	{
++		if (OlderPairNotice == nullptr || ConversationPanel == nullptr) {
++			return;
++		}
++		const auto active = TabsProjection.has_value()
++			? std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active)
++			: std::vector<application::document_tab_entry>::const_iterator{ };
++		const auto hasActive = TabsProjection.has_value() && active != TabsProjection->Tabs.end() && active->View.File.has_value();
++		auto       later     = std::size_t{ 0U };
++		if (hasActive && comparing_off_current_head()) {
++			later = ConversationPanel->current_head_thread_count(*active->View.File);
++		}
++		if (later == 0U) {
++			OlderPairNotice->hide();
++			return;
++		}
++		static constexpr auto words = std::array{ "One thread is", "Two threads are", "Three threads are", "Four threads are", "Five threads are",
++												  "Six threads are", "Seven threads are", "Eight threads are", "Nine threads are" };
++		const auto counted = later <= words.size() ? QString::fromLatin1(words[later - 1U]) : tr("%1 threads are").arg(later);
++		const auto text    = tr("No threads on %1. %2 on later updates of this file.").arg(pair_text(active->View.Comparison, false), counted);
++		if (OlderPairText->text() != text) {
++			OlderPairText->setText(text);
++			OlderPairText->setAccessibleDescription(text);
++		}
++		OlderPairNotice->show();
++	}
++
++	void workbench_window::show_later_threads()
++	{
++		if (!DocumentTabDispatch || !TabsProjection.has_value()) {
++			return;
++		}
++		const auto& tabs   = TabsProjection->Tabs;
++		const auto  active = std::ranges::find(tabs, true, &application::document_tab_entry::Active);
++		if (active == tabs.end() || !active->View.File.has_value()) {
++			return;
++		}
++		// A tab of this file on the window's comparison shows its threads
++		// where they sit; then this tab back on the window's comparison, which
++		// the reviewer asked for; and the pull request's conversation in
++		// Discuss when the window's comparison is no later than this tab's.
++		const auto sibling = std::ranges::find_if(tabs, [&active](const application::document_tab_entry& aTab) {
++			return !aTab.Active && !aTab.OwnComparison && aTab.View.File == active->View.File;
++		});
++		if (sibling != tabs.end()) {
++			DocumentTabDispatch(core::activate_tab_intent{ .Tab = sibling->Id });
++			return;
++		}
++		if (active->OwnComparison) {
++			DocumentTabDispatch(core::return_tab_to_window_comparison_intent{ .Tab = active->Id });
++			return;
++		}
++		choose_modality(review_modality::discuss);
++	}
++
+ 	void workbench_window::update_new_comment_group()
+ 	{
+ 		if (NextNewCommentAction == nullptr || ConversationPanel == nullptr
+@@ -5319,7 +5567,14 @@ namespace bpr::qt {
+ 		if (CommentAction->text() != text) {
+ 			CommentAction->setText(text);
+ 		}
+-		const auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
++		// [[BPR-1132]]. A tab over an older pair offers no new comment off the
++		// pull request's current head.
++		const auto offHead = comparing_off_current_head();
++		CommentAction->setEnabled(!offHead);
++		auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
++		if (offHead) {
++			tip = QStringLiteral("Comments go on the pull request's current head; this tab compares an earlier update");
++		}
+ 		CommentAction->setToolTip(tip);
+ 		CommentAction->setStatusTip(tip);
+ 		if (ReviewBar == nullptr) {
+@@ -8350,6 +8605,13 @@ namespace bpr::qt {
+ 		append(EpochSelectors->right_selector());
+ 		append(EpochSelectors->left_oid_editor());
+ 		append(EpochSelectors->right_oid_editor());
++		// [[BPR-1132]]. The comparison's header: the tabs, the count of the
++		// ones the width floor leaves out, and the new-tab button.
++		if (DocumentTabs != nullptr) {
++			append(DocumentTabs->tab_bar());
++			append(DocumentTabs->overflow_button());
++			append(DocumentTabs->new_tab_button());
++		}
+ 		// One stop stands for the whole composed comparison surface: its last.
+ 		// Everything before it inside that surface is RFC-BPR-0004's declared
+ 		// order, which the shell reports through that card rather than restating
+@@ -8392,6 +8654,8 @@ namespace bpr::qt {
+ 		ApplyingConversationAnchor = false;
+ 		synchronize_selected_conversation(chosen_conversation());
+ 		update_defect_surface();
++		update_comment_target();
++		update_older_pair_notice();
+ 		// [[BPR-1046]]. The composition places the endpoints once a
+ 		// comparison has arrived, which is when a waiting reply can select
+ 		// its thread's line.
+@@ -8881,6 +9145,49 @@ namespace bpr::qt {
+ 		connect(UpdatesLineAction, &QAction::triggered, this, [this] {
+ 			dispatch_updates_line_toggle();
+ 		});
++		// [[BPR-1132]]. The tab keys, window-owned: Ctrl+Tab and Ctrl+Shift+Tab
++		// move between the tabs (the Control key on macOS too, where Qt names
++		// it Meta), and Cmd-W (Ctrl+W) closes the active tab. Nothing had
++		// Cmd-W before, so no window command moves to Cmd-Shift-W.
++		const auto tabAction = [this](const QString& aText, const QString& aName, const QKeySequence& aKey) {
++			auto* const action = new QAction{ aText, this };
++			action->setObjectName(aName);
++			action->setShortcut(aKey);
++			action->setShortcutContext(Qt::WindowShortcut);
++			action->setEnabled(false);
++			addAction(action);
++			return action;
++		};
++#if defined(Q_OS_MACOS)
++		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Tab") });
++		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Shift+Tab") });
++#else
++		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Tab") });
++		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") });
++#endif
++		CloseTabAction = tabAction(tr("Close Tab"), QStringLiteral("closeDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+W") });
++		ViewMenu->addAction(NextTabAction);
++		ViewMenu->addAction(PreviousTabAction);
++		fileMenu->addAction(CloseTabAction);
++		connect(NextTabAction, &QAction::triggered, this, [this] {
++			if (DocumentTabDispatch) {
++				DocumentTabDispatch(core::activate_adjacent_tab_intent{ .Direction = core::change_navigation_direction::next });
++			}
++		});
++		connect(PreviousTabAction, &QAction::triggered, this, [this] {
++			if (DocumentTabDispatch) {
++				DocumentTabDispatch(core::activate_adjacent_tab_intent{ .Direction = core::change_navigation_direction::previous });
++			}
++		});
++		connect(CloseTabAction, &QAction::triggered, this, [this] {
++			if (!DocumentTabDispatch || !TabsProjection) {
++				return;
++			}
++			const auto active = std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active);
++			if (active != TabsProjection->Tabs.end()) {
++				DocumentTabDispatch(core::close_tab_intent{ .Tab = active->Id });
++			}
++		});
+ 		// [[BPR-0646]]. Settings is a window, reached by the platform's
+ 		// preferences shortcut; on macOS the role places it in the app menu.
+ 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
+diff --git a/src/app/src/github_application.cpp b/src/app/src/github_application.cpp
+index b0736610..bcc56254 100644
+--- a/src/app/src/github_application.cpp
++++ b/src/app/src/github_application.cpp
+@@ -84,6 +84,7 @@
+ #include "bpr/application/defect_correlation.hpp"
+ #include "bpr/application/device_authorization_application_host.hpp"
+ #include "bpr/application/diff_application_host.hpp"
++#include "bpr/application/document_tab_host.hpp"
+ #include "bpr/application/epoch_application_host.hpp"
+ #include "bpr/application/epoch_runtime_ports.hpp"
+ #include "bpr/application/github_application_host.hpp"
+@@ -6115,6 +6116,13 @@ namespace bpr::app {
+ 			if (aSuccess) {
+ 				AcceptedReadingPosition = pending.Position;
+ 				restoration_notice({ });
++				// [[BPR-1132]]. Resume brings the tabs back once the active
++				// tab's reading is on screen; its load completes from there.
++				if (pending.Tabs.has_value() && TabHost != nullptr) {
++					abandon_tab_load();
++					TabHost->restore(*pending.Tabs);
++				}
++				schedule_tab_presentation();
+ 			} else {
+ 				clear_diff_selection();
+ 				Window->choose_home(true);
+@@ -6158,6 +6166,222 @@ namespace bpr::app {
+ 			case core::window_reading_restore_action::wait:        break;
+ 			}
+ 		}
++		// [[BPR-1132]]. The window's document tabs: [[BPR-1131]]'s host, whose
++		// loads this composition presents through the epoch and workbench
++		// hosts. The reviewer's own choices of file and comparison are
++		// reflected into the active tab (the observer); switching, closing,
++		// duplicating, returning and restoring tabs are presented exactly, by
++		// the stages Resume uses (the driver), and completed or refused for the
++		// load in force only.
++		struct document_tab_ports final
++			: application::document_tab_view_port
++			, application::document_tabs_projection_port
++		{
++			explicit document_tab_ports(implementation& aOwner)
++				: Owner{ aOwner }
++			{
++			}
++			void load(const core::document_tab_view_request& aRequest) override
++			{
++				Owner.present_tab(aRequest);
++			}
++			void publish(const application::document_tabs_projection& aProjection) override
++			{
++				if (!Owner.Closing && Owner.Window != nullptr) {
++					Owner.Window->publish(aProjection);
++				}
++			}
++			implementation& Owner;
++		};
++		std::unique_ptr<document_tab_ports>                TabPorts;
++		std::unique_ptr<application::document_tab_host>    TabHost;
++		std::optional<core::document_tab_view_request>     TabLoad;
++		std::optional<core::window_reading_restoration>    TabDriver;
++		std::optional<core::document_tab_view_request>     TabPresented;
++		std::optional<core::workbench_modality>            TabModality;
++		bool                                               TabAdvanceQueued = false;
++		bool                                               TabFailed        = false;
++		/// \brief Whether the modality shows a tab (Read and Review) or the
++		/// window's comparison (Overview and Discuss, which have no tab).
++		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
++		{
++			return aModality == core::workbench_modality::read || aModality == core::workbench_modality::review;
++		}
++		[[nodiscard]] auto tab_view_presented(const core::window_review_position& aView) const -> bool
++		{
++			const auto& epoch = EpochHost->state();
++			return !epoch.PendingComparison && epoch.AcceptedComparison == std::optional{ aView.Comparison }
++				&& aView.File.has_value() && WorkbenchHost->selected() == aView.File;
++		}
++		void present_tab(const core::document_tab_view_request& aRequest)
++		{
++			if (Closing || TabHost == nullptr || EpochHost == nullptr || WorkbenchHost == nullptr) {
++				return;
++			}
++			TabLoad   = aRequest;
++			TabFailed = false;
++			// A load the reviewer's own gesture already put on screen, as a
++			// choice of file or of comparison is, completes at once.
++			if (!ReadingRestoration && tab_view_presented(aRequest.View)) {
++				TabDriver.reset();
++				finish_tab_load(core::document_tab_view_outcome::ready);
++				return;
++			}
++			TabDriver.emplace(aRequest.View);
++			schedule_tab_presentation();
++		}
++		void finish_tab_load(const core::document_tab_view_outcome aOutcome)
++		{
++			const auto request = std::exchange(TabLoad, std::nullopt);
++			TabDriver.reset();
++			if (!request || TabHost == nullptr) {
++				return;
++			}
++			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
++			TabHost->complete(request->Request, aOutcome);
++		}
++		/// \brief A reviewer's gesture during a load: the load in force is
++		/// left, and the gesture is what the active tab takes next.
++		void abandon_tab_load()
++		{
++			TabDriver.reset();
++			TabLoad.reset();
++		}
++		void schedule_tab_presentation()
++		{
++			if (Closing || TabHost == nullptr || TabAdvanceQueued) {
++				return;
++			}
++			TabAdvanceQueued = true;
++			DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
++				if (weak.expired()) {
++					return;
++				}
++				TabAdvanceQueued = false;
++				advance_tab_presentation();
++			});
++		}
++		void advance_tab_presentation()
++		{
++			if (Closing || TabHost == nullptr || EpochHost == nullptr || WorkbenchHost == nullptr || Window == nullptr) {
++				return;
++			}
++			// A Resume in progress owns the comparison and the file until it
++			// finishes; the tabs it brings are adopted then.
++			if (ReadingRestoration || PendingRestoration) {
++				return;
++			}
++			const auto modality = WorkbenchHost->state().Modality;
++			if (const auto previous = std::exchange(TabModality, modality);
++				previous.has_value() && tab_modality(*previous) != tab_modality(modality)) {
++				// Overview and Discuss have no tab: they show the window's
++				// comparison. Back in Read or Review the active tab's pair
++				// returns; its file follows whatever the reviewer, or a link,
++				// chose meanwhile, as the observer reflects it.
++				abandon_tab_load();
++				const auto& tabs   = TabHost->state();
++				const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
++				const auto  target = tab_modality(modality)
++					 ? (active != nullptr ? std::optional{ active->View.Comparison } : std::nullopt)
++					 : tabs.WindowComparison;
++				if (target.has_value() && EpochHost->state().AcceptedComparison != target && EpochHost->state().Catalog) {
++					EpochHost->dispatch(core::select_comparison_anchors_intent{ target->Left.Identity, target->Right.Identity, EpochHost->state().Catalog->Revision });
++					return;
++				}
++			}
++			if (TabDriver && TabLoad) {
++				drive_tab();
++				return;
++			}
++			observe_tab_changes();
++		}
++		void drive_tab()
++		{
++			const auto& position    = TabDriver->position();
++			const auto* surface     = Window->comparison_surface();
++			const auto& publication = SelectedDiffPublication;
++			const auto  diffReady   = publication && position.File == publication->Request.File.File
++				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
++				&& surface->current_context() && surface->current_context()->Key == publication->Key;
++			const auto action = TabDriver->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && std::ranges::find(WorkbenchHost->actionable(), *position.File) != WorkbenchHost->actionable().end(), .Failed = TabFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
++			switch (action) {
++			case core::window_reading_restore_action::select_comparison:
++				if (EpochHost->state().AcceptedComparison != std::optional{ position.Comparison }) {
++					EpochHost->dispatch(core::select_comparison_anchors_intent{ position.Comparison.Left.Identity, position.Comparison.Right.Identity, EpochHost->state().Catalog->Revision });
++				}
++				schedule_tab_presentation();
++				break;
++			case core::window_reading_restore_action::select_file:
++				if (WorkbenchHost->selected() == position.File) {
++					WorkbenchHost->refresh_selected_diff();
++				} else {
++					WorkbenchHost->apply(core::select_workbench_file_intent{ *position.File });
++				}
++				schedule_tab_presentation();
++				break;
++			case core::window_reading_restore_action::select_location:
++				finish_tab_load(Window->comparison_surface()->restore_selection(*position.Selection)
++									? core::document_tab_view_outcome::ready
++									: core::document_tab_view_outcome::unavailable);
++				break;
++			case core::window_reading_restore_action::complete:
++				finish_tab_load(core::document_tab_view_outcome::ready);
++				break;
++			case core::window_reading_restore_action::unavailable:
++				finish_tab_load(core::document_tab_view_outcome::unavailable);
++				break;
++			case core::window_reading_restore_action::wait:
++				break;
++			}
++		}
++		/// \brief Reflects the reviewer's own choices into the tabs.
++		void observe_tab_changes()
++		{
++			const auto& epoch = EpochHost->state();
++			if (epoch.PendingComparison || !epoch.AcceptedComparison || !core::available_for_diff(*epoch.AcceptedComparison)) {
++				return;
++			}
++			const auto& accepted = *epoch.AcceptedComparison;
++			if (!TabHost->state().WindowComparison.has_value()) {
++				TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
++			}
++			if (!tab_modality(WorkbenchHost->state().Modality)) {
++				if (TabHost->state().WindowComparison != std::optional{ accepted }) {
++					TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
++				}
++				return;
++			}
++			const auto activeTab = [this]() -> const core::document_tab* {
++				const auto& tabs = TabHost->state();
++				return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
++			};
++			if (const auto* active = activeTab(); active != nullptr && active->View.Comparison != accepted) {
++				TabHost->apply(core::select_tab_comparison_intent{ .Comparison = accepted });
++			}
++			const auto selected = WorkbenchHost->selected();
++			if (const auto* active = activeTab(); selected.has_value() && (active == nullptr || active->View.File != selected)) {
++				TabHost->apply(core::open_in_active_tab_intent{ .File = *selected });
++			}
++			// The reading position of the view on screen, for the load that
++			// presented it.
++			const auto* active  = activeTab();
++			const auto* surface = Window->comparison_surface();
++			if (active != nullptr && TabPresented && TabPresented->Tab == active->Id && SelectedDiffPublication
++				&& SelectedDiffPublication->Request.File.File == active->View.File
++				&& SelectedDiffPublication->Request.Diff.Comparison == active->View.Comparison
++				&& surface->current_context() && surface->current_context()->Key == SelectedDiffPublication->Key
++				&& surface->selection() != active->View.Selection) {
++				TabHost->observe_reading_position(TabPresented->Request, surface->selection());
++			}
++		}
++		/// \brief Keeps the tabs with the window's accepted destination.
++		void retain_tabs(const core::window_review_tabs& aTabs)
++		{
++			if (Closing || PendingRestoration || !ReadingDestination || !Profile->ReviewRestoration) {
++				return;
++			}
++			static_cast<void>(Profile->ReviewRestoration->accepted_tabs(DraftWindow, *ReadingDestination, aTabs));
++		}
+ 		void retain_reading_position()
+ 		{
+ 			if (Closing || PendingRestoration || ReadingRestoreUnavailable || !ReadingDestination || !EpochHost
+@@ -6185,6 +6409,7 @@ namespace bpr::app {
+ 		{
+ 			Window->publish(aProjection);
+ 			schedule_reading_restoration();
++			schedule_tab_presentation();
+ 			schedule_link_location();
+ 		}
+ 		void fail(const application::workbench_failure_publication& aFailure) override
+@@ -6285,6 +6510,12 @@ namespace bpr::app {
+ 					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number };
+ 					if (ReadingDestination != destination) {
+ 						AcceptedReadingPosition.reset();
++						// [[BPR-1132]]. Another pull request: its tabs start again.
++						if (ReadingDestination.has_value() && TabHost != nullptr) {
++							abandon_tab_load();
++							TabPresented.reset();
++							TabHost->reset();
++						}
+ 					}
+ 					ReadingDestination = destination;
+ 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
+@@ -6527,8 +6758,13 @@ namespace bpr::app {
+ 				[this](const std::optional<core::semantic_selection>& aSelection) {
+ 					observe_review_selection(aSelection);
+ 					retain_reading_position();
++					schedule_tab_presentation();
+ 				});
+-			Window->comparison_surface()->set_reading_gesture_sink([this] { cancel_restoration(false, true); retain_reading_position(); });
++			Window->comparison_surface()->set_reading_gesture_sink([this] {
++				cancel_restoration(false, true);
++				retain_reading_position();
++				schedule_tab_presentation();
++			});
+ 			Window->set_defect_dispatch(
+ 				[this](core::defect_command aCommand) {
+ 					dispatch_defect(std::move(aCommand));
+@@ -7017,9 +7253,19 @@ namespace bpr::app {
+ 					correlate_defects();
+ 					retain_reading_position();
+ 					schedule_reading_restoration();
++					schedule_tab_presentation();
+ 					schedule_link_location();
+ 				},
+-				[this] { if (ReadingRestoration) { ReadingFailed = true; schedule_reading_restoration(); } });
++				[this] {
++					if (ReadingRestoration) {
++						ReadingFailed = true;
++						schedule_reading_restoration();
++					}
++					if (TabDriver) {
++						TabFailed = true;
++						schedule_tab_presentation();
++					}
++				});
+ 			DiffHost = std::make_unique<application::diff_application_host>(
+ 				core::diff_state{
+ 					.ApplicationSession = WindowSession,
+@@ -7100,6 +7346,20 @@ namespace bpr::app {
+ 				this,
+ 				Profile->WorkbenchPreferences.get(),
+ 				aConfig.Profile);
++			// [[BPR-1132]]. The window's document tabs. Their gestures reach the
++			// tab host; its loads are presented through the hosts above; its
++			// collection is kept with the window's accepted destination.
++			TabPorts = std::make_unique<document_tab_ports>(*this);
++			TabHost  = std::make_unique<application::document_tab_host>(
++                DecisionLane, *TabPorts, *TabPorts,
++                [this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
++			Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {
++				if (!Closing && TabHost != nullptr) {
++					cancel_restoration(false, true);
++					abandon_tab_load();
++					TabHost->apply(aIntent);
++				}
++			});
+ 			// Reads the current durable or session layout. Restoring never writes
+ 			// it back, so merely launching still leaves a fresh store fresh.
+ 			// [[BPR-0742]]. Session defaults over a store that could not open load
+@@ -7812,6 +8072,12 @@ namespace bpr::app {
+ 			}
+ 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+ 				cancel_restoration(false, true);
++				abandon_tab_load();
++			}
++			// [[BPR-1132]]. A modality change decides whether the comparison
++			// shows the active tab's pair or the window's.
++			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
++				schedule_tab_presentation();
+ 			}
+ #if defined(BPR_BUILD_TESTING)
+ 			++WorkbenchIntentDispatches;
+@@ -10469,6 +10735,7 @@ namespace bpr::app {
+ 				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
+ 				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
+ 				cancel_restoration(false, true);
++				abandon_tab_load();
+ 				clear_diff_selection();
+ 			}
+ 			if (const auto* deletion = std::get_if<core::delete_repository_cache_intent>(&aIntent)) {
+@@ -11767,6 +12034,7 @@ namespace bpr::app {
+ 			}
+ 			retain_reading_position();
+ 			schedule_reading_restoration();
++			schedule_tab_presentation();
+ 			schedule_link_location();
+ 		}
+ 
+@@ -12525,6 +12793,9 @@ namespace bpr::app {
+ 					WorkbenchHost->shutdown();
+ 				}
+ 			}
++			if (TabHost) {
++				TabHost->shutdown();
++			}
+ 			if (AppearanceHost) {
+ 				AppearanceHost->shutdown();
+ 			}
+@@ -12571,6 +12842,7 @@ namespace bpr::app {
+ 					   std::memory_order_acquire)
+ 					!= 0U
+ 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
++				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
+ 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
+ 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
+ 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
+@@ -17277,29 +17549,29 @@ namespace bpr::app {
+ 		/// \details The height floors are the measured stacks'. [[BPR-1130]]:
+ 		/// RFC-BPR-0052's Updates line folds, a new window starts folded, and
+ 		/// open its timeline is one 34-pixel row with no caption, so the stack
+-		/// is taken both ways. Measured on macOS, folded, it is the menu bar
+-		/// 20, the title row 30, the review bar 28, the diff status 15, 6 of
+-		/// margins and the status bar 22: the comparison is 879. Open, the
+-		/// timeline's 34 sit under the bar: 845 (829 with [[BPR-1129]]'s
+-		/// 50-pixel captioned line). On Linux [[BPR-1036]]'s stack gave 834
+-		/// with the captioned line, so 850 open and 884 folded, derived until
+-		/// the Linux station measures them. Windows has no menu bar row and
+-		/// keeps the owner's 850 budget ([[BPR-0246]]) for the open line, the
+-		/// tighter state, and so 884 folded, unmeasured until the Windows
+-		/// station runs this course. The folded stack is the open one less the
+-		/// timeline's row exactly, on every platform. Any further row that
+-		/// takes height fails and is named. The course script asserts the same
+-		/// floors.
++		/// is taken both ways. [[BPR-1132]]: the comparison's header is the
++		/// 28-pixel document tab strip, in place of the diff status row and its
++		/// spacing. Measured on macOS, folded, the stack is the menu bar 20, the
++		/// title row 30, the review bar 28, the tab strip 28 and the status bar
++		/// 22: the comparison is 872. Open, the timeline's 34 sit under the bar:
++		/// 838. On Linux [[BPR-1036]]'s stack (a 14-pixel status and 6 of
++		/// spacing) gives 876 folded and 842 open, derived until the Linux
++		/// station measures them. Windows has no menu bar row and keeps the
++		/// owner's 850 budget ([[BPR-0246]]) for the open line, the tighter
++		/// state, and so 884 folded, unmeasured until the Windows station runs
++		/// this course. The folded stack is the open one less the timeline's
++		/// row exactly, on every platform. Any further row that takes height
++		/// fails and is named. The course script asserts the same floors.
+ 		inline constexpr int uiforetw_capture_width_floor = 750;
+ 	#if defined(__APPLE__)
+-		inline constexpr int uiforetw_capture_open_height_floor   = 845;
+-		inline constexpr int uiforetw_capture_folded_height_floor = 879;
++		inline constexpr int uiforetw_capture_open_height_floor   = 838;
++		inline constexpr int uiforetw_capture_folded_height_floor = 872;
+ 	#elif defined(_WIN32)
+ 		inline constexpr int uiforetw_capture_open_height_floor   = 850;
+ 		inline constexpr int uiforetw_capture_folded_height_floor = 884;
+ 	#else
+-		inline constexpr int uiforetw_capture_open_height_floor   = 850;
+-		inline constexpr int uiforetw_capture_folded_height_floor = 884;
++		inline constexpr int uiforetw_capture_open_height_floor   = 842;
++		inline constexpr int uiforetw_capture_folded_height_floor = 876;
+ 	#endif
+ 
+ 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
+@@ -17385,6 +17657,7 @@ namespace bpr::app {
+ 					<< " strip=" << row(aWindow.primary_toolbar())
+ 					<< " review_bar=" << row(aWindow.review_bar())
+ 					<< " epoch_line=" << row(aWindow.epoch_selectors())
++					<< " tabs=" << row(aWindow.document_tabs())
+ 					<< " comparison=" << comparison.left() << ',' << comparison.top() << ' '
+ 					<< comparison.width() << 'x' << comparison.height()
+ 					<< " status_bar=" << row(aWindow.statusBar())
+@@ -19562,7 +19835,7 @@ namespace bpr::app {
+ 		};
+ 		auto facts = capture_object(
+ 			"schema",
+-			"bpr.uiforetw_intraline_capture.v6",
++			"bpr.uiforetw_intraline_capture.v7",
+ 			"appearance",
+ 			appearance_mode_name(aMode).toStdString(),
+ 			"qt_platform",
+@@ -19709,6 +19982,8 @@ namespace bpr::app {
+ 			openComparison.height(),
+ 			"updates_line_open_height_ratio_permille",
+ 			openHeightRatio,
++			"document_tabs_rect_in_window",
++			rectangle_json(inWindow(*window->document_tabs())),
+ 			"left_horizontal_offset",
+ 			workbench->left_pane()->horizontalScrollBar()->value(),
+ 			"right_horizontal_offset",
+diff --git a/src/application/include/bpr/application/document_tab_host.hpp b/src/application/include/bpr/application/document_tab_host.hpp
+index 00b7ccc4..917d387d 100644
+--- a/src/application/include/bpr/application/document_tab_host.hpp
++++ b/src/application/include/bpr/application/document_tab_host.hpp
+@@ -1,6 +1,7 @@
+ #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TAB_HOST_HPP
+ #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TAB_HOST_HPP
+ 
++#include "bpr/application/document_tabs_projection.hpp"
+ #include "bpr/application/port.hpp"
+ #include "bpr/core/document_tabs.hpp"
+ 
+@@ -26,37 +27,6 @@ namespace bpr::application {
+ 		virtual void load(const core::document_tab_view_request& aRequest) = 0;
+ 	};
+ 
+-	/// \brief One tab as the tab strip shows it.
+-	struct document_tab_entry
+-	{
+-		core::document_tab_id         Id;
+-		core::window_review_position  View;
+-		core::document_tab_view_state State         = core::document_tab_view_state::idle;
+-		bool                          Active        = false;
+-		bool                          OwnComparison = false;
+-
+-		auto operator==(const document_tab_entry&) const -> bool = default;
+-	};
+-
+-	/// \brief A window's tabs, whole, in order.
+-	struct document_tabs_projection
+-	{
+-		std::vector<document_tab_entry>      Tabs;
+-		std::optional<core::comparison_pair> WindowComparison;
+-		core::document_tab_reason            Reason = core::document_tab_reason::none;
+-
+-		auto operator==(const document_tabs_projection&) const -> bool = default;
+-	};
+-
+-	/// \brief Receives the window's tab projection.
+-	class document_tabs_projection_port
+-	{
+-	public:
+-		virtual ~document_tabs_projection_port() = default;
+-
+-		virtual void publish(const document_tabs_projection& aProjection) = 0;
+-	};
+-
+ 	/// \brief [[BPR-1131]]. Owns one window's document tabs for the pull
+ 	/// request it shows.
+ 	///
+diff --git a/src/application/include/bpr/application/document_tabs_projection.hpp b/src/application/include/bpr/application/document_tabs_projection.hpp
+new file mode 100644
+index 00000000..ee793fbf
+--- /dev/null
++++ b/src/application/include/bpr/application/document_tabs_projection.hpp
+@@ -0,0 +1,46 @@
++#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TABS_PROJECTION_HPP
++#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TABS_PROJECTION_HPP
++
++#include "bpr/core/document_tabs.hpp"
++
++#include <optional>
++#include <vector>
++
++namespace bpr::application {
++	// [[BPR-1132]]. What presentation receives of a window's document tabs,
++	// apart from the host that owns them ([[BPR-1131]]).
++
++	/// \brief One tab as the tab strip shows it.
++	struct document_tab_entry
++	{
++		core::document_tab_id         Id;
++		core::window_review_position  View;
++		core::document_tab_view_state State         = core::document_tab_view_state::idle;
++		bool                          Active        = false;
++		bool                          OwnComparison = false;
++
++		auto operator==(const document_tab_entry&) const -> bool = default;
++	};
++
++	/// \brief A window's tabs, whole, in order.
++	struct document_tabs_projection
++	{
++		std::vector<document_tab_entry>      Tabs;
++		std::optional<core::comparison_pair> WindowComparison;
++		core::document_tab_reason            Reason = core::document_tab_reason::none;
++
++		auto operator==(const document_tabs_projection&) const -> bool = default;
++	};
++
++	/// \brief Receives the window's tab projection.
++	class document_tabs_projection_port
++	{
++	public:
++		virtual ~document_tabs_projection_port() = default;
++
++		virtual void publish(const document_tabs_projection& aProjection) = 0;
++	};
++
++} // namespace bpr::application
++
++#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TABS_PROJECTION_HPP
+diff --git a/tests/end_to_end/application_uiforetw_selected_diff_contract.cmake b/tests/end_to_end/application_uiforetw_selected_diff_contract.cmake
+index e14e83b1..a0263da8 100644
+--- a/tests/end_to_end/application_uiforetw_selected_diff_contract.cmake
++++ b/tests/end_to_end/application_uiforetw_selected_diff_contract.cmake
+@@ -62,16 +62,20 @@ bpr_private_data_root(BPR_ROOT)
+ # Linux [[BPR-1036]]'s stack gave 834 with the captioned line, so 884 and 850,
+ # derived until the Linux station measures them. Windows has no menu bar row
+ # and keeps the owner's 850 budget ([[BPR-0246]]) for the open line, so 884
+-# folded, unmeasured until the Windows station runs this course.
++# folded, unmeasured until the Windows station runs this course. [[BPR-1132]]:
++# the comparison's header is the 28-pixel document tab strip, in place of the
++# diff status row and its spacing: 872 folded and 838 open on macOS as
++# measured, 876 and 842 on Linux derived from the same stack, and on Windows 884
++# and the owner's 850.
+ if(CMAKE_HOST_APPLE)
+-    set(bpr_comparison_open_height_floor 845)
+-    set(bpr_comparison_height_floor 879)
++    set(bpr_comparison_open_height_floor 838)
++    set(bpr_comparison_height_floor 872)
+ elseif(CMAKE_HOST_WIN32)
+     set(bpr_comparison_open_height_floor 850)
+     set(bpr_comparison_height_floor 884)
+ else()
+-    set(bpr_comparison_open_height_floor 850)
+-    set(bpr_comparison_height_floor 884)
++    set(bpr_comparison_open_height_floor 842)
++    set(bpr_comparison_height_floor 876)
+ endif()
+ 
+ set(bpr_evidence_root "${BPR_ROOT}/evidence")
+@@ -187,7 +191,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
+         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
+         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
+         "\"fixture_diff_helper_invocations\": 0"
+-        "\"schema\": \"bpr.uiforetw_intraline_capture.v6\""
++        "\"schema\": \"bpr.uiforetw_intraline_capture.v7\""
+         "\"selected_path\": \"UIforETW/UIforETW.rc\""
+     )
+         string(FIND "${capture_facts}" "${fact}" found)
+@@ -329,6 +333,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
+         repositories_drawer_rect_in_splitter
+         review_details_rect_in_window
+         updates_line_open_rect_in_window
++        document_tabs_rect_in_window
+     )
+         foreach(component IN ITEMS x y width height)
+             string(JSON "${rect}_${component}" GET
+@@ -527,6 +532,22 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
+             "open_height_floor=${bpr_comparison_open_height_floor}"
+         )
+     endif()
++    # [[BPR-1132]]. The comparison's header is the document tab strip: one
++    # 28-pixel row directly under the review bar while the line is folded, as
++    # the capture is, with the comparison directly beneath it.
++    math(EXPR document_tabs_bottom
++        "${document_tabs_rect_in_window_y} + ${document_tabs_rect_in_window_height}")
++    if(NOT document_tabs_rect_in_window_y EQUAL review_bar_bottom
++            OR NOT document_tabs_rect_in_window_height EQUAL 28
++            OR NOT comparison_rect_in_window_y EQUAL document_tabs_bottom
++            OR document_tabs_rect_in_window_width LESS comparison_rect_in_window_width)
++        message(FATAL_ERROR
++            "UIforETW ${profile} the comparison's header is not the tab strip: "
++            "tabs=${document_tabs_rect_in_window_x},${document_tabs_rect_in_window_y} "
++            "${document_tabs_rect_in_window_width}x${document_tabs_rect_in_window_height} "
++            "review_bar_bottom=${review_bar_bottom} comparison_top=${comparison_rect_in_window_y}"
++        )
++    endif()
+     math(EXPR comparison_right
+         "${comparison_rect_in_window_x} + ${comparison_rect_in_window_width}")
+     math(EXPR comparison_bottom
