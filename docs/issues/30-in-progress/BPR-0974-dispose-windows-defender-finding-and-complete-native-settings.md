@@ -496,7 +496,7 @@ restored or excluded.
 
 AC2 through AC4 run on this image once AC1 holds.
 
-### Checkpoint, 2026-09-25T02:40Z: ready for the first launch
+### Checkpoint, 2026-09-25T02:19Z: ready for the first launch
 
 - **The integration pass was stopped at 30 rows.** A headless pass over
   `build/dev` ran with every row offscreen, and with
@@ -518,3 +518,49 @@ AC2 through AC4 run on this image once AC1 holds.
 - **Every task-owned process has stopped.** That includes the builds' `vctip`.
   The candidate and the trial image have never been run.
 - **Next:** the first launch, after the coordinator's clearance.
+
+## First launch, 2026-09-25T02:21Z: not detected
+
+The coordinator cleared the foreground run. Before it,
+`bpr-main-helpers/foreground-check.ps1` showed Windows Terminal in front and no
+WSLg (`msrdc`) window. The staged `first-launch.ps1` then ran once. An earlier
+invocation at 02:20:46Z never reached PowerShell: the shell collapsed the
+backslashes in the script path, PowerShell refused a path that did not exist,
+and nothing was launched. The script was then invoked through a `.cmd` with the
+same arguments.
+
+**The run** (UTC):
+
+| Time | What happened |
+|---|---|
+| before | 3 detections; newest operational record 6548 (02:06:15Z); signatures 1.459.384.0, engine 1.1.26080.3, real-time and tamper protection on |
+| 02:21:07.70 | `installed\better_pull_review.exe --render-evidence` started, PID 21344 |
+| 02:21:08.46 (+0.8 s) | Window `BetterPullReview - Default profile - BetterPullReview`, class `Qt6112QWindowIcon` |
+| 02:21:16.48 | `WM_CLOSE` posted |
+| 02:21:16.56 | Exited with code **0** |
+| 02:21:36.58 (+20 s) | Still 3 detections; **no** operational event after record 6548 |
+| 02:21:52 | Read again: still 3 detections, no new event |
+
+- **The bundle registered.** The image reached QApplication and its window, and
+  its standard error is empty; a refused bundle ends the process before
+  QApplication with exit 1 and an `INSTALLED_RESOURCES_REFUSED` line. Standard
+  output was `AUTOMATED_PROFILE_PRIVATE_OK` alone: the run used a private
+  temporary profile, not the owner's.
+- **Nothing was quarantined.** All three files were still present afterwards,
+  with unchanged digests: `installed\better_pull_review.exe` `6aa27c8d…`,
+  `b\src\app\better_pull_review.exe` (the build copy) and
+  `installed\better_pull_review.rcc` `ca3bc2b1…`.
+- **Nothing else was done.** No scan, exclusion, submission, restore or setting
+  change. The process was gone after the run.
+
+The result is the Defender verdict on this one digest at its first launch,
+with signatures 1.459.384.0. BPR-1110 found the verdict is per file and
+probabilistic, so it says nothing about the next build, and the 2026-09-22
+finding stays recorded. It is not called a false positive.
+
+**AC1 is met as the owner's disposition amended it.** The three changes are in
+the image; its source (`85e522d8`), build and digests are recorded above; and
+Defender did not detect that digest.
+
+**The candidate goes to [[BPR-0653]]** for the integrator's attended capture;
+the paths and digests are on that card.

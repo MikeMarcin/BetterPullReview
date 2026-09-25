@@ -938,3 +938,33 @@ tests-disabled bundle built at a commit that contains them is the image ask 1
 can use. If Defender flags it, the capture stops and the detection is recorded
 on BPR-0974. Criteria 2 and 4 stay pending, and the card stays parked on
 human-review.
+
+## The capture image, 2026-09-25 (bpr-main-win): ready for the attended capture
+
+[[BPR-0974]]'s three changes landed at `85e522d8`, which also carries this
+card's title row. A tests-disabled `windows-app-release` image built from it
+passed its single cleared first launch at 2026-09-25T02:21Z:
+
+- the window came up after 0.8 s;
+- `WM_CLOSE` gave exit 0;
+- no Defender detection and no operational event followed;
+- all its files are still present.
+
+The record is on BPR-0974. This is the image for ask 1 and the attended capture
+of criteria 2 and 4, left for the integrator:
+
+| File | SHA-256 |
+|---|---|
+| `C:\Users\mikem\bpr0974-candidate-85e522d8\installed\better_pull_review.exe` | `6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4` |
+| `C:\Users\mikem\bpr0974-candidate-85e522d8\installed\better_pull_review.rcc` | `ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91` |
+
+- **Launch it from `installed\` only.** It is a distribution build: it refuses
+  to start without its `plugins\` directory and its resource bundle beside it.
+  The build copy in `b\src\app\` has neither.
+- **Its first launch used a private temporary profile** (`--render-evidence`).
+  An ordinary launch uses the default profile under `%LOCALAPPDATA%`.
+- **One launch says nothing about the next.** Defender's verdict is per file,
+  so a later launch of these same bytes is still the only check. If a launch is
+  flagged, the capture stops and the detection is recorded on BPR-0974.
+
+Criteria 2 and 4 stay pending, and the card stays parked on human-review.
