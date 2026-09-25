@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -28,6 +28,8 @@ BPR-0161 and current queue tests cover typed offline/recovery and stale-session 
 - AC1: Inventory which cached review data the actual application can reopen offline, including metadata, source, threads and retained epochs; explicitly distinguish unavailable content from an observed empty result.
 - AC2: Exercise network loss and restart through safe real composition, verifying cached/stale labeling and exact account/repository/revision isolation. Reconnection must adopt server truth without silently implying prior freshness.
 - AC3: Implement any demonstrated missing required behavior within its owning core/host/Qt boundary, with exact-candidate rendered checks, cancellation and stale-session negative controls; retain all unsupported cases explicitly.
+
+- AC4: As a bounded decomposition of AC2/AC3, isolate same-profile Recent titles, destinations and saved reading by the accepted account through switches and restart, including safe legacy migration; no complete cached-review mode is implied.
 
 ## Continuation
 
