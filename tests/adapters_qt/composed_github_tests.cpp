@@ -4242,6 +4242,9 @@ namespace {
 		expect(
 			drawer != nullptr && drawer->isVisible(),
 			"the conversations drawer opens on the core's decided state");
+		// [[BPR-1134]]. The agent surfaces are the Findings tab's.
+		window.ai_tools_action()->setChecked(true);
+		QApplication::processEvents();
 
 		const auto named = [drawer](const QString& aName) -> QWidget* {
 			for (auto* const widget : drawer->findChildren<QWidget*>()) {
@@ -4339,11 +4342,10 @@ namespace {
 		// two agent surfaces into the drawer's own visible region is what
 		// makes the capture below a picture of them rather than of whatever
 		// happened to be at the top of the column.
-		auto* const column = drawer->findChild<QScrollArea*>(
-			QStringLiteral("workbenchConversationDrawerScroll"));
+		auto* const column = window.findings_tab_scroll();
 		expect(
-			column != nullptr,
-			"the drawer's column scrolls rather than squeezing its panels");
+			column != nullptr && drawer->isAncestorOf(column) && column->isVisible(),
+			"the Findings tab's column scrolls rather than squeezing its panels");
 		column->verticalScrollBar()->setValue(
 			column->verticalScrollBar()->value()
 			+ sideChat->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
@@ -4592,10 +4594,13 @@ namespace {
 		expect(
 			drawer != nullptr && drawer->isVisible(),
 			"the conversations drawer opens on the core's decided state");
-		auto* const column = drawer->findChild<QScrollArea*>(
-			QStringLiteral("workbenchConversationDrawerScroll"));
+		// [[BPR-1134]]. The agent tools, the finding queue and the defect
+		// controls are the Findings tab's, in its own column.
+		window.ai_tools_action()->setChecked(true);
+		QApplication::processEvents();
+		auto* const column = window.findings_tab_scroll();
 		expect(
-			column != nullptr && column->viewport() != nullptr
+			column != nullptr && column->isVisible() && column->viewport() != nullptr
 				&& column->viewport()->width() > 0,
 			"the drawer's column has a visible width to be inside of");
 		// The premise everything below rests on. At its default width the
@@ -4738,11 +4743,16 @@ namespace {
 				>= aAbove->mapTo(aAbove->window(), QPoint{ 0, 0 }).y()
 					+ aAbove->height();
 		};
+		// [[BPR-1134]]. The availability sentence is the Comments tab's.
+		window.tray_tabs()->setCurrentIndex(0);
+		QApplication::processEvents();
 		auto* const availability = drawer->findChild<QLabel*>(
 			QStringLiteral("reviewThreadAvailability"));
 		expect(
 			availability != nullptr && availability->isVisible(),
-			"the open drawer shows the review-thread availability sentence");
+			"the open drawer's Comments tab shows the review-thread availability sentence");
+		window.tray_tabs()->setCurrentIndex(1);
+		QApplication::processEvents();
 		expect(!offered(QStringLiteral("showReviewThreadsAction")),
 			   "the conversation drawer has no focus-only reveal action below its availability sentence");
 		expect(

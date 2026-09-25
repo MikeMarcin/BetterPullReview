@@ -35,7 +35,7 @@ authored and directly requested pull requests of the saved repositories
 ├ Review bar: Updates  Comparing …, dates ▾ | ‹ › change 3 of 11 | « » file 3 of 40 | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
-│ filters and review map       │ natural-layout panes + DiffLinkMap      │ threads, defects, AI tabs   │
+│ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Findings   │
 │                              │ one shared vertical scrollbar          │                              │
 │                              ├ full-width selected-change detail pane ┤                              │
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
@@ -807,6 +807,20 @@ permanent status sentence and no Reload Profiles button, and nothing announces
 "Profile saved.": the renamed row is the confirmation.
 
 ## Conversation drawer
+
+The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
+**Comments**, then **Findings** ([[BPR-1134]]). It opens on Comments. The
+Comments tab holds the conversation exactly as described below, with its scope
+and filters, and Next new comment beneath the tabs; the tab carries the count
+of threads with new comments as an accent pill and says it to accessibility
+("Comments, 2 threads with new comments"). The Findings tab holds the private
+AI tools, the side chat, the finding queue and the defect controls, which no
+longer stack under the threads. Choosing Findings is RFC-BPR-0031's explicit
+move into the AI tools: it permits the decorative Dif slot at the tab's top
+right, dispatches no agent or review action, and never opens a collapsed
+drawer. Each tab scrolls on its own, so switching tabs keeps each one's scroll
+position and the selected conversation. The tabs are one focus stop and the
+arrow keys move between them. RFC-BPR-0039's Tour joins them when it exists.
 
 Replies read as a linear feed, not a staircase. A reply sits one step in from
 the root it belongs to, and a reply to a reply sits in the same place — the

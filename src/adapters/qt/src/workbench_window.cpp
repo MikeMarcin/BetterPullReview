@@ -73,6 +73,7 @@
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyle>
+#include <QTabBar>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTimer>
@@ -134,6 +135,59 @@ namespace bpr::qt {
 
 		private:
 			QPointer<QWidget> Field;
+		};
+
+		/// \brief [[BPR-1134]]. The right tray's tabs, in order.
+		constexpr int tray_comments_tab = 0;
+		constexpr int tray_findings_tab = 1;
+
+		/// \brief [[BPR-1134]]. The Comments tab's count of threads with new
+		/// comments: a pill in the accent, painted from the palette.
+		class tray_count_pill final : public QWidget
+		{
+		public:
+			explicit tray_count_pill(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				setFocusPolicy(Qt::NoFocus);
+				setAttribute(Qt::WA_TransparentForMouseEvents, true);
+			}
+
+			void set_count(const std::size_t aCount)
+			{
+				Text = aCount == 0U ? QString{ } : QString::number(aCount);
+				setVisible(aCount != 0U);
+				updateGeometry();
+				update();
+			}
+
+			[[nodiscard]] auto text() const -> const QString&
+			{
+				return Text;
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto height = fontMetrics().height();
+				return QSize{ std::max(height, fontMetrics().horizontalAdvance(Text) + height / 2 + 4), height };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(palette().color(QPalette::Active, QPalette::Highlight));
+				const auto box = QRectF{ rect() };
+				painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+				painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
+				painter.drawText(rect(), Qt::AlignCenter, Text);
+			}
+
+		private:
+			QString Text;
 		};
 
 		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
@@ -1543,11 +1597,40 @@ namespace bpr::qt {
 		connect(NextDefect, &QAction::triggered, this, [this] {
 			navigate_defect(1);
 		});
-		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
-		auto* const conversationLayout   = new QVBoxLayout{ conversationContents };
-		ConversationLayout               = conversationLayout;
+		// [[BPR-1134]]. RFC-BPR-0052's right tray: tabs in the drawer's header,
+		// each tab's tools beneath them. The Comments tab holds the conversation
+		// with its scope and filters, and Next new comment; its host keeps the
+		// panel's place while Discuss borrows it for the centre (the drawers
+		// are hidden then, so the tab needs no notice of its own).
+		auto* const commentsContents = new QWidget{ Drawers[1].Panel };
+		commentsContents->setObjectName(QStringLiteral("workbenchCommentsTab"));
+		auto* const commentsLayout = new QVBoxLayout{ commentsContents };
+		commentsLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const commentsTools = new QHBoxLayout{ };
+		commentsTools->setContentsMargins(4, 2, 4, 2);
+		commentsTools->addStretch(1);
+		NextNewCommentButton = new QToolButton{ commentsContents };
+		NextNewCommentButton->setObjectName(QStringLiteral("workbenchNextNewCommentButton"));
+		NextNewCommentButton->setDefaultAction(NextNewCommentAction);
+		NextNewCommentButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		NextNewCommentButton->setFocusPolicy(Qt::StrongFocus);
+		NextNewCommentButton->setAccessibleName(QStringLiteral("Next new comment"));
+		NextNewCommentButton->setAccessibleDescription(QStringLiteral(
+			"Reveal the next thread with a post newer than what you have read"));
+		commentsTools->addWidget(NextNewCommentButton);
+		commentsLayout->addLayout(commentsTools);
+		auto* const conversationHost   = new QWidget{ commentsContents };
+		auto* const conversationLayout = new QVBoxLayout{ conversationHost };
+		ConversationLayout             = conversationLayout;
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
+		commentsLayout->addWidget(conversationHost, 1);
+		// The Findings tab: the AI tools, the finding queue and the defect
+		// controls, which used to stack under the threads in one column.
+		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
+		conversationContents->setObjectName(QStringLiteral("workbenchFindingsTab"));
+		auto* const findingsLayout = new QVBoxLayout{ conversationContents };
+		findingsLayout->setContentsMargins(0, 0, 0, 0);
 		DiscussPage = new QWidget{ CentreStack };
 		DiscussPage->setObjectName(QStringLiteral("workbenchDiscussPage"));
 		auto* discussLayout = new QVBoxLayout{ DiscussPage };
@@ -1582,11 +1665,11 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
-		conversationLayout->addWidget(AgentPanel);
+		findingsLayout->addWidget(AgentPanel);
 		// The agent surfaces remain beside their launcher. The same retained
 		// draft editor and its workshop now have their own composition page.
 		SideChat = new side_chat_panel{ { }, conversationContents };
-		conversationLayout->addWidget(SideChat);
+		findingsLayout->addWidget(SideChat);
 		// Stacked, as the finding queue's actions are: the drawer never scrolls
 		// sideways, so a row wider than the drawer loses its last actions rather
 		// than pushing them offscreen (BPR-0506).
@@ -1599,9 +1682,9 @@ namespace bpr::qt {
 			button->setDefaultAction(action);
 			chatActions->addWidget(button);
 		}
-		conversationLayout->addLayout(chatActions);
+		findingsLayout->addLayout(chatActions);
 		FindingQueue = new finding_queue_view{ { }, conversationContents };
-		conversationLayout->addWidget(FindingQueue);
+		findingsLayout->addWidget(FindingQueue);
 		// One button per declared action, indexed by the enumerator, so a
 		// seventh finding action cannot be declared and then never offered.
 		//
@@ -1626,7 +1709,7 @@ namespace bpr::qt {
 			button->setDefaultAction(action);
 			findingActions->addWidget(button);
 		}
-		conversationLayout->addLayout(findingActions);
+		findingsLayout->addLayout(findingActions);
 		// BPR-0520. Stacked, for the reason BPR-0506 stacked the finding
 		// actions, and now on a measurement rather than on a suspicion. At the
 		// drawer's default width the column's visible region was 522 px wide
@@ -1654,8 +1737,8 @@ namespace bpr::qt {
 			button->setDefaultAction(action);
 			defectNavigation->addWidget(button);
 		}
-		conversationLayout->addLayout(defectNavigation);
-		conversationLayout->addWidget(DefectCard);
+		findingsLayout->addLayout(defectNavigation);
+		findingsLayout->addWidget(DefectCard);
 		// BPR-0520, the second half of the same measurement. The five verdicts
 		// RFC-BPR-0009 and RFC-BPR-0010 give a defect are the same five, in the
 		// same order, under the same labels and object names, each emitting the
@@ -1669,74 +1752,89 @@ namespace bpr::qt {
 			button->setDefaultAction(action);
 			defectActions->addWidget(button);
 		}
-		conversationLayout->addLayout(defectActions);
-		// The column holds contextual conversations, agent tools and findings.
-		// That is more than a short drawer can show at
-		// once, and a column that simply squeezed would show each panel with
-		// its own fields overlapping — which is showing a reviewer nothing.
-		// So the content scrolls. Collapse, width reporting, and the toggle
-		// are untouched: this is inside the drawer's content, not around it.
-		ConversationScroll = new QScrollArea{ Drawers[1].Panel };
-		ConversationScroll->setObjectName(
-			QStringLiteral("workbenchConversationDrawerScroll"));
-		ConversationScroll->setWidgetResizable(true);
-		ConversationScroll->setFrameShape(QFrame::NoFrame);
+		findingsLayout->addLayout(defectActions);
+		// Each tab's column scrolls on its own, so switching tabs keeps each
+		// one's scroll position. A column holds more than a short drawer can
+		// show at once, and a column that simply squeezed would show each panel
+		// with its own fields overlapping — which is showing a reviewer
+		// nothing. Collapse, width reporting, and the toggle are untouched:
+		// this is inside the drawer's content, not around it.
 		// BPR-0527. The drawer opens at the width stated above rather than at
 		// whatever the widest row asked for. [[BPR-0728]]: that width is the
-		// default, not a floor. The owner found Read short of horizontal room
-		// for the code, so this scroll area claims no minimum of its own and
-		// the handle drags the drawer down to the panel floor the other
-		// drawers share; a width beneath the presented floor is lifted back
-		// to the design width on the next launch as theirs is ([[BPR-0662]]).
-		// Vertically at the widths the column asks for: a drawer is a column,
-		// and the width a panel gets is the width the reviewer gave the
-		// drawer. [[BPR-0728]]: beneath the column's own minimum (the widest
-		// row, about 290 pixels) the content scrolls sideways rather than
-		// clipping, so a reviewer who took the drawer down to the floor for
-		// the code's sake can still reach every control in it.
-		ConversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-		ConversationScroll->setWidget(conversationContents);
+		// default, not a floor, so neither column claims a minimum of its own
+		// and the handle drags the drawer down to the panel floor the other
+		// drawers share. Beneath a column's own minimum its content scrolls
+		// sideways rather than clipping, so every control stays reachable.
+		const auto makeTabColumn = [this](QWidget* const aContents, const QString& aName) {
+			auto* const scroll = new QScrollArea{ Drawers[1].Panel };
+			scroll->setObjectName(aName);
+			scroll->setWidgetResizable(true);
+			scroll->setFrameShape(QFrame::NoFrame);
+			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+			scroll->setWidget(aContents);
+			return scroll;
+		};
+		CommentsScroll     = makeTabColumn(commentsContents, QStringLiteral("workbenchCommentsScroll"));
+		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchFindingsScroll"));
 
-		// RFC-BPR-0031. The Conversations drawer still opens on shared review
-		// comments. This small header is the explicit transition into the AI
-		// tools already composed below it; selecting it reveals Findings and
-		// permits the one window-owned decorative slot. It dispatches no agent
-		// or review action and never opens the drawer itself.
-		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
-		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
-		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const aiHeader = new QWidget{ conversationShell };
-		aiHeader->setObjectName(QStringLiteral("workbenchAiToolsHeader"));
-		auto* const aiHeaderLayout = new QHBoxLayout{ aiHeader };
-		aiHeaderLayout->setContentsMargins(0, 0, 0, 0);
-		AiToolsAction = new QAction{ tr("AI tools and Findings"), this };
-		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
-		AiToolsAction->setCheckable(true);
-		AiToolsAction->setToolTip(
-			tr("Reveal the existing private AI tools and Findings in this drawer."));
-		AiToolsButton = new QToolButton{ aiHeader };
-		AiToolsButton->setObjectName(QStringLiteral("showWorkbenchAiToolsButton"));
-		AiToolsButton->setDefaultAction(AiToolsAction);
-		AiToolsButton->setAccessibleName(QStringLiteral("AI tools and Findings"));
-		AiToolsButton->setAccessibleDescription(
-			QStringLiteral("Reveal the existing private AI tools and Findings in this drawer."));
-		aiHeaderLayout->addWidget(AiToolsButton);
-		aiHeaderLayout->addStretch(1);
-		DifAiSlot = new QWidget{ aiHeader };
+		// RFC-BPR-0031's decorative slot is the Findings tab's, at its top right.
+		DifAiSlot = new QWidget{ conversationContents };
 		DifAiSlot->setObjectName(QStringLiteral("workbenchDifAiSlot"));
 		DifAiSlot->setAccessibleName(QStringLiteral("Decorative Dif AI tools illustration"));
 		DifAiSlot->setFixedSize(72, 72);
 		auto* const difSlotLayout = new QHBoxLayout{ DifAiSlot };
 		difSlotLayout->setContentsMargins(0, 0, 0, 0);
 		DifAiSlot->hide();
-		aiHeaderLayout->addWidget(DifAiSlot, 0, Qt::AlignRight | Qt::AlignVCenter);
-		conversationShellLayout->addWidget(aiHeader);
-		conversationShellLayout->addWidget(ConversationScroll, 1);
+		auto* const findingsTools = new QHBoxLayout{ };
+		findingsTools->setContentsMargins(0, 0, 0, 0);
+		findingsTools->addStretch(1);
+		findingsTools->addWidget(DifAiSlot, 0, Qt::AlignRight | Qt::AlignVCenter);
+		findingsLayout->insertLayout(0, findingsTools);
+
+		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Findings
+		// (RFC-BPR-0039's Tour joins them when it exists). The drawer still
+		// opens on Comments. Choosing Findings is RFC-BPR-0031's explicit move
+		// into the AI tools, the action that permits the decorative slot; it
+		// dispatches no agent or review action and never opens the drawer.
+		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
+		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
+		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
+		conversationShellLayout->setSpacing(0);
+		TrayTabs = new QTabBar{ conversationShell };
+		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
+		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
+		TrayTabs->setAccessibleDescription(QStringLiteral(
+			"Comments, and Findings: the AI tools, the finding queue and the defect controls"));
+		TrayTabs->setDocumentMode(true);
+		TrayTabs->setExpanding(false);
+		TrayTabs->setDrawBase(true);
+		TrayTabs->setFocusPolicy(Qt::StrongFocus);
+		TrayTabs->addTab(tr("Comments"));
+		TrayTabs->addTab(tr("Findings"));
+		TrayTabs->setTabToolTip(0, tr("The pull request's conversations, with their scope and filters"));
+		TrayTabs->setTabToolTip(1, tr("The private AI tools, the finding queue and the defect controls"));
+		TrayCommentsCount = new tray_count_pill{ TrayTabs };
+		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
+		TrayCommentsCount->hide();
+		TrayTabs->setTabButton(0, QTabBar::RightSide, TrayCommentsCount);
+		TrayPages = new QStackedWidget{ conversationShell };
+		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
+		TrayPages->addWidget(CommentsScroll);
+		TrayPages->addWidget(ConversationScroll);
+		conversationShellLayout->addWidget(TrayTabs);
+		conversationShellLayout->addWidget(TrayPages, 1);
+		AiToolsAction = new QAction{ tr("Findings"), this };
+		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
+		AiToolsAction->setCheckable(true);
+		AiToolsAction->setToolTip(
+			tr("Show the Findings tab: the private AI tools, the finding queue and the defect controls."));
+		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
+			TrayPages->setCurrentIndex(aIndex);
+			AiToolsAction->setChecked(aIndex == tray_findings_tab);
+		});
 		connect(AiToolsAction, &QAction::toggled, this, [this](const bool aSelected) {
 			AiToolsSelected = aSelected;
-			if (aSelected && ConversationScroll != nullptr && FindingQueue != nullptr) {
-				ConversationScroll->ensureWidgetVisible(FindingQueue, 0, 24);
-			}
+			TrayTabs->setCurrentIndex(aSelected ? tray_findings_tab : tray_comments_tab);
 			update_dif_presentation();
 			if (aSelected) {
 				play_dif_cue(DifCues->reveal_findings(DifCueClock->elapsed()));
@@ -5041,6 +5139,31 @@ namespace bpr::qt {
 		return ReviewBar;
 	}
 
+	auto workbench_window::tray_tabs() const noexcept -> QTabBar*
+	{
+		return TrayTabs;
+	}
+
+	auto workbench_window::comments_tab_scroll() const noexcept -> QScrollArea*
+	{
+		return CommentsScroll;
+	}
+
+	auto workbench_window::findings_tab_scroll() const noexcept -> QScrollArea*
+	{
+		return ConversationScroll;
+	}
+
+	auto workbench_window::next_new_comment_button() const noexcept -> QToolButton*
+	{
+		return NextNewCommentButton;
+	}
+
+	auto workbench_window::comments_count_text() const -> QString
+	{
+		return TrayCommentsCount == nullptr ? QString{ } : static_cast<const tray_count_pill*>(TrayCommentsCount)->text();
+	}
+
 	auto workbench_window::updates_label() const noexcept -> QLabel*
 	{
 		return UpdatesLabel;
@@ -5064,6 +5187,14 @@ namespace bpr::qt {
 		}
 		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
+		// [[BPR-1134]]. The Comments tab carries the same count.
+		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
+			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(unread.size());
+			TrayTabs->setAccessibleTabName(
+				tray_comments_tab,
+				unread.empty() ? tr("Comments")
+							   : tr("Comments, %1 with new comments").arg(unread.size() == 1U ? tr("one thread") : tr("%1 threads").arg(unread.size())));
+		}
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
 						   : QStringLiteral("Next new comment (%1 threads)").arg(unread.size()));
@@ -8093,8 +8224,11 @@ namespace bpr::qt {
 		// here.
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->rail());
+		// [[BPR-1134]]. The tray's tabs, then the Comments tab's tool and its
+		// conversation; the Findings tab's stops follow.
+		append(TrayTabs);
+		append(NextNewCommentButton);
 		append(Drawers[1].Panel->focus_stop());
-		append(AiToolsButton);
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
 		}

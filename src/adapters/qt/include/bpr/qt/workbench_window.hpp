@@ -72,6 +72,7 @@ class QProgressBar;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
+class QTabBar;
 class QTimer;
 class QToolBar;
 class QToolButton;
@@ -518,6 +519,15 @@ namespace bpr::qt {
 		/// change and file navigation with their positions and private
 		/// progress; at its right Compose review and Comment. Home has none.
 		[[nodiscard]] auto review_bar() const noexcept -> QToolBar*;
+		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, then Findings.
+		[[nodiscard]] auto tray_tabs() const noexcept -> QTabBar*;
+		/// \brief [[BPR-1134]]. Each tab's own scrolled column.
+		[[nodiscard]] auto comments_tab_scroll() const noexcept -> QScrollArea*;
+		[[nodiscard]] auto findings_tab_scroll() const noexcept -> QScrollArea*;
+		/// \brief [[BPR-1134]]. Next new comment, the Comments tab's tool.
+		[[nodiscard]] auto next_new_comment_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1134]]. The count the Comments tab carries; empty for none.
+		[[nodiscard]] auto comments_count_text() const -> QString;
 		/// \brief [[BPR-1129]]. The bar's "Updates" name, before the comparison.
 		[[nodiscard]] auto updates_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1129]]. Compose review: Option-R (Alt+R), window-owned,
@@ -1268,7 +1278,6 @@ namespace bpr::qt {
 		QWidget*                              DifAiSlot          = nullptr;
 		QWidget*                              DifCornerSlot      = nullptr;
 		QAction*                              AiToolsAction      = nullptr;
-		QToolButton*                          AiToolsButton      = nullptr;
 		QScrollArea*                          ConversationScroll = nullptr;
 		bool                                  AiToolsSelected    = false;
 		core::dif_resolution                  DifResolution;
@@ -1277,6 +1286,14 @@ namespace bpr::qt {
 		bool                                  StripHome          = false;
 		bool                                  HomeRequested      = false;
 		bool                                  HomeFocused        = false;
+		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
+		/// Comments tab's column, tool and count. ConversationScroll is the
+		/// Findings tab's column.
+		QTabBar*        TrayTabs             = nullptr;
+		QStackedWidget* TrayPages            = nullptr;
+		QScrollArea*    CommentsScroll       = nullptr;
+		QToolButton*    NextNewCommentButton = nullptr;
+		QWidget*        TrayCommentsCount    = nullptr;
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
 		QPointer<QWidget>                        FocusBeforeHome;
 		QAction*                                 HomeAction           = nullptr;

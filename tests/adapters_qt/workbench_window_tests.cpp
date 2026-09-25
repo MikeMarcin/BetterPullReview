@@ -7,9 +7,11 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractButton>
@@ -58,6 +60,7 @@
 #include <QStyle>
 #include <QStyleFactory>
 #include <QSysInfo>
+#include <QTabBar>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QThread>
@@ -2546,8 +2549,8 @@ namespace {
 	[[nodiscard]] auto every_control_is_reachable(const qt::workbench_window& aWindow) -> bool
 	{
 		auto* const drawer = aWindow.conversations_drawer();
-		auto* const scroll = drawer->findChild<QScrollArea*>(
-			QStringLiteral("workbenchConversationDrawerScroll"));
+		// [[BPR-1134]]. The column of the tray's tab that is showing.
+		auto* const scroll = aWindow.tray_tabs()->currentIndex() == 0 ? aWindow.comments_tab_scroll() : aWindow.findings_tab_scroll();
 		if (scroll == nullptr || scroll->widget() == nullptr) {
 			std::cerr << "the conversations drawer has no content scroll area\n";
 			return false;
@@ -2618,7 +2621,13 @@ namespace {
 				   && log.Width.back().Width == 200U,
 			   "the host hears the dragged conversations width");
 		expect(every_control_is_reachable(window),
-			   "no conversations control is clipped at 200 pixels; the column scrolls");
+			   "no Comments tab control is clipped at 200 pixels; the column scrolls");
+		window.tray_tabs()->setCurrentIndex(1);
+		process_events();
+		expect(every_control_is_reachable(window),
+			   "no Findings tab control is clipped at 200 pixels; the column scrolls");
+		window.tray_tabs()->setCurrentIndex(0);
+		process_events();
 
 		drag_conversations_handle(window, 100);
 		process_events();
@@ -6612,6 +6621,139 @@ namespace {
 		course(false);
 	}
 
+	/// \brief [[BPR-1134]]. RFC-BPR-0052 AC-09: the right tray's header holds
+	/// Comments and Findings tabs, each tab's tools sit beneath the tabs, each
+	/// tab shows only its own content, switching keeps each tab's scroll and
+	/// selection, and keyboard and accessibility reach every tab.
+	void test_the_right_tray_holds_comments_and_findings_tabs()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 560);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+									   core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 40U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		window.set_conversation_endpoint_placement(false, true);
+		const auto thread = [](const std::string& aId, const std::uint32_t aLine) {
+			return application::github_conversation_projection{
+				.Id                 = aId,
+				.Kind               = application::github_conversation_kind::review_thread,
+				.Path               = "src/file.cpp",
+				.Line               = aLine,
+				.DiffSide           = application::github_conversation_diff_side::right,
+				.AnchorAvailability = application::github_conversation_anchor_availability::current,
+			};
+		};
+		const auto post = [](const std::string& aId, const std::string& aParent) {
+			return application::github_conversation_projection{
+				.Id          = aId,
+				.ParentId    = aParent,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = "someone",
+				.Body        = "a post",
+				.Path        = "src/file.cpp",
+			};
+		};
+		window.conversation_panel()->adopt(
+			{ thread("review-thread:a", 12U), post("review-comment:a-1", "review-thread:a"),
+			  thread("review-thread:b", 22U), post("review-comment:b-1", "review-thread:b") },
+			QStringLiteral("two conversations"));
+		static_cast<void>(publish_fixture(window, computed_comparison(text, text, 0U, core::file_identity_of("src/file.cpp"))));
+		window.present_read_state({
+			qt::thread_read_state{ .Thread = "review-thread:a", .UnreadPosts = { "review-comment:a-1" } },
+			qt::thread_read_state{ .Thread = "review-thread:b", .UnreadPosts = { "review-comment:b-1" } },
+		});
+		process_events();
+
+		auto* const tabs     = window.tray_tabs();
+		auto* const comments = window.comments_tab_scroll();
+		auto* const findings = window.findings_tab_scroll();
+		auto* const drawer   = window.conversations_drawer();
+		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 2
+				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Findings")
+				   && tabs->currentIndex() == 0 && tabs->isVisible(),
+			   "the tray's header is its tabs, Comments then Findings, and it opens on Comments");
+		expect(window.comments_count_text() == QStringLiteral("2")
+				   && tabs->accessibleTabName(0).contains(QStringLiteral("2 threads with new comments")),
+			   "the Comments tab carries the new-comment count and says it");
+		const auto below = [&window, tabs](const QWidget* const aWidget) {
+			return aWidget->mapTo(&window, QPoint{ 0, 0 }).y() >= tabs->mapTo(&window, QPoint{ 0, tabs->height() }).y();
+		};
+		expect(comments->isVisible() && !findings->isVisible() && window.conversation_panel()->isVisible()
+				   && window.next_new_comment_button()->isVisible() && below(window.next_new_comment_button())
+				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
+				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
+				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
+			   "the Comments tab shows the conversation and Next new beneath the tabs, and nothing of Findings");
+		const auto save = [&window](const QString& aSuffix) {
+			const auto rendered = window.grab();
+			expect(!rendered.isNull(), "the right tray renders in the composed window");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the right tray render is saved for inspection");
+			}
+		};
+		save(QStringLiteral("tray-comments"));
+		expect(comments->isAncestorOf(window.conversation_panel()) && findings->isAncestorOf(window.finding_queue())
+				   && findings->isAncestorOf(window.side_chat()) && findings->isAncestorOf(window.defect_card())
+				   && findings->isAncestorOf(window.agent_panel()) && findings->isAncestorOf(window.dif_ai_slot()),
+			   "the AI tools, the finding queue and the defect controls are the Findings tab's, no longer stacked under the threads");
+
+		auto* const view = window.conversation_view();
+		view->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:b"));
+		process_events();
+		const auto selected = view->currentIndex();
+		tabs->setCurrentIndex(1);
+		process_events();
+		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
+				   && window.finding_queue()->isVisible() && window.defect_count_label()->isVisible() && below(window.agent_panel())
+				   && !window.conversation_panel()->isVisible(),
+			   "the Findings tab shows only its own tools, beneath the tabs, and checks the AI tools action");
+		save(QStringLiteral("tray-findings"));
+		auto* const findingsBar = findings->verticalScrollBar();
+		expect(findingsBar->maximum() > 0, "fixture: the Findings column is taller than the drawer");
+		findingsBar->setValue(findingsBar->maximum() / 2);
+		const auto findingsScrolled = findingsBar->value();
+		tabs->setCurrentIndex(0);
+		process_events();
+		expect(view->currentIndex() == selected && comments->isVisible(),
+			   "returning to Comments keeps the selected conversation");
+		tabs->setCurrentIndex(1);
+		process_events();
+		expect(findingsBar->value() == findingsScrolled && findingsScrolled > 0,
+			   "returning to Findings keeps its scroll position");
+
+		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
+		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
+				   && window.focus_order().contains(window.next_new_comment_button()),
+			   "the tray's tabs and the Comments tab's tool are declared focus stops");
+		tabs->setFocus(Qt::OtherFocusReason);
+		for (const auto [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 1 } }) {
+			auto press = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+			QApplication::sendEvent(tabs, &press);
+			process_events();
+			expect(tabs->currentIndex() == expected, "the arrow keys move between the tray's tabs");
+		}
+		auto* const accessible = QAccessible::queryAccessibleInterface(tabs);
+		expect(accessible != nullptr && accessible->childCount() >= 2
+				   && accessible->child(0)->text(QAccessible::Name).startsWith(QStringLiteral("Comments"))
+				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Findings"),
+			   "accessibility reaches each tab by name");
+
+		// The AI tools action and the tab are one choice.
+		window.ai_tools_action()->setChecked(false);
+		process_events();
+		expect(tabs->currentIndex() == 0 && comments->isVisible(), "unchecking the AI tools action returns to Comments");
+		window.hide();
+	}
+
 	void test_read_state_reaches_the_gutter_and_the_strip()
 	{
 		qt::workbench_window window;
@@ -9328,11 +9470,14 @@ namespace {
 				   && !dif->isVisible(),
 			   "opening a review does not place Dif in a generic review or comments surface");
 
+		// [[BPR-1134]]. The explicit named selector is the tray's Findings tab.
 		auto* const action = window.ai_tools_action();
+		auto* const tabs   = window.tray_tabs();
 		expect(action != nullptr && action->isCheckable() && !action->isChecked()
-				   && action->text() == QStringLiteral("AI tools and Findings"),
+				   && action->text() == QStringLiteral("Findings") && tabs != nullptr
+				   && tabs->tabText(1) == QStringLiteral("Findings") && tabs->currentIndex() == 0,
 			   "the existing AI area has an explicit named selector");
-		action->trigger();
+		tabs->setCurrentIndex(1);
 		process_events();
 		expect(action->isChecked()
 				   && window.conversations_drawer()->state()
@@ -9415,7 +9560,7 @@ namespace {
 				   && dif->parentWidget() == window.dif_ai_slot() && dif->size() == QSize{ 64, 64 }
 				   && !corner->isVisible(),
 			   "returning to the review restores the still-selected explicit AI placement and leaves the corner");
-		action->trigger();
+		tabs->setCurrentIndex(0);
 		process_events();
 		expect(!action->isChecked() && !window.dif_ai_slot()->isVisible()
 				   && !dif->isVisible(),
@@ -9712,6 +9857,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
+	test_the_right_tray_holds_comments_and_findings_tabs();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();
 	test_defect_queue_navigation_and_semantic_dispatch();
