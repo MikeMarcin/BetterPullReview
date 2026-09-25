@@ -234,3 +234,10 @@ phase margins without observations remain unknown. Windows/Linux runs were
 explicitly deferred by the owner. The card returns to Backlog, with the
 implementation and Mac contention evidence complete. Cross-platform
 acceptance is not claimed.
+
+The Mac sweep also exposed a separate release HTTPS fixture deadline: its
+four-hop redirect-cap course shared the 500 ms allowance used by single-request
+courses. The [sweep follow-up](../../verification/BPR-0905-mac-full-suite-2026-09-25.md#release-https-fixture-deadline-follow-up)
+records the fourfold course-specific allowance and focused Mac pass. It does
+not change the four BPR-0905 target rows or satisfy their pending Windows/Linux
+contention evidence.

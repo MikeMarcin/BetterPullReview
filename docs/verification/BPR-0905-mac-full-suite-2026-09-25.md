@@ -67,3 +67,17 @@ Those focused results repair the four changed-surface failures seen in the
 historical suite; they are not a second full-suite pass. BPR-0966's Dif
 Compose placement remains owner-blocked. The release-update fixture passed
 its one serial rerun; its concurrent 500 ms deadline is a recorded flake.
+
+## Release HTTPS fixture deadline follow-up
+
+The `redirect-loop` course opens four sequential TLS connections to check the
+three-redirect cap. Its former 500 ms shared deadline was the same as a
+single-request course and could expire before the fourth response under Mac
+full-suite contention, producing `timed_out` instead of the intended
+`redirect` classification. That is the failure recorded above. The fixture
+now allows 2,000 ms for this course, a stated fourfold multiple of the
+unchanged 500 ms single-request allowance. The explicit four-request count
+and redirect terminal remain the acceptance checks; the `timeout` course
+retains 500 ms. The focused `release_update_native_https` row passed 1/1
+on the combined Mac checkout in 8.31 s. This repairs the identified fixture
+deadline; no second contended full-suite result is claimed.

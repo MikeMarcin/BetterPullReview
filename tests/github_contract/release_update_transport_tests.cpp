@@ -55,7 +55,10 @@ auto main(int aArgc, char** aArgv) -> int
 	configuration.ProxyHost               = "127.0.0.1";
 	configuration.ProxyPort               = static_cast<std::uint16_t>(std::stoul(aArgv[2]));
 	configuration.TrustedCaCertificatePem = scenario == "untrusted" ? std::string{ } : ca.readAll().toStdString();
-	configuration.TotalTimeout            = std::chrono::milliseconds{ 500 };
+	// Four separate TLS connections exercise the redirect cap. Give that course
+	// four times the single-request allowance so host contention cannot turn a
+	// redirect-limit assertion into an unrelated shared-deadline expiry.
+	configuration.TotalTimeout            = scenario == "redirect-loop" ? std::chrono::milliseconds{ 2000 } : std::chrono::milliseconds{ 500 };
 	std::string canary;
 	std::getline(std::cin, canary);
 	expect(canary.size() == 40U, "bounded fixture canary");
