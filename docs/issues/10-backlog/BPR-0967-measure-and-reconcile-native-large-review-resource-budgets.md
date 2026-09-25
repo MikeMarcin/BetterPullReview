@@ -104,3 +104,18 @@ longer reshapes every post on each relayout, and refreshes are back to a
 median worst gap of 68.8 ms. The same change lowers the history course's
 initial-load gap from 292–309 ms to 231–243 ms. That gap is still over
 100 ms, and it remains this card's responsiveness question.
+
+## Mac unsampled footprint high-water gate — 2026-09-25
+
+At code candidate `8b6407fd`, the native Mac resource sampler now records the
+process-lifetime physical-footprint peak and checks its growth against the
+existing course-specific 160/184 MiB bounds. The four affected composed
+courses pass 4/4 with the gate enabled. The resources course reveals a
+139.22 MiB lifetime-peak growth where its largest checkpoint was 124.27 MiB;
+the cache-byte course peaks at 171.41 MiB against 184 MiB. Exact hardware,
+toolkit, report digests and the other two rows are in the
+[Mac peak evidence](../../verification/BPR-0967-mac-lifetime-peaks-2026-09-25.md).
+The counter bounds unsampled physical-footprint peaks on this Mac, but it does
+not time their phases or measure peak live heap. The remaining AC3 platforms
+and responsiveness dimensions above are still unobserved; this card stays
+Backlog.
