@@ -3,6 +3,7 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QColor>
 #include <QFont>
 #include <QPlainTextEdit>
 #include <QScrollBar>
@@ -753,6 +754,269 @@ namespace {
 		expect(clearedReused == 0U && cleared == edited, "a cleared record measures every block again, to the same boundaries");
 	}
 
+	/// Measures a pane to completion with its recorded block heights, and
+	/// says how many lines took a recorded height.
+	[[nodiscard]] auto measure_recorded(const QPlainTextEdit& aPane, const std::uint32_t aLines, qt::pane_block_heights& aHeights)
+		-> std::pair<std::vector<qreal>, std::uint32_t>
+	{
+		QApplication::processEvents();
+		qt::plain_text_pane_measurement measurement{ aPane, aLines, aHeights };
+		auto                            progress = qt::pane_measurement_progress::pending;
+		while (progress == qt::pane_measurement_progress::pending) {
+			progress = measurement.advance(32U);
+		}
+		expect(progress == qt::pane_measurement_progress::complete && measurement.result() != nullptr,
+			   "a measurement with recorded block heights completes");
+		return { measurement.result()->Boundaries, measurement.reused_lines() };
+	}
+
+	/// Gives one block new additional formats the way the review panes
+	/// highlight: the block's own layout, then its contents marked dirty.
+	void restyle(QTextDocument& aDocument, const int aBlock, const QList<QTextLayout::FormatRange>& aFormats)
+	{
+		const auto block = aDocument.findBlockByNumber(aBlock);
+		block.layout()->setFormats(aFormats);
+		aDocument.markContentsDirty(block.position(), block.length());
+	}
+
+	[[nodiscard]] auto coloured(const int aStart, const int aLength, const QColor& aColour) -> QTextLayout::FormatRange
+	{
+		auto range = QTextLayout::FormatRange{ .start = aStart, .length = aLength, .format = QTextCharFormat{ } };
+		range.format.setForeground(aColour);
+		return range;
+	}
+
+	/// An unwrapped pane with its scroll bars always shown, so none appears
+	/// in the middle of a measurement.
+	void prepare_unwrapped(QPlainTextEdit& aPane, const QString& aSource)
+	{
+		aPane.resize(260, 160);
+		aPane.setLineWrapMode(QPlainTextEdit::NoWrap);
+		aPane.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+		aPane.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+		aPane.setPlainText(aSource);
+		aPane.show();
+		QApplication::processEvents();
+	}
+
+	/// [[BPR-1142]]. The record keys a block's additional formats by the
+	/// properties its layout reads. Highlighting that changes a block's
+	/// layout without touching its text measures that block again, although
+	/// neither the document's revision nor the block's own revision or user
+	/// state moves: that is why the key is a hash of the formats and not a
+	/// generation counter. Recolouring every block, or giving a block an
+	/// equal list of its own, reuses them all. A block recorded as not
+	/// reusable (here, one measured while hidden) is measured again.
+	auto test_format_key() -> void
+	{
+		constexpr auto lines  = 60U;
+		auto           source = QString{ };
+		for (auto line = 0U; line < lines; ++line) {
+			source += QStringLiteral("auto value = compute(line, %1);\n").arg(line);
+		}
+		source.chop(1);
+		auto pane = QPlainTextEdit{ };
+		prepare_unwrapped(pane, source);
+		auto& document = *pane.document();
+		// A keyword and a call on every line, as the review panes colour syntax.
+		const auto colourAll = [&document](const QColor& aColour) {
+			for (auto block = 0; block < document.blockCount(); ++block) {
+				restyle(document, block, { coloured(0, 4, aColour), coloured(13, 7, aColour) });
+			}
+		};
+		const auto blue = QColor{ 0x20, 0x60, 0xC0 };
+		const auto red  = QColor{ 0xC0, 0x30, 0x20 };
+		colourAll(blue);
+
+		auto heights                    = qt::pane_block_heights{ };
+		const auto [first, firstReused] = measure_recorded(pane, lines, heights);
+		expect(firstReused == 0U, "the first measurement has nothing recorded to reuse");
+		expect_native_boundaries(first, pane, lines, "the highlighted pane's boundaries are its native ones");
+
+		colourAll(red);
+		const auto [recoloured, recolouredReused] = measure_recorded(pane, lines, heights);
+		expect(recolouredReused == lines && recoloured == first, "recolouring every block reuses every recorded block, because colour is not laid out");
+
+		colourAll(red);
+		const auto [rebuilt, rebuiltReused] = measure_recorded(pane, lines, heights);
+		expect(rebuiltReused == lines && rebuilt == first, "an equal format list of the block's own reuses every recorded block");
+
+		// The review panes' own emphasis: the keyword turns bold, and the
+		// text stays as it was.
+		const auto emphasised    = document.findBlockByNumber(5);
+		const auto revision      = document.revision();
+		const auto blockRevision = emphasised.revision();
+		const auto userState     = emphasised.userState();
+		auto       bold          = coloured(0, 4, red);
+		bold.format.setFontWeight(QFont::Bold);
+		restyle(document, 5, { bold, coloured(13, 7, red) });
+		expect(document.revision() == revision && emphasised.revision() == blockRevision && emphasised.userState() == userState,
+			   "a format-only change moves neither the document's revision nor the block's revision or user state");
+		const auto [bolded, boldedReused] = measure_recorded(pane, lines, heights);
+		expect(boldedReused == lines - 1U, "a block whose keyword turned bold is measured again, and only that block");
+		expect_native_boundaries(bolded, pane, lines, "after the keyword turned bold the boundaries are the pane's native ones");
+
+		// Far below the viewport, a larger size on the same text changes the
+		// block's height.
+		auto larger = coloured(0, 4, red);
+		larger.format.setFontPointSize(26);
+		restyle(document, 40, { larger, coloured(13, 7, red) });
+		const auto [enlarged, enlargedReused] = measure_recorded(pane, lines, heights);
+		expect_native_boundaries(enlarged, pane, lines, "a block whose highlighting changed its height is measured again, to its native height");
+		expect(enlargedReused == lines - 1U && enlarged != bolded, "a block whose highlighting changed its height is measured again, and only that block");
+
+		larger.start = 13;
+		restyle(document, 40, { coloured(0, 4, red), larger });
+		const auto [moved, movedReused] = measure_recorded(pane, lines, heights);
+		expect(movedReused == lines - 1U, "the same format over a different range measures the block again");
+		expect_native_boundaries(moved, pane, lines, "after a range moved the boundaries are the pane's native ones");
+
+		auto hidden = document.findBlockByNumber(50);
+		hidden.setVisible(false);
+		document.markContentsDirty(hidden.position(), hidden.length());
+		const auto [whileHidden, whileHiddenReused] = measure_recorded(pane, lines, heights);
+		expect(whileHiddenReused == lines - 1U, "a hidden block is measured natively, and every other block is reused");
+		expect_native_boundaries(whileHidden, pane, lines, "with a block hidden the boundaries are the pane's native ones");
+		hidden.setVisible(true);
+		document.markContentsDirty(hidden.position(), hidden.length());
+		const auto [shown, shownReused] = measure_recorded(pane, lines, heights);
+		expect(shownReused == lines - 1U, "a block recorded as not reusable is measured again");
+		expect_native_boundaries(shown, pane, lines, "the block recorded while hidden gets its own height back");
+		expect(shown == moved, "showing the block again restores every boundary");
+		const auto [again, againReused] = measure_recorded(pane, lines, heights);
+		expect(againReused == lines && again == shown, "once measured again, the block is reused");
+	}
+
+	/// Absolute letter spacing, in 1/64 px, for one letter of a line.
+	[[nodiscard]] auto letter_spaced(const int aStart, const int aUnits) -> QTextLayout::FormatRange
+	{
+		auto range = QTextLayout::FormatRange{ .start = aStart, .length = 1, .format = QTextCharFormat{ } };
+		range.format.setFontLetterSpacingType(QFont::AbsoluteSpacing);
+		range.format.setFontLetterSpacing(static_cast<qreal>(aUnits) / 64.0);
+		return range;
+	}
+
+	/// [[BPR-1142]]. One run of `test_recorded_block_precision`, with the two
+	/// widest lines' natural widths moved by `aShift` 1/64 px.
+	void check_recorded_block_precision(const int aShift)
+	{
+		constexpr auto lines   = 96U;
+		constexpr auto widest  = 52;
+		constexpr auto matched = 46;
+		auto           source  = QString{ };
+		for (auto line = 0; line < static_cast<int>(lines); ++line) {
+			if (line == widest || line == matched) {
+				source += QStringLiteral("the widest line in the pane, one of two alike, and long enough to run well past the right edge of its viewport\n");
+				continue;
+			}
+			switch (line % 6) {
+			case 0:  source += QStringLiteral("fallback 日本語 αβγ 😀 line\n"); break;
+			case 1:  source += QStringLiteral("\tindented\twith tabs\n"); break;
+			case 2:  source += QStringLiteral("two visual lines") + QChar{ QChar::LineSeparator } + QStringLiteral("in one block\n"); break;
+			case 3:  source += QStringLiteral("spaced letters and spaced words\n"); break;
+			case 4:  source += QStringLiteral("superscript and a baseline offset\n"); break;
+			default: source += QStringLiteral("plain ascii source line\n"); break;
+			}
+		}
+		source.chop(1);
+		auto pane = QPlainTextEdit{ };
+		auto font = pane.font();
+		font.setPointSizeF(10.3);
+		pane.setFont(font);
+		prepare_unwrapped(pane, source);
+		auto& document = *pane.document();
+
+		auto sized = QTextLayout::FormatRange{ .start = 0, .length = 3, .format = QTextCharFormat{ } };
+		sized.format.setFontPointSize(11.7);
+		sized.format.setFontHintingPreference(QFont::PreferNoHinting);
+		auto spaced = QTextLayout::FormatRange{ .start = 0, .length = 20, .format = QTextCharFormat{ } };
+		spaced.format.setFontLetterSpacingType(QFont::AbsoluteSpacing);
+		spaced.format.setFontLetterSpacing(0.37);
+		spaced.format.setFontWordSpacing(1.13);
+		auto superscript = QTextLayout::FormatRange{ .start = 0, .length = 11, .format = QTextCharFormat{ } };
+		superscript.format.setVerticalAlignment(QTextCharFormat::AlignSuperScript);
+		auto offset = QTextLayout::FormatRange{ .start = 18, .length = 8, .format = QTextCharFormat{ } };
+		offset.format.setBaselineOffset(13.0);
+		offset.format.setFontPointSize(8.9);
+		for (auto block = 0; block < document.blockCount(); ++block) {
+			// The two alike are split into the same runs. They differ only in
+			// their first letter's spacing, so the widest is 1/64 px wider.
+			if (block == widest || block == matched) {
+				restyle(document, block, { letter_spaced(0, block == widest ? 1 : 0), letter_spaced(5, aShift) });
+				continue;
+			}
+			switch (block % 6) {
+			case 0:  restyle(document, block, { sized, QTextLayout::FormatRange{ .start = 9, .length = 3, .format = sized.format } }); break;
+			case 2:  restyle(document, block, { sized, QTextLayout::FormatRange{ .start = 4, .length = 6, .format = offset.format } }); break;
+			case 3:  restyle(document, block, { spaced }); break;
+			case 4:  restyle(document, block, { superscript, offset }); break;
+			default: break;
+			}
+		}
+
+		const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expected.isEmpty()) {
+			expect(close(pane.devicePixelRatioF(), expected.toDouble(), 0.05), "the precision fixture runs at the selected Qt scale");
+		}
+
+		auto heights                    = qt::pane_block_heights{ };
+		const auto [first, firstReused] = measure_recorded(pane, lines, heights);
+		expect(firstReused == 0U, "the first measurement has nothing recorded to reuse");
+
+		pane.resize(260, 220);
+		const auto [taller, tallerReused] = measure_recorded(pane, lines, heights);
+		expect(tallerReused == lines, "every recorded height and width comes back from 1/64 px layout units, so every block is reused");
+		expect(taller == first, "the reused boundaries are the measured ones to the last bit");
+
+		// A width change makes the pane lay its document out again, which
+		// empties every block's own layout and resets its widest line. The
+		// pane then lays out its first and last pages again, but the two
+		// alike lie between them, so the widest line is found again from the
+		// recorded widths.
+		pane.resize(340, 220);
+		QApplication::processEvents();
+		expect(document.findBlockByNumber(matched).layout()->lineCount() == 0 && document.findBlockByNumber(widest).layout()->lineCount() == 0,
+			   "the width change emptied the two alike's own layouts");
+		const auto [widened, widenedReused] = measure_recorded(pane, lines, heights);
+		expect(widenedReused == lines && widened == first, "after a width change every block is reused, and every boundary stays");
+		QApplication::processEvents();
+		const auto measuredWidth = document.documentLayout()->documentSize().width();
+		expect_native_boundaries(first, pane, lines, "the reused boundaries are the pane's native ones to the last bit");
+		QApplication::processEvents();
+		expect(document.documentLayout()->documentSize().width() == measuredWidth,
+			   "a recorded width 1/64 px wider than the widest before it still has its line laid out natively");
+
+		// Both are laid out natively by now.
+		const auto widestWidth  = document.findBlockByNumber(widest).layout()->lineAt(0).naturalTextWidth();
+		const auto matchedWidth = document.findBlockByNumber(matched).layout()->lineAt(0).naturalTextWidth();
+		expect(widestWidth - matchedWidth == 1.0 / 64.0, "the widest line is 1/64 px wider than the line alike");
+		expect(matchedWidth > static_cast<qreal>(pane.viewport()->width()),
+			   "the two alike run past the viewport, so only the widest-line rule has them laid out");
+		std::cout << "precision fixture at scale " << pane.devicePixelRatioF() << ", shift " << aShift << "/64: the widest line's natural width is "
+				  << widestWidth * 64.0 << "/64 px\n";
+	}
+
+	/// [[BPR-1142]]. The record keeps heights and widths in Qt's 1/64 px
+	/// layout units. A block's height is whole pixels, because Qt rounds each
+	/// line's height up, but a natural width need not be. At the scale the
+	/// row runs at (100, 125, 150 or 200%), with fractional font sizes, letter
+	/// and word spacing, superscript, a baseline offset and blocks of two
+	/// visual lines, every value a transient layout measured comes back
+	/// exactly: the next measurement reuses every block and lands on the
+	/// pane's native boundaries to the last bit.
+	///
+	/// The widest line is 1/64 px wider than the line alike before it, and a
+	/// reused width still has it laid out natively, so the pane's horizontal
+	/// range covers it. The pair's widths are moved through four consecutive
+	/// 1/64 px steps, so a record that rounded widths to any coarser grid would
+	/// put the pair on one value in at least one of the four and fail.
+	auto test_recorded_block_precision() -> void
+	{
+		for (auto shift = 0; shift < 4; ++shift) {
+			check_recorded_block_precision(shift);
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -769,6 +1033,8 @@ auto main(int argc, char** argv) -> int
 	test_transient_no_wrap_measurement(true);
 	test_transient_no_wrap_measurement(false);
 	test_recorded_block_heights();
+	test_format_key();
+	test_recorded_block_precision();
 
 	std::cout << "measured-alignment-axis-tests:pass\n";
 	return EXIT_SUCCESS;

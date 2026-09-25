@@ -3,37 +3,238 @@
 #include <QAbstractTextDocumentLayout>
 #include <QFont>
 #include <QFontMetrics>
+#include <QMetaType>
 #include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QString>
+#include <QStringList>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QTextFormat>
 #include <QTextLayout>
 #include <QTextOption>
+#include <QVariant>
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
 namespace bpr::qt {
 	namespace {
+		/// Qt's text layout computes in `QFixed`, 26.6 fixed point: 1/64 px.
+		constexpr auto layout_units_per_pixel = qreal{ 64.0 };
+
+		/// \brief The value as a whole number of layout units, if it is exactly
+		/// one that fits in 32 bits.
+		///
+		/// \details Every height and natural width a text layout produces is a
+		/// `QFixed` read back as `qreal`, so it fits and comes back exactly, at
+		/// any device pixel ratio. A value off that grid, beyond its range or
+		/// not finite has no layout units.
+		[[nodiscard]] auto to_layout_units(const qreal aPixels) noexcept -> std::optional<std::int32_t>
+		{
+			const auto units = aPixels * layout_units_per_pixel;
+			if (!(units >= static_cast<qreal>(std::numeric_limits<std::int32_t>::min())
+				  && units <= static_cast<qreal>(std::numeric_limits<std::int32_t>::max()))
+				|| units != std::trunc(units)) {
+				return std::nullopt;
+			}
+			return static_cast<std::int32_t>(units);
+		}
+
+		[[nodiscard]] constexpr auto from_layout_units(const std::int32_t aUnits) noexcept -> qreal
+		{
+			return static_cast<qreal>(aUnits) / layout_units_per_pixel;
+		}
+
+		/// The format key of a block that is never reused. No format list hashes
+		/// to it, so it matches nothing, itself included.
+		constexpr auto not_reusable = std::uint64_t{ 0U };
+
+		/// Folds one value into a running key through splitmix64's finalizer.
+		[[nodiscard]] constexpr auto mixed(const std::uint64_t aKey, const std::uint64_t aValue) noexcept -> std::uint64_t
+		{
+			auto value = aKey ^ (aValue + 0x9E37'79B9'7F4A'7C15ULL + (aKey << 6U) + (aKey >> 2U));
+			value      = (value ^ (value >> 30U)) * 0xBF58'476D'1CE4'E5B9ULL;
+			value      = (value ^ (value >> 27U)) * 0x94D0'49BB'1331'11EBULL;
+			return value ^ (value >> 31U);
+		}
+
+		/// \brief The character format properties a block's layout reads.
+		///
+		/// \details `QTextEngine` builds each run's font from the format's font
+		/// properties, scales and shifts the run by its vertical alignment and
+		/// baseline properties, and sizes an inline object by its type and
+		/// index. Colours, outlines, underline colours, tool tips and anchors are
+		/// only painted, so they are not keyed: recolouring a block reuses it.
+		/// Underline, overline and strike-out are painted too, but Qt reads them
+		/// into the font, so they are keyed with it.
+		constexpr auto layout_properties = std::array{
+			QTextFormat::ObjectIndex,
+			QTextFormat::FontCapitalization,
+			QTextFormat::FontLetterSpacing,
+			QTextFormat::FontWordSpacing,
+			QTextFormat::FontStyleHint,
+			QTextFormat::FontStyleStrategy,
+			QTextFormat::FontKerning,
+			QTextFormat::FontHintingPreference,
+			QTextFormat::FontFamilies,
+			QTextFormat::FontStyleName,
+			QTextFormat::FontLetterSpacingType,
+			QTextFormat::FontStretch,
+			QTextFormat::FontFamily,
+			QTextFormat::FontPointSize,
+			QTextFormat::FontSizeAdjustment,
+			QTextFormat::FontWeight,
+			QTextFormat::FontItalic,
+			QTextFormat::FontUnderline,
+			QTextFormat::FontOverline,
+			QTextFormat::FontStrikeOut,
+			QTextFormat::FontFixedPitch,
+			QTextFormat::FontPixelSize,
+			QTextFormat::FontFeatures,
+			QTextFormat::FontVariableAxes,
+			QTextFormat::TextVerticalAlignment,
+			QTextFormat::TextUnderlineStyle,
+			QTextFormat::TextSuperScriptBaseline,
+			QTextFormat::TextSubScriptBaseline,
+			QTextFormat::TextBaselineOffset,
+			QTextFormat::OldFontLetterSpacingType,
+			QTextFormat::OldFontStretch,
+			QTextFormat::ObjectType,
+		};
+		// A Qt that adds a font property must add it to the list above.
+		static_assert(QTextFormat::FirstFontProperty == QTextFormat::FontCapitalization
+						  && QTextFormat::LastFontProperty == QTextFormat::FontVariableAxes,
+					  "Qt's font properties changed: review layout_properties");
+
+		[[nodiscard]] auto text_key(std::uint64_t aKey, const QString& aText) noexcept -> std::uint64_t
+		{
+			aKey = mixed(aKey, static_cast<std::uint64_t>(aText.size()));
+			for (const auto unit : aText) {
+				aKey = mixed(aKey, unit.unicode());
+			}
+			return aKey;
+		}
+
+		/// A property value's key, or none for a type the key cannot read.
+		[[nodiscard]] auto value_key(const QVariant& aValue) -> std::optional<std::uint64_t>
+		{
+			const auto type = aValue.typeId();
+			auto       key  = mixed(0U, static_cast<std::uint64_t>(type));
+			switch (type) {
+			case QMetaType::Bool:
+			case QMetaType::Int:
+			case QMetaType::UInt:
+			case QMetaType::LongLong:
+				return mixed(key, static_cast<std::uint64_t>(aValue.toLongLong()));
+			case QMetaType::ULongLong:
+				return mixed(key, aValue.toULongLong());
+			case QMetaType::Float:
+			case QMetaType::Double:
+				return mixed(key, std::bit_cast<std::uint64_t>(aValue.toDouble()));
+			case QMetaType::QString:
+				return text_key(key, aValue.toString());
+			case QMetaType::QStringList: {
+				const auto texts = aValue.toStringList();
+				key              = mixed(key, static_cast<std::uint64_t>(texts.size()));
+				for (const auto& text : texts) {
+					key = text_key(key, text);
+				}
+				return key;
+			}
+			default:
+				return std::nullopt;
+			}
+		}
+
+		/// One range's position, length and layout properties folded into the
+		/// key, or none if a property's value cannot be keyed.
+		[[nodiscard]] auto range_key(std::uint64_t aKey, const QTextLayout::FormatRange& aRange) -> std::optional<std::uint64_t>
+		{
+			aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(aRange.start)), static_cast<std::uint32_t>(aRange.length));
+			for (const auto property : layout_properties) {
+				const auto value = aRange.format.property(property);
+				if (!value.isValid()) {
+					continue;
+				}
+				const auto valueKey = value_key(value);
+				if (!valueKey) {
+					return std::nullopt;
+				}
+				aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(property)), *valueKey);
+			}
+			return aKey;
+		}
+
+		/// \brief A 64-bit key over a block's additional formats.
+		///
+		/// \details [[BPR-1142]]. It folds in each range's position and length,
+		/// which decide where the layout splits its runs, and the properties its
+		/// layout reads (`layout_properties`), in order, because later ranges
+		/// override earlier ones. Two lists that differ there almost surely
+		/// differ in key: two differing lists share one with probability 2^-64,
+		/// and a block that did would keep its old height and width, which
+		/// misplaces the comparison axis below it until the pane is measured
+		/// afresh. A list with a value the key cannot read is `not_reusable`.
+		[[nodiscard]] auto format_key(const QList<QTextLayout::FormatRange>& aFormats) -> std::uint64_t
+		{
+			auto key = std::optional{ mixed(0U, static_cast<std::uint64_t>(aFormats.size())) };
+			for (auto range = aFormats.cbegin(); key && range != aFormats.cend(); ++range) {
+				key = range_key(*key, *range);
+			}
+			if (!key) {
+				return not_reusable;
+			}
+			return *key != not_reusable ? *key : not_reusable + 1U;
+		}
+
+		/// A block's extent as a transient layout measured it, without the
+		/// document margin.
+		struct block_extent
+		{
+			qreal Bottom       = 0.0;
+			qreal NaturalWidth = 0.0;
+		};
+
 		/// \brief One unwrapped block as a transient layout measured it.
 		///
-		/// \details [[BPR-1123]]. A NaN height marks a block that was measured
-		/// natively (hidden, or not unwrapped), which is never reused.
+		/// \details [[BPR-1123]], compacted by [[BPR-1142]]. The key stands for
+		/// the block's additional formats. Its height and width are in layout
+		/// units and leave out the document margin, which is added back where
+		/// they are read, so every value a layout produces is held exactly. A
+		/// block measured natively (hidden, or not unwrapped), or with a value
+		/// or format the record cannot hold, has the `not_reusable` key.
 		struct recorded_block
 		{
-			qreal                           Height = std::numeric_limits<qreal>::quiet_NaN();
-			qreal                           Width  = 0.0;
-			QList<QTextLayout::FormatRange> Formats;
+			std::uint64_t FormatKey = not_reusable;
+			std::int32_t  Height    = 0;
+			std::int32_t  Width     = 0;
 		};
+		static_assert(sizeof(recorded_block) == 16U, "a recorded block is 16 bytes a line");
+
+		/// The block as the record keeps it: `not_reusable` if a value would not
+		/// come back exactly.
+		[[nodiscard]] auto compact(const std::uint64_t aKey, const block_extent& aExtent) noexcept -> recorded_block
+		{
+			const auto height = to_layout_units(aExtent.Bottom);
+			const auto width  = to_layout_units(aExtent.NaturalWidth);
+			if (!height || !width) {
+				return recorded_block{ };
+			}
+			return recorded_block{ .FormatKey = aKey, .Height = *height, .Width = *width };
+		}
 
 		/// \brief Measures pane blocks without keeping a shaped layout in each one.
 		///
@@ -63,10 +264,11 @@ namespace bpr::qt {
 		/// [[BPR-1123]]. Nothing keeps a transient answer, so a pane's next
 		/// measurement would shape every block again. Given the pane's
 		/// recorded blocks, this reuses a block's recorded height and width
-		/// while its additional formats are the ones it was measured with, and
-		/// records every block it shapes. A reused width still goes through the
-		/// widest-line rule, so a relayout that emptied the pane's own layouts
-		/// gets its horizontal range back exactly as a fresh measurement would.
+		/// while its additional formats have the key it was measured with
+		/// ([[BPR-1142]]), and records every block it shapes. A reused width
+		/// still goes through the widest-line rule, so a relayout that emptied
+		/// the pane's own layouts gets its horizontal range back exactly as a
+		/// fresh measurement would.
 		class pane_block_measurer final
 		{
 		public:
@@ -102,48 +304,45 @@ namespace bpr::qt {
 				}
 				// A block's layout exists whenever a highlighter has styled it,
 				// and asking for it shapes nothing.
-				auto formats = aBlock.layout()->formats();
-				auto block   = recorded_block{ };
-				if (const auto* const known = recorded(aIndex, formats); known != nullptr) {
-					block = *known;
+				const auto formats = aBlock.layout()->formats();
+				const auto key     = format_key(formats);
+				auto       extent  = block_extent{ };
+				if (const auto* const known = recorded(aIndex, key); known != nullptr) {
+					extent = { .Bottom = from_layout_units(known->Height), .NaturalWidth = from_layout_units(known->Width) };
 					++Reused;
 				} else {
-					block.Height  = transient_height(aBlock, formats, block.Width);
-					block.Formats = std::move(formats);
-					record(aIndex, block);
+					extent = transient_extent(aBlock, formats);
+					record(aIndex, compact(key, extent));
 				}
-				if (block.Width > Widest) {
-					Widest = block.Width;
+				// The margins are added as `QPlainTextDocumentLayout` adds them.
+				const auto margin = aBlock.document()->documentMargin();
+				const auto width  = std::max(qreal{ 0.0 }, extent.NaturalWidth + 2.0 * margin);
+				if (width > Widest) {
+					Widest = width;
 					return Native->blockBoundingRect(aBlock).height();
 				}
-				return block.Height;
+				return aBlock.next().isValid() ? extent.Bottom : extent.Bottom + margin;
 			}
 
 		private:
-			/// The recorded block, if it was measured with these formats. The
-			/// comparison is a pointer check while the list is the same one.
-			[[nodiscard]] auto recorded(const std::size_t aIndex, const QList<QTextLayout::FormatRange>& aFormats) const -> const recorded_block*
+			/// The recorded block, if it was measured with formats of this key.
+			[[nodiscard]] auto recorded(const std::size_t aIndex, const std::uint64_t aKey) const noexcept -> const recorded_block*
 			{
-				if (Recorded == nullptr || aIndex >= Recorded->size()) {
+				if (Recorded == nullptr || aIndex >= Recorded->size() || aKey == not_reusable) {
 					return nullptr;
 				}
 				const auto& block = (*Recorded)[aIndex];
-				return !std::isnan(block.Height) && block.Formats == aFormats ? &block : nullptr;
+				return block.FormatKey == aKey ? &block : nullptr;
 			}
 
-			void record(const std::size_t aIndex, const recorded_block& aBlock)
+			void record(const std::size_t aIndex, const recorded_block& aBlock) noexcept
 			{
-				if (Recorded == nullptr) {
-					return;
-				}
-				if (aIndex < Recorded->size()) {
+				if (Recorded != nullptr && aIndex < Recorded->size()) {
 					(*Recorded)[aIndex] = aBlock;
-				} else if (aIndex == Recorded->size()) {
-					Recorded->push_back(aBlock);
 				}
 			}
 
-			[[nodiscard]] static auto transient_height(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats, qreal& aNaturalWidth) -> qreal
+			[[nodiscard]] static auto transient_extent(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> block_extent
 			{
 				const auto* const document = aBlock.document();
 				const auto        margin   = document->documentMargin();
@@ -160,6 +359,7 @@ namespace bpr::qt {
 				// reaches neither its height nor its natural width.
 				const auto available = static_cast<qreal>(INT_MAX) - (2.0 * margin + extraMargin);
 				auto       top       = qreal{ 0.0 };
+				auto       extent    = block_extent{ };
 				layout.beginLayout();
 				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
 					line.setLeadingIncluded(true);
@@ -169,13 +369,10 @@ namespace bpr::qt {
 					if (line.leading() < 0.0) {
 						top += std::ceil(line.leading());
 					}
-					aNaturalWidth = std::max(aNaturalWidth, line.naturalTextWidth() + 2.0 * margin);
+					extent.NaturalWidth = std::max(extent.NaturalWidth, line.naturalTextWidth());
 				}
 				layout.endLayout();
-				auto extent = layout.boundingRect().bottom();
-				if (!aBlock.next().isValid()) {
-					extent += margin;
-				}
+				extent.Bottom = layout.boundingRect().bottom();
 				return extent;
 			}
 
@@ -241,12 +438,12 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	/// [[BPR-1123]]. The recorded blocks and every fact their heights depend on.
+	/// [[BPR-1123]]. The recorded blocks, one for each of the document's blocks,
+	/// and every fact their heights depend on.
 	struct pane_block_heights::state
 	{
 		QPointer<const QTextDocument> Document;
-		int                           Revision   = 0;
-		int                           BlockCount = 0;
+		int                           Revision = 0;
 		QFont                         Font;
 		QFont                         DocumentFont;
 		qreal                         DevicePixelRatio = 0.0;
@@ -255,20 +452,21 @@ namespace bpr::qt {
 		std::vector<recorded_block>   Blocks;
 
 		/// Keeps the recorded blocks only if the pane's facts are the ones they
-		/// were measured under; otherwise empties them and takes these facts.
+		/// were measured under; otherwise takes these facts and starts one
+		/// `not_reusable` block for each of the document's blocks.
 		void bind(const QPlainTextEdit& aPane)
 		{
 			const auto* const document = aPane.document();
-			if (Document == document && Revision == document->revision() && BlockCount == document->blockCount()
+			const auto        count    = static_cast<std::size_t>(document->blockCount());
+			if (Document == document && Revision == document->revision() && Blocks.size() == count
 				&& Font == aPane.font() && DocumentFont == document->defaultFont()
 				&& DevicePixelRatio == aPane.devicePixelRatioF() && Margin == document->documentMargin()
 				&& TabDistance == aPane.tabStopDistance()) {
 				return;
 			}
-			Blocks.clear();
+			Blocks.assign(count, recorded_block{ });
 			Document         = document;
 			Revision         = document->revision();
-			BlockCount       = document->blockCount();
 			Font             = aPane.font();
 			DocumentFont     = document->defaultFont();
 			DevicePixelRatio = aPane.devicePixelRatioF();
@@ -288,7 +486,10 @@ namespace bpr::qt {
 	void pane_block_heights::clear() noexcept
 	{
 		if (State) {
-			State->Blocks.clear();
+			// `std::vector::clear` would keep a large file's worth of capacity
+			// after its comparison has gone ([[BPR-1142]]). A document always has
+			// a block, so the next measurement binds afresh.
+			State->Blocks = std::vector<recorded_block>{ };
 		}
 	}
 

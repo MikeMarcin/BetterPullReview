@@ -91,10 +91,15 @@ namespace bpr::qt {
 	/// and records the ones it measures. A recorded block is reused only while
 	/// every fact its height depends on is unchanged: the document and its
 	/// revision and block count, the pane's and the document's fonts, the
-	/// device pixel ratio, the margin, the tab stop, and the block's own
-	/// additional formats. Anything else starts it empty again. The owner
-	/// clears it whenever it replaces the pane's text, because a document's
-	/// revision alone does not identify its content.
+	/// device pixel ratio, the margin, the tab stop, and the properties of the
+	/// block's own additional formats that its layout reads. Anything else
+	/// starts it empty again. The owner clears it whenever it replaces the
+	/// pane's text, because a document's revision alone does not identify its
+	/// content.
+	///
+	/// [[BPR-1142]]. It costs 16 bytes a block: a 64-bit key standing for the
+	/// block's formats, and its height and natural width in Qt's 1/64 px
+	/// layout units, which hold every value a text layout produces exactly.
 	class pane_block_heights final
 	{
 	public:
@@ -105,7 +110,7 @@ namespace bpr::qt {
 		pane_block_heights(const pane_block_heights&)                    = delete;
 		auto operator=(const pane_block_heights&) -> pane_block_heights& = delete;
 
-		/// \brief Forgets every recorded block.
+		/// \brief Forgets every recorded block and frees their storage.
 		void clear() noexcept;
 
 	private:

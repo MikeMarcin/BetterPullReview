@@ -459,8 +459,14 @@ shaped text ([[BPR-1032]]), so each source pane keeps the block heights it
 found ([[BPR-1123]]). A later measurement, after a divider, viewport, style or
 DPI event, takes a block's height from that record while the document and its
 revision, the fonts, the device pixel ratio, the margin, the tab stop and the
-block's own formats are unchanged, and shapes only the blocks that changed.
-Replacing a pane's text empties its record.
+layout properties of the block's own formats are unchanged, and shapes only
+the blocks that changed. Recolouring a block does not change its layout, so
+it is reused. Each block costs 16 bytes ([[BPR-1142]]): a 64-bit key over its
+formats' ranges and layout properties, and its height and natural width in
+Qt's 1/64 px layout units, which hold every value a layout produces exactly.
+A block the record cannot hold, or one measured natively, carries a key no
+format list hashes to and is measured again. Replacing a pane's text empties
+its record and frees its storage.
 
 ## 10. Complexity targets
 

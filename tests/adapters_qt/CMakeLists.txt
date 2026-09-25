@@ -1210,11 +1210,15 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_diff_axis_tests)
 bpr_enable_warnings(test_better_pull_review_qt_diff_axis_tests)
 
-foreach(bpr_diff_axis_scale IN ITEMS 100 125 200)
+# 150 is [[BPR-1142]]'s: the recorded block heights hold exactly at a
+# fractional scale between the other two.
+foreach(bpr_diff_axis_scale IN ITEMS 100 125 150 200)
     if(bpr_diff_axis_scale STREQUAL "100")
         set(bpr_diff_axis_scale_factor "1.0")
     elseif(bpr_diff_axis_scale STREQUAL "125")
         set(bpr_diff_axis_scale_factor "1.25")
+    elseif(bpr_diff_axis_scale STREQUAL "150")
+        set(bpr_diff_axis_scale_factor "1.5")
     else()
         set(bpr_diff_axis_scale_factor "2.0")
     endif()
