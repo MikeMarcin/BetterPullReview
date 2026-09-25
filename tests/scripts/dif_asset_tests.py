@@ -35,6 +35,9 @@ def load_test_module(name: str, path: Path) -> ModuleType:
 
 DIF = load_test_module("dif_assets", SCRIPT)
 BOUNDARY = load_test_module("verify_dif_asset_boundaries", BOUNDARY_SCRIPT)
+# [[BPR-1125]]. The owner of the Windows exemption set, read as the verifier reads it.
+ISOLATION = load_test_module("verify_test_network_isolation", REPOSITORY_ROOT / "scripts/verify_test_network_isolation.py")
+DIF_CONTRACT = "dif_assets_contract"
 
 
 def _test_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -395,7 +398,30 @@ def png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
     return chunks
 
 
-def make_selected_build(root: Path, profile: str) -> Path:
+LINUX_BACKEND = "linux-network-namespace"
+WINDOWS_BACKEND = "windows-appcontainer"
+MANIFEST_REGISTRATION = (
+    'add_test("test_network_isolation_manifest" "python" '
+    '"verify_test_network_isolation.py" "--backend" "{backend}")\n'
+)
+CONTAINED_REGISTRATION = (
+    'add_test("dif_assets_contract" "python" '
+    '"run_network_isolated_test.py" "dif_asset_tests.py" '
+    '"--cxx" "c++")\n'
+    'set_tests_properties("dif_assets_contract" PROPERTIES '
+    'LABELS "bpr_network_isolated")\n'
+)
+# [[BPR-1125]]. What a Windows graph registers for the pinned uncontained row:
+# no launcher, the compiler probe, and the uncontained label.
+UNCONTAINED_REGISTRATION = (
+    'add_test("dif_assets_contract" "python.exe" "dif_asset_tests.py" '
+    '"--cxx" "cl.exe")\n'
+    'set_tests_properties("dif_assets_contract" PROPERTIES '
+    'LABELS "bpr_windows_uncontained")\n'
+)
+
+
+def make_selected_build(root: Path, profile: str, backend: str = LINUX_BACKEND) -> Path:
     build = root / profile
     build.mkdir(parents=True)
     build_testing = "OFF" if profile == "app-release" else "ON"
@@ -431,11 +457,8 @@ def make_selected_build(root: Path, profile: str) -> Path:
         ctest = build / "tests/CTestTestfile.cmake"
         ctest.parent.mkdir(parents=True)
         ctest.write_text(
-            'add_test("dif_assets_contract" "python" '
-            '"run_network_isolated_test.py" "dif_asset_tests.py" '
-            '"--cxx" "c++")\n'
-            'set_tests_properties("dif_assets_contract" PROPERTIES '
-            'LABELS "bpr_network_isolated")\n',
+            MANIFEST_REGISTRATION.format(backend=backend)
+            + (UNCONTAINED_REGISTRATION if backend == WINDOWS_BACKEND else CONTAINED_REGISTRATION),
             encoding="utf-8",
         )
     if profile in {"dev", "app-release"}:
@@ -998,6 +1021,63 @@ class DifAssetTests(unittest.TestCase):
             BOUNDARY.BoundaryError, "registered exactly once"
         ):
             BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
+
+    def test_boundary_verifier_accepts_the_pinned_windows_registration(self) -> None:
+        """BPR-1125. Windows runs the row uncontained, as its pin says.
+
+        `verify_test_network_isolation.py` pins dif_assets_contract as
+        child-process-denied under the AppContainer, so a Windows graph
+        registers it without the launcher and with the uncontained label.
+        """
+        self.assertIn(DIF_CONTRACT, ISOLATION.WINDOWS_UNCONTAINED_TESTS)
+        root = Path(self.temporary.name) / "windows-builds"
+        for profile in ("dev", "core-only"):
+            with self.subTest(profile=profile):
+                result = BOUNDARY.validate_profile(
+                    REPOSITORY_ROOT, make_selected_build(root, profile, WINDOWS_BACKEND), profile
+                )
+                self.assertGreater(result["first_party_translation_units"], 0)
+
+    def test_boundary_verifier_refuses_cut_or_contradicting_registrations(self) -> None:
+        """BPR-1125. Each graph gets the one registration its backend and pin
+        call for, whole; macOS and Linux keep the contained one."""
+        uncontained = UNCONTAINED_REGISTRATION
+        contained = CONTAINED_REGISTRATION
+        cases = {
+            "windows, label cut": (
+                WINDOWS_BACKEND, uncontained.replace(' LABELS "bpr_windows_uncontained"', ""),
+                'lacks LABELS "bpr_windows_uncontained"'),
+            "windows, labelled contained": (
+                WINDOWS_BACKEND, uncontained.replace("bpr_windows_uncontained", "bpr_network_isolated"),
+                'lacks LABELS "bpr_windows_uncontained"'),
+            "windows, compiler probe cut": (
+                WINDOWS_BACKEND, uncontained.replace(' "--cxx" "cl.exe"', ""), "lacks \"--cxx\""),
+            "windows, compiler cut": (
+                WINDOWS_BACKEND, uncontained.replace(' "cl.exe"', ""), "names no compiler"),
+            "windows, duplicated": (
+                WINDOWS_BACKEND, uncontained + uncontained, "registered exactly once"),
+            "windows, through the launcher": (
+                WINDOWS_BACKEND, contained, "registered through the launcher"),
+            "linux, uncontained": (
+                LINUX_BACKEND, uncontained, "lacks run_network_isolated_test.py"),
+            "linux, contained label without its launcher": (
+                LINUX_BACKEND, contained.replace('"run_network_isolated_test.py" ', ""),
+                "lacks run_network_isolated_test.py"),
+            "linux, launcher labelled uncontained": (
+                LINUX_BACKEND, contained.replace("bpr_network_isolated", "bpr_windows_uncontained"),
+                'lacks LABELS "bpr_network_isolated"'),
+            "no backend stated": (None, contained, "exactly one network-isolation backend"),
+        }
+        for index, (name, (backend, registration, message)) in enumerate(cases.items()):
+            for profile in ("dev", "core-only"):
+                with self.subTest(case=name, profile=profile):
+                    build = make_selected_build(
+                        Path(self.temporary.name) / f"cut-{index}", profile, backend or LINUX_BACKEND
+                    )
+                    manifest = "" if backend is None else MANIFEST_REGISTRATION.format(backend=backend)
+                    (build / "tests/CTestTestfile.cmake").write_text(manifest + registration, encoding="utf-8")
+                    with self.assertRaisesRegex(BOUNDARY.BoundaryError, message):
+                        BOUNDARY.validate_profile(REPOSITORY_ROOT, build, profile)
 
     def test_boundary_verifier_rejects_qt_app_probe_in_core_only(self) -> None:
         build = make_selected_build(

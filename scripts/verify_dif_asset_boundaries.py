@@ -231,7 +231,36 @@ def _read_selected_graph(build: Path) -> tuple[list[dict[str, Any]], str]:
     return commands, selected
 
 
-def _validate_ctest_registration(build: Path) -> None:
+# [[BPR-1125]]. Which dif_assets_contract registration a graph must carry
+# follows bpr_add_network_isolated_test (cmake/BprTestIsolation.cmake): only the
+# windows-appcontainer backend drops the launcher, and only for a row
+# scripts/verify_test_network_isolation.py pins as Windows-uncontained. Both
+# facts are read, the backend from the graph's own isolation-manifest
+# registration and the pin from that verifier, so neither is restated here.
+DIF_CONTRACT = "dif_assets_contract"
+WINDOWS_ISOLATION_BACKEND = "windows-appcontainer"
+CONTAINED_LABEL = "bpr_network_isolated"
+UNCONTAINED_LABEL = "bpr_windows_uncontained"
+
+
+def _windows_uncontained_tests(source: Path) -> dict[str, str]:
+    """The pinned Windows exemptions, from the verifier that owns them."""
+    script = source / "scripts/verify_test_network_isolation.py"
+    specification = importlib.util.spec_from_file_location(
+        "bpr_verify_test_network_isolation", script
+    )
+    if specification is None or specification.loader is None:
+        raise BoundaryError("could not load the network isolation verifier")
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    pinned = getattr(module, "WINDOWS_UNCONTAINED_TESTS", None)
+    if not isinstance(pinned, dict):
+        raise BoundaryError("the network isolation verifier pins no Windows exemptions")
+    return pinned
+
+
+def _validate_ctest_registration(source: Path, build: Path) -> None:
     path = build / "tests/CTestTestfile.cmake"
     try:
         content = path.read_text(encoding="utf-8")
@@ -239,16 +268,42 @@ def _validate_ctest_registration(build: Path) -> None:
         raise BoundaryError(
             "tests-enabled graph has no tests/CTestTestfile.cmake"
         ) from error
-    if content.count('add_test("dif_assets_contract"') != 1:
+    lines = content.splitlines()
+    registrations = [line for line in lines if line.startswith(f'add_test("{DIF_CONTRACT}" ')]
+    if content.count(f'add_test("{DIF_CONTRACT}"') != 1 or len(registrations) != 1:
         raise BoundaryError("dif_assets_contract must be registered exactly once")
-    for marker in (
-        "run_network_isolated_test.py",
-        "dif_asset_tests.py",
-        '"--cxx"',
-        'LABELS "bpr_network_isolated"',
-    ):
-        if marker not in content:
+    command = registrations[0]
+    properties = " ".join(
+        line for line in lines if line.startswith(f'set_tests_properties("{DIF_CONTRACT}" ')
+    )
+    declared = re.search(r'\bLABELS "([^"]*)"', properties)
+    labels = set(declared.group(1).split(";")) if declared else set()
+    backends = set(re.findall(r'"--backend" "([^"]+)"', content))
+    if len(backends) != 1:
+        raise BoundaryError(
+            "tests-enabled graph must state exactly one network-isolation backend"
+        )
+    backend = next(iter(backends))
+    for marker in ("dif_asset_tests.py", '"--cxx"'):
+        if marker not in command:
             raise BoundaryError(f"dif_assets_contract registration lacks {marker}")
+    if not re.search(r'"--cxx" "[^"]+"', command):
+        raise BoundaryError("dif_assets_contract registration names no compiler after --cxx")
+    if backend == WINDOWS_ISOLATION_BACKEND and DIF_CONTRACT in _windows_uncontained_tests(source):
+        if "run_network_isolated_test.py" in command:
+            raise BoundaryError(
+                "dif_assets_contract is pinned uncontained on windows-appcontainer "
+                "but is registered through the launcher"
+            )
+        if UNCONTAINED_LABEL not in labels or CONTAINED_LABEL in labels:
+            raise BoundaryError(
+                f'dif_assets_contract registration lacks LABELS "{UNCONTAINED_LABEL}"'
+            )
+        return
+    if "run_network_isolated_test.py" not in command:
+        raise BoundaryError("dif_assets_contract registration lacks run_network_isolated_test.py")
+    if CONTAINED_LABEL not in labels or UNCONTAINED_LABEL in labels:
+        raise BoundaryError(f'dif_assets_contract registration lacks LABELS "{CONTAINED_LABEL}"')
 
 
 def _validate_core_ctest_surface(build: Path) -> None:
@@ -423,7 +478,7 @@ def validate_profile(source: Path, build: Path, profile: str) -> dict[str, Any]:
                 "tests-disabled application generated CTest registration"
             )
     else:
-        _validate_ctest_registration(build)
+        _validate_ctest_registration(source, build)
 
     result: dict[str, Any] = {
         "build_testing": expected["BUILD_TESTING"],
