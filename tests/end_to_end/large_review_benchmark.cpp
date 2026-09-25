@@ -6,6 +6,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -13,12 +14,16 @@
 
 #include <glaze/json.hpp>
 
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -991,8 +996,24 @@ namespace bpr::e2e::large_review {
 				require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == core::diff_reason_code::compute_limit, "real host result must exceed the retained comparison limit");
 				require(surface.status_text() == QStringLiteral("Comparison unavailable — file exceeds the comparison work limit"), "unavailable comparison falsely reports success");
 				require(surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty() && !surface.selection(), "unavailable comparison retains stale source");
+				const auto  explanation = surface.status_text();
+				auto* const tabStatus   = window.document_tabs()->status_label();
+				require(tabStatus->isVisible() && tabStatus->text() == explanation && tabStatus->toolTip() == explanation
+							&& tabStatus->accessibleDescription() == explanation,
+						"compact tab status retains the complete unavailable reason");
 				auto* label = surface.findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
 				require(label && label->isVisible() && label->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard) && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse), "unavailable message must support copying");
+				auto* const accessible = QAccessible::queryAccessibleInterface(label);
+				require(label->text() == explanation && label->wordWrap() && accessible
+							&& accessible->text(QAccessible::Description) == explanation && !accessible->state().invisible,
+						"visible unavailable explanation is complete and accessible");
+				label->setSelection(0, static_cast<int>(explanation.size()));
+				const auto copyKey = QKeySequence{ QKeySequence::Copy }[0];
+				auto       copy    = QKeyEvent{ QEvent::KeyPress, copyKey.key(), copyKey.keyboardModifiers() };
+				QApplication::clipboard()->clear();
+				QApplication::sendEvent(label, &copy);
+				require(QApplication::clipboard()->text() == explanation, "Copy puts the complete unavailable reason on the clipboard");
+				label->setSelection(0, 0);
 				report.UnavailableReasonVerified = true;
 				report.WindowWidth               = window.width();
 				report.WindowHeight              = window.height();
@@ -1001,10 +1022,12 @@ namespace bpr::e2e::large_review {
 				require(report.Rendered, "unavailable full-window capture failed");
 				require(measure_wait(*application, budget, report, "binary_file_selection", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(*application); }), "binary selection timed out");
 				require(surface.current_result()->Alignment.Content == core::diff_content_state::binary && surface.status_text() == QStringLiteral("Binary file comparison"), "binary status must be distinct");
+				require(label->isVisible() && label->text() == surface.status_text() && tabStatus->isVisible(), "binary comparison keeps its full explanation visible");
 				report.BinaryStatusVerified = true;
 				require(measure_wait(*application, budget, report, "supported_file_recovery", [&] { select_file(window, source_path(31)); }, [&] { return selected(surface, source_path(31)) && quiet(*application); }), "supported recovery timed out");
 				report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
 				require(report.ExactFinalSource && surface.status_text().startsWith(QStringLiteral("Diff ready — 1 semantic changes")), "supported file must restore exact normal display");
+				require(label->isHidden() && tabStatus->isHidden(), "exact text recovery restores the compact header and reading area");
 				report.RecoverySegments = surface.current_result()->Alignment.Segments.size();
 				require(report.RecoverySegments <= report.UnavailableSegmentLimit && !surface.current_result()->AlignmentApproximate, "supported file must compute exactly within the segment limit");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");

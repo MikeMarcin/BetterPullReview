@@ -4,6 +4,7 @@
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
@@ -13,14 +14,17 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFontMetricsF>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -346,12 +350,34 @@ namespace {
 				   && surface->status_text().contains(QStringLiteral("earlier selected revision"))
 				   && window.status_text().contains(QStringLiteral("earlier selected revision")),
 			   "visible and accessible comparison explains the missing selected material");
-		const auto* status = surface->findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
-		expect(status != nullptr && status->wordWrap() && status->accessibleDescription() == status->text(),
+		auto* const tabStatus   = window.document_tabs()->status_label();
+		const auto  explanation = surface->status_text();
+		expect(tabStatus->isVisible() && tabStatus->text() == explanation
+				   && tabStatus->toolTip() == explanation && tabStatus->accessibleDescription() == explanation,
+			   "compact tab status retains the complete missing-material tooltip and description");
+		auto* const status = surface->findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
+		expect(status != nullptr && status->isVisible() && status->text() == explanation
+				   && status->wordWrap() && status->accessibleDescription() == explanation,
 			   "missing-material explanation wraps and remains fully accessible");
 		wait_for([&] { return status->height() >= status->heightForWidth(status->width()); },
 				 "missing-material layout settles with enough room for the complete explanation");
+		auto* const accessible = QAccessible::queryAccessibleInterface(status);
+		expect(accessible != nullptr && accessible->text(QAccessible::Description) == explanation
+				   && !accessible->state().invisible,
+			   "complete missing-material explanation is exposed in the accessible surface");
+		expect(status->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+				   && status->textInteractionFlags().testFlag(Qt::TextSelectableByMouse),
+			   "missing-material explanation is selectable");
+		status->setSelection(0, static_cast<int>(explanation.size()));
+		const auto copyKey = QKeySequence{ QKeySequence::Copy }[0];
+		auto       copy    = QKeyEvent{ QEvent::KeyPress, copyKey.key(), copyKey.keyboardModifiers() };
+		QApplication::clipboard()->clear();
+		QApplication::sendEvent(status, &copy);
+		expect(QApplication::clipboard()->text() == explanation, "Copy puts the complete missing-material explanation on the clipboard");
+		status->setSelection(0, 0);
+		capture(window, QStringLiteral("modified-missing-endpoint.png"));
 		selectIntact();
+		expect(status->isHidden() && tabStatus->isHidden(), "normal recovery removes the explanation and routine tab status");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "missing endpoint course quiescence");
 	}

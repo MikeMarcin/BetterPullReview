@@ -111,6 +111,10 @@ same-named files apart, and expose the full path in the tooltip. A tab with its
 own comparison carries a date pill and names the pair accessibly. When the
 strip cannot fit every tab, it shows the active tab and **+N**, a menu of the
 others. Loading, refusal and approximate-alignment status appear at its right.
+That single line can elide; its tooltip and accessible description keep the
+complete text. When there is no source text to read, the empty comparison also
+shows the complete, wrapping explanation with text selection and Copy
+([[BPR-1197]]). A successful text comparison uses the compact header alone.
 
 The tab menu offers Duplicate, Close, Close Other Tabs, **Use the Window's
 Comparison**, and **Make New Tabs Use This Comparison**. Ctrl+Tab and

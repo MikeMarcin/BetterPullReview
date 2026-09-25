@@ -856,6 +856,7 @@ namespace bpr::qt {
 		root->setContentsMargins(0, 0, 0, 0);
 		root->setSpacing(6);
 		Status = new QLabel{ QStringLiteral("Select a file comparison"), this };
+		Status->setTextFormat(Qt::PlainText);
 		Status->setWordWrap(true);
 		Status->setObjectName(QStringLiteral("diffWorkbenchStatus"));
 		Status->setAccessibleName(QStringLiteral("Comparison status"));

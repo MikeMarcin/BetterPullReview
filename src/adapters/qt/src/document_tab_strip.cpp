@@ -84,9 +84,16 @@ namespace bpr::qt {
 			{
 				setObjectName(QStringLiteral("documentTabStatus"));
 				setAccessibleName(QStringLiteral("Comparison status"));
-				setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+				setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 				setForegroundRole(QPalette::PlaceholderText);
 				setTextFormat(Qt::PlainText);
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				// [[BPR-1197]]. Even beside a collapsed tab with its own pair,
+				// leave room for an ellipsis and a target for the full tooltip.
+				return { fontMetrics().horizontalAdvance(QStringLiteral("…")) + 14, fontMetrics().height() };
 			}
 
 		protected:

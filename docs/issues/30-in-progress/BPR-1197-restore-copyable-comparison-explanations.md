@@ -47,3 +47,31 @@ and `application_selected_file_safety_public_path` at the hidden label's height.
 The replacement tab status retains full text for its tooltip and accessibility,
 but the old wrapping selectable label is hidden unconditionally. Inspect a
 fresh missing-material render and retain fail-before/pass-after evidence.
+
+## Implementation and diagnosis, 2026-09-25
+
+The coordinator's amended assignment owns this follow-up in the isolated
+`codex/bpr1132-status-refusal` worktree from `f6de40b6`. The reserved BPR-1197
+is claimed; terminal BPR-1132 is unchanged. The primary checkout and frozen
+m2 attended candidate are outside this writer's scope.
+
+Both original failures reproduce serially. The retained before screenshot
+shows empty source panes and an elided status beside the file tab. Tests
+strengthened before the product correction also fail: the two public paths
+and the 100-percent tab course cannot find a complete visible explanation.
+
+The window now shows the existing wrapping, selectable explanation when its
+comparison has no text content, including missing material, refused computation
+and binary content. The label renders literal text. The compact tab status
+retains its full tooltip and accessible description, and normal text recovery
+removes the full explanation. This follows the existing typed content state;
+no wording is parsed and no request, cache or provider semantics change.
+
+The new width sweep also exposed a zero-width tab status at a 1100-pixel window
+with all drawers open and a tab carrying its own pair. Its minimum size now
+reserves the font's ellipsis plus the painter's horizontal padding. The full
+explanation remains visible below that compact line at the 900-pixel floor.
+The tests keep the fixed 28-pixel header and verify its elision bounds, complete
+tooltip and accessibility description, plus full literal wrapped text without
+clipping. Both real public paths select the explanation and deliver the
+platform Copy key, then compare the clipboard with the complete text.

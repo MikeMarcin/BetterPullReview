@@ -4,7 +4,7 @@ id: "BPR-1135"
 title: "Verify and close RFC-BPR-0052"
 status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
-depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134"]
+depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197"]
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
@@ -21,7 +21,7 @@ attended look at the built chrome on macOS and Windows.
 
 RFC base: `0453103ddd11337ee8b3adf5053b25149104acd8`.
 Requested RFC set: RFC-BPR-0052; workstream position: 1 of 1.
-Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135. Add subsequently allocated required slices to
+Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135, BPR-1197. Add subsequently allocated required slices to
 this list and dependencies before closeout. Registration is not implementation.
 
 ## Closeout checklist

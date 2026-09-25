@@ -1305,11 +1305,16 @@ namespace bpr::qt {
 		});
 		comparisonColumn->addWidget(DocumentTabs);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
-		ComparisonSurface->set_status_shown(false);
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
 			if (DocumentTabs != nullptr) {
 				DocumentTabs->set_status(aText, aNotable);
 			}
+			// [[BPR-1197]]. With no source text to read, the empty comparison
+			// keeps the complete, wrapping and copyable explanation. The compact
+			// tab status can elide; text comparisons keep their full reading area.
+			const auto& result = ComparisonSurface->current_result();
+			ComparisonSurface->set_status_shown(aNotable
+												&& (!result || result->Alignment.Content != core::diff_content_state::text));
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
 		OverviewPage->set_entry_dispatch(

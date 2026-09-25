@@ -6000,6 +6000,35 @@ namespace {
 		}
 		strip->overflow_button()->menu()->actions().front()->trigger();
 		expect(std::get<core::activate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 2 }, "overflow gesture names its exact tab");
+		// [[BPR-1197]]. An elided header accompanies a complete explanation
+		// in the empty comparison; it does not replace that explanation.
+		const auto  explanation = QStringLiteral("Comparison unavailable — the file cannot be read at the earlier selected revision. Select another file or comparison to continue. <literal text>");
+		auto* const surface     = window.comparison_surface();
+		surface->clear(explanation);
+		auto* const status = strip->status_label();
+		auto* const full   = surface->findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
+		for (const auto width : { 1280, 1100, window.minimumWidth() }) {
+			window.resize(width, 852);
+			process_events();
+			expect(status->isVisible() && status->text() == explanation && status->toolTip() == explanation
+					   && status->accessibleDescription() == explanation,
+				   "elided tab status preserves full tooltip and description");
+			auto* const accessible = QAccessible::queryAccessibleInterface(status);
+			expect(accessible && accessible->text(QAccessible::Description) == explanation && !accessible->state().invisible,
+				   "elided tab status exposes the entire explanation to accessibility");
+			expect(strip->height() == 28 && strip->rect().contains(status->geometry())
+					   && status->height() >= status->fontMetrics().height() && status->width() >= status->fontMetrics().horizontalAdvance(QStringLiteral("…")) + 14
+					   && status->fontMetrics().horizontalAdvance(explanation) > status->width(),
+				   "long status legitimately elides within the fixed-height tab strip");
+			expect(full && full->isVisible() && full->text() == explanation && full->textFormat() == Qt::PlainText
+					   && full->wordWrap() && full->height() >= full->heightForWidth(full->width())
+					   && surface->rect().contains(full->geometry()),
+				   "empty comparison shows the whole literal explanation without clipping");
+			save_render(window, QStringLiteral("document-tabs-unavailable-%1").arg(width));
+		}
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, file)));
+		process_events();
+		expect(full->isHidden() && status->isHidden() && strip->height() == 28, "text comparison recovery restores the compact header");
 		window.hide();
 	}
 
