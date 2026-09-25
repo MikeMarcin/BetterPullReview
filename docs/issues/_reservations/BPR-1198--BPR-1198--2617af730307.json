@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1198"
+  ],
+  "reserve_for": "review-behaviour-refresh",
+  "purpose": "epoch refresh selected file identity after document tabs",
+  "created": "2026-09-25T14:42:41.002446+00:00",
+  "base": "cbf42935686dad0dacbbab257406d6b2d5ec5f67"
+}
