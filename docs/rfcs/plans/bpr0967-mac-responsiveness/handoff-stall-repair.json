@@ -1,0 +1,448 @@
+{
+  "schema": "bpr0967.mac-stall-repair-handoff.v1",
+  "assignment": "/root/bpr0967_stall_repair; bounded attribution and repair of three Mac input gaps",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "baseline": "75044f93a6ffdb4a0bd4367d1f05b864935250f5",
+  "code_candidate": "f3f2c6eed52c364e716f3157d1dba6f05af3ba35",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-stall-repair",
+  "branch": "main",
+  "owner": "/root/bpr0967_stall_repair",
+  "status": "Bounded milestone complete with two demonstrated Qt repairs and a diagnosed remaining load obligation. Full BPR-0967 stays unfinished in Backlog.",
+  "selection": "coordinator-implementer recipe revision 2; native Codex rfc-implementer leaf, no delegation",
+  "setup": {
+    "observed": "rfc-implementer gpt-6-astra / xhigh startup banner",
+    "inherited_preflight": "Prior handoff records MASK readiness drifted/artifact.corrupt and workflow not declared; host_load remains not_verified. No MASK repair or observed-loading claim supplied by this slice."
+  },
+  "completed_commits": [
+    "3a7fc66c",
+    "17be3eef",
+    "f3f2c6eed52c364e716f3157d1dba6f05af3ba35"
+  ],
+  "findings": [
+    "Unchanged public responsiveness course reproduces load 231.222041, source 110.085167 and revisit 104.895083 ms.",
+    "Conversation detail performed native row measurement before hiding unrelated roots; scoped selection/hiding now precedes layout without dropping model rows.",
+    "Two-pane publication constructed an unused unified source document; it now builds only when one-pane presentation is active and releases on leaving, after preserving exact reading identity.",
+    "Final source/revisit intervals 79.443209 / 83.141541 ms pass new gates at the unchanged 100 ms target. Load 142.388 ms remains explicitly failing; no full responsiveness acceptance.",
+    "Temporary nested load traces identify conversation/card projection, first Overview publication and host acceptance/read-state/ledger work. Their timings overlap and do not establish a single remaining cause or safe scheduling repair."
+  ],
+  "pending_obligations": [
+    "Initial metadata/Git load gap 142.388 ms still exceeds 100 ms; separately assign further owning-boundary analysis and repair on the same public course.",
+    "Full active-work input/cancellation and true process/QApplication-to-first-frame launch.",
+    "Separate first metadata, generated/pathological fallback and peak live heap.",
+    "Windows/Linux native measurements explicitly deferred; full BPR-0967 remains unfinished."
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "RFC0052 14-question attended session, candidate, state and server untouched."
+  },
+  "commands": {
+    "active": [],
+    "review_server": null,
+    "collected_exec_sessions": [
+      39319,
+      78525,
+      92892,
+      48475,
+      35238,
+      53125,
+      59426,
+      38099,
+      53543,
+      94708,
+      7076,
+      9106
+    ],
+    "verification_commands": [
+      "cmake --build --preset dev --target bench_better_pull_review_large_review test_better_pull_review_qt_diff_workbench_tests test_better_pull_review_qt_github_conversation_panel_tests test_better_pull_review_qt_github_tests",
+      "ctest --preset dev -R '^(qt_diff_workbench_scale_100|qt_github_conversation_panel)$' --output-on-failure",
+      "ctest --preset dev -R '^(architecture_boundaries|qt_github_conversation_panel|qt_diff_workbench_scale_(100|125|200)|qt_composed_github_scale_100|application_large_review_(timing_control|responsiveness|benchmark|cache_bytes|cache_entries|history|loaded_close|resources)|application_(unavailable|approximate)_diff_public_path)$' --output-on-failure",
+      "python3 _coding-standard/scripts/format_check.py --root . src/adapters/qt/src/diff_workbench.cpp src/adapters/qt/src/github_conversation_panel.cpp tests/adapters_qt/diff_workbench_tests.cpp tests/adapters_qt/github_conversation_panel_tests.cpp tests/end_to_end/large_review_benchmark.cpp",
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py",
+      "issue_board.py --repo-root . validate --include BPR-0967 --json",
+      "git diff --check"
+    ],
+    "completed": "All task-owned build, test, measurement and documentation commands collected. No background command or review server handed off."
+  },
+  "verification": {
+    "controls": "New conversation-root measurement and inactive unified-document controls fail against baseline product and pass after repair. Exact selection, source, anchors, one-pane map/scroll and zero-reset expectations retained.",
+    "responsiveness": "20/20 named fixture gates pass. InputBudgetFailures contains only paged_review_and_git_load at 142.388 ms.",
+    "documentation": "Final DOCUMENTATION_OK after all evidence/card changes; 64/64 documentation tests pass; scoped board valid with 1186 cards; final diff check passes.",
+    "format": "All five changed C++ files pass clang-format 23.1.1 check.",
+    "ctest": "16/16 pass at f3f2c6eed52c364e716f3157d1dba6f05af3ba35 in 855.67 seconds: architecture 17.14; composed GitHub 3.71; conversation 0.58; diff scales 2.00/2.07/2.36; ordinary 22.75; timing control 0.79; unavailable 14.85; approximate 12.99; responsiveness 23.73; cache bytes 337.01; cache entries 72.34; loaded close 13.84; history 314.54; resources 14.95.",
+    "self_review": "Reviewed publication ownership, selection signal blocking, stable post fallback, exact reading anchor capture before unified rebuild, native layout order, active/inactive geometry and unchanged cache/resource/source limits.",
+    "independence": "No independent/human/native-desktop acceptance supplied.",
+    "responsiveness_observation": {
+      "InputIntervalLimitMs": 100,
+      "InputBudgetFailures": [
+        "paged_review_and_git_load"
+      ],
+      "CompletionBudgets": [
+        {
+          "Name": "composition_startup_render",
+          "MeasuredMs": 515.726084,
+          "LimitMs": 1000,
+          "Passed": true
+        },
+        {
+          "Name": "paged_review_and_git_load",
+          "MeasuredMs": 9996.390208,
+          "LimitMs": 12000,
+          "Passed": true
+        },
+        {
+          "Name": "large_file_selection",
+          "MeasuredMs": 1934.346916,
+          "LimitMs": 2500,
+          "Passed": true
+        },
+        {
+          "Name": "binary_fallback_render",
+          "MeasuredMs": 943.084208,
+          "LimitMs": 1250,
+          "Passed": true
+        },
+        {
+          "Name": "large_source_revisit_render",
+          "MeasuredMs": 636.146292,
+          "LimitMs": 1000,
+          "Passed": true
+        },
+        {
+          "Name": "large_file_selection_input_gap",
+          "MeasuredMs": 79.443209,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "large_source_revisit_render_input_gap",
+          "MeasuredMs": 83.141541,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "rapid_selection_supersession",
+          "MeasuredMs": 7877.877916,
+          "LimitMs": 10000,
+          "Passed": true
+        },
+        {
+          "Name": "supersession_final_drain",
+          "MeasuredMs": 922.877125,
+          "LimitMs": 1250,
+          "Passed": true
+        },
+        {
+          "Name": "read_modality",
+          "MeasuredMs": 79.212667,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "files_drawer_open",
+          "MeasuredMs": 49.616208,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "files_drawer_close",
+          "MeasuredMs": 29.23775,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "conversations_drawer_open",
+          "MeasuredMs": 30.913667,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "conversations_drawer_close",
+          "MeasuredMs": 28.146791,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "appearance_settings_open",
+          "MeasuredMs": 19.69325,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "theme_light",
+          "MeasuredMs": 20.91975,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "theme_dark",
+          "MeasuredMs": 29.821917,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "next_change_dispatch",
+          "MeasuredMs": 9.582541,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "wheel_dispatch",
+          "MeasuredMs": 1.127167,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "measurement_input_gap",
+          "MeasuredMs": 5.566584,
+          "LimitMs": 100,
+          "Passed": true
+        }
+      ],
+      "phase_maximum_ms": {
+        "fixture_connect": 6.044834,
+        "paged_review_and_git_load": 142.388,
+        "read_modality": 79.212667,
+        "large_file_selection": 79.443209,
+        "files_drawer_open": 16.86775,
+        "files_drawer_close": 12.287666,
+        "conversations_drawer_close": 12.50925,
+        "conversations_drawer_open": 14.440209,
+        "appearance_settings_open": 19.69325,
+        "theme_light": 20.91975,
+        "theme_dark": 25.48725,
+        "binary_fallback_render": 24.155917,
+        "large_source_revisit_render": 83.141541,
+        "rapid_selection_supersession": 33.30875,
+        "shutdown": 12.879708
+      }
+    },
+    "render_inspection": "Final Conversations-drawer and dark large-source-revisit frames inspected; explicit fixture captures only, no human/native compositor acceptance.",
+    "history": {
+      "observed_epochs": 32,
+      "retained_epochs_verified": 32,
+      "model_resets": 0,
+      "maximum_refresh_interval_ms": 69.978041,
+      "maximum_refresh_elapsed_ms": 8658.234834,
+      "maximum_source_selection_elapsed_ms": 1733.863417,
+      "unchanged_limits_ms": {
+        "input": 100,
+        "refresh": 12000,
+        "source_selection": 2000
+      }
+    },
+    "resource_courses": [
+      {
+        "course": "cache-bytes",
+        "lifetime_peak_growth_bytes": 147718504,
+        "unchanged_limit_bytes": 192937984,
+        "cleanup_samples": [
+          {
+            "Phase": "shutdown_drained",
+            "ResidentBytes": 297025536,
+            "PhysicalFootprintBytes": 151897000,
+            "LifetimePeakFootprintBytes": 152699816,
+            "LiveHeapBytes": 70392080,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 146915688,
+            "LifetimePeakGrowthBytes": 147718504,
+            "LiveHeapGrowthBytes": 69456784,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          },
+          {
+            "Phase": "application_destroyed",
+            "ResidentBytes": 296960000,
+            "PhysicalFootprintBytes": 151880616,
+            "LifetimePeakFootprintBytes": 152699816,
+            "LiveHeapBytes": 14934256,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 146899304,
+            "LifetimePeakGrowthBytes": 147718504,
+            "LiveHeapGrowthBytes": 13998960,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          }
+        ],
+        "unchanged_live_heap_cleanup_limit_bytes": 88080384,
+        "unchanged_destroyed_live_heap_limit_bytes": 33554432
+      },
+      {
+        "course": "cache-entries",
+        "lifetime_peak_growth_bytes": 87720176,
+        "unchanged_limit_bytes": 167772160,
+        "cleanup_samples": [
+          {
+            "Phase": "shutdown_drained",
+            "ResidentBytes": 171835392,
+            "PhysicalFootprintBytes": 91915104,
+            "LifetimePeakFootprintBytes": 92717920,
+            "LiveHeapBytes": 65868048,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 86917360,
+            "LifetimePeakGrowthBytes": 87720176,
+            "LiveHeapGrowthBytes": 64932752,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          },
+          {
+            "Phase": "application_destroyed",
+            "ResidentBytes": 171769856,
+            "PhysicalFootprintBytes": 91898720,
+            "LifetimePeakFootprintBytes": 92717920,
+            "LiveHeapBytes": 14913216,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 86900976,
+            "LifetimePeakGrowthBytes": 87720176,
+            "LiveHeapGrowthBytes": 13977920,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          }
+        ],
+        "unchanged_live_heap_cleanup_limit_bytes": 88080384,
+        "unchanged_destroyed_live_heap_limit_bytes": 33554432
+      },
+      {
+        "course": "loaded-close",
+        "lifetime_peak_growth_bytes": 133595400,
+        "unchanged_limit_bytes": 167772160,
+        "cleanup_samples": [
+          {
+            "Phase": "shutdown_drained",
+            "ResidentBytes": 206225408,
+            "PhysicalFootprintBytes": 93848464,
+            "LifetimePeakFootprintBytes": 138609552,
+            "LiveHeapBytes": 70570848,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 88834312,
+            "LifetimePeakGrowthBytes": 133595400,
+            "LiveHeapGrowthBytes": 69635552,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          },
+          {
+            "Phase": "application_destroyed",
+            "ResidentBytes": 206159872,
+            "PhysicalFootprintBytes": 93832080,
+            "LifetimePeakFootprintBytes": 138609552,
+            "LiveHeapBytes": 15729456,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 88817928,
+            "LifetimePeakGrowthBytes": 133595400,
+            "LiveHeapGrowthBytes": 14794160,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          }
+        ],
+        "unchanged_live_heap_cleanup_limit_bytes": 88080384,
+        "unchanged_destroyed_live_heap_limit_bytes": 33554432
+      },
+      {
+        "course": "resources",
+        "lifetime_peak_growth_bytes": 131858744,
+        "unchanged_limit_bytes": 167772160,
+        "cleanup_samples": [
+          {
+            "Phase": "shutdown_drained",
+            "ResidentBytes": 211238912,
+            "PhysicalFootprintBytes": 100123536,
+            "LifetimePeakFootprintBytes": 136856464,
+            "LiveHeapBytes": 70645984,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 95125816,
+            "LifetimePeakGrowthBytes": 131858744,
+            "LiveHeapGrowthBytes": 69710688,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          },
+          {
+            "Phase": "application_destroyed",
+            "ResidentBytes": 211156992,
+            "PhysicalFootprintBytes": 100107152,
+            "LifetimePeakFootprintBytes": 136856464,
+            "LiveHeapBytes": 15789664,
+            "DiffCacheBytes": 0,
+            "FootprintGrowthBytes": 95109432,
+            "LifetimePeakGrowthBytes": 131858744,
+            "LiveHeapGrowthBytes": 14854368,
+            "DiffCacheEntries": 0,
+            "DiffJobs": 0,
+            "EpochJobs": 0
+          }
+        ],
+        "unchanged_live_heap_cleanup_limit_bytes": 88080384,
+        "unchanged_destroyed_live_heap_limit_bytes": 33554432
+      }
+    ],
+    "cache_and_cleanup": "All original exact source/blob/anchor, 64-entry/64-MiB cache ceilings, evicted diff/index lifetime, exact revisit, held-source supersession, loaded-close, prune/delete and destruction assertions pass unchanged. Cache byte course: 20 selections, 66839408 peak retained bytes, 70353760 total admitted bytes, eight held-source observations. Entry course: 65 selections, 64 peak entries; both exact revisits pass.",
+    "source_candidate_scope": "All final executable checks bind f3f2c6eed52c364e716f3157d1dba6f05af3ba35. Subsequent changes are documentation, fixture README, board and checkpoint only.",
+    "checkpoint": "Shared helper returns action=stop at quiescent execution; engineering acceptance not evaluated by helper. Initial missing top-level historical evidence reference was reconciled before final check."
+  },
+  "ownership": {
+    "main_writer": "This leaf only until final return; coordinator receives writer ownership then. No push performed.",
+    "other_worktrees": "23 other registered worktrees preserved, including protected rfc0052-m3.",
+    "product_scope": "Only the two Qt owners and three associated test files changed; all diagnostic timers removed. No app/core/host mutation.",
+    "live_effects": "Network-denied fixtures only; no live account, private target, remote mutation, package, release or push.",
+    "command_state": "All task-owned commands have completed; no task-owned benchmark, CTest or build process remains. No review server created. Main writer released on final return.",
+    "cleanup": "Removed nine temporary source snapshots and the task-owned plan proposal. Ignored reports/logs retained. Network-isolation runner removed disposable fixture roots; no task worktree or server created."
+  },
+  "evidence": "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+  "next_action": "Coordinator receives writer ownership and exact commits. Separately assign the remaining 142.388 ms initial-load gap on the same public path and other Mac dimensions. Windows/Linux stations remain explicitly deferred.",
+  "bookkeeping": "Shared move/claim and authored milestone amendment used. Incorrect Ready lane spelling refused without edits, then corrected to 20-ready. Full card acceptance not claimed; shared move returns card to 10-backlog.",
+  "checkpoint_note": "Binding refreshed after evidence append and Backlog return; AC1-AC3 and mandate unchanged. Historical checkpoint/handoff/observation remain untouched. New observation records all bounded exits, whole-card pending acceptance and quiescent stop. Following documentation-only commit preserves this exact code checkpoint.",
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/github_conversation_panel.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp",
+    "tests/adapters_qt/github_conversation_panel_tests.cpp",
+    "tests/end_to_end/large_review_benchmark.cpp",
+    "tests/fixtures/github/pull-requests/large-review-v1/README.md",
+    "docs/architecture/system-architecture.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/MILESTONES.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-stall-repair.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-stall-repair.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-stall-repair.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-stall-repair.json"
+  ],
+  "report_digests": {
+    "build/dev/tests/end_to_end/large-review-measurement.json": "b3c253446f8cd962d868f70a91a8a516eb5d3b7325f210f23f50f2e139538abd",
+    "build/dev/tests/end_to_end/large-review-responsiveness.json": "0ea910fdd1c84acf7c6bf2149db626514ad3c41515630070a029a2a90d621a6b",
+    "build/dev/tests/end_to_end/large-review-cache-bytes.json": "7ee4b2eedfc2f9973256eee5db45748be9140e6aa9670a7c1e0d50a6f9c6fc1a",
+    "build/dev/tests/end_to_end/large-review-cache-entries.json": "45f28b2d756fe03bef021c95fd3d28bde84478340fc5abd1c5472adef43c9542",
+    "build/dev/tests/end_to_end/large-review-loaded-close.json": "474572c42aaf4d1ba54fec09bc49e452d9e85f8f5d5fbc09342020ac2630e7d7",
+    "build/dev/tests/end_to_end/large-review-history.json": "7fa3b7b5272be4170e5143e0e3fc3987e52236f9b8b9f09e82e4e27802bd72f1",
+    "build/dev/tests/end_to_end/large-review-resources.json": "e45e00761442c36b75e502057e615490783046719ec9cdaab4443967f66d9aec",
+    "build/dev/tests/end_to_end/unavailable-diff-measurement.json": "f159bc0bec7dc3b1a262f60c1e919062c802f810ea5d41b1ee8310a705767e22",
+    "build/dev/tests/end_to_end/approximate-diff-measurement.json": "14b4382c7ec366baea2982f4c3bfade07f02d4f6c6f53694c0bc8a1d2c7d8ba1",
+    "build/bpr0967-stall-repair/baseline.json": "1da9cfd9af1317d43454e176f84bac5d5dcf1a06c4e6a11cbdc611c1e484eae4",
+    "build/bpr0967-stall-repair/controls-before.log": "89deb784e865e062ef3635432f5136161732b2df1e4693b00e6c5c6f2777cb29",
+    "build/bpr0967-stall-repair/controls-after.log": "f7abb22e9b3d71f6285e462858c04236794dc4cec774a75196724f08bf4573ce",
+    "build/bpr0967-stall-repair/instrument-course.log": "74e7acb21f32d807fc9a210172b3912e51ea11919cdfe29bb08b9eb9496dfec0",
+    "build/bpr0967-stall-repair/instrument2-course.log": "206092e533aeb1a2bf0ef4b20fdc21e2fb701671d45f6aded95bbe0c2eaa0e25",
+    "build/bpr0967-stall-repair/trace-repair-course.log": "b236adddf8f3ee493afdedd9e92f5789030e6ef8804220c4c37a2412e030939b",
+    "build/bpr0967-stall-repair/trace-host-course.log": "0869219a231abe0fc0a900386906b69105d219d05fa8b48d67a5c63b9d25381d",
+    "build/bpr0967-stall-repair/final-build.log": "7fbdc5ad1cf064e8bc54e6aabba9f99b408d13a187df58729874c71c7f6f0aa1",
+    "build/bpr0967-stall-repair/final-courses.log": "3b64ab16a7292018668e8856e2d9252c5036fcdbb569c29bac4f4e0777b78f0f",
+    "build/bpr0967-stall-repair/documentation-final.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+    "build/bpr0967-stall-repair/documentation-tests.log": "15a9219d8460cc42178e2d8876669fa9cd49009b8f33f551c38d37756cc008aa"
+  },
+  "executable_sha256": "fd3eff97ea5a5f588ecdd4a975f70c157bd986e23b4cc4156f79b34eb6d397e3"
+}

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -148,3 +148,33 @@ generated/pathological fallback and peak-live-heap coverage. Windows/Linux
 stations are explicitly deferred. No native-style, human, independent, package
 or release acceptance is supplied, and RFC0052's protected review is untouched.
 The card stays unfinished after this bounded Mac slice.
+
+## Mac owning-boundary stall repairs — 2026-09-25
+
+The next standalone milestone at code
+`f3f2c6eed52c364e716f3157d1dba6f05af3ba35` reproduces the same public-course
+gaps at 231.222 / 110.085 / 104.895 ms and repairs two Qt owners. Conversation
+detail hides unrelated roots before layout measures them, preserving the entire
+incremental model and exact selected post. Two-pane source publication no longer
+builds a hidden third unified document; one-pane toggles build or release it
+after retaining the exact semantic reading anchor. Both new structural controls
+failed with the original product and pass with the repair.
+
+The first uninstrumented repaired course measures 148.039 / 75.378 / 74.000 ms.
+First source and revisit now have complete-interval gates at the original 100 ms
+target. Load still exceeds it; attribution identifies synchronous conversation,
+Overview and host-handoff work, with overlapping timings rather than a proven
+single remaining cause. The [stall repair evidence](../../verification/BPR-0967-mac-stall-repair-2026-09-25.md)
+and [new handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-stall-repair.json)
+bind exact final checks, report identities and the separate remaining load
+obligation. All temporary timers are removed. No threshold was raised.
+The final uninstrumented run passes 20/20 named fixture gates, with first source
+79.443 ms and revisit 83.142 ms; the load gap remains **142.388 ms** and is
+explicitly listed in `InputBudgetFailures`.
+
+AC3 remains partial and the card returns to Backlog. Earlier evidence is retained
+at its historical candidate; the new candidate rechecks affected source/cache,
+eviction/revisit, history and cleanup courses. Further work needs a separate
+bounded load repair plus the other Mac dimensions above. Windows/Linux are
+explicitly deferred; no full BPR-0967, human, native-style or release acceptance
+is claimed, and the RFC0052 attended session remains protected.

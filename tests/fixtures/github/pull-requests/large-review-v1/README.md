@@ -123,7 +123,10 @@ fallback, exact source recovery and existing navigation/supersession inputs.
 PNG encoding and file writes happen outside the measured phases.
 
 The report's `CompletionBudgets` holds measured values, limits and verdicts for
-18 local fixture completion/dispatch boundaries. `InputBudgetFailures` separately
+20 local fixture completion/dispatch and source-input boundaries. The two source
+boundaries gate the complete first-selection and revisit intervals at the
+unchanged 100 ms target after the Qt hidden-document repair.
+`InputBudgetFailures` separately
 names every completed phase exceeding the retained 100 ms input target; a
 successful measurement course does not accept those failures. `ActionMs` and
 `FinalIntervalMs` explain the maximum, while P95 uses delivered timer callbacks
@@ -131,3 +134,8 @@ only. The [Mac evidence](../../../../../docs/verification/BPR-0967-mac-responsiv
 records hardware, exact candidate, observations and the remaining gaps.
 Composition startup excludes process and `QApplication` launch, rendering is an
 explicit widget capture, and other platforms remain unmeasured.
+
+The [Mac stall repair evidence](../../../../../docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md)
+records the source and conversation-layout controls. Initial metadata/Git load
+still exceeds 100 ms and remains a separate unfinished obligation. Every exact
+source, anchor, cache, eviction/revisit and cleanup assertion remains in force.
