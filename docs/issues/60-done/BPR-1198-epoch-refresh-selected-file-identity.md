@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1198"
 title: "Reconcile epoch refresh with the active tab selected-file identity"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"found_at":"f6de40b633ea8b879d3643ad5a259169fd976975","plan":"docs/rfcs/plans/bpr1198-refresh-identity/milestone-plan.json","mandate":"user-unattended-r1","milestone_plan":{"id":"bpr1198-refresh-identity","path":"docs/rfcs/plans/bpr1198-refresh-identity/milestone-plan.json"}}
+acceptance: [{"criterion":"Exact terminal observations distinguish host selection, active tab file/pair, displayed comparison and conversation anchor; name the cause.","outcome":"pass","revision":"38ec2f45bb8b37b66fc8141e5cd8ea6aca1c7c05","evidence":{"kind":"observation","detail":"Original transient-gap pass versus pending-tab-completed failure120071/120000ms proves stale course expectation. Host, tab, published/displayed file and anchor match review.cpp and exact accepted pair. Final Read/Review focused terminal and Overview unselected terminal both verified; full identities and cause on card and handoff."}},{"criterion":"The public review-behaviour contract passes on macOS with fail-before/pass-after evidence; a focused view requires exact reconciled identities, and a genuinely unselected view still requires all six roots. Preserve BPR-0818 regression coverage and the 120000 ms budget.","outcome":"pass","revision":"38ec2f45bb8b37b66fc8141e5cd8ea6aca1c7c05","evidence":{"kind":"command","detail":"Final serial CTest4/4: review behaviour99.22s, epoch persistence46.32s, source-pinned round trip11.80s, BPR0818 conversation regression0.91s. Direct final plain seed28249ms focused0 roots6. Original settled six-root condition fails120071ms; corrected focused GHES passes30967ms. Budgets unchanged. Format, scoped tidy and documentation pass; global pre-existing naming violation recorded."}}]
 ---
 
 # BPR-1198: Reconcile epoch refresh with the active tab selected-file identity
@@ -51,3 +52,9 @@ Runtime-only evidence: `/Users/jaeger/.codex/tmp/bpr1198-my4d8usp/`, including t
 The shared plain seed rejected `8ebf9e6c` at 120060 ms because Overview correctly retained tab #1 on its older pair without presenting it: host selection, published/displayed file and anchor were all absent, and all six review-wide roots were present. The course must distinguish a retained tab from a presented tab. The follow-up observes the host's Read/Review modality, checks that the window agrees, and applies focused identity reconciliation only there. Overview/Discuss keep the original unselected contract. This refinement changes only the same test accessor and course guard; the full pinned scope `f6de40b6..8ebf9e6c` plus this follow-up has been reviewed, with no product policy or mutation-branch change.
 
 Final reseal after the modality refinement: full application `4f5514d0792433b199f7181f82d5f8153387b07c6dbec9453f7389600194ad5f`, production source manifest `f0e1b80eaaf3d3307f851fd7b36c794f5576ccc64faa95b246163ebb867cb593`; mutation branch remains unchanged. The earlier hashes above describe the first candidate, whose Overview case was corrected before integration.
+
+## Final Mac verification — source 38ec2f45
+
+Serial CTest integration: `qt_workbench_conversation_reveal` 0.91 s, `application_review_round_trip_composition_contract` 11.80 s, `application_review_behaviour_contract` 99.22 s, and `application_epoch_persistence_github-com` 46.32 s: 4/4 passed in 158.26 s. The last row verifies both plain seed and reuse; the direct seed's terminal marker is `focused=0:roots=6`. The BPR-0818 unselected-refresh test is included in the conversation-reveal row. Final main tidy, accessor changed-line tidy, C++ format and documentation gates pass; the 64 documentation tests pass. Full-file application tidy still reports the pre-existing `exact_current` spelling at line 8466, present unchanged at the baseline; this is outside the scoped delta.
+
+[Milestone handoff](../../rfcs/plans/bpr1198-refresh-identity/HANDOFF-2026-09-25.md) records commands, candidate identities, original failure and correction, pins, runtime evidence and the integration boundary. No new native-platform or human acceptance is claimed.
