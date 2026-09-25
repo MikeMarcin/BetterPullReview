@@ -426,7 +426,7 @@
       "tests/github_contract/live_review_mutation_provider_tests.cpp",
       "tests/github_contract/native_https_transport_tests.cpp"
     ],
-    "assessment": "Only BPR-0898 publication failure vocabulary, parser/transport mapping, editor messages, preserved retry predicate and corresponding tests/pins changed. Chrome/tab/geometry behavior is unchanged; E5 covers combined composition.",
+    "assessment": "At the isolated m3 base aa59606a, only BPR-0898 publication failure vocabulary, parser/transport mapping, editor messages, preserved retry predicate and corresponding tests/pins had changed. Chrome/tab/geometry behavior was unchanged; E5 covers combined composition. After integration on main, BPR-0966 additionally changed only tests/end_to_end/agent_finding_composition_public_path.cpp to observe a clipped Dif cue; that test-only change does not alter RFC-0052 product behavior or the frozen candidate.",
     "source_equality_command": [
       "git",
       "diff",
