@@ -348,6 +348,14 @@ and 4. Findings 3, 5 and 6 are recorded here, and BPR-1112 repeats them so
 that its implementer sees them; none has a card of its own. The card stays
 Done, as the owner decision above said it would.
 
+**Since closed (2026-09-24).** [[BPR-1112]] at `b7caeb2f`. A turn that ends
+in an exception now fails its queued requests before the exception leaves it
+(finding 1). A withdrawal at shutdown is pinned (finding 2). `start_delete`
+builds its handler before changing any state (finding 4). The immediate path
+now swallows a throwing terminal, as the queued path does (finding 3).
+[[BPR-1116]] removed the rotation barrier's lane call, and BPR-0644 had
+already removed the launch-erase site (finding 5).
+
 **Limitations.**
 
 - The review read the code and did not run it. No test run is reported for
