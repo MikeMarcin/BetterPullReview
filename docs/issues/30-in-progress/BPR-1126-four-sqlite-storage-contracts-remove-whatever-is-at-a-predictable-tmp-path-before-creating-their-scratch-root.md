@@ -295,3 +295,54 @@ On each station, every row should pass. Afterwards no `bpr-appearance-`,
 directory. On Windows that also means the AppContainer's own temporary
 directory for the appearance row. The card stays In Progress on this
 station's claim until those runs are supplied.
+
+## macOS, AC5 (bpr-main-mac, 2026-09-24)
+
+Station `bpr-main-mac`: macOS 26.6.2 on Apple Silicon, Apple clang 21.0.0,
+Qt 6.11.2, `build/dev` Debug with warnings as errors. The head was
+`b8944a06`, which contains `ad117024`. This entry supplies the macOS run
+that AC5 owes. It does not move the card, which stays on bpr-main-linux's
+claim. The Windows run is still owed.
+
+| Check | Result |
+| --- | --- |
+| `cmake --build --preset dev` | exit 0. It recompiled and relinked the five changed sources, and printed no `warning:` line |
+| The card's `ctest` command | **5 of 5 passed**, in 3.58 s |
+| A direct sandboxed run of each of the five rows, with a kept `TMPDIR` (below) | **5 of 5 passed. `TMPDIR` was empty afterwards**: no `bpr-appearance-`, `bpr-queue-`, `bpr-ledger-`, `bpr-workbench-` or `bpr-syntax-canary-control-` entry. `/private/tmp` gained no entry |
+
+On macOS a ctest run cannot show a leftover ([[BPR-1047]]). The runner
+gives the row its own `/tmp/bpr-net-*/fixture` as `TMPDIR` and removes it
+when the row ends. So the leftover check is the direct run. It uses the
+driver described in [[BPR-1121]]'s macOS entry. The driver runs the row's
+command under the runner's own derived profile, from the row's working
+directory, with the row's environment. `TMPDIR` is a `fixture/` directory,
+mode `0700`, that the driver keeps and lists afterwards.
+
+**The route sees a root when there is one.** [[BPR-1121]]'s trial hook
+was rebuilt into the shared `expect` and never committed. A counting run
+gave the same totals as Linux: appearance 1463, queue 497, ledger 1607 and
+workbench 1204. The syntax contract gave 236. Each row was then failed at
+Linux's first N (487, 165, 535 and 401), and the syntax contract at
+`the canary definition loads through an explicit search path`.
+
+| Row | Forced failure | The same with `BPR_TRIAL_NO_UNWIND` |
+| --- | --- | --- |
+| `sqlite_appearance_settings_storage` | exit 1, `FAILED:` line, `TMPDIR` empty | left `bpr-appearance-vcwGxe/` (`v4.sqlite3` and its `-shm`/`-wal`) |
+| `sqlite_queue_enrollment_storage` | exit 1, `FAILED:` line, `TMPDIR` empty | left `bpr-queue-It5mvK/` (`version-five.db` and its `-shm`/`-wal`) |
+| `sqlite_review_ledger_storage` | exit 1, `FAILED:` line, `TMPDIR` empty | left `bpr-ledger-kk4DZb/` (`l.db` and its `-shm`/`-wal`) |
+| `sqlite_workbench_settings_storage` | exit 1, `FAILED:` line, `TMPDIR` empty | left `bpr-workbench-WLOp3f/` (`interrupted.sqlite3` and its `-shm`/`-wal`) |
+| `syntax_classification_contract` | exit 1, `FAILED:` line, `TMPDIR` empty | left `bpr-syntax-canary-control-GFpytJ/syntax/bpr-canary.xml` |
+
+So each row makes its root in the `TMPDIR` it is given, at a random name,
+and a failure removes the root. The hook was then removed: the header is
+byte for byte `1a2cdc9d…c6c25` again, and its dependents were rebuilt.
+After that, the five rows passed once more, through ctest and by the
+direct route, and each left `TMPDIR` empty. The kept roots were removed by
+exact name. The logs and the per-run JSON are station records under
+`build/logs/bpr-1126-mac/` and `build/logs/bpr-1121-mac/trial/`, and are
+not committed.
+
+**AC5 on macOS: met.** The four sources build here with no warning, and
+their rows pass. So does the syntax contract's. No root is left. The
+Windows run, which also compiles the helper's Windows branch there, is
+still owed.
