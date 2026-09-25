@@ -155,6 +155,16 @@ The target is compared **before** the head, because a comment aimed at the
 wrong pull request is a worse mistake than one aimed at the right pull
 request's newer revision, and reporting the head first would hide it.
 
+A thread observation that returns an explicit `node: null` reports
+`target_unavailable`: the selected target is not visible to the account. Invalid
+JSON, missing required fields and structurally invalid answers report
+`malformed_response`. The GitHub adapter retains that distinction for both
+thread preflight and reply reconciliation; malformed native HTTPS responses
+retain it too. The application forwards the fixed diagnostic, and Qt explains
+account access versus an invalid server response without showing provider text.
+Both failures preserve the existing refusal, draft and safe retry behavior;
+neither admits a write or treats a failed reconciliation as server truth.
+
 ## Safe targets
 
 The mutation coordinator is built for exactly one designated target, fixed at

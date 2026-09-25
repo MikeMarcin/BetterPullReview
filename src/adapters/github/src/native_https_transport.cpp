@@ -2094,6 +2094,8 @@ namespace bpr::adapters::github::detail {
 			case application::github_provider_failure::api_version:
 			case application::github_provider_failure::unsupported_capability:
 				return application::review_mutation_failure::refused_by_server;
+			case application::github_provider_failure::malformed_response:
+				return application::review_mutation_failure::malformed_response;
 			case application::github_provider_failure::network:
 			case application::github_provider_failure::rate_limit:
 			case application::github_provider_failure::certificate:
@@ -2102,7 +2104,6 @@ namespace bpr::adapters::github::detail {
 			case application::github_provider_failure::process_startup:
 			case application::github_provider_failure::cli_unavailable:
 			case application::github_provider_failure::vault:
-			case application::github_provider_failure::malformed_response:
 			case application::github_provider_failure::response_limit:
 			case application::github_provider_failure::unavailable:
 				return application::review_mutation_failure::unavailable;

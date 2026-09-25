@@ -2157,10 +2157,10 @@ namespace {
 			};
 		};
 		// Refused after the POST was handed to the network, so possibly sent.
-		const auto refusedAfterPost = [](const outcome& aOutcome) {
+		const auto refusedAfterPost = [](const outcome& aOutcome, const application::review_mutation_failure aFailure = application::review_mutation_failure::malformed_response) {
 			const auto* error = std::get_if<github_mutation_wire_error>(&aOutcome.Completion);
 			return error != nullptr
-				&& error->Failure == application::review_mutation_failure::unavailable
+				&& error->Failure == aFailure
 				&& error->Transmission == github_mutation_transmission::indeterminate;
 		};
 
@@ -2174,7 +2174,7 @@ namespace {
 		}
 		if (aScenario == fixture_scenario::mutation_graphql_witness_failure) {
 			const auto refused = perform(reply, false);
-			expect(refusedAfterPost(refused) && refused.Consulted == 1U,
+			expect(refusedAfterPost(refused, application::review_mutation_failure::unavailable) && refused.Consulted == 1U,
 				   "graphql-reply-refused-by-its-witness-is-aborted");
 			return;
 		}

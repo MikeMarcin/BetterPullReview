@@ -21,6 +21,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -1448,6 +1449,45 @@ namespace {
 			   "a reply into a thread outside the designated pull request never reaches a write");
 	}
 
+	void test_thread_failure_diagnostics_refuse_without_writes()
+	{
+		using failure = application::review_mutation_failure;
+		for (const auto& [body, expected] : std::array{
+				 std::pair{ std::string{ R"({"data":{"node":null}})" }, failure::target_unavailable },
+				 std::pair{ std::string{ "{" }, failure::malformed_response },
+				 std::pair{ std::string{ R"({"data":{}})" }, failure::malformed_response },
+			 }) {
+			for (const auto resolve : { true, false }) {
+				auto transport = fake_transport{ };
+				transport.answer(graphql("ObserveThread"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = body } });
+				auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+				const auto refused = session.resolve_thread(resolution_request(resolve));
+				expect(!refused && refused.error() == expected && transport.Requests.size() == 1U
+						   && transport.Requests.front().Wire.Operation == review_mutation_operation::observe_review_thread,
+					   "resolve and unresolve preserve the diagnostic and send only the preflight read");
+			}
+			for (const auto baseline : { false, true }) {
+				auto reply                   = request();
+				reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+				reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+				auto transport               = fake_transport{ };
+				if (baseline) {
+					transport.answer(graphql("ObserveThread"), thread_observation_response(true));
+				}
+				transport.answer(graphql(baseline ? "ObserveThreadComments" : "ObserveThread"),
+								 github_mutation_wire_success{ .Response = { .Status = 200, .Body = body } });
+				auto        recovery         = make_recovery();
+				auto* const retainedRecovery = recovery.get();
+				auto        session          = review_mutation_session{ transport, configuration(), mutation_lease(), std::move(recovery) };
+				const auto  refused          = session.submit_and_reconcile(reply);
+				const auto  stored           = retainedRecovery->load(reply.IdempotencyKey);
+				expect(!refused.Result && refused.Result.error() == expected && !refused.MutationAttempted
+						   && transport.Requests.size() == (baseline ? 2U : 1U) && stored && !stored->has_value(),
+					   "reply preflight and baseline preserve diagnostics without a write or recovery admission");
+			}
+		}
+	}
+
 	// [[BPR-0904]] acceptance probe of [[BPR-0896]]. The row above stops at
 	// the [[BPR-0879]] pre-flight refusal, so nothing in this suite reached a
 	// reply's baseline reconciliation. This row binds the thread to the
@@ -1787,6 +1827,24 @@ namespace {
 					  }),
 			   "a foreign thread is named undesignated_target at the coordinator and never written");
 
+		for (const auto& [body, expected, diagnostic] : std::array{
+				 std::tuple{ std::string{ R"({"data":{"node":null}})" }, application::review_mutation_failure::target_unavailable, "target_unavailable" },
+				 std::tuple{ std::string{ "{" }, application::review_mutation_failure::malformed_response, "malformed_response" },
+			 }) {
+			auto unavailable = fake_transport{ };
+			unavailable.answer(pull_request_get(), target_response());
+			unavailable.answer(viewer_get(), viewer_response());
+			unavailable.answer(graphql("ObserveThread"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = body } });
+			auto       unavailableSession     = review_mutation_session{ unavailable, configuration(), mutation_lease(), make_recovery() };
+			auto       unavailablePort        = session_port{ unavailableSession };
+			auto       unavailableCoordinator = application::review_mutation_coordinator{ unavailablePort, target(), identity() };
+			const auto unavailableResult      = unavailableCoordinator.resolve_thread("PRRT_fixture_1", true);
+			expect(!unavailableResult && unavailableResult.error() == expected
+					   && application::name(unavailableResult.error()) == diagnostic && unavailable.Requests.size() == 3U
+					   && unavailable.Requests.back().Wire.Operation == review_mutation_operation::observe_review_thread,
+				   "the coordinator preserves distinct product diagnostics while each refusal sends only observations");
+		}
+
 		auto drifted = fake_transport{ };
 		drifted.answer(pull_request_get(), target_response(1'328'277'632U));
 		auto driftedSession = review_mutation_session{
@@ -1967,6 +2025,7 @@ namespace {
 			 &test_retained_revoked_lease_refuses_provider_admission },
 		row{ "thread_resolution_is_bound_to_the_designated_pull_request",
 			 &test_thread_resolution_is_bound_to_the_designated_pull_request },
+		row{ "thread_failure_diagnostics_refuse_without_writes", &test_thread_failure_diagnostics_refuse_without_writes },
 		row{ "a_reply_observes_its_thread_before_it_writes",
 			 &test_a_reply_observes_its_thread_before_it_writes },
 		row{ "a_replys_baseline_reconciliation_is_a_request_a_server_can_answer",

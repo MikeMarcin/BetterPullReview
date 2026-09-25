@@ -722,6 +722,14 @@ namespace bpr::qt {
 			Members.MutationStatus->setText(QStringLiteral(
 				"Publication result is unavailable; retry is safe."));
 			break;
+		case application::review_mutation_failure::target_unavailable:
+			Members.MutationStatus->setText(QStringLiteral(
+				"The account cannot see the publication target; refresh and check access."));
+			break;
+		case application::review_mutation_failure::malformed_response:
+			Members.MutationStatus->setText(QStringLiteral(
+				"The server returned an invalid publication response; retry is safe."));
+			break;
 		case application::review_mutation_failure::refused_by_server:
 			Members.MutationStatus->setText(
 				QStringLiteral("The server refused publication."));

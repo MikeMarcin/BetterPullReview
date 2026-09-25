@@ -86,6 +86,7 @@ namespace bpr::adapters::github::detail {
 		malformed_response,
 		identity_mismatch,
 		response_limit,
+		target_unavailable,
 	};
 
 	/// \brief Carries one whole-review summary without a source-line anchor.

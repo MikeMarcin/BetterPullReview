@@ -486,7 +486,7 @@ namespace bpr::adapters::github::detail {
 		// thread carries exactly the fields a resolution answer does.
 		struct thread_node_data_json
 		{
-			resolution_thread_json Node;
+			std::variant<resolution_thread_json, std::nullptr_t> Node;
 			struct glaze
 			{
 				static constexpr auto value = glz::object("node", &thread_node_data_json::Node);
@@ -578,7 +578,7 @@ namespace bpr::adapters::github::detail {
 		};
 		struct thread_comments_data_json
 		{
-			thread_comments_node_json Node;
+			std::variant<thread_comments_node_json, std::nullptr_t> Node;
 			struct glaze
 			{
 				static constexpr auto value = glz::object("node", &thread_comments_data_json::Node);
@@ -1409,13 +1409,16 @@ namespace bpr::adapters::github::detail {
 				|| !aExpected.LiveBinding.has_value()) {
 				return failed(review_mutation_contract_failure::invalid_status);
 			}
-			// A node that is not a review thread, or one the account cannot
-			// see, selects nothing; that is a malformed answer.
+			// A null node is an unavailable target, distinct from an invalid
+			// envelope. Neither answer authorizes a write or reconciliation.
 			const auto response = document<thread_comments_response_json>(aResponse);
 			if (!response.has_value()) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto& thread = response->Data.Node;
+			if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+				return failed(review_mutation_contract_failure::target_unavailable);
+			}
+			const auto& thread = std::get<thread_comments_node_json>(response->Data.Node);
 			if (thread.Id != *aExpected.Proposal.ReplyToThread
 				|| !binds_designated_pull_request(
 					thread.PullRequest, aExpected.LiveBinding->Target)) {
@@ -1470,10 +1473,17 @@ namespace bpr::adapters::github::detail {
 			const review_mutation_contract_failure aFailure) noexcept
 			-> application::review_mutation_failure
 		{
-			return aFailure == review_mutation_contract_failure::identity_mismatch
-					|| aFailure == review_mutation_contract_failure::invalid_request
-				? application::review_mutation_failure::undesignated_target
-				: application::review_mutation_failure::unavailable;
+			switch (aFailure) {
+			case review_mutation_contract_failure::identity_mismatch:
+			case review_mutation_contract_failure::invalid_request:
+				return application::review_mutation_failure::undesignated_target;
+			case review_mutation_contract_failure::target_unavailable:
+				return application::review_mutation_failure::target_unavailable;
+			case review_mutation_contract_failure::malformed_response:
+				return application::review_mutation_failure::malformed_response;
+			default:
+				return application::review_mutation_failure::unavailable;
+			}
 		}
 	} // namespace
 
@@ -1919,13 +1929,16 @@ namespace bpr::adapters::github::detail {
 		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
-		// A node that is not a review thread, or one the account cannot see,
-		// selects nothing; that is a malformed answer, not a licence to write.
+		// A null node is a valid answer when the target is no longer visible.
+		// Keep that refusal distinct from an invalid server response.
 		const auto response = document<thread_node_response_json>(aResponse);
 		if (!response.has_value()) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto& thread = response->Data.Node;
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		const auto& thread = std::get<resolution_thread_json>(response->Data.Node);
 		if (thread.Id != aExpected.Thread
 			|| !binds_designated_pull_request(
 				thread.PullRequest, aExpected.LiveBinding->Target)) {

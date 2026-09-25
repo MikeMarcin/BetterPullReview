@@ -26,6 +26,10 @@ namespace bpr::application {
 		stale_head,
 		unsupported,
 		cancelled,
+		/// A valid response could not expose the selected target to this account.
+		target_unavailable,
+		/// The server response could not be decoded under the operation contract.
+		malformed_response,
 	};
 
 	/// \brief Returns the stable name for the supplied value.

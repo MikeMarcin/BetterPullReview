@@ -1136,6 +1136,24 @@ namespace {
 			"send anything, and nothing to write to");
 	}
 
+	void test_target_and_server_failures_are_distinct()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		editor->present(a_draft("Retain this reply."));
+		editor->present(application::review_mutation_failure::target_unavailable);
+		const auto invisible = editor->mutation_status_text();
+		expect(invisible.contains(QStringLiteral("account cannot see")) && invisible.contains(QStringLiteral("check access")),
+			   "an invisible target names the account access problem");
+		editor->present(application::review_mutation_failure::malformed_response);
+		const auto malformed = editor->mutation_status_text();
+		expect(malformed != invisible && malformed.contains(QStringLiteral("invalid publication response")),
+			   "a malformed server response is visibly distinct from an invisible target");
+		expect(editor->shown_draft()->Body == "Retain this reply." && log.Drafts.empty(),
+			   "presenting either diagnostic preserves the draft and emits no action");
+		delete editor;
+	}
+
 	void test_typed_clear_removes_stale_selection_bound_state()
 	{
 		auto  log    = intent_log{ };
@@ -1185,6 +1203,7 @@ auto main(int argc, char** argv) -> int
 	test_the_publication_target_is_shown_before_publishing();
 	test_the_thread_a_reply_answers_is_named_only_while_it_does();
 	test_every_action_and_widget_is_distinctly_named();
+	test_target_and_server_failures_are_distinct();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();
 	test_workshop_acceptance_is_explicit_during_its_dispatch();

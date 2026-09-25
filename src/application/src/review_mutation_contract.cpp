@@ -146,6 +146,10 @@ namespace bpr::application {
 			return "unsupported";
 		case review_mutation_failure::cancelled:
 			return "cancelled";
+		case review_mutation_failure::target_unavailable:
+			return "target_unavailable";
+		case review_mutation_failure::malformed_response:
+			return "malformed_response";
 		}
 		return "unavailable";
 	}

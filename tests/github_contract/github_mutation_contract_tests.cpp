@@ -485,9 +485,15 @@ namespace {
 		expect(!parse_thread_target_observation({ .Status = 200, .Body = "{\"data\":{\"node\":{}}}" }, resolution)
 					.has_value(),
 			   "a node that is not a review thread selects nothing and is malformed");
-		expect(!parse_thread_target_observation({ .Status = 200, .Body = "{\"data\":{\"node\":null}}" }, resolution)
-					.has_value(),
-			   "a thread the account cannot see is not a licence to write");
+		const auto invisible = parse_thread_target_observation(
+			{ .Status = 200, .Body = R"({"data":{"node":null}})" }, resolution);
+		expect(!invisible && invisible.error() == review_mutation_contract_failure::target_unavailable,
+			   "a valid null node names an unavailable target and refuses the write");
+		for (const auto body : { "{", R"({"data":{}})", R"({"data":{"node":{}}})", R"({"data":{"node":false}})" }) {
+			const auto malformed = parse_thread_target_observation({ .Status = 200, .Body = body }, resolution);
+			expect(!malformed && malformed.error() == review_mutation_contract_failure::malformed_response,
+				   "invalid JSON or a missing, mistyped or incomplete node is a malformed response");
+		}
 		expect(!parse_thread_target_observation({ .Status = 401, .Body = "{}" }, resolution).has_value()
 				   && !parse_thread_target_observation(
 						   { .Status = 200, .Body = nodeBody("PRRT_fixture_1", false, designated_pull_request_json()) },
@@ -1082,11 +1088,16 @@ namespace {
 		expect(leftThread.has_value() && leftThread->Projection.size() == 1U && leftThread->ExactReceipts.empty(),
 			   "the side is the thread's diffSide, so our comment in a LEFT thread is no exact receipt for a RIGHT anchor");
 
+		const auto invisible = parse_review_comment_observations(
+			{ .Status = 200, .Body = R"({"data":{"node":null}})" }, reply);
+		expect(!invisible && invisible.error() == review_mutation_contract_failure::target_unavailable,
+			   "a reply cannot reconcile an invisible thread and preserves the target diagnostic");
+
 		const auto exact     = exact_reply_comment_json();
 		const auto malformed = std::array<std::pair<std::string, std::string_view>, 21>{
 			std::pair{ std::string{ "{" }, "undecodable JSON" },
 			{ "{\"data\":null}", "a GraphQL error envelope" },
-			{ "{\"data\":{\"node\":null}}", "a thread the account cannot see" },
+			{ "{\"data\":{}}", "a missing node" },
 			{ "{\"data\":{\"node\":{}}}", "a node that is not a review thread" },
 			{ thread_comments_body("PRRT_fixture_1", "UP", false, designated_pull_request_json(), { exact }), "a diffSide outside LEFT and RIGHT" },
 			{ replace_wire_field(designated_thread_body({ exact }), "\"diffSide\"", "\"side\""), "a missing diffSide" },
