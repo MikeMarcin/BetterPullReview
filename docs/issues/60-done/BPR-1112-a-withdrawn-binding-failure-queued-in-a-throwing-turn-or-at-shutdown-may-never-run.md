@@ -259,3 +259,92 @@ The acceptance record above is unchanged. The logs are station records under
 `build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
 `batch8-rows.log`, `batch8-github-host-verbose.log` and
 `build-dev-39460e81.log`.
+
+## Post-close: Windows at `a8c36152` (bpr-main-win, 2026-09-24)
+
+**On Windows, this card's two allocation sweeps end
+`application_github_host` in `std::terminate` in Debug builds. In Release
+they pass, with the same counts macOS printed.** Its other five rows pass.
+Its six rows are `application_github_host`, `_restart`, `_launch_renewal`,
+`_relaunch`, `application_device_authorization_host` and `_public_path`.
+
+The run was in the station's main checkout, with a clean tree, at
+`a8c36152`, which contains `39460e81` ("Checkpoint Mac batch 8: complete").
+The station is Windows 11 25H2 with MSVC 19.51 and Qt 6.11.2. The tree is
+`build/windows-dev` (the Visual Studio 18 2026 generator, Debug), rebuilt at
+`a8c36152` with no error and no compiler warning. The coordinator's nine rows
+ran together for [[BPR-1116]], [[BPR-1111]] and [[BPR-1112]], serially, each
+contained or Windows-uncontained as registered, at 00:49Z–00:52Z on
+2026-09-25:
+`ctest --preset windows-dev --output-on-failure -R "^(application_github_host|application_device_authorization_host|application_device_authorization_refresh|application_device_authorization_public_path|sqlite_device_binding_storage|sqlite_private_store_open|application_device_binding_restart|application_device_binding_launch_renewal|application_device_binding_relaunch)$"`.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | **fail**, 0.06 s: child exit 3, no `FAILED:` line |
+| `application_device_authorization_host` | pass, 0.04 s |
+| `application_device_authorization_refresh` | pass, 0.05 s |
+| `application_device_authorization_public_path` | pass, 2.19 s |
+| `sqlite_device_binding_storage` | pass, 3.43 s |
+| `sqlite_private_store_open` | pass, 0.41 s |
+| `application_device_binding_restart` | pass, 37.46 s |
+| `application_device_binding_launch_renewal` | pass, 86.37 s, uncontained as registered, inside its 180 s bound |
+| `application_device_binding_relaunch` | pass, 17.47 s |
+
+`%TEMP%` gained no entry from the run.
+
+**Why `application_github_host` fails on Windows: the two
+allocation sweeps end in `std::terminate` under MSVC's Debug standard
+library.** Exit 3 is `abort()`. The `build/dev` (Ninja) Debug binary does
+the same, so the generator does not matter. A temporary terminate handler,
+removed afterwards, printed the stack:
+
+- `test_a_shutdown_that_fails_after_a_withdrawal_still_runs_its_failure`
+  arms the fault inside `shutdown()`. The failure is in `fail_withdrawn_bindings`,
+  then `start_delete`'s handler, then `binding_failure`, then
+  `publish_diagnostic`, then the test's `recording_projections::publish`. There,
+  `push_back` reallocates and moves each `github_presentation_update`. That
+  move reaches `std::vector<github_command_projection>`'s move constructor,
+  which is `noexcept`. Under `_ITERATOR_DEBUG_LEVEL` 2 that constructor
+  allocates its `std::_Container_proxy` through the replaced `operator new`.
+  The armed failure throws `std::bad_alloc` there, inside `noexcept`, so the
+  program terminates.
+- `test_a_failed_allocation_in_start_delete_changes_nothing`, with the first
+  test skipped, fails the same way in the core. The path is
+  `shutdown_now`, then `core::transition`, then `deactivate_identity`
+  (`github_transition.cpp:213`), then the move of `github_transition_output`'s
+  request vector, then `_Alloc_proxy`.
+
+libc++ and libstdc++ allocate nothing in those moves, so neither sweep can
+reach one there. The abort comes from where the sweep injects its failure,
+and shows no product defect: a Release build, which is what ships, makes no
+such allocation.
+
+- **With those two tests skipped** (a temporary edit, restored), the Debug
+  binary passes the rest (`application github host tests passed`). That
+  includes this card's other cases, `test_a_withdrawal_at_shutdown_runs_its_failure`
+  among them.
+- **In `windows-dev`'s Release configuration** (iterator debugging off), the
+  unchanged binary passes in full, and prints:
+
+```text
+BPR-1112 throwing shutdown: 7 allocations after the withdrawal failed in turn, 0 ended the turn in an exception
+BPR-1112 start_delete: 9 allocations failed in turn
+```
+
+**The replaced `operator new`.** It replaces only the scalar `new` and the
+two scalar `delete`s, with `malloc` and `free`. MSVC's default array,
+`nothrow` and aligned forms either route to those or pair with each other.
+Under the Debug CRT, `malloc` and `free` are the debug heap's. The Debug run
+printed no heap or CRT report, and the rest of the binary passed with the
+replacement active. So allocation and release pair correctly on both CRTs.
+
+This makes `application_github_host` red in every Windows Debug build, which
+is the configuration the station tests. The fix belongs to a follow-up card,
+whose title has gone to the integrator. For example, the sweeps could be
+skipped where `_ITERATOR_DEBUG_LEVEL` is not 0, with a line saying why, and
+kept in Release.
+
+The acceptance record above is unchanged. The logs are station records
+under `build/logs/batch8-main-win/`, and are not committed: `wdev-build-a8c36152.log`, `rows-a8c36152.log`,
+`probe-host-run.log`, `probe2-host-run.log`, `probe3-host-run.log` and
+`release-host-direct.log`.
