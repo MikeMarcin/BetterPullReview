@@ -896,6 +896,22 @@ environment to exactly that list before it reads a single request, so a parent
 that leaks a credential into the child leaks it into a process that has already
 dropped it (BPR-0501, `application_mcp_context_helper`).
 
+BPR-0971 changes the helper's startup stderr record to complete received and
+retained counts, an unexpected-retained count, and presence of only the two
+fixed allowlist names. Arbitrary environment names, values, argument text,
+snapshot paths and revision identities are absent. Startup still reports the
+fixed refusal cause or readiness. The complete serialized record has a 512-byte
+limit and is best effort; missing stderr is not proof that reduction succeeded.
+On POSIX, a single owned writer gets a 20 ms ordinary-delivery wait, then its
+blocked write is canceled and the writer joined before protocol service starts.
+No descriptor flags change and no writer survives the attempt. Failed delivery
+cannot change the helper's exit or JSON-RPC result; stdout's signal behavior is
+restored. A failed sink cannot report its own loss through that sink. This
+course does not bound uninterruptible kernel/device stalls. Windows retains
+synchronous stderr delivery pending its native repair and verification; Linux
+native verification is also pending. The Mac courses are
+`application_mcp_context_helper` and `application_mcp_terminal_diagnostics`.
+
 Nothing the agent returns reaches a second authority. The finding host's only
 durable write is `review_ledger_store_port::store_note`, and there is no branch
 in that path that could publish, open a defect, move a review head, or admit a

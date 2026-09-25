@@ -41,6 +41,7 @@ target_link_libraries(
     tool_better_pull_review_mcp_context_helper
     PRIVATE
         BetterPullReview::AdapterMcp
+        Threads::Threads
 )
 bpr_enable_hardening(tool_better_pull_review_mcp_context_helper)
 bpr_enable_warnings(tool_better_pull_review_mcp_context_helper)

@@ -796,6 +796,19 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# Exercise the shipped helper with hostile environment names and full/closed
+# stderr pipes. The Windows synchronous-write course is explicitly pending.
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_mcp_terminal_diagnostics
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/audit_terminal_diagnostics.py"
+            --helper "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>"
+    )
+    set_tests_properties(application_mcp_terminal_diagnostics PROPERTIES TIMEOUT 30)
+endif()
+
 bpr_add_executable(
     test_better_pull_review_review_submission_contract_application_tests
     review_submission_contract_tests.cpp

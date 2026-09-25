@@ -195,17 +195,22 @@ namespace bpr::adapters::mcp {
 	/// \brief What one environment reduction found and what it kept.
 	struct mcp_environment_report
 	{
-		/// Every name present before the reduction. Names only.
-		std::vector<std::string> Received;
-		/// Every name still present after it. Compared against the allowlist.
-		std::vector<std::string> Retained;
+		/// Complete observations, including names that cannot be reported safely.
+		std::size_t ReceivedCount = 0U;
+		std::size_t RetainedCount = 0U;
+		/// A nonzero count proves the actual reduction was incomplete.
+		std::size_t UnexpectedRetainedCount = 0U;
+		/// Presence of each fixed name in `mcp_environment_allowlist`.
+		std::array<bool, mcp_environment_allowlist.size()> ReceivedAllowlisted{ };
+		std::array<bool, mcp_environment_allowlist.size()> RetainedAllowlisted{ };
 	};
 
 	/// \brief Reduces this process's environment to `mcp_environment_allowlist`.
 	///
 	/// \details Reads the complete environment, removes every name outside the
-	/// allowlist, then re-reads the environment so that `Retained` is what the
-	/// process actually holds rather than what the reduction intended.
+	/// allowlist, then re-reads the complete environment. Reports only counts
+	/// and fixed-name presence, never arbitrary names or values. A failed
+	/// removal remains visible in `UnexpectedRetainedCount`.
 	[[nodiscard]] auto reduce_environment_to_allowlist() -> mcp_environment_report;
 
 	/// \brief One helper bound to one frozen snapshot and one pinned binding.

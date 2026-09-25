@@ -457,11 +457,13 @@ namespace {
 		const auto run = run_helper(
 			raw_method(1U, "tools/list") + "\n");
 
-		const auto received = reported_names(
+		auto received = reported_names(
 			run.StandardError, "mcp-environment-received");
-		const auto retained = reported_names(
+		auto retained = reported_names(
 			run.StandardError, "mcp-environment-retained");
 
+		std::ranges::sort(received);
+		std::ranges::sort(retained);
 		auto allowlist = std::vector<std::string>{ };
 		for (const auto& allowed : mcp::mcp_environment_allowlist) {
 			allowlist.emplace_back(allowed);
@@ -474,11 +476,19 @@ namespace {
 			"the child's complete environment equals the helper's allowlist");
 		expect(run.ExitCode == 0, "the helper completes a batch cleanly");
 
+		expect(received == allowlist, "only fixed allowlist names may be reported before reduction");
+		const auto counts = reported_names(run.StandardError, "mcp-environment-counts");
+		expect(counts.size() == 1U, "the complete environment has one count observation");
+		const auto firstSeparator = counts.front().find('\t');
+		expect(firstSeparator != std::string::npos, "the environment counts have fixed framing");
+		expect(std::stoull(counts.front().substr(0U, firstSeparator)) >= allowlist.size() + planted_secrets.size(),
+			   "the child observes all planted names before reduction");
+		expect(counts.front().substr(firstSeparator) == "\t2\t0",
+			   "the complete retained environment has exactly two names and no unexpected name");
+		expect(run.StandardError.size() <= 512U, "the complete diagnostic is bounded");
 		for (const auto& [name, value] : planted_secrets) {
-			expect(
-				std::ranges::find(received, name) != received.end(),
-				"the credential really reached the child before the reduction, "
-				"so the reduction is not measuring an empty environment");
+			expect(run.StandardError.find(name) == std::string::npos,
+				   "untrusted environment names are not diagnostic content");
 			expect(
 				std::ranges::find(retained, name) == retained.end(),
 				"no planted credential survives into the running helper");

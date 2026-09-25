@@ -8,6 +8,8 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
+#include "mcp_terminal_diagnostic.hpp"
+
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -75,32 +77,29 @@ auto main(const int aArgumentCount, char**) -> int
 	// Before a single byte of request is read. The parent's environment is
 	// whatever the parent had; this process keeps only the allowlist.
 	const auto environment = adapters::mcp::reduce_environment_to_allowlist();
-	for (const auto& variableName : environment.Received) {
-		std::cerr << "mcp-environment-received\t" << variableName << '\n';
-	}
-	for (const auto& variableName : environment.Retained) {
-		std::cerr << "mcp-environment-retained\t" << variableName << '\n';
-	}
+	auto       diagnostic  = adapters::mcp::terminal_environment_summary(environment);
 
 	// Closed: this helper takes no option at all, so no host, port, endpoint,
 	// or listener can be named to it. The count is reported; the text is not,
 	// because a diagnostic that echoes argv is a diagnostic that can print a
 	// secret somebody passed by mistake.
 	if (aArgumentCount != 1) {
-		std::cerr << "mcp-startup-refusal\tunexpected_argument\t"
-				  << (aArgumentCount - 1) << '\n';
+		diagnostic += "mcp-startup-refusal\tunexpected_argument\t" + std::to_string(aArgumentCount - 1) + "\n";
+		adapters::mcp::write_terminal_diagnostic(diagnostic);
 		return EXIT_FAILURE;
 	}
 
 	const auto snapshotRoot = environment_value("BPR_MCP_SNAPSHOT_ROOT");
 	const auto pinnedText   = environment_value("BPR_MCP_PINNED_BINDING");
 	if (!snapshotRoot || !pinnedText) {
-		std::cerr << "mcp-startup-refusal\tmissing_environment\n";
+		diagnostic += "mcp-startup-refusal\tmissing_environment\n";
+		adapters::mcp::write_terminal_diagnostic(diagnostic);
 		return EXIT_FAILURE;
 	}
 	const auto pinned = adapters::mcp::decode_revision_binding(*pinnedText);
 	if (!pinned) {
-		std::cerr << "mcp-startup-refusal\tinvalid_pinned_binding\n";
+		diagnostic += "mcp-startup-refusal\tinvalid_pinned_binding\n";
+		adapters::mcp::write_terminal_diagnostic(diagnostic);
 		return EXIT_FAILURE;
 	}
 
@@ -108,9 +107,8 @@ auto main(const int aArgumentCount, char**) -> int
 		std::filesystem::path{ *snapshotRoot },
 		*pinned,
 	};
-	std::cerr << "mcp-ready\t"
-			  << adapters::mcp::encode_revision_binding(helper.pinned_binding())
-			  << '\n';
+	diagnostic += "mcp-ready\n";
+	adapters::mcp::write_terminal_diagnostic(diagnostic);
 
 	auto line = std::string{ };
 	while (read_bounded_line(std::cin, line)) {

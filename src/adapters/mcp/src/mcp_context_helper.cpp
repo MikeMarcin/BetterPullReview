@@ -773,16 +773,23 @@ namespace bpr::adapters::mcp {
 
 	auto reduce_environment_to_allowlist() -> mcp_environment_report
 	{
-		auto report     = mcp_environment_report{ };
-		report.Received = environment_names();
-		for (const auto& variableName : report.Received) {
+		auto       report    = mcp_environment_report{ };
+		const auto received  = environment_names();
+		report.ReceivedCount = received.size();
+		for (const auto& variableName : received) {
 			if (!allowlisted(variableName)) {
 				remove_environment_variable(variableName);
 			}
 		}
-		report.Retained = environment_names();
-		std::ranges::sort(report.Received);
-		std::ranges::sort(report.Retained);
+		const auto retained            = environment_names();
+		report.RetainedCount           = retained.size();
+		report.UnexpectedRetainedCount = static_cast<std::size_t>(
+			std::ranges::count_if(retained, [](const auto& aName) { return !allowlisted(aName); }));
+		for (auto index = std::size_t{ 0U }; index < mcp_environment_allowlist.size(); ++index) {
+			const auto name                   = mcp_environment_allowlist[index];
+			report.ReceivedAllowlisted[index] = std::ranges::find(received, name) != received.end();
+			report.RetainedAllowlisted[index] = std::ranges::find(retained, name) != retained.end();
+		}
 		return report;
 	}
 
