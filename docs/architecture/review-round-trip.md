@@ -430,6 +430,18 @@ line-comment writer preserves the previous canonical member order and lowercase
 Unicode escape spelling, including literal escaped backslashes, so existing
 request fingerprints and recovery records retain their byte identity.
 
+`validate_outbound_review_mutation_request` checks canonical consistency: it
+recompiles the supplied semantic request for the selected server and compares
+the entire wire request. It rejects a method, path, header, body or operation
+that disagrees with that compilation. It does not independently establish that
+the compiler describes a valid GitHub endpoint or document, and does not prove
+that the semantic request itself was unchanged or authorized. BPR-0904's
+contract tests therefore pin method, exact GitHub.com/GHES path and GraphQL
+operation independently for every `review_mutation_operation`; the provider
+fixtures answer only matching method/path/GraphQL-operation keys. An unexpected
+request fails the fixture immediately. Unconsumed scripted answers in refusal
+courses do not establish operation coverage.
+
 `native_https_transport.cpp` remains the only mutation network-effect owner. It
 adds one narrow mutation operation to the existing account-bound transport,
 reuses its TLS, proxy, deadline, cancellation, credential, response, and manual-

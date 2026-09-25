@@ -491,11 +491,12 @@ namespace {
 		return std::move(*opened);
 	}
 
-	// [[BPR-0904]] spike. The fixture transport answers by the shape of the
+	// [[BPR-0904]]. The fixture transport answers by the shape of the
 	// request rather than by its position in a queue: method, path, and for a
 	// GraphQL root the operation name in the body. A request no row scripted
 	// has no answer, and the row fails at that request, naming it. Every
-	// scripted answer is therefore a pin on the request it answers.
+	// consumed scripted answer pins the request it answers. Unused answers
+	// are allowed in refusal courses; the contract suite covers every enum value.
 	struct scripted_request
 	{
 		http_method Method = http_method::get;

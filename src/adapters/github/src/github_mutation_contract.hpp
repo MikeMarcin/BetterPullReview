@@ -269,6 +269,13 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief Checks wire consistency with the supplied semantic request and server.
+	///
+	/// \details Recompiles and compares the complete canonical request. This
+	/// detects wire changes that disagree with the compiler; it cannot detect
+	/// a defect shared with that compiler or establish request provenance.
+	/// Independent method/path/document expectations belong to contract tests
+	/// and keyed fixture transports ([[BPR-0904]]).
 	[[nodiscard]] auto validate_outbound_review_mutation_request(
 		const review_mutation_wire_request& aRequest)
 		-> std::expected<void, review_mutation_contract_failure>;

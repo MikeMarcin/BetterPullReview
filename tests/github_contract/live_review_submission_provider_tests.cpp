@@ -151,15 +151,15 @@ namespace {
 		body += ']';
 		return body;
 	}
-	// [[BPR-0904]] spike. The fixture transport answers by the shape of the
+	// [[BPR-0904]]. The fixture transport answers by the shape of the
 	// request rather than by the operation the product says it is making:
 	// method, path, and for a GraphQL root the operation name in the body. A
 	// request no key names has no answer, and the row fails at that request,
-	// naming it. Every answer is therefore a pin on the request it answers.
+	// naming it. Every consumed answer pins the request it answers.
 	// The keys and the diagnostic follow the mutation suite's transport; the
 	// answers stay the stateful simulated server this suite already had, so
 	// every row still scripts by flag and the measurement is the fixture
-	// author's intent rather than this spike's.
+	// author's intent.
 	struct scripted_request
 	{
 		http_method Method = http_method::get;

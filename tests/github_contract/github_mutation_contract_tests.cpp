@@ -4,11 +4,13 @@
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -502,6 +504,119 @@ namespace {
 			   "a non-200 answer and an unbound expectation are both refused");
 	}
 
+	struct request_shape
+	{
+		http_method      Method;
+		std::string_view GithubPath;
+		std::string_view GhesPath;
+		std::string_view GraphqlOperation;
+	};
+
+	// [[BPR-0904]]. Independent server expectations, never derived from the
+	// compiler or exchange table. With no default, a new enum member lacking
+	// a pin is a build error under the test target's warnings-as-errors policy.
+	[[nodiscard]] auto expected_request_shape(const review_mutation_operation aOperation)
+		-> std::optional<request_shape>
+	{
+		using operation = review_mutation_operation;
+		switch (aOperation) {
+		case operation::observe_pull_request:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
+		case operation::observe_viewer:
+			return request_shape{ http_method::get, "/user", "/api/v3/user", "" };
+		case operation::observe_review_comments:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100", "" };
+		case operation::create_review_comment:
+			return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/comments", "" };
+		case operation::create_review:
+			return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "" };
+		case operation::observe_reviews:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100", "" };
+		case operation::reply_review_thread:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation ReplyToThread" };
+		case operation::resolve_review_thread:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation ResolveThread" };
+		case operation::unresolve_review_thread:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UnresolveThread" };
+		case operation::observe_review_thread:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveThread" };
+		case operation::observe_review_thread_comments:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveThreadComments" };
+		}
+		return std::nullopt;
+	}
+
+	void expect_request_shape(const review_mutation_wire_request& aWire)
+	{
+		const auto expected = expected_request_shape(aWire.Operation);
+		const auto label    = "operation " + std::to_string(static_cast<unsigned int>(aWire.Operation));
+		expect(expected.has_value(), label + " has an independent request-shape pin");
+		const auto path = aWire.Server == application::github_server_contract::github_com_2022_11_28
+			? expected->GithubPath
+			: expected->GhesPath;
+		expect(aWire.Method == expected->Method && aWire.Path == path,
+			   label + " compiles to its independent method and exact path");
+		if (!expected->GraphqlOperation.empty()) {
+			expect(aWire.Body.starts_with("{\"query\":\"" + std::string{ expected->GraphqlOperation } + "("),
+				   label + " compiles to its independent GraphQL kind and operation name");
+		}
+	}
+
+	void expect_every_shape_exercised(const std::vector<review_mutation_operation>& aExercised)
+	{
+		// Enumerate the enum's entire underlying range, including holes. A pin
+		// added to the exhaustive switch must also have a compiled fixture;
+		// scripting an unused transport answer cannot satisfy this check.
+		for (auto value = 0U; value <= std::numeric_limits<std::uint8_t>::max(); ++value) {
+			const auto op    = static_cast<review_mutation_operation>(value);
+			const auto count = std::ranges::count(aExercised, op);
+			expect(count == (expected_request_shape(op).has_value() ? 1 : 0),
+				   "operation " + std::to_string(value) + " exercises its request-shape pin exactly once per server");
+		}
+	}
+
+	[[nodiscard]] auto compile_exchange_fixtures(const application::github_server_contract aServer)
+	{
+		auto serverTarget           = target();
+		serverTarget.ServerContract = aServer;
+		serverTarget.Hostname       = application::github_canonical_hostname{
+			aServer == application::github_server_contract::github_com_2022_11_28 ? "github.com" : "ghe.example.com"
+		};
+		auto root                    = request();
+		root.LiveBinding->Target     = serverTarget;
+		auto reply                   = root;
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		const auto resolution        = application::review_thread_resolution_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = true,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto unresolution    = resolution;
+		unresolution.Resolve = false;
+		const auto review    = review_submission_request{
+			.Target         = serverTarget,
+			.ActingIdentity = identity(),
+			.Disposition    = core::review_disposition::comment,
+			.Body           = "Looks good.",
+		};
+		return std::array{
+			compile_target_observation_request(serverTarget, aServer),
+			compile_viewer_observation_request(identity(), aServer),
+			compile_review_comment_observation_request(root, aServer),
+			compile_review_submission_observation_request(review, aServer),
+			compile_review_comment_request(root, aServer),
+			compile_review_submission_request(review, aServer),
+			compile_review_comment_request(reply, aServer),
+			compile_thread_resolution_request(resolution, aServer),
+			compile_thread_resolution_request(unresolution, aServer),
+			compile_thread_target_observation_request(resolution, aServer),
+			compile_review_comment_observation_request(reply, aServer),
+		};
+	}
+
 	// [[BPR-1018]]. What each operation demands of a transport, row by row,
 	// and that each operation's compiled request agrees with its own row: the
 	// method it is sent with, and whether its path is the GraphQL root.
@@ -544,43 +659,21 @@ namespace {
 		expect(!review_mutation_exchange_for(static_cast<operation>(rows.size())).has_value(),
 			   "a value past the classified operations has no exchange");
 
-		auto reply                   = request();
-		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
-		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
-		const auto resolution        = application::review_thread_resolution_request{
-			.Target         = target().Semantic,
-			.ActingIdentity = identity().Account,
-			.Thread         = "PRRT_fixture_1",
-			.Resolve        = true,
-			.LiveBinding    = reply.LiveBinding,
-		};
-		auto unresolution     = resolution;
-		unresolution.Resolve  = false;
-		const auto submission = review_submission_request{
-			.Target         = target(),
-			.ActingIdentity = identity(),
-			.Disposition    = core::review_disposition::comment,
-			.Body           = "Looks good.",
-		};
-		const auto compiled = std::array{
-			compile_target_observation_request(target()),
-			compile_viewer_observation_request(identity()),
-			compile_review_comment_observation_request(request()),
-			compile_review_submission_observation_request(submission),
-			compile_review_comment_request(request()),
-			compile_review_submission_request(submission),
-			compile_review_comment_request(reply),
-			compile_thread_resolution_request(resolution),
-			compile_thread_resolution_request(unresolution),
-			compile_thread_target_observation_request(resolution),
-			compile_review_comment_observation_request(reply),
-		};
-		for (std::size_t index = 0U; index < rows.size(); ++index) {
-			const auto& wire = compiled[index];
-			expect(wire.has_value() && wire->Operation == rows[index].Operation
-					   && wire->Method == rows[index].Method
-					   && (wire->Path == "/graphql") == rows[index].Graphql,
-				   "operation " + std::to_string(index) + " compiles to its exchange's method and root");
+		for (const auto server : { application::github_server_contract::github_com_2022_11_28,
+								   application::github_server_contract::ghes_3_18_2022_11_28 }) {
+			const auto compiled = compile_exchange_fixtures(server);
+			static_assert(compiled.size() == rows.size());
+			auto exercised = std::vector<review_mutation_operation>{ };
+			for (std::size_t index = 0U; index < rows.size(); ++index) {
+				const auto& wire = compiled[index];
+				expect(wire.has_value() && wire->Operation == rows[index].Operation
+						   && wire->Method == rows[index].Method
+						   && (wire->Path == "/graphql" || wire->Path == "/api/graphql") == rows[index].Graphql,
+					   "operation " + std::to_string(index) + " compiles to its exchange's method and root");
+				expect_request_shape(*wire);
+				exercised.push_back(wire->Operation);
+			}
+			expect_every_shape_exercised(exercised);
 		}
 	}
 
