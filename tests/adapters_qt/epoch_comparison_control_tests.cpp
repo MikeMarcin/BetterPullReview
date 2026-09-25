@@ -8,6 +8,7 @@
 #include <QContextMenuEvent>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -22,6 +23,7 @@
 #include <QStyleOptionToolButton>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 
 #include <algorithm>
 #include <array>
@@ -34,6 +36,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -919,15 +922,11 @@ namespace {
 		QApplication::sendEvent(line, &press);
 		expect(intents.size() == afterImport, "unlinked observed-head evidence and disabled input do not import");
 		line->set_selection_offered(true);
-		const auto raster     = line->grab().toImage();
-		const auto background = raster.pixelColor(0, raster.height() - 1);
-		bool       statusInk  = false;
-		for (int y = qRound(34 * raster.devicePixelRatio()); y < qRound(48 * raster.devicePixelRatio()); ++y) {
-			for (int x = 12; x < raster.width() - 12; ++x) {
-				statusInk = statusInk || raster.pixelColor(x, y) != background;
-			}
-		}
-		expect(statusInk, "the full-width line renders its history status below the date row");
+		// [[BPR-1130]]. No caption row: the ambiguous history is a mark at the
+		// line's start, and the statement is the tooltip and description.
+		expect(line->height() == qt::epoch_line::height_pixels && line->history_marked()
+				   && line->statement() == line->history_text() && line->accessibleDescription() == line->statement(),
+			   "the line is the nodes and dates alone, marked, with its statement as tooltip and description");
 		history.Occurrences.front().LocalEpoch = current.Id;
 		history.Occurrences.front().DerivedComparisonBase.reset();
 		history.Occurrences.back().DateSource = core::epoch_occurrence_date_source::unavailable;
@@ -977,6 +976,96 @@ namespace {
 				   && line->node_tooltip(0).contains(QStringLiteral("Derived comparison base 3333"))
 				   && !line->node_tooltip(0).contains(QStringLiteral("Locally observed base")),
 			   "an imported epoch never labels its derived comparison anchor as a local observation");
+	}
+
+	/// \brief [[BPR-1130]]. RFC-BPR-0052 AC-04, as RFC-BPR-0029 requires: the
+	/// line carries no permanent caption. Its statement is its tooltip and
+	/// accessible description, and a mark at its start says when history is
+	/// incomplete or an occurrence could not be matched; complete history
+	/// carries no mark.
+	auto test_the_line_marks_incomplete_history_without_a_caption() -> void
+	{
+		qt::epoch_comparison_control control;
+		control.resize(900, 60);
+		control.show();
+		QApplication::processEvents();
+		auto* const line = control.line();
+		expect(line->height() == qt::epoch_line::height_pixels && qt::epoch_line::height_pixels == 34
+				   && !line->history_marked() && line->statement() == line->empty_status(),
+			   "the line is one 34-pixel row, unmarked while it knows no updates");
+
+		const auto earlier  = epoch_row(11, '1', '3');
+		const auto current  = epoch_row(12, '1', '2');
+		auto       update   = loaded_catalog_update({ current, earlier });
+		auto       history  = core::epoch_occurrence_history{ };
+		history.Incomplete  = false;
+		history.Occurrences = {
+			{ .Id                  = identity<core::epoch_occurrence_id>(7),
+			  .Evidence            = { .Kind = core::epoch_occurrence_kind::observed_head, .Head = earlier.Head },
+			  .LocalEpoch          = earlier.Id,
+			  .DateSource          = core::epoch_occurrence_date_source::commit_date,
+			  .DateUtcMilliseconds = 1'600'000'000'000,
+			  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+			{ .Id                  = identity<core::epoch_occurrence_id>(8),
+			  .Evidence            = { .Kind = core::epoch_occurrence_kind::observed_head, .Head = current.Head },
+			  .LocalEpoch          = current.Id,
+			  .DateSource          = core::epoch_occurrence_date_source::commit_date,
+			  .DateUtcMilliseconds = 1'700'000'000'000,
+			  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+		};
+		update.Catalog->OccurrenceHistory = history;
+		update.Catalog->CurrentEpoch      = current;
+		control.publish(update);
+		QApplication::processEvents();
+		const auto unmarkedNode = line->node_centre(0U).x();
+		expect(!line->history_marked() && line->statement() == QStringLiteral("Known updates · display order is not push order")
+				   && line->accessibleDescription() == line->statement() && line->toolTip() == line->statement(),
+			   "complete history carries no mark, and its statement is the tooltip and the description");
+		const auto away = QPoint{ line->width() - 3, qt::epoch_line::height_pixels - 2 };
+		auto       help = QHelpEvent{ QEvent::ToolTip, away, line->mapToGlobal(away) };
+		QApplication::sendEvent(line, &help);
+		expect(QToolTip::text() == line->statement(), "away from a node the tooltip is the history statement");
+		QToolTip::hideText();
+
+		const auto markInk = [line] {
+			// The exclamation's stroke, inside the ring before the track.
+			const auto raster = line->grab().toImage();
+			const auto scale  = raster.devicePixelRatio();
+			// The row's own surface, clear of the focus ring at its edge and of
+			// the one node, which sits at its middle.
+			const auto ground = raster.pixelColor(qRound(line->width() * scale * 0.75), qRound(3 * scale));
+			auto       ink    = 0;
+			for (auto y = qRound(4 * scale); y <= qRound(6 * scale); ++y) {
+				for (auto x = qRound(18 * scale); x <= qRound(19 * scale); ++x) {
+					ink += raster.pixelColor(x, y) != ground ? 1 : 0;
+				}
+			}
+			return ink > 0;
+		};
+		expect(!markInk(), "no mark is painted for complete history");
+
+		for (const auto& [incomplete, ambiguous, unresolved, label] : std::array{
+				 std::tuple{ true, false, false, "incomplete" },
+				 std::tuple{ false, true, false, "ambiguous" },
+				 std::tuple{ false, false, true, "unresolved" },
+			 }) {
+			history.Incomplete                = incomplete;
+			history.Ambiguous                 = ambiguous;
+			history.UnresolvedLegacy          = unresolved;
+			update.Catalog->OccurrenceHistory = history;
+			control.publish(update);
+			QApplication::processEvents();
+			expect(line->history_marked() && markInk() && line->node_centre(0U).x() == unmarkedNode + qt::epoch_line::history_mark_size + 6
+					   && line->statement().contains(QStringLiteral("not push order")) && line->toolTip() == line->statement(),
+				   std::string{ label } + " history is marked before the track, which starts after the mark");
+		}
+
+		// Local records alone, with no occurrence history, are incomplete too.
+		qt::epoch_comparison_control local;
+		local.publish(loaded_catalog_update({ current, earlier }));
+		expect(local.line()->history_marked()
+				   && local.line()->statement() == QStringLiteral("Incomplete history — local records only"),
+			   "local records alone are marked incomplete");
 	}
 
 	/// \brief [[BPR-1129]]. The review bar takes the "Comparing" button; the
@@ -1774,8 +1863,11 @@ namespace {
 			}));
 		window.resize(1'100, 820);
 		window.show();
+		// [[BPR-1130]]. The Updates line open, as the reviewer left it.
+		window.publish(application::workbench_projection{
+			.UpdatesLine = core::workbench_updates_line_delta{ .State = core::workbench_updates_line::open } });
 		// [[BPR-0646]]. The exact selectors are review details, shown on
-		// request; the epoch line is what always shows.
+		// request; the open epoch line is the chrome.
 		window.epoch_selectors()->set_details_visible(true);
 		QApplication::processEvents();
 		expect(window.epoch_selectors()->isVisible()
@@ -1917,6 +2009,7 @@ auto main(int argc, char** argv) -> int
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	test_epoch_line_menu_goes_with_its_window();
 	test_the_comparing_button_moves_to_the_review_bar();
+	test_the_line_marks_incomplete_history_without_a_caption();
 	std::cout << "epoch-comparison-control-tests:pass\n";
 	return EXIT_SUCCESS;
 }

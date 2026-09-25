@@ -53,20 +53,25 @@ math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 bpr_private_data_root(BPR_ROOT)
 
-# [[BPR-1036]]. The comparison's height floor, in pixels of the 1000-pixel
-# capture window and so in thousandths of it, asserted here on its own as well
-# as in the capture. [[BPR-1129]]: RFC-BPR-0052's 28-pixel review bar replaces
-# the composition entry row, and the Updates line keeps its 50-pixel row until
-# [[BPR-1130]]. Measured on macOS the comparison is 829 (the entry row was 22
-# there); on Linux, where the entry row measured 20, the same bar gives 834,
-# derived until the Linux station measures it. Windows has no menu bar row and
-# keeps the owner's 850 budget ([[BPR-0246]]), unmeasured with the bar.
+# [[BPR-1036]]. The comparison's height floors, in pixels of the 1000-pixel
+# capture window and so in thousandths of it, asserted here on their own as
+# well as in the capture. [[BPR-1130]]: RFC-BPR-0052's Updates line folds, a
+# new window starts folded, and open its timeline is one 34-pixel row with no
+# caption, so the stack is taken both ways. Measured on macOS the comparison is
+# 879 folded and 845 open (829 with [[BPR-1129]]'s 50-pixel captioned line). On
+# Linux [[BPR-1036]]'s stack gave 834 with the captioned line, so 884 and 850,
+# derived until the Linux station measures them. Windows has no menu bar row
+# and keeps the owner's 850 budget ([[BPR-0246]]) for the open line, so 884
+# folded, unmeasured until the Windows station runs this course.
 if(CMAKE_HOST_APPLE)
-    set(bpr_comparison_height_floor 829)
+    set(bpr_comparison_open_height_floor 845)
+    set(bpr_comparison_height_floor 879)
 elseif(CMAKE_HOST_WIN32)
-    set(bpr_comparison_height_floor 850)
+    set(bpr_comparison_open_height_floor 850)
+    set(bpr_comparison_height_floor 884)
 else()
-    set(bpr_comparison_height_floor 834)
+    set(bpr_comparison_open_height_floor 850)
+    set(bpr_comparison_height_floor 884)
 endif()
 
 set(bpr_evidence_root "${BPR_ROOT}/evidence")
@@ -182,7 +187,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
-        "\"schema\": \"bpr.uiforetw_intraline_capture.v5\""
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v6\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -323,6 +328,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         conversations_drawer_rect_in_splitter
         repositories_drawer_rect_in_splitter
         review_details_rect_in_window
+        updates_line_open_rect_in_window
     )
         foreach(component IN ITEMS x y width height)
             string(JSON "${rect}_${component}" GET
@@ -491,6 +497,34 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             "comparison=${comparison_width}x${comparison_height} "
             "crop=${crop_width}x${crop_height} "
             "height_floor=${bpr_comparison_height_floor}"
+        )
+    endif()
+    # [[BPR-1130]]. The capture's window started with the Updates line folded
+    # and is captured folded; opened through its own command, the timeline is
+    # one 34-pixel row directly under the review bar, across the window, and
+    # the comparison gives up exactly that row.
+    string(JSON initially_folded GET "${capture_facts}" updates_line_initially_folded)
+    string(JSON open_comparison_height GET "${capture_facts}" updates_line_open_comparison_height)
+    string(JSON open_height_ratio GET "${capture_facts}" updates_line_open_height_ratio_permille)
+    math(EXPR review_bar_bottom
+        "${review_bar_rect_in_window_y} + ${review_bar_rect_in_window_height}")
+    math(EXPR folded_less_open "${comparison_height} - ${open_comparison_height}")
+    if(NOT initially_folded
+            OR NOT updates_line_open_rect_in_window_x EQUAL 0
+            OR NOT updates_line_open_rect_in_window_width EQUAL 1280
+            OR NOT updates_line_open_rect_in_window_y EQUAL review_bar_bottom
+            OR NOT updates_line_open_rect_in_window_height EQUAL 34
+            OR NOT folded_less_open EQUAL updates_line_open_rect_in_window_height
+            OR NOT open_height_ratio EQUAL open_comparison_height
+            OR open_comparison_height LESS bpr_comparison_open_height_floor)
+        message(FATAL_ERROR
+            "UIforETW ${profile} the Updates line does not fold as designed: "
+            "initially_folded=${initially_folded} "
+            "open_line=${updates_line_open_rect_in_window_x},${updates_line_open_rect_in_window_y} "
+            "${updates_line_open_rect_in_window_width}x${updates_line_open_rect_in_window_height} "
+            "review_bar_bottom=${review_bar_bottom} "
+            "folded=${comparison_height} open=${open_comparison_height} "
+            "open_height_floor=${bpr_comparison_open_height_floor}"
         )
     endif()
     math(EXPR comparison_right

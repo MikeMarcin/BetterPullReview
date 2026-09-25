@@ -528,8 +528,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto next_new_comment_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1134]]. The count the Comments tab carries; empty for none.
 		[[nodiscard]] auto comments_count_text() const -> QString;
-		/// \brief [[BPR-1129]]. The bar's "Updates" name, before the comparison.
-		[[nodiscard]] auto updates_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1130]]. The bar's Updates disclosure, before the
+		/// comparison: it folds the Updates line's timeline and opens it.
+		[[nodiscard]] auto updates_disclosure_button() const noexcept -> updates_disclosure*;
+		/// \brief [[BPR-1130]]. The fold's command, in the View menu and on the
+		/// disclosure; checked while the line is open.
+		[[nodiscard]] auto updates_line_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1130]]. Whether the Updates line's timeline is open.
+		[[nodiscard]] auto updates_line_open() const noexcept -> bool;
 		/// \brief [[BPR-1129]]. Compose review: Option-R (Alt+R), window-owned,
 		/// marked while a review draft is kept.
 		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
@@ -1127,7 +1133,13 @@ namespace bpr::qt {
 		void               apply_line_numbers();
 		void               dispatch_one_pane_toggle();
 		void               apply_one_pane();
-		void               update_drawer_action(
+		/// \brief [[BPR-1130]]. The disclosure's gesture: re-asserts the fold
+		/// the core holds and sends the toggle.
+		void dispatch_updates_line_toggle();
+		/// \brief [[BPR-1130]]. Shows the fold the core decided: the timeline's
+		/// row, the disclosure's arrow and mark, and the command's check.
+		void apply_updates_line();
+		void update_drawer_action(
 			std::size_t                  aIndex,
 			core::workbench_command_id   aId,
 			core::workbench_drawer_state aState);
@@ -1256,11 +1268,13 @@ namespace bpr::qt {
 		QLabel*           ChangePositionLabel = nullptr;
 		QLabel*           FilePositionLabel   = nullptr;
 		QWidget*          StripInset          = nullptr;
-		/// [[BPR-1129]]. The review bar, its "Updates" name and its two commands.
-		workbench_strip* ReviewBar           = nullptr;
-		QLabel*          UpdatesLabel        = nullptr;
-		QAction*         ComposeReviewAction = nullptr;
-		QAction*         CommentAction       = nullptr;
+		/// [[BPR-1129]]. The review bar, its Updates disclosure ([[BPR-1130]])
+		/// and its two commands.
+		workbench_strip*    ReviewBar           = nullptr;
+		updates_disclosure* UpdatesDisclosure   = nullptr;
+		QAction*            UpdatesLineAction   = nullptr;
+		QAction*            ComposeReviewAction = nullptr;
+		QAction*            CommentAction       = nullptr;
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact = false;
 #if defined(_WIN32)
@@ -1551,11 +1565,13 @@ namespace bpr::qt {
 		std::string                                                                  MarkdownAuthority;
 
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
-		bool                                                  FileRowsPresent          = false;
-		bool                                                  ApplyingQueuePreferences = false;
-		core::workbench_command_delta                         Commands;
-		core::workbench_drawer_delta                          DrawerStates;
-		core::workbench_line_numbers_delta                    LineNumberState;
+		bool                               FileRowsPresent          = false;
+		bool                               ApplyingQueuePreferences = false;
+		core::workbench_command_delta      Commands;
+		core::workbench_drawer_delta       DrawerStates;
+		core::workbench_line_numbers_delta LineNumberState;
+		/// [[BPR-1130]]. The fold the core decided; folded until it says otherwise.
+		core::workbench_updates_line_delta                    UpdatesLineState;
 		core::workbench_one_pane_delta                        OnePaneState;
 		std::optional<application::workbench_layout_delta>    LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>      Cursor;

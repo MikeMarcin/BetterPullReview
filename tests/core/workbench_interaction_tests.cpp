@@ -590,6 +590,8 @@ namespace {
 			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories };
 		case workbench_command_id::toggle_one_pane:
 			return toggle_workbench_one_pane_intent{ };
+		case workbench_command_id::toggle_updates_line:
+			return toggle_workbench_updates_line_intent{ };
 		case workbench_command_id::toggle_line_numbers:
 			return toggle_workbench_line_numbers_intent{ };
 		case workbench_command_id::previous_change:
@@ -666,11 +668,14 @@ namespace {
 		// [[BPR-0675]]. Every command except the three that give a drawer's
 		// room back: those are about the window, not about a comparison, and
 		// gating them left a reviewer unable to collapse a full drawer.
+		// [[BPR-1130]]. The Updates disclosure is the fourth, for the same
+		// reason: it gives back the timeline's row.
 		const auto     inactive      = project_workbench_commands(workbench_interaction_state{ });
 		constexpr auto drawerCommand = [](const workbench_command_id aId) {
 			return aId == workbench_command_id::toggle_files_drawer
 				|| aId == workbench_command_id::toggle_conversations_drawer
-				|| aId == workbench_command_id::toggle_repositories_drawer;
+				|| aId == workbench_command_id::toggle_repositories_drawer
+				|| aId == workbench_command_id::toggle_updates_line;
 		};
 		expect(std::ranges::none_of(inactive.Commands,
 									[&drawerCommand](const workbench_command_projection& aCommand) {
@@ -681,7 +686,7 @@ namespace {
 								   [&drawerCommand](const workbench_command_projection& aCommand) {
 									   return !drawerCommand(aCommand.Id) || aCommand.Enabled;
 								   }),
-			   "and offers all three of those");
+			   "and offers all four of those");
 		expect(std::ranges::all_of(
 				   inactive.Commands,
 				   [&drawerCommand](const workbench_command_projection& aCommand) {
@@ -1009,6 +1014,60 @@ namespace {
 		expect(rejected(transition(inactive, set_workbench_one_pane_intent{ .State = workbench_one_pane::enabled }), workbench_reason_code::no_active_workbench), "inactive exact set is refused too");
 	}
 
+	/// \brief [[BPR-1130]]. The Updates line folds from the review bar's
+	/// disclosure and from nothing else.
+	auto test_updates_line_state() -> void
+	{
+		auto state = workbench_interaction_state{ };
+		expect(state.UpdatesLine == workbench_updates_line::folded,
+			   "a new window's Updates line starts folded");
+
+		// The line is the review's chrome whether or not a workbench is
+		// active, so the disclosure works while a pull request is still
+		// loading, or when its comparison failed.
+		const auto opened = transition(state, toggle_workbench_updates_line_intent{ });
+		expect(opened.Reason == workbench_reason_code::none && opened.UpdatesLine.has_value()
+				   && opened.UpdatesLine->State == workbench_updates_line::open
+				   && state.UpdatesLine == workbench_updates_line::open,
+			   "the disclosure opens the line with no workbench active");
+		expect(!opened.Drawers && !opened.LineNumbers && !opened.OnePane && !opened.Selection
+				   && !opened.Decision && !opened.Commands,
+			   "the fold publishes nothing but itself, and changes no command's legality");
+
+		const auto folded = transition(state, toggle_workbench_updates_line_intent{ });
+		expect(folded.UpdatesLine && folded.UpdatesLine->State == workbench_updates_line::folded
+				   && state.UpdatesLine == workbench_updates_line::folded,
+			   "the disclosure folds it again");
+
+		expect(transition(state, set_workbench_updates_line_intent{ .State = workbench_updates_line::folded })
+				   == workbench_interaction_output{ },
+			   "setting the state it already has publishes nothing");
+		const auto restored = transition(state, set_workbench_updates_line_intent{ .State = workbench_updates_line::open });
+		expect(restored.UpdatesLine && restored.UpdatesLine->State == workbench_updates_line::open,
+			   "an exact set carries a window's persisted choice back into the core");
+
+		// Nothing folds or opens on its own: no other gesture or observation
+		// of this window touches it.
+		auto live = active(resident(2U, 3U));
+		static_cast<void>(transition(live, toggle_workbench_updates_line_intent{ }));
+		for (const auto modality : { workbench_modality::overview, workbench_modality::read, workbench_modality::review, workbench_modality::discuss }) {
+			static_cast<void>(transition(live, set_workbench_modality_intent{ .Modality = modality }));
+			expect(live.UpdatesLine == workbench_updates_line::open, "no modality folds the line");
+		}
+		static_cast<void>(transition(live, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files }));
+		static_cast<void>(transition(live, toggle_workbench_line_numbers_intent{ }));
+		static_cast<void>(transition(live, navigate_workbench_file_intent{ .Direction = change_navigation_direction::next }));
+		static_cast<void>(observe_workbench_navigation(live, std::nullopt));
+		static_cast<void>(observe_workbench_navigation(live, resident(1U, 3U)));
+		static_cast<void>(observe_workbench_change_navigation(live, std::nullopt));
+		expect(live.UpdatesLine == workbench_updates_line::open,
+			   "drawers, numbering, navigation and a workbench coming and going leave the line as it was");
+		const auto commands = project_workbench_commands(live);
+		const auto toggle   = commands.Commands[static_cast<std::size_t>(workbench_command_id::toggle_updates_line)];
+		expect(toggle.Id == workbench_command_id::toggle_updates_line && toggle.Enabled,
+			   "the tenth entry is the disclosure's own command, offered");
+	}
+
 	auto test_drawer_state() -> void
 	{
 		auto inactive = workbench_interaction_state{ };
@@ -1182,5 +1241,6 @@ int main()
 	test_overview_refuses_a_drawer_opened_by_hand();
 	test_line_number_state();
 	test_one_pane_state();
+	test_updates_line_state();
 	return EXIT_SUCCESS;
 }

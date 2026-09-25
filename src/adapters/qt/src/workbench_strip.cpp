@@ -1,5 +1,7 @@
 #include "bpr/qt/workbench_strip.hpp"
 
+#include "bpr/qt/epoch_line.hpp"
+
 #include <QAbstractButton>
 #include <QAction>
 #include <QActionEvent>
@@ -16,6 +18,7 @@
 #include <QPen>
 #include <QPixmap>
 #include <QRectF>
+#include <QStyle>
 #include <QStyleOption>
 #include <QStyleOptionToolButton>
 #include <QToolButton>
@@ -843,5 +846,138 @@ namespace bpr::qt {
 		painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
 		painter.drawRoundedRect(
 			QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+	}
+
+	namespace {
+		/// \brief [[BPR-1130]]. The disclosure's geometry: an inset, the
+		/// triangle, a gap, the name, and the mark after it when there is one.
+		constexpr int disclosure_inset    = 5;
+		constexpr int disclosure_triangle = 7;
+		constexpr int disclosure_gap      = 5;
+		constexpr int disclosure_mark_gap = 5;
+		constexpr int disclosure_height   = 22;
+
+		/// \brief The design draws "Updates" and its triangle in a quieter ink
+		/// than the comparison it names; three quarters of the text colour over
+		/// the row keeps it well above the contrast a label needs.
+		[[nodiscard]] auto disclosure_ink(const QPalette& aPalette, const bool aEnabled) -> QColor
+		{
+			const auto group = aEnabled ? QPalette::Active : QPalette::Disabled;
+			const auto text  = aPalette.color(group, QPalette::WindowText);
+			const auto base  = aPalette.color(group, QPalette::Window);
+			return QColor::fromRgbF(
+				static_cast<float>((text.redF() * 0.75) + (base.redF() * 0.25)),
+				static_cast<float>((text.greenF() * 0.75) + (base.greenF() * 0.25)),
+				static_cast<float>((text.blueF() * 0.75) + (base.blueF() * 0.25)));
+		}
+	} // namespace
+
+	updates_disclosure::updates_disclosure(QWidget* const aParent)
+		: QToolButton{ aParent }
+	{
+		setObjectName(QStringLiteral("reviewBarUpdates"));
+		setCheckable(true);
+		setFocusPolicy(Qt::StrongFocus);
+		setToolButtonStyle(Qt::ToolButtonTextOnly);
+		setAttribute(Qt::WA_Hover, true);
+		setAccessibleName(QStringLiteral("Updates"));
+	}
+
+	void updates_disclosure::set_open(const bool aOpen)
+	{
+		Open = aOpen;
+		setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+		setChecked(aOpen);
+		update();
+	}
+
+	auto updates_disclosure::open() const noexcept -> bool
+	{
+		return Open;
+	}
+
+	void updates_disclosure::set_history_marked(const bool aMarked)
+	{
+		if (Marked == aMarked) {
+			return;
+		}
+		Marked = aMarked;
+		updateGeometry();
+		update();
+	}
+
+	auto updates_disclosure::history_marked() const noexcept -> bool
+	{
+		return Marked;
+	}
+
+	auto updates_disclosure::sizeHint() const -> QSize
+	{
+		auto width = disclosure_inset + disclosure_triangle + disclosure_gap
+			+ fontMetrics().horizontalAdvance(text()) + disclosure_inset;
+		if (Marked) {
+			width += disclosure_mark_gap + epoch_line::history_mark_size;
+		}
+		return QSize{ width, std::max(disclosure_height, fontMetrics().height() + 6) };
+	}
+
+	auto updates_disclosure::minimumSizeHint() const -> QSize
+	{
+		return sizeHint();
+	}
+
+	void updates_disclosure::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		// Painted whole: the review bar frames its presenters, and a
+		// disclosure is a line of text with its triangle, not a button. The
+		// arrow says the state, so a checked highlight would say it twice.
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto& colours = palette();
+		const auto  enabled = isEnabled();
+		const auto  frame   = QRect{ 0, (height() - disclosure_height) / 2, width(), disclosure_height };
+		if (enabled && (isDown() || underMouse())) {
+			auto hover = colours.color(QPalette::Active, QPalette::Mid);
+			hover.setAlpha(isDown() ? 110 : 60);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(hover);
+			painter.drawRoundedRect(QRectF{ frame }.adjusted(0.5, 0.5, -0.5, -0.5), 5.0, 5.0);
+		}
+		const auto ink    = disclosure_ink(colours, enabled);
+		const auto middle = static_cast<qreal>(frame.center().y()) + 0.5;
+		const auto left   = static_cast<qreal>(disclosure_inset);
+		const auto side   = static_cast<qreal>(disclosure_triangle);
+		auto       arrow  = QPainterPath{ };
+		if (Open) {
+			arrow.moveTo(left, middle - (side * 0.3));
+			arrow.lineTo(left + side, middle - (side * 0.3));
+			arrow.lineTo(left + (side / 2.0), middle + (side * 0.45));
+		} else {
+			arrow.moveTo(left + (side * 0.15), middle - (side / 2.0));
+			arrow.lineTo(left + (side * 0.9), middle);
+			arrow.lineTo(left + (side * 0.15), middle + (side / 2.0));
+		}
+		arrow.closeSubpath();
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(ink);
+		painter.drawPath(arrow);
+		const auto textLeft  = disclosure_inset + disclosure_triangle + disclosure_gap;
+		const auto textWidth = fontMetrics().horizontalAdvance(text());
+		painter.setPen(ink);
+		painter.drawText(QRect{ textLeft, frame.top(), textWidth + 1, frame.height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+		if (Marked) {
+			epoch_line::paint_history_mark(
+				painter,
+				QRect{ textLeft + textWidth + disclosure_mark_gap, frame.top(), epoch_line::history_mark_size, frame.height() },
+				colours);
+		}
+		if (hasFocus()) {
+			auto focus = QStyleOptionFocusRect{ };
+			focus.initFrom(this);
+			focus.rect            = frame.adjusted(1, 1, -1, -1);
+			focus.backgroundColor = colours.color(QPalette::Active, QPalette::Window);
+			style()->drawPrimitive(QStyle::PE_FrameFocusRect, &focus, &painter, this);
+		}
 	}
 } // namespace bpr::qt

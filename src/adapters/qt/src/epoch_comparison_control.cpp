@@ -372,6 +372,11 @@ namespace bpr::qt {
 		lineRow->addWidget(LineSummary);
 		lineRow->addWidget(ComparingButton);
 		layout->addLayout(lineRow);
+		// [[BPR-1130]]. RFC-BPR-0052: open, the timeline runs alone across the
+		// window. The three words stay the control's fact, and their sentence
+		// is the comparison's tooltip; loading and an unreadable pair are the
+		// readiness line's to say ([[BPR-0795]]).
+		LineSummary->hide();
 
 		Details = new QWidget{ this };
 		Details->setObjectName(QStringLiteral("epochDetails"));
@@ -705,6 +710,21 @@ namespace bpr::qt {
 		}
 		if (ComparingButton != nullptr && ComparingButton->text() != comparing) {
 			ComparingButton->setText(comparing);
+		}
+		// [[BPR-1130]]. The comparison's tooltip says what the line row used to
+		// say beside it: whether the pair can be read, and the history
+		// statement that was the line's caption.
+		if (ComparingButton != nullptr && LineSummary != nullptr) {
+			auto tip = comparing;
+			if (!LineSummary->text().isEmpty()) {
+				tip.append(QStringLiteral(" (%1)").arg(LineSummary->text()));
+			}
+			if (const auto history = Line->statement(); !history.isEmpty()) {
+				tip.append(QStringLiteral("\n%1").arg(history));
+			}
+			if (ComparingButton->toolTip() != tip) {
+				ComparingButton->setToolTip(tip);
+			}
 		}
 	}
 

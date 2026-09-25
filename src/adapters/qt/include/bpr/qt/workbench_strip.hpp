@@ -9,6 +9,7 @@
 #include <QWidget>
 
 #include <QPoint>
+#include <QToolButton>
 
 #include <array>
 #include <cstddef>
@@ -174,6 +175,37 @@ namespace bpr::qt {
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
+	};
+
+	/// \brief [[BPR-1130]]. The review bar's Updates disclosure.
+	///
+	/// \details RFC-BPR-0052: "Updates" leads the review bar, and the
+	/// disclosure beside it folds the Updates line's timeline away and opens
+	/// it again, so the bar itself never moves. The window gives it the
+	/// fold command and the state the core decided; it decides nothing. While
+	/// history is incomplete or ambiguous it carries the line's mark after its
+	/// name, so a folded line still says so.
+	class updates_disclosure final : public QToolButton
+	{
+	public:
+		explicit updates_disclosure(QWidget* aParent = nullptr);
+
+		/// \brief Shows the fold the core decided: a right arrow folded, a
+		/// down arrow open.
+		void               set_open(bool aOpen);
+		[[nodiscard]] auto open() const noexcept -> bool;
+		void               set_history_marked(bool aMarked);
+		[[nodiscard]] auto history_marked() const noexcept -> bool;
+
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		bool Open   = false;
+		bool Marked = false;
 	};
 
 	/// \brief The four review modalities, in strip order.

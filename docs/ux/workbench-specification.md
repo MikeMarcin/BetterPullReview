@@ -32,8 +32,8 @@ authored and directly requested pull requests of the saved repositories
 
 ```text
 ┌ Title row: Home | Repositories | Files | name ········ Overview Read Review Discuss | Refresh | Comments (n) | Account | Settings ┐
-├ Review bar: Updates  Comparing …, dates ▾ | ‹ › change 3 of 11 | « » file 3 of 40 | progress ▾ ········ Compose review | Comment ┤
-├ Updates line: the timeline, full width ┤
+├ Review bar: ▸ Updates  Comparing …, dates ▾ | ‹ › change 3 of 11 | « » file 3 of 40 | progress ▾ ········ Compose review | Comment ┤
+├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Findings   │
 │                              │ one shared vertical scrollbar          │                              │
@@ -42,15 +42,15 @@ authored and directly requested pull requests of the saved repositories
 ```
 
 [RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)'s
-chrome is built in part ([[BPR-1129]]). Above the comparison sit, in order,
-the title row, the review bar and the Updates line's timeline, with no scroll
-area and no separate title bar. The **title row** carries the window, the pull
+chrome is built in part ([[BPR-1129]], [[BPR-1130]]). Above the comparison sit,
+in order, the title row, the review bar and, while it is open, the Updates
+line's timeline, with no scroll area and no separate title bar. The **title row** carries the window, the pull
 request and the modality: Home, the repositories and files toggles and the pull
 request's name at its left; the modality at its right beside refresh, the
 comments toggle (which carries the count of threads with new comments),
 account and settings; on Windows the application menu and the caption buttons.
 The **review bar** is full width under it and always shown with a review: from
-its left the Updates name, the comparison's menu naming the comparison and its
+its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, previous and next change with the position, previous and next file with
 the position, and private progress as an icon whose tooltip names the file's
 state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
@@ -60,23 +60,47 @@ reached from the comparison's menu. Both composition commands are also in the
 Pull Request menu, and Esc returns from either composition page. Nothing else
 sits between the title row and the Updates line, except the readiness line
 ([[BPR-0795]]) while a pull request loads, which sits between the bar and the
-line until [[BPR-1130]] asks the owner where its words go. The composition
-entry row is gone. Home has no review bar.
+line until the owner answers [[BPR-1130]]'s question about where its words go.
+The composition entry row is gone. Home has no review bar.
 
-Still to come under RFC-BPR-0052: the Updates line folds from the bar and loses
-its permanent caption ([[BPR-1130]]), document tabs fill the comparison's header
+**The Updates line folds** ([[BPR-1130]]). The disclosure at the bar's left,
+a triangle and the word Updates, folds the timeline away and opens it again;
+the View menu's **Updates Line** does the same from the keyboard, and the
+disclosure itself takes focus and answers Space. The fold takes no key of its
+own. Open, the timeline is one 34-pixel row across the whole window directly
+under the bar; folded, it leaves no row, and the bar, which names the
+comparison and its dates either way, does not move. The fold is window state
+the core decides, like a drawer: a new window starts folded, each window keeps
+its own choice in its own layout record (never in the profile's defaults), and
+nothing folds or opens on its own: no modality, drawer or refresh changes it.
+Review details still open under the bar while the line is folded. The line has
+no permanent caption: its history statement ("Known updates · display order is
+not push order") is its tooltip away from a node and its accessible
+description. When history is incomplete or ambiguous, as RFC-BPR-0029
+defines it (a cut-off or refused read, a provisional current snapshot, an
+occurrence that cannot be matched, or local records alone), a mark, a ring
+with an exclamation point, sits at the line's start before the track, and the
+disclosure carries the same mark after its name, so a folded line still says
+so; both tooltips carry the statement. The line's "pair ready" words left its
+row with the caption; their sentence is the comparison menu's tooltip, and
+loading or an unreadable pair is the readiness line's to say.
+
+Still to come under RFC-BPR-0052: document tabs fill the comparison's header
 ([[BPR-1132]]), and Comment names its target and every thread card offers Reply
 ([[BPR-1133]]). Until they land those parts are as described here.
 
 The chrome is inside the review state's space budget ([[BPR-0246]]). In Review
-at 1280x1000 with every drawer collapsed, the comparison takes 829/1000 of the
-window's height on macOS (offscreen, where the menu bar takes a row), measured
-with the 28-pixel review bar and the 50-pixel Updates line; the Linux figure,
-834, is derived from the Linux stack [[BPR-1036]] measured until the Linux
-station measures it, and Windows keeps the owner's 850.
-`application_uiforetw_selected_diff_contract` holds those floors: a further
-row that takes height from the comparison fails that course, whose failure
-line names every row stacked with the comparison ([[BPR-1036]]).
+at 1280x1000 with every drawer collapsed, the comparison takes 879/1000 of the
+window's height on macOS with the Updates line folded and 845/1000 with it
+open (offscreen, where the menu bar takes a row), measured with the 28-pixel
+review bar and the 34-pixel timeline; the Linux figures, 884 and 850, are
+derived from the Linux stack [[BPR-1036]] measured until the Linux station
+measures them, and Windows keeps the owner's 850 for the open line, so 884
+folded. `application_uiforetw_selected_diff_contract` holds those floors both
+ways: its window starts folded, it opens the line through the window's own
+command to measure the open stack, and a further row that takes height from the
+comparison fails that course, whose failure line names every row stacked with
+the comparison, folded and open ([[BPR-1036]]).
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 

@@ -17274,28 +17274,32 @@ namespace bpr::app {
 		/// \brief [[BPR-1036]]. The capture's layout floors, in thousandths of
 		/// the window the comparison must take.
 		///
-		/// \details The height floor is the measured stack's. [[BPR-1129]]:
-		/// RFC-BPR-0052 replaces the composition entry row with the 28-pixel
-		/// review bar under the title row, and the Updates line keeps its
-		/// 50-pixel row until [[BPR-1130]] folds it and takes its caption away.
-		/// Measured on macOS the stack is the menu bar 20, the title row 30,
-		/// the review bar 28, the Updates line 50, the diff status 15, 6 of
-		/// margins and the status bar 22, so the comparison is 829 (the entry
-		/// row was 22 there, and the floor 835). On Linux the entry row
-		/// measured 20 ([[BPR-1036]]'s stack), so the same bar gives 834 there;
-		/// that figure is derived until the Linux station measures it. Windows
-		/// has no menu bar row and keeps the owner's 850 budget ([[BPR-0246]]),
-		/// unmeasured with the bar until the Windows station runs this course.
-		/// Any further row that takes height fails and is named. [[BPR-1130]]
-		/// takes the floors up again with the line open and folded. The course
-		/// script asserts the same floors.
+		/// \details The height floors are the measured stacks'. [[BPR-1130]]:
+		/// RFC-BPR-0052's Updates line folds, a new window starts folded, and
+		/// open its timeline is one 34-pixel row with no caption, so the stack
+		/// is taken both ways. Measured on macOS, folded, it is the menu bar
+		/// 20, the title row 30, the review bar 28, the diff status 15, 6 of
+		/// margins and the status bar 22: the comparison is 879. Open, the
+		/// timeline's 34 sit under the bar: 845 (829 with [[BPR-1129]]'s
+		/// 50-pixel captioned line). On Linux [[BPR-1036]]'s stack gave 834
+		/// with the captioned line, so 850 open and 884 folded, derived until
+		/// the Linux station measures them. Windows has no menu bar row and
+		/// keeps the owner's 850 budget ([[BPR-0246]]) for the open line, the
+		/// tighter state, and so 884 folded, unmeasured until the Windows
+		/// station runs this course. The folded stack is the open one less the
+		/// timeline's row exactly, on every platform. Any further row that
+		/// takes height fails and is named. The course script asserts the same
+		/// floors.
 		inline constexpr int uiforetw_capture_width_floor = 750;
 	#if defined(__APPLE__)
-		inline constexpr int uiforetw_capture_height_floor = 829;
+		inline constexpr int uiforetw_capture_open_height_floor   = 845;
+		inline constexpr int uiforetw_capture_folded_height_floor = 879;
 	#elif defined(_WIN32)
-		inline constexpr int uiforetw_capture_height_floor = 850;
+		inline constexpr int uiforetw_capture_open_height_floor   = 850;
+		inline constexpr int uiforetw_capture_folded_height_floor = 884;
 	#else
-		inline constexpr int uiforetw_capture_height_floor = 834;
+		inline constexpr int uiforetw_capture_open_height_floor   = 850;
+		inline constexpr int uiforetw_capture_folded_height_floor = 884;
 	#endif
 
 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
@@ -17374,7 +17378,8 @@ namespace bpr::app {
 				besideText.append(QStringLiteral("%1@%2+%3").arg(widget).arg(rect.left()).arg(rect.width()));
 			}
 			aStream << " width_floor=" << uiforetw_capture_width_floor
-					<< " height_floor=" << uiforetw_capture_height_floor
+					<< " folded_height_floor=" << uiforetw_capture_folded_height_floor
+					<< " open_height_floor=" << uiforetw_capture_open_height_floor
 					<< " window=" << aWindow.width() << 'x' << aWindow.height()
 					<< " menu_bar=" << row(aWindow.menu_bar())
 					<< " strip=" << row(aWindow.primary_toolbar())
@@ -19358,6 +19363,37 @@ namespace bpr::app {
 				aWidget.size(),
 			};
 		};
+		// [[BPR-1130]]. A new window starts with the Updates line folded, and
+		// RFC-BPR-0052 AC-11 takes the stack both ways. The line opens through
+		// the window's own command, so the core decides it and the host
+		// publishes it; it is measured open and folded again before anything
+		// below is captured.
+		const auto initiallyFolded = !window->updates_line_open() && !window->epoch_selectors()->isVisible();
+		const auto settleFold      = [window, &drain](const bool aOpen) {
+			const auto started = std::chrono::steady_clock::now();
+			while (window->updates_line_open() != aOpen
+				   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 5 }) {
+				QApplication::processEvents();
+			}
+			drain();
+			return window->updates_line_open() == aOpen && window->epoch_selectors()->isVisible() == aOpen;
+		};
+		window->updates_line_action()->trigger();
+		const auto opened         = settleFold(true);
+		const auto openLineRect   = inWindow(*window->epoch_selectors());
+		const auto openComparison = inWindow(*comparisonSurface);
+		auto       openStack      = QString{ };
+		{
+			auto stream = QTextStream{ &openStack };
+			report_capture_layout(stream, *window, *comparisonSurface);
+		}
+		window->updates_line_action()->trigger();
+		const auto refolded = settleFold(false);
+		if (!initiallyFolded || !opened || !refolded) {
+			QTextStream{ stderr } << "UIFORETW_UPDATES_LINE_FOLD_FAILED:initially_folded=" << initiallyFolded
+								  << " opened=" << opened << " refolded=" << refolded << '\n';
+			return false;
+		}
 		const auto comparisonRect = inWindow(*comparisonSurface);
 		const auto leftPaneRect   = inWindow(*workbench->left_pane()->viewport());
 		const auto rightPaneRect  = inWindow(*workbench->right_pane()->viewport());
@@ -19366,14 +19402,20 @@ namespace bpr::app {
 			/ std::max(1, window->width());
 		const auto heightRatio = (1'000 * comparisonRect.height())
 			/ std::max(1, window->height());
+		const auto openHeightRatio = (1'000 * openComparison.height())
+			/ std::max(1, window->height());
 		if (widthRatio < uiforetw_capture_width_floor
-			|| heightRatio < uiforetw_capture_height_floor) {
-			// [[BPR-1036]]. Name what took the room, not only how much is left.
+			|| heightRatio < uiforetw_capture_folded_height_floor
+			|| openHeightRatio < uiforetw_capture_open_height_floor
+			|| comparisonRect.height() - openComparison.height() != openLineRect.height()) {
+			// [[BPR-1036]]. Name what took the room, not only how much is left:
+			// the folded stack, then the open one.
 			auto stream = QTextStream{ stderr };
 			stream << "UIFORETW_CAPTURE_LAYOUT_FAILED:" << widthRatio << ':'
-				   << heightRatio;
+				   << heightRatio << ":open=" << openHeightRatio;
 			report_capture_layout(stream, *window, *comparisonSurface);
-			stream << ' ' << course_modality_facts(aApplication) << '\n';
+			stream << " open_line=" << openLineRect.top() << '+' << openLineRect.height()
+				   << " open:" << openStack << ' ' << course_modality_facts(aApplication) << '\n';
 			return false;
 		}
 
@@ -19520,7 +19562,7 @@ namespace bpr::app {
 		};
 		auto facts = capture_object(
 			"schema",
-			"bpr.uiforetw_intraline_capture.v5",
+			"bpr.uiforetw_intraline_capture.v6",
 			"appearance",
 			appearance_mode_name(aMode).toStdString(),
 			"qt_platform",
@@ -19659,6 +19701,14 @@ namespace bpr::app {
 			widthRatio,
 			"comparison_height_ratio_permille",
 			heightRatio,
+			"updates_line_initially_folded",
+			initiallyFolded,
+			"updates_line_open_rect_in_window",
+			rectangle_json(openLineRect),
+			"updates_line_open_comparison_height",
+			openComparison.height(),
+			"updates_line_open_height_ratio_permille",
+			openHeightRatio,
 			"left_horizontal_offset",
 			workbench->left_pane()->horizontalScrollBar()->value(),
 			"right_horizontal_offset",

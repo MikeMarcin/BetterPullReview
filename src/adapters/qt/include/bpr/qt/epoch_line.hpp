@@ -20,6 +20,9 @@ class QFocusEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QPaintEvent;
+class QPainter;
+class QPalette;
+class QRect;
 
 namespace bpr::qt {
 	/// \brief Reports one anchor the reviewer chose on the line.
@@ -55,12 +58,27 @@ namespace bpr::qt {
 	/// one stop at a time while the line has focus, Shift+Left and
 	/// Shift+Right step the right handle. The left handle's stops begin with
 	/// the oldest update's base, so the whole pull request is reachable.
+	///
+	/// [[BPR-1130]]. RFC-BPR-0052 takes the permanent caption away: the
+	/// history statement ("Known updates · display order is not push order")
+	/// is the line's tooltip and accessible description, and a mark at the
+	/// line's start says when history is incomplete or ambiguous, the
+	/// statement RFC-BPR-0029 requires the line to make. The row is the
+	/// nodes and their dates alone.
 	class epoch_line final : public QWidget
 	{
 	public:
 		explicit epoch_line(QWidget* aParent = nullptr);
 
-		static constexpr int height_pixels = 50;
+		static constexpr int height_pixels = 34;
+
+		/// \brief [[BPR-1130]]. Paints the incomplete-history mark: a ring
+		/// with an exclamation point, in the palette's text colour, within
+		/// `aBounds`. The review bar's Updates disclosure paints the same mark
+		/// while the line is folded.
+		static void paint_history_mark(QPainter& aPainter, const QRect& aBounds, const QPalette& aPalette);
+		/// \brief [[BPR-1130]]. The mark's side, in pixels.
+		static constexpr int history_mark_size = 11;
 
 		/// \brief Adopts legacy local records in the supplied order.
 		void set_updates(std::vector<application::epoch_row_projection> aOldestFirst);
@@ -70,6 +88,12 @@ namespace bpr::qt {
 										   const std::vector<application::epoch_row_projection>&   aLocalRows             = { },
 										   bool                                                    aAllowOccurrenceImport = false);
 		[[nodiscard]] auto history_text() const -> QString;
+		/// \brief [[BPR-1130]]. Whether history is incomplete or ambiguous,
+		/// so the line carries its mark.
+		[[nodiscard]] auto history_marked() const noexcept -> bool;
+		/// \brief [[BPR-1130]]. What the line's tooltip says away from a node:
+		/// the history statement, or why there are no updates.
+		[[nodiscard]] auto statement() const -> QString;
 		/// \brief Names current loading or refusal when there are no update nodes.
 		void               set_empty_status(QString aStatus);
 		[[nodiscard]] auto empty_status() const -> QString;
@@ -122,6 +146,8 @@ namespace bpr::qt {
 		auto event(QEvent* aEvent) -> bool override;
 
 	private:
+		/// \brief Where the track starts: past the mark when there is one.
+		[[nodiscard]] auto left_inset() const noexcept -> int;
 		[[nodiscard]] auto node_x(std::size_t aUpdate) const -> int;
 		[[nodiscard]] auto update_at(const QPoint& aPoint) const -> std::optional<std::size_t>;
 		[[nodiscard]] auto handle_at(const QPoint& aPoint) const -> std::optional<core::comparison_side>;
@@ -147,6 +173,7 @@ namespace bpr::qt {
 		};
 		std::vector<line_row>                                                 Updates;
 		QString                                                               HistoryText;
+		bool                                                                  Marked      = false;
 		QString                                                               EmptyStatus = QStringLiteral("No updates loaded.");
 		std::optional<core::comparison_anchor_identity>                       Left;
 		std::optional<core::comparison_anchor_identity>                       Right;

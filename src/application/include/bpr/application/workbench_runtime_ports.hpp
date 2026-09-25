@@ -569,6 +569,10 @@ namespace bpr::application {
 		/// alone: the profile's defaults do not store it.
 		home_view_state           Home;
 		workbench_window_geometry Geometry;
+		/// [[BPR-1130]]. This window's Updates line, folded or open. Like
+		/// Home it belongs to the window alone: the profile's defaults never
+		/// store it, so every new window starts folded.
+		core::workbench_updates_line UpdatesLine = core::workbench_updates_line::folded;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -585,7 +589,9 @@ namespace bpr::application {
 		/// [[BPR-0783]].
 		home_view_state           Home;
 		workbench_window_geometry Geometry;
-		auto                      operator<=>(const workbench_window_layout&) const = default;
+		/// [[BPR-1130]].
+		core::workbench_updates_line UpdatesLine                                       = core::workbench_updates_line::folded;
+		auto                         operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
 	{
@@ -596,13 +602,15 @@ namespace bpr::application {
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
-				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry };
+				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry,
+				 aSettings.UpdatesLine };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
 		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
-				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry };
+				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry,
+				 aLayout.UpdatesLine };
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
 	{
@@ -612,12 +620,14 @@ namespace bpr::application {
 			&& (aLayout.LineNumbers == core::workbench_line_numbers::shown || aLayout.LineNumbers == core::workbench_line_numbers::hidden)
 			&& (aLayout.OnePane == core::workbench_one_pane::disabled || aLayout.OnePane == core::workbench_one_pane::enabled)
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
-			&& valid(aLayout.Home) && valid(aLayout.Geometry);
+			&& valid(aLayout.Home) && valid(aLayout.Geometry)
+			&& (aLayout.UpdatesLine == core::workbench_updates_line::folded || aLayout.UpdatesLine == core::workbench_updates_line::open);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
 		return valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
-			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ };
+			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
+		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded;
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -718,11 +728,14 @@ namespace bpr::application {
 	/// workbench. The host publishes nothing when no domain changed.
 	struct workbench_projection
 	{
-		workbench_request_context                             Context;
-		std::optional<core::workbench_selection_delta>        Selection;
-		std::optional<core::workbench_drawer_delta>           Drawers;
-		std::optional<core::workbench_line_numbers_delta>     LineNumbers;
-		std::optional<core::workbench_one_pane_delta>         OnePane;
+		workbench_request_context                         Context;
+		std::optional<core::workbench_selection_delta>    Selection;
+		std::optional<core::workbench_drawer_delta>       Drawers;
+		std::optional<core::workbench_line_numbers_delta> LineNumbers;
+		std::optional<core::workbench_one_pane_delta>     OnePane;
+		/// [[BPR-1130]]. The Updates line's fold, published when it changes
+		/// and once when this window's choice is restored.
+		std::optional<core::workbench_updates_line_delta>     UpdatesLine;
 		std::optional<core::workbench_command_delta>          Commands;
 		std::optional<workbench_layout_delta>                 Layout;
 		std::optional<std::vector<workbench_file_projection>> Files;
@@ -753,6 +766,7 @@ namespace bpr::application {
 			&& !aProjection.Drawers.has_value()
 			&& !aProjection.LineNumbers.has_value()
 			&& !aProjection.OnePane.has_value()
+			&& !aProjection.UpdatesLine.has_value()
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value()

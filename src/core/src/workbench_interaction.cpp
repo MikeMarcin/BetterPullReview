@@ -265,6 +265,15 @@ namespace bpr::core {
 				: workbench_one_pane::disabled;
 		}
 
+		[[nodiscard]] constexpr auto toggled(
+			const workbench_updates_line aUpdatesLine) noexcept
+			-> workbench_updates_line
+		{
+			return aUpdatesLine == workbench_updates_line::folded
+				? workbench_updates_line::open
+				: workbench_updates_line::folded;
+		}
+
 		[[nodiscard]] constexpr auto line_numbers_command(
 			const workbench_interaction_state& aState,
 			const workbench_command_id         aId) noexcept
@@ -375,6 +384,28 @@ namespace bpr::core {
 				});
 		}
 
+		/// \brief [[BPR-1130]]. Folds or opens the Updates line.
+		///
+		/// \details No surface rejection and no modality rule: the line is the
+		/// review's chrome in every modality, and the room it takes is the
+		/// reviewer's to give back, as a drawer's is. Only this gesture changes
+		/// it, so nothing folds or opens on its own.
+		[[nodiscard]] auto apply_updates_line(
+			workbench_interaction_state& aState,
+			const workbench_updates_line aRequested)
+			-> workbench_interaction_output
+		{
+			if (aState.UpdatesLine == aRequested) {
+				return { };
+			}
+			aState.UpdatesLine = aRequested;
+			return {
+				.UpdatesLine = workbench_updates_line_delta{
+					.State = aState.UpdatesLine,
+				},
+			};
+		}
+
 		[[nodiscard]] auto apply(
 			const workbench_interaction_state&  aState,
 			const select_workbench_file_intent& aIntent)
@@ -482,6 +513,22 @@ namespace bpr::core {
 		{
 			return apply_one_pane(aState, toggled(aState.OnePane));
 		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state&             aState,
+			const set_workbench_updates_line_intent& aIntent)
+			-> workbench_interaction_output
+		{
+			return apply_updates_line(aState, aIntent.State);
+		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state& aState,
+			const toggle_workbench_updates_line_intent&)
+			-> workbench_interaction_output
+		{
+			return apply_updates_line(aState, toggled(aState.UpdatesLine));
+		}
 	} // namespace
 
 	auto valid(const workbench_navigation_cursor& aCursor) noexcept -> bool
@@ -570,6 +617,7 @@ namespace bpr::core {
 					aState, workbench_command_id::toggle_line_numbers),
 				drawer_command(aState, workbench_command_id::toggle_repositories_drawer),
 				line_numbers_command(aState, workbench_command_id::toggle_one_pane),
+				drawer_command(aState, workbench_command_id::toggle_updates_line),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

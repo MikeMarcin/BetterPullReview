@@ -43,7 +43,13 @@ namespace bpr::adapters::sqlite::detail {
 	/// per-window table only. Home belongs to the window that shows it, so the
 	/// profile row does not carry it, and every default is the Home a
 	/// version-seven window already showed.
-	inline constexpr std::int64_t workbench_settings_schema_version = 9;
+	///
+	/// Nine since [[BPR-0977]]: each window's own native placement.
+	///
+	/// Ten since [[BPR-1130]]: each window's Updates line, folded or open, in
+	/// the per-window table only. Every new window starts folded, so the
+	/// profile row answers no fold, and a migrated row reads folded.
+	inline constexpr std::int64_t workbench_settings_schema_version = 10;
 
 	/// \brief Owns the durable workbench layout database.
 	///

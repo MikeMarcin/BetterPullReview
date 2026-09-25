@@ -541,7 +541,7 @@ namespace bpr::application {
 			// the view can be merged into, and `shutdown_orderly_now` leaves the
 			// load alone for exactly as long as one is held.
 			const auto drained = aDomain == workbench_request_domain::settings_store
-				|| (aDomain == workbench_request_domain::settings_load && HeldHome.has_value());
+				|| (aDomain == workbench_request_domain::settings_load && (HeldHome.has_value() || UpdatesLineHeld));
 			return Closing && !(OrderlyClosing && drained)
 				? workbench_terminal_rejection::cancelled
 				: workbench_terminal_rejection::none;
@@ -794,6 +794,7 @@ namespace bpr::application {
 				auto defaults             = window_layout(Layout);
 				defaults.Home             = { };
 				defaults.Geometry         = { };
+				defaults.UpdatesLine      = core::workbench_updates_line::folded;
 				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
@@ -990,6 +991,9 @@ namespace bpr::application {
 			if (output.Drawers.has_value() || output.LineNumbers.has_value() || output.OnePane.has_value()) {
 				submit_settings_store();
 			}
+			if (output.UpdatesLine.has_value()) {
+				keep_updates_line();
+			}
 			// [[BPR-0727]]. A refused gesture is published as the event it
 			// is, so presentation can explain it where the reviewer looks.
 			PendingRefusal = output.Reason == core::workbench_reason_code::none
@@ -1158,6 +1162,42 @@ namespace bpr::application {
 			publish_changes(local_context());
 		}
 
+		/// \brief [[BPR-1130]]. Keeps the reviewer's fold with this window.
+		///
+		/// \details On the terms Home's view is kept: only in the window's own
+		/// record, never in the profile's defaults (every new window starts
+		/// folded), and only once that record has loaded. A fold chosen before
+		/// then is held and merged into the record when it arrives, so the
+		/// drawers and widths the stored record owns are not written over with
+		/// the defaults this window has not read yet.
+		void keep_updates_line()
+		{
+			if (profile_defaults_scoped()) {
+				return;
+			}
+			if (!LayoutLoaded) {
+				UpdatesLineHeld = !LayoutLoadFailed;
+				return;
+			}
+			Layout.UpdatesLine = State.UpdatesLine;
+			submit_settings_store();
+		}
+
+		/// \brief [[BPR-1130]]. Restores this window's own fold from the
+		/// record just loaded, or merges a fold chosen before it arrived.
+		void restore_updates_line()
+		{
+			if (std::exchange(UpdatesLineHeld, false)) {
+				if (Layout.UpdatesLine != State.UpdatesLine) {
+					Layout.UpdatesLine = State.UpdatesLine;
+					submit_settings_store();
+				}
+				return;
+			}
+			static_cast<void>(core::transition(
+				State, core::set_workbench_updates_line_intent{ .State = Layout.UpdatesLine }));
+		}
+
 		/// \brief Adopts a view applied before this window's record arrived.
 		///
 		/// \details [[BPR-0783]]. Merged into the record just loaded rather than
@@ -1222,7 +1262,7 @@ namespace bpr::application {
 			// drains with that record rather than being dropped: the load it must
 			// merge into is left to finish, so the last Home the reviewer chose is
 			// stored beside the loaded layout instead of over it.
-			if (!HeldHome) {
+			if (!HeldHome && !UpdatesLineHeld) {
 				retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
 			}
 			retire(workbench_request_domain::selected_diff, workbench_terminal_rejection::cancelled);
@@ -1431,15 +1471,17 @@ namespace bpr::application {
 			if (PreferenceSubscription != 0 && OwnedPreferences && (!Settings.profile_scoped() || Settings.window().value() == 0)) {
 				// [[BPR-0783]]. The defaults the preferences host holds carry no
 				// Home, for the reason `submit_settings_store` gives.
-				auto defaults     = window_layout(*aResult);
-				defaults.Home     = { };
-				defaults.Geometry = { };
+				auto defaults        = window_layout(*aResult);
+				defaults.Home        = { };
+				defaults.Geometry    = { };
+				defaults.UpdatesLine = core::workbench_updates_line::folded;
 				Preferences->adopt_loaded({ aResult->Behaviour, defaults });
 			}
 			Layout = *aResult;
 			if (profile_defaults_scoped()) {
-				Layout.Home     = { };
-				Layout.Geometry = { };
+				Layout.Home        = { };
+				Layout.Geometry    = { };
+				Layout.UpdatesLine = core::workbench_updates_line::folded;
 			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {
 				Layout.Behaviour = Preferences->accepted()->Behaviour;
@@ -1454,6 +1496,7 @@ namespace bpr::application {
 			// whatever state the window happened to be in before it arrived.
 			LayoutLoaded = true;
 			merge_held_home();
+			restore_updates_line();
 			publish_changes(aContext);
 		}
 
@@ -1561,6 +1604,12 @@ namespace bpr::application {
 			if (PublishedLineNumbers != lineNumbers) {
 				projection.LineNumbers = lineNumbers;
 			}
+			const auto updatesLine = core::workbench_updates_line_delta{
+				.State = State.UpdatesLine,
+			};
+			if (PublishedUpdatesLine != updatesLine) {
+				projection.UpdatesLine = updatesLine;
+			}
 			const auto commands = core::project_workbench_commands(State);
 			if (PublishedCommands != commands) {
 				projection.Commands = commands;
@@ -1614,6 +1663,7 @@ namespace bpr::application {
 			PublishedSelection   = selection;
 			PublishedDrawers     = drawers;
 			PublishedLineNumbers = lineNumbers;
+			PublishedUpdatesLine = updatesLine;
 			PublishedOnePane     = onePane;
 			PublishedCommands    = commands;
 			PublishedLayout      = layout;
@@ -1680,7 +1730,10 @@ namespace bpr::application {
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state> HeldHome;
-		bool                           PublishedGeometry = false;
+		/// [[BPR-1130]]. A fold chosen before this window's record loaded,
+		/// merged into it when it arrives.
+		bool UpdatesLineHeld   = false;
+		bool PublishedGeometry = false;
 		/// [[BPR-0783]]. Whether that record has arrived. Until it has, a
 		/// view is held rather than applied, and none is published.
 		bool LayoutLoaded = false;
@@ -1697,6 +1750,7 @@ namespace bpr::application {
 		std::optional<core::workbench_selection_delta>        PublishedSelection;
 		std::optional<core::workbench_drawer_delta>           PublishedDrawers;
 		std::optional<core::workbench_line_numbers_delta>     PublishedLineNumbers;
+		std::optional<core::workbench_updates_line_delta>     PublishedUpdatesLine;
 		std::optional<core::workbench_one_pane_delta>         PublishedOnePane;
 		std::optional<core::workbench_command_delta>          PublishedCommands;
 		std::optional<workbench_layout_delta>                 PublishedLayout;

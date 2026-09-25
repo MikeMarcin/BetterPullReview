@@ -28,6 +28,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QGroupBox>
+#include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
@@ -67,6 +68,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QToolTip>
 #include <QWidget>
 #include <QWindow>
 #include <qpa/qwindowsysteminterface.h>
@@ -461,6 +463,39 @@ namespace {
 	}
 
 	/// \brief Projects every primary command as offered under one policy.
+	/// \brief [[BPR-1130]]. Publishes the fold the core decided.
+	void publish_updates_line(qt::workbench_window& aWindow, const core::workbench_updates_line aState)
+	{
+		auto fold        = application::workbench_projection{ };
+		fold.UpdatesLine = core::workbench_updates_line_delta{ .State = aState };
+		aWindow.publish(fold);
+		QApplication::processEvents();
+		QApplication::processEvents();
+	}
+
+	void open_updates_line(qt::workbench_window& aWindow)
+	{
+		publish_updates_line(aWindow, core::workbench_updates_line::open);
+	}
+
+	void fold_updates_line(qt::workbench_window& aWindow)
+	{
+		publish_updates_line(aWindow, core::workbench_updates_line::folded);
+	}
+
+	/// \brief Saves a window render beside the suite's other renders, when the
+	/// run names a render path.
+	void save_render(qt::workbench_window& aWindow, const QString& aSuffix)
+	{
+		const auto rendered = aWindow.grab();
+		expect(!rendered.isNull(), "the window renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+				   "the render is saved for inspection");
+		}
+	}
+
 	[[nodiscard]] auto every_primary_command_offered(
 		const core::change_navigation_policy aPolicy
 		= core::change_navigation_policy::stop)
@@ -804,7 +839,8 @@ namespace {
 		expect(reviewRow, "the review bar reads Updates and the comparison, then the change and file navigation and progress, with Compose review and Comment at its right");
 		expect(bar->height() == qt::workbench_strip::review_bar_height_pixels,
 			   "the review bar is the design's 28-pixel row");
-		expect(window.updates_label()->text() == QStringLiteral("Updates")
+		expect(window.updates_disclosure_button()->text() == QStringLiteral("Updates")
+				   && bar->widgetForAction(barActions[1]) == window.updates_disclosure_button()
 				   && bar->widgetForAction(barActions[2]) == window.epoch_selectors()->comparing_button()
 				   && window.epoch_selectors()->comparing_button()->text().startsWith(QStringLiteral("Comparing")),
 			   "Updates names the line, and the comparison's own menu follows it");
@@ -2359,9 +2395,10 @@ namespace {
 		window.resize(1'280, 1'000);
 		window.show();
 		// [[BPR-0650]]. Home is the centre until a workbench is active; the
-		// review details are the workbench's.
+		// review details are the workbench's. [[BPR-1130]]: with the Updates
+		// line open, as the reviewer left it; the fold course covers folded.
 		window.publish(every_primary_command_offered());
-		QApplication::processEvents();
+		open_updates_line(window);
 
 		auto* const action     = window.review_details_toggle_action();
 		auto* const comparison = window.comparison_surface();
@@ -2380,9 +2417,9 @@ namespace {
 				   && window.review_bar()->isAncestorOf(comparing)
 				   && window.focus_order().contains(comparing),
 			   "review details are a checkable, keyboard-reachable action in the comparison's menu on the review bar");
-		// [[BPR-0646]]. Off by default: the epoch line is chrome and always
-		// shows; the exact anchors and the selected-change details are the
-		// review details, shown on request.
+		// [[BPR-0646]]. Off by default: the open epoch line is chrome; the
+		// exact anchors and the selected-change details are the review
+		// details, shown on request.
 		expect(window.findChild<QScrollArea*>(
 				   QStringLiteral("workbenchReviewHeaderScroll"))
 					   == nullptr
@@ -5479,6 +5516,161 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1130]]. RFC-BPR-0052 AC-01 and AC-04: the Updates line
+	/// folds from the review bar's disclosure and by keyboard, a new window
+	/// starts folded, the bar never moves, and the line carries no caption:
+	/// its statement is its tooltip, and incomplete history is a mark on the
+	/// line and on the disclosure. Saved at 1280 by 852, open and folded, and
+	/// at the width floor, at each registered scale.
+	void test_the_updates_line_folds_from_the_review_bar()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 852);
+		window.show();
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "EpicGames",
+				.RepositoryName = "UnrealEngine",
+				.Number         = core::pull_request_number{ 14366U },
+				.Title          = "Hair strand lighting fixes for LSS",
+			},
+		});
+		auto positioned      = every_primary_command_offered();
+		positioned.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																	.Ordinal           = 3U,
+																	.ActionableCount   = 40U,
+																	.PreviousAvailable = true,
+																	.NextAvailable     = true,
+																} };
+		window.publish(positioned);
+		auto* const disclosure = window.updates_disclosure_button();
+		auto* const epochs     = window.epoch_selectors();
+		auto* const line       = epochs->line();
+		expect(disclosure != nullptr && !disclosure->history_marked() && !line->history_marked(),
+			   "with no updates known there is no history to mark");
+		const auto first = epoch_row(1);
+		const auto third = epoch_row(3);
+		window.publish(retained_epochs({ first, epoch_row(2), third }));
+		window.publish(resolved_pair_update(core::comparison_pair{
+			.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+			.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+		}));
+		process_events();
+
+		auto* const bar      = window.review_bar();
+		const auto  inWindow = [&window](const QWidget* aWidget) { return QRect{ aWidget->mapTo(&window, QPoint{ 0, 0 }), aWidget->size() }; };
+		const auto  barRect  = inWindow(bar);
+		const auto  panesTop = [&window] { return window.central_splitter()->mapTo(&window, QPoint{ 0, 0 }).y(); };
+		const auto  toggles  = [&log] {
+			return std::ranges::count_if(log.Workbench, [](const core::workbench_interaction_intent& aIntent) {
+				return std::holds_alternative<core::toggle_workbench_updates_line_intent>(aIntent);
+			});
+		};
+		const auto folded = [&] {
+			return !window.updates_line_open() && !line->isVisible() && !epochs->isVisible()
+				&& disclosure->arrowType() == Qt::RightArrow && !disclosure->isChecked()
+				&& !window.updates_line_action()->isChecked() && panesTop() == barRect.bottom() + 1;
+		};
+		expect(folded(), "a new window starts with the Updates line folded, and the panes sit under the review bar");
+		expect(epochs->comparing_button()->isVisible() && epochs->comparing_button()->text().contains(QStringLiteral(" → ")),
+			   "folded, the review bar still names the comparison and its dates");
+
+		// The gesture leaves; only the core's decision changes what is shown.
+		disclosure->click();
+		process_events();
+		expect(toggles() == 1 && folded(), "a click on the disclosure sends one fold gesture and shows nothing the core did not decide");
+		disclosure->setFocus(Qt::TabFocusReason);
+		process_events();
+		expect(disclosure->hasFocus() && disclosure->focusPolicy() == Qt::StrongFocus, "the disclosure takes keyboard focus");
+		QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(disclosure, &press);
+		QApplication::sendEvent(disclosure, &release);
+		process_events();
+		expect(toggles() == 2 && folded(), "Space on the focused disclosure sends the same gesture");
+		auto* const viewMenu = window.findChild<QMenu*>(QStringLiteral("workbenchViewMenu"));
+		expect(viewMenu != nullptr && viewMenu->actions().contains(window.updates_line_action())
+				   && window.updates_line_action()->shortcut().isEmpty(),
+			   "the View menu offers the fold by keyboard, and the fold takes no key of its own");
+		window.updates_line_action()->trigger();
+		process_events();
+		expect(toggles() == 3 && folded(), "the menu's command sends the same gesture");
+
+		open_updates_line(window);
+		const auto lineRect = inWindow(epochs);
+		expect(window.updates_line_open() && line->isVisible() && disclosure->arrowType() == Qt::DownArrow
+				   && disclosure->isChecked() && window.updates_line_action()->isChecked(),
+			   "open, the timeline shows and the disclosure and the command say so");
+		expect(inWindow(bar) == barRect && lineRect.top() == barRect.bottom() + 1 && lineRect.left() == barRect.left()
+				   && lineRect.width() == barRect.width() && lineRect.height() == qt::epoch_line::height_pixels
+				   && panesTop() == lineRect.bottom() + 1,
+			   "open, the timeline is one 34-pixel row across the window just below the bar, and the bar has not moved");
+		expect(inWindow(line).left() == lineRect.left() + 12 && !epochs->line_summary()->isVisible()
+				   && !window.findChild<QLabel*>(QStringLiteral("epochLineName")),
+			   "the timeline runs alone on its row: no name and no summary words beside it");
+		save_render(window, QStringLiteral("updates-open-1280x852"));
+
+		// No caption: the statement is the tooltip and the accessible description,
+		// and incomplete history is a mark on the line and on the disclosure.
+		expect(line->statement() == line->history_text() && line->history_text().startsWith(QStringLiteral("Incomplete history"))
+				   && line->accessibleDescription() == line->statement(),
+			   "the history statement is the line's accessible description");
+		const auto empty = QPoint{ line->width() / 2 + 5, qt::epoch_line::height_pixels - 2 };
+		QHelpEvent help{ QEvent::ToolTip, empty, line->mapToGlobal(empty) };
+		QApplication::sendEvent(line, &help);
+		expect(QToolTip::text() == line->statement(), "away from a node the line's tooltip is its history statement");
+		QToolTip::hideText();
+		expect(line->history_marked() && disclosure->history_marked()
+				   && disclosure->accessibleName() == QStringLiteral("Updates, history incomplete")
+				   && disclosure->toolTip().contains(line->statement())
+				   && epochs->comparing_button()->toolTip().contains(line->statement()),
+			   "incomplete history marks the line and the disclosure, and both tooltips carry the statement");
+		expect(line->node_centre(0U).x() > 12 + qt::epoch_line::history_mark_size,
+			   "the mark sits before the track, which starts after it");
+
+		// Nothing folds or opens on its own.
+		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+									 qt::review_modality::discuss, qt::review_modality::review }) {
+			window.choose_modality(modality);
+			process_events();
+			expect(window.updates_line_open() && inWindow(bar) == barRect,
+				   "a modality neither folds the line nor moves the bar: " + std::to_string(static_cast<int>(modality)));
+			expect(line->isVisible() && line->history_marked() && disclosure->isVisible() && disclosure->history_marked(),
+				   "the line and the disclosure carry the mark in modality " + std::to_string(static_cast<int>(modality)));
+		}
+		process_events();
+
+		fold_updates_line(window);
+		expect(folded() && inWindow(bar) == barRect, "folded, the line leaves no row and the bar has not moved");
+		save_render(window, QStringLiteral("updates-folded-1280x852"));
+
+		// Review details live in the line's control: shown while folded, the
+		// control holds them and not the timeline.
+		window.review_details_toggle_action()->trigger();
+		process_events();
+		expect(epochs->isVisible() && epochs->details_visible() && !line->isVisible() && inWindow(epochs).top() == barRect.bottom() + 1,
+			   "Review details show under the bar while the line stays folded");
+		window.review_details_toggle_action()->trigger();
+		process_events();
+		expect(folded(), "hiding the details folds the control away again");
+
+		window.resize(window.minimumWidth(), 852);
+		process_events();
+		expect(disclosure->isVisible() && disclosure->history_marked(), "at the width floor the disclosure keeps its name and its mark");
+		save_render(window, QStringLiteral("updates-folded-floor"));
+		open_updates_line(window);
+		save_render(window, QStringLiteral("updates-open-floor"));
+		window.hide();
+	}
+
 	void test_composed_epoch_selectors_show_exact_retained_epochs()
 	{
 		std::vector<application::epoch_intent> epochs;
@@ -8403,9 +8595,20 @@ namespace {
 		expect(window.findChild<QToolButton*>(QStringLiteral("composeReviewActionButton")) == nullptr
 				   && window.findChild<QToolButton*>(QStringLiteral("composeInlineDraftActionButton")) == nullptr,
 			   "the composition entry row is gone");
+		// [[BPR-1130]]. A new window starts with the Updates line folded: no
+		// row at all between the bar and the panes but the readiness line.
+		const auto barBottom = [&window, bar] { return QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() }.bottom() + 1; };
+		const auto panesTop  = [&window] { return window.central_splitter()->mapTo(&window, QPoint{ 0, 0 }).y(); };
+		const auto barFolded = QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() };
+		expect(!epochs->isVisible() && !window.updates_line_open() && entriesBottom() == barBottom() && panesTop() == barBottom(),
+			   "a new window starts with the Updates line folded, and the panes sit directly under the review bar");
+		open_updates_line(window);
 		const auto before = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 		expect(spans() && before.width() == client->width() && before.width() > window.width() / 2,
-			   "the Updates line is the first row below the review bar, and the bar and the line are as wide as the client area");
+			   "open, the Updates line is the first row below the review bar, and the bar and the line are as wide as the client area");
+		expect(QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() } == barFolded
+				   && before.height() == qt::epoch_line::height_pixels && panesTop() == before.bottom() + 1,
+			   "opening the line moves the bar nowhere; the timeline is one 34-pixel row above the panes");
 
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
@@ -8444,6 +8647,9 @@ namespace {
 		const auto resized = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 		expect(spans() && resized == before,
 			   "resizing a drawer moves nothing on the epoch row");
+		fold_updates_line(window);
+		expect(!epochs->isVisible() && QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() } == barFolded && panesTop() == barBottom(),
+			   "folded again, the line leaves no row and the bar has not moved");
 		window.hide();
 	}
 
@@ -8531,7 +8737,8 @@ namespace {
 		};
 		window.publish(files);
 		window.publish(every_primary_command_offered());
-		process_events();
+		// [[BPR-1130]]. The Updates line open, as the reviewer left it.
+		open_updates_line(window);
 
 		window.choose_modality(qt::review_modality::overview);
 		process_events();
@@ -9825,6 +10032,7 @@ auto main(int argc, char** argv) -> int
 	test_strip_identity_stays_at_every_width();
 	test_the_review_bar_yields_dates_then_words();
 	test_the_title_row_and_review_bar_render();
+	test_the_updates_line_folds_from_the_review_bar();
 	test_strip_is_the_title_row();
 	test_the_epoch_row_spans_the_window_in_every_modality();
 	test_rails_reopen_their_drawers();

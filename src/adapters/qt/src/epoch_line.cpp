@@ -38,6 +38,8 @@ namespace bpr::qt {
 		constexpr int hit_radius    = 7;
 		constexpr int label_min_gap = 44;
 		constexpr int label_height  = 12;
+		/// [[BPR-1130]]. Room the mark takes before the track, and its gap.
+		constexpr int mark_gap = 6;
 
 		/// \brief The one colour the palette has no role for.
 		///
@@ -109,11 +111,46 @@ namespace bpr::qt {
 		setAttribute(Qt::WA_Hover, true);
 	}
 
+	void epoch_line::paint_history_mark(QPainter& aPainter, const QRect& aBounds, const QPalette& aPalette)
+	{
+		const auto side = std::min({ aBounds.width(), aBounds.height(), history_mark_size });
+		if (side < 5) {
+			return;
+		}
+		const auto ink    = aPalette.color(QPalette::Active, QPalette::WindowText);
+		const auto circle = QRectF{ static_cast<qreal>(aBounds.left()) + (static_cast<qreal>(aBounds.width() - side) / 2.0) + 0.5,
+									static_cast<qreal>(aBounds.top()) + (static_cast<qreal>(aBounds.height() - side) / 2.0) + 0.5,
+									static_cast<qreal>(side - 1),
+									static_cast<qreal>(side - 1) };
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		aPainter.setPen(QPen{ ink, 1.2 });
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.drawEllipse(circle);
+		// The exclamation point: a stroke and a dot, centred in the ring.
+		const auto centre = circle.center();
+		const auto unit   = circle.height() / 11.0;
+		aPainter.setPen(QPen{ ink, std::max(1.2, 1.4 * unit), Qt::SolidLine, Qt::RoundCap });
+		aPainter.drawLine(QPointF{ centre.x(), centre.y() - (3.0 * unit) }, QPointF{ centre.x(), centre.y() + (0.8 * unit) });
+		aPainter.drawPoint(QPointF{ centre.x(), centre.y() + (2.9 * unit) });
+		aPainter.restore();
+	}
+
+	auto epoch_line::history_marked() const noexcept -> bool
+	{
+		return Marked && !Updates.empty();
+	}
+
+	auto epoch_line::statement() const -> QString
+	{
+		return Updates.empty() ? EmptyStatus : HistoryText;
+	}
+
 	void epoch_line::set_empty_status(QString aStatus)
 	{
 		EmptyStatus = std::move(aStatus);
-		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
-		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
+		setAccessibleDescription(statement());
+		setToolTip(statement());
 		update();
 	}
 
@@ -138,8 +175,9 @@ namespace bpr::qt {
 			});
 		}
 		HistoryText = QStringLiteral("Incomplete history — local records only");
-		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
-		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
+		Marked      = true;
+		setAccessibleDescription(statement());
+		setToolTip(statement());
 		Dragging.reset();
 		DragStop.reset();
 		update();
@@ -198,8 +236,13 @@ namespace bpr::qt {
 			HistoryText.append(QStringLiteral(" · unresolved local records"));
 		}
 		HistoryText.append(QStringLiteral(" · display order is not push order"));
-		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
-		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
+		// [[BPR-1130]]. RFC-BPR-0029: the line says when history is incomplete
+		// or an occurrence cannot be uniquely matched. A provisional current
+		// snapshot is incomplete history; an unresolved local record is one
+		// that could not be matched.
+		Marked = aHistory.Incomplete || provisional || aHistory.Ambiguous || aHistory.UnresolvedLegacy;
+		setAccessibleDescription(statement());
+		setToolTip(statement());
 		Dragging.reset();
 		DragStop.reset();
 		update();
@@ -274,13 +317,18 @@ namespace bpr::qt {
 		return Offered;
 	}
 
+	auto epoch_line::left_inset() const noexcept -> int
+	{
+		return history_marked() ? side_padding + history_mark_size + mark_gap : side_padding;
+	}
+
 	auto epoch_line::node_x(const std::size_t aUpdate) const -> int
 	{
-		const auto span = std::max(1, width() - 2 * side_padding);
+		const auto span = std::max(1, width() - left_inset() - side_padding);
 		if (Updates.size() <= 1U) {
-			return side_padding + span / 2;
+			return left_inset() + span / 2;
 		}
-		return side_padding
+		return left_inset()
 			+ static_cast<int>(std::lround(
 				static_cast<double>(span) * static_cast<double>(aUpdate)
 				/ static_cast<double>(Updates.size() - 1U)));
@@ -328,7 +376,7 @@ namespace bpr::qt {
 		if (Updates.size() <= 1U) {
 			return true;
 		}
-		const auto gap = static_cast<double>(std::max(1, width() - 2 * side_padding))
+		const auto gap = static_cast<double>(std::max(1, width() - left_inset() - side_padding))
 			/ static_cast<double>(Updates.size() - 1U);
 		if (gap >= label_min_gap) {
 			return true;
@@ -543,13 +591,18 @@ namespace bpr::qt {
 			return;
 		}
 
-		painter.setPen(faint);
-		painter.drawText(QRect{ side_padding, 34, std::max(1, width() - 2 * side_padding), 16 },
-						 Qt::AlignLeft | Qt::AlignVCenter, painter.fontMetrics().elidedText(HistoryText, Qt::ElideRight, std::max(1, width() - 2 * side_padding)));
+		// [[BPR-1130]]. No caption: the statement is the tooltip. When history
+		// is incomplete or ambiguous the mark sits before the track, level
+		// with the nodes, and the track starts after it.
+		if (history_marked()) {
+			paint_history_mark(painter,
+							   QRect{ side_padding, node_y - (history_mark_size / 2), history_mark_size, history_mark_size },
+							   palette());
+		}
 
 		// Track, then the span between the handles.
 		painter.setPen(QPen{ rule, 1.0 });
-		painter.drawLine(side_padding, node_y, width() - side_padding, node_y);
+		painter.drawLine(left_inset(), node_y, width() - side_padding, node_y);
 		const auto left  = DragStop && Dragging == core::comparison_side::left ? DragStop : left_stop();
 		const auto right = DragStop && Dragging == core::comparison_side::right ? DragStop : right_stop();
 		if (left && right) {
@@ -767,10 +820,12 @@ namespace bpr::qt {
 	{
 		if (aEvent->type() == QEvent::ToolTip) {
 			auto* const help = static_cast<QHelpEvent*>(aEvent);
+			// [[BPR-1130]]. A node names its update; anywhere else on the line
+			// the tooltip is the history statement the caption used to carry.
 			if (const auto hit = update_at(help->pos()); hit) {
 				QToolTip::showText(help->globalPos(), node_tooltip(*hit), this);
 			} else {
-				QToolTip::hideText();
+				QToolTip::showText(help->globalPos(), statement(), this);
 			}
 			return true;
 		}

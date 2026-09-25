@@ -1867,6 +1867,109 @@ namespace {
 		expect(durable.Stores == 0U && value.Host.is_quiescent(),
 			   "and the window closes without writing a default layout over the stored one");
 	}
+
+	/// \brief [[BPR-1130]]. The Updates line's fold is this window's: the
+	/// core decides it with no workbench active, the host keeps it in the
+	/// window's own record, restores it on load without waiting for a
+	/// workbench, merges one chosen in flight, and never makes it a default.
+	void test_the_updates_line_folds_persists_and_restores_per_window()
+	{
+		const auto published = [](const auto& aHarness, const core::workbench_updates_line aState) {
+			return std::ranges::count_if(aHarness.Projections.Published, [aState](const auto& aProjection) {
+				return aProjection.UpdatesLine && aProjection.UpdatesLine->State == aState;
+			});
+		};
+
+		// A gesture before the window's record arrives is held, then merged.
+		auto durable      = fake_settings{ };
+		durable.Stored    = stored_layout();
+		const auto record = durable.Stored;
+		{
+			auto harnessed = harness{ { }, &durable };
+			harnessed.Host.restore();
+			harnessed.Host.apply(core::toggle_workbench_updates_line_intent{ });
+			expect(harnessed.Host.last_reason() == core::workbench_reason_code::none
+					   && harnessed.Host.state().UpdatesLine == core::workbench_updates_line::open
+					   && !harnessed.Host.state().Navigation,
+				   "the disclosure opens the line with no workbench active");
+			expect(durable.Stores == 0U, "a fold chosen before the record loads writes nothing yet");
+			harnessed.settle();
+			auto expected        = record;
+			expected.UpdatesLine = core::workbench_updates_line::open;
+			expect(durable.Stores == 1U && durable.Stored == expected,
+				   "the held fold is merged into the loaded record, which keeps its drawers and widths");
+			expect(harnessed.Host.state().UpdatesLine == core::workbench_updates_line::open,
+				   "the reviewer's gesture wins over the record's fold");
+
+			// A gesture after the load is kept at once.
+			harnessed.Host.apply(core::toggle_workbench_updates_line_intent{ });
+			harnessed.settle();
+			expect(harnessed.Projections.Published.back().UpdatesLine
+					   && harnessed.Projections.Published.back().UpdatesLine->State == core::workbench_updates_line::folded
+					   && !harnessed.Projections.Published.back().Drawers && !harnessed.Projections.Published.back().Layout,
+				   "folding publishes the fold alone");
+			expect(durable.Stores == 2U && durable.Stored.UpdatesLine == core::workbench_updates_line::folded,
+				   "and keeps it with the window");
+			harnessed.Host.apply(core::toggle_workbench_updates_line_intent{ });
+			harnessed.settle();
+		}
+		expect(durable.Stored.UpdatesLine == core::workbench_updates_line::open, "the window's last choice is durable");
+
+		// A restarted window restores its own fold from its record, before any
+		// workbench is active, and writes nothing back.
+		const auto writes = durable.Stores;
+		{
+			auto restarted = harness{ { }, &durable };
+			expect(restarted.Host.state().UpdatesLine == core::workbench_updates_line::folded,
+				   "until its record loads a window shows the line folded");
+			restarted.Host.restore();
+			restarted.settle();
+			expect(restarted.Host.state().UpdatesLine == core::workbench_updates_line::open
+					   && published(restarted, core::workbench_updates_line::open) == 1,
+				   "the record's open line reaches the core and the window on load, with no workbench");
+			expect(durable.Stores == writes, "restoring the fold writes nothing back");
+		}
+
+		// Every new window starts folded: the profile's defaults never hold a fold.
+		auto defaults               = fake_settings{ };
+		defaults.ProfileScoped      = true;
+		defaults.Stored             = stored_layout();
+		defaults.Stored.UpdatesLine = core::workbench_updates_line::open;
+		auto scoped                 = harness{ { }, &defaults };
+		scoped.Host.restore();
+		scoped.settle();
+		expect(scoped.Host.layout().UpdatesLine == core::workbench_updates_line::folded
+				   && scoped.Host.state().UpdatesLine == core::workbench_updates_line::folded,
+			   "the defaults record answers folded whatever it held");
+		scoped.Host.apply(core::toggle_workbench_updates_line_intent{ });
+		scoped.settle();
+		expect(scoped.Host.state().UpdatesLine == core::workbench_updates_line::open && defaults.Stores == 0U,
+			   "a fold over the defaults record is shown but never written as a default");
+		scoped.Host.resize(core::workbench_drawer::files, 480U);
+		scoped.settle();
+		expect(defaults.Stores == 1U && defaults.Stored.FilesWidth == 480U
+				   && defaults.Stored.UpdatesLine == core::workbench_updates_line::folded,
+			   "a later defaults write carries the width and a folded line");
+	}
+
+	/// \brief [[BPR-1130]]. A fold still held when the window closes drains
+	/// with the record it was waiting for.
+	void test_orderly_shutdown_drains_a_held_fold()
+	{
+		auto durable       = fake_settings{ };
+		durable.Stored     = stored_layout();
+		const auto record  = durable.Stored;
+		auto       closing = harness{ { }, &durable };
+		closing.Host.restore();
+		closing.Host.apply(core::toggle_workbench_updates_line_intent{ });
+		closing.Host.shutdown_orderly();
+		closing.settle();
+		auto expected        = record;
+		expected.UpdatesLine = core::workbench_updates_line::open;
+		expect(durable.Stores == 1U && durable.Stored == expected && closing.Host.is_quiescent()
+				   && closing.Projections.Failed.empty(),
+			   "the held fold is merged into its record as the window closes");
+	}
 } // namespace
 
 auto main() -> int
@@ -1903,6 +2006,8 @@ auto main() -> int
 	test_home_is_not_a_profile_default();
 	test_a_home_view_whose_record_cannot_be_read_is_shown_and_reported();
 	test_an_orderly_close_reports_a_home_view_whose_record_never_arrived();
+	test_the_updates_line_folds_persists_and_restores_per_window();
+	test_orderly_shutdown_drains_a_held_fold();
 	test_settings_failure_is_reported();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "workbench application host tests passed\n";

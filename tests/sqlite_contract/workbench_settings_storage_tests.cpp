@@ -1421,6 +1421,7 @@ namespace {
 			// Produce the exact previous schema; SQLite rewrites each dropped
 			// suffix back to the version-eight canonical definition.
 			expect(sqlite3_exec(database->handle(),
+								"ALTER TABLE window_layout DROP COLUMN updates_line;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_maximized;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_height;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
@@ -1450,6 +1451,65 @@ namespace {
 			   "corrupt native placement is refused without modifying the durable file");
 	}
 
+	/// \brief [[BPR-1130]]. Each window keeps its own Updates line; the
+	/// profile's defaults answer none, and a version-nine row reads folded
+	/// with its native placement kept.
+	void test_the_updates_line_is_window_local_and_migrates_from_nine()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("updates-line.sqlite3");
+		auto       open    = application::window_layout(distinct_layout());
+		open.Geometry      = { 40, 60, 1280, 852, false };
+		open.UpdatesLine   = core::workbench_updates_line::open;
+		auto folded        = open;
+		folded.Geometry    = { 200, 90, 1000, 700, true };
+		folded.UpdatesLine = core::workbench_updates_line::folded;
+		{
+			auto database = workbench_settings_database::open(path, { });
+			expect(database && database->store_window(core::bpr_window_id{ 1 }, open, { })
+					   && database->store_window(core::bpr_window_id{ 2 }, folded, { }),
+				   "two windows keep opposite folds");
+			expect(database->load_window(core::bpr_window_id{ 1 }, { })->UpdatesLine == core::workbench_updates_line::open
+					   && database->load_window(core::bpr_window_id{ 2 }, { })->UpdatesLine == core::workbench_updates_line::folded,
+				   "each window reads back its own fold");
+			expect(database->load_window(core::bpr_window_id{ 3 }, { })->UpdatesLine == core::workbench_updates_line::folded,
+				   "a window with no row of its own starts folded");
+			const auto defaults = database->load({ });
+			expect(defaults && defaults->UpdatesLine == core::workbench_updates_line::folded,
+				   "the profile's defaults answer folded whatever the windows chose");
+			auto invalid        = open;
+			invalid.UpdatesLine = static_cast<core::workbench_updates_line>(2);
+			expect(!database->store_window(core::bpr_window_id{ 1 }, invalid, { }),
+				   "a fold outside the vocabulary is refused before the write");
+			expect(database->load_window(core::bpr_window_id{ 1 }, { })->UpdatesLine == core::workbench_updates_line::open,
+				   "and the stored fold is unchanged");
+			// The exact version-nine definition, as a version-nine build wrote it.
+			expect(sqlite3_exec(database->handle(),
+								"ALTER TABLE window_layout DROP COLUMN updates_line;"
+								"UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "canonical version-nine window fixture");
+		}
+		auto migrated = workbench_settings_database::open(path, { });
+		expect(migrated.has_value(), "a version-nine store opens and migrates");
+		auto expectedOpen        = open;
+		expectedOpen.UpdatesLine = core::workbench_updates_line::folded;
+		expect(application::window_layout(*migrated->load_window(core::bpr_window_id{ 1 }, { })) == expectedOpen
+				   && application::window_layout(*migrated->load_window(core::bpr_window_id{ 2 }, { })) == folded,
+			   "a version-nine row keeps its drawers, Home and native placement and reads folded");
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated store is stamped with the current version");
+		expect(migrated->store_window(core::bpr_window_id{ 1 }, open, { }).has_value()
+				   && migrated->load_window(core::bpr_window_id{ 1 }, { })->UpdatesLine == core::workbench_updates_line::open,
+			   "the migrated store keeps a fold opened after the migration");
+		expect(sqlite3_exec(migrated->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE window_layout SET updates_line=2", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "hostile fold fixture bypasses the write constraint");
+		const auto before = logical_snapshot(path, false);
+		expect(!workbench_settings_database::open(path, { }) && logical_snapshot(path, false) == before,
+			   "a fold outside the vocabulary is refused without modifying the durable file");
+	}
+
 	void test_invalid_one_pane_window_is_refused()
 	{
 		const auto scratch = scratch_directory{ };
@@ -1475,6 +1535,7 @@ try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
 	test_native_geometry_is_window_local_and_migrates_from_eight();
+	test_the_updates_line_is_window_local_and_migrates_from_nine();
 	test_invalid_one_pane_window_is_refused();
 	test_hostile_window_rows_refuse_unchanged();
 	test_explicit_defaults_and_bound_factory_views();

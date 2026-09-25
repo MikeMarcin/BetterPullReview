@@ -253,6 +253,21 @@ endfunction()
 # provider, vault, transport or mutation path changes; the mutation-branch pin
 # is unchanged. Covers 0114d6a8..the BPR-1129 commit; nothing else touched the
 # pinned scope. Review recorded on BPR-1129.
+# BPR-1130 reseal: RFC-BPR-0052's Updates line folds, and a new window starts
+# folded. Inside the BPR_BUILD_TESTING UIforETW capture only: before its floor
+# check it records whether the window started folded, opens the line through
+# the window's own Updates Line command (the core decides the fold and the
+# workbench host publishes it), measures the open stack, and folds the line
+# again, each through the existing bounded drain. The one height floor becomes
+# two, folded and open: 879 and 845 on macOS as measured, 884 and 850 on Linux
+# derived from BPR-1036's stack, and on Windows 884 and the owner's 850. The
+# failure line names both stacks, and capture schema v6 records the initial
+# fold, the open line's rectangle and the open comparison's height. The capture
+# reads window state, triggers only the fold command a reviewer can, and writes
+# only to standard streams and its evidence directory. No credential,
+# provider, vault, transport or mutation path changes; the mutation-branch pin
+# is unchanged. Covers 96a86433..the BPR-1130 commit; nothing else touched the
+# pinned scope. Review recorded on BPR-1130.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -271,7 +286,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c328c2b399293f529b6913aac607e9955f6a3db5309ac59adb2ade4b19304c1e"
+		"8b36d1d86ab974b0bc244120a5b890e11666ccd77cf92922bfa4462dd4265294"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -414,7 +429,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1a1d42e5d613b06fdcc8046c2c0e6cfb284ee41f4741dae66f37280a3e31b09e"
+        "4909b222d582ec3151185b8af8f4f9b437b0592b4a32c07cd1c54b7ff3a213e8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

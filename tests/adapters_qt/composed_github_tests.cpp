@@ -5029,7 +5029,10 @@ namespace {
 			!window.showing_home() && !landing->isVisible()
 				&& !window.home_action()->isChecked()
 				&& window.files_drawer()->isVisible()
-				&& window.epoch_selectors()->isVisible()
+				// [[BPR-1130]]. The review bar, with the Updates line folded
+				// as every new window starts.
+				&& window.review_bar()->isVisible()
+				&& !window.updates_line_open() && !window.epoch_selectors()->isVisible()
 				&& window.comparison_surface()->isVisible()
 				&& window.primary_toolbar()
 					   ->widgetForAction(window.files_drawer_toggle_action())

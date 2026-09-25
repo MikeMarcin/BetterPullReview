@@ -49,6 +49,19 @@ namespace bpr::core {
 	enum class workbench_one_pane : std::uint8_t { disabled,
 												   enabled };
 
+	/// \brief [[BPR-1130]]. Whether the Updates line's timeline shows.
+	///
+	/// \details RFC-BPR-0052: the review bar's Updates disclosure folds the
+	/// timeline away and opens it again, and nothing else does. A new window
+	/// starts folded and each window keeps its own choice. It is window state
+	/// the core retains, as a drawer is, and like a drawer it is about the
+	/// room a row takes rather than what is being compared, so the gesture is
+	/// accepted whether or not a workbench is active.
+	enum class workbench_updates_line : std::uint8_t {
+		folded,
+		open,
+	};
+
 	// `diff_reason_code` reports why one file comparison is unavailable. None of
 	// its members can express workbench navigation legality, so this narrow enum
 	// carries the workbench reasons instead of widening the diff vocabulary.
@@ -229,6 +242,23 @@ namespace bpr::core {
 		auto operator<=>(const toggle_workbench_one_pane_intent&) const = default;
 	};
 
+	/// \brief [[BPR-1130]]. Folds or opens the Updates line exactly.
+	///
+	/// \details The exact form restores a window's persisted choice; the
+	/// reviewer's gesture is the toggle.
+	struct set_workbench_updates_line_intent
+	{
+		workbench_updates_line State = workbench_updates_line::folded;
+
+		auto operator<=>(const set_workbench_updates_line_intent&) const = default;
+	};
+
+	/// \brief [[BPR-1130]]. The review bar's Updates disclosure.
+	struct toggle_workbench_updates_line_intent
+	{
+		auto operator<=>(const toggle_workbench_updates_line_intent&) const = default;
+	};
+
 	using workbench_interaction_intent = std::variant<
 		select_workbench_file_intent,
 		navigate_workbench_file_intent,
@@ -238,7 +268,9 @@ namespace bpr::core {
 		set_workbench_line_numbers_intent,
 		toggle_workbench_line_numbers_intent,
 		set_workbench_one_pane_intent,
-		toggle_workbench_one_pane_intent>;
+		toggle_workbench_one_pane_intent,
+		set_workbench_updates_line_intent,
+		toggle_workbench_updates_line_intent>;
 
 	enum class workbench_navigation_target : std::uint8_t {
 		exact_file,
@@ -275,9 +307,12 @@ namespace bpr::core {
 		toggle_line_numbers,
 		toggle_repositories_drawer,
 		toggle_one_pane,
+		/// [[BPR-1130]]. The Updates disclosure; always offered, as a drawer
+		/// toggle is.
+		toggle_updates_line,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 9U;
+	inline constexpr std::size_t workbench_command_count = 10U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -339,6 +374,14 @@ namespace bpr::core {
 		auto operator<=>(const workbench_one_pane_delta&) const = default;
 	};
 
+	/// \brief [[BPR-1130]]. Describes the Updates line's fold delta record.
+	struct workbench_updates_line_delta
+	{
+		workbench_updates_line State = workbench_updates_line::folded;
+
+		auto operator<=>(const workbench_updates_line_delta&) const = default;
+	};
+
 	/// \brief Describes the workbench interaction output record.
 	///
 	/// \details Every delta is present only when the corresponding published
@@ -351,6 +394,7 @@ namespace bpr::core {
 		std::optional<workbench_drawer_delta>        Drawers;
 		std::optional<workbench_line_numbers_delta>  LineNumbers;
 		std::optional<workbench_one_pane_delta>      OnePane;
+		std::optional<workbench_updates_line_delta>  UpdatesLine;
 		std::optional<workbench_command_delta>       Commands;
 		workbench_reason_code                        Reason = workbench_reason_code::none;
 
@@ -378,6 +422,8 @@ namespace bpr::core {
 		workbench_one_pane                         OnePane             = workbench_one_pane::disabled;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
 		workbench_modality                         Modality            = workbench_modality::review;
+		/// [[BPR-1130]]. A new window starts folded.
+		workbench_updates_line UpdatesLine = workbench_updates_line::folded;
 
 		auto operator<=>(const workbench_interaction_state&) const = default;
 	};
