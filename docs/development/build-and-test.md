@@ -57,7 +57,7 @@ Every automated terminal prints `PUBLIC_PATH_BUDGET:expired=… budget_ms=…
 elapsed_ms=… stage_ticks=…`, including successful runs. Elapsed time includes
 shutdown; `expired=1` specifically means the course's own clock expired before
 shutdown began. `RUN_BUDGET_EXPIRED` precedes the failed application marker and
-names the stage and condition. CMake drivers should use
+names the stage and observed status. CMake drivers should use
 `tests/end_to_end/bpr_automated_run_result.cmake` after `execute_process` to
 forward successful timing and put expiry in the failure headline. A child
 killed by its process backstop says `PROCESS_TIMEOUT`; a CTest row killed by

@@ -69,7 +69,8 @@ No epoch work, retry policy, fixture content or other budget changed.
 
 ## Per-run budget coverage
 
-The source scan finds 17 CMake drivers that accept `BPR_RUN_BUDGET_MS`.
+The source scan finds 18 CMake drivers that accept `BPR_RUN_BUDGET_MS`,
+including the new success/expiry contract.
 Only the three misclassified drivers above move classes. Drivers that request
 `--epoch-fixture-phase single` keep their render budget. Successful timing is
 now emitted by the application on every automated terminal. The three corrected
