@@ -6,9 +6,9 @@ Plan: **bpr0967-mac-responsiveness** · Coverage: **complete**
 
 These are integration outcomes, not compulsory agent-launch boundaries.
 
-## mac-load-gap
+## mac-startup-inventory
 
-Attribute and, where justified, repair the remaining initial metadata/Git load input gap on the rendered network-isolated Mac public course, preserving the prior source/revisit repairs and broader unfinished obligations.
+Establish whether the safe large-review fixture can measure true Mac process/QApplication-to-first-visible-frame launch and separate first metadata/render; deliver exact measurements or an evidenced bounded inventory when the public launch or observation boundary is unavailable.
 
 **Work:** `BPR-0967`
 
@@ -22,5 +22,9 @@ Attribute and, where justified, repair the remaining initial metadata/Git load i
 - Attribute the baseline metadata/load, first-source and revisit stalls with exact public-course observations.
 - Repair justified owning-boundary causes with failing-before controls and affected composed verification, without raising existing thresholds; retain exact diagnosis for any unresolved gap.
 - Record exact candidate, unchanged cache/source/cleanup invariants, command quiescence and remaining acceptance in a durable coordinator handoff.
+- Inventory actual process, QApplication, composition, fixture-connect, metadata, Git-ready and rendered-frame boundaries on the exact safe Mac candidate.
+- Exercise the shipped public fixture selection and a supported fixture control under enforced network denial; do not add a production fixture or substitute QWidget capture for compositor presentation.
+- If true launch is safely observable, record exact hardware/toolkit/candidate and justified launch/metadata/render budgets; otherwise record the demonstrated limitation, keep these criteria pending and stop at the assigned partial boundary.
+- Preserve the 100 ms input target, prior exact source/cache/history and lifetime-peak evidence, protected RFC0052 session, all other worktrees and every outstanding platform or acceptance obligation.
 
-**Boundary:** Coordinator assignment /root/bpr0967_load_gap; mandate r4-standalone-mac-20260925; bounded successor at main baseline e944da20b0dce838dc4a26c4e13615473ce0d06b. Prior measurement and source/revisit repair exits reused at f3f2c6eed52c364e716f3157d1dba6f05af3ba35. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-load-gap. Attribute workbench projection, Overview, host/ledger/read-state and event-loop scheduling; repair only justified causes, otherwise return precise partial diagnosis. Mac network-denied synthetic fixtures; no delegation, push, live account, remote mutation or release. Windows/Linux explicitly deferred. Coordinator-owned RFC0052 14-question attended candidate, state and server protected. Full BPR-0967 stays unfinished.
+**Boundary:** Coordinator assignment /root/bpr0967_startup; mandate r4-standalone-mac-20260925; baseline 6c2d531c63b55626bfaebde3876f3ac67904989a on main. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-startup. Prior exits 1-6 retain their candidate-specific handoffs and remain historical evidence, not new engineering scope. Measure true launch and separate metadata/render only when safely reachable; coordinator clarification permits stopping after demonstrated public fixture refusal and inventory, with no new production fixture or compositor inference. Network-isolated Mac fixtures only; no delegation, push, live account, remote mutation, release or Claude Code. Windows/Linux explicitly deferred. Coordinator-owned RFC0052 14-question session, candidate, state, server and waiter protected. BPR-0967 remains unfinished.
