@@ -23,28 +23,11 @@ Inventory actual cached metadata, source, threads and retained epochs through sa
 
 **Boundary:** Assignment /root/bpr0969_offline_inventory; mandate r4-standalone-offline-inventory-20260925; baseline 552d0e02c65668b0d49f0050bf0c778e077fc2df; exclusive main writer in /Users/jaeger/Documents/GitHub/BetterPullReview. No live account, remote mutation, push, delegation, Windows/Linux acceptance, release, or modification to protected RFC0052 review resources.
 
-## recent-account-isolation
-
-Diagnose and repair demonstrated same-profile Recent title, destination and saved-reading isolation across account changes and offline restart; full offline snapshot AC2/AC3 remain pending.
-
-**Work:** `BPR-0969` [AC2]
-
-**Prerequisites:** inventory-offline-reopen
-
-**Completion:**
-
-- Demonstrate any same-profile account exposure through the safe real public composition with a failing-before control.
-- Persist and admit Recent metadata by exact accepted account without inventing offline snapshot authority; preserve unavailable versus empty presentation.
-- Verify account switches, restart, legacy migration and exact saved identities with focused public and owning-layer checks.
-- Record exact candidate, pending full AC2/AC3 and native obligations, command quiescence and writer release.
-
-**Boundary:** Assignment /root/bpr0969_recent_identity; mandate r4-standalone-recent-identity-20260925; baseline 566b7802a989718de5d5fe3734a9997230a3d612; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Partial AC2/AC3 repair only. No live account, remote mutation, release, Claude Code, delegation, Windows/Linux acceptance, or protected RFC0052 session/server/waiter changes.
-
 ## durable-cached-overview
 
-Persist bounded exact-account PR overview and revision evidence, reopen it as explicitly stale read-only metadata after an independently accepted current account, and preserve unavailable source and conversations. Full disconnected authentication and full review snapshots remain pending. Next bounded continuation adds a historical changed-file catalogue under the same admission; source blobs and conversations remain unavailable. The next bounded continuation retains historical review-thread roots/replies under the same admission; general comments, review summaries and source composition remain pending.
+Complete the remaining BPR-0969 AC2/AC3 cached-review behavior through safe real composition: durable review content and available retained source under independently authenticated current account, exact authority/revision isolation, explicit unavailable/stale/fresh presentation, cancellation/stale-session refusal and reconnect server truth. Preserve concrete disconnected-account policy and required native/human blockers without substituting cache identity for account authority.
 
-**Work:** `BPR-0969` [AC3]
+**Work:** `BPR-0969` [AC2, AC3]
 
 **Prerequisites:** inventory-offline-reopen
 
@@ -62,5 +45,13 @@ Persist bounded exact-account PR overview and revision evidence, reopen it as ex
 - Retain bounded complete thread collections with exact identities, roots/replies, anchor observations and resolution/outdated facts in the atomic overview revision; distinguish unavailable from observed empty.
 - Verify inert historical rendering, exact authority and revision isolation, cancelled and stale-session refusal, legacy/corrupt/over-limit content and reconnect server truth through focused composition and owning-layer checks.
 - Record exact source candidate, commands and results, remaining full AC2/AC3 and general-comment/review/source obligations, quiescent commands and explicit writer release.
+- Finish the remaining complete-card AC2/AC3 behavior as one integrated outcome; verified content commits do not establish a milestone exit.
+- Exercise cached metadata, general comments, review summaries, threads and available exact retained source across network loss and actual restart through safe real composition, with unavailable versus observed-empty distinctions.
+- Prove exact account/profile/repository/base/head isolation, missing and changed retained material, cancelled and stale-session refusal, unknown cached freshness and reconnect server truth through final rendered and owning-layer checks.
+- Complete all independently eligible implementation and documentation before returning a concrete remaining owner-policy, required human or native blocker; disconnected account authority cannot be inferred from credential metadata, Recent, Git, overview or source caches.
+- Demonstrate any same-profile account exposure through the safe real public composition with a failing-before control.
+- Persist and admit Recent metadata by exact accepted account without inventing offline snapshot authority; preserve unavailable versus empty presentation.
+- Verify account switches, restart, legacy migration and exact saved identities with focused public and owning-layer checks.
+- Record exact candidate, pending full AC2/AC3 and native obligations, command quiescence and writer release.
 
-**Boundary:** Assignment /root/bpr0969_durable_snapshot; mandate r4-standalone-durable-snapshot-20260925; baseline 0810d10e53510baf011deced3330aebfda2d9b12; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Coordinator accepted bounded overview-only slice; current-process authenticated identity remains required. No live account, remote mutation, release, push, Claude Code, delegation, Windows/Linux acceptance or protected RFC0052 session/server/waiter changes. Continuation: Assignment /root/bpr0969_review_content; mandate r4-standalone-review-content-20260925; baseline a85f0b166619dc82cc8fdc40593694ac4df473fc; exclusive main writer. Coordinator explicitly accepted catalogue-only narrowing. Current-process independently authenticated account required. No live account, private target, remote mutation, release, push, delegation, new attendance, Windows/Linux acceptance or protected RFC0052 changes. Continuation: assignment /root/bpr0969_conversations; mandate r4-standalone-conversations-20260925; baseline 69d96f27add5c318fa724abdaa918cd7c229f9d9; exclusive shared-main writer. Coordinator accepted bounded historical thread-history slice. Current-process authenticated account required. Prior restrictions and pending acceptance retained.
+**Boundary:** Assignment /root/bpr0969_durable_snapshot; mandate r4-standalone-durable-snapshot-20260925; baseline 0810d10e53510baf011deced3330aebfda2d9b12; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Coordinator accepted bounded overview-only slice; current-process authenticated identity remains required. No live account, remote mutation, release, push, Claude Code, delegation, Windows/Linux acceptance or protected RFC0052 session/server/waiter changes. Continuation: Assignment /root/bpr0969_review_content; mandate r4-standalone-review-content-20260925; baseline a85f0b166619dc82cc8fdc40593694ac4df473fc; exclusive main writer. Coordinator explicitly accepted catalogue-only narrowing. Current-process independently authenticated account required. No live account, private target, remote mutation, release, push, delegation, new attendance, Windows/Linux acceptance or protected RFC0052 changes. Continuation: assignment /root/bpr0969_conversations; mandate r4-standalone-conversations-20260925; baseline 69d96f27add5c318fa724abdaa918cd7c229f9d9; exclusive shared-main writer. Coordinator accepted bounded historical thread-history slice. Current-process authenticated account required. Prior restrictions and pending acceptance retained. Latest owner/coordinator amendment: prior proposal to release at thread slice is superseded. Same /root/bpr0969_conversations implementer retains writer and owns full remaining AC2/AC3 within this milestone until actual acceptance or concrete policy/human/native blocker. No micro-slice turnover. Existing side-effect and protected-review restrictions remain. The earlier Recent isolation partial-AC2 grouping is consolidated here; its four original exits, source selectors, boundary and historical evidence remain: Assignment /root/bpr0969_recent_identity; mandate r4-standalone-recent-identity-20260925; baseline 566b7802a989718de5d5fe3734a9997230a3d612; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Partial AC2/AC3 repair only. No live account, remote mutation, release, Claude Code, delegation, Windows/Linux acceptance, or protected RFC0052 session/server/waiter changes.
