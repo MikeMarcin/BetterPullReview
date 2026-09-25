@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0899"
 title: "The durable layout port's write-failed flag cannot tell a refusal from a write still in flight"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"bpr-win, while instrumenting BPR-0875's three named cleanup sources","found_at":"c1723a3f","run":"run-20260916-stations","dispatch":"dsp-006"}
+metadata: {"found_by":"bpr-win, while instrumenting BPR-0875's three named cleanup sources","found_at":"c1723a3f","run":"run-20260916-stations","dispatch":"dsp-006","milestone_plan":{"id":"bpr0899-layout-write","path":"docs/rfcs/plans/bpr0899-layout-write/milestone-plan.json"}}
 ---
 
 # BPR-0899: The durable layout port's write-failed flag cannot tell a refusal from a write still in flight

@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr0899-layout-write",
+  "scope": {
+    "issues": [
+      "BPR-0899"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "durable-layout-drain",
+      "outcome": "Durable layout writes distinguish an outstanding operation from a completed refusal, and orderly Quit preserves the latest accepted layout through the existing bounded coalesced lifecycle.",
+      "work": [
+        {
+          "issue": "BPR-0899"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The durable layout status distinguishes in-flight, successful and refused stores, including exceptions and recovery.",
+        "The shutdown policy is recorded and focused host/composed evidence proves latest accepted layout draining without treating an in-flight write as a refusal.",
+        "BPR-0875 cleanup diagnostics identify only actual refusal after quiescence; documentation and explicit-path commits preserve unrelated candidates."
+      ],
+      "boundary": "Standalone BPR-0899 at origin/main 9a0b44d5. No RFC0052 candidate edits, remote actions, human/native acceptance claims, or unrelated issue work."
+    }
+  ],
+  "unplanned_work": []
+}
