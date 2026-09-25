@@ -495,3 +495,26 @@ restored or excluded.
 - **pending:** that Defender does not detect that digest on its first launch.
 
 AC2 through AC4 run on this image once AC1 holds.
+
+### Checkpoint, 2026-09-25T02:40Z: ready for the first launch
+
+- **The integration pass was stopped at 30 rows.** A headless pass over
+  `build/dev` ran with every row offscreen, and with
+  `application_windows_title_row` left out because it opens real windows. It
+  was stopped at 30 of 419 rows, because at low priority it would have taken
+  hours. 29 rows passed, among them `application_profile_*`, `application_epoch_*`,
+  `qt_workbench_window_scale_200`, `live_mutation_isolation` and
+  `architecture_boundary_contract`.
+- **`application_composition_contract` timed out.** It was building its
+  tests-disabled Release graph under that load, and it never linked an image.
+  That row builds a tests-disabled image and runs it, so it is held back until
+  the cleared launch has passed. Its build leftovers were removed.
+- **Defender, read-only, after the build.** The log gained three routine
+  events 2010 at 02:05:40Z and 02:06:15Z, during the gate push and the start of
+  the pass. Each was a time-limited, version `0.0.0.0` cloud update, like 2,138
+  of the 2,165 BPR-1110 counted. There was no event 1116 or 1117, and still
+  three detections. The launch script reads every event after the newest
+  record at launch time.
+- **Every task-owned process has stopped.** That includes the builds' `vctip`.
+  The candidate and the trial image have never been run.
+- **Next:** the first launch, after the coordinator's clearance.
