@@ -27,6 +27,51 @@
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
+## Run budgets and row timeouts
+
+A run budget bounds how long an automated application course waits for its
+condition. A CTest timeout also covers process startup, every child, teardown
+and evidence output. They measure different intervals. Record platform,
+architecture, Qt version, revision, course, host load and both figures when
+adding or changing a timing bound; a green row alone does not establish margin.
+
+Choose the existing budget class for the work a course actually performs:
+self-test, single fixture render, or epoch seed/reuse. Record the measurement
+and multiplier beside any new bound. Use three times an isolated measurement
+as an initial sizing guide when there is no matching class, then check known
+contended observations on every platform the row runs on. A measured contended
+completion is stronger evidence than a quiet multiple; a timeout is only a
+lower bound, and never a measured completion. Round upward and record the
+remaining platform or load gaps. This guide does not automatically raise an
+existing bound, and resource/performance budgets need their own measured
+meaning rather than the same time multiplier.
+
+Register automated application rows through `bpr_bound_automated_run` in
+`tests/end_to_end/CMakeLists.txt`. Its invariant is
+`RUNS * BUDGET_MS + RESERVE_MS <= 0.75 * TIMEOUT * 1000`. Count every possible
+child, including failure/refusal phases. The reserve covers work outside the
+run budgets; the remaining quarter belongs to the harness. A child-process
+backstop must also exceed that child's run budget.
+
+Every automated terminal prints `PUBLIC_PATH_BUDGET:expired=… budget_ms=…
+elapsed_ms=… stage_ticks=…`, including successful runs. Elapsed time includes
+shutdown; `expired=1` specifically means the course's own clock expired before
+shutdown began. `RUN_BUDGET_EXPIRED` precedes the failed application marker and
+names the stage and condition. CMake drivers should use
+`tests/end_to_end/bpr_automated_run_result.cmake` after `execute_process` to
+forward successful timing and put expiry in the failure headline. A child
+killed by its process backstop says `PROCESS_TIMEOUT`; a CTest row killed by
+CTest reports `***Timeout`. Preserve those clock failures instead of reporting
+only a failed domain assertion. No marker can be promised after a hard kill.
+
+A sufficiently overloaded host can exceed any finite limit. Keep that run as
+failed clock evidence, record its load, and diagnose or repeat under declared
+conditions; do not silently retry until green or infer a product regression
+from a clock alone. The [BPR-0905 survey](run-budget-survey-2026-09-25.md) records
+current gaps and additional rows to inspect. [[BPR-0901]] shows a render budget
+misapplied to epoch work. [[BPR-0893]] shows why a footprint budget and a live
+heap cleanup budget answer different questions.
+
 ## Dependency boundary
 
 The root resolves dependencies before product subdirectories. Qt 6.11.2 is

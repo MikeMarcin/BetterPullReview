@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.4.2)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_automated_run_result.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 # [[BPR-0660]]. The enterprise server a reviewer keeps, over two runs against
@@ -47,13 +48,8 @@ function(bpr_run_saved_server_phase fixture fixture_label root phase)
         ERROR_VARIABLE probe_error
         TIMEOUT ${bpr_timeout}
     )
-    if(NOT probe_result EQUAL 0)
-        message(FATAL_ERROR
-            "saved server ${fixture} ${phase} process failed (${probe_result})\n"
-            "stdout:\n${probe_output}\n"
-            "stderr:\n${probe_error}"
-        )
-    endif()
+    bpr_report_automated_run("saved server ${fixture} ${phase}"
+        "${probe_result}" "${probe_output}" "${probe_error}")
     if(phase STREQUAL "seed")
         set(phase_marker "SAVED_SERVER_SEEDED:host=ghe.kept.example:kept=1")
     else()

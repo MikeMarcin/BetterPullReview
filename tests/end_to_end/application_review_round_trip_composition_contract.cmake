@@ -283,6 +283,11 @@ endfunction()
 # in-flight count, and retires the unreachable in-flight-at-drain alternative
 # after host quiescence. The new header is in both inventories. No intervening
 # pinned-scope change; mutation branch unchanged. Review recorded on BPR-0899.
+# BPR-0905 reseal: 97a7564b..this candidate changes only main.cpp's
+# automated terminal report: one elapsed sample shared by success/failure,
+# budget output on success, expiry before the failed-run marker. No scheduling,
+# course verdict, credential, provider or mutation admission changed. The
+# github_application.cpp and mutation-branch pins remain unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -446,7 +451,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "29225f6798667170da6f68217ef5e1044c70ebc5dda60db2aa31cad6c9ec0c7e"
+        "394acf6599072cf46bd80e45a56d0ce1557bf0d15b56ab41892d5695c535fb47"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

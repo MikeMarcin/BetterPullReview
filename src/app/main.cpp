@@ -3524,7 +3524,11 @@ namespace {
 				   << '\n';
 		}
 #endif
-		stream << (passed ? "PUBLIC_PATH_OK\n" : "PUBLIC_PATH_FAILED\n");
+		const auto elapsedMs = static_cast<long long>(
+			std::chrono::duration_cast<std::chrono::milliseconds>(
+				automated_clock::now() - aRun.Started)
+				.count());
+		const auto budgetMs = static_cast<long long>(aRun.Budget.count());
 		// BPR-0555. A run that ran out of clock says so as a clock, before
 		// anything attributes the failure to whatever it happened to be doing.
 		// Four rows of the RFC-BPR-0016 closeout matrix reported only
@@ -3533,11 +3537,6 @@ namespace {
 		// present, but in the verdict block, which prints after the marker that
 		// had already named the wrong thing.
 		if (aRun.BudgetExpired) {
-			const auto elapsedMs = static_cast<long long>(
-				std::chrono::duration_cast<std::chrono::milliseconds>(
-					automated_clock::now() - aRun.Started)
-					.count());
-			const auto budgetMs = static_cast<long long>(aRun.Budget.count());
 			stream << "RUN_BUDGET_EXPIRED:"
 				   << "elapsed_ms=" << elapsedMs << " budget_ms=" << budgetMs
 				   << " over_ms=" << (elapsedMs - budgetMs) << " stage="
@@ -3548,6 +3547,14 @@ namespace {
 						  aApplication.window().github_status_text())
 				   << "\"\n";
 		}
+		// BPR-0905. Passing runs expose their margin too. The flag records an
+		// expiry during the course; elapsed time also includes its shutdown.
+		stream << "PUBLIC_PATH_BUDGET:"
+			   << "expired=" << (aRun.BudgetExpired ? 1 : 0)
+			   << " budget_ms=" << budgetMs << " elapsed_ms=" << elapsedMs
+			   << " stage_ticks="
+			   << static_cast<unsigned long long>(aRun.Attempts) << '\n';
+		stream << (passed ? "PUBLIC_PATH_OK\n" : "PUBLIC_PATH_FAILED\n");
 		if (aRun.VerifyNativePlatformVault) {
 			stream << "NATIVE_PLATFORM_VAULT_SELECTED:"
 				   << (status.NativePlatformVaultSelected ? "true" : "false")
@@ -4226,22 +4233,6 @@ namespace {
 				   << " fixture=" << (passedFixture ? 1 : 0)
 				   << " maintenance=" << (passedMaintenance ? 1 : 0)
 				   << " render=" << (renderSaved ? 1 : 0) << '\n'
-				   // Whether the run stopped itself or failed a check, with
-				   // the numbers to set against the harness timeout. A run
-				   // killed from outside prints none of this, so the presence
-				   // of the line is itself the evidence that the process
-				   // reached its own limit first.
-				   << "PUBLIC_PATH_BUDGET:"
-				   << "expired=" << (aRun.BudgetExpired ? 1 : 0)
-				   << " budget_ms="
-				   << static_cast<long long>(aRun.Budget.count())
-				   << " elapsed_ms="
-				   << static_cast<long long>(
-						  std::chrono::duration_cast<std::chrono::milliseconds>(
-							  automated_clock::now() - aRun.Started)
-							  .count())
-				   << " stage_ticks="
-				   << static_cast<unsigned long long>(aRun.Attempts) << '\n'
 				   << "PUBLIC_PATH_STATUS:"
 				   << QString::fromStdString(window.github_status_text()) << '\n'
 				   << "PUBLIC_PATH_DIAGNOSTIC:"

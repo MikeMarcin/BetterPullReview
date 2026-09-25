@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 4.4.2)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_automated_run_result.cmake")
 
-foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS BPR_SOURCE)
+foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS BPR_SINGLE_RUN_BUDGET_MS BPR_SOURCE)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "${required} is required")
     endif()
@@ -34,8 +35,6 @@ foreach(required_wire IN ITEMS
     endif()
 endforeach()
 
-math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
-
 # [[BPR-0875]]. `file(CHMOD)` says "only me" on POSIX and only clears the
 # read-only attribute on Windows, so the root was never owner-private there
 # and the stores refused it. The shared helper writes the descriptor each
@@ -49,6 +48,11 @@ function(bpr_prepare_private_root root)
 endfunction()
 
 function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
+    set(run_budget_ms "${BPR_RUN_BUDGET_MS}")
+    if(epoch_phase STREQUAL "single")
+        set(run_budget_ms "${BPR_SINGLE_RUN_BUDGET_MS}")
+    endif()
+    math(EXPR bpr_phase_timeout "${run_budget_ms} / 1000 + 30")
     execute_process(
         COMMAND
             "${CMAKE_COMMAND}"
@@ -65,19 +69,14 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
             --review-ledger-composition-probe
             "${course}"
             --automated-run-budget-ms
-            "${BPR_RUN_BUDGET_MS}"
+            "${run_budget_ms}"
         RESULT_VARIABLE probe_result
         OUTPUT_VARIABLE probe_output
         ERROR_VARIABLE probe_error
         TIMEOUT ${bpr_phase_timeout}
     )
-    if(NOT probe_result EQUAL 0)
-        message(FATAL_ERROR
-            "review-ledger ${course} process failed (${probe_result})\n"
-            "stdout:\n${probe_output}\n"
-            "stderr:\n${probe_error}"
-        )
-    endif()
+    bpr_report_automated_run("review-ledger ${course}"
+        "${probe_result}" "${probe_output}" "${probe_error}")
     string(TOUPPER "${course}" course_marker)
     foreach(marker IN ITEMS
         PUBLIC_PATH_OK

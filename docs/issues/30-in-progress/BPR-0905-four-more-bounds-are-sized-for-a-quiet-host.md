@@ -136,3 +136,62 @@ here.
   says why that could not be generalised beyond [[BPR-0901]]'s two drivers.
 - [[BPR-0901]] and [[BPR-0893]] are reachable from wherever the rule lands, so
   whoever meets the fifth instance finds the first four.
+
+## 2026-09-25 Mac implementation and pending platform verification
+
+The unattended owner mandate permits independent implementation on the Mac;
+new Windows/Linux verification is explicitly deferred. This partial result
+does not satisfy the full-suite/all-platform acceptance criterion. The plan is
+`bpr0905-run-bounds`, milestone `honest-run-bounds`, on baseline `97a7564b`.
+
+### Changes and derivation
+
+- Saved-server, defect and ledger seed/reuse phases now use the existing
+  120,000 ms epoch class: respectively 5.1x, 6.7x and 6.5x the original
+  recorded quiet phase measurements. The ledger's unavailable/single phase
+  keeps 40,000 ms. Their CTest allowances are 660, 660 and 500 seconds,
+  derived from the existing 75% harness rule with four/four/three maximum
+  run allowances and the unchanged 4-second reserve. The actual current
+  drivers have four defect runs and three ledger runs, including the latter's
+  single-phase refusal course.
+- SQLite's row timeout is 420 seconds: three times the recorded Linux
+  isolated 122.65 seconds, rounded upward to the next minute. Recorded
+  180.03-second expiries remain lower bounds on completion, not an invented
+  contended measurement. This larger bound still needs native contention proof.
+- All application automated terminals expose budget, elapsed time and ticks.
+  One elapsed sample serves the expiry and budget lines; elapsed includes
+  shutdown, while the expiry flag records expiry during the course.
+  `RUN_BUDGET_EXPIRED` precedes the generic failed marker. The three corrected
+  drivers use a shared result reporter that forwards successful timing and
+  names expiry or CMake's child-process timeout in its failure headline.
+- [The authoring rule](../../development/build-and-test.md#run-budgets-and-row-timeouts)
+  records sizing, host overload and result reporting. The
+  [survey](../../development/run-budget-survey-2026-09-25.md) joins the current
+  449-row Mac graph to 1,029 historical logs: 299 explicitly bounded rows,
+  244 with historical passing times, 55 unknown margins, and 21 additional
+  rows below 3x the largest recorded pass. Those 21 bounds remain unchanged.
+  The native Windows/Linux-only inventories and missing success phase times
+  remain explicit coverage limits.
+
+### Self-review and source-pin reseal
+
+Reviewed `97a7564b` through this implementation's diff. The only production
+application source change is `main.cpp`'s automated terminal report: a single
+monotonic elapsed sample, a budget line also emitted on success, and expiry
+before the failed-run marker. No course scheduling, readiness, verdict,
+shutdown, credentials, provider selection, authority or mutation logic changed.
+Existing contiguous success-marker expectations retain their ordering after
+the new preceding budget line.
+
+The production application manifest pin is resealed in this same commit to
+`394acf6599072cf46bd80e45a56d0ce1557bf0d15b56ab41892d5695c535fb47`.
+The full `github_application.cpp` and production mutation branch pins remain
+unchanged. The script's own print-only digest computation agrees. No other
+pinned-scope source changed since the baseline. The CMake helper accepts the
+actual numeric/non-numeric `execute_process` result vocabulary; expiry remains
+fatal even if a child incorrectly returns zero.
+
+Semantic documentation disposition: this affects automated course budgets and
+diagnostics only. The build/test guide and survey own that contract; runtime
+review behavior, public APIs, identity, persistence, provider and package
+contracts have no semantic change.

@@ -106,6 +106,8 @@ function(bpr_bound_automated_run bpr_test_name)
     set_tests_properties("${bpr_test_name}" PROPERTIES TIMEOUT ${arg_TIMEOUT})
 endfunction()
 
+# Sizing and failure-reporting rule: docs/development/build-and-test.md,
+# "Run budgets and row timeouts" (BPR-0905).
 # Budgets, each read together with the timeout it sits inside. See
 # `bpr_bound_automated_run` above and `default_automated_run_budget` in
 # `src/app/main.cpp`.
@@ -1802,6 +1804,12 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0905: these epoch seed/reuse courses use the measured epoch allowance.
+# The card recorded quiet phases of 18.4 s (ledger), 18.0 s (defect), and
+# 23.7 s (saved server): 120 s supplies 6.5x, 6.7x, and 5.1x respectively.
+# Ledger keeps its unavailable/single phase at 40 s; using the 120 s maximum
+# for all RUNS is conservative. Timeouts satisfy (RUNS * 120 s + 4 s) / 0.75, rounded
+# upward: three runs -> 500 s, four -> 660 s. No other budget is raised.
 bpr_add_network_isolated_test(
     NAME application_review_ledger_composition_contract
     WINDOWS_UNCONTAINED
@@ -1809,7 +1817,8 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-ledger-composition-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
+        "-DBPR_SINGLE_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_review_ledger_composition_contract.cmake"
@@ -1822,8 +1831,8 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_review_ledger_composition_contract
-    TIMEOUT 180
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 500
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 3
     RESERVE_MS 4000
 )
@@ -1861,7 +1870,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/defect-composition-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_defect_composition_contract.cmake"
@@ -1875,8 +1884,8 @@ set_tests_properties(
 # Seed and reopen for each of the GitHub.com and GHES fixtures.
 bpr_bound_automated_run(
     application_defect_composition_contract
-    TIMEOUT 240
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 660
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 4000
 )
@@ -1944,11 +1953,6 @@ bpr_add_network_isolated_test(
         # `elapsed_ms=40052`, which is the failure [[BPR-0901]] was raised for.
         # Nine expiries of this row are on disk across four dispatches, every
         # one of them within 53 ms of the bound. See the note above.
-        #
-        # `application_saved_server_contract` is the next one: same four
-        # epoch phases, same render budget, and already recorded expiring at
-        # `build/r2-logs/dsp2-0818-siblings-a445866d.log:162`. It is left
-        # alone here only because it is outside this card.
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_review_behaviour_contract.cmake"
@@ -1975,7 +1979,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/saved-server-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_saved_server_contract.cmake"
 )
@@ -1984,12 +1988,11 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "SAVED_SERVER_CONTRACT_OK"
-        TIMEOUT 240
 )
 bpr_bound_automated_run(
     application_saved_server_contract
-    TIMEOUT 240
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 660
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 4000
 )
@@ -2121,29 +2124,22 @@ bpr_add_network_isolated_test(
     WINDOWS_UNCONTAINED
     EXPECTS_FAILED_RUN
     COMMAND
-        $<TARGET_FILE:app_better_pull_review>
-        --github-fixture
-        github-com
-        --automated-stall-probe
-        --automated-run-budget-ms
-        ${bpr_stall_budget_ms}
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_RUN_BUDGET_MS=${bpr_stall_budget_ms}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/automated_run_budget_contract.cmake"
 )
 set_tests_properties(
     application_automated_run_budget
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        # `PUBLIC_PATH_STAGE:2` is `open`, the third stage. It is asserted by
-        # number because a number is what the evidence prints; if a stage is
-        # ever inserted ahead of `open` this assertion is meant to be revisited
-        # rather than to keep passing against a different stage.
-        PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_STAGE:2[\r\n]+PUBLIC_PATH_VERDICT:[^\r\n]+[\r\n]+PUBLIC_PATH_GROUPS:[^\r\n]+[\r\n]+PUBLIC_PATH_BUDGET:expired=1 budget_ms=${bpr_stall_budget_ms} elapsed_ms=[0-9]+ stage_ticks=[0-9]+"
+        PASS_REGULAR_EXPRESSION "AUTOMATED_RUN_BUDGET_CONTRACT_OK"
 )
 bpr_bound_automated_run(
     application_automated_run_budget
     TIMEOUT 30
     BUDGET_MS ${bpr_stall_budget_ms}
-    RUNS 1
+    RUNS 2
     RESERVE_MS 2000
 )
 

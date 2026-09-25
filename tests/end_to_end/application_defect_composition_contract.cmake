@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.4.2)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_automated_run_result.cmake")
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS BPR_SOURCE)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -91,13 +92,8 @@ function(bpr_run_defect_probe fixture fixture_label root course epoch_phase expe
         ERROR_VARIABLE probe_error
         TIMEOUT ${bpr_timeout}
     )
-    if(NOT probe_result EQUAL 0)
-        message(FATAL_ERROR
-            "defect ${course} process failed (${probe_result})\n"
-            "stdout:\n${probe_output}\n"
-            "stderr:\n${probe_error}"
-        )
-    endif()
+    bpr_report_automated_run("defect ${course}"
+        "${probe_result}" "${probe_output}" "${probe_error}")
     string(TOUPPER "${course}" course_marker)
     foreach(marker IN ITEMS
         PUBLIC_PATH_OK

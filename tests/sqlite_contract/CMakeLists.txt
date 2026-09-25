@@ -79,7 +79,10 @@ set_tests_properties(
     sqlite_epoch_catalog_behavior_contract
     PROPERTIES
         PASS_REGULAR_EXPRESSION "sqlite-epoch-catalog-behavior-tests:pass"
-        TIMEOUT 180
+        # BPR-0905: 122.65 s isolated on Linux and >180 s in two full sweeps.
+        # 420 s = 3 * 122.65 s rounded up to the next minute (3.42x quiet).
+        # The contended completions remain unmeasured, not claimed below 180 s.
+        TIMEOUT 420
 )
 if(WIN32)
     set_property(
