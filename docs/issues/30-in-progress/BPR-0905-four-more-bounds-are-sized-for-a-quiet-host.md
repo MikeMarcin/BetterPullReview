@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0905"
 title: "Four more bounds are sized for a quiet host, one has already expired, and nothing says what margin a bound needs"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
