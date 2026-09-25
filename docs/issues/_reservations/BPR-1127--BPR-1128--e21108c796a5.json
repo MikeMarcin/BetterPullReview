@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1127",
+    "BPR-1128"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "BPR-1126 follow-ups",
+  "created": "2026-09-25T03:08:03.043354+00:00",
+  "base": "0ca50e95c2af2082d054361fea0dbc4c75d015a0"
+}
