@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1123",
+    "BPR-1124"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows follow-ups: BPR-1032 scrollbar stops short; BPR-1112 allocation sweeps terminate under MSVC Debug STL",
+  "created": "2026-09-25T00:59:36.037820+00:00",
+  "base": "d16e33c3283d8cc5a520735d4f06e93fd1da46ce"
+}
