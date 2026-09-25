@@ -451,3 +451,140 @@ and in the container's temporary directory:
 
 The card stays In Progress. The logs are station records under
 `build/logs/bpr-1126-main-win/`, not committed.
+
+## Windows, the fix (bpr-main-win, 2026-09-25): the contained rows make and resolve their root
+
+**All six rows pass on Windows, and no row leaves a root.** The two contained
+rows failed because `canonical` is refused inside an AppContainer. No
+permission on the root was missing. The Windows branch now handles that
+refusal. It also makes the root owner-private from creation, with the
+[[BPR-0825]] platform descriptor. The syntax contract uses the same helper
+on Windows.
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+(Debug), display scale 150%. The candidate was built on main at `1ec9157c`.
+Every row ran through `ctest`, serially.
+
+### The cause: `canonical` is refused inside a container, for every path
+
+The earlier Windows entry could not say which permission was missing. A
+trial, not committed, kept the appearance root when `canonical` refused it,
+and read its list from outside:
+
+```text
+...\AC\Temp\bpr-appearance-73335154ec3b963e  JAEGAW\mikem:(OI)(CI)(F)
+                                             S-1-15-2-2501375856-...-2136715157:(OI)(CI)(F)
+                                             Mandatory Label\Low Mandatory Level:(I)(OI)(CI)(NW)
+```
+
+The owner and the container both have full control, so no permission on the
+root was missing.
+
+A probe, also not committed, ran inside the container through the row
+launcher, and outside it as the control. It opened each directory and asked
+for its final name in each form:
+
+| Directory | Open | DOS form | GUID form | NT form | NONE form | `canonical` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `AC\Temp` itself, which grants the container full control | opens | error 5 | error 5 | ok | ok | error 5 |
+| a new directory that keeps the inherited list | opens | error 5 | error 5 | ok | ok | error 5 |
+| a new directory narrowed to the platform descriptor (owner and container) | opens | error 5 | error 5 | ok | ok | error 5 |
+| the same three, outside the container, under `%TEMP%` | open | ok | ok | ok | ok | ok |
+
+MSVC's `canonical` asks for the DOS form. A container may not read which
+drive letter a volume has, so it is refused for every path. This is
+[[BPR-0362]]'s `dos-volume-name`. [[BPR-1108]] measured the same refusal for
+`sqlite_release_maintenance_files`.
+
+The earlier entry said that before `ad117024` this course "resolved a root
+that inherited `AC\Temp`'s list, and the row passed". That is not so. The
+old constructor called `canonical(Path, ignored)` and kept the unresolved
+path when it failed. So inside the container it never resolved. The row
+passed only because the error was ignored.
+
+**The syntax contract** has a different cause. On Windows, `QTemporaryDir`
+gives its root a list of its own: full control for the owner, and
+read-control, synchronize and read-attributes for `Everyone` and the
+low-integrity label. The list names no container. The probe made a directory
+with an owner-only list from inside the container. The contained process
+could not open it, create a child in it, open it with `WRITE_DAC` to
+re-narrow it, or remove it. So narrowing Qt's root afterwards cannot work.
+That is also why the failed syntax row left its root in `AC\Temp` at `HEAD`.
+
+### The change
+
+It is test support only. No product source, row registration or composition
+pin changed.
+
+- **`tests/sqlite_contract/scratch_root.hpp`:**
+  - `create_directory_only_if_absent` makes the Windows root with
+    `CreateDirectoryW` and the [[BPR-0825]] platform descriptor. That
+    descriptor comes from `bpr/platform/windows_private_object.hpp`; there
+    is no second descriptor builder.
+    - The token user owns the root and has the one full-access grant. The
+      container the process runs in, if any, has the second.
+    - `ERROR_ALREADY_EXISTS` becomes `std::errc::file_exists`, and another
+      name is drawn.
+    - So the root never carries the temporary directory's inherited list.
+      `make_storage_root_owner_private` still checks it before anything is
+      written.
+    - On POSIX the function is `std::filesystem::create_directory`, and it is
+      not called there.
+  - `resolved_root` runs on Windows only. It keeps the path as made only when
+    `canonical` fails with `permission_denied` and the process runs in an
+    AppContainer. Any other failure still fails the course.
+- **The syntax contract** makes its control root with `scratch_root` on
+  Windows. On POSIX its lines are byte for byte `ad117024`'s, inside
+  `#else`.
+- **CMake:**
+  - The four SQLite targets link `BetterPullReview::Platform` on Windows.
+  - The syntax target links `BetterPullReview::AdapterSQLite` and
+    `BetterPullReview::Platform` on Windows.
+
+On POSIX, the only code this change compiles is the one-line `#else` branch
+of `create_directory_only_if_absent`. Linux and macOS have not built it. The
+rows' POSIX behaviour is unchanged: `mkdtemp` still makes the root.
+
+### Verification
+
+| Check | `HEAD` (`3da31f2a`/`444f3e10`) | Candidate |
+| --- | --- | --- |
+| The card's `ctest` command, with `msvc_secure_crt_contract` | 4 of 6: appearance fails `canonical: Access is denied`, and syntax fails `create_directories: Access is denied` | **6 of 6 pass** (last run 05:33:12Z to 05:33:25Z) |
+| Leftovers in `%TEMP%` and `AC\Temp` under the five prefixes | the syntax row leaves `bpr-syntax-canary-control-XXXXXX`, with Qt's list | none. The listings before and after are identical |
+| Roots as made: a poller read each root's owner and list while the rows ran | 2 of 152 roots seen with `%TEMP%`'s inherited list, which gives two principals other than the owner, SYSTEM and Administrators modify rights. This was the first candidate, which still created the root the old way and narrowed it afterwards | all 152 seen are `O:user`, with a protected list: the user and the container (the 22 appearance roots and the syntax root, in `AC\Temp`), or the user only (the 129 ledger, queue and workbench roots, in `%TEMP%`) |
+
+These trials used hooks that were not committed. The hook was reverted
+afterwards, and the headers were restored to their recorded SHA-256:
+
+- **Names that are taken.** A sentinel directory holding a sentinel file was
+  planted at each root's first drawn name, 153 plants across the five rows.
+  Every row passed, and all 153 plants were left intact. The same trial with
+  a sentinel file at each name also left 153 of 153 intact.
+  `CreateDirectoryW` refused each one, as `file_exists`, and another name was
+  drawn.
+- **Forced failures, with unwinding.** Nine runs: each SQLite row at a third
+  and at two thirds of its expectations, and the syntax row at "the canary
+  definition loads through an explicit search path". Five left no root:
+  appearance at 502, queue at 337, ledger at 529 and 1059, and syntax. Four
+  left their root, all while a raw `sqlite3` connection the course had
+  opened was still open: queue at 168, appearance at 1005, and workbench at
+  427 and 855. Windows cannot remove an open file, so `remove_all` fails
+  silently. This is not caused by this change. It is reserved as
+  [[BPR-1141]], whose card is not written yet.
+- **Forced failures, without unwinding** (the negative control). All five
+  rows left their root. Each root had the owner and the container (contained
+  rows), or the owner only.
+
+### Gates
+
+| Gate | Result |
+| --- | --- |
+| clang-format 22.1.8 `--dry-run -Werror` on the changed C++ files; `git diff --check` | clean |
+| `coding_format_check`, `architecture_boundaries` (windows-dev) | pass |
+| `msvc_secure_crt_contract` | pass |
+| `_coding-standard/scripts/tidy.py` on the appearance and syntax sources (`build/dev`) | exit 0, `clang-tidy passed`. None of the three findings is on a changed line: the syntax contract's `span` on lines 879 and 894 (Linux's 863 and 878, shifted by the added lines), and appearance line 753 (`bugprone-suspicious-missing-comma`), which this change does not touch. Nothing in `scratch_root.hpp` |
+| `python scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+The logs are station records and are not committed. They are under
+`build/logs/bpr-1126-main-win/`, in `s12-*` and `final2-*`, and the probe and
+trials are in `trial/`.

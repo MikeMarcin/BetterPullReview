@@ -1,6 +1,10 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 
+#if defined(_WIN32)
+	#include "../sqlite_contract/scratch_root.hpp"
+#endif
+
 #include <KSyntaxHighlighting/Definition>
 #include <KSyntaxHighlighting/Repository>
 
@@ -479,11 +483,23 @@ namespace {
 		// [[BPR-1126]]. At a name nobody could have taken first, owner-private,
 		// and removed only by this course. It was `bpr-syntax-canary-control`
 		// in the temporary directory, and whatever was there was removed first.
+#if defined(_WIN32)
+		// Qt gives a temporary directory on Windows a list of its own, which
+		// names no AppContainer. This row runs in one, so it could neither
+		// write in that root nor remove it. The SQLite contracts' helper makes
+		// the root with the platform's owner-private descriptor, which also
+		// grants the container the process runs in.
+		const auto control = bpr::tests::sqlite_contract::scratch_root{ "syntax-canary-control" };
+		write_canary(control.path() / "syntax");
+		auto controlRepository = KSyntaxHighlighting::Repository{ };
+		controlRepository.addCustomSearchPath(QString::fromStdWString(control.path().native()));
+#else
 		const auto control = QTemporaryDir{ QDir::tempPath() + QStringLiteral("/bpr-syntax-canary-control-XXXXXX") };
 		expect(control.isValid(), "the control root is made at a name nothing had");
 		write_canary(std::filesystem::path{ control.path().toStdU16String() } / "syntax");
 		auto controlRepository = KSyntaxHighlighting::Repository{ };
 		controlRepository.addCustomSearchPath(control.path());
+#endif
 		expect(controlRepository.definitionForName(
 									QStringLiteral("BprStandardPathCanary"))
 				   .isValid(),

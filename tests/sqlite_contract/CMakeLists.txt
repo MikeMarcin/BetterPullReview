@@ -131,9 +131,11 @@ target_compile_definitions(
     PRIVATE BPR_SQLITE_TESTING=1
 )
 if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
     target_link_libraries(
         test_better_pull_review_sqlite_review_ledger_tests
-        PRIVATE advapi32
+        PRIVATE advapi32 BetterPullReview::Platform
     )
 endif()
 bpr_enable_hardening(test_better_pull_review_sqlite_review_ledger_tests)
@@ -160,9 +162,11 @@ target_compile_definitions(
     PRIVATE BPR_SQLITE_TESTING=1
 )
 if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
     target_link_libraries(
         test_better_pull_review_queue_enrollment_tests
-        PRIVATE advapi32
+        PRIVATE advapi32 BetterPullReview::Platform
     )
 endif()
 bpr_enable_hardening(test_better_pull_review_queue_enrollment_tests)
@@ -195,9 +199,11 @@ target_compile_definitions(
     PRIVATE BPR_SQLITE_TESTING=1
 )
 if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
     target_link_libraries(
         test_better_pull_review_workbench_settings_tests
-        PRIVATE advapi32
+        PRIVATE advapi32 BetterPullReview::Platform
     )
 endif()
 bpr_enable_hardening(test_better_pull_review_workbench_settings_tests)
@@ -230,9 +236,11 @@ target_compile_definitions(
     PRIVATE BPR_SQLITE_TESTING=1
 )
 if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
     target_link_libraries(
         test_better_pull_review_appearance_settings_tests
-        PRIVATE advapi32
+        PRIVATE advapi32 BetterPullReview::Platform
     )
 endif()
 bpr_enable_hardening(test_better_pull_review_appearance_settings_tests)

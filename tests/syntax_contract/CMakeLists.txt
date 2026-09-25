@@ -9,6 +9,17 @@ target_link_libraries(
         KF6::SyntaxHighlighting
         Qt6::Core
 )
+if(WIN32)
+    # [[BPR-1126]]. On Windows the canary's control root is made by the SQLite
+    # contracts' scratch helper, with the platform target's owner-private
+    # descriptor, and checked by the stores' own rule.
+    target_link_libraries(
+        test_better_pull_review_syntax_classification_contract_tests
+        PRIVATE
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::Platform
+    )
+endif()
 target_compile_definitions(
     test_better_pull_review_syntax_classification_contract_tests
     PRIVATE
