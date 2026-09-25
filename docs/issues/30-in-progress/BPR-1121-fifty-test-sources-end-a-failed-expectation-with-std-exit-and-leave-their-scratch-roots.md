@@ -345,10 +345,12 @@ In `build/logs/bpr-1121/trial/`:
 - Four sqlite storage contracts name their scratch roots `bpr-<store>-<N>`
   from a per-process counter: appearance, queue, ledger and workbench. They
   `remove_all` that path before creating it. So a run removes whatever is at
-  that name, even if another run made it.
-- `storage_root_tests` and `appcontainer_private_descriptor_tests` also end
-  with `std::exit`. Their scratch is under a directory the registration
-  passes, in the build tree.
+  that name, even if another run made it. [[BPR-1126]] fixed them at
+  `ad117024`. It also moved the syntax contract's control root, in this
+  card's class, from a fixed `/tmp` name to a `QTemporaryDir`.
+- Optional, with no card: `storage_root_tests` and
+  `appcontainer_private_descriptor_tests` still end a failure with
+  `std::exit`, but their scratch is in the build tree, not in `/tmp`.
 
 ### Evidence owed elsewhere (AC6)
 

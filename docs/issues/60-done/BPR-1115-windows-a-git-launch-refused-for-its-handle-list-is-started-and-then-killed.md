@@ -212,7 +212,8 @@ header. `AGENTS.md`, `docs/architecture/system-architecture.md`,
 
 ## Post-close: Linux at `3c3c34d8` (bpr-main-linux, 2026-09-24)
 
-**The four reruns owed from Linux pass, 4 of 4.** macOS is still owed.
+**The four reruns owed from Linux pass, 4 of 4.** macOS was still owed then.
+It was run at `d01f506c`, below.
 
 The run was in the station's main checkout, with a clean tree, at
 `3c3c34d8`, which contains `0987dede`. WSL2 Ubuntu 26.04, GCC 15.2, Qt

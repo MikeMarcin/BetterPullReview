@@ -231,7 +231,8 @@ restriction.
 **Four of the five reruns owed from Linux pass. The fifth,
 `gh_cli_git_smart_transport`, is not registered on Linux.** It sits inside
 `if(APPLE)` in `tests/github_contract/CMakeLists.txt`, so it is macOS only
-and no other row was run in its place. macOS is still owed.
+and no other row was run in its place. macOS was still owed then. It was run
+at `d01f506c`, below.
 
 The run was in the station's main checkout, with a clean tree, at
 `3c3c34d8`, which contains `c636eef2`. WSL2 Ubuntu 26.04, GCC 15.2, Qt
