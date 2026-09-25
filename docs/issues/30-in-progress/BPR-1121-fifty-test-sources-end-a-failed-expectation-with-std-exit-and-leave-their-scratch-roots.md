@@ -536,3 +536,33 @@ python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --clang-
 
 Nothing in `test_expectation.hpp` should be reported, with 22.1.8 or with
 23.1.1.
+
+### AC7 on macOS: tidy finds nothing in the header (bpr-main-mac, 2026-09-25T05:19Z)
+
+This is the Mac run owed above, at `77e9e776`. The header there is
+`053abefe`'s (SHA-256 `ef4ccf23…b0ce3`). Neither of the two sources has
+changed since `5f527e2c`. `build/dev`'s compilation database was current.
+The card stays on bpr-main-linux's claim.
+
+| clang-tidy | The command above, on the two sources | Findings |
+| --- | --- | --- |
+| 22.1.8 (`llvm@22`) | `clang-tidy passed.`, exit 0 | none. One warning suppressed, in non-user code |
+| 23.1.1 (`llvm`) | `clang-tidy passed.`, exit 0 | none. Suppressed: non-user code, and one `NOLINT`, the deliberate throw's |
+
+**Negative control.** The header was not edited in the shared tree for this.
+Instead, a scratch copy was made of `macos_capsule_identity_tests.cpp` and
+`tests/support/`, holding the header as it was before `053abefe` (SHA-256
+`1a2cdc9d…c6c25`, the Mac's original). clang-tidy ran on the copy with
+`build/dev`'s compile command, only the file path changed, and with the
+extra arguments `tidy.py` passes.
+
+| Header in the copy | 22.1.8 | 23.1.1 |
+| --- | --- | --- |
+| before `053abefe` | `test_expectation.hpp:137:24` `bugprone-throwing-static-initialization` | the same, and `152:9` `bugprone-std-exception-baseclass`: the Mac's two findings |
+| at `053abefe` | none | none; one `NOLINT` suppressed |
+
+So the header is inside the checks' scope on this station. Under both
+versions the fix removes the initializer finding, and the `NOLINT`
+suppresses the throw's. AC7's tidy clause holds on macOS for the header and
+these two sources. The scratch copy was removed afterwards. The logs are
+station records in `build/logs/bpr-1121-mac-ac7/`, not committed.
