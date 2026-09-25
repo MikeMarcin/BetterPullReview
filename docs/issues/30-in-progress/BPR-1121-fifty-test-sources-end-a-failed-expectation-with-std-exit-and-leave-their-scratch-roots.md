@@ -478,3 +478,60 @@ calls `::getpid()`. The macOS SDK declares it without `noexcept`
 (`unistd.h:472`), so the default constructor may throw. glibc marks it
 `__THROW`. This is recorded for AC7 on this card's claim. Nothing was
 changed here.
+
+### The header's static state, fixed on Linux — bpr-main-linux, 2026-09-24
+
+The coordinator asked for this fix, for AC7. The commit that adds this
+section changes only `tests/support/test_expectation.hpp`, and this card.
+
+- **The change.** `detail::process_id()` is a `noexcept` wrapper for
+  `::getpid()`, compiled only where there is one. `State`'s initializer and
+  `may_unwind` both call it. The state's default constructor is declared
+  `noexcept`. Behaviour is unchanged: `getpid` cannot fail.
+- **The deliberate throw.** `throw expectation_failed{ }` is left as it is.
+  It now carries `NOLINTNEXTLINE(bugprone-std-exception-baseclass)` and a
+  line that says why. The type is not a `std::exception` on purpose (see
+  `expectation_failed`).
+
+**Reproduced on Linux first.** clang-tidy 21 has both checks under their
+older names, `cert-err58-cpp` and `hicpp-exception-baseclass`. glibc
+declares `getpid` `noexcept`, which is why the Linux run never saw the
+finding. A probe translation unit, not committed, declares a stand-in for
+`getpid` without `noexcept`, as the macOS SDK does. It then includes the
+header, with the repository's exclusion of `build/` headers turned off.
+
+| Header | `getpid` without `noexcept` | glibc's `getpid` |
+| --- | --- | --- |
+| before (`1a2cdc9d…c6c25`) | `137:24 cert-err58-cpp` for `inline failure_state State;`, and `152:9 hicpp-exception-baseclass`: the Mac's two findings | none |
+| after | no initializer finding. The throw is still reported under the old name, which the `NOLINT` does not name. With the old name put in the `NOLINT` of a copy, there are 0 findings | none |
+
+The compiler agrees. With that `getpid`,
+`static_assert(noexcept(bpr::tests::detail::failure_state{ }))` fails on
+the old header and holds on the new one.
+
+**Checks on Linux.**
+
+- `tidy.py` with clang-tidy 21 on `profile_runtime_lease_tests.cpp` and
+  `quill_logging_tests.cpp` passes, with nothing in the header.
+- `/usr/bin/clang-format` 22 `--dry-run -Werror` on the header passes.
+- The whole `build/dev` graph rebuilt 46 translation units, with no
+  `warning:` line.
+- All 56 Linux rows of the class pass, serially and offscreen, with fresh
+  `HOME` and XDG roots. They print the same lines as
+  `candidate-final-32af9f3f-verbose.log`: 56 of 56 match after that log's
+  own normalization. No `/tmp` entry was added, and none in
+  `/run/user/1000`.
+
+The probe, its outputs and the run logs are in
+`build/logs/bpr-1128/bpr1121-tidy/` and `build/logs/bpr-1128/bpr1121-*`,
+and are not committed.
+
+**Owed on the Mac.** Run tidy again on the header, through the two sources
+that found it, with both versions:
+
+```sh
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --clang-tidy "$(brew --prefix llvm@22)/bin/clang-tidy" --paths tests/platform/macos_capsule_identity_tests.cpp tests/platform/macos_supervisor_identity_continuity_tests.cpp
+```
+
+Nothing in `test_expectation.hpp` should be reported, with 22.1.8 or with
+23.1.1.

@@ -74,12 +74,23 @@ namespace bpr::tests {
 	inline constexpr auto unwind_bound = std::chrono::seconds{ 20 };
 
 	namespace detail {
+#if !defined(_WIN32)
+		/// \brief This process's id.
+		/// \details `getpid` cannot fail, but the macOS SDK does not declare it
+		/// `noexcept`. Called through this, `State`'s initializer cannot be taken
+		/// to throw (clang-tidy's `bugprone-throwing-static-initialization`).
+		[[nodiscard]] inline auto process_id() noexcept -> pid_t
+		{
+			return ::getpid();
+		}
+#endif
+
 		/// \brief Where the course runs, and what its failures have done so far.
 		/// \details One per program, made before `main` on the thread that runs it.
 		class failure_state final
 		{
 		public:
-			failure_state()                                        = default;
+			failure_state() noexcept                               = default;
 			failure_state(const failure_state&)                    = delete;
 			auto operator=(const failure_state&) -> failure_state& = delete;
 
@@ -100,7 +111,7 @@ namespace bpr::tests {
 			{
 				return std::this_thread::get_id() == Thread
 #if !defined(_WIN32)
-					&& ::getpid() == Process
+					&& process_id() == Process
 #endif
 					&& ExitScopes.load() == 0U && std::uncaught_exceptions() == 0;
 			}
@@ -126,7 +137,7 @@ namespace bpr::tests {
 
 			std::thread::id Thread = std::this_thread::get_id();
 #if !defined(_WIN32)
-			pid_t Process = ::getpid();
+			pid_t Process = process_id();
 #endif
 			std::atomic<unsigned> ExitScopes{ 0U };
 			std::atomic<bool>     Failed{ false };
@@ -149,6 +160,8 @@ namespace bpr::tests {
 			std::exit(EXIT_FAILURE);
 		}
 		state.arm_unwind_bound();
+		// Not a `std::exception`, on purpose: see `expectation_failed`.
+		// NOLINTNEXTLINE(bugprone-std-exception-baseclass)
 		throw expectation_failed{ };
 	}
 
