@@ -254,3 +254,16 @@ whose fonts differ, shows the same stop in the application was not run. That
 needs a window on the desktop, and it is left for the follow-up with a
 foreground clearance. Why the transient measure moves the shared range on
 Windows, and not on macOS or Linux, is not diagnosed here.
+
+## Post-close: the Windows stop resolved by [[BPR-1123]] (bpr-main-win, 2026-09-25)
+
+The follow-up the note above asked for is [[BPR-1123]], Done at `63c2b6b5`.
+The bar never stopped short of a measured end. Its jump was made before the
+measured axis existed, and was dropped. Since this card, every re-measure
+shaped every line again, and Windows Debug links Qt's debug libraries, so the
+geometry arrived after the suite's four event rounds. Each source pane now
+keeps its measured block heights across re-measures, still with no shaped
+layout per line, about 40 bytes a line. The suite waits for geometry after
+a full first pass. `qt_diff_workbench_scale_100/125/200` pass on Windows.
+The large-review memory rows are macOS-only; BPR-1123 notes the rise
+expected there.

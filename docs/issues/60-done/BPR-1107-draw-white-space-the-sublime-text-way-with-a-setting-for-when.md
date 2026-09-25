@@ -583,3 +583,36 @@ The run added nothing to `/tmp` and no `bpr-` name to `/run/user/1000`. The
 log is a station record, not committed:
 `build/logs/bpr-main-linux-20260924/batch7-linux/closeout-1107-0644-rows.log`,
 with `build-dev-85e522d8.log`.
+
+## Post-close: Windows at `2ff7e20c` and `63c2b6b5` (bpr-main-win, 2026-09-25)
+
+**The Windows rerun owed above passes, and the three workbench rows that
+failed on Windows now pass.** Nothing else is owed from Windows. The Windows
+note above, at `3f8f954d`, predates `c0268e85`.
+
+JaegAW, Windows 11 25H2, MSVC 19.51, Qt 6.11.2, `build/dev` Debug (Ninja),
+offscreen. Each row ran contained as registered, serially
+(`ctest --preset dev -j1 --output-on-failure`).
+
+| Row | Revision | Result |
+| --- | --- | --- |
+| `qt_code_sample_painter` | `2ff7e20c`, which contains `c0268e85` | pass, 0.23 s. It includes `test_the_owners_example_draws_a_tab_as_a_line_alone` |
+| `qt_type_preview` | `2ff7e20c` | pass, 0.39 s |
+| `qt_appearance_settings_panel` | `2ff7e20c` | pass, 4.06 s |
+| `qt_diff_workbench_scale_100` | `63c2b6b5` ([[BPR-1123]]) | pass, 15.90 s |
+| `qt_diff_workbench_scale_125` | `63c2b6b5` | pass, 16.82 s |
+| `qt_diff_workbench_scale_200` | `63c2b6b5` | pass, 17.92 s |
+
+**The workbench rows.** They failed at `3f8f954d` on [[BPR-1032]]'s
+measurement, before any white-space check ran. BPR-1123 found why. Since
+BPR-1032, every re-measure shaped every line again, and Windows Debug's
+debug Qt made that slow enough for the suite's geometry to arrive after its
+jumps. The panes now keep their measured heights, and the suite waits for
+geometry after a full first pass. So on Windows the whole suite runs,
+including `test_white_space_design_captures` and the white-space choices in
+`test_selected_composition`. With the 13 rows that passed at `3f8f954d`,
+this card's Windows set is complete.
+
+The acceptance record above is unchanged. The logs are station records under
+`build/logs/bpr-1107-main-win/` and `build/logs/bpr-1123-main-win/`, not
+committed.
