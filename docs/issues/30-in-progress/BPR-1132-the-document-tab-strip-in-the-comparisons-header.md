@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1132"
 title: "The document tab strip in the comparison's header"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129", "BPR-1131"]
 priority: "P2"
