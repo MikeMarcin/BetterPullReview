@@ -32,7 +32,7 @@
 
 namespace bpr::qt {
 	namespace {
-		/// Qt's text layout computes in `QFixed`, 26.6 fixed point: 1/64 px.
+		/// Qt lays text out in its private `QFixed` (26.6 fixed point, 1/64 px); this mirrors it in a plain `std::int32_t` rather than depend on the private header.
 		constexpr auto layout_units_per_pixel = qreal{ 64.0 };
 
 		/// \brief The value as a whole number of layout units, if it is exactly
