@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -210,3 +210,29 @@ The first pass is 15/18 with three system-sleep interruptions; their unchanged
 repeat passes 3/3. The evidence retains both results, exact sleep intervals and
 resource/history invariants. The card returns to Backlog for the remaining
 acceptance; this milestone supplies no full BPR-0967 closeout.
+
+## Mac public startup measurement inventory — 2026-09-25
+
+The bounded startup assignment at unchanged source
+`6c2d531c63b55626bfaebde3876f3ac67904989a` reaches its explicit partial-result
+boundary. The rebuilt public executable refuses `--github-fixture large-review-v1`
+with exit 1 and `PUBLIC_PATH_FAILED`; the same network-denied executable renders
+its supported `github-com` control and exits 0. The large-review composition is
+available in the separate benchmark, whose clocks begin after `QApplication`
+and whose captures do not observe compositor presentation.
+
+The [startup inventory](../../verification/BPR-0967-mac-startup-inventory-2026-09-25.md)
+records each boundary, the existing provisional metadata path, exact hardware,
+executable identities and both public controls. No process launch, separate
+first metadata or native first-frame duration is claimed, and no new budget is
+set. The unchanged responsiveness course passes its 20 existing gates while
+still recording a **108.139 ms** initial-load input gap against **100 ms**.
+The earlier **108.992 ms** observation remains bound to its original run.
+
+No product/test code, timing boundary, cache ceiling or resource threshold
+changes. Source/cache/history/peak evidence is reused at its recorded candidate.
+A successor needs an explicitly scoped safe public entry for the representative
+workload and actual launch/metadata/native-frame observation boundaries.
+The [startup handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-startup.json)
+preserves the pending obligations and quiescent return. BPR-0967 stays unfinished;
+Windows/Linux are deferred and RFC0052's protected review is untouched.

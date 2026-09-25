@@ -1,0 +1,231 @@
+{
+  "schema": "bpr0967.mac-startup-handoff.v1",
+  "assignment": "/root/bpr0967_startup; bounded Mac process/QApplication startup and first metadata/render measurement or demonstrated partial inventory",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "coordinator_clarification": "Verify the shipped public fixture/refusal path and precisely document what is measurable without adding a new production fixture or claiming compositor presentation; return inventory if true launch cannot be observed safely.",
+  "owner": "/root/bpr0967_startup",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-startup",
+  "branch": "main",
+  "baseline": "6c2d531c63b55626bfaebde3876f3ac67904989a",
+  "source_candidate": "6c2d531c63b55626bfaebde3876f3ac67904989a",
+  "checkpoint_revision": "187c6cba267bc6cc70c0055e9040a810e67906c8",
+  "status": "Bounded partial inventory complete at assigned stopping boundary; no launch/metadata/native-frame budget acceptance. Full BPR-0967 stays Backlog.",
+  "completed_commits": [
+    "50e725a2",
+    "187c6cba267bc6cc70c0055e9040a810e67906c8"
+  ],
+  "documentation_commit": "The explicit documentation-only commit containing this handoff records final inventory and command state; its source inputs remain the baseline.",
+  "selection": "coordinator-implementer recipe revision 2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "host_load": "not_verified",
+    "inherited_preflight": "Prior handoffs report MASK readiness drift/artifact.corrupt and workflow not_declared; no skill repair or independent observed-serving claim supplied by this slice."
+  },
+  "findings": [
+    "The public executable accepts only github-com, ghes-3.18 and uiforetw-74 fixture names. The current large-review-v1 argument refuses before desktop composition.",
+    "The separate benchmark constructs QApplication before scheduling its run and starts CompositionStartupMs immediately before fixture access::start. Its endpoint is show plus QWidget::grab, without compositor timing.",
+    "Fixture_connect begins after Home capture and measures fixture account connection; it is not launch.",
+    "Early bounded overview metadata already travels through provider observation, exact-token decision-lane acceptance, LoadingOverview and provisional Overview presentation. No separate first-metadata clock exists.",
+    "Paged_review_and_git_load includes full paging, accepted snapshot, installed Git/private SQLite, epoch/navigation readiness and quietness. First source begins later, after entering Read; neither is first native visible-frame timing."
+  ],
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "logical_processors": 14,
+    "os": "macOS 26.6.2",
+    "os_build": "25G83",
+    "architecture": "arm64",
+    "configuration": "Debug",
+    "qt": "6.11.2",
+    "platform": "offscreen",
+    "style": "fusion",
+    "width": 1600,
+    "height": 1000,
+    "device_pixel_ratio": 1
+  },
+  "executables": [
+    {
+      "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "sha256": "45221c2952b3f28b30b3c312bdabb419d6a2235395006536b5735f9682eac6bb",
+      "build": "Relinked app_better_pull_review at unchanged baseline sources"
+    },
+    {
+      "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/better_pull_review_large_review",
+      "sha256": "bf93be054115add71cdfea2980f7017c21141c075892b711da985284bb0a704b",
+      "build": "Build confirms unchanged target; same bytes as load-gap handoff"
+    }
+  ],
+  "verification": {
+    "public_controls": [
+      {
+        "name": "large-review-refusal",
+        "command": [
+          "/opt/homebrew/opt/python@3.14/bin/python3.14",
+          "-I",
+          "-S",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_network_isolated_test.py",
+          "--sandbox-exec",
+          "/usr/bin/sandbox-exec",
+          "--profile-template",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+          "--loopback-port-count",
+          "0",
+          "--",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+          "--github-fixture",
+          "large-review-v1",
+          "--render-evidence",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-startup/large-review-refusal.png",
+          "--automated-run-budget-ms",
+          "40000"
+        ],
+        "exit_code": 1,
+        "expected_observation": true
+      },
+      {
+        "name": "supported-fixture",
+        "command": [
+          "/opt/homebrew/opt/python@3.14/bin/python3.14",
+          "-I",
+          "-S",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_network_isolated_test.py",
+          "--sandbox-exec",
+          "/usr/bin/sandbox-exec",
+          "--profile-template",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+          "--loopback-port-count",
+          "0",
+          "--",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+          "--github-fixture",
+          "github-com",
+          "--render-evidence",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-startup/supported-fixture.png",
+          "--automated-run-budget-ms",
+          "40000"
+        ],
+        "exit_code": 0,
+        "expected_observation": true
+      }
+    ],
+    "responsiveness": "1/1 passes in 24.12 seconds (24.14 total), all 20 existing gates pass; InputBudgetFailures remains paged_review_and_git_load.",
+    "metrics": {
+      "composition_to_widget_capture_ms": 702.717708,
+      "phase_intervals": [
+        {
+          "name": "fixture_connect",
+          "elapsed_ms": 321.412083,
+          "maximum_input_interval_ms": 6.081125
+        },
+        {
+          "name": "paged_review_and_git_load",
+          "elapsed_ms": 10235.9125,
+          "maximum_input_interval_ms": 108.139042
+        },
+        {
+          "name": "large_file_selection",
+          "elapsed_ms": 1909.080542,
+          "maximum_input_interval_ms": 82.893084
+        },
+        {
+          "name": "large_source_revisit_render",
+          "elapsed_ms": 618.456667,
+          "maximum_input_interval_ms": 77.544834
+        }
+      ]
+    },
+    "preserved_evidence": "No product or test code changed. Reuse all 18 passing selected checks and four cache/resource plus history observations from handoff-load-gap.json at their exact candidate; retain its initial sleep-interrupted failures. Existing cache/source/peak/cleanup thresholds unchanged.",
+    "native": "No native compositor, visible-desktop, packaged or release observation; launch and separate metadata/render metrics remain pending.",
+    "documentation": "DOCUMENTATION_OK; 64/64 documentation tests pass in 2.013 seconds (printed ERROR cases are expected negative fixtures); scoped issue board valid with 1186 cards; git diff --check passes. Final post-update structure gate run before commit.",
+    "self_review": "Checked public argument selection against actual refusal, supported-fixture control, benchmark clock placement, provisional metadata ownership and exact source/test diff. No fabricated launch budget or replacement of historical input failure.",
+    "checkpoint": "Initial checker rejected baseline candidate_revision because current HEAD contained plan/claim-only commits. Reconciled observation to current 187c6cba while retaining separate unchanged source candidate and exact executable digests; no execution evidence changed. Final checker returns action=stop with engineering_acceptance=not-evaluated."
+  },
+  "commands": {
+    "active": [],
+    "review_server": null,
+    "collected_exec_sessions": [
+      18105,
+      5022,
+      5628,
+      14141
+    ],
+    "completed": [
+      "Baseline network-denied responsiveness under process-scoped caffeinate",
+      "Focused application and benchmark build",
+      "Two public selection controls under process-scoped caffeinate and network-denial runner",
+      "Documentation gate and all 64 documentation regression cases",
+      "Scoped board and explicit source/test/CMake diff review",
+      "Milestone consistency checker action=stop; engineering acceptance not evaluated"
+    ],
+    "verification_commands": [
+      "caffeinate -i -s ctest --preset dev -R ^application_large_review_responsiveness$ --output-on-failure",
+      "cmake --build --preset dev --target app_better_pull_review bench_better_pull_review_large_review",
+      "caffeinate -i -s python3 build/bpr0967-startup/public-controls.py",
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py",
+      "issue_board.py --repo-root . validate --include BPR-0967 --json",
+      "git diff --check"
+    ]
+  },
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Coordinator-owned RFC0052 14-question session, candidate, state, server and waiter untouched."
+  },
+  "ownership": {
+    "main_writer": "Released to coordinator on final return after explicit documentation commit.",
+    "other_worktrees": "All 23 other registered worktrees preserved; none created, deleted or edited.",
+    "product_scope": "No product/test/CMake source edits or benchmark threshold changes.",
+    "remote": "No push, live account, private-target access, remote mutation or release.",
+    "commands": "All task-owned build, CTest, public-control children and caffeinate assertions collected; final gates collected before return. No review server created.",
+    "cleanup": "Network runner removes each disposable private fixture root. Only task-owned plan-proposal.json removed after durable amendment publication. Ignored exact logs/captures/control script remain runtime evidence."
+  },
+  "pending_obligations": [
+    "True process/pre-QApplication-to-first-visible-frame launch requires a safe representative public executable route and a declared native presentation observer; current large-review-v1 selector refuses.",
+    "Separate first provisional metadata, accepted metadata and native first render remain unmeasured; aggregate load is not a substitute.",
+    "Initial load input target remains 100 ms; new unchanged-code observation 108.139042 ms fails, and prior 108.991709 ms observation remains preserved.",
+    "Full active-work input/cancellation, generated/pathological fallback and peak live heap remain open.",
+    "Windows/Linux native measurements explicitly deferred; full BPR-0967 remains unfinished."
+  ],
+  "next_action": "Coordinator owns further selection. A successor needs explicit scoped safe representative public launch and declared process/pre-QApplication/native presentation and separate metadata observers, or may select another independent BPR-0967 dimension. Preserve 100 ms input and all existing source/cache/history/peak invariants.",
+  "evidence": "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md",
+  "checkpoint": "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-startup.json",
+  "observation": "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-startup.json",
+  "check_result": "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-startup.json",
+  "evidence_files": {
+    "build/bpr0967-startup/baseline.log": "c1fecaba1ee0509c6749eb3a853329c96b1fc79c655ca26c42e84bcd6d40dd5b",
+    "build/bpr0967-startup/baseline.json": "bb34178430cee8c540ee7b6e7d33b7631c5cb900366907cbbbf358942bb5273d",
+    "build/bpr0967-startup/build.log": "e22e98525c5ccb4134e76ebb0ae3acf9c0df867e35f6a98719492f19480f61aa",
+    "build/bpr0967-startup/public-controls.py": "752510d1ff988ddab9b00322861935d0aa359d2599f512e63153b6b25858b6af",
+    "build/bpr0967-startup/public-controls.log": "f77c3d5280d43543e97d46242c52189cfba8653b4a386388c2c3b7e5f2df67b8",
+    "build/bpr0967-startup/public-controls.json": "f77c3d5280d43543e97d46242c52189cfba8653b4a386388c2c3b7e5f2df67b8",
+    "build/bpr0967-startup/large-review-refusal.log": "d9f1b195d488ab684270c5a59567f289a3c7b1e8f2f98b0dc55952d4c713ff7d",
+    "build/bpr0967-startup/supported-fixture.log": "5a1ab7d72d0d4faabec018b0ffec0dbb93de0e026bdde2aaf48a4459e789b9fa",
+    "build/bpr0967-startup/supported-fixture.png": "5a0e150db566fffbb2b27705f21eb9efe87bd4037364c91354f1e42b7fe55c2b",
+    "build/bpr0967-startup/plan-amendment.json": "ef88db60cdc5a0b2384e52ca326c084ce880f8b37b4bd246b24917320255aab3",
+    "build/bpr0967-startup/documentation.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+    "build/bpr0967-startup/documentation-tests.log": "4c9a32a7a78266a3d312ffc2d142b1d9363bd1ed4857f9af3aa150e66557d15e",
+    "build/bpr0967-startup/board.json": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24"
+  },
+  "changed_paths": [
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/MILESTONES.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/plan-amendment-startup.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-startup.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-startup.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-startup.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-startup.json",
+    "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "tests/fixtures/github/pull-requests/large-review-v1/README.md"
+  ],
+  "verified_repository_revision": "187c6cba267bc6cc70c0055e9040a810e67906c8",
+  "candidate_scope": "Baseline responsiveness ran at 6c2d531c. Application build and public controls ran at 187c6cba after plan/claim-only commits; product/test/CMake sources are byte-unchanged from 6c2d531c. Observation binds current repository revision; source candidate and executable digests identify measured code."
+}

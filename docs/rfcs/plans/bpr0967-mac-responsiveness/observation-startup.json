@@ -1,0 +1,211 @@
+{
+  "run_id": "bpr0967-mac-startup",
+  "segment_id": "startup-inventory",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0967-mac-responsiveness",
+    "plan_path": "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "milestone_id": "mac-startup-inventory",
+    "definition_fingerprint": "sha256:2cf1b1f4390198a1bebe8c89e8258fb8856f8c4378cda7b1664a3a8ef6408606",
+    "obligations": [
+      {
+        "id": "BPR-0967:*",
+        "source": "BPR-0967",
+        "selector": null,
+        "source_fingerprint": "sha256:e8454e4171132f55584583411f6c71e77b787212fcebd1a3f63d34376290a561"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8477ded1e6a80e59da00dcdad69210d43e1704063fedb8ee2344ca18447fa29f",
+    "exit_criteria": [
+      {
+        "id": "mac-startup-inventory:exit:1",
+        "text": "Phase timing includes synchronous-ready work and the final event-loop gap, with a failing-before control for both blind spots."
+      },
+      {
+        "id": "mac-startup-inventory:exit:2",
+        "text": "The real network-isolated Mac composition measures visible large-file navigation, drawer, theme and fallback interactions while preserving exact source and cache assertions."
+      },
+      {
+        "id": "mac-startup-inventory:exit:3",
+        "text": "An exact-candidate report distinguishes measured results, enforceable justified budgets, known input-budget failures and unmeasured platforms or launch/active-work gaps; BPR-0967 remains open when broader acceptance is missing."
+      },
+      {
+        "id": "mac-startup-inventory:exit:4",
+        "text": "Attribute the baseline metadata/load, first-source and revisit stalls with exact public-course observations."
+      },
+      {
+        "id": "mac-startup-inventory:exit:5",
+        "text": "Repair justified owning-boundary causes with failing-before controls and affected composed verification, without raising existing thresholds; retain exact diagnosis for any unresolved gap."
+      },
+      {
+        "id": "mac-startup-inventory:exit:6",
+        "text": "Record exact candidate, unchanged cache/source/cleanup invariants, command quiescence and remaining acceptance in a durable coordinator handoff."
+      },
+      {
+        "id": "mac-startup-inventory:exit:7",
+        "text": "Inventory actual process, QApplication, composition, fixture-connect, metadata, Git-ready and rendered-frame boundaries on the exact safe Mac candidate."
+      },
+      {
+        "id": "mac-startup-inventory:exit:8",
+        "text": "Exercise the shipped public fixture selection and a supported fixture control under enforced network denial; do not add a production fixture or substitute QWidget capture for compositor presentation."
+      },
+      {
+        "id": "mac-startup-inventory:exit:9",
+        "text": "If true launch is safely observable, record exact hardware/toolkit/candidate and justified launch/metadata/render budgets; otherwise record the demonstrated limitation, keep these criteria pending and stop at the assigned partial boundary."
+      },
+      {
+        "id": "mac-startup-inventory:exit:10",
+        "text": "Preserve the 100 ms input target, prior exact source/cache/history and lifetime-peak evidence, protected RFC0052 session, all other worktrees and every outstanding platform or acceptance obligation."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "mac-startup-inventory",
+  "disposition": "continue-milestone",
+  "candidate_revision": "187c6cba267bc6cc70c0055e9040a810e67906c8",
+  "handoff_ref": "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-startup.json",
+  "required_pending": [
+    "True process/pre-QApplication-to-first-visible-frame launch requires a safe representative public executable route and a declared native presentation observer; current large-review-v1 selector refuses.",
+    "Separate first provisional metadata, accepted metadata and native first render remain unmeasured; aggregate load is not a substitute.",
+    "Initial load input target remains 100 ms; new unchanged-code observation 108.139042 ms fails, and prior 108.991709 ms observation remains preserved.",
+    "Full active-work input/cancellation, generated/pathological fallback and peak live heap remain open.",
+    "Windows/Linux native measurements explicitly deferred; full BPR-0967 remains unfinished."
+  ],
+  "evidence_refs": [
+    "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md",
+    "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+    "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+    "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0967:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:6",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:7",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:8",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:9",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-startup-inventory:exit:10",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "pending-obligation",
+    "detail": "Assigned bounded inventory complete at the explicit no-safe-current-large-fixture-public-launch boundary. Expected public refusal and supported-fixture positive control observed on rebuilt unchanged source. No new production fixture, measurement hook or compositor claim. Return to coordinator with BPR-0967 pending and commands quiescent."
+  },
+  "ownership": "quiescent"
+}

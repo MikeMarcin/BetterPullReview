@@ -145,3 +145,12 @@ isolates the first Overview table's full-row column sizing and bounds it to
 visible rows. The course now also verifies every accepted thread/post's initial
 unread identity. Initial-load acceptance stays open at 100 ms; the report retains
 that failure separately from the unchanged source-input and completion gates.
+
+The [Mac startup inventory](../../../../../docs/verification/BPR-0967-mac-startup-inventory-2026-09-25.md)
+verifies that `large-review-v1` is not accepted by the public executable's
+`--github-fixture` selector. Its separate benchmark uses the real composition
+but starts its first timer after `QApplication` construction. Neither its
+`fixture_connect` phase nor its composition-to-Home widget capture measures
+process launch or native compositor presentation. First provisional metadata
+is also distinct from the later metadata/Git-ready aggregate and currently has
+no separate benchmark clock. Those budgets remain pending.
