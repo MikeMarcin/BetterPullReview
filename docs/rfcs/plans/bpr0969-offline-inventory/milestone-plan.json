@@ -52,7 +52,7 @@
     },
     {
       "id": "durable-cached-overview",
-      "outcome": "Persist bounded exact-account PR overview and revision evidence, reopen it as explicitly stale read-only metadata after an independently accepted current account, and preserve unavailable source and conversations. Full disconnected authentication and full review snapshots remain pending.",
+      "outcome": "Persist bounded exact-account PR overview and revision evidence, reopen it as explicitly stale read-only metadata after an independently accepted current account, and preserve unavailable source and conversations. Full disconnected authentication and full review snapshots remain pending. Next bounded continuation adds a historical changed-file catalogue under the same admission; source blobs and conversations remain unavailable.",
       "work": [
         {
           "issue": "BPR-0969",
@@ -68,9 +68,13 @@
         "Demonstrate the missing durable overview through real composition and a failing-before assertion.",
         "Persist only validated accepted overview evidence under exact profile revision, host authority, account, repository and PR identity with bounded storage and exact revision content.",
         "Admit cached metadata only for a current authenticated read that failed for transport loss; refuse cancellation, stale session, foreign authority and corrupt data; reconnect to server truth.",
-        "Verify rendered cached/unavailable wording, owning-layer negative controls and actual process restart; record exact candidate, pending full AC2/AC3, command quiescence and writer release."
+        "Verify rendered cached/unavailable wording, owning-layer negative controls and actual process restart; record exact candidate, pending full AC2/AC3, command quiescence and writer release.",
+        "Demonstrate missing durable file catalogue through the real restart composition and a failing-before assertion.",
+        "Retain exact current and previous paths, provider change kinds and counts with complete overview authority and revisions; distinguish unavailable from observed empty and bound optional content without truncation.",
+        "Verify account/repository/profile/revision isolation, cancellation and stale session refusal, corrupt and legacy records, and reconnect server truth through focused public and owning-layer controls.",
+        "Record exact candidate, rendered read-only catalogue evidence, pending source/conversations and full AC2/AC3, command quiescence and writer release."
       ],
-      "boundary": "Assignment /root/bpr0969_durable_snapshot; mandate r4-standalone-durable-snapshot-20260925; baseline 0810d10e53510baf011deced3330aebfda2d9b12; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Coordinator accepted bounded overview-only slice; current-process authenticated identity remains required. No live account, remote mutation, release, push, Claude Code, delegation, Windows/Linux acceptance or protected RFC0052 session/server/waiter changes."
+      "boundary": "Assignment /root/bpr0969_durable_snapshot; mandate r4-standalone-durable-snapshot-20260925; baseline 0810d10e53510baf011deced3330aebfda2d9b12; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Coordinator accepted bounded overview-only slice; current-process authenticated identity remains required. No live account, remote mutation, release, push, Claude Code, delegation, Windows/Linux acceptance or protected RFC0052 session/server/waiter changes. Continuation: Assignment /root/bpr0969_review_content; mandate r4-standalone-review-content-20260925; baseline a85f0b166619dc82cc8fdc40593694ac4df473fc; exclusive main writer. Coordinator explicitly accepted catalogue-only narrowing. Current-process independently authenticated account required. No live account, private target, remote mutation, release, push, delegation, new attendance, Windows/Linux acceptance or protected RFC0052 changes."
     }
   ],
   "unplanned_work": []
