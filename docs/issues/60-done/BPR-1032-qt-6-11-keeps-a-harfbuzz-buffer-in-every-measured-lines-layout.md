@@ -211,3 +211,46 @@ native one, so a platform whose shaping differs would fail it by name, but
 neither station has run it yet. The large-review memory rows are macOS-only.
 The upstream report the scope suggests has not been filed: a report to Qt
 needs an account and is an external action, so it is left to the owner.
+
+## Post-close: on Windows the change stops the shared comparison scrollbar short, and `qt_diff_workbench_scale_*` fail (bpr-main-win, 2026-09-24)
+
+**The second criterion does not hold on Windows.** `qt_diff_workbench_scale_100`,
+`_125` and `_200` fail there at `3f8f954d`. With only this card's
+`measured_alignment_axis.cpp` put back as it was before `27c35729`, they
+pass. This station ran `qt_diff_axis_scale_100/125/200` for the first time,
+and all three pass. So each block's transient height agrees with the native
+one, yet the composed panes do not reach their end. The card stays Done. The
+fix needs a follow-up card, whose title has gone to the integrator for an ID.
+
+The runs used `build/dev` (MSVC 19.51 Debug, Qt 6.11.2), offscreen, serially.
+The logs are station records under `build/logs/batch7-main-win/`
+(`axis-rows-3f8f954d.log`, `trial-revert-1032-*.log`, `probe-*.log`), not
+committed.
+
+| Run | Result |
+| --- | --- |
+| This station's Mac batch 2 sweep, 2026-09-23 at 20:17Z and 20:30Z, an hour before `27c35729` was committed | `qt_diff_workbench_scale_100` passes, in 16.80 s and 16.32 s. |
+| CTest at `3f8f954d` | The three rows fail in 2.1–2.6 s at [[BPR-0455]]'s "past a one-sided block the two panes show different numbers on the same row, because neither is renumbered to match the other". `qt_syntax_pane_composition` passes, and so do `qt_diff_axis_scale_100/125/200`. |
+| The suite's binary at `3f8f954d`, run directly | It fails the same way. |
+| The same, with `measured_alignment_axis.cpp` reverted to `27c35729^` in the working tree | It passes in full: `diff-workbench-tests:pass`. |
+
+**What the panes do.** A temporary probe in that test printed where the
+panes stood after `shared->setValue(shared->maximum())`. The probe and the
+revert were restored, and the tree was rebuilt at `3f8f954d`.
+
+| | Shared scrollbar | Left pane (112 blocks) | Right pane (116 blocks) |
+| --- | --- | --- | --- |
+| At `3f8f954d` | `24370/100000` | scroll 8 of 64, top block 8 | scroll 8 of 68, top block 8 |
+| With the revert | `100000/100000` | scroll 64 of 64, top block 64 | scroll 68 of 68, top block 68 |
+
+So on Windows, asking the shared scrollbar for its end leaves it about a
+quarter of the way down. Both panes stop at the same block, and their
+gutters match. Past the first failure the suite stops, so none of its later
+rows, [[BPR-1107]]'s white-space checks among them, runs on Windows at
+`3f8f954d`.
+
+**Not shown.** The course is offscreen. Whether the real `windows` platform,
+whose fonts differ, shows the same stop in the application was not run. That
+needs a window on the desktop, and it is left for the follow-up with a
+foreground clearance. Why the transient measure moves the shared range on
+Windows, and not on macOS or Linux, is not diagnosed here.
