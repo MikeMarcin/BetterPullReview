@@ -589,3 +589,39 @@ afterwards, and the headers were restored to their recorded SHA-256:
 The logs are station records and are not committed. They are under
 `build/logs/bpr-1126-main-win/`, in `s12-*` and `final2-*`, and the probe and
 trials are in `trial/`.
+
+## Post-close: macOS after the Windows fix, at `0f33ad29` (bpr-main-mac, 2026-09-25)
+
+`dbe1bcb5` changed the shared helper after macOS last built it, at
+`b8944a06`. On POSIX it compiles one new line: the `#else` branch of
+`create_directory_only_if_absent`, which POSIX never calls. The syntax
+contract's POSIX lines are `ad117024`'s, now inside `#else`. This entry
+builds and runs them on macOS. It does not reopen the card.
+
+The station runs macOS 26.6.2 (25G83), with Apple clang 21.0.0, Qt 6.11.2,
+and `build/dev` Debug with warnings as errors.
+
+| Check | Result |
+| --- | --- |
+| `cmake --build --preset dev` at `0f33ad29`, which contains `dbe1bcb5` and `f1133242` | exit 0 after 305 steps, with no `warning:` line. It recompiled the four SQLite sources and the syntax contract |
+| `ctest --preset dev -j1 --output-on-failure -R '^(sqlite_(appearance_settings\|queue_enrollment\|review_ledger\|workbench_settings)_storage\|syntax_classification_contract)$'`, 05:49:32Z | **5 of 5 pass**, in 3.43 s |
+| A direct sandboxed run of the five rows, with the runner's resolved `TMPDIR` kept, under `/private/tmp` and under `/private/var/folders` ([[BPR-1128]]'s macOS driver) | **10 of 10 pass.** While the rows ran, the watch saw 22 appearance roots, 21 and 19 queue roots, 64 and 65 ledger roots, 74 workbench roots and 1 syntax root in each run. Each was a directory at a random name, mode `0700`, owned by this user. The plants beside each stem, a sentinel directory at `<stem>-PLNTDR` and at `<stem>-4242420000` and a link at `<stem>-PLNTLK`, were all left unchanged. Nothing was left in `TMPDIR` |
+
+The watch saw one other top-level directory, in one ledger run: the
+product's own `bpr-ledger-preflight-<hex>`, at mode `0755`. It is not a
+scratch root of this card. `make_preflight_directory`
+(`review_ledger_database.cpp`) creates it with the umask's mode and narrows
+it to `0700` straight after, and the watch caught it in that interval. The
+course removes it (`remove_retained_preflight_root`), and it was not left.
+It is recorded here and not changed.
+
+**No Linux record covers the new line.** Linux's evidence for AC1 to AC3
+and AC6 is at `ad117024`, before `dbe1bcb5`. With this entry, macOS and
+Windows have recorded builds and runs of the helper as it now stands. Linux
+has not. The POSIX
+line that `dbe1bcb5` added is never called, and the rows' POSIX behaviour
+is unchanged, so this does not bear on any criterion. It is stated because
+the card's Done record reads "every platform".
+
+The logs and the driver's results are station records in
+`build/logs/bpr-1126-1139-mac/`, not committed.
