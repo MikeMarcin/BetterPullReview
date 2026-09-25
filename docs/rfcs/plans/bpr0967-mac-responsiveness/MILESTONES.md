@@ -6,9 +6,9 @@ Plan: **bpr0967-mac-responsiveness** · Coverage: **complete**
 
 These are integration outcomes, not compulsory agent-launch boundaries.
 
-## mac-responsiveness
+## mac-stall-repair
 
-Advance the Mac resource-budget continuation with trustworthy complete-phase timings and measured public drawer/theme/fallback responsiveness; preserve every unmet target/platform criterion.
+Attribute and repair the three measured Mac GUI input gaps through the owning boundary; retain earlier measurement exits and all wider BPR-0967 obligations.
 
 **Work:** `BPR-0967`
 
@@ -19,5 +19,8 @@ Advance the Mac resource-budget continuation with trustworthy complete-phase tim
 - Phase timing includes synchronous-ready work and the final event-loop gap, with a failing-before control for both blind spots.
 - The real network-isolated Mac composition measures visible large-file navigation, drawer, theme and fallback interactions while preserving exact source and cache assertions.
 - An exact-candidate report distinguishes measured results, enforceable justified budgets, known input-budget failures and unmeasured platforms or launch/active-work gaps; BPR-0967 remains open when broader acceptance is missing.
+- Attribute the baseline metadata/load, first-source and revisit stalls with exact public-course observations.
+- Repair justified owning-boundary causes with failing-before controls and affected composed verification, without raising existing thresholds; retain exact diagnosis for any unresolved gap.
+- Record exact candidate, unchanged cache/source/cleanup invariants, command quiescence and remaining acceptance in a durable coordinator handoff.
 
-**Boundary:** Standalone BPR-0967 under owner r4 and coordinator unattended continuation 2026-09-25, mandate r4-standalone-mac-20260925. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview main at aba15afe8238a9dc33a07915eb83fb24b3153762. Mac synthetic local fixtures only; Windows/Linux deferred, no live accounts/remote mutations/release/push. Reuse 8b6407fd lifetime-peak results. Preserve protected RFC0052 attended session. Non-delegating implementer owns explicit source/board commits.
+**Boundary:** Coordinator assignment /root/bpr0967_stall_repair; mandate r4-standalone-mac-20260925; new bounded milestone at main baseline 75044f93a6ffdb4a0bd4367d1f05b864935250f5. Prior measurement exits are reused at 9d1cfa62. Only source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-stall-repair. Mac synthetic local fixtures, no delegation, push, live account, private target, remote mutation or release. Windows/Linux explicitly deferred; RFC0052 14-question attended candidate protected. Full BPR-0967 acceptance remains pending.
