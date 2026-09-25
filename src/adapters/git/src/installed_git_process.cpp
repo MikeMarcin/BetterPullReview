@@ -1496,18 +1496,22 @@ namespace bpr::adapters::git {
 		/// \brief Removes remote tokens from retained subprocess diagnostic text.
 		/// \details Replaces every whitespace-delimited URL or SSH-style remote
 		/// token with a fixed placeholder, preserves all other text exactly, and
-		/// bounds the result by the installed-Git standard-error limit.
+		/// bounds each append by the installed-Git standard-error limit, including
+		/// replacements that expand the original token.
 		[[nodiscard]] auto redacted_diagnostic(
 			const std::string_view aText) -> std::string
 		{
 			std::string result;
 			result.reserve(std::min(aText.size(), standard_error_limit));
+			const auto append = [&result](const std::string_view aPart) {
+				result.append(aPart.substr(0U, standard_error_limit - result.size()));
+			};
 			std::size_t index = 0U;
-			while (index < aText.size()) {
+			while (index < aText.size() && result.size() < standard_error_limit) {
 				const auto tokenStart = aText.find_first_not_of(
 					diagnostic_whitespace,
 					index);
-				result.append(
+				append(
 					aText.substr(
 						index,
 						std::min(tokenStart, aText.size()) - index));
@@ -1518,14 +1522,11 @@ namespace bpr::adapters::git {
 					aText.find_first_of(diagnostic_whitespace, tokenStart),
 					aText.size());
 				const auto token = aText.substr(tokenStart, tokenEnd - tokenStart);
-				result.append(
+				append(
 					remote_url_token(token)
 						? redacted_url_placeholder
 						: token);
 				index = tokenEnd;
-			}
-			if (result.size() > standard_error_limit) {
-				result.resize(standard_error_limit);
 			}
 			return result;
 		}
