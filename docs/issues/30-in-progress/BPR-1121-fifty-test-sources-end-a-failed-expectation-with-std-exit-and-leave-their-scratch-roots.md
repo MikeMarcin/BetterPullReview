@@ -462,3 +462,19 @@ records under `build/logs/bpr-1121-mac/` and are not committed.
   Windows-only source and the Windows rows are still owed.
 - **AC2, repeated on macOS:** a failure while a root exists removes the
   root. The `std::exit` control leaves it by the same route.
+
+### clang-tidy on the header, on macOS
+
+This was seen later, while [[BPR-1127]] ran its gates. That card's two
+sources include `tests/support/test_expectation.hpp`. `tidy.py --paths` on
+them reports one finding in the header, with clang-tidy 22.1.8 (`llvm@22`)
+and with 23.1.1:
+`test_expectation.hpp:137:24: bugprone-throwing-static-initialization`, for
+`inline failure_state State;`. Version 23 also reports
+`bugprone-std-exception-baseclass` at line 152, the `throw
+expectation_failed{ }`, which the header does on purpose. The Linux run
+found none in the header. A likely reason is that the member initializer
+calls `::getpid()`. The macOS SDK declares it without `noexcept`
+(`unistd.h:472`), so the default constructor may throw. glibc marks it
+`__THROW`. This is recorded for AC7 on this card's claim. Nothing was
+changed here.
