@@ -348,3 +348,24 @@ The acceptance record above is unchanged. The logs are station records
 under `build/logs/batch8-main-win/`, and are not committed: `wdev-build-a8c36152.log`, `rows-a8c36152.log`,
 `probe-host-run.log`, `probe2-host-run.log`, `probe3-host-run.log` and
 `release-host-direct.log`.
+
+## Post-close: Windows after [[BPR-1124]] (bpr-main-win, 2026-09-25)
+
+**`application_github_host` passes on Windows in Debug and in Release.**
+BPR-1124 (`f2ca7bea`) keeps this card's two sweeps out of a checked MSVC
+build, where the standard library allocates inside `noexcept` moves. Its
+card has the reasoning and the controls.
+
+| Tree | Result |
+| --- | --- |
+| `build/dev` Debug | pass, 0.11 s. Both sweeps print that they did not run, and why. Every other case runs, `test_a_withdrawal_at_shutdown_runs_its_failure` among them |
+| `build/windows-dev` Debug | pass, 0.09 s, the same way |
+| `build/windows-dev` Release | pass, 0.04 s. Both sweeps run and print 7 and 9, as on macOS |
+
+The Release sweep still catches what this card fixed. With `start_delete`'s
+state changes moved back before its handler (a trial, not committed), it
+fails at `start_delete: allocation 2 left durability changed with no request
+and no terminal`, as this card's macOS control did.
+
+The acceptance record above is unchanged. The logs are station records under
+`build/logs/bpr-1124-main-win/`, not committed.
