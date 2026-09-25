@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1141"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows sqlite contract scratch leak with open connection",
+  "created": "2026-09-25T05:30:42.242243+00:00",
+  "base": "3ff161374e490d9021c9d553e63fbe861ae3f152"
+}
