@@ -2,7 +2,7 @@
 
 > Generated from `milestone-plan.json`; edit the JSON, not this view.
 
-Plan: **bpr0969-offline-inventory** · Coverage: **partial**
+Plan: **bpr0969-offline-inventory** · Coverage: **complete**
 
 These are integration outcomes, not compulsory agent-launch boundaries.
 
@@ -40,15 +40,19 @@ Diagnose and repair demonstrated same-profile Recent title, destination and save
 
 **Boundary:** Assignment /root/bpr0969_recent_identity; mandate r4-standalone-recent-identity-20260925; baseline 566b7802a989718de5d5fe3734a9997230a3d612; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Partial AC2/AC3 repair only. No live account, remote mutation, release, Claude Code, delegation, Windows/Linux acceptance, or protected RFC0052 session/server/waiter changes.
 
-## Required work not yet decomposed
+## durable-cached-overview
 
-```json
-[
-  {
-    "issue": "BPR-0969",
-    "criteria": [
-      "AC3"
-    ]
-  }
-]
-```
+Persist bounded exact-account PR overview and revision evidence, reopen it as explicitly stale read-only metadata after an independently accepted current account, and preserve unavailable source and conversations. Full disconnected authentication and full review snapshots remain pending.
+
+**Work:** `BPR-0969` [AC3]
+
+**Prerequisites:** inventory-offline-reopen
+
+**Completion:**
+
+- Demonstrate the missing durable overview through real composition and a failing-before assertion.
+- Persist only validated accepted overview evidence under exact profile revision, host authority, account, repository and PR identity with bounded storage and exact revision content.
+- Admit cached metadata only for a current authenticated read that failed for transport loss; refuse cancellation, stale session, foreign authority and corrupt data; reconnect to server truth.
+- Verify rendered cached/unavailable wording, owning-layer negative controls and actual process restart; record exact candidate, pending full AC2/AC3, command quiescence and writer release.
+
+**Boundary:** Assignment /root/bpr0969_durable_snapshot; mandate r4-standalone-durable-snapshot-20260925; baseline 0810d10e53510baf011deced3330aebfda2d9b12; exclusive main writer at /Users/jaeger/Documents/GitHub/BetterPullReview. Coordinator accepted bounded overview-only slice; current-process authenticated identity remains required. No live account, remote mutation, release, push, Claude Code, delegation, Windows/Linux acceptance or protected RFC0052 session/server/waiter changes.
