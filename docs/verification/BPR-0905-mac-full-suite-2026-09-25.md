@@ -45,5 +45,25 @@ The focused serial rerun of the four short failed rows passed only
 `/Users/jaeger/.codex/tmp/bpr0905-short-rerun-20260925.log`.
 
 This run supplies Mac contention evidence for BPR-0905's four changed rows.
-The overall suite is red and the follow-up failures remain open. Windows and
+The overall suite at `f6de40b6` remains a red historical run. Windows and
 Linux runs are owner-deferred; native-only survey margins remain unknown.
+
+## Follow-up disposition on the combined Mac checkout
+
+- BPR-1195 mirrored the six disabled resident menu commands; the native,
+  Qt and composed profile checks passed 3/3 after integration.
+- BPR-1197 restored the visible selectable explanation for unavailable
+  comparisons; seven affected checks passed, including both failed public
+  paths.
+- BPR-1196 proved stale first-tab comparison inheritance with a failing
+  `1:1 → 2:2` control, repaired it, and passed the unchanged cache-byte
+  course on combined main in 335.08 s. Eviction, revisit, supersession and
+  cleanup remained checked.
+- BPR-1198 reconciled the review-behavior course with a settled focused tab
+  and the separate unselected Overview state. On combined main, review
+  behavior passed in 95.51 s and the source-pinned round-trip check passed.
+
+Those focused results repair the four changed-surface failures seen in the
+historical suite; they are not a second full-suite pass. BPR-0966's Dif
+Compose placement remains owner-blocked. The release-update fixture passed
+its one serial rerun; its concurrent 500 ms deadline is a recorded flake.
