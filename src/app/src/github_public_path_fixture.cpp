@@ -1199,7 +1199,8 @@ namespace bpr::app::detail {
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
-			bool                                        RepeatReads          = false;
+			bool                                        RepeatReads = false;
+			std::shared_ptr<std::atomic<std::uint64_t>> RecentAccount;
 			bool                                        DistinctAccount      = false;
 			bool                                        UnboundViewer        = false;
 			std::size_t                                 AccountReadCalls     = 0U;
@@ -1837,6 +1838,30 @@ namespace bpr::app::detail {
 					identity.insert(QStringLiteral("login"), QStringLiteral("other-profile-reviewer"));
 					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
 				}
+				if (State->RecentAccount && aRequest.Wire.Operation == read_operation::get_viewer_identity) {
+					const auto account  = State->RecentAccount->load();
+					auto       identity = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					identity.insert(QStringLiteral("id"), static_cast<qint64>(account));
+					identity.insert(QStringLiteral("node_id"), QStringLiteral("U_recent_%1").arg(account));
+					identity.insert(QStringLiteral("login"), QStringLiteral("recent-reviewer-%1").arg(account));
+					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (State->RecentAccount && aRequest.Wire.Operation == read_operation::get_pull_request) {
+					auto review = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					review.insert(QStringLiteral("title"), QStringLiteral("Private title for account %1").arg(State->RecentAccount->load()));
+					response->Body = QJsonDocument{ review }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (State->RecentAccount && aRequest.Wire.Operation == read_operation::search_pull_requests) {
+					auto search = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					auto items  = search.value(QStringLiteral("items")).toArray();
+					for (auto item = items.begin(); item != items.end(); ++item) {
+						auto review = item->toObject();
+						review.insert(QStringLiteral("title"), QStringLiteral("Private title for account %1").arg(State->RecentAccount->load()));
+						*item = review;
+					}
+					search.insert(QStringLiteral("items"), items);
+					response->Body = QJsonDocument{ search }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				// [[BPR-0644]]. The token signs in as an account no binding names:
 				// a different actor, whatever the recorded viewer was.
 				if (State->UnboundViewer && aRequest.Wire.Operation == read_operation::get_viewer_identity) {
@@ -1944,7 +1969,7 @@ namespace bpr::app::detail {
 						&& aContext.Authority.Account.value() == 0U
 					: Role == fixture_transport_role::account
 						&& aContext.Authority.Mode == core::github_access_mode::authenticated
-						&& aContext.Authority.Account == fixture.AccountId;
+						&& aContext.Authority.Account == (State->RecentAccount ? core::github_account_id{ State->RecentAccount->load() } : fixture.AccountId);
 				if (!acceptedRole
 					|| !application::valid(aContext)
 					|| aContext.Authority.Repository != fixture.RepositoryId
@@ -3427,6 +3452,7 @@ namespace bpr::app::detail {
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
+			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;

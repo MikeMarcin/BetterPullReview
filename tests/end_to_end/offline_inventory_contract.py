@@ -52,6 +52,7 @@ def retained_epochs(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
+    parser.add_argument("--identity", action="store_true")
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-0969-offline-") as temporary:
         parent = Path(temporary).resolve()
@@ -62,7 +63,18 @@ def main():
         vault = b""
         objects = None
         catalog = None
-        for phase in ("seed", "restart-read", "restart-offline"):
+        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-offline")
+        for phase in phases:
+            if phase == "legacy":
+                databases = list(root.rglob("window-restoration.sqlite3"))
+                if len(databases) != 1:
+                    raise SystemExit("expected one profile restoration store")
+                with store_connection(databases[0]) as connection:
+                    connection.executescript("ALTER TABLE restoration_records DROP COLUMN account; "
+                                             "ALTER TABLE recent_reviews DROP COLUMN account; "
+                                             "PRAGMA user_version=4;")
+            if arguments.identity:
+                phase = "identity-" + phase
             result = subprocess.run([arguments.application, phase, str(root)], input=vault,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     timeout=100, check=False)
@@ -74,6 +86,15 @@ def main():
             if len(result.stdout) > 2048:
                 raise SystemExit("vault output exceeded bound")
             vault = result.stdout
+            if arguments.identity:
+                databases = list(root.rglob("window-restoration.sqlite3"))
+                if len(databases) != 1:
+                    raise SystemExit("expected one private Recent database")
+                with store_connection(databases[0].as_uri() + "?mode=ro", uri=True) as connection:
+                    recent = connection.execute("SELECT account,number,title,hex(position) FROM recent_reviews ORDER BY ordinal").fetchall()
+                expected = {("910001", "17"), ("910002", "18")} if phase != "identity-legacy" else {("910001", "17"), ("0", "17"), ("0", "18")}
+                if {(row[0], row[1]) for row in recent} != expected or any(not row[3] for row in recent):
+                    raise SystemExit("Recent persistence lost exact account/destination/reading identity")
             current = retained_objects(root)
             if not current:
                 raise SystemExit("no retained Git pack survived orderly process exit")

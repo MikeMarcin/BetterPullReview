@@ -5913,25 +5913,26 @@ namespace bpr::app {
 			// Signed out, the public entries only; an account's entries once
 			// that account's session exists. Resume needs the exact session.
 			const auto& session    = Host->accepted_session();
-			const auto* profile    = session ? find_profile(session->Profile) : nullptr;
+			const auto* profile    = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
 			const auto  hostname   = profile ? std::string{ profile->hostname() } : std::string{ };
-			const auto  account    = session && profile && session->Mode == core::github_access_mode::authenticated;
+			const auto  authority  = core::window_review_authority{ session ? session->Mode : core::github_access_mode::authenticated, hostname };
 			auto        projection = application::recent_reviews_projection{ };
 			auto        map        = std::vector<std::size_t>{ };
 			const auto& recent     = Profile->ReviewRestoration->recent();
 			for (std::size_t index = 0; index < recent.size(); ++index) {
-				const auto& entry = recent[index];
-				if (entry.Destination.Mode != core::github_access_mode::public_preview && !(account && entry.Destination.Hostname == hostname)) {
+				const auto& entry   = recent[index];
+				const auto  matches = session && profile && core::matches_review_authority(entry.Destination, authority, session->Viewer.Account);
+				if (entry.Destination.Mode != core::github_access_mode::public_preview && !matches) {
 					continue;
 				}
-				const auto resumable = entry.Position.has_value() && session && profile && entry.Destination.Hostname == hostname && entry.Destination.Mode == session->Mode;
+				const auto resumable = entry.Position.has_value() && matches;
 				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable });
 				map.push_back(index);
 			}
+			RecentIndexMap = std::move(map);
 			if (RecentPublished == projection) {
 				return;
 			}
-			RecentIndexMap  = std::move(map);
 			RecentPublished = projection;
 			Window->publish(projection);
 		}
@@ -5942,7 +5943,14 @@ namespace bpr::app {
 			}
 			const auto  index  = RecentIndexMap[aIntent.Index];
 			const auto& recent = Profile->ReviewRestoration->recent();
-			if (index >= recent.size()) {
+			if (index >= recent.size() || !RecentPublished || aIntent.Index >= RecentPublished->Entries.size()
+				|| recent[index].Destination != RecentPublished->Entries[aIntent.Index].Destination) {
+				return;
+			}
+			const auto& active        = Host->accepted_session();
+			const auto* activeProfile = active && Host->state().Account == active->Viewer.Account ? find_profile(active->Profile) : nullptr;
+			const auto  matches       = active && activeProfile && core::matches_review_authority(recent[index].Destination, core::window_review_authority{ active->Mode, std::string{ activeProfile->hostname() } }, active->Viewer.Account);
+			if ((aIntent.Resume || recent[index].Destination.Mode != core::github_access_mode::public_preview) && !matches) {
 				return;
 			}
 			if (aIntent.Resume && recent[index].Position) {
@@ -6416,7 +6424,7 @@ namespace bpr::app {
 			}
 			const auto& session = Host->accepted_session();
 			const auto* profile = session ? find_profile(session->Profile) : nullptr;
-			if (!session || !profile || profile->hostname() != aRequest.Destination.Hostname || session->Mode != aRequest.Destination.Mode
+			if (!session || !profile || Host->state().Account != session->Viewer.Account || !core::matches_review_authority(aRequest.Destination, { session->Mode, std::string{ profile->hostname() } }, session->Viewer.Account)
 				|| WindowRead->state().ActiveProfile != session->Profile || WindowRead->state().AccessMode != session->Mode
 				|| WindowRead->state().IdentityGeneration != Host->accepted_identity_generation()) {
 				Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::conflicting_authority));
@@ -6449,7 +6457,7 @@ namespace bpr::app {
 				&& accepted->Context.Mode == snapshot->Mode && accepted->Context.IdentityGeneration == WindowRead->state().IdentityGeneration) {
 				const auto* profile = find_profile(snapshot->Profile);
 				if (profile && profile->host() == snapshot->Host) {
-					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number };
+					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number, snapshot->Account };
 					if (ReadingDestination != destination) {
 						AcceptedReadingPosition.reset();
 						// [[BPR-1132]]. Another pull request: its tabs start again.
@@ -9828,7 +9836,7 @@ namespace bpr::app {
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
-				ReadingDestination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number };
+				ReadingDestination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number, aHandoff.Account };
 				AgentReview        = agent_review_facts{
 					.Host        = aHandoff.Host,
 					.Account     = aHandoff.Account,

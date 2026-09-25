@@ -13,7 +13,7 @@ namespace {
 		}
 	}
 	auto context(std::uint64_t aId, std::uint64_t aGeneration = 2) -> core::bpr_window_context { return { core::default_bpr_profile_id, core::bpr_window_id{ aId }, core::bpr_window_generation{ aGeneration } }; }
-	auto destination(std::uint32_t aNumber = 27) -> core::window_review_destination { return { core::github_access_mode::authenticated, "github.com", { "owner", "repo" }, core::pull_request_number{ aNumber } }; }
+	auto destination(std::uint32_t aNumber = 27) -> core::window_review_destination { return { core::github_access_mode::authenticated, "github.com", { "owner", "repo" }, core::pull_request_number{ aNumber }, core::github_account_id{ 11 } }; }
 	struct store final : window_review_restoration_port
 	{
 		window_review_snapshot                     Snapshot;

@@ -28,7 +28,9 @@
 namespace {
 	using namespace bpr;
 	using tests::expect;
-	using access = app::detail::github_application_fixture_access;
+	using access                                       = app::detail::github_application_fixture_access;
+	app::github_application* diagnosticOwner           = nullptr;
+	bool                     staleRecentWhileSignedOut = false;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
 	{
@@ -37,6 +39,12 @@ namespace {
 		while (!aCondition() && elapsed.elapsed() < 30000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+		}
+		if (!aCondition() && diagnosticOwner) {
+			const auto evidence = access::evidence(*diagnosticOwner);
+			std::cerr << "pending=" << aMessage << " status=" << static_cast<int>(diagnosticOwner->window().session_panel()->status())
+					  << " diagnostic=" << diagnosticOwner->window().session_panel()->diagnostic_text() << " recording=" << evidence.RecordingFailure
+					  << " operation=" << evidence.LastReadOperation << '\n';
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -127,6 +135,29 @@ namespace {
 		expect(surface->select_conversation_line(core::diff_side::right, 3U), "save exact reading position");
 	}
 
+	void switch_account(qt::workbench_window& aWindow, const std::shared_ptr<std::atomic<std::uint64_t>>& aAccount, std::uint64_t aNext)
+	{
+		auto* card = aWindow.server_card_for(*aWindow.session_panel()->active_profile());
+		expect(card && card->sign_out_button()->isEnabled(), "real sign-out available");
+		card->sign_out_button()->click();
+		wait_for([&] { return !access::evidence(*diagnosticOwner).SecretRetained && !access::evidence(*diagnosticOwner).RefreshRetained && !card->signed_in() && aWindow.session_panel()->status() != core::github_status::pull_request_ready && aWindow.session_panel()->status() != core::github_status::session_ready; }, "sign-out retires accepted identity");
+		staleRecentWhileSignedOut = staleRecentWhileSignedOut || aWindow.home_recent_list()->count() != 0;
+		std::cerr << "settled_signedout_recent_rows=" << aWindow.home_recent_list()->count() << '\n';
+		aAccount->store(aNext);
+		aWindow.home_landing()->primary_button()->click();
+		wait_for([&] { return aWindow.session_panel()->status() == core::github_status::session_ready; }, "replacement account accepted");
+		expect(aWindow.account_action()->text().contains(QString::number(aNext)), "account strip binds generated viewer");
+	}
+
+	void expect_recent(qt::workbench_window& aWindow, std::uint64_t aAccount, int aNumber)
+	{
+		expect(aWindow.home_recent_list()->count() == 1, "only the current account has a Recent row");
+		const auto text = aWindow.home_recent_list()->item(0)->text();
+		expect(text.contains(QStringLiteral("Private title for account %1").arg(aAccount))
+				   && text.contains(QStringLiteral("review-repository#%1").arg(aNumber)),
+			   "Recent title and destination belong to accepted account");
+	}
+
 	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
 		expect(!access::large_review_snapshot(aOwner), "failed open has no accepted observation, not an empty review");
@@ -141,8 +172,10 @@ namespace {
 auto main(int aArgc, char** aArgv) -> int
 try {
 	expect(aArgc == 3, "phase and absolute private data root required");
-	const auto phase = std::string_view{ aArgv[1] };
-	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline", "known offline phase");
+	const auto argument       = std::string_view{ aArgv[1] };
+	const bool identityCourse = argument.starts_with("identity-");
+	const auto phase          = identityCourse ? argument.substr(9) : argument;
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || (identityCourse && phase == "legacy"), "known offline phase");
 	std::array<char, 2049U> bytes{ };
 	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
@@ -160,6 +193,7 @@ try {
 	options.RepeatReadSessions     = true;
 	options.IndependentWindowReads = true;
 	options.Offline                = offline;
+	options.RecentAccount          = identityCourse ? std::make_shared<std::atomic<std::uint64_t>>(910001U) : nullptr;
 	options.SharedDeviceVault      = vaultBytes.empty() ? app::detail::make_shared_github_fixture_vault() : app::detail::import_github_fixture_vault(vaultBytes);
 	expect(options.SharedDeviceVault != nullptr, "synthetic vault restored");
 	app::github_application* owner    = nullptr;
@@ -168,6 +202,7 @@ try {
 															  [&](auto result) { terminal = true; if (result) { owner = *result; } });
 	wait_for([&] { return terminal; }, "desktop startup terminal");
 	expect(owner != nullptr, "desktop admitted");
+	diagnosticOwner = owner;
 	owner->show();
 	wait_for([&] { return owner->windows().size() == 1U; }, "one restored window");
 	auto& window = *owner->window(owner->windows().front());
@@ -183,9 +218,17 @@ try {
 			window.home_landing()->primary_button()->click();
 		}
 		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "exact fixture account accepted");
+		if (phase == "legacy") {
+			expect(window.home_recent_list()->count() == 0, "legacy unknown accounts cannot inherit the authenticated viewer");
+			expect_unavailable(*owner, window);
+			report(*owner, window, "identity-legacy");
+		}
 		if (phase == "restart-read") {
 			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
 			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
+			if (identityCourse) {
+				expect_recent(window, 910001U, 17);
+			}
 			expect(window.home_recent_list()->item(0)->text().contains(QStringLiteral("octo-org/review-repository#17")), "Recent names exact target");
 			offline->Offline = true;
 			window.home_recent_list()->setCurrentRow(0);
@@ -206,7 +249,45 @@ try {
 		const auto left  = window.comparison_surface()->left_pane()->toPlainText();
 		const auto right = window.comparison_surface()->right_pane()->toPlainText();
 		report(*owner, window, phase == "seed" ? "online-seed" : "restart-reconnected");
-		if (phase == "seed") {
+		if (identityCourse && phase == "seed") {
+			window.home_action()->trigger();
+			expect_recent(window, 910001U, 17);
+			const auto context = owner->windows().front();
+			access::hold_window_read_terminal(*owner, context, true);
+			window.github_refresh_action()->trigger();
+			wait_for([&] { return access::held_window_read_terminals(*owner, context) > 0U; }, "first-account refresh terminal is held");
+			switch_account(window, options.RecentAccount, 910002U);
+			access::hold_window_read_terminal(*owner, context, false);
+			QApplication::processEvents();
+			report(*owner, window, "identity-other-account");
+			expect(window.home_recent_list()->count() == 0, "another account cannot see the first account's title or destination");
+			expect_unavailable(*owner, window);
+			open(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/18"));
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "second account review accepted");
+			select_source(*owner, window);
+			expect(access::large_review_snapshot(*owner)->Account == core::github_account_id{ 910002U }, "second snapshot is exact account");
+			window.home_action()->trigger();
+			expect_recent(window, 910002U, 18);
+			switch_account(window, options.RecentAccount, 910001U);
+			expect_recent(window, 910001U, 17);
+			window.home_recent_list()->setCurrentRow(0);
+			window.home_recent_resume_action()->trigger();
+			wait_for([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key; }, "returning account resumes its exact retained comparison");
+		} else if (identityCourse && phase == "restart-read") {
+			window.home_action()->trigger();
+			switch_account(window, options.RecentAccount, 910002U);
+			expect_recent(window, 910002U, 18);
+			offline->Offline = true;
+			window.home_recent_list()->setCurrentRow(0);
+			wait_for([&] { return window.home_recent_resume_action()->isEnabled(); }, "second account retained reading offers Resume");
+			window.home_recent_resume_action()->trigger();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "second account offline Resume fails visibly");
+			expect_unavailable(*owner, window);
+			report(*owner, window, "identity-second-account-offline");
+			offline->Offline = false;
+			switch_account(window, options.RecentAccount, 910001U);
+			expect_recent(window, 910001U, 17);
+		} else if (phase == "seed") {
 			offline->Offline = true;
 			window.github_refresh_action()->trigger();
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "network loss refresh terminal");
@@ -242,17 +323,19 @@ try {
 			expect(window.comparison_surface()->current_context()->Key == key, "exact retained revision identity restored after failure");
 		}
 	}
+	expect(!staleRecentWhileSignedOut, "settled sign-out hides authenticated Recent");
 	expect(access::review_mutation_evidence(*owner).Submissions == 0U, "inventory performs no mutation");
 	std::cerr << "wire_refusals=" << offline->WireRefusals.load() << " git_refusals=" << offline->GitRefusals.load() << '\n';
 	auto* quit = window.findChild<QAction*>(QStringLiteral("quitProfilesAction"));
 	expect(quit != nullptr && quit->isEnabled(), "public Quit available");
 	quit->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains persisted reading and all services");
+	diagnosticOwner = nullptr;
 	desktop.reset();
 	const auto exported = app::detail::export_github_fixture_vault(options.SharedDeviceVault);
 	expect(exported.size() <= 2048U, "synthetic vault output bounded");
 	std::cout.write(exported.data(), static_cast<std::streamsize>(exported.size()));
-	std::cerr << "offline-inventory:" << phase << ":pass\n";
+	std::cerr << "offline-inventory:" << argument << ":pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();

@@ -34,7 +34,13 @@ namespace bpr::core {
 	}
 	auto valid(const window_review_destination& aDestination) noexcept -> bool
 	{
-		return valid(window_review_authority{ aDestination.Mode, aDestination.Hostname }) && valid(aDestination.Repository) && aDestination.Number.value() != 0;
+		return valid(window_review_authority{ aDestination.Mode, aDestination.Hostname }) && valid(aDestination.Repository) && aDestination.Number.value() != 0
+			&& (aDestination.Mode != github_access_mode::public_preview || aDestination.Account.value() == 0);
+	}
+	auto matches_review_authority(const window_review_destination& aDestination, const window_review_authority& aAuthority, github_account_id aAccount) noexcept -> bool
+	{
+		return valid(aDestination) && aDestination.Mode == aAuthority.Mode && aDestination.Hostname == aAuthority.Hostname
+			&& aDestination.Account == aAccount && (aDestination.Mode == github_access_mode::public_preview || aAccount.value() != 0);
 	}
 	auto valid_window_review_records(const std::vector<window_review_record>& aRecords) noexcept -> bool
 	{
@@ -399,7 +405,7 @@ namespace bpr::core {
 	}
 	auto window_review_restoration::accepted_read(bpr_window_context aContext, const window_review_destination& aDestination, std::int64_t aViewedAt) -> bool
 	{
-		if (!current(aContext) || !valid(aDestination) || aViewedAt < 0 || std::ranges::find(ConfiguredHosts, aDestination.Hostname) == ConfiguredHosts.end()) {
+		if (!current(aContext) || !valid(aDestination) || (aDestination.Mode == github_access_mode::authenticated && aDestination.Account.value() == 0) || aViewedAt < 0 || std::ranges::find(ConfiguredHosts, aDestination.Hostname) == ConfiguredHosts.end()) {
 			return false;
 		}
 		const auto found = std::ranges::find_if(Records, [aContext](const auto& aRecord) { return aRecord.Window == aContext.Window; });

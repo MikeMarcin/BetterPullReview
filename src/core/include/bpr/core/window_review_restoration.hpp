@@ -24,7 +24,10 @@ namespace bpr::core {
 		std::string         Hostname;
 		repository_locator  Repository;
 		pull_request_number Number;
-		auto                operator==(const window_review_destination&) const -> bool = default;
+		/// Accepted viewer identity. Zero is anonymous or a legacy unknown owner;
+		/// an authenticated destination with unknown ownership is never offered.
+		github_account_id Account{ };
+		auto              operator==(const window_review_destination&) const -> bool = default;
 	};
 	/// \brief Exact accepted reading identity; no alias or pixel coordinate is durable.
 	struct window_review_position
@@ -121,6 +124,9 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto valid(const window_review_authority& aAuthority) noexcept -> bool;
 	[[nodiscard]] auto valid(const window_review_destination& aDestination) noexcept -> bool;
+	/// \brief Exact session admission for saved metadata and reading. Unknown
+	/// authenticated ownership cannot borrow the current account on migration.
+	[[nodiscard]] auto matches_review_authority(const window_review_destination& aDestination, const window_review_authority& aAuthority, github_account_id aAccount) noexcept -> bool;
 	[[nodiscard]] auto valid(const window_review_position& aPosition) noexcept -> bool;
 	/// \brief Whether an exact pair can be a durable comparison: both anchors
 	/// available, in one authority, one catalog incarnation and one object format.

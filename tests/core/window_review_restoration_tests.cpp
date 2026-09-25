@@ -16,7 +16,7 @@ namespace {
 	auto context(std::uint64_t aId, std::uint64_t aGeneration = 2) -> bpr_window_context { return { default_bpr_profile_id, bpr_window_id{ aId }, bpr_window_generation{ aGeneration } }; }
 	auto destination(github_access_mode aMode = github_access_mode::authenticated, std::string aHost = "github.com") -> window_review_destination
 	{
-		return { aMode, std::move(aHost), { "owner", "repo" }, pull_request_number{ 27 } };
+		return { aMode, std::move(aHost), { "owner", "repo" }, pull_request_number{ 27 }, aMode == github_access_mode::authenticated ? github_account_id{ 11 } : github_account_id{ } };
 	}
 	template <typename T>
 	auto identity(std::uint8_t aByte) -> T
@@ -189,6 +189,36 @@ namespace {
 		const auto                refused = corrupt.load({ }, { { first, { }, 0, { } }, { first, { }, 0, { } } });
 		expect(!refused.Startup && refused.Failures.size() == 1 && refused.Failures[0].Reason == window_review_failure::corrupt, "a corrupt list fails the load");
 	}
+	void test_recent_account_identity()
+	{
+		auto first           = destination();
+		first.Account        = { };
+		const auto authority = window_review_authority{ github_access_mode::authenticated, "github.com" };
+		expect(!matches_review_authority(first, authority, github_account_id{ 11 }), "legacy unknown ownership cannot adopt the current account");
+		first.Account  = github_account_id{ 11 };
+		auto second    = first;
+		second.Account = github_account_id{ 22 };
+		expect(matches_review_authority(first, authority, first.Account), "exact authenticated authority admits its destination");
+		expect(!matches_review_authority(first, authority, second.Account) && !matches_review_authority(first, authority, { }), "another or missing account is refused");
+		expect(!matches_review_authority(first, { github_access_mode::authenticated, "other.example" }, first.Account)
+				   && !matches_review_authority(first, { github_access_mode::public_preview, "github.com" }, first.Account),
+			   "host and mode remain exact");
+		auto preview = destination(github_access_mode::public_preview);
+		expect(matches_review_authority(preview, { github_access_mode::public_preview, "github.com" }, { }), "anonymous destination remains available anonymously");
+		preview.Account = first.Account;
+		expect(!valid(preview), "anonymous row cannot hold an authenticated owner");
+		window_review_restoration policy{ default_bpr_profile_id, { context(1) }, { "github.com" } };
+		static_cast<void>(policy.load({ }));
+		auto unknown    = first;
+		unknown.Account = { };
+		expect(!policy.accepted_read(context(1), unknown, 1), "new authenticated reads must carry accepted account identity");
+		expect(policy.accepted_read(context(1), first, 1) && policy.accepted_title(first, "First account"), "first account records its title");
+		expect(policy.accepted_position(context(1), first, position()), "first account retains its exact reading");
+		expect(policy.accepted_read(context(1), second, 2) && policy.accepted_title(second, "Second account"), "same PR under second account gets a separate row");
+		expect(policy.recent().size() == 2 && !policy.recent()[0].Position && policy.recent()[1].Position == position(), "second account cannot inherit first reading");
+		expect(!policy.accepted_position(context(1), first, position()), "late first-account reading cannot update second-account window");
+		expect(policy.accepted_read(context(1), first, 3) && policy.recent()[0].Title == "First account" && policy.recent()[0].Position == position(), "returning account preserves its own title and reading");
+	}
 	/// [[BPR-1131]]. A window's document tabs travel with its reading: they are
 	/// kept for its accepted destination and its recently viewed entry, carried
 	/// to the window that resumes it, and dropped when the window moves on.
@@ -238,6 +268,7 @@ namespace {
 int main()
 {
 	test_recently_viewed_list();
+	test_recent_account_identity();
 	test_selection_and_exact_readiness();
 	test_home_does_not_cancel_sibling_and_missing_host_no_fallback();
 	test_user_authority_and_persistence_scope();

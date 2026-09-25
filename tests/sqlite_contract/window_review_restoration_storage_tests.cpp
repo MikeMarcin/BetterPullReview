@@ -201,7 +201,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "legacy fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			auto stop            = std::stop_source{ };
@@ -230,7 +230,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "refused migration fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			execute(raw, corruption);
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
@@ -245,7 +245,7 @@ namespace {
 	}
 	void test_corruptions()
 	{
-		for (const auto sql : { "PRAGMA user_version=99", "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_meta SET revision='0'", "UPDATE restoration_records SET window_id='01'", "UPDATE restoration_records SET number='2147483648'", "UPDATE restoration_records SET number='017'", "UPDATE restoration_records SET hostname='GitHub.com'", "UPDATE restoration_records SET owner='../bad'", "UPDATE restoration_records SET hostname=hex(zeroblob(2097152))", "PRAGMA ignore_check_constraints=ON; UPDATE restoration_records SET mode=9", "WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<33) INSERT INTO restoration_records SELECT CAST(n AS TEXT),0,'github.com','octo','repo','17',NULL FROM ids" }) {
+		for (const auto sql : { "PRAGMA user_version=99", "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_meta SET revision='0'", "UPDATE restoration_records SET window_id='01'", "UPDATE restoration_records SET number='2147483648'", "UPDATE restoration_records SET number='017'", "UPDATE restoration_records SET hostname='GitHub.com'", "UPDATE restoration_records SET owner='../bad'", "UPDATE restoration_records SET hostname=hex(zeroblob(2097152))", "PRAGMA ignore_check_constraints=ON; UPDATE restoration_records SET mode=9", "WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<33) INSERT INTO restoration_records SELECT CAST(n AS TEXT),0,'github.com','octo','repo','17',NULL,'0' FROM ids" }) {
 			const auto scratch = scratch_directory{ };
 			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			expect(store->load({ }).has_value() && store->save(filled(2, 1), 1, { }).has_value(), "corruption fixture persists");
@@ -270,7 +270,7 @@ namespace {
 		auto       store     = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		auto       stop      = std::stop_source{ };
 		interruption::Stop   = &stop;
-		interruption::Prefix = "PRAGMA user_version=4";
+		interruption::Prefix = "PRAGMA user_version=5";
 		const auto first     = store->load(stop.get_token());
 		expect(stop.stop_requested() && !first && first.error().Failure == window_review_store_failure::cancelled, "initialization cancels after schema stamp");
 		interruption::Stop = nullptr;
@@ -320,7 +320,7 @@ namespace {
 			expect(store->save(saved, 1, { }) == saved, "one retained row persists");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, legacy ? "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=2");
+			execute(raw, legacy ? "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
 			sqlite3_close(raw);
 			auto expected = saved;
 			if (legacy) {
@@ -349,7 +349,7 @@ namespace {
 		expect(store->save(saved, 1, { }) == saved, "three windows over two destinations persist");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=2");
+		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
 		sqlite3_close(raw);
 		store               = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		const auto migrated = store->load({ });
@@ -365,18 +365,22 @@ namespace {
 			std::string_view            Sql;
 			window_review_store_failure Failure;
 		};
-		for (const auto& refused : { refusal{ "UPDATE recent_reviews SET ordinal=5 WHERE ordinal=1", window_review_store_failure::corrupt },
+		for (const auto& refused : { refusal{ "UPDATE recent_reviews SET account='01' WHERE ordinal=0", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET account='18446744073709551616' WHERE ordinal=0", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET account='7' WHERE mode=1", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE restoration_records SET account='-1'", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET ordinal=5 WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET mode=0,repository='repo',number='17' WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET title=substr(hex(zeroblob(300)),1,513) WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET viewed_at=-1 WHERE ordinal=0", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET position=x'' WHERE ordinal=0", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET owner='../bad' WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET mode=9 WHERE ordinal=1", window_review_store_failure::corrupt },
-									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL FROM ids", window_review_store_failure::corrupt },
+									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL,'0' FROM ids", window_review_store_failure::corrupt },
 									 refusal{ "DROP TABLE recent_reviews", window_review_store_failure::schema_mismatch },
-									 refusal{ "PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
+									 refusal{ "PRAGMA user_version=6", window_review_store_failure::schema_mismatch },
 									 // A future stamp over a shape this build could otherwise migrate.
-									 refusal{ "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
+									 refusal{ "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
 									 // [[BPR-1131]]. A version 3 stamp over the version 4 shape.
 									 refusal{ "PRAGMA user_version=3", window_review_store_failure::schema_mismatch } }) {
 			const auto scratch = scratch_directory{ };
@@ -517,6 +521,49 @@ namespace {
 			expect(file_bytes(scratch.database()) == before, "the refusal writes nothing");
 		}
 	}
+	void test_account_migration()
+	{
+		for (const auto prefix : { "CREATE TEMP TABLE account_records_migration", "DROP TABLE restoration_records", "INSERT INTO restoration_records", "CREATE TEMP TABLE account_recent_migration", "DROP TABLE recent_reviews", "INSERT INTO recent_reviews", "PRAGMA user_version=5", "COMMIT" }) {
+			const auto scratch    = scratch_directory{ };
+			auto       store      = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			auto       saved      = listed();
+			saved.Records[0].Tabs = tabs(1, 0);
+			saved.Recent[0].Tabs  = tabs(1, 0);
+			expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "legacy account fixture saved");
+			store.reset();
+			auto* raw = raw_open(scratch.database());
+			execute(raw, "ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=4");
+			const auto before = snapshot(raw);
+			sqlite3_close(raw);
+			std::stop_source stop;
+			interruption::Stop   = &stop;
+			interruption::Prefix = prefix;
+			expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(&interruption::install)) == SQLITE_OK, "migration trace installed");
+			store                = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto cancelled = store->load(stop.get_token());
+			expect(!cancelled && cancelled.error().Failure == window_review_store_failure::cancelled, "every account migration boundary cancels");
+			store.reset();
+			sqlite3_reset_auto_extension();
+			interruption::Stop = nullptr;
+			raw                = raw_open(scratch.database());
+			if (std::string_view{ prefix } == "COMMIT") {
+				expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 5, "commit may finish before cancellation is observed");
+			} else {
+				expect(snapshot(raw) == before, "pre-commit cancellation preserves schema and records");
+			}
+			sqlite3_close(raw);
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == saved, "legacy metadata, positions and tabs survive with unknown ownership");
+			auto claimed = saved;
+			++claimed.Revision;
+			claimed.Records[0].Destination.Account = core::github_account_id{ std::numeric_limits<std::uint64_t>::max() };
+			claimed.Recent[0].Destination.Account  = claimed.Records[0].Destination.Account;
+			expect(store->save(claimed, saved.Revision, { }) == claimed, "full width account identity persists");
+			store.reset();
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == claimed, "account, metadata and exact reading survive restart");
+		}
+	}
 	// [[BPR-1131]]. A version 3 file gains empty tab tables and keeps every row.
 	void test_tabs_migration()
 	{
@@ -526,15 +573,15 @@ namespace {
 		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "version 3 fixture persists");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; PRAGMA user_version=3");
+		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=3");
 		sqlite3_close(raw);
 		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		expect(store->load({ }) == saved, "a version 3 file migrates with its records and list intact");
 		store.reset();
 		raw = raw_open(scratch.database());
-		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 4
+		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 5
 				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_tabs") == 0,
-			   "the migrated file is version 4 with no tabs");
+			   "the migrated file is version 5 with no tabs");
 		sqlite3_close(raw);
 	}
 }
@@ -554,6 +601,7 @@ try {
 	test_tabs_bound();
 	test_tabs_refusals();
 	test_tabs_migration();
+	test_account_migration();
 	std::cout << "window-review-restoration-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

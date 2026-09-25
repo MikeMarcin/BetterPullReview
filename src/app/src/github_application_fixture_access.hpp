@@ -286,6 +286,8 @@ namespace bpr::app::detail {
 		bool IndependentWindowReads = false;
 		/// Two same-server accounts selected only by the test-owned BPR profile.
 		bool DistinctProfileAccounts = false;
+		/// Safe generated viewer selected before each real sign-in in one profile.
+		std::shared_ptr<std::atomic<std::uint64_t>> RecentAccount;
 		/// [[BPR-0990]]. Serves personal discovery over this repository list.
 		std::optional<github_personal_discovery_fixture> PersonalDiscovery;
 		std::shared_ptr<github_rate_limit_fixture>       RateLimit;

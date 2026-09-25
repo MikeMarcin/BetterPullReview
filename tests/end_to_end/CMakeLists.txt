@@ -3120,3 +3120,10 @@ bpr_add_network_isolated_test(NAME application_offline_inventory WINDOWS_UNCONTA
 set_tests_properties(application_offline_inventory PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
     PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")
+
+bpr_add_network_isolated_test(NAME application_recent_account_isolation WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/offline_inventory_contract.py"
+    --application $<TARGET_FILE:test_offline_inventory_public_path> --identity)
+set_tests_properties(application_recent_account_isolation PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
+    PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")
