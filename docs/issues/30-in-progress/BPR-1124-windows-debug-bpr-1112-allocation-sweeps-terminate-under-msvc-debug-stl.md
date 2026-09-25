@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1124"
 title: "Windows Debug: BPR-1112's allocation sweeps end application_github_host in std::terminate, because MSVC's debug STL allocates inside noexcept moves"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
