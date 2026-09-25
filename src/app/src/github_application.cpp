@@ -4,6 +4,7 @@
 #include "bpr/logging/quill_log.hpp"
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
+#include "profile_window_layout_port.hpp"
 #include <QCryptographicHash>
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -2498,96 +2499,6 @@ namespace bpr::app {
 
 		private:
 			const std::filesystem::path Root;
-		};
-
-		/// Owns only immutable routing data; every adapter lifetime stays inside an effect call.
-		class profile_window_layout_service final
-		{
-		public:
-			profile_window_layout_service(std::filesystem::path aRoot, std::vector<core::bpr_window_id> aKeep)
-				: Root{ std::move(aRoot) }
-				, Keep{ std::move(aKeep) }
-			{ }
-			template <class Result, class Operation>
-			auto perform(core::bpr_window_id aWindow, std::stop_token aStop, Operation aOperation) -> Result
-			{
-				const auto lock = std::scoped_lock{ Mutex };
-				if (!Reconciled) {
-					auto defaults = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = Root }, aStop);
-					if (!defaults) {
-						return std::unexpected(application::workbench_settings_error{ .Failure = defaults.error() });
-					}
-					auto retained = (*defaults)->retain_windows(Keep, aStop);
-					if (!retained) {
-						return std::unexpected(retained.error());
-					}
-					Reconciled = true;
-				}
-				auto store = adapters::sqlite::make_workbench_settings_store({ .StorageRoot = Root, .Window = aWindow }, aStop);
-				if (!store) {
-					return std::unexpected(application::workbench_settings_error{ .Failure = store.error() });
-				}
-				return aOperation(**store);
-			}
-			auto erase(core::bpr_window_id aWindow) -> application::workbench_settings_result<void>
-			{
-				return perform<application::workbench_settings_result<void>>(aWindow, { }, [aWindow](auto& aStore) { return aStore.erase_window(aWindow, { }); });
-			}
-
-		private:
-			std::filesystem::path                  Root;
-			const std::vector<core::bpr_window_id> Keep;
-			std::mutex                             Mutex;
-			bool                                   Reconciled = false;
-		};
-
-		class profile_window_layout_port final : public application::workbench_settings_port
-		{
-		public:
-			profile_window_layout_port(std::shared_ptr<profile_window_layout_service> aService, core::bpr_window_id aWindow)
-				: Service{ std::move(aService) }
-				, Window{ aWindow }
-			{ }
-			auto window() const noexcept -> core::bpr_window_id override { return Window; }
-			auto profile_scoped() const noexcept -> bool override { return true; }
-			auto load(std::stop_token aStop) -> application::workbench_settings_result<application::workbench_layout_settings> override
-			{
-				return Service->perform<application::workbench_settings_result<application::workbench_layout_settings>>(Window, aStop, [aStop](auto& aStore) { return aStore.load(aStop); });
-			}
-			auto store(const application::workbench_layout_settings& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void> override
-			{
-				WriteFailed.store(true, std::memory_order_release);
-				Attempted.fetch_add(1U, std::memory_order_acq_rel);
-				auto result = Service->perform<application::workbench_settings_result<void>>(Window, aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
-				WriteFailed.store(!result.has_value(), std::memory_order_release);
-				if (result) {
-					Completed.fetch_add(1U, std::memory_order_acq_rel);
-				} else {
-					LastFailure.store(static_cast<int>(result.error().Failure), std::memory_order_release);
-				}
-				return result;
-			}
-			auto write_failed() const noexcept -> bool { return WriteFailed.load(std::memory_order_acquire); }
-			// [[BPR-0875]]. `write_failed` is set before the store runs and
-			// cleared by its result, so it also reads true while a write is in
-			// flight. These two say which of those a shutdown saw: how many
-			// stores were attempted and completed, and what the last refusal was.
-			auto writes_attempted() const noexcept -> std::size_t { return Attempted.load(std::memory_order_acquire); }
-			auto writes_completed() const noexcept -> std::size_t { return Completed.load(std::memory_order_acquire); }
-			auto last_write_failure() const noexcept -> std::optional<application::workbench_settings_failure>
-			{
-				const auto recorded = LastFailure.load(std::memory_order_acquire);
-				return recorded < 0 ? std::nullopt
-									: std::optional{ static_cast<application::workbench_settings_failure>(recorded) };
-			}
-
-		private:
-			std::shared_ptr<profile_window_layout_service> Service;
-			core::bpr_window_id                            Window;
-			std::atomic_bool                               WriteFailed = false;
-			std::atomic_size_t                             Attempted   = 0U;
-			std::atomic_size_t                             Completed   = 0U;
-			std::atomic_int                                LastFailure = -1;
 		};
 
 		[[nodiscard]] auto unavailable_theme_document()
@@ -12954,17 +12865,16 @@ namespace bpr::app {
 			}
 			if (DurableWindowLayout && Retirement == window_retirement::orderly_quit
 				&& DurableWindowLayout->write_failed()) {
-				// [[BPR-0875]]. Name the source, and say whether a write refused
-				// or one was still in flight when the quit drained: the flag
-				// cannot tell those apart, and only the first loses the layout.
+				// BPR-0899: the host above drains the active and latest coalesced
+				// writes before cleanup reads their final result. BPR-0875's
+				// counters name real refusals; in-flight-at-drain is unreachable.
 				const auto failure = DurableWindowLayout->last_write_failure();
 				note_cleanup_failure(
 					std::string{ "durable-layout-write:window=" }
 					+ std::to_string(DraftWindow.Window.value()) + ":attempted="
 					+ std::to_string(DurableWindowLayout->writes_attempted()) + ":completed="
 					+ std::to_string(DurableWindowLayout->writes_completed()) + ":"
-					+ (!failure ? "in-flight-at-drain"
-						   : *failure == application::workbench_settings_failure::cancelled
+					+ (failure == application::workbench_settings_failure::cancelled
 						   ? "cancelled"
 						   : "unavailable"));
 				ShutdownCleanupFailed = true;

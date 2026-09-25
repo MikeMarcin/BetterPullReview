@@ -2973,6 +2973,19 @@ set_tests_properties(application_profile_window_restart_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 260)
 
 
+# BPR-0899: the production port and host drain through real private SQLite storage.
+bpr_add_executable(test_profile_window_layout_drain profile_window_layout_drain_tests.cpp)
+target_link_libraries(test_profile_window_layout_drain PRIVATE BetterPullReview::Application BetterPullReview::AdapterSQLite)
+if(WIN32)
+    target_link_libraries(test_profile_window_layout_drain PRIVATE advapi32)
+endif()
+bpr_enable_hardening(test_profile_window_layout_drain)
+bpr_enable_warnings(test_profile_window_layout_drain)
+bpr_add_network_isolated_test(NAME application_profile_window_layout_drain WINDOWS_UNCONTAINED
+    COMMAND test_profile_window_layout_drain)
+set_tests_properties(application_profile_window_layout_drain PROPERTIES
+    TIMEOUT 30 PASS_REGULAR_EXPRESSION "profile-window-layout-drain:pass")
+
 bpr_add_executable(test_profile_window_layout_public_path profile_window_layout_public_path_tests.cpp)
 target_link_libraries(test_profile_window_layout_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_profile_window_layout_public_path PRIVATE BPR_BUILD_TESTING=1)

@@ -278,6 +278,11 @@ endfunction()
 # provider, vault, transport or mutation path changes; the mutation-branch pin
 # is unchanged. Covers 96a86433..the BPR-1130 commit; nothing else touched the
 # pinned scope. Review recorded on BPR-1130.
+# BPR-0899 reseal: 9a0b44d5..this implementation extracts the private
+# layout service/port, records only completed store refusals with a separate
+# in-flight count, and retires the unreachable in-flight-at-drain alternative
+# after host quiescence. The new header is in both inventories. No intervening
+# pinned-scope change; mutation branch unchanged. Review recorded on BPR-0899.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -296,7 +301,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"f8d04c4eff35dc98e377ac7038d18f73e3453e394f671c4bef4d06b0439c68b6"
+		"5bc3de4d81fc806d9ad3a1b9dd0470200e5b00030daaddd0edc2345aea6cbbb6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -333,6 +338,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
         "src/profile_desktop.cpp"
+        "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
         "src/release_update_desktop.cpp"
         "src/review_submission_workflow.cpp"
@@ -401,6 +407,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
         "src/profile_desktop.cpp"
+        "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
         "src/release_update_desktop.cpp"
         "src/review_submission_fixture.cpp"
@@ -439,7 +446,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "af474811f3ed788dbb34a5182d1280c66688d3e71c33c1aa4ea63c7b4650492b"
+        "29225f6798667170da6f68217ef5e1044c70ebc5dda60db2aa31cad6c9ec0c7e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

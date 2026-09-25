@@ -344,6 +344,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(quitWindow != nullptr, "Quit exact window available");
 	trigger(*quitWindow, "quitProfilesAction");
 	wait_for([&] { return desktop->is_quiescent(); }, "orderly Quit drains latest layout writes");
+	expect(desktop->exit_code() == 0, "drained layout writes do not report a cleanup failure");
 	desktop.reset();
 	std::cout << "profile-window-layout:" << phase << ":pass\n";
 	return EXIT_SUCCESS;

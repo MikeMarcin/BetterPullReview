@@ -156,7 +156,15 @@ display coordinates to an available screen, and reports later move/resize
 observations to the host's coalesced persistence lane. Schema-nine migration
 preserves older Home/drawer rows without inventing a native placement.
 Orderly Quit drains the latest accepted layout write; explicit Close erases its
-row after writers drain. Startup reconciliation removes orphan layout rows
+row after writers drain. The layout host closes ingress, retains at most one
+active store plus one latest coalesced layout per window, and waits for their
+decision terminals without retrying a refused store. Storage uses the existing
+two-second SQLite busy timeout; there is no additional layout shutdown timer
+or guarantee against an operating-system I/O stall. The port reports the last
+finished store's refusal separately from its in-flight count. After host
+quiescence, cleanup names only a real `cancelled` or `unavailable` result;
+BPR-0875's attempted/successful-store counters retain their diagnostic meaning.
+A later successful store clears the prior refusal (BPR-0899). Startup reconciliation removes orphan layout rows
 using the complete accepted live set without changing profile defaults or the
 global allocator. Optional layout failure is visible and leaves windows usable.
 BPR-0709 adds accepted PR destinations in the separate profile-private
