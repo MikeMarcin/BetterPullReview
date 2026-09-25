@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1198-refresh-identity",
+  "scope": {
+    "issues": [
+      "BPR-1198"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "refresh-identity",
+      "outcome": "The epoch refresh course accepts exactly a reconciled tab-owned file view or a genuinely unselected review-wide view, and names terminal identity disagreements.",
+      "work": [
+        {
+          "issue": "BPR-1198"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Exact terminal observations distinguish host selection, tab pair, displayed comparison and conversation anchor.",
+        "Fail-before/pass-after public review-behaviour evidence on macOS preserves the 120000 ms run budget and the unselected six-root regression."
+      ],
+      "boundary": "Isolated worktree from f6de40b6; no primary checkout writes, frozen candidate changes or push. New Windows/Linux runs deferred by owner."
+    }
+  ],
+  "unplanned_work": []
+}
