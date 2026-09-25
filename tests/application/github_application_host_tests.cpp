@@ -3,12 +3,14 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <new>
 #include <optional>
 #include <set>
 #include <span>
@@ -18,6 +20,44 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+// [[BPR-1112]]. Allocation failure on demand, for every allocation this test
+// binary makes through `operator new`. `arm(n)` lets n more allocations
+// succeed and fails the next one with std::bad_alloc. Disarmed, every
+// allocation is an ordinary one.
+namespace allocation_fault {
+	inline std::atomic<long long> Remaining{ -1 };
+	inline std::atomic<bool>      Fired{ false };
+	inline void                   arm(const long long aSucceeding) noexcept
+	{
+		Fired     = false;
+		Remaining = aSucceeding;
+	}
+	// Disarms, and reports whether the armed failure happened.
+	inline auto disarm() noexcept -> bool
+	{
+		Remaining = -1;
+		return Fired.exchange(false);
+	}
+}
+// The standard library declares these with reserved parameter names.
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+auto operator new(const std::size_t aSize) -> void*
+{
+	if (allocation_fault::Remaining.load() >= 0 && allocation_fault::Remaining.fetch_sub(1) == 0) {
+		allocation_fault::Remaining = -1;
+		allocation_fault::Fired     = true;
+		throw std::bad_alloc{ };
+	}
+	if (auto* const block = std::malloc(aSize == 0U ? 1U : aSize); block != nullptr) {
+		return block;
+	}
+	throw std::bad_alloc{ };
+}
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* aBlock) noexcept { std::free(aBlock); }
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* aBlock, std::size_t) noexcept { std::free(aBlock); }
 
 namespace {
 	using namespace bpr;
@@ -5494,12 +5534,19 @@ namespace {
 		void post(std::function<void()> aTask) override
 		{
 			if (Refuse) {
-				throw std::runtime_error{ "refused post" };
+				auto refusal = std::runtime_error{ "refused post" };
+				// [[BPR-1112]]. The allocation fault starts counting once this
+				// refusal is certain, so every failure it injects comes after it.
+				if (ArmAfterRefusal >= 0) {
+					allocation_fault::arm(std::exchange(ArmAfterRefusal, -1));
+				}
+				throw refusal;
 			}
 			Inner.post(std::move(aTask));
 		}
 		application::manual_executor Inner;
-		bool                         Refuse = false;
+		bool                         Refuse          = false;
+		long long                    ArmAfterRefusal = -1;
 	};
 	// A refused effect post leaves the job to report `unavailable` through the
 	// decision lane. When that post is refused too, the lane must stay drainable.
@@ -5757,6 +5804,119 @@ namespace {
 			   "rotation: the next barrier writes nothing either, and a foreign account or a stale generation is refused");
 		expect(course.later_restore_reaches_the_store(), "rotation: a later restore is not refused by a leftover count");
 		expect(course.quiescent_once_closed(), "rotation: the host is quiescent once closed");
+	}
+
+	// [[BPR-1112]]. A withdrawal while the host shuts down. Its failure runs in
+	// the shutdown turn, its count is released, and the host is quiescent with
+	// no later call: no second shutdown and no other ingress.
+	void test_a_withdrawal_at_shutdown_runs_its_failure()
+	{
+		withdrawing_binding_lane course;
+		auto&                    host = course.Fixture.Host;
+		// Accepted but never stored, so the shutdown policy removes it, and its
+		// tombstone is the request the lane withdraws.
+		establish_native_session(course.Fixture, core::host_profile_id{ 11U }, core::github_account_id{ 51U }, std::nullopt, application::github_credential_provenance::device_grant, binding_lifetime());
+		course.settle();
+		const auto authority   = *host.accepted_credential_authority();
+		const auto diagnostics = course.Fixture.Projections.host_diagnostic_count();
+		const auto escaped     = course.escapes_while_withdrawing([&] { host.shutdown(); });
+		expect(!escaped, "shutdown: the host handles a withdrawn tombstone, so its caller sees no throw");
+		expect(course.failed_visibly(diagnostics) && host.shutdown_cleanup_failed() && course.Store.Operations.empty() && course.Fixture.Vault.Deletes.size() == 1U
+				   && course.Fixture.Vault.Deletes.front().Context.Authority == authority,
+			   "shutdown: the withdrawn tombstone's failure ran in the shutdown turn, and its path still erases the credential");
+		course.settle();
+		expect(host.is_quiescent(), "shutdown: the count is released, and the host is quiescent with no later call");
+	}
+
+	// [[BPR-1112]]. Out of memory in a shutdown after the lane withdrew its
+	// tombstone: each allocation after the withdrawal is failed in turn. The
+	// withdrawn request's failure still runs, whether the turn ends normally
+	// or in an exception, so draining the lanes is enough and no second
+	// shutdown is needed. Measured on macOS, none of these failures ends the
+	// turn in an exception; `run_turn` would fail the queue before rethrowing
+	// if one did.
+	void test_a_shutdown_that_fails_after_a_withdrawal_still_runs_its_failure()
+	{
+		auto thrown = std::size_t{ 0U };
+		auto steps  = 0LL;
+		for (;; ++steps) {
+			withdrawing_binding_lane course;
+			auto&                    host = course.Fixture.Host;
+			establish_native_session(course.Fixture, core::host_profile_id{ 11U }, core::github_account_id{ 51U }, std::nullopt, application::github_credential_provenance::device_grant, binding_lifetime());
+			course.settle();
+			// The decision lane's refusal is the one that withdraws the tombstone.
+			course.Lane.ArmAfterRefusal = steps;
+			const auto escaped          = course.escapes_while_withdrawing([&] { host.shutdown(); });
+			const auto injected         = allocation_fault::disarm();
+			course.settle();
+			expect(host.is_quiescent(), "a shutdown whose allocation " + std::to_string(steps) + " fails still reaches quiescence with no later call");
+			if (!injected) {
+				break;
+			}
+			thrown += escaped ? 1U : 0U;
+		}
+		std::cout << "BPR-1112 throwing shutdown: " << steps << " allocations after the withdrawal failed in turn, " << thrown << " ended the turn in an exception\n";
+		expect(steps > 0, "the shutdown allocates after the withdrawal, so the sweep failed something");
+	}
+
+	// [[BPR-1112]]. `start_delete` builds its terminal handler before it
+	// changes any state. Each allocation in a shutdown that must erase a
+	// durable grant is failed in turn. If the cleanup's request was neither
+	// admitted by the lane nor failed, the grant's durability is as it was.
+	// And the host always reaches quiescence.
+	void test_a_failed_allocation_in_start_delete_changes_nothing()
+	{
+		auto changed = std::size_t{ 0U };
+		auto steps   = 0LL;
+		for (;; ++steps) {
+			host_fixture                            fixture{ application::github_credential_shutdown_policy::delete_retained_on_shutdown };
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			settle_grant(fixture);
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Host.accepted_device_binding_durable(), "start_delete: the grant is durable before the shutdown");
+			const auto diagnostics = fixture.Projections.host_diagnostic_count();
+			allocation_fault::arm(steps);
+			try {
+				fixture.Host.shutdown();
+			} catch (...) {
+			}
+			const auto injected = allocation_fault::disarm();
+			const auto admitted = !persistence.is_quiescent();
+			const auto failed   = !fixture.Vault.Deletes.empty() || fixture.Projections.host_diagnostic_count() > diagnostics;
+			if (!admitted && !failed && fixture.Host.accepted_session().has_value() && !fixture.Host.accepted_device_binding_durable()) {
+				++changed;
+				std::cerr << "start_delete: allocation " << steps << " left durability changed with no request and no terminal\n";
+			}
+			auto       answered = std::size_t{ 0U };
+			const auto drain    = [&] {
+				while (effects.pending() != 0U || fixture.Lane.pending() != 0U || answered < fixture.Vault.Deletes.size()) {
+					effects.drain();
+					fixture.Lane.drain();
+					for (; answered < fixture.Vault.Deletes.size(); ++answered) {
+						const auto deletion = fixture.Vault.Deletes.at(answered);
+						deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+					}
+				}
+			};
+			drain();
+			// A failure before the shutdown closed the host leaves it open; the
+			// caller's second shutdown then closes it. What is asserted is that
+			// nothing stays counted.
+			if (!fixture.Host.is_quiescent()) {
+				fixture.Host.shutdown();
+				drain();
+			}
+			expect(fixture.Host.is_quiescent(), "start_delete: a shutdown whose allocation " + std::to_string(steps) + " fails still reaches quiescence");
+			if (!injected) {
+				break;
+			}
+		}
+		std::cout << "BPR-1112 start_delete: " << steps << " allocations failed in turn\n";
+		expect(steps > 0 && changed == 0U, "start_delete: no failed allocation changes durability without a request or a terminal");
 	}
 
 	// The launch restore's erase of a binding whose refresh lifetime elapsed.
@@ -7127,6 +7287,9 @@ auto main() -> int
 	test_a_withdrawn_binding_store_fails_like_a_refused_one();
 	test_a_withdrawn_binding_tombstone_fails_like_a_refused_one();
 	test_the_rotation_barrier_writes_nothing();
+	test_a_withdrawal_at_shutdown_runs_its_failure();
+	test_a_shutdown_that_fails_after_a_withdrawal_still_runs_its_failure();
+	test_a_failed_allocation_in_start_delete_changes_nothing();
 	test_a_withdrawn_launch_restore_erase_is_not_left_counted();
 	test_binding_load_cancellation_and_stale_terminal();
 	test_setup_authentication_preserves_review_until_exact_acceptance();

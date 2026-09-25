@@ -519,6 +519,11 @@ namespace bpr::application {
 			} catch (...) {
 				DeferredIngress.clear();
 				TurnActive = false;
+				// [[BPR-1112]]. A turn that ends in an exception still fails the
+				// requests the lane withdrew during it, before the exception
+				// reaches its caller. A later turn may never come: after
+				// `Closing` almost nothing starts one.
+				fail_withdrawn_bindings();
 				throw;
 			}
 		}
@@ -4090,17 +4095,22 @@ namespace bpr::application {
 		}
 
 		// Inside a turn the failure waits for the turn's end, where the lane's
-		// own terminal would have found it. A turn can set up after the call
-		// what that failure decides by: a replacement's session is recorded
-		// after the invalidation that asked for the tombstone. Outside a turn
-		// the call is the only work in progress, so it fails now.
+		// own terminal would have found it, or for the turn's exception
+		// ([[BPR-1112]]). A turn can set up after the call what that failure
+		// decides by: a replacement's session is recorded after the
+		// invalidation that asked for the tombstone. Outside a turn the call is
+		// the only work in progress, so it fails now. Either way a throwing
+		// terminal goes no further, as on the lane.
 		void fail_withdrawn_binding(std::function<void(device_binding_result)> aFinish)
 		{
 			if (TurnActive && WithdrawnBindingCount < WithdrawnBindings.size()) {
 				WithdrawnBindings.at(WithdrawnBindingCount++).emplace(std::move(aFinish));
 				return;
 			}
-			aFinish(std::unexpected(device_binding_failure::unavailable));
+			try {
+				aFinish(std::unexpected(device_binding_failure::unavailable));
+			} catch (...) {
+			}
 		}
 
 		// A failure may make another request that is withdrawn in turn. It
@@ -4256,16 +4266,12 @@ namespace bpr::application {
 				start_delete_unblocked(aGeneration, std::move(aTerminal), aRefresh);
 				return;
 			}
-			DeviceBindingDurable = false;
-			++BindingGeneration;
-			BindingDeleteGeneration = aGeneration;
-			BindingDeleteTerminal   = std::move(aTerminal);
-			BindingDeleteRefresh    = aRefresh;
-			if (BindingErasePending) {
-				return;
-			}
+			// [[BPR-1112]]. The request's terminal handler is built before any
+			// state changes. If building it throws, the caller gets the
+			// exception and this site has changed nothing: no durability, no
+			// generation, no stored terminal, no count and no pending flag.
 			const auto authority = *CredentialAuthority;
-			auto       finish    = std::function<void(device_binding_result)>{ [this, authority](device_binding_result aResult) {
+			auto       finish    = BindingErasePending ? std::function<void(device_binding_result)>{ } : std::function<void(device_binding_result)>{ [this, authority](device_binding_result aResult) {
 				--OutstandingBindings;
 				BindingErasePending = false;
 				if (CredentialAuthority != authority) {
@@ -4286,6 +4292,14 @@ namespace bpr::application {
 				}
 				start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
 			} };
+			DeviceBindingDurable = false;
+			++BindingGeneration;
+			BindingDeleteGeneration = aGeneration;
+			BindingDeleteTerminal   = std::move(aTerminal);
+			BindingDeleteRefresh    = aRefresh;
+			if (BindingErasePending) {
+				return;
+			}
 			BindingErasePending = true;
 			++OutstandingBindings;
 			call_binding_lane([this, &authority](auto aCallback) { Persistence->erase(authority, std::move(aCallback)); }, std::move(finish));
@@ -4332,8 +4346,8 @@ namespace bpr::application {
 		refresh_disposition                      BindingDeleteRefresh = refresh_disposition::erase;
 
 		// [[BPR-1048]]. Terminals of binding requests the lane withdrew during
-		// the current turn, failed at its end, or at the end of the next turn
-		// when this one ends in an exception. Each is still counted, so the
+		// the current turn, failed at its end, or before its exception leaves
+		// it when it ends in one ([[BPR-1112]]). Each is still counted, so the
 		// host is not quiescent before they run. Queueing moves a
 		// `std::function` into a free slot and allocates nothing; when every
 		// slot is taken the failure is delivered at once.

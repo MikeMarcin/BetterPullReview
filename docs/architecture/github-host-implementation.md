@@ -1430,6 +1430,13 @@ failure runs at once. The count and the flag are undone, so later restores are
 admitted and the host can become quiescent. The startup load already failed its restore
 as `unavailable` at the call.
 
+A turn that ends in an exception fails the requests it queued before the
+exception leaves it ([[BPR-1112]]). No later turn is needed, and no second
+`shutdown()`: after `Closing` almost nothing starts one. A throwing terminal
+goes no further on either path. `start_delete` builds its terminal handler
+before it changes any state, so an allocation that fails there reaches the
+caller with nothing changed, counted or pending.
+
 Startup loads only the compiled native GitHub.com device profile after both
 hosts exist. `resume_profile` validates its current profile contract, retrieves
 the exact vault item and checks authenticated `/user` identity before accepting
