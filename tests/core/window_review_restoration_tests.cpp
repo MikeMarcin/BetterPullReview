@@ -189,6 +189,51 @@ namespace {
 		const auto                refused = corrupt.load({ }, { { first, { }, 0, { } }, { first, { }, 0, { } } });
 		expect(!refused.Startup && refused.Failures.size() == 1 && refused.Failures[0].Reason == window_review_failure::corrupt, "a corrupt list fails the load");
 	}
+	/// [[BPR-1131]]. A window's document tabs travel with its reading: they are
+	/// kept for its accepted destination and its recently viewed entry, carried
+	/// to the window that resumes it, and dropped when the window moves on.
+	void test_document_tabs_follow_the_reading()
+	{
+		const auto saved                      = position();
+		auto       second                     = saved;
+		second.File                           = identity<file_identity>(4);
+		second.Comparison.Left.Identity.Epoch = epoch_ordinal{ 2 };
+		const auto tabs                       = window_review_tabs{ .WindowComparison = saved.Comparison, .Tabs = { saved, second }, .Active = 1U };
+		expect(valid(tabs), "two tabs of one pull request with an active one are valid");
+		auto broken = tabs;
+		broken.Active.reset();
+		expect(!valid(broken), "tabs with no active one are refused");
+		broken        = tabs;
+		broken.Active = 2U;
+		expect(!valid(broken), "an active index past the tabs is refused");
+		broken                                             = tabs;
+		broken.Tabs[1].Comparison.Left.Identity.Authority  = identity<pull_request_authority_scope_id>(9);
+		broken.Tabs[1].Comparison.Right.Identity.Authority = identity<pull_request_authority_scope_id>(9);
+		expect(!valid(broken), "a tab of another pull request is refused");
+		broken = tabs;
+		broken.Tabs.assign(maximum_document_tabs + 1U, saved);
+		expect(!valid(broken), "a collection past the bound is refused");
+		expect(valid(window_review_tabs{ .WindowComparison = saved.Comparison, .Tabs = { }, .Active = std::nullopt }),
+			   "a pull request open with no tab is a valid collection");
+
+		window_review_restoration policy{ default_bpr_profile_id, { context(1), context(2) }, { "github.com" } };
+		const auto                actions = policy.load({ }, { });
+		static_cast<void>(policy.mark_window_ready(context(2)));
+		static_cast<void>(policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" }));
+		expect(!policy.accepted_tabs(context(1), destination(), tabs), "tabs cannot invent a destination");
+		expect(policy.accepted_read(context(1), destination(), 5) && policy.accepted_tabs(context(1), destination(), tabs)
+				   && policy.records()[0].Tabs == tabs && policy.recent()[0].Tabs == tabs,
+			   "accepted tabs attach to the window's destination and its recently viewed entry");
+		expect(!policy.accepted_tabs(context(1), destination(), tabs), "the same tabs again change nothing");
+		expect(!policy.accepted_tabs(context(1), destination(), broken), "an invalid collection is refused");
+		expect(!policy.accepted_tabs(context(1, 3), destination(), tabs), "a stale window generation cannot save tabs");
+		const auto resumed = policy.open_recent(context(2), 0);
+		expect(resumed.Opens.size() == 1 && resumed.Opens[0].Tabs == tabs, "Resume carries the tabs to the window that asked");
+		auto other   = destination();
+		other.Number = pull_request_number{ 28 };
+		expect(policy.accepted_read(context(1), other, 6) && !policy.records()[0].Tabs && policy.recent()[1].Tabs == tabs,
+			   "moving to another pull request drops the window's tabs and keeps the entry's");
+	}
 }
 int main()
 {
@@ -199,5 +244,6 @@ int main()
 	test_reading_identity_and_replacement();
 	test_reading_course_refuses_substitution();
 	test_exact_comparison_cancellation();
+	test_document_tabs_follow_the_reading();
 	std::cout << "window-review-restoration-tests:pass\n";
 }

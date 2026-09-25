@@ -167,6 +167,46 @@ namespace {
 		restored.drain();
 		expect(restored.Store.Snapshot == f.Store.Snapshot && restored.Store.Saves == 0, "failed restore and same-PR refresh preserve exact stored identity");
 	}
+	/// [[BPR-1131]]. The window's document tabs persist with its reading and
+	/// come back to the window that resumes the pull request.
+	void test_document_tabs_persist_and_resume()
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0]               = 1;
+		const auto scope       = core::pull_request_authority_scope_id{ bytes };
+		bytes[0]               = 2;
+		const auto incarnation = core::epoch_catalog_incarnation_id{ bytes };
+		const auto pair        = [&](const std::int64_t aBase, const char aHead) {
+			return core::comparison_pair{
+				.Left  = { { scope, incarnation, core::comparison_anchor_kind::epoch_base, core::epoch_ordinal{ aBase }, { } }, *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), core::anchor_availability::available },
+				.Right = { { scope, incarnation, core::comparison_anchor_kind::epoch_head, core::epoch_ordinal{ 3 }, { } }, *core::parse_git_commit_oid(std::string(40U, aHead)), core::anchor_availability::available },
+			};
+		};
+		bytes[0]        = 5;
+		const auto file = core::file_identity{ bytes };
+		const auto tabs = core::window_review_tabs{
+			.WindowComparison = pair(1, '2'),
+			.Tabs             = { { pair(1, '2'), file, std::nullopt }, { pair(2, '3'), file, std::nullopt } },
+			.Active           = 1U,
+		};
+		fixture f;
+		f.load();
+		f.Host.accepted_read(context(1), destination(), 7);
+		f.Host.accepted_tabs(context(1), destination(), tabs);
+		f.Host.accepted_tabs(context(2), destination(), tabs);
+		f.Host.shutdown_orderly();
+		f.drain();
+		expect(f.Store.Snapshot.Records.size() == 1 && f.Store.Snapshot.Records[0].Tabs == tabs && f.Store.Snapshot.Recent[0].Tabs == tabs,
+			   "accepted tabs persist on the window's record and its recently viewed entry, and nowhere else");
+		fixture restarted;
+		restarted.Store.Snapshot = f.Store.Snapshot;
+		restarted.load();
+		restarted.Host.mark_window_ready(context(2));
+		restarted.Host.complete_startup(restarted.Output.Startups[0].Request, core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
+		restarted.Host.open_recent(context(2), 0);
+		expect(restarted.Output.Opens.size() == 1 && restarted.Output.Opens[0].Tabs == tabs,
+			   "after a restart, resuming the pull request brings back its two exact views of one file");
+	}
 	void test_coalesced_quit_close_and_conflict()
 	{
 		fixture f;
@@ -294,6 +334,7 @@ namespace {
 int main()
 {
 	test_positions_coalesce_and_survive_failed_restore();
+	test_document_tabs_persist_and_resume();
 	test_load_prunes_and_gates_restoration();
 	test_coalesced_quit_close_and_conflict();
 	test_failure_cancellation_and_reentrancy();

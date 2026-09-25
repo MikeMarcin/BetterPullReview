@@ -43,7 +43,8 @@ namespace bpr::core {
 		}
 		std::uint64_t previous = 0;
 		for (const auto& record : aRecords) {
-			if (record.Window.value() <= previous || !valid(record.Destination) || (record.Position && !valid(*record.Position))) {
+			if (record.Window.value() <= previous || !valid(record.Destination) || (record.Position && !valid(*record.Position))
+				|| (record.Tabs && !valid(*record.Tabs))) {
 				return false;
 			}
 			previous = record.Window.value();
@@ -52,7 +53,8 @@ namespace bpr::core {
 	}
 	auto valid(const window_recent_review& aEntry) noexcept -> bool
 	{
-		return valid(aEntry.Destination) && aEntry.Title.size() <= maximum_recent_review_title && aEntry.ViewedAt >= 0 && (!aEntry.Position || valid(*aEntry.Position));
+		return valid(aEntry.Destination) && aEntry.Title.size() <= maximum_recent_review_title && aEntry.ViewedAt >= 0 && (!aEntry.Position || valid(*aEntry.Position))
+			&& (!aEntry.Tabs || valid(*aEntry.Tabs));
 	}
 	auto valid_recent_reviews(const std::vector<window_recent_review>& aEntries) noexcept -> bool
 	{
@@ -66,14 +68,28 @@ namespace bpr::core {
 		}
 		return true;
 	}
+	auto valid_exact_pair(const comparison_pair& aPair) noexcept -> bool
+	{
+		const auto& left  = aPair.Left;
+		const auto& right = aPair.Right;
+		return valid(left) && valid(right) && left.Availability == anchor_availability::available
+			&& right.Availability == anchor_availability::available && left.Identity.Authority == right.Identity.Authority
+			&& left.Identity.Incarnation == right.Identity.Incarnation && left.Commit.algorithm() == right.Commit.algorithm();
+	}
+	auto valid(const window_review_tabs& aTabs) noexcept -> bool
+	{
+		if (!valid_exact_pair(aTabs.WindowComparison) || aTabs.Tabs.size() > maximum_document_tabs
+			|| aTabs.Active.has_value() == aTabs.Tabs.empty() || (aTabs.Active && *aTabs.Active >= aTabs.Tabs.size())) {
+			return false;
+		}
+		const auto authority = aTabs.WindowComparison.Left.Identity.Authority;
+		return std::ranges::all_of(aTabs.Tabs, [authority](const window_review_position& aTab) {
+			return aTab.File.has_value() && valid(aTab) && aTab.Comparison.Left.Identity.Authority == authority;
+		});
+	}
 	auto valid(const window_review_position& aPosition) noexcept -> bool
 	{
-		const auto& left  = aPosition.Comparison.Left;
-		const auto& right = aPosition.Comparison.Right;
-		if (!valid(left) || !valid(right) || left.Availability != anchor_availability::available
-			|| right.Availability != anchor_availability::available || left.Identity.Authority != right.Identity.Authority
-			|| left.Identity.Incarnation != right.Identity.Incarnation || left.Commit.algorithm() != right.Commit.algorithm()
-			|| (aPosition.File && !aPosition.File->valid())) {
+		if (!valid_exact_pair(aPosition.Comparison) || (aPosition.File && !aPosition.File->valid())) {
 			return false;
 		}
 		if (!aPosition.Selection) {
@@ -271,9 +287,10 @@ namespace bpr::core {
 					continue;
 				}
 				slot.Request = request_id{ NextRequest++ };
-				actions.Opens.push_back({ slot.Context, *slot.Request, *slot.Pending, slot.Position });
+				actions.Opens.push_back({ slot.Context, *slot.Request, *slot.Pending, slot.Position, slot.Tabs });
 				slot.Pending.reset();
 				slot.Position.reset();
+				slot.Tabs.reset();
 			}
 		}
 		return actions;
@@ -301,6 +318,7 @@ namespace bpr::core {
 				slot.Request.reset();
 				slot.Pending  = entry.Destination;
 				slot.Position = entry.Position;
+				slot.Tabs     = entry.Tabs;
 			}
 		}
 		return open_ready();
@@ -391,6 +409,7 @@ namespace bpr::core {
 			}
 			found->Destination = aDestination;
 			found->Position.reset();
+			found->Tabs.reset();
 		} else {
 			Records.push_back({ aContext.Window, aDestination });
 			std::ranges::sort(Records, { }, &window_review_record::Window);
@@ -402,6 +421,7 @@ namespace bpr::core {
 		if (old != Recent.end()) {
 			entry.Title    = std::move(old->Title);
 			entry.Position = std::move(old->Position);
+			entry.Tabs     = std::move(old->Tabs);
 			Recent.erase(old);
 		}
 		Recent.insert(Recent.begin(), std::move(entry));
@@ -422,6 +442,21 @@ namespace bpr::core {
 		found->Position = aPosition;
 		if (const auto recent = std::ranges::find(Recent, aDestination, &window_recent_review::Destination); recent != Recent.end()) {
 			recent->Position = aPosition;
+		}
+		return true;
+	}
+	auto window_review_restoration::accepted_tabs(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_tabs& aTabs) -> bool
+	{
+		if (!current(aContext) || !valid(aTabs)) {
+			return false;
+		}
+		const auto found = std::ranges::find(Records, aContext.Window, &window_review_record::Window);
+		if (found == Records.end() || found->Destination != aDestination || found->Tabs == aTabs) {
+			return false;
+		}
+		found->Tabs = aTabs;
+		if (const auto recent = std::ranges::find(Recent, aDestination, &window_recent_review::Destination); recent != Recent.end()) {
+			recent->Tabs = aTabs;
 		}
 		return true;
 	}

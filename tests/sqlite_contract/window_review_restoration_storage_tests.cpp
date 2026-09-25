@@ -201,7 +201,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "legacy fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			auto stop            = std::stop_source{ };
@@ -224,13 +224,13 @@ namespace {
 			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			expect(store->load({ }) == migrated, "second restart preserves migrated snapshot");
 		}
-		for (const auto corruption : { "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_records SET owner='../invalid'", "CREATE TABLE extra(value TEXT)", "PRAGMA user_version=3", "PRAGMA user_version=4" }) {
+		for (const auto corruption : { "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_records SET owner='../invalid'", "CREATE TABLE extra(value TEXT)", "PRAGMA user_version=3", "PRAGMA user_version=4", "PRAGMA user_version=5" }) {
 			const auto scratch = scratch_directory{ };
 			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "refused migration fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			execute(raw, corruption);
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
@@ -270,7 +270,7 @@ namespace {
 		auto       store     = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		auto       stop      = std::stop_source{ };
 		interruption::Stop   = &stop;
-		interruption::Prefix = "PRAGMA user_version=3";
+		interruption::Prefix = "PRAGMA user_version=4";
 		const auto first     = store->load(stop.get_token());
 		expect(stop.stop_requested() && !first && first.error().Failure == window_review_store_failure::cancelled, "initialization cancels after schema stamp");
 		interruption::Stop = nullptr;
@@ -320,7 +320,7 @@ namespace {
 			expect(store->save(saved, 1, { }) == saved, "one retained row persists");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, legacy ? "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE recent_reviews; PRAGMA user_version=2");
+			execute(raw, legacy ? "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=2");
 			sqlite3_close(raw);
 			auto expected = saved;
 			if (legacy) {
@@ -349,7 +349,7 @@ namespace {
 		expect(store->save(saved, 1, { }) == saved, "three windows over two destinations persist");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE recent_reviews; PRAGMA user_version=2");
+		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=2");
 		sqlite3_close(raw);
 		store               = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		const auto migrated = store->load({ });
@@ -374,9 +374,11 @@ namespace {
 									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET mode=9 WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL FROM ids", window_review_store_failure::corrupt },
 									 refusal{ "DROP TABLE recent_reviews", window_review_store_failure::schema_mismatch },
-									 refusal{ "PRAGMA user_version=4", window_review_store_failure::schema_mismatch },
+									 refusal{ "PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
 									 // A future stamp over a shape this build could otherwise migrate.
-									 refusal{ "DROP TABLE recent_reviews; PRAGMA user_version=4", window_review_store_failure::schema_mismatch } }) {
+									 refusal{ "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
+									 // [[BPR-1131]]. A version 3 stamp over the version 4 shape.
+									 refusal{ "PRAGMA user_version=3", window_review_store_failure::schema_mismatch } }) {
 			const auto scratch = scratch_directory{ };
 			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			const auto listing = listed();
@@ -412,6 +414,129 @@ namespace {
 		invalid.Recent.push_back(invalid.Recent.front());
 		expect(!store->save(invalid, 3, { }) && store->load({ }) == pruned, "a repeated destination refuses without loss");
 	}
+	/// \brief [[BPR-1131]]. A collection of `aCount` tabs, two of which, when
+	/// there are two, show one file on different pairs.
+	[[nodiscard]] auto tabs(const std::size_t aCount, const std::optional<std::uint32_t> aActive) -> core::window_review_tabs
+	{
+		auto result             = core::window_review_tabs{ };
+		result.WindowComparison = position().Comparison;
+		for (std::size_t index = 0U; index < aCount; ++index) {
+			auto view                            = position();
+			view.Comparison.Right.Identity.Epoch = core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) };
+			if (index % 2U == 1U) {
+				view.Selection.reset();
+			}
+			result.Tabs.push_back(view);
+		}
+		result.Active = aActive;
+		expect(core::valid(result), "tab fixture valid");
+		return result;
+	}
+	[[nodiscard]] auto tabbed() -> window_review_snapshot
+	{
+		auto result            = listed();
+		result.Records[0].Tabs = tabs(2U, 1U);
+		result.Recent[0].Tabs  = tabs(3U, 0U);
+		result.Recent[1].Tabs  = tabs(0U, std::nullopt);
+		return result;
+	}
+	// [[BPR-1131]]. Tab order, the active tab, each tab's exact view and the
+	// window's comparison survive a restart, on a record and on the list.
+	void test_tabs_round_trip()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto saved   = tabbed();
+		expect(saved.Records[0].Tabs->Tabs[0].File == saved.Records[0].Tabs->Tabs[1].File
+				   && saved.Records[0].Tabs->Tabs[0].Comparison != saved.Records[0].Tabs->Tabs[1].Comparison,
+			   "fixture: two tabs show one file on different pairs");
+		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "tab collections save");
+		store.reset();
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == saved, "order, active tab, exact views, empty collections and the window's comparison round trip");
+		auto trimmed = saved;
+		++trimmed.Revision;
+		trimmed.Records[0].Tabs.reset();
+		trimmed.Recent[0].Tabs->Tabs.pop_back();
+		expect(store->save(trimmed, 2, { }) == trimmed && store->load({ }) == trimmed, "a save rewrites every collection");
+		auto invalid = trimmed;
+		++invalid.Revision;
+		invalid.Recent[0].Tabs->Active = 5U;
+		expect(!store->save(invalid, 3, { }) && store->load({ }) == trimmed, "an invalid collection refuses without loss");
+	}
+	void test_tabs_bound()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		auto       full    = filled(2, core::maximum_bpr_windows_per_profile);
+		for (auto& record : full.Records) {
+			record.Tabs = tabs(core::maximum_document_tabs, 15U);
+		}
+		for (std::uint32_t index = 0U; index < core::maximum_recent_reviews; ++index) {
+			full.Recent.push_back({ destination("repo", 100U + index), "", 0, position(), tabs(core::maximum_document_tabs, 0U) });
+		}
+		expect(store->load({ }).has_value() && store->save(full, 1, { }) == full, "the largest valid file saves");
+		store.reset();
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == full, "the largest valid file reads back within the bounded read");
+		auto over = full;
+		++over.Revision;
+		over.Records[0].Tabs->Tabs.push_back(position());
+		expect(!store->save(over, 2, { }) && store->load({ }) == full, "a seventeenth tab refuses");
+	}
+	void test_tabs_refusals()
+	{
+		for (const auto sql : { "DELETE FROM review_tabs WHERE scope=0 AND ordinal=0",
+								"UPDATE review_tab_sets SET owner='9' WHERE scope=0",
+								"UPDATE review_tab_sets SET owner='7' WHERE scope=1 AND owner='1'",
+								"UPDATE review_tab_sets SET active=NULL WHERE scope=0",
+								"UPDATE review_tab_sets SET active=2 WHERE scope=0",
+								"UPDATE review_tab_sets SET window_comparison=x'' WHERE scope=0",
+								"UPDATE review_tabs SET view=x'00' WHERE scope=0 AND ordinal=1",
+								"UPDATE review_tabs SET view=(SELECT window_comparison FROM review_tab_sets WHERE scope=0) WHERE scope=0 AND ordinal=1",
+								"INSERT INTO review_tabs SELECT 1,'1',0,view FROM review_tabs WHERE scope=0 AND ordinal=0",
+								"UPDATE review_tabs SET owner='2' WHERE scope=1 AND owner='0' AND ordinal=2",
+								"PRAGMA ignore_check_constraints=ON; UPDATE review_tabs SET ordinal=16 WHERE scope=0 AND ordinal=1",
+								"DROP TABLE review_tabs" }) {
+			const auto scratch = scratch_directory{ };
+			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto saved   = tabbed();
+			expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "tab refusal fixture persists");
+			store.reset();
+			auto* raw = raw_open(scratch.database());
+			execute(raw, sql);
+			sqlite3_close(raw);
+			const auto before = file_bytes(scratch.database());
+			store             = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto opened = store->load({ });
+			if (opened) {
+				std::cerr << "accepted: " << sql << '\n';
+			}
+			expect(!opened && !opened.error().Current, "a malformed tab collection refuses without fabricating a current snapshot");
+			store.reset();
+			expect(file_bytes(scratch.database()) == before, "the refusal writes nothing");
+		}
+	}
+	// [[BPR-1131]]. A version 3 file gains empty tab tables and keeps every row.
+	void test_tabs_migration()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto saved   = listed();
+		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "version 3 fixture persists");
+		store.reset();
+		auto* raw = raw_open(scratch.database());
+		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; PRAGMA user_version=3");
+		sqlite3_close(raw);
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == saved, "a version 3 file migrates with its records and list intact");
+		store.reset();
+		raw = raw_open(scratch.database());
+		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 4
+				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_tabs") == 0,
+			   "the migrated file is version 4 with no tabs");
+		sqlite3_close(raw);
+	}
 }
 int main()
 try {
@@ -425,6 +550,10 @@ try {
 	test_recent_collapse();
 	test_recent_refusals();
 	test_recent_round_trip();
+	test_tabs_round_trip();
+	test_tabs_bound();
+	test_tabs_refusals();
+	test_tabs_migration();
 	std::cout << "window-review-restoration-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

@@ -185,6 +185,26 @@ Actual-process destination acceptance is recorded by BPR-0709; BPR-0710 records
 the bounded exact-reading course and its fixture limitations. Native window
 geometry and target-native packaged activation remain open RFC-BPR-0024 work.
 
+[[BPR-1131]] adds RFC-BPR-0052's document tabs to the same authority. The
+core's `document_tabs_state` holds one window's tabs for the pull request it
+shows: the window's comparison, which new tabs take, and each tab's identity
+and exact view (pair, file and reading position), at most sixteen. Its typed
+transitions open a file in the active tab or a new background tab, duplicate,
+close with the neighbour rule, close others, activate, step to the next or
+previous tab, return a tab to the window's comparison and make a tab's pair
+the window's. A comparison chosen for the active tab carries the window with
+it only while that tab shares the window's pair; sibling tabs keep their exact
+pairs. Only the active tab loads. Each load has a fresh request identity, and
+`application::document_tab_host` accepts a completion or a reading only for
+the load in force, so a late answer for another tab, a closed tab or an
+earlier load of the same tab is refused. A view the host cannot present stays
+on its tab as unavailable and is never retargeted. The restoration store's
+version four keeps a window's collection with its record and with the
+recently viewed entry, so Resume brings the tabs back; tab identities are not
+durable and a restored collection mints fresh ones in order. Version-three
+files gain the two empty tab tables transactionally. The tab strip and its
+composition into the window belong to [[BPR-1132]].
+
 ## Diagnostic logging boundary
 
 BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs

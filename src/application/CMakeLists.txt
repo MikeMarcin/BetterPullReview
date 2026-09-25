@@ -2,6 +2,7 @@ add_library(
     better_pull_review_application
     STATIC
         src/window_review_restoration_host.cpp
+        src/document_tab_host.cpp
         src/appearance_application_host.cpp
         src/appearance_preferences_application_host.cpp
         src/syntax_classification_application_host.cpp

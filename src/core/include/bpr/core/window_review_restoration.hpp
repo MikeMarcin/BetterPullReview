@@ -5,9 +5,11 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	struct window_review_authority
@@ -32,11 +34,36 @@ namespace bpr::core {
 		std::optional<semantic_selection> Selection;
 		auto                              operator==(const window_review_position&) const -> bool = default;
 	};
+	/// \brief [[BPR-1131]]. The most document tabs one window keeps for one
+	/// pull request.
+	///
+	/// \details RFC-BPR-0025 asks for lightweight inactive tabs with bounded
+	/// state. Sixteen views of one pull request is more than a reviewer
+	/// compares at once, and it keeps the persisted collection of every
+	/// window and every recently viewed entry within one bounded read.
+	inline constexpr std::size_t maximum_document_tabs = 16U;
+	/// \brief [[BPR-1131]]. A window's document tabs for one pull request, as
+	/// the restoration store keeps them.
+	///
+	/// \details The window's comparison is the pair new tabs take. Each tab
+	/// is its exact view: comparison, file and reading position, in tab
+	/// order. Tab identities are not durable; a restored collection mints
+	/// fresh ones in this order. `Active` names the active tab's index and is
+	/// present exactly when there is a tab: closing the last tab leaves the
+	/// pull request open with no tab.
+	struct window_review_tabs
+	{
+		comparison_pair                     WindowComparison;
+		std::vector<window_review_position> Tabs;
+		std::optional<std::uint32_t>        Active;
+		auto                                operator==(const window_review_tabs&) const -> bool = default;
+	};
 	struct window_review_record
 	{
 		bpr_window_id                         Window;
 		window_review_destination             Destination;
 		std::optional<window_review_position> Position                                              = std::nullopt;
+		std::optional<window_review_tabs>     Tabs                                                  = std::nullopt;
 		auto                                  operator==(const window_review_record&) const -> bool = default;
 	};
 	/// [[BPR-0733]]. Bounds of the per-profile recently viewed list.
@@ -49,9 +76,12 @@ namespace bpr::core {
 	{
 		window_review_destination             Destination;
 		std::string                           Title;
-		std::int64_t                          ViewedAt                                              = 0;
-		std::optional<window_review_position> Position                                              = std::nullopt;
-		auto                                  operator==(const window_recent_review&) const -> bool = default;
+		std::int64_t                          ViewedAt = 0;
+		std::optional<window_review_position> Position = std::nullopt;
+		/// [[BPR-1131]]. The tabs Resume brings back, with the reading above as
+		/// the active tab's.
+		std::optional<window_review_tabs> Tabs                                                  = std::nullopt;
+		auto                              operator==(const window_recent_review&) const -> bool = default;
 	};
 	[[nodiscard]] auto valid(const window_recent_review& aEntry) noexcept -> bool;
 	[[nodiscard]] auto valid_recent_reviews(const std::vector<window_recent_review>& aEntries) noexcept -> bool;
@@ -76,6 +106,7 @@ namespace bpr::core {
 		request_id                            Request;
 		window_review_destination             Destination;
 		std::optional<window_review_position> Position = std::nullopt;
+		std::optional<window_review_tabs>     Tabs     = std::nullopt;
 	};
 	struct window_review_error
 	{
@@ -91,6 +122,13 @@ namespace bpr::core {
 	[[nodiscard]] auto valid(const window_review_authority& aAuthority) noexcept -> bool;
 	[[nodiscard]] auto valid(const window_review_destination& aDestination) noexcept -> bool;
 	[[nodiscard]] auto valid(const window_review_position& aPosition) noexcept -> bool;
+	/// \brief Whether an exact pair can be a durable comparison: both anchors
+	/// available, in one authority, one catalog incarnation and one object format.
+	[[nodiscard]] auto valid_exact_pair(const comparison_pair& aPair) noexcept -> bool;
+	/// \brief [[BPR-1131]]. A bounded collection whose tabs each name a file and
+	/// an exact pair in the window comparison's pull request, with `Active`
+	/// present exactly when a tab is.
+	[[nodiscard]] auto valid(const window_review_tabs& aTabs) noexcept -> bool;
 	enum class window_reading_restore_action : std::uint8_t { wait,
 															  select_comparison,
 															  select_file,
@@ -145,6 +183,9 @@ namespace bpr::core {
 		[[nodiscard]] auto complete_restore(bpr_window_context aContext, request_id aRequest, const std::expected<void, window_review_failure>& aResult) -> window_review_actions;
 		[[nodiscard]] auto accepted_read(bpr_window_context aContext, const window_review_destination& aDestination, std::int64_t aViewedAt = 0) -> bool;
 		[[nodiscard]] auto accepted_position(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_position& aPosition) -> bool;
+		/// \brief [[BPR-1131]]. Retains the window's accepted document tabs for its
+		/// accepted destination, and for that destination's recently viewed entry.
+		[[nodiscard]] auto accepted_tabs(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_tabs& aTabs) -> bool;
 		[[nodiscard]] auto close(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto records() const noexcept -> const std::vector<window_review_record>&;
 
@@ -157,6 +198,7 @@ namespace bpr::core {
 			std::optional<request_id>                Request;
 			std::optional<window_review_destination> Pending;
 			std::optional<window_review_position>    Position = std::nullopt;
+			std::optional<window_review_tabs>        Tabs     = std::nullopt;
 		};
 		bpr_profile_id                         Profile;
 		std::vector<slot>                      Slots;

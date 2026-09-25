@@ -33,7 +33,10 @@ namespace bpr::application {
 		void               open_recent(core::bpr_window_context aContext, std::size_t aIndex);
 		[[nodiscard]] auto recent() const noexcept -> const std::vector<core::window_recent_review>&;
 		/// \brief Retains an exact accepted reading position for the current accepted destination.
-		void               accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);
+		void accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);
+		/// \brief [[BPR-1131]]. Retains the window's accepted document tabs for its
+		/// current accepted destination, persisted with its reading.
+		void               accepted_tabs(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_tabs& aTabs);
 		void               close(core::bpr_window_context aContext);
 		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
 		/// Explicit recovery reloads revision authority; preserves trusted pending records, never retries conflict blindly.

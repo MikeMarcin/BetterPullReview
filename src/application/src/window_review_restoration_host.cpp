@@ -329,6 +329,13 @@ namespace bpr::application {
 			Implementation->notify_recent();
 		}
 	}
+	void window_review_restoration_host::accepted_tabs(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_tabs& aTabs)
+	{
+		if (!Implementation->Closing && Implementation->Policy.accepted_tabs(aContext, aDestination, aTabs)) {
+			Implementation->changed();
+			Implementation->notify_recent();
+		}
+	}
 	auto window_review_restoration_host::window_quiescent(core::bpr_window_context aContext) const noexcept -> bool
 	{
 		return !Implementation->Policy.current(aContext) && std::ranges::none_of(Implementation->Closed, [aContext](const auto& aClosed) { return aClosed.Context == aContext; });
