@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1198"
 title: "Reconcile epoch refresh with the active tab selected-file identity"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
