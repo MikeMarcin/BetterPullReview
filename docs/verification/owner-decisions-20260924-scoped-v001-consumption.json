@@ -1,0 +1,187 @@
+{
+ "schema": "bpr.attended_consumption_checkpoint",
+ "schema_version": 1,
+ "date": "2026-09-25",
+ "station": "bpr-main-mac",
+ "session": "7083474240820608cdf9ff551ddd298f",
+ "packet": "docs/verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md",
+ "state": "/Users/jaeger/.mask/attended-review/owner-decisions-20260924-scoped-v001 (external --state, not committed)",
+ "events_consumed": {
+  "after": 21,
+  "decisions": "22-31",
+  "handed_back": 32
+ },
+ "cursor_after_consumption": 42,
+ "fingerprints": "every decision's fingerprint equals its candidate's in session-identity.json",
+ "server": {
+  "pid": 8657,
+  "port": 59010,
+  "state": "stopped with the attended-review stop command after consumption; the process exited and the port closed"
+ },
+ "protections": {
+  "released": "all ten decided candidates, by resume-development --candidate (events 33-42)",
+  "kept": []
+ },
+ "verdicts": [
+  {
+   "candidate": "BPR-0644-account-mismatch-erasure-v001",
+   "decision": "7a0a6d09",
+   "saved_at": "2026-09-24T23:45:42Z",
+   "outcome": "select Other: keep the grant on account mismatch, show the mismatch as an error on the Accounts page, and let the user remove or repair it",
+   "card": "BPR-0644",
+   "action": "recorded; Parked to Ready; claimed; built; Done",
+   "commits": [
+    "27b3335c",
+    "2b28f6ee",
+    "518fcc37",
+    "0ff78db9"
+   ]
+  },
+  {
+   "candidate": "BPR-0803-code-beside-cli-choice-v001",
+   "decision": "b4d6b6c2",
+   "saved_at": "2026-09-24T23:46:08Z",
+   "outcome": "accept",
+   "card": "BPR-0803",
+   "action": "finished Done",
+   "commits": [
+    "51819a2f"
+   ]
+  },
+  {
+   "candidate": "BPR-0974-defender-disposition-v002",
+   "decision": "5c30287a",
+   "saved_at": "2026-09-25T00:01:50Z",
+   "outcome": "select: lower the static signals (VERSIONINFO, /PDBALTPATH:%_PDB%, resource blobs out of the executable); note: Authenticode later, go ahead",
+   "card": "BPR-0974, BPR-0653",
+   "action": "recorded; Blocked to Ready for bpr-main-win (it claimed it at feb7265f); BPR-0653 pointer",
+   "commits": [
+    "27b3335c"
+   ]
+  },
+  {
+   "candidate": "BPR-0975-upstream-report-v001",
+   "decision": "c5d0e284",
+   "saved_at": "2026-09-25T00:02:26Z",
+   "outcome": "select: No, do not prepare it",
+   "card": "BPR-0975, BPR-1122",
+   "action": "recorded; nothing filed",
+   "commits": [
+    "ca338c7a",
+    "0bea86e9"
+   ]
+  },
+  {
+   "candidate": "BPR-0975-wslg-choice-v001",
+   "decision": "dce91e77",
+   "saved_at": "2026-09-25T00:12:30Z",
+   "outcome": "select Other: no product change, accept the current behaviour, file a focused Blocked card to recheck",
+   "card": "BPR-0975, BPR-1122",
+   "action": "BPR-0975 Done by owner amendment (AC2, AC3 amended to the refused-activation diagnosis); BPR-1122 written Blocked on upstream-wslg",
+   "commits": [
+    "9a050d5b",
+    "0bea86e9",
+    "ca338c7a"
+   ]
+  },
+  {
+   "candidate": "BPR-0986-current-line-band-v001",
+   "decision": "1485f5a7",
+   "saved_at": "2026-09-25T00:13:14Z",
+   "outcome": "accept",
+   "card": "BPR-0986",
+   "action": "finished Done",
+   "commits": [
+    "d16e33c3"
+   ]
+  },
+  {
+   "candidate": "BPR-1106-placement-v001",
+   "decision": "ece7a6f3",
+   "saved_at": "2026-09-25T00:14:58Z",
+   "outcome": "select Other: discuss outside the attended review flow; the coordinator gives the owner a handoff prompt",
+   "card": "BPR-1106",
+   "action": "recorded; Parked on owner-design-discussion (new token in project.json and project.md)",
+   "commits": [
+    "27b3335c"
+   ]
+  },
+  {
+   "candidate": "BPR-1107-white-space-choices-v001",
+   "decision": "0eb6d682",
+   "saved_at": "2026-09-25T00:16:27Z",
+   "outcome": "select: accept the six choices, default Under the selection; note: just call it selection",
+   "card": "BPR-1107",
+   "action": "recorded; default renamed Selection (stored value unchanged); Done",
+   "commits": [
+    "27b3335c",
+    "36f2939e",
+    "c0268e85",
+    "f962818b",
+    "020130bd"
+   ]
+  },
+  {
+   "candidate": "BPR-1107-white-space-drawing-v001",
+   "decision": "5a19ba24",
+   "saved_at": "2026-09-25T00:42:22Z",
+   "outcome": "accept; note: a tab is a line, not a line + dot",
+   "card": "BPR-1107",
+   "action": "fixture uses the owner's text byte for byte; pixel check pins a tab as a line alone; design page v2; Done",
+   "commits": [
+    "27b3335c",
+    "c0268e85",
+    "f962818b",
+    "020130bd"
+   ]
+  },
+  {
+   "candidate": "BPR-1109-hook-owner-v001",
+   "decision": "af08ddab",
+   "saved_at": "2026-09-25T00:42:39Z",
+   "outcome": "select: Ignore it",
+   "card": "BPR-1109",
+   "action": "recorded post-close; stays Done",
+   "commits": [
+    "27b3335c"
+   ]
+  }
+ ],
+ "allocation": [
+  {
+   "ids": [
+    "BPR-1122"
+   ],
+   "for": "local-main",
+   "commit": "9a050d5b"
+  },
+  {
+   "ids": [
+    "BPR-1123",
+    "BPR-1124"
+   ],
+   "for": "bpr-main-win",
+   "commit": "d90aee6e",
+   "titles": [
+    "Windows: since BPR-1032 the shared comparison scrollbar stops short of the end, and qt_diff_workbench_scale_100/125/200 fail",
+    "Windows Debug: BPR-1112's allocation sweeps end application_github_host in std::terminate, because MSVC's debug STL allocates inside noexcept moves"
+   ],
+   "cards": "not written; bpr-main-win writes them"
+  }
+ ],
+ "engineering": {
+  "BPR-1107": "macOS 22 of 22 appearance, settings-window and end-to-end rows at c0268e85's tree; new owner's-text pixel check; line-plus-dot painter fails it",
+  "BPR-0644": "macOS regression selection 58 of 58 at 518fcc37's tree, including application_composition_contract; controls: old erasure and missing provider flag each fail their rows; no pin reseal"
+ },
+ "owed_elsewhere": [
+  "Linux, ordinary confirmation: qt_code_sample_painter, qt_type_preview, qt_appearance_settings_panel (BPR-1107); application_github_host, github_provider, application_device_binding_launch_renewal (BPR-0644)",
+  "Windows, ordinary confirmation: the same six rows; qt_diff_workbench_scale_* wait on BPR-1123 and application_github_host Debug on BPR-1124; the renewal course grew by three phases (about 12 s on macOS) under its 180 s TIMEOUT",
+  "BPR-1122 (Linux, WSLg): Blocked on upstream-wslg until a WSLg release ships the activation fix"
+ ],
+ "pending": {
+  "BPR-1106": "owner-design-discussion: the coordinator's handoff prompt to the owner",
+  "BPR-0974": "bpr-main-win: static-signal changes, fresh tests-disabled image, AC2 and AC3"
+ },
+ "commands_running": [],
+ "next_action": "coordinator: give the owner BPR-1106's handoff prompt; no Ready card remains for this Mac assignment"
+}
