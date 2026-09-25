@@ -1,0 +1,1626 @@
+{
+    "schema":  "bpr.windows-caption-capture.committed.v1",
+    "card":  "BPR-0653",
+    "revision":  "85e522d86f29230454c72b4d965fa2e06986e394",
+    "executable":  "C:\\Users\\mikem\\bpr0974-candidate-85e522d8\\installed\\better_pull_review.exe",
+    "executable_sha256":  "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4",
+    "bundle_sha256":  "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91",
+    "arguments":  [
+                      "--render-evidence"
+                  ],
+    "scale_label":  "native display scale",
+    "system_dpi":  144,
+    "system_scale_percent":  150,
+    "os":  "Microsoft Windows NT 10.0.26200.0",
+    "application_pid":  36952,
+    "exit_code":  0,
+    "stdout":  "AUTOMATED_PROFILE_PRIVATE_OK",
+    "started_utc":  "2026-09-25T04:29:54.7403221Z",
+    "finished_utc":  "2026-09-25T04:30:23.4761876Z",
+    "pointer_saved":  {
+                          "x":  1895,
+                          "y":  699
+                      },
+    "pointer_restored":  {
+                             "x":  1895,
+                             "y":  699
+                         },
+    "gestures":  [
+                     {
+                         "gesture":  "park",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:00.3177471Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "hover-minimize",
+                         "x":  2708,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:01.4147150Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "press-minimize",
+                         "x":  2708,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:02.7614067Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "move-off-minimize",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:03.5680340Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "release-off-minimize",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:03.7891042Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "hover-maximize",
+                         "x":  2776,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:04.5259959Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "press-maximize",
+                         "x":  2776,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:10.4283947Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "move-off-maximize",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:11.2542205Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "release-off-maximize",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:11.4694256Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "hover-close",
+                         "x":  2846,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:12.2036755Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "press-close",
+                         "x":  2846,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:13.5285982Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "move-off-close",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:14.3302752Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "release-off-close",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:14.5547244Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-start",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:15.2916227Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-press",
+                         "x":  2553,
+                         "y":  406,
+                         "utc":  "2026-09-25T04:30:16.2008337Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-1",
+                         "x":  2573,
+                         "y":  421,
+                         "utc":  "2026-09-25T04:30:16.2038345Z",
+                         "frame":  {
+                                       "left":  958,
+                                       "top":  384,
+                                       "right":  2882,
+                                       "bottom":  1616,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-2",
+                         "x":  2593,
+                         "y":  436,
+                         "utc":  "2026-09-25T04:30:16.3049305Z",
+                         "frame":  {
+                                       "left":  978,
+                                       "top":  399,
+                                       "right":  2902,
+                                       "bottom":  1631,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-3",
+                         "x":  2613,
+                         "y":  451,
+                         "utc":  "2026-09-25T04:30:16.3990963Z",
+                         "frame":  {
+                                       "left":  1018,
+                                       "top":  429,
+                                       "right":  2942,
+                                       "bottom":  1661,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-4",
+                         "x":  2633,
+                         "y":  466,
+                         "utc":  "2026-09-25T04:30:16.4942219Z",
+                         "frame":  {
+                                       "left":  1038,
+                                       "top":  444,
+                                       "right":  2962,
+                                       "bottom":  1676,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-5",
+                         "x":  2653,
+                         "y":  481,
+                         "utc":  "2026-09-25T04:30:16.9915188Z",
+                         "frame":  {
+                                       "left":  1038,
+                                       "top":  444,
+                                       "right":  2962,
+                                       "bottom":  1676,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-6",
+                         "x":  2673,
+                         "y":  496,
+                         "utc":  "2026-09-25T04:30:17.1085890Z",
+                         "frame":  {
+                                       "left":  1078,
+                                       "top":  474,
+                                       "right":  3002,
+                                       "bottom":  1706,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-7",
+                         "x":  2693,
+                         "y":  511,
+                         "utc":  "2026-09-25T04:30:17.2027234Z",
+                         "frame":  {
+                                       "left":  1098,
+                                       "top":  489,
+                                       "right":  3022,
+                                       "bottom":  1721,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-step-8",
+                         "x":  2713,
+                         "y":  526,
+                         "utc":  "2026-09-25T04:30:17.2985866Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "drag-release",
+                         "x":  2713,
+                         "y":  526,
+                         "utc":  "2026-09-25T04:30:17.3944620Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "maximize-press",
+                         "x":  2936,
+                         "y":  526,
+                         "utc":  "2026-09-25T04:30:18.5455840Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "maximize-release",
+                         "x":  2936,
+                         "y":  526,
+                         "utc":  "2026-09-25T04:30:18.6720566Z",
+                         "frame":  {
+                                       "left":  0,
+                                       "top":  -11,
+                                       "right":  3840,
+                                       "bottom":  2088,
+                                       "width":  3840,
+                                       "height":  2099
+                                   },
+                         "zoomed":  true
+                     },
+                     {
+                         "gesture":  "maximized-park",
+                         "x":  3513,
+                         "y":  22,
+                         "utc":  "2026-09-25T04:30:19.8863060Z",
+                         "frame":  {
+                                       "left":  0,
+                                       "top":  0,
+                                       "right":  3840,
+                                       "bottom":  2088,
+                                       "width":  3840,
+                                       "height":  2088
+                                   },
+                         "zoomed":  true
+                     },
+                     {
+                         "gesture":  "restore-press-1",
+                         "x":  3513,
+                         "y":  22,
+                         "utc":  "2026-09-25T04:30:21.0288119Z",
+                         "frame":  {
+                                       "left":  0,
+                                       "top":  0,
+                                       "right":  3840,
+                                       "bottom":  2088,
+                                       "width":  3840,
+                                       "height":  2088
+                                   },
+                         "zoomed":  true
+                     },
+                     {
+                         "gesture":  "restore-press-2",
+                         "x":  3513,
+                         "y":  22,
+                         "utc":  "2026-09-25T04:30:21.1036061Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "restore-double-click",
+                         "x":  3513,
+                         "y":  22,
+                         "utc":  "2026-09-25T04:30:21.1061129Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     },
+                     {
+                         "gesture":  "restored-park",
+                         "x":  2713,
+                         "y":  526,
+                         "utc":  "2026-09-25T04:30:22.3472152Z",
+                         "frame":  {
+                                       "left":  1118,
+                                       "top":  504,
+                                       "right":  3042,
+                                       "bottom":  1736,
+                                       "width":  1924,
+                                       "height":  1232
+                                   },
+                         "zoomed":  false
+                     }
+                 ],
+    "states":  [
+                   {
+                       "state":  "rest",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:01.3913741Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2553,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "rest-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb",
+                                                    "captured_sha256":  "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "rest-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3",
+                                                   "captured_sha256":  "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "rest-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "captured_sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "hover-minimize",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:02.7288802Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2708,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "hover-minimize-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "3076bdfca511abd0280af65759cd2fa252e7baa9657204201a65d9b189a6de71",
+                                                    "captured_sha256":  "3076bdfca511abd0280af65759cd2fa252e7baa9657204201a65d9b189a6de71",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "hover-minimize-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "a6eda02004a14110f51d2edfb2329a943e72bed1f786773c5b2e64a0524ca6b5",
+                                                   "captured_sha256":  "a6eda02004a14110f51d2edfb2329a943e72bed1f786773c5b2e64a0524ca6b5",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "hover-minimize-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "7a295882ef251881a06b70205783a4f8c346f44cb0e44e01d23f24120b2af046",
+                                                     "captured_sha256":  "7a295882ef251881a06b70205783a4f8c346f44cb0e44e01d23f24120b2af046",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "pressed-minimize",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:03.5650331Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2708,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "pressed-minimize-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "c466491a67dd7459e803d63f106ac2471ed2b808d5e2f5da882350341e4aa9ff",
+                                                    "captured_sha256":  "c466491a67dd7459e803d63f106ac2471ed2b808d5e2f5da882350341e4aa9ff",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "pressed-minimize-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "e212a72ea27abc7737a4c58bdd39e5cd36478015e5c50d2ccfcacc7f93594eb6",
+                                                   "captured_sha256":  "e212a72ea27abc7737a4c58bdd39e5cd36478015e5c50d2ccfcacc7f93594eb6",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "pressed-minimize-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "865dc6ce936a10565fd52765648d0b6e8c02e9c0e2a0e6a20fc91e2e0e23154f",
+                                                     "captured_sha256":  "865dc6ce936a10565fd52765648d0b6e8c02e9c0e2a0e6a20fc91e2e0e23154f",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "hover-maximize",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:05.8364562Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2776,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "hover-maximize-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "94e4af3a6d4600b0a80b8ecd1022cbddaedab35527f330a25f51eeadd87d8b48",
+                                                    "captured_sha256":  "6aa7147cb1706d3f06c7a87f134080bb5a497bcf8939d25198a7f9f7c1af3472",
+                                                    "redactions":  [
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1668,
+                                                                           "y":  98,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1834,
+                                                                           "y":  74,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (OpenAI app)",
+                                                                           "x":  1834,
+                                                                           "y":  121,
+                                                                           "width":  40,
+                                                                           "height":  37,
+                                                                           "fill":  "#212326"
+                                                                       }
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "hover-maximize-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba",
+                                                   "captured_sha256":  "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "hover-maximize-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc",
+                                                     "captured_sha256":  "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "snap-flyout",
+                       "note":  "no new shell window was seen over the window within 4 s",
+                       "utc":  "2026-09-25T04:30:10.4033773Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2776,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "snap-flyout-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "94e4af3a6d4600b0a80b8ecd1022cbddaedab35527f330a25f51eeadd87d8b48",
+                                                    "captured_sha256":  "6aa7147cb1706d3f06c7a87f134080bb5a497bcf8939d25198a7f9f7c1af3472",
+                                                    "redactions":  [
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1668,
+                                                                           "y":  98,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1834,
+                                                                           "y":  74,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (OpenAI app)",
+                                                                           "x":  1834,
+                                                                           "y":  121,
+                                                                           "width":  40,
+                                                                           "height":  37,
+                                                                           "fill":  "#212326"
+                                                                       }
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "snap-flyout-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba",
+                                                   "captured_sha256":  "e141e2fa996dd7f6d91d62d54500b08ada0b81b7e0f11afaaf5f6039b32ca5ba",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "snap-flyout-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc",
+                                                     "captured_sha256":  "1533f3c370eede3d78e4170ef5accea89c155c8995c4cde6453d84a97555edcc",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "pressed-maximize",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:11.2501696Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2776,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "pressed-maximize-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "8063fdff314656d19be67762581f7cc901955e8dbbc4c9020cb7ed583b15a7e0",
+                                                    "captured_sha256":  "95e2180c87e8734ebd5711f8ab4a38fdb47dda9f270e9f3a2e81022cc9ce7853",
+                                                    "redactions":  [
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1668,
+                                                                           "y":  98,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (Windows Terminal)",
+                                                                           "x":  1834,
+                                                                           "y":  74,
+                                                                           "width":  39,
+                                                                           "height":  31,
+                                                                           "fill":  "#212326"
+                                                                       },
+                                                                       {
+                                                                           "what":  "snap-group icon (OpenAI app)",
+                                                                           "x":  1834,
+                                                                           "y":  121,
+                                                                           "width":  40,
+                                                                           "height":  37,
+                                                                           "fill":  "#212326"
+                                                                       }
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "pressed-maximize-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "0e2361daaf959d68a677ea1736a5da96e02b013bc3d41a511da14c17f61c0a30",
+                                                   "captured_sha256":  "0e2361daaf959d68a677ea1736a5da96e02b013bc3d41a511da14c17f61c0a30",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "pressed-maximize-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "f449315a62e0f358cf2a4f75f2708bbdce7afbb1ec78044324b6718130703819",
+                                                     "captured_sha256":  "f449315a62e0f358cf2a4f75f2708bbdce7afbb1ec78044324b6718130703819",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "hover-close",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:13.5126062Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2846,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "hover-close-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "d377312c117588030ea5c8b5d3b305f0a39e9228ef1ba618cefc4bba92daf704",
+                                                    "captured_sha256":  "d377312c117588030ea5c8b5d3b305f0a39e9228ef1ba618cefc4bba92daf704",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "hover-close-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "beb5ea82df07dfb63536cf54f7c6c8fb91f4e56b853cc7eb35f2ea4345351329",
+                                                   "captured_sha256":  "beb5ea82df07dfb63536cf54f7c6c8fb91f4e56b853cc7eb35f2ea4345351329",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "hover-close-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "4fdfdfe49c719e5ac9d7eb6b77731434aedfccbee11c892d1ca4cdd1bdc9688b",
+                                                     "captured_sha256":  "4fdfdfe49c719e5ac9d7eb6b77731434aedfccbee11c892d1ca4cdd1bdc9688b",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "pressed-close",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:14.3282750Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2846,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "pressed-close-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "56d06fd8082da6dbc3471ad896c21c1cb4f57931e09c284db5062c7bbc79797c",
+                                                    "captured_sha256":  "56d06fd8082da6dbc3471ad896c21c1cb4f57931e09c284db5062c7bbc79797c",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "pressed-close-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "466055cc78375955b72a10b058960524731aad31efb4b1166941d0905fc7d9db",
+                                                   "captured_sha256":  "466055cc78375955b72a10b058960524731aad31efb4b1166941d0905fc7d9db",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "pressed-close-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "a994f912768d4a9c2347fae85f4c963420df247005050af0a9ccbc9a2d5ec6f3",
+                                                     "captured_sha256":  "a994f912768d4a9c2347fae85f4c963420df247005050af0a9ccbc9a2d5ec6f3",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "drag-before",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:16.1958325Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  958,
+                                     "top":  384,
+                                     "right":  2882,
+                                     "bottom":  1616,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2673,
+                                                                "top":  384,
+                                                                "right":  2742,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2742,
+                                                                "top":  384,
+                                                                "right":  2811,
+                                                                "bottom":  429,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2811,
+                                                             "top":  384,
+                                                             "right":  2880,
+                                                             "bottom":  429,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2553,
+                                       "y":  406
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "drag-before-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb",
+                                                    "captured_sha256":  "9d45714ca5df0f584af9d57b17d797349e6a2df4b711f1ee99b322f6a47f01fb",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "drag-before-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3",
+                                                   "captured_sha256":  "132d7ac7ffb12b2a53a7cd11c369d45d05df515f2659419efeea29515738dab3",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "drag-before-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "captured_sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "drag-mid",
+                       "note":  "the left button is held on empty strip space",
+                       "utc":  "2026-09-25T04:30:16.9895483Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  1038,
+                                     "top":  444,
+                                     "right":  2962,
+                                     "bottom":  1676,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2752,
+                                                                "top":  444,
+                                                                "right":  2821,
+                                                                "bottom":  489,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2821,
+                                                                "top":  444,
+                                                                "right":  2890,
+                                                                "bottom":  489,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2890,
+                                                             "top":  444,
+                                                             "right":  2959,
+                                                             "bottom":  489,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2633,
+                                       "y":  466
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "drag-mid-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "d15dede853b358fd42096438c69612cc386a6cf487cd60a50776f5e460e75cc1",
+                                                    "captured_sha256":  "d15dede853b358fd42096438c69612cc386a6cf487cd60a50776f5e460e75cc1",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "drag-mid-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "002053016e8487ef955bb36565622101d4869455a9354508bf7d4e74d9b484ab",
+                                                   "captured_sha256":  "002053016e8487ef955bb36565622101d4869455a9354508bf7d4e74d9b484ab",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "drag-mid-caption-buttons.png",
+                                                     "width":  234,
+                                                     "height":  47,
+                                                     "sha256":  "1520d790f16df85d08e9ac34896f01a40fdb23312b31e810f92cefa784f4e38e",
+                                                     "captured_sha256":  "1520d790f16df85d08e9ac34896f01a40fdb23312b31e810f92cefa784f4e38e",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "drag-after",
+                       "note":  "",
+                       "utc":  "2026-09-25T04:30:18.5156156Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  1118,
+                                     "top":  504,
+                                     "right":  3042,
+                                     "bottom":  1736,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2833,
+                                                                "top":  504,
+                                                                "right":  2902,
+                                                                "bottom":  549,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2902,
+                                                                "top":  504,
+                                                                "right":  2971,
+                                                                "bottom":  549,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2971,
+                                                             "top":  504,
+                                                             "right":  3040,
+                                                             "bottom":  549,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2713,
+                                       "y":  526
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "drag-after-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "281b7190d51baab333e231462a32eb51fdcc805e44eb45cfde8bd3e790b58a28",
+                                                    "captured_sha256":  "281b7190d51baab333e231462a32eb51fdcc805e44eb45cfde8bd3e790b58a28",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "drag-after-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442",
+                                                   "captured_sha256":  "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "drag-after-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "captured_sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "maximized",
+                       "note":  "after a click on Maximize",
+                       "utc":  "2026-09-25T04:30:21.0138453Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  0,
+                                     "top":  0,
+                                     "right":  3840,
+                                     "bottom":  2088,
+                                     "width":  3840,
+                                     "height":  2088
+                                 },
+                       "zoomed":  true,
+                       "window_image_factor":  0.5,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  3633,
+                                                                "top":  0,
+                                                                "right":  3702,
+                                                                "bottom":  45,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  3702,
+                                                                "top":  0,
+                                                                "right":  3771,
+                                                                "bottom":  45,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  3771,
+                                                             "top":  0,
+                                                             "right":  3840,
+                                                             "bottom":  45,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Restore"
+                                           },
+                       "pointer":  {
+                                       "x":  3513,
+                                       "y":  22
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "maximized-window.png",
+                                                    "width":  1920,
+                                                    "height":  1044,
+                                                    "sha256":  "b5bca421fe29846f0ca07b7d2685a078665684167af65339ec26044c51d08f06",
+                                                    "captured_sha256":  "781645646bf4bfa02bf188fdc09e85392fa1d80dbcc28498b32a2dad0a77bacf",
+                                                    "redactions":  [
+                                                                       {
+                                                                           "what":  "notification toast from another application",
+                                                                           "x":  1674,
+                                                                           "y":  936,
+                                                                           "width":  242,
+                                                                           "height":  104,
+                                                                           "fill":  "#1C2026"
+                                                                       }
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "maximized-strip.png",
+                                                   "width":  3840,
+                                                   "height":  47,
+                                                   "sha256":  "52c1c87a5f93177af657402d0aeba06d840af0178c5dddd2091dbeb1f1d77980",
+                                                   "captured_sha256":  "52c1c87a5f93177af657402d0aeba06d840af0178c5dddd2091dbeb1f1d77980",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "maximized-caption-buttons.png",
+                                                     "width":  231,
+                                                     "height":  47,
+                                                     "sha256":  "e44a00496cd1adb5de3236de3ca6952c3709133cabe49a689050190756c341cf",
+                                                     "captured_sha256":  "e44a00496cd1adb5de3236de3ca6952c3709133cabe49a689050190756c341cf",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   },
+                   {
+                       "state":  "restored",
+                       "note":  "after a double-click on empty strip space",
+                       "utc":  "2026-09-25T04:30:23.3569472Z",
+                       "window_dpi":  144,
+                       "window_scale_percent":  150,
+                       "scale_label":  "native display scale",
+                       "frame":  {
+                                     "left":  1118,
+                                     "top":  504,
+                                     "right":  3042,
+                                     "bottom":  1736,
+                                     "width":  1924,
+                                     "height":  1232
+                                 },
+                       "zoomed":  false,
+                       "window_image_factor":  0.997920997920998,
+                       "caption_buttons":  {
+                                               "minimize":  {
+                                                                "left":  2833,
+                                                                "top":  504,
+                                                                "right":  2902,
+                                                                "bottom":  549,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "maximize":  {
+                                                                "left":  2902,
+                                                                "top":  504,
+                                                                "right":  2971,
+                                                                "bottom":  549,
+                                                                "width":  69,
+                                                                "height":  45
+                                                            },
+                                               "close":  {
+                                                             "left":  2971,
+                                                             "top":  504,
+                                                             "right":  3040,
+                                                             "bottom":  549,
+                                                             "width":  69,
+                                                             "height":  45
+                                                         },
+                                               "maximize_name":  "Maximize"
+                                           },
+                       "pointer":  {
+                                       "x":  2713,
+                                       "y":  526
+                                   },
+                       "files":  {
+                                     "window":  {
+                                                    "file":  "restored-window.png",
+                                                    "width":  1920,
+                                                    "height":  1229,
+                                                    "sha256":  "ffb5ec25b186349c4486cacf4c49c375bd5c7813ce80bd169635e82400d85401",
+                                                    "captured_sha256":  "ffb5ec25b186349c4486cacf4c49c375bd5c7813ce80bd169635e82400d85401",
+                                                    "redactions":  [
+
+                                                                   ]
+                                                },
+                                     "strip":  {
+                                                   "file":  "restored-strip.png",
+                                                   "width":  1924,
+                                                   "height":  47,
+                                                   "sha256":  "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442",
+                                                   "captured_sha256":  "581d41fd6d19e0d0df22b85248a1dd10ed4d9319e3fc9058edbde9bacfb4b442",
+                                                   "redactions":  [
+
+                                                                  ]
+                                               },
+                                     "caption":  {
+                                                     "file":  "restored-caption-buttons.png",
+                                                     "width":  233,
+                                                     "height":  47,
+                                                     "sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "captured_sha256":  "c9df76311a9c10b74121e0b8af82bfaaf8d0ffc2562f0905bc98e6641d7da17d",
+                                                     "redactions":  [
+
+                                                                    ]
+                                                 }
+                                 }
+                   }
+               ]
+}

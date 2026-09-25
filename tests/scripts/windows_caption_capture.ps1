@@ -74,7 +74,7 @@ public static class Desk {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
-    [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public MOUSEINPUT mi; public uint pad1, pad2; }
+    [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public MOUSEINPUT mi; }
     [StructLayout(LayoutKind.Sequential)] struct MONITORINFO { public uint cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
     [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr c);
     [DllImport("user32.dll")] static extern IntPtr GetThreadDpiAwarenessContext();
@@ -264,7 +264,9 @@ function Guard([string]$gesture, [int]$x, [int]$y, [long]$code) {
 function Note([string]$gesture, [int]$x, [int]$y) {
     $index.gestures += [ordered]@{ gesture = $gesture; x = $x; y = $y; utc = (Get-Date).ToUniversalTime().ToString('o'); frame = (Rect $desk::Frame($hwnd)); zoomed = $desk::IsZoomed($hwnd) }
 }
-function Move([string]$gesture, $point, [long]$code) { Guard $gesture $point.X $point.Y $code; $desk::MoveTo($point.X, $point.Y); Note $gesture $point.X $point.Y }
+# Not `Move`: PowerShell resolves an alias before a function, and `Move` is
+# Move-Item's alias.
+function Move-Pointer([string]$gesture, $point, [long]$code) { Guard $gesture $point.X $point.Y $code; $desk::MoveTo($point.X, $point.Y); Note $gesture $point.X $point.Y }
 function Press([string]$gesture, $point, [long]$code) { Guard $gesture $point.X $point.Y $code; $script:held = $true; $desk::Down($point.X, $point.Y); Note $gesture $point.X $point.Y }
 function Release([string]$gesture, $point, [long]$code) { Guard $gesture $point.X $point.Y $code; $desk::Up($point.X, $point.Y); $script:held = $false; Note $gesture $point.X $point.Y }
 function Point([int]$x, [int]$y) { $p = New-Object BprCaptionCapture.Desk+POINT; $p.X = $x; $p.Y = $y; $p }
@@ -339,7 +341,7 @@ function Empty-Strip {
 function Hover-Press([string]$part) {
     $buttons = Caption-Buttons
     $target = Center $buttons.$part
-    Move "hover-$part" $target $HT.$part
+    Move-Pointer "hover-$part" $target $HT.$part
     Pump 900
     Capture "hover-$part"
     if ($part -eq 'maximize') {
@@ -358,7 +360,7 @@ function Hover-Press([string]$part) {
     Pump 400
     Capture "pressed-$part"
     # Off the button with it held, then released on empty strip space.
-    Move "move-off-$part" $neutral $HT.caption
+    Move-Pointer "move-off-$part" $neutral $HT.caption
     Pump 200
     Release "release-off-$part" $neutral $HT.caption
     Pump 700
@@ -403,14 +405,14 @@ try {
     # At rest: the pointer is parked on empty strip space unless it is already outside the window.
     $pointer = New-Object BprCaptionCapture.Desk+POINT
     [void]$desk::GetCursorPos([ref]$pointer)
-    if ($desk::RootAt($pointer.X, $pointer.Y) -eq $hwnd) { Move 'park' $neutral $HT.caption; Pump 600 }
+    if ($desk::RootAt($pointer.X, $pointer.Y) -eq $hwnd) { Move-Pointer 'park' $neutral $HT.caption; Pump 600 }
     Capture 'rest'
 
     foreach ($part in @('minimize', 'maximize', 'close')) { Hover-Press $part }
 
     # A drag of empty strip space, towards the monitor's middle, kept inside its work area.
     $neutral = Empty-Strip
-    Move 'drag-start' $neutral $HT.caption
+    Move-Pointer 'drag-start' $neutral $HT.caption
     Pump 500
     Capture 'drag-before'
     $frame = $desk::Frame($hwnd); $work = $desk::Work($hwnd)
@@ -443,7 +445,7 @@ try {
     Release 'maximize-release' $maximize $HT.maximize
     Pump 1200
     Require ($desk::IsZoomed($hwnd)) 'a click on Maximize did not maximize the window'
-    Move 'maximized-park' (Empty-Strip) $HT.caption
+    Move-Pointer 'maximized-park' (Empty-Strip) $HT.caption
     Pump 600
     Capture 'maximized' 'after a click on Maximize'
     $neutral = Empty-Strip
@@ -456,7 +458,7 @@ try {
     Pump 1200
     Require (-not $desk::IsZoomed($hwnd)) 'a double-click on empty strip space did not restore the window'
     $neutral = Empty-Strip
-    Move 'restored-park' $neutral $HT.caption
+    Move-Pointer 'restored-park' $neutral $HT.caption
     Pump 600
     Capture 'restored' 'after a double-click on empty strip space'
 

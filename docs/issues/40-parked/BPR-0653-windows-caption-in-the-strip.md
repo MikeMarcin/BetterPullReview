@@ -1035,3 +1035,68 @@ never changed:
 
 Criteria 2 and 4 stay pending, and the card stays parked on human-review,
 now for the owner's remote review of these captures once they exist.
+
+## The capture, taken 2026-09-25T04:29:54Z to 04:30:23Z (bpr-main-win): ready for the owner's remote review
+
+The station took criteria 2 and 4's captures itself, in a foreground block the
+coordinator cleared, with
+[`windows_caption_capture.ps1`](../../../tests/scripts/windows_caption_capture.ps1).
+The images, their index and every file's SHA-256 are in
+[BPR-0653-2026-09-25](../../verification/BPR-0653-2026-09-25/index.md).
+
+**What ran.**
+
+- One launch of [[BPR-0974]]'s cleared candidate from `installed\`: image
+  `6aa27c8d…` and bundle `ca3bc2b1…`, both verified by the script first. It
+  ran with `--render-evidence`, so it was signed out, on a private temporary
+  profile (`AUTOMATED_PROFILE_PRIVATE_OK`). PID 36952; exit 0 after
+  `WM_CLOSE`.
+- The display at its own scale: DPI 144, which is 150% on the 3840x2160
+  panel. The scale was not changed and not overridden.
+- All 13 states were captured, 31 guarded gestures in all. Each move and
+  press checked three things first: the window in front, the window under
+  the point, and the point's own `WM_NCHITTEST` answer. Every pressed button
+  was released on empty strip space, and nothing fired: the window was still
+  up and not minimized after each release, and it closed only when told to.
+- The pointer was restored to (1895, 699). Defender recorded nothing; the
+  record is on BPR-0974.
+
+**What the images show,** for the owner to judge:
+
+- **Hover and press.** The three caption buttons at rest, hovered and
+  pressed: a grey fill for Minimize and Maximize, lighter when pressed, and
+  red for Close.
+- **Snap layouts.** The flyout appears on hovering Maximize, and stays while
+  it is held.
+- **The drag.** Dragging empty strip space with real pointer input moved the
+  window by exactly the pointer's travel, (+160, +120) physical pixels.
+- **Maximize and restore.** A click on Maximize maximizes, and the glyph
+  becomes Restore. A double-click on empty strip space restores to the same
+  frame.
+
+**Looked at, all 39 images.** Every one shows only the app, signed out, with
+no account, repository or private content, and no desktop or taskbar. In four
+window images, other applications' content showed inside the window's rect,
+and the committed copies have it filled with the surrounding colour:
+
+- `hover-maximize`, `snap-flyout` and `pressed-maximize`: the snap flyout's
+  recent snap groups showed two other applications' icons (Windows Terminal
+  and an OpenAI app);
+- `maximized`: another application's notification toast.
+
+The rectangles are in `capture.json`, and the unredacted originals stay as
+station records, not committed.
+
+**Two capture-script defects, found and fixed before the capture that ran.**
+
+- The pointer helper was named `Move`, which PowerShell resolves to
+  `Move-Item`'s alias before any function.
+- Its `INPUT` structure carried padding that made it 48 bytes instead of
+  x64's 40, so `SendInput` refused every call.
+
+The first attempt (PID 46236, 04:28:11Z) stopped on the first before any
+gesture. The pointer never moved.
+
+**Where the card stands.** Criteria 2 and 4 now have their captures. The card
+stays parked on human-review for the owner's remote review of them. Criterion
+3 is unchanged.
