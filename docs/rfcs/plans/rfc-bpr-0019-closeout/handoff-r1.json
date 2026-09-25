@@ -137,7 +137,7 @@
     "repository_writer": "/root/rfc0019_closeout exclusively in assigned isolated worktree until final return, then released",
     "other_writers": "RFC0052 implementer operates only in primary checkout; coordinator owns integration. No shared source path edited.",
     "spawned_agents": [],
-    "commands": "All task test/audit processes completed and sessions collected before return. No remaining task-owned command or listener.",
+    "commands": "All original task commands and post-review JSON/documentation checks completed. No remaining task-owned command or listener.",
     "sessions_collected": [
       88258,
       73777,
@@ -187,6 +187,7 @@
     "finding": "P2: ordinary-closeout:exit:1 was marked pass although exact final-candidate developer/core-only/tests-disabled graph and binary verification remains pending.",
     "disposition": "Reproduced in observation-r1.json; outcome corrected to pending. The milestone remains blocked and no missing build evidence or independent terminal acceptance is inferred.",
     "scope": "Bookkeeping correction only. No product, asset, original criterion or heavy-build command changes.",
-    "verification": "Focused JSON/semantic validation, checkpoint consistency, documentation gate and whitespace check are required before the correction commit."
+    "verification": "Pass: all plan JSON parses; exit 1 is pending; observation/handoff pending lists agree; milestone checkpoint returns action stop; DOCUMENTATION_OK; git diff --check. No heavy build or product test rerun.",
+    "correction_commit": "a0c896f17b80fb3859fa2cfb313fb898bd29b13f"
   }
 }
