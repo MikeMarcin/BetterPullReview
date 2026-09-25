@@ -5,6 +5,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 
 #include <QAction>
@@ -19,6 +20,7 @@
 #include <QPushButton>
 #include <QSysInfo>
 #include <QThread>
+#include <QTreeView>
 
 #include <array>
 #include <cstdlib>
@@ -163,7 +165,7 @@ namespace {
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
 		return summary && summary->isVisible() && summary->text().contains(QStringLiteral("Cached overview"));
 	}
-	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0)
+	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0, bool aCatalogueAvailable = true)
 	{
 		expect(cached_visible(aWindow) && !aWindow.showing_home(), "durable cached overview is actually visible after offline reopen");
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
@@ -176,7 +178,29 @@ namespace {
 		if (aAccount) {
 			expect(title->text() == QStringLiteral("Private title for account %1").arg(aAccount), "cached title belongs to the exact current account");
 		}
-		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown source=unavailable conversations=unavailable\n";
+		auto* files = aWindow.findChild<QTreeView*>(QStringLiteral("overviewFiles"));
+		auto* model = files ? dynamic_cast<qt::overview_file_model*>(files->model()) : nullptr;
+		if (!aCatalogueAvailable) {
+			const auto* heading = aWindow.findChild<QLabel*>(QStringLiteral("overviewFilesHeading"));
+			expect(model && model->file_count() == 0 && heading && heading->text().contains(QStringLiteral("catalogue unavailable")), "legacy overview remains catalogue unavailable, never observed empty");
+			return;
+		}
+		expect(model && model->file_count() == 2U, "durable cached file catalogue survives process restart");
+		for (const auto* path : { "review.cpp", "secondary.cpp" }) {
+			const auto  index = model->index_for_path(QString::fromUtf8(path));
+			const auto* row   = model->row_at(index);
+			expect(row && row->Path == path && !row->PreviousPath && row->Additions == 6 && row->Deletions == 6
+					   && row->Operation == application::overview_file_operation::modified,
+				   "cached rows match the exact accepted provider catalogue");
+		}
+		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
+			expect(files->isColumnHidden(column), "unavailable review progress and conversation counts never render as zero");
+		}
+		const auto index = model->index_for_path(QStringLiteral("review.cpp"));
+		QMetaObject::invokeMethod(files, "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
+		QApplication::processEvents();
+		expect(cached_visible(aWindow) && !aWindow.comparison_surface()->current_result(), "cached catalogue activation grants no source navigation");
+		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown catalogue=2 source=unavailable conversations=unavailable\n";
 	}
 	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
@@ -195,7 +219,7 @@ try {
 	const auto argument       = std::string_view{ aArgv[1] };
 	const bool identityCourse = argument.starts_with("identity-");
 	const auto phase          = identityCourse ? argument.substr(9) : argument;
-	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || (identityCourse && phase == "legacy"), "known offline phase");
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || phase == "restart-legacy" || (identityCourse && phase == "legacy"), "known offline phase");
 	std::array<char, 2049U> bytes{ };
 	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
@@ -243,7 +267,7 @@ try {
 			expect_unavailable(*owner, window);
 			report(*owner, window, "identity-legacy");
 		}
-		if (phase == "restart-read" || phase == "restart-corrupt") {
+		if (phase == "restart-read" || phase == "restart-corrupt" || phase == "restart-legacy") {
 			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
 			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
 			if (identityCourse) {
@@ -261,12 +285,12 @@ try {
 				expect(!cached_visible(window), "corrupt overview refuses visible metadata through real composition");
 				report(*owner, window, "restart-corrupt-offline");
 			} else {
-				expect_cached(window, identityCourse ? 910001U : 0U);
-				report(*owner, window, "restart-read-offline");
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy");
+				report(*owner, window, phase == "restart-legacy" ? "restart-legacy-offline" : "restart-read-offline");
 				window.home_action()->trigger();
 				expect(window.showing_home(), "cached overview can return to Home");
 				window.home_landing()->primary_button()->click();
-				expect_cached(window, identityCourse ? 910001U : 0U);
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy");
 				if (!identityCourse) {
 					open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
 					wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "cached view replaced by foreign offline failure");

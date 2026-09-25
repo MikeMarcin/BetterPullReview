@@ -165,10 +165,18 @@ namespace {
 		};
 		auto identity = session();
 		expect(host.adopt(identity), "cache course adopts authenticated account");
-		const auto open    = [&] { host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } }); };
+		const auto                                   open = [&] { host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } }); };
+		std::vector<application::github_file_record> serverFiles{
+			{ .Path = "src/renamed.cpp", .PreviousPath = "old.cpp", .Change = application::github_file_change::renamed, .Additions = 9, .Deletions = 4 }
+		};
+		auto       serverBase = std::string(40, '1'), serverHead = std::string(40, '2');
 		const auto succeed = [&] {
-			const auto call = provider.Calls.back();
-			call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+			const auto call          = provider.Calls.back();
+			auto       data          = snapshot(call.Request);
+			data.Files               = serverFiles;
+			data.PullRequest.BaseOid = application::commit_oid{ serverBase };
+			data.PullRequest.HeadOid = application::commit_oid{ serverHead };
+			call.Complete(application::github_pull_request_success{ call.Request, std::move(data) });
 			lane.drain();
 		};
 		const auto fail = [&](application::github_provider_failure aFailure = application::github_provider_failure::network) {
@@ -195,6 +203,10 @@ namespace {
 		lane.drain();
 		expect(cached() && !host.state().AcceptedSnapshot && !host.mutation_transport() && epochs.AcceptCount == 1,
 			   "cached metadata publishes without current snapshot, mutation or epoch authority");
+		expect(cache.Value->FileCatalogue && cache.Value->FileCatalogue->size() == 1
+				   && cache.Value->FileCatalogue->front() == core::cached_review_file{ "src/renamed.cpp", "old.cpp", core::cached_file_change::renamed, 9, 4 }
+				   && updates.back().Presentation.CachedOverview->FileCatalogue == cache.Value->FileCatalogue,
+			   "cached catalogue preserves exact path provenance, operation and counts without live authority");
 		open();
 		fail(application::github_provider_failure::permission);
 		expect(!cached() && effects.pending() == 0, "permission failure cannot expose historical metadata");
@@ -218,11 +230,39 @@ namespace {
 		effects.drain();
 		lane.drain();
 		expect(!cached(), "core refuses a cache port returning foreign account data");
+		serverBase  = std::string(40, '3');
+		serverHead  = std::string(40, '4');
+		serverFiles = { { .Path = "new-server.cpp", .Change = application::github_file_change::added, .Additions = 27 } };
 		open();
 		succeed();
 		effects.drain();
 		lane.drain();
 		expect(host.accepted_snapshot() && !cached(), "reconnection adopts new server truth and clears cached presentation");
+		expect(cache.Value->BaseOid == serverBase && cache.Value->HeadOid == serverHead
+				   && cache.Value->FileCatalogue->front().Path == "new-server.cpp"
+				   && cache.Value->FileCatalogue->front().Additions == 27,
+			   "changed base/head and catalogue replace one historical observation atomically");
+		serverFiles.clear();
+		open();
+		succeed();
+		effects.drain();
+		lane.drain();
+		open();
+		fail();
+		effects.drain();
+		lane.drain();
+		expect(cached() && updates.back().Presentation.CachedOverview->FileCatalogue
+				   && updates.back().Presentation.CachedOverview->FileCatalogue->empty(),
+			   "observed empty file catalogue survives cache admission");
+		for (std::size_t index = 0; index <= core::maximum_cached_files; ++index) {
+			serverFiles.push_back({ .Path = "file" + std::to_string(index), .Change = application::github_file_change::modified });
+		}
+		open();
+		succeed();
+		effects.drain();
+		lane.drain();
+		expect(cache.Value->Files == serverFiles.size() && !cache.Value->FileCatalogue,
+			   "oversized optional catalogue keeps current overview with unavailable files, never a truncated or old catalogue");
 		open();
 		fail();
 		host.shutdown();

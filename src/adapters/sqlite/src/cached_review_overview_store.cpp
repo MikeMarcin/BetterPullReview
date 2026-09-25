@@ -89,6 +89,52 @@ namespace bpr::adapters::sqlite {
 				text(aKey.Locator.Name, 256);
 				identity(aKey.Number);
 			}
+			void catalogue(std::optional<std::vector<core::cached_review_file>>& aFiles)
+			{
+				// The original payload has no extension: unknown, never observed empty.
+				if (Reading && Input.empty()) {
+					return;
+				}
+				auto version = std::uint64_t{ 2 };
+				integer(version);
+				bool available = aFiles.has_value();
+				number(available);
+				if (!Good || version != 2) {
+					Good = false;
+					return;
+				}
+				if (!available) {
+					return;
+				}
+				auto count = static_cast<std::uint64_t>(aFiles ? aFiles->size() : 0);
+				integer(count);
+				if (!Good || count > core::maximum_cached_files || (Reading && count > Input.size() / 40)) {
+					Good = false;
+					return;
+				}
+				if (Reading) {
+					aFiles.emplace(static_cast<std::size_t>(count));
+				}
+				for (auto& file : *aFiles) {
+					text(file.Path, 4096);
+					bool previous = file.PreviousPath.has_value();
+					number(previous);
+					if (previous) {
+						if (Reading) {
+							file.PreviousPath.emplace();
+						}
+						text(*file.PreviousPath, 4096);
+					}
+					auto change = static_cast<std::uint8_t>(file.Change);
+					number(change);
+					file.Change = static_cast<core::cached_file_change>(change);
+					integer(file.Additions);
+					integer(file.Deletions);
+					if (!Good) {
+						return;
+					}
+				}
+			}
 			void overview(core::cached_review_overview& aOverview)
 			{
 				key(aOverview.Key);
@@ -105,6 +151,9 @@ namespace bpr::adapters::sqlite {
 				number(aOverview.Commits);
 				number(aOverview.State);
 				number(aOverview.Draft);
+				if (Good) {
+					catalogue(aOverview.FileCatalogue);
+				}
 			}
 		};
 		auto encoded_key(core::cached_review_key aKey) -> std::vector<std::uint8_t>

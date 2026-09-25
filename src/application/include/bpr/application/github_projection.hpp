@@ -4,6 +4,7 @@
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_read_progress.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 
@@ -159,12 +160,13 @@ namespace bpr::application {
 		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
-	/// \brief Previously accepted overview; freshness is unknown and all other review data is unavailable.
+	/// \brief Previously accepted overview and optional file catalogue; freshness is unknown.
 	struct github_cached_overview_projection
 	{
-		github_loading_overview_projection Overview;
-		std::string                        BaseOid, HeadOid;
-		auto                               operator<=>(const github_cached_overview_projection&) const = default;
+		github_loading_overview_projection                   Overview;
+		std::string                                          BaseOid, HeadOid;
+		std::optional<std::vector<core::cached_review_file>> FileCatalogue;
+		auto                                                 operator<=>(const github_cached_overview_projection&) const = default;
 	};
 
 	enum class github_conversation_kind : std::uint8_t {

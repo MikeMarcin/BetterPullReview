@@ -49,6 +49,24 @@ def retained_epochs(root):
     return authority, scope, epochs, anchors
 
 
+def legacy_overview_payload(payload):
+    # Original payload prefix: key version + fingerprint bytes encoded as u64,
+    # three numeric identities, locator strings, PR number/repository/PR ids,
+    # seven text fields, then four overview scalars. No catalogue extension.
+    offset = 8 * (1 + 32 + 3)
+    for _ in range(2):
+        size = int.from_bytes(payload[offset:offset + 8], "big")
+        offset += 8 + size
+    offset += 3 * 8
+    for _ in range(7):
+        size = int.from_bytes(payload[offset:offset + 8], "big")
+        offset += 8 + size
+    offset += 4 * 8
+    if not 0 < offset < len(payload):
+        raise SystemExit("catalogue fixture lacks versioned extension")
+    return payload[:offset]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
@@ -63,8 +81,18 @@ def main():
         vault = b""
         objects = None
         catalog = None
-        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-corrupt", "restart-offline")
+        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-legacy", "restart-corrupt", "restart-offline")
         for phase in phases:
+            if phase == "restart-legacy":
+                databases = list(root.rglob("review-overviews.sqlite3"))
+                if len(databases) != 1:
+                    raise SystemExit("expected one private overview database")
+                with store_connection(databases[0]) as connection:
+                    rows = connection.execute("SELECT sequence,payload FROM overviews").fetchall()
+                    for sequence, payload in rows:
+                        legacy = legacy_overview_payload(payload)
+                        connection.execute("UPDATE overviews SET payload=?,digest=? WHERE sequence=?",
+                                           (legacy, hashlib.sha256(legacy).digest(), sequence))
             if phase == "restart-corrupt":
                 databases = list(root.rglob("review-overviews.sqlite3"))
                 if len(databases) != 1:

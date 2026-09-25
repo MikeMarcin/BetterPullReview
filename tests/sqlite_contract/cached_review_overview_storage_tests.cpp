@@ -1,8 +1,10 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
+#include "bpr/core/sha256.hpp"
 #include "scratch_root.hpp"
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <sqlite3.h>
 
@@ -24,6 +26,10 @@ namespace {
 			.HeadRef     = "review",
 			.Files       = 2,
 			.Commits     = 1
+		};
+		result.FileCatalogue = std::vector<core::cached_review_file>{
+			{ "src/new.cpp", "src/old.cpp", core::cached_file_change::renamed, 23, 8 },
+			{ "removed.cpp", std::nullopt, core::cached_file_change::removed, 0, 42 }
 		};
 		return result;
 	}
@@ -50,6 +56,29 @@ namespace {
 		expect(sqlite3_exec(database, aSql, nullptr, nullptr, nullptr) == SQLITE_OK, "test mutates its owned store");
 		sqlite3_close(database);
 	}
+	void alter_payload(const std::filesystem::path& aPath, const std::function<void(std::vector<std::uint8_t>&)>& aAlter)
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(aPath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "open owned payload fixture");
+		sqlite3_stmt* select = nullptr;
+		expect(sqlite3_prepare_v2(database, "SELECT payload FROM overviews ORDER BY sequence DESC LIMIT 1", -1, &select, nullptr) == SQLITE_OK
+				   && sqlite3_step(select) == SQLITE_ROW,
+			   "read current encoded fixture");
+		const auto* data    = static_cast<const std::uint8_t*>(sqlite3_column_blob(select, 0));
+		auto        payload = std::vector<std::uint8_t>{ data, data + sqlite3_column_bytes(select, 0) };
+		sqlite3_finalize(select);
+		aAlter(payload);
+		const auto    digest = core::sha256(payload);
+		sqlite3_stmt* update = nullptr;
+		expect(sqlite3_prepare_v2(database, "UPDATE overviews SET payload=?1,digest=?2 WHERE sequence=(SELECT max(sequence) FROM overviews)", -1, &update, nullptr) == SQLITE_OK, "prepare payload fixture mutation");
+		expect(sqlite3_bind_blob(update, 1, payload.data(), static_cast<int>(payload.size()), SQLITE_TRANSIENT) == SQLITE_OK
+				   && sqlite3_bind_blob(update, 2, digest.data(), static_cast<int>(digest.size()), SQLITE_TRANSIENT) == SQLITE_OK
+				   && sqlite3_step(update) == SQLITE_DONE,
+			   "publish fixture payload and matching integrity digest");
+		sqlite3_finalize(update);
+		sqlite3_close(database);
+	}
+
 }
 int main()
 try {
@@ -77,9 +106,11 @@ try {
 	std::stop_source stopped;
 	stopped.request_stop();
 	expect(!store->load(original.Key, stopped.get_token()), "cancelled read exposes no metadata");
-	auto next    = original;
-	next.Title   = "New server truth";
-	next.HeadOid = std::string(40, '3');
+	auto next                   = original;
+	next.Title                  = "New server truth";
+	next.HeadOid                = std::string(40, '3');
+	next.BaseOid                = std::string(40, '4');
+	next.FileCatalogue->front() = { "new-server.cpp", std::nullopt, core::cached_file_change::added, 99, 0 };
 	expect(!store->save(next, stopped.get_token()) && store->load(original.Key, { }) == original, "cancelled write preserves previous exact revision");
 	expect(store->save(next, { }) && store->load(next.Key, { }) == next, "new accepted server metadata atomically replaces old revision");
 	std::stop_source lateStop;
@@ -95,6 +126,47 @@ try {
 	invalid = next;
 	invalid.Body.resize(256 * 1024 + 1, 'x');
 	expect(!store->save(invalid, { }), "oversized body refused without truncation");
+	invalid = next;
+	invalid.FileCatalogue->push_back(invalid.FileCatalogue->front());
+	invalid.Files = 3;
+	expect(!store->save(invalid, { }), "duplicate catalogue paths refused");
+	invalid       = next;
+	invalid.Files = 3;
+	expect(!store->save(invalid, { }), "catalogue count cannot disagree with its exact overview");
+	invalid                               = next;
+	invalid.FileCatalogue->front().Change = static_cast<core::cached_file_change>(255);
+	expect(!store->save(invalid, { }), "unknown file operation refused");
+	invalid                                     = next;
+	invalid.FileCatalogue->front().PreviousPath = std::string(4097, 'p');
+	expect(!store->save(invalid, { }), "oversized previous path refused");
+	invalid = next;
+	invalid.FileCatalogue->clear();
+	for (unsigned index = 0; index < 40; ++index) {
+		invalid.FileCatalogue->push_back({ std::to_string(index) + std::string(4090, 'p'), std::nullopt, core::cached_file_change::modified });
+	}
+	invalid.Files = 40;
+	expect(!store->save(invalid, { }), "aggregate catalogue byte budget refuses whole content, never truncates");
+	invalid = next;
+	invalid.FileCatalogue->resize(core::maximum_cached_files + 1);
+	invalid.Files = static_cast<std::uint32_t>(invalid.FileCatalogue->size());
+	expect(!store->save(invalid, { }), "file count allocation bound enforced");
+	auto empty  = next;
+	empty.Files = 0;
+	empty.FileCatalogue->clear();
+	expect(store->save(empty, { }) && store->load(empty.Key, { }) == empty, "observed empty catalogue remains present and empty");
+	alter_payload(path, [](auto& aPayload) { aPayload.back() = 255; });
+	expect(!store->load(empty.Key, { }), "forged count with valid digest refuses before file allocation");
+	auto legacy = next;
+	legacy.FileCatalogue.reset();
+	expect(store->save(legacy, { }), "unavailable catalogue overview saves");
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 16); });
+	expect(store->load(legacy.Key, { }) == legacy, "original payload loads with unavailable catalogue, never observed empty");
+	expect(store->save(next, { }) && store->load(next.Key, { }) == next, "new accepted record replaces legacy payload atomically");
+	auto malformed = next;
+	malformed.FileCatalogue.reset();
+	expect(store->save(malformed, { }), "extension-version control saved");
+	alter_payload(path, [](auto& aPayload) { aPayload[aPayload.size() - 9] = 99; });
+	expect(!store->load(next.Key, { }), "unknown extension version refuses all historical content");
 	for (std::uint32_t number = 20; number < 30; ++number) {
 		auto entry        = original;
 		entry.Key.Number  = core::pull_request_number{ number };

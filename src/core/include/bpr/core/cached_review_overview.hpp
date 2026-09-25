@@ -3,6 +3,8 @@
 
 #include "bpr/core/github_model.hpp"
 #include <array>
+#include <optional>
+#include <vector>
 
 namespace bpr::core {
 	/// \brief Exact authenticated reader and destination for one retained overview.
@@ -18,6 +20,28 @@ namespace bpr::core {
 		auto                         operator<=>(const cached_review_key&) const = default;
 	};
 
+	enum class cached_file_change : std::uint8_t {
+		added,
+		modified,
+		removed,
+		renamed,
+		copied,
+		type_changed,
+		unchanged,
+	};
+
+	/// \brief Historical provider file metadata; no source, reading or navigation authority.
+	struct cached_review_file
+	{
+		std::string                Path;
+		std::optional<std::string> PreviousPath;
+		cached_file_change         Change    = cached_file_change::modified;
+		std::uint64_t              Additions = 0, Deletions = 0;
+		auto                       operator<=>(const cached_review_file&) const = default;
+	};
+	inline constexpr std::size_t maximum_cached_files           = 1024;
+	inline constexpr std::size_t maximum_cached_catalogue_bytes = 128 * 1024;
+
 	/// \brief Bounded historical metadata, without source, conversation or permission authority.
 	/// Base/head are the exact accepted revisions, never a claim about the current server head.
 	struct cached_review_overview
@@ -28,13 +52,18 @@ namespace bpr::core {
 		std::string       BaseOid, HeadOid;
 		std::string       Title, Body, AuthorLogin, BaseRef, HeadRef;
 		std::uint32_t     Files = 0, Commits = 0;
-		std::uint8_t      State                                            = 0;
-		bool              Draft                                            = false;
-		auto              operator<=>(const cached_review_overview&) const = default;
+		std::uint8_t      State = 0;
+		bool              Draft = false;
+		/// Absent means unavailable; present empty means the accepted read observed no files.
+		/// The catalogue and base/head are one atomic historical observation.
+		std::optional<std::vector<cached_review_file>> FileCatalogue;
+		auto                                           operator<=>(const cached_review_overview&) const = default;
 	};
 	inline constexpr std::size_t maximum_cached_overviews      = 10;
-	inline constexpr std::size_t maximum_cached_overview_bytes = 272 * 1024;
+	inline constexpr std::size_t maximum_cached_overview_bytes = 416 * 1024;
 
+	/// \brief Bounds complete catalogue content and rejects duplicate paths and malformed records.
+	[[nodiscard]] auto valid_cached_catalogue(const std::vector<cached_review_file>& aFiles) noexcept -> bool;
 	/// \brief Validates storage bounds and exact durable identities.
 	[[nodiscard]] auto valid(const cached_review_key& aKey) noexcept -> bool;
 	[[nodiscard]] auto valid(const cached_review_overview& aOverview) noexcept -> bool;

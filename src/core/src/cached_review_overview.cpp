@@ -10,6 +10,30 @@ namespace bpr::core {
 			return aText.size() <= aLimit && aText.find('\0') == std::string_view::npos;
 		}
 	}
+	auto valid_cached_catalogue(const std::vector<cached_review_file>& aFiles) noexcept -> bool
+	{
+		if (aFiles.size() > maximum_cached_files) {
+			return false;
+		}
+		std::array<std::string_view, maximum_cached_files> paths;
+		std::size_t                                        bytes = 0, index = 0;
+		for (const auto& file : aFiles) {
+			if (file.Path.empty() || !text_valid(file.Path, 4096)
+				|| (file.PreviousPath && (file.PreviousPath->empty() || !text_valid(*file.PreviousPath, 4096)))
+				|| file.Change > cached_file_change::unchanged) {
+				return false;
+			}
+			// Includes all length/presence/count fields in the durable encoding.
+			bytes += 48 + file.Path.size() + (file.PreviousPath ? file.PreviousPath->size() : 0);
+			if (bytes > maximum_cached_catalogue_bytes) {
+				return false;
+			}
+			paths[index++] = file.Path;
+		}
+		auto end = paths.begin() + static_cast<std::ptrdiff_t>(aFiles.size());
+		std::sort(paths.begin(), end);
+		return std::adjacent_find(paths.begin(), end) == end;
+	}
 	auto valid(const cached_review_key& aKey) noexcept -> bool
 	{
 		return std::ranges::any_of(aKey.Authority, [](auto aByte) { return aByte != 0; })
@@ -23,7 +47,8 @@ namespace bpr::core {
 			&& text_valid(aOverview.Title, 1024) && text_valid(aOverview.Body, 256 * 1024)
 			&& text_valid(aOverview.AuthorLogin, 256) && text_valid(aOverview.BaseRef, 256)
 			&& text_valid(aOverview.HeadRef, 256) && aOverview.State <= 2
-			&& aOverview.Files <= 10000 && aOverview.Commits <= 1000000;
+			&& aOverview.Files <= 10000 && aOverview.Commits <= 1000000
+			&& (!aOverview.FileCatalogue || (aOverview.FileCatalogue->size() == aOverview.Files && valid_cached_catalogue(*aOverview.FileCatalogue)));
 	}
 	auto admit_cached_overview(const github_state&                 aState,
 							   const pull_request_request_context& aRequest, github_failure aFailure,

@@ -963,6 +963,30 @@ namespace bpr::application {
 			return { host_authority_fingerprint(*AcceptedProfileAuthority).bytes(),
 					 aRequest.Profile, aRequest.Host, aRequest.Account, aRequest.Repository, aRequest.Number };
 		}
+		auto retain_file_catalogue(const github_pull_request_snapshot& aSnapshot) const
+			-> std::optional<std::vector<core::cached_review_file>>
+		{
+			if (aSnapshot.Files.size() > core::maximum_cached_files) {
+				return std::nullopt;
+			}
+			std::vector<core::cached_review_file> files;
+			files.reserve(aSnapshot.Files.size());
+			for (const auto& file : aSnapshot.Files) {
+				core::cached_file_change change;
+				switch (file.Change) {
+				case github_file_change::added:         change = core::cached_file_change::added; break;
+				case github_file_change::modified:      change = core::cached_file_change::modified; break;
+				case github_file_change::removed:       change = core::cached_file_change::removed; break;
+				case github_file_change::renamed:       change = core::cached_file_change::renamed; break;
+				case github_file_change::copied:        change = core::cached_file_change::copied; break;
+				case github_file_change::type_changed:  change = core::cached_file_change::type_changed; break;
+				case github_file_change::unchanged:     change = core::cached_file_change::unchanged; break;
+				case github_file_change::uninitialized: return std::nullopt;
+				}
+				files.push_back({ file.Path, file.PreviousPath, change, file.Additions, file.Deletions });
+			}
+			return core::valid_cached_catalogue(files) ? std::optional{ std::move(files) } : std::nullopt;
+		}
 		void retain_overview(const core::pull_request_request_context& aRequest)
 		{
 			if (!Overviews || !CacheEffects || CacheWritePending || !AcceptedSnapshot
@@ -974,7 +998,7 @@ namespace bpr::application {
 				return;
 			}
 			auto retained = core::cached_review_overview{
-				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft
+				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot)
 			};
 			if (!core::valid(retained)) {
 				return;
@@ -1026,9 +1050,10 @@ namespace bpr::application {
 						std::optional<github_cached_overview_projection> projection;
 						if (admitted) {
 							projection = github_cached_overview_projection{
-								.Overview = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
-								.BaseOid  = cached->BaseOid,
-								.HeadOid  = cached->HeadOid
+								.Overview      = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
+								.BaseOid       = cached->BaseOid,
+								.HeadOid       = cached->HeadOid,
+								.FileCatalogue = std::move(cached->FileCatalogue)
 							};
 						}
 						self->publish_transition(output, nullptr, nullptr, false, std::move(projection));

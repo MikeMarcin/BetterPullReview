@@ -440,6 +440,34 @@ namespace bpr::qt {
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
 
+		auto cached_file_rows(const std::optional<std::vector<core::cached_review_file>>& aCatalogue)
+			-> std::vector<application::overview_file_row>
+		{
+			std::vector<application::overview_file_row> rows;
+			if (aCatalogue) {
+				rows.reserve(aCatalogue->size());
+				for (const auto& file : *aCatalogue) {
+					auto       row       = application::overview_file_row{ .Path = file.Path, .PreviousPath = file.PreviousPath };
+					const auto separator = file.Path.rfind('/');
+					row.Folder           = separator == std::string::npos ? std::string{ } : file.Path.substr(0, separator);
+					row.Name             = separator == std::string::npos ? file.Path : file.Path.substr(separator + 1);
+					switch (file.Change) {
+					case core::cached_file_change::added:        row.Operation = application::overview_file_operation::added; break;
+					case core::cached_file_change::modified:     row.Operation = application::overview_file_operation::modified; break;
+					case core::cached_file_change::removed:      row.Operation = application::overview_file_operation::removed; break;
+					case core::cached_file_change::renamed:      row.Operation = application::overview_file_operation::renamed; break;
+					case core::cached_file_change::copied:       row.Operation = application::overview_file_operation::copied; break;
+					case core::cached_file_change::type_changed: row.Operation = application::overview_file_operation::type_changed; break;
+					case core::cached_file_change::unchanged:    row.Operation = application::overview_file_operation::unchanged; break;
+					}
+					row.Additions = file.Additions;
+					row.Deletions = file.Deletions;
+					rows.push_back(std::move(row));
+				}
+			}
+			return rows;
+		}
+
 		void expand_new_folders(QTreeView& aView, const QModelIndex& aParent, const int aFirst, const int aLast)
 		{
 			auto pending = std::vector<QModelIndex>{ };
@@ -1196,7 +1224,7 @@ namespace bpr::qt {
 			const auto path = aIndex.siblingAtColumn(overview_file_model::file_column)
 								  .data(overview_file_model::path_role)
 								  .toString();
-			if (!path.isEmpty() && FileDispatch) {
+			if (Projection && !path.isEmpty() && FileDispatch) {
 				FileDispatch(path);
 			}
 		});
@@ -1296,6 +1324,12 @@ namespace bpr::qt {
 		const auto bodyChanged = Projection.has_value() && Projection->Body != aProjection.Body;
 		const auto updateBody  = !Projection.has_value() || bodyChanged;
 		Projection             = aProjection;
+		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
+			Files->setColumnHidden(column, false);
+		}
+		Files->setAccessibleDescription(QStringLiteral("Current file catalogue; activate a file to read it."));
+		Summary->setToolTip({ });
+		Summary->setAccessibleDescription({ });
 		Title->setText(text(aProjection.Title));
 		auto state = QString{ };
 		switch (aProjection.State) {
@@ -1346,6 +1380,7 @@ namespace bpr::qt {
 		}
 		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
 		FilesHeading->setText(heading);
+		FilesHeading->setToolTip({ });
 		Model->apply(aProjection.Files);
 
 		rebuild_participants(aProjection.Participants);
@@ -1405,11 +1440,14 @@ namespace bpr::qt {
 		Projection.reset();
 		Title->setText(QStringLiteral("No pull request"));
 		Summary->clear();
+		Summary->setToolTip({ });
+		Summary->setAccessibleDescription({ });
 		Body->reset_reader();
 		Body->setVisible(false);
 		EmptyBody->setVisible(false);
 		ReadDescription->setVisible(false);
 		FilesHeading->setText(QStringLiteral("Files"));
+		FilesHeading->setToolTip({ });
 		Model->apply({ });
 		rebuild_participants({ });
 		SinceHeading->setText(QStringLiteral("Since my last review"));
@@ -1469,7 +1507,15 @@ namespace bpr::qt {
 		Summary->setToolTip(QStringLiteral("Previously accepted base %1\nPreviously accepted head %2")
 								.arg(text(aOverview.BaseOid), text(aOverview.HeadOid)));
 		Summary->setAccessibleDescription(Summary->toolTip());
-		FilesHeading->setText(QStringLiteral("Source and file catalogue unavailable offline"));
+		FilesHeading->setText(aOverview.FileCatalogue
+								  ? QStringLiteral("Cached file catalogue — %1 files observed; source unavailable offline").arg(count_text(aOverview.FileCatalogue->size()))
+								  : QStringLiteral("File catalogue unavailable offline; source unavailable offline"));
+		FilesHeading->setToolTip(QStringLiteral("Historical GitHub change kinds and line counts, reported with the retained base/head. These are not a recomputed comparison of the base tip and head."));
+		Model->apply(cached_file_rows(aOverview.FileCatalogue));
+		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
+			Files->setColumnHidden(column, true);
+		}
+		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Source, conversation counts and review progress unavailable. Files cannot be opened."));
 		SinceHeading->setText(QStringLiteral("Review state unavailable offline"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Conversations unavailable offline"));

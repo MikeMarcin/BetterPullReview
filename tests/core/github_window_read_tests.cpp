@@ -67,6 +67,28 @@ int main()
 	if (admits(changedState, cached)) {
 		return EXIT_FAILURE;
 	}
+	// Catalogue identity is the complete atomic overview identity, never a separate lookup.
+	cached.Files         = 1;
+	cached.FileCatalogue = std::vector<cached_review_file>{ { "src/file.cpp", "old.cpp", cached_file_change::renamed, 2, 1 } };
+	if (!admits(lane.state(), cached)
+		|| !refuses([](auto& aValue) { aValue.FileCatalogue->front().Path.clear(); })
+		|| !refuses([](auto& aValue) { aValue.Files = 0; })
+		|| !refuses([](auto& aValue) { aValue.BaseOid = "invalid"; })) {
+		return EXIT_FAILURE;
+	}
+	auto numericRequest               = cachedRequest;
+	numericRequest.ExpectedRepository = repository_id{ 99 };
+	auto numericState                 = lane.state();
+	numericState.PendingPullRequest   = numericRequest;
+	if (admit_cached_overview(numericState, numericRequest, github_failure::network, cached.Key, cached)) {
+		return EXIT_FAILURE;
+	}
+	numericRequest.ExpectedRepository  = cached.Repository;
+	numericRequest.ExpectedPullRequest = pull_request_id{ 99 };
+	numericState.PendingPullRequest    = numericRequest;
+	if (admit_cached_overview(numericState, numericRequest, github_failure::network, cached.Key, cached)) {
+		return EXIT_FAILURE;
+	}
 	const auto beforeObservation = lane.state();
 	auto       wrong             = first;
 	wrong.Window                 = bpr_window_id{ 99U };

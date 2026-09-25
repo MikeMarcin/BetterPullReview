@@ -717,6 +717,41 @@ namespace {
 			   "scrolling sizes the newly visible last file without measuring the whole review");
 	}
 
+	void test_cached_catalogue_availability_and_navigation()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1200, 800);
+		page.show();
+		bool opened = false;
+		page.set_file_dispatch([&](const QString&) { opened = true; });
+		application::github_cached_overview_projection cached{ .Overview = { .Title = "Historical review" }, .BaseOid = std::string(40, '1'), .HeadOid = std::string(40, '2') };
+		page.present_cached(cached);
+		auto* heading = page.findChild<QLabel*>(QStringLiteral("overviewFilesHeading"));
+		expect(heading->text().contains(QStringLiteral("catalogue unavailable")), "missing catalogue is explicitly unavailable");
+		cached.FileCatalogue.emplace();
+		page.present_cached(cached);
+		expect(heading->text().contains(QStringLiteral("0 files observed")), "empty observed catalogue is different from unavailable");
+		cached.FileCatalogue->push_back({ "src/new.cpp", "src/old.cpp", core::cached_file_change::renamed, 12, 3 });
+		page.present_cached(cached);
+		settle();
+		const auto index = page.file_model()->index_for_path(QStringLiteral("src/new.cpp"));
+		expect(index.isValid() && index.data(Qt::ToolTipRole).toString().contains(QStringLiteral("src/old.cpp")), "cached rename preserves both exact paths");
+		expect(page.file_model()->row_at(index)->Operation == application::overview_file_operation::renamed, "cached operation preserved");
+		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
+			expect(page.files_view()->isColumnHidden(column), "unknown cached workflow counts are hidden");
+		}
+		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
+		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
+		page.present(projection());
+		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
+			expect(!page.files_view()->isColumnHidden(column), "fresh server view restores current workflow columns");
+		}
+		expect(page.findChild<QLabel*>(QStringLiteral("overviewSummary"))->toolTip().isEmpty() && heading->toolTip().isEmpty(), "reconnect clears stale revision descriptions");
+		const auto fresh = page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
+		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, fresh));
+		expect(opened, "fresh server catalogue enables normal source navigation");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -726,6 +761,7 @@ auto main(int argc, char** argv) -> int
 	if (scale > 0) {
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
+	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_folder_controls_preserve_identity_and_refresh_state();
