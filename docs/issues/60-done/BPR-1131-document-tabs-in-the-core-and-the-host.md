@@ -54,6 +54,11 @@ commands, results and the producing revision. The owner's attended look at
 the built chrome on macOS and Windows is evidence this card cannot supply by
 itself.
 
+## Execution record
+
+What was built, how it was verified, and what is owed elsewhere. The
+acceptance above is unchanged by it.
+
 ## Done on macOS, 2026-09-25 (main, `e94e67f1`)
 
 The owner activated RFC-BPR-0052 on 2026-09-25 ahead of canonical order (see
