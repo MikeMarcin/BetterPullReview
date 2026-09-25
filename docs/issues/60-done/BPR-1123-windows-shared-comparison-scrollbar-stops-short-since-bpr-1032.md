@@ -268,3 +268,114 @@ heights are reused as the offscreen run showed) and `diff-workbench-tests:pass`
 (the shared bar's end brings both panes to their last page). They opened their
 own windows and sent no input. The logs are station records under
 `build/logs/bpr-1123-main-win/realplatform-*.log`, not committed.
+
+## Post-close: the macOS memory and timing rows (bpr-main-mac, 2026-09-25T04:23Z to 05:16Z)
+
+These are the macOS runs that "Owed elsewhere" above asked for. `build/dev`
+was rebuilt at `0453103d`. Its C++ sources and CMake files are `fbab68c9`'s:
+the commits between the two change only documentation and the Python and
+PowerShell under `tests/scripts/`. The station is an M4 Pro (14 cores,
+48 GiB) with macOS 26.6.2 (25G83), Apple clang 21.0.0, Debug and Qt 6.11.2.
+Every row ran offscreen through CTest, `-j1`, alone.
+
+**Every row passes.**
+
+| Row | Result at `fbab68c9` |
+| --- | --- |
+| `qt_diff_workbench_scale_100` / `_125` / `_200` | pass, 2.53 / 2.19 / 2.44 s |
+| `qt_diff_axis_scale_100` / `_125` / `_200` | pass, 0.50 / 0.25 / 0.26 s |
+| `application_large_review_benchmark` | pass, 22.96 s |
+| `application_large_review_resources`, `_loaded_close` | 3 of 3 runs each pass |
+| `application_large_review_cache_entries` | pass, 74.34 s |
+| `application_large_review_cache_bytes` | 4 of 4 runs pass, 343 to 349 s |
+| `application_large_review_history` | pass, 315.49 s |
+
+**No [[BPR-1032]] budget is exceeded.** Each row checks its budgets at every
+sample it takes. Across all the runs, the highest figures were:
+
+| Budget | Course | `fbab68c9`, every run | To spare |
+| --- | --- | --- | --- |
+| Footprint growth, 160 MiB | resources | 125.1 to 125.7 MiB | 34.3 MiB |
+| | loaded close | 139.8 to 141.2 MiB | 18.8 MiB |
+| | cache entries | 84.6 MiB | 75.4 MiB |
+| Footprint growth, 184 MiB | cache bytes | 167.6, 175.1, 176.6 and 178.8 MiB | 5.2 MiB |
+| Cleanup live heap, 84 MiB | resources: after prune, after cache deletion, shutdown drained | 70.5, 70.6 and 68.7 MiB | 13.4 MiB |
+| | loaded close and cache bytes, shutdown drained | 68.6 and 67.7 MiB | |
+| Destroyed live heap, 32 MiB | all four courses | 12.2 to 13.8 MiB | 18.2 MiB |
+
+The cache-byte course has the least room: 178.8 MiB against its 184 MiB bound.
+That is not caused by this card, because the parent reaches 179.3 MiB (below).
+
+**What the record costs, measured against its parent.** Many commits have
+landed since BPR-1032 was measured. To separate this card's change from them,
+its parent `c546bd85` was built too. The parent's source is `fbab68c9`'s
+except for this card's six source files. It was extracted with `git archive`
+into a scratch directory, and only the benchmark target was built there. The
+memory rows ran from both builds, in alternation. Live-heap growth, in MiB:
+
+| Sample | `c546bd85`, no record | `fbab68c9` | Difference, bytes |
+| --- | --- | --- | --- |
+| `large_file_ready` (resources 2 + 3 runs, loaded close 2 + 3) | 101.58 to 101.59 | 104.08 to 104.09 | 2,615,968 to 2,624,800 |
+| After prune and after cache deletion (resources) | 68.05 and 68.06 | 70.55 and 70.56 | 2,616,944 to 2,621,520 |
+| Shutdown drained (resources, loaded close, cache bytes 3 + 4 runs) | 66.25, 66.13 and 65.25 | 68.75, 68.63 and 67.75 | 2,617,392 to 2,624,288 |
+| Every cache-byte selection, and before the loaded close | 100.43 to 167.50 | 102.93 to 170.00 | about 2.62 MB at each of the 21 samples |
+| Application destroyed | 13.80, 13.69 and 12.21 | the same | within 3.5 KB |
+
+At every other sample, `application_constructed` and `review_loaded`
+included, the two builds agree to within 6.3 KB.
+
+**The record holds 2.5 MiB, not the 1.6 MB estimated, and cleanup does not
+free it.** The estimate counted 40 bytes for each of the 40,000 lines. Each
+pane's record is a `std::vector<recorded_block>` of 40-byte entries
+(`Height`, `Width` and a `QList` handle), filled by `push_back`. On a
+20,000-line pane its capacity grows to 32,768 entries, which is 1,310,720
+bytes, or 2,621,440 bytes for both panes. At `large_file_ready` the
+measured difference matches that to within 5.5 KB. It does not grow over
+the cache-byte course's 20 selections of different large files. When the workbench clears its
+comparison, it calls `pane_block_heights::clear()` on both records
+(`diff_workbench.cpp`), which calls `std::vector::clear()`, and that keeps
+the capacity. So after prune, cache deletion and shutdown drain, the 2.5 MiB
+is still allocated, holding no entries. It is freed only when the
+application is destroyed. This stays inside every budget: the 84 MiB cleanup
+bound still has 13.4 MiB to spare. It is recorded here and not changed. A
+change would reserve the pane's block count when the record binds, and free
+the storage when the record is cleared.
+
+**The cache-byte course's footprint peak varies from run to run, and this
+card does not move it.** With the same executable the peak varies by up to
+11 MiB between runs: 171.8 to 179.3 MiB for the parent and 167.6 to 178.8 MiB for
+`fbab68c9`. The live heap at the same sample, before the loaded close,
+is 167.50 MiB for the parent in every run and 170.00 MiB for `fbab68c9` in
+every run. That difference is the record again. BPR-1032 set the 184 MiB
+bound from peaks of 165.5 to 166.7 MiB. On this station the peak now
+reaches 179.3 MiB with or without this card. The run left in `build/dev`
+earlier that day, from a revision before `fbab68c9`, peaked at 160.0 MiB.
+Nothing was loosened. Reconciling the budgets is [[BPR-0967]]'s.
+
+**The refresh stall that [[BPR-1043]] fixed has not returned.**
+`application_large_review_history`: across the 31 epoch refreshes, the
+largest GUI-thread gaps have a median of 67.4 ms and a maximum of 71.4 ms,
+against the 100 ms bound. The refreshes took 8.40 to 8.69 s, against 12 s.
+The source selections' largest gap was 32.4 ms. BPR-1043 left a median of
+68.8 ms and a maximum of 75.3 ms. [[BPR-1107]]'s rerun, earlier the same
+day, measured 68.2 and 72.4 ms.
+
+**The ordinary benchmark did not slow down.** In one run,
+`paged_review_and_git_load` took 10.58 s. `large_file_selection` took
+1.94 s, with a largest GUI gap of 109.1 ms, and rapid selection took 7.87 s.
+The measurement's p95 input gap was 4.24 ms, and its largest 5.07 ms, over
+83 batches of up to 512 lines. The same row's result left in `build/dev`
+earlier that day read 10.53 s, 1.96 s with 108.2 ms, 8.00 s and 4.17 ms.
+The run started within a minute of the rebuild finishing. The processors
+were idle, though the one-minute load average still read 17.
+
+**Conditions.** The editor's indexer and the desktop's applications were
+running throughout. Another agent's full `build/dev` build ran during the
+parent's second resources and loaded-close runs and its third cache-byte run,
+at load averages of 67 to 192. Every `fbab68c9` run had finished before
+that build began, on the executable this rebuild linked (04:23:06Z), and the
+parent's build is in a directory of its own. The live heap does not depend on
+load, and the parent's figures in those runs match its other runs. The JSON
+reports, logs, the drivers and the earlier JSON files are station records in
+`build/logs/bpr-1123-mac/`, not committed. The scratch build of the parent
+was removed.
