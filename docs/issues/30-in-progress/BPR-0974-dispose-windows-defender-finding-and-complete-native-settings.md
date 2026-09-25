@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0974"
 title: "Dispose Windows Defender finding and complete native Settings qualification"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-0730","BPR-1110"]
 priority: "P1"
