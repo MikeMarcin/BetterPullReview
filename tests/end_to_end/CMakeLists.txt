@@ -2350,6 +2350,15 @@ if(UNIX)
     )
 endif()
 
+bpr_add_executable(test_startup_diagnostic_bounds startup_diagnostic_bounds_tests.cpp)
+target_link_libraries(test_startup_diagnostic_bounds PRIVATE BetterPullReview::Composition)
+bpr_enable_hardening(test_startup_diagnostic_bounds)
+bpr_enable_warnings(test_startup_diagnostic_bounds)
+bpr_add_network_isolated_test(NAME application_startup_diagnostic_bounds
+    COMMAND test_startup_diagnostic_bounds)
+set_tests_properties(application_startup_diagnostic_bounds PROPERTIES
+    TIMEOUT 30 PASS_REGULAR_EXPRESSION "startup-diagnostic-bounds:pass")
+
 # [[BPR-0882]]. A startup refused as `unavailable` names the arm that refused
 # and what it threw. The run removes Git by emptying the search path, so it is
 # registered on macOS and Linux only. On Windows the build tree loads Qt through

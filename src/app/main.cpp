@@ -20,6 +20,7 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
+	#include "src/startup_diagnostic.hpp"
 #endif
 
 #if defined(__APPLE__)
@@ -8715,7 +8716,8 @@ auto main(int argc, char** argv) -> int
 		// stderr what threw, because the first Windows Qt-graph run spent
 		// thirty-five tests on a startup failure nothing could name
 		// (BPR-0435). A tests-disabled build says nothing more, as before.
-		QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: " << error.what() << '\n';
+		QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: "
+							  << QString::fromStdString(bpr::app::detail::bounded_startup_diagnostic(error.what())) << '\n';
 #else
 		static_cast<void>(error);
 #endif

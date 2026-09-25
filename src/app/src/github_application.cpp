@@ -46,6 +46,7 @@
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
 	#include "review_submission_fixture.hpp"
+	#include "startup_diagnostic.hpp"
 	#include <QMenuBar>
 	#include <QStatusBar>
 	#include <glaze/json.hpp>
@@ -244,24 +245,6 @@ namespace bpr::app {
 		// a startup lane and the report reads it from another.
 		std::mutex                 StartupFailureMutex;
 		std::optional<std::string> FirstStartupFailure;
-
-#if defined(BPR_BUILD_TESTING)
-		// One line, so a reader matching the stderr line gets all of it.
-		[[nodiscard]] auto startup_failure_cause_text(const std::exception_ptr& aCause) -> std::string
-		{
-			auto text = std::string{ };
-			try {
-				std::rethrow_exception(aCause);
-			} catch (const std::exception& aError) {
-				text = aError.what();
-			} catch (...) {
-				text = "an exception that is not a std::exception";
-			}
-			std::ranges::replace(text, '\n', ' ');
-			std::ranges::replace(text, '\r', ' ');
-			return text;
-		}
-#endif
 		// [[BPR-0875]]. The workspace-ownership refusal in words, for the one
 		// cleanup name a quit reports.
 		[[nodiscard]] auto named_workspace_ownership_failure(const int aFailure) -> std::string

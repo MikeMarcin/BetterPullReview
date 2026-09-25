@@ -788,6 +788,20 @@ namespace {
 				std::cerr << std::string(20U * 1024U, 'x');
 				return 0;
 			}
+			if (input.starts_with("BPR_ERROR_AT_LIMIT")) {
+				std::cerr << std::string(16U * 1024U, 'x');
+				return 128;
+			}
+			if (input.starts_with("BPR_ERROR_OVER_LIMIT")) {
+				std::cerr << std::string(16U * 1024U + 1U, 'x');
+				return 128;
+			}
+			if (input.starts_with("BPR_ERROR_REDACTION_EXPANSION")) {
+				for (auto index = 0U; index < 3000U; ++index) {
+					std::cerr << "a:// ";
+				}
+				return 128;
+			}
 			if (input.starts_with("BPR_FAIL_MESSAGE")) {
 				std::cerr << raw_git_diagnostic;
 				return 128;
@@ -3665,6 +3679,21 @@ namespace {
 						   "fatal: fallback remote <redacted-url> denied\n"
 						   "fatal: local reflog HEAD@{1} remains diagnostic\n",
 				"local paths and reflogs remain exact while SSH-style remotes are redacted");
+
+			const auto errorAtLimit = fake_index_request(*adapter, repository, operation, "BPR_ERROR_AT_LIMIT");
+			require(!errorAtLimit.has_value() && errorAtLimit.error() == application::git_process_failure::nonzero_exit
+						&& errorAtLimit.error().Detail == std::string(16U * 1024U, 'x'),
+					"stderr at exactly 16 KiB preserves the diagnosis and nonzero-exit terminal");
+			const auto errorOverLimit = fake_index_request(*adapter, repository, operation, "BPR_ERROR_OVER_LIMIT");
+			require(!errorOverLimit.has_value() && errorOverLimit.error() == application::git_process_failure::standard_error_limit
+						&& errorOverLimit.error().Detail.empty(),
+					"one byte over the stderr limit refuses with no partial diagnostic");
+			const auto expanded = fake_index_request(*adapter, repository, operation, "BPR_ERROR_REDACTION_EXPANSION");
+			require(!expanded.has_value() && expanded.error() == application::git_process_failure::nonzero_exit
+						&& expanded.error().Detail.size() == 16U * 1024U
+						&& expanded.error().Detail.starts_with("<redacted-url> ")
+						&& expanded.error().Detail.find("a://") == std::string::npos,
+					"URL replacement expansion preserves the byte limit without raw fallback");
 
 			const auto quiet = fake_index_request(
 				*adapter,

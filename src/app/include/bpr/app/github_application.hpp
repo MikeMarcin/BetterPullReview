@@ -115,8 +115,9 @@ namespace bpr::app {
 	/// registry host reports `registry`, which the profile mapping also
 	/// reports. Each arm records a fixed name before it refuses; the first
 	/// refusal wins, as for the profile refusal above. A tests-enabled graph
-	/// keeps the text of the exception the arm caught after the name, on one
-	/// line: `profile-runtime-construction: Git cache composition failed`. A
+	/// keeps at most 2 KiB of the exception the arm caught after the name, on one
+	/// line: `profile-runtime-construction: Git cache composition failed`.
+	/// ASCII controls become spaces and a truncated cause ends in `[truncated]`. A
 	/// tests-disabled graph keeps the name only, because `what()` is free text
 	/// that can carry a path. Diagnostic only: every caller keeps reading the
 	/// mapped failure it already reads.
