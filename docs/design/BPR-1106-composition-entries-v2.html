@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 composition entries, v2</title>
+<!--
+  [[BPR-1106]] design round v2, for the owner's design session of 2026-09-24
+  (attended decision ece7a6f3 moved the question out of attended review).
+  Frames: BPR-1106-composition-entries-frames-v2.html, rendered headless into
+  ../verification/BPR-1106-composition-entries-v2/. Every number on this page
+  is measured on those frames or quoted from the product with its source.
+-->
+<style>
+  :root {
+    --paper: #ECEEF1; --sheet: #F8F9FA; --ink: #15181C; --ink-2: #48505A; --ink-3: #78818C;
+    --rule: #D2D7DD; --rule-2: #B9C0C8;
+    --signal: #2F6FD6; --signal-soft: #E1EAF9; --marker: #B7791F; --marker-soft: #F6EBD6;
+    --redline: #B8266B; --redline-soft: #F7E3EC;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); font-variant-numeric: tabular-nums; }
+  main { max-width: 1340px; margin: 0 auto; padding: 44px 28px 80px; }
+  .prose { max-width: 74ch; }
+  h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 14px; max-width: 26ch; }
+  h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 64px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+  h3 { font-size: 16px; line-height: 1.35; font-weight: 640; margin: 26px 0 6px; }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 17px; line-height: 1.55; color: var(--ink); }
+  .byline { color: var(--ink-3); font-size: 13px; margin-bottom: 22px; }
+  blockquote { margin: 14px 0 18px; padding: 2px 0 2px 16px; border-left: 3px solid var(--marker); color: var(--ink-2); }
+  blockquote cite { display: block; font-style: normal; font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+  a { color: var(--signal); text-underline-offset: 2px; }
+  code { font: 13px/1.4 "SF Mono", Menlo, monospace; background: #E4E7EB; padding: 1px 4px; border-radius: 3px; }
+  kbd { font: 12px/1 var(--ui); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: #fff; white-space: nowrap; }
+  ul.tight { padding-left: 20px; margin: 0 0 14px; }
+  ul.tight li { margin-bottom: 6px; }
+
+  /* the two jobs */
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+  thead th { font-weight: 640; border-bottom: 1px solid var(--rule-2); }
+  tbody th { font-weight: 560; color: var(--ink-2); width: 190px; }
+  .jobs { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  .jobs td { width: calc((100% - 190px) / 2); }
+  .jobs thead th + th { font-size: 15px; }
+
+  .findings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
+  .finding { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; font-size: 14px; }
+  .finding b { display: block; font-size: 15px; margin-bottom: 6px; }
+  .finding img { width: 100%; display: block; border-radius: 4px; margin-top: 10px; border: 1px solid var(--rule); }
+
+  /* v1, challenged */
+  .verdicts { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 12px; max-width: 92ch; }
+  .verdicts dt { font-weight: 700; font-size: 17px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .verdicts dd { margin: 0; padding: 10px 0 12px; border-bottom: 1px solid var(--rule); }
+  .verdicts dd b { font-weight: 620; }
+
+  /* the comparator */
+  .viewer { margin-top: 18px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 14px; min-width: 0; }
+  .seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1px solid var(--rule-2); background: var(--paper); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { font: 500 13px/1 var(--ui); color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 6px 11px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--signal); color: #fff; font-weight: 620; }
+  .seg button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .seg.options button { padding: 7px 13px; }
+  .seg.options button b { font-weight: 700; margin-right: 6px; }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+  .ctl-label { font-size: 12px; color: var(--ink-3); }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; align-items: start; }
+  .frame-box { position: relative; background: #fff; border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+  .frame-box img { display: block; width: 100%; height: auto; }
+  .frame-cap { font-size: 13px; color: var(--ink-2); margin-top: 8px; min-height: 2.6em; }
+  .ledger { font-size: 13px; }
+  .ledger h3 { margin: 0 0 4px; font-size: 16px; }
+  .ledger .what { color: var(--ink-2); margin-bottom: 12px; }
+  .ledger dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; margin: 0 0 14px; }
+  .ledger dt { color: var(--ink-2); }
+  .ledger dd { margin: 0; text-align: right; font-weight: 600; }
+  .ledger dd.gain { color: var(--redline); }
+  .stack { display: grid; grid-template-columns: 1fr; font-size: 11px; line-height: 1; }
+  .stack div { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: center; color: var(--ink-2); transition: height .25s ease; white-space: nowrap; }
+  .stack div i { display: block; align-self: stretch; border-bottom: 1px solid #fff; }
+  .stack div span:last-child { font-weight: 600; color: var(--ink); }
+  .stack .s-strip i, .stack .s-status i { background: #C9D0D8; }
+  .stack .s-ready i { background: #E3C79E; }
+  .stack .s-entry i { background: var(--redline); }
+  .stack .s-entry, .stack .s-entry span:last-child { color: var(--redline); font-weight: 600; }
+  .stack .s-epoch i { background: #B9CCEA; }
+  .stack .s-cstatus i { background: #D5DAE0; }
+  .stack .s-comp i { background: #E9EDF1; border: 1px solid var(--rule-2); border-width: 0 1px; }
+  
+  .stack-cap { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+  @media (prefers-reduced-motion: reduce) { .stack div { transition: none; } }
+
+  /* costs */
+  .costs { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  .costs th, .costs td { padding: 8px 12px; }
+  .costs thead th { font-size: 14px; }
+  .costs thead th small { display: block; font-weight: 400; color: var(--ink-3); font-size: 12px; }
+  .costs td.rec, .costs th.rec { background: var(--signal-soft); }
+  .costs tbody th { width: 230px; }
+  .costs .same { color: var(--ink-3); }
+  .costs .bad { color: var(--redline); font-weight: 600; }
+
+  /* recommendation */
+  .rec-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .asks { counter-reset: ask; list-style: none; padding: 0; margin: 0; }
+  .asks li { position: relative; background: #fff; border: 1px solid var(--rule); border-left: 3px solid var(--signal); border-radius: 6px; padding: 11px 14px 11px 14px; margin-bottom: 10px; font-size: 14px; }
+  .asks li b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .asks li .prop { color: var(--ink-2); }
+  figure { margin: 0 0 18px; }
+  figure img { display: block; max-width: 100%; border: 1px solid var(--rule-2); border-radius: 4px; }
+  figcaption { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 26px; align-items: start; }
+  .figs .wide { grid-column: 1 / -1; }
+  .figs .wide img { width: 100%; max-width: 1100px; }
+  .note { font-size: 13px; color: var(--ink-2); }
+  .amend { background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 12px 16px; font-size: 14px; max-width: 92ch; }
+  .amend p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 980px) {
+    .stage, .rec-grid, .findings, .pair, .figs { grid-template-columns: minmax(0, 1fr); }
+    tbody th { width: auto; }
+  }
+  @media (max-width: 640px) {
+    main { padding: 28px 16px 60px; }
+    h1 { font-size: 25px; }
+    .jobs, .costs { overflow-x: auto; }
+    .jobs table, .costs table { min-width: 620px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="prose">
+    <h1>Where Compose review and Draft comment or reply belong</h1>
+    <div class="byline">BPR-1106, design round v2, for the owner's design session, 2026-09-24</div>
+    <p class="lede">You chose to settle this in its own session rather than pick one of v1's five placements. This round starts from what each entry does in the product today, then draws four placements over the rows the product builds. That means the 50-pixel Updates line with its history caption and the comparison's own status line. v1 drew the accepted asset's 34-pixel line, so its comparison heights ran about 39 pixels high.</p>
+    <blockquote>Let's discuss this outside of the attended review flow, give me a handoff prompt to tackle this properly in a separate session thread.<cite>The owner, on candidate BPR-1106-placement-v001, session 70834742, decision ece7a6f3</cite></blockquote>
+  </header>
+
+  <section>
+    <h2>What each entry does today</h2>
+    <p class="prose">Traced in <code>workbench_window.cpp</code>, the two editors, the workflow and the mutation contract at <code>d90aee6e</code>. Both are buttons on a bare row that <code>cc038748</code> added for RFC-BPR-0037.</p>
+    <div class="jobs"><table>
+      <thead><tr><th></th><th>Compose review</th><th>Draft comment or reply</th></tr></thead>
+      <tbody>
+        <tr><th>Opens</th><td>The Compose review page in place of the centre. The drawers hide; the strip and the Updates line stay.</td><td>The inline draft page in place of the centre.</td></tr>
+        <tr><th>Acts on</th><td>The whole pull request: a review type (Comment, Approve, Request changes) and a summary.</td><td>One line: the draft the app has bound to the current diff line.</td></tr>
+        <tr><th>Sends</th><td>Nothing. On the page, Submit review posts the summary and the verdict, and nothing else.</td><td>Nothing. On the page, Publish posts one comment, or one reply, on its own.</td></tr>
+        <tr><th>The only way to</th><td>Submit, approve or request changes.</td><td>Open a comment from the keyboard.</td></tr>
+        <tr><th>Other ways in</th><td>None. No menu item, no shortcut.</td><td>Mouse only: a thread card's Comment here, a draft's Edit, the Discuss feed's Reply, an AI finding's conversion.</td></tr>
+        <tr><th>Keyboard</th><td>A Tab stop after the Updates line and Comparing, then Space.</td><td>The next Tab stop.</td></tr>
+        <tr><th>A reviewer reaches for it</th><td>Once a pass, at the end: the verdict and the summary. Or straight away, for a quick Approve from Overview.</td><td>Every time a line deserves a remark: many times a pass, right after landing on the line.</td></tr>
+        <tr><th>Where it shows</th><td>Every modality and both compose pages; never on Home.</td><td>The same, including Overview and Discuss. There it has no line, so it opens an empty, read-only page.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="findings">
+      <div class="finding"><b>The row decides nothing.</b>Neither button sends an intent. Each switches the centre to a page that already holds a retained draft, which is why the entries can move without touching the core.</div>
+      <div class="finding"><b>"Or reply" is a promise the button can't keep.</b>A line selection always starts a new root comment. A reply starts only from the Discuss feed. Beside the code, a thread card offers Comment here, which starts a second thread on the same line, so a thread can't be answered there.
+        <img src="../verification/BPR-1106-composition-entries-v2/closeup-A-comment-mac-light.png" alt="As built: line 431 is current; the column beside it offers nothing, and the thread card above offers Comment here, Mark read and Resolve."></div>
+      <div class="finding"><b>Comments and the review travel apart.</b>Each inline draft publishes on its own; Submit review sends only the summary and the verdict. A count of comments on Compose review would suggest they ride along with the review. They don't, so the entry should show whether a review draft is kept, not how many comments wait.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What makes a place right</h2>
+    <ul class="tight prose">
+      <li><b>A command lives where its object is.</b> Compose review acts on the pull request. A comment acts on a line, and a reply acts on a thread.</li>
+      <li><b>Frequency sets the reach.</b> A command used many times a pass needs a key and a place beside the line. The decisive one needs a fixed, labelled place that says whether a review draft is kept.</li>
+      <li><b>The comparison's height is the budget</b> (BPR-0246). The row takes 22 pixels on macOS and 20 elsewhere, in every modality.</li>
+      <li><b>The Windows strip has no width to give.</b> Its controls sum to exactly 902 pixels at the 902 floor.</li>
+      <li><b>No row should come and go.</b> While a pull request opens, the readiness line (26 pixels) and the entry row stack above the Updates line. The window jumps when you leave Overview.</li>
+      <li><b>Every command belongs in a menu, which costs nothing.</b> The Pull Request menu is on all three platforms: the macOS menu bar, the Windows ≡ menu and the Linux menu row. It holds only Follow and Save Repository.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>v1's five, challenged</h2>
+    <dl class="verdicts">
+      <dt>A</dt><dd><b>The row as built.</b> 22 or 20 pixels in every mode for two buttons on an otherwise empty row. It sits flush against the window's edge while the Updates line starts 12 pixels in, and Tab reaches it after the Updates line although it sits above it. It is the labelled toolbar RFC-BPR-0028 set out to remove.</dd>
+      <dt>B</dt><dd><b>The review menu.</b> It hides the only way to finish a review behind a check mark named Private progress, beside receipts that never leave this machine. The specification asks for review submission in a persistent place.</dd>
+      <dt>C</dt><dd><b>Both at the Updates line's end.</b> The right place for Compose review and the wrong one for a comment, which is about a line far below. On the product's line it costs 299 pixels of track on macOS (312 on Windows). At the 900-pixel floor that leaves 282 pixels of line.</dd>
+      <dt>D</dt><dd><b>The drawer's foot.</b> The conversations drawer isn't shown in Overview or Discuss at all, and its foot already holds the defect verdict buttons.</dd>
+      <dt>E</dt><dd><b>A strip control.</b> 59 pixels the Windows strip doesn't have at 902. Any other yield changes a strip the owner has accepted twice.</dd>
+      <dt></dt><dd>And for all five, v1 put the keys and the draft state out of scope. They decide as much as the placement does. The loading line's move into the Updates line was credited to C alone, but any placement can take it.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Four placements, drawn</h2>
+    <p class="prose">One window and one pull request; any two frames differ only in the placement. <kbd>←</kbd> and <kbd>→</kbd> step through the options. The stack beside the frame is drawn to scale from the frame's own measurements.</p>
+    <div class="viewer" id="viewer">
+      <div class="controls">
+        <div class="seg options" role="group" aria-label="Placement" id="c-p"></div>
+      </div>
+      <div class="controls">
+        <span class="ctl"><span class="ctl-label">Platform</span><span class="seg" role="group" aria-label="Platform" id="c-os"></span></span>
+        <span class="ctl"><span class="ctl-label">Appearance</span><span class="seg" role="group" aria-label="Appearance" id="c-theme"></span></span>
+        <span class="ctl"><span class="ctl-label">Window</span><span class="seg" role="group" aria-label="Window size" id="c-size"></span></span>
+        <span class="ctl"><span class="ctl-label">State</span><span class="seg" role="group" aria-label="State" id="c-state"></span></span>
+        <span class="ctl" id="c-comment-wrap"><span class="ctl-label">Comment here</span><span class="seg" role="group" aria-label="Where Comment here sits" id="c-comment"></span></span>
+      </div>
+      <div class="stage">
+        <div>
+          <div class="frame-box"><img id="frame" alt=""></div>
+          <div class="frame-cap" id="frame-cap"></div>
+        </div>
+        <aside class="ledger" aria-live="polite">
+          <h3 id="l-title"></h3>
+          <div class="what" id="l-what"></div>
+          <dl id="l-costs"></dl>
+          <div class="stack" id="stack" aria-hidden="true"></div>
+          <div class="stack-cap" id="stack-cap"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Costs, measured on the frames</h2>
+    <div class="costs"><table>
+      <thead><tr><th></th><th>A<small>the row, as built</small></th><th>C<small>both at the line's end</small></th><th class="rec">F<small>split by job, proposed</small></th><th>H<small>split, status bar</small></th></tr></thead>
+      <tbody>
+        <tr><th>Comparison at 1280×852, macOS</th><td class="bad">707 (830‰)</td><td>729 (856‰)</td><td class="rec">729 (856‰)</td><td>729 (856‰)</td></tr>
+        <tr><th>Comparison at 1280×852, Windows</th><td class="bad">712 (836‰)</td><td>732 (859‰)</td><td class="rec">732 (859‰)</td><td>732 (859‰)</td></tr>
+        <tr><th>Comparison at 1920×1080, macOS and Windows</th><td class="bad">935 and 940</td><td>957 and 960</td><td class="rec">957 and 960</td><td>957 and 960</td></tr>
+        <tr><th>Rows over the Updates line while a pull request opens</th><td class="bad">48 on macOS, 46 on Windows</td><td>none</td><td class="rec">none</td><td>none</td></tr>
+        <tr><th>Windows strip at its 902 floor</th><td class="same">+0</td><td class="same">+0</td><td class="rec">+0</td><td class="same">+0</td></tr>
+        <tr><th>Updates line's track at 1280, macOS</th><td>961</td><td class="bad">662</td><td class="rec">819</td><td>961</td></tr>
+        <tr><th>The same at the width floor, macOS and Windows</th><td>581 and 571</td><td class="bad">282 and 259</td><td class="rec">439 and 425</td><td>581 and 571</td></tr>
+        <tr><th>Compose review</th><td>1 click, above the line</td><td>1 click, the line's end</td><td class="rec">1 click, the line's end; <kbd>⌥R</kbd></td><td>1 click, bottom right; <kbd>⌥R</kbd></td></tr>
+        <tr><th>Comment on the current line</th><td>1 click, far from the line</td><td>1 click, far from the line</td><td class="rec">1 click beside the line; <kbd>⌥C</kbd></td><td>1 click beside the line; <kbd>⌥C</kbd></td></tr>
+        <tr><th>Reply beside the code</th><td class="bad">not possible</td><td class="bad">not possible</td><td class="rec">Reply on the card; <kbd>⌥C</kbd></td><td>Reply on the card; <kbd>⌥C</kbd></td></tr>
+        <tr><th>A kept review draft shows</th><td>no</td><td>no</td><td class="rec">the amber mark</td><td>the amber mark</td></tr>
+        <tr><th>Compose review seen without looking for it</th><td>always</td><td>always</td><td class="rec">always, top right</td><td class="bad">rarely: the status bar</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note" style="margin-top:10px">Heights and track widths come from the frames' own layout, read back from each rendered page. The keys, the menu items and the loading words are not tied to F: any placement can take them. They are drawn with F and H because those are the options that need them. The Windows strip total is BPR-0653's measurement of the product.</p>
+  </section>
+
+  <section>
+    <h2>Recommendation: F, split by job</h2>
+    <div class="rec-grid">
+      <div class="prose">
+        <p><b>Compose review moves to the Updates line's right end.</b> It keeps its label and gains a mark when a review draft is kept, in the amber of my last review's tick. While the Compose review page is open the control shows as pressed, and pressing it again goes back, as <kbd>Esc</kbd> does. The Updates line already holds the comparison between updates, and my review is the next thing that happens to them. GitHub puts its Review changes button in the same place: the right end of the toolbar that starts with the commit range.</p>
+        <p><b>Commenting and replying move to where the line and the thread are.</b> The current line, when it has no thread, gets a <em>Comment here</em> slot in the comments column beside it, drawn like a card and aligned like one. Thread cards beside the code offer Reply, as the accepted Read asset draws them, instead of Comment here. The label "Draft comment or reply" goes: each place now names what it does.</p>
+        <p><b>Both go in the Pull Request menu with keys.</b> <kbd>⌥R</kbd> (<kbd>Alt+R</kbd>) composes the review. <kbd>⌥C</kbd> (<kbd>Alt+C</kbd>) comments on the current line, or replies to the selected thread in Discuss, and the menu item names which. Both keys are free and follow <kbd>⌥N</kbd>, Next new comment. The whole loop stays on the keyboard: <kbd>⌥PgDn</kbd> to the change, <kbd>⌥C</kbd>, type, Publish, <kbd>Esc</kbd>.</p>
+        <p><b>The loading words move into the Updates line's track</b>, where the product already says "Loading review history…", so no row comes or goes above it.</p>
+        <h3>What F costs</h3>
+        <ul class="tight">
+          <li>Two places to learn instead of one row. The menu lists both with their keys, and Comment here appears where the eye already is.</li>
+          <li>Comment here needs the comments column. With the drawer hidden, <kbd>⌥C</kbd> and the menu remain, or the gutter mark (a toggle above) works without the drawer.</li>
+          <li>142 pixels of the Updates line's track on macOS, 146 on Windows: half of C's. 439 pixels of line are left at the 900 floor.</li>
+          <li>It is more than a move. Building it needs a slot in the cards view, Reply on the cards beside the code, a kept-draft projection from the review workflow, two window-owned actions and an <kbd>Esc</kbd> binding. That is two cards, not one.</li>
+          <li>The Updates line mixes what I'm comparing with what I'm saying. The divider and the pen keep them apart, and the order matches GitHub's.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="margin-top:0">The decisions I'm asking for</h3>
+        <ol class="asks">
+          <li><b>Split the entries by job, or keep them together?</b><span class="prop">Proposed: split (F or H). Together means A or C.</span></li>
+          <li><b>Where does Compose review live?</b><span class="prop">Proposed: the Updates line's right end (F). The alternative is the status bar's end (H).</span></li>
+          <li><b>Where does Comment here live?</b><span class="prop">Proposed: the comments column beside the line. The alternative is a mark in the code gutter.</span></li>
+          <li><b>Should any row come and go above the Updates line?</b><span class="prop">Proposed: no. The loading words go into the line's track.</span></li>
+          <li><b>The keys.</b><span class="prop">Proposed: <kbd>⌥R</kbd> Compose review, <kbd>⌥C</kbd> Comment here or Reply, <kbd>Esc</kbd> back from either page.</span></li>
+        </ol>
+      </div>
+    </div>
+    <div class="figs">
+      <figure class="wide"><img src="../verification/BPR-1106-composition-entries-v2/states-light.png" alt="The Compose control in four states at the Updates line's end: nothing kept; a kept draft with the amber mark; the page open; and while loading, with the words in the line."><figcaption>The Compose control's states at the Updates line's end, macOS light, 1:1.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-composition-entries-v2/menu-mac-light.png" alt="The macOS menu bar with Pull Request open: Follow, Save Repository, Compose review… ⌥R, Comment on line 431… ⌥C."><figcaption>The Pull Request menu on macOS. The Windows ≡ menu lists the same items (the Menu state above).</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-composition-entries-v2/closeup-F-comment-mac-light.png" alt="Comment here in the comments column, level with line 431, with its key ⌥C."><figcaption>Question 3, proposed: Comment here beside the current line.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-composition-entries-v2/closeup-F-gutter-mac-light.png" alt="The gutter alternative: a small comment mark beside line 431's number."><figcaption>Question 3, the alternative: a mark in the gutter, which needs no drawer.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>If F is chosen</h2>
+    <div class="prose">
+      <p>The owner decision is recorded on BPR-1106, which then closes. The implementation is carded in two slices, plus a third if question 4 is answered as proposed. Nothing product-side changes before the cards exist.</p>
+      <ul class="tight">
+        <li><b>Compose review at the Updates line's end.</b> The composition entry row goes. The Updates line gains a trailing place for the window's own <code>composeReviewAction</code>, and the review workflow's kept-draft state is projected to its mark. The Pull Request menu gains both commands with <kbd>Alt+R</kbd> and <kbd>Alt+C</kbd>, and <kbd>Esc</kbd> goes back from either page. BPR-0940's allow-list returns to "the Updates line is the first row under the strip" and the focus order moves. The UIforETW floors rise to the stacks without the row: Linux 862, macOS 857, and Windows measured on bpr-main-win. <code>github_application.cpp</code>'s digests are resealed.</li>
+        <li><b>Comment here and Reply at their context.</b> The cards view gains the slot at the current line, and cards beside the code offer Reply, starting a reply through the path the Discuss feed already uses.</li>
+        <li><b>The loading words in the line.</b> The readiness line's words take the Updates line's track while there is nothing to draw. The comparison and Overview states it reports afterwards move to where each is shown.</li>
+      </ul>
+      <p>RFC-BPR-0028 AC-01 and its chrome paragraph are amended again, to the arrangement the owner picks:</p>
+    </div>
+    <div class="amend">
+      <p>AC-01 The chrome above the comparison is the strip and the epoch line, in that order, with no scroll area and no separate title bar, at every window size the workbench supports; the strip is the row the window controls sit in. Compose review sits at the epoch line's right end; commenting and replying sit beside the line and the thread they act on (owner decision, 2026-09-24, BPR-1106).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>How the frames were made</h2>
+    <div class="prose">
+    <p>The frames file draws one window from the accepted RFC-BPR-0028 surface's tokens, with the rows the product builds above and inside the comparison. Those are the 30-pixel strip, the 50-pixel Updates line with its caption and pair summary, the comparison's 15-pixel status line (14 on Windows) and its 6 pixels of spacing, no path bar, and a 22-pixel status bar (20 on Windows). The drawers and cards follow the accepted asset.</p>
+    <p>Headless Chrome (<code>--headless=new --screenshot</code>) rendered 70 frames at exactly their window size, device scale 1. That covers four placements at 1280×852 and 1920×1080 in both appearances and on both platforms, three at each platform's width floor, and loading, Discuss, the Compose page, the menus and the control's states. Each frame was reduced to 256 colours and looked at. The measurements were read back from each page's own layout at the same viewport.</p>
+    <p>This Mac has no Segoe UI, so the Windows frames use the Mac's type, which is wider. To keep the strip's own content in view at 1280, they take the compact modality labels, which the product takes below 1100. Their widths are indicative, and the Windows floor figures above are BPR-0653's measurements of the product.</p>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+  const M = {"A-mac-1280x852-review":{"comp":707,"track":961,"end":0,"entry":22,"ready":0,"status":22},"A-mac-1920x1080-review":{"comp":935,"track":1601,"end":0,"entry":22,"ready":0,"status":22},"A-mac-floor-review":{"comp":707,"track":581,"end":0,"entry":22,"ready":0,"status":22},"A-win-1280x852-review":{"comp":712,"track":949,"end":0,"entry":20,"ready":0,"status":20},"A-win-1920x1080-review":{"comp":940,"track":1589,"end":0,"entry":20,"ready":0,"status":20},"A-win-floor-review":{"comp":712,"track":571,"end":0,"entry":20,"ready":0,"status":20},"A-mac-1280x852-loading":{"comp":0,"track":1012,"end":0,"entry":22,"ready":26,"status":22},"A-win-1280x852-loading":{"comp":0,"track":1004,"end":0,"entry":20,"ready":26,"status":20},"C-mac-1280x852-review":{"comp":729,"track":662,"end":289,"entry":0,"ready":0,"status":22},"C-mac-1920x1080-review":{"comp":957,"track":1302,"end":289,"entry":0,"ready":0,"status":22},"C-mac-floor-review":{"comp":729,"track":282,"end":289,"entry":0,"ready":0,"status":22},"C-win-1280x852-review":{"comp":732,"track":637,"end":302,"entry":0,"ready":0,"status":20},"C-win-1920x1080-review":{"comp":960,"track":1277,"end":302,"entry":0,"ready":0,"status":20},"C-win-floor-review":{"comp":732,"track":259,"end":302,"entry":0,"ready":0,"status":20},"C-mac-1280x852-loading":{"comp":0,"track":713,"end":289,"entry":0,"ready":0,"status":22},"C-win-1280x852-loading":{"comp":0,"track":692,"end":302,"entry":0,"ready":0,"status":20},"F-mac-1280x852-review":{"comp":729,"track":819,"end":132,"entry":0,"ready":0,"status":22},"F-mac-1920x1080-review":{"comp":957,"track":1459,"end":132,"entry":0,"ready":0,"status":22},"F-mac-floor-review":{"comp":729,"track":439,"end":132,"entry":0,"ready":0,"status":22},"F-win-1280x852-review":{"comp":732,"track":803,"end":136,"entry":0,"ready":0,"status":20},"F-win-1920x1080-review":{"comp":960,"track":1443,"end":136,"entry":0,"ready":0,"status":20},"F-win-floor-review":{"comp":732,"track":425,"end":136,"entry":0,"ready":0,"status":20},"F-mac-1280x852-loading":{"comp":0,"track":870,"end":132,"entry":0,"ready":0,"status":22},"F-win-1280x852-loading":{"comp":0,"track":858,"end":136,"entry":0,"ready":0,"status":20},"H-mac-1280x852-review":{"comp":729,"track":961,"end":0,"entry":0,"ready":0,"status":22},"H-mac-1920x1080-review":{"comp":957,"track":1601,"end":0,"entry":0,"ready":0,"status":22},"H-mac-floor-review":{"comp":729,"track":581,"end":0,"entry":0,"ready":0,"status":22},"H-win-1280x852-review":{"comp":732,"track":949,"end":0,"entry":0,"ready":0,"status":20},"H-win-1920x1080-review":{"comp":960,"track":1589,"end":0,"entry":0,"ready":0,"status":20},"H-win-floor-review":{"comp":732,"track":571,"end":0,"entry":0,"ready":0,"status":20},"H-mac-1280x852-loading":{"comp":0,"track":1012,"end":0,"entry":0,"ready":0,"status":22},"H-win-1280x852-loading":{"comp":0,"track":1004,"end":0,"entry":0,"ready":0,"status":20}};
+  const base = "../verification/BPR-1106-composition-entries-v2/";
+  const options = {
+    A: { name: "The row, as built", what: "Compose review and Draft comment or reply on their own row between the strip and the Updates line." },
+    C: { name: "Both at the line's end", what: "v1's proposal: both buttons after Comparing, past a divider." },
+    F: { name: "Split by job", what: "Compose review at the Updates line's end with its draft mark; Comment here beside the current line; Reply on the cards; both in the Pull Request menu." },
+    H: { name: "Split, status bar", what: "As F, with Compose review at the status bar's right end." },
+  };
+  const state = { p: "F", os: "mac", theme: "dark", size: "1280x852", st: "review", comment: "slot" };
+  const sizes = { "1280x852": "1280×852", "1920x1080": "1920×1080", floor: "Width floor" };
+  const states = { review: "Review", loading: "Loading", discuss: "Discuss", compose: "Compose page", menu: "Menu" };
+  const seg = (id, entries, key, fmt) => {
+    const host = document.getElementById(id);
+    host.innerHTML = "";
+    for (const [value, label] of entries) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = fmt ? fmt(value, label) : label;
+      b.setAttribute("aria-pressed", String(state[key] === value));
+      b.addEventListener("click", () => { state[key] = value; draw(); });
+      host.appendChild(b);
+    }
+  };
+  // What exists for a combination; anything else falls back to the nearest frame.
+  const available = () => {
+    const { p, st } = state;
+    if (st === "loading" || st === "discuss") return (p === "A" || p === "F");
+    if (st === "compose") return p === "F" || p === "A";
+    if (st === "menu") return p === "F";
+    if (state.size === "floor") return p !== "H";
+    return true;
+  };
+  const file = () => {
+    const { p, os, theme, size, st, comment } = state;
+    if (st === "menu") return os === "mac" ? `menu-mac-${theme}.png` : `F-win-${theme}-1280x852-menu.png`;
+    if (st === "loading" || st === "discuss") return `${p}-${os}-${theme}-1280x852-${st}.png`;
+    if (st === "compose") {
+      if (p === "A") return os === "mac" ? "A-mac-dark-1280x852-compose.png" : "A-win-light-1280x852-compose.png";
+      return `F-${os}-${theme}-1280x852-compose.png`;
+    }
+    if (size === "floor") return `${p}-${os}-dark-floor.png`;
+    if (p === "F" && comment === "gutter" && size === "1280x852") return `F-${os}-${theme}-1280x852-gutter.png`;
+    return `${p}-${os}-${theme}-${size}.png`;
+  };
+  const draw = () => {
+    if (!available()) {
+      if (["loading", "discuss", "compose"].includes(state.st) && !["A", "F"].includes(state.p)) state.p = "F";
+      if (state.st === "menu") state.p = "F";
+      if (state.size === "floor" && state.p === "H") state.p = "F";
+    }
+    const floorOrSpecial = state.st !== "review" ? "1280x852" : state.size;
+    seg("c-p", Object.entries(options).map(([k, v]) => [k, v.name]), "p", (k, label) => `<b>${k}</b>${label}`);
+    seg("c-os", [["mac", "macOS"], ["win", "Windows"]], "os");
+    seg("c-theme", [["dark", "Dark"], ["light", "Light"]], "theme");
+    seg("c-size", Object.entries(sizes), "size");
+    seg("c-state", Object.entries(states), "st");
+    seg("c-comment", [["slot", "In the column"], ["gutter", "In the gutter"]], "comment");
+    const commentShown = state.p === "F" && state.st === "review" && state.size === "1280x852";
+    document.getElementById("c-comment-wrap").style.display = commentShown ? "" : "none";
+    const img = document.getElementById("frame");
+    const name = file();
+    img.src = base + name;
+    const o = options[state.p];
+    const notes = [];
+    if (state.size === "floor" && state.st === "review") notes.push("Width floor frames are drawn dark only.");
+    if (state.st === "compose" && state.p === "A") notes.push("As built, drawn once per platform.");
+    if (state.st === "menu") notes.push(state.os === "mac" ? "The macOS menu bar, outside the window." : "The strip's ≡ menu, open on Pull Request.");
+    img.alt = `${state.p}: ${o.name}, ${state.os === "mac" ? "macOS" : "Windows"}, ${state.theme}, ${states[state.st]}`;
+    document.getElementById("frame-cap").textContent = `${name.replace(".png", "")}. ${notes.join(" ")}`;
+    document.getElementById("l-title").textContent = `${state.p}. ${o.name}`;
+    document.getElementById("l-what").textContent = o.what;
+    const sizeKey = state.st === "review" ? state.size : "1280x852";
+    const key = `${state.p}-${state.os}-${sizeKey}-review`;
+    const a = M[`A-${state.os}-${sizeKey}-review`];
+    const m = M[key] || a;
+    const winH = sizeKey === "1920x1080" ? 1080 : 852;
+    const gain = m.comp - a.comp;
+    let costs = [
+      ["Comparison height", `${m.comp} px`],
+      ["Of the window", `${Math.round(m.comp / winH * 1000)}‰`],
+      ["Against the row", gain > 0 ? `+${gain} px` : "baseline", gain > 0 ? "gain" : ""],
+      ["Updates track", `${m.track} px`],
+      ["Windows strip at 902", "+0 px"],
+    ];
+    let heading = state.st === "review" ? "" : `<dt style="grid-column:1/-1;color:var(--ink-3)">Measured in Review at 1280×852</dt>`;
+    if (state.st === "loading") {
+      // As built, the readiness line and the entry row both sit over the
+      // Updates line; the readiness line alone leaves when Overview does.
+      const above = state.p === "A" ? (state.os === "mac" ? 48 : 46) : 0;
+      costs = [
+        ["Rows over the Updates line", above ? `${above} px` : "none", above ? "" : "gain"],
+        ["Jump when you leave Overview", above ? "26 px" : "none", above ? "" : "gain"],
+        ["Updates track while loading", `${(M[`${state.p}-${state.os}-1280x852-loading`] || m).track} px`],
+      ];
+      heading = "";
+    }
+    document.getElementById("l-costs").innerHTML = heading + costs.map(([t, v, c]) => `<dt>${t}</dt><dd class="${c || ""}">${v}</dd>`).join("");
+    // The stack, to scale: 1 px here is 1/4 px of the window.
+    const ld = M[`${state.p}-${state.os}-1280x852-loading`] || {};
+    const loading = state.st === "loading";
+    const k = 0.5;
+    const rows = [
+      ["s-strip", "strip", 30],
+      ...(loading && state.p === "A" ? [["s-ready", "readiness line", 26]] : []),
+      ...(state.p === "A" ? [["s-entry", "entry row", m.entry || a.entry]] : []),
+      ["s-epoch", "Updates line", 50],
+      ...(state.st === "review" ? [["s-cstatus", "status line", state.os === "mac" ? 21 : 20]] : []),
+      ["s-comp", state.st === "review" ? "comparison" : states[state.st].toLowerCase(), 0],
+      ["s-status", "status bar", m.status],
+    ];
+    const fixed = rows.reduce((s, r) => s + r[2], 0);
+    rows.find((r) => r[0] === "s-comp")[2] = winH - fixed;
+    const stack = document.getElementById("stack");
+    stack.innerHTML = rows.map(([cls, label, h]) => `<div class="${cls}" style="height:${Math.max(3, Math.round(h * k))}px"><i></i><span>${label}</span><span>${h}</span></div>`).join("");
+    document.getElementById("stack-cap").textContent = `The window's rows at half scale. ${state.p === "A" ? "The entry row is magenta." : "Nothing sits between the strip and the Updates line."}`;
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea")) return;
+    const order = Object.keys(options);
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const i = order.indexOf(state.p);
+      state.p = order[(i + (e.key === "ArrowRight" ? 1 : order.length - 1)) % order.length];
+      draw();
+    }
+  });
+  const q = new URLSearchParams(location.search);
+  for (const k of Object.keys(state)) if (q.has(k)) state[k] = q.get(k);
+  draw();
+})();
+</script>
+</body>
+</html>

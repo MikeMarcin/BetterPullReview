@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 workbench scaffolding, decided</title>
+<!--
+  [[BPR-1106]] design round v6: the scaffolding the owner chose on 2026-09-24
+  in the design session that decision ece7a6f3 asked for. Earlier rounds:
+  BPR-1106-composition-entries-v2.html (what the entries do; four placements),
+  BPR-1106-scaffolding-v4.html (tray headers and document tabs; T and V),
+  BPR-1106-scaffolding-v5.html (the modality's place, icons, the tab's tools,
+  the fold). Frames: BPR-1106-scaffolding-frames-v6.html into
+  ../verification/BPR-1106-scaffolding-v6/. Every number is measured on them.
+-->
+<style>
+  :root {
+    --paper: #ECEEF1; --sheet: #F8F9FA; --ink: #15181C; --ink-2: #48505A; --ink-3: #78818C;
+    --rule: #D2D7DD; --rule-2: #B9C0C8;
+    --signal: #2F6FD6; --signal-soft: #E1EAF9; --marker: #B7791F;
+    --redline: #B8266B; --redline-soft: #F7E3EC;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); font-variant-numeric: tabular-nums; }
+  main { max-width: 1360px; margin: 0 auto; padding: 44px 28px 80px; }
+  .prose { max-width: 76ch; }
+  h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 12px; }
+  h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 56px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 17px; }
+  .byline { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+  kbd { font: 12px/1 var(--ui); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: #fff; white-space: nowrap; }
+  a { color: var(--signal); text-underline-offset: 2px; }
+  .note { font-size: 13px; color: var(--ink-2); }
+  blockquote { margin: 10px 0 14px; padding: 2px 0 2px 16px; border-left: 3px solid var(--marker); color: var(--ink-2); }
+  blockquote p { margin: 0 0 6px; }
+
+  .strata { display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: 40px; margin: 22px 0 8px; align-items: end; }
+  .col-s h4 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+  .col-s .sub { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; min-height: 2.6em; }
+  .stack { display: grid; font-size: 11px; line-height: 1; }
+  .stack div { display: grid; grid-template-columns: 56px 1fr auto; gap: 8px; align-items: center; color: var(--ink-2); white-space: nowrap; }
+  .stack div i { display: block; align-self: stretch; border-bottom: 1px solid #fff; }
+  .stack div span:last-child { font-weight: 600; color: var(--ink); }
+  .stack .s-strip i, .stack .s-status i { background: #C9D0D8; }
+  .stack .s-entry i { background: var(--redline); }
+  .stack .s-entry, .stack .s-entry span:last-child { color: var(--redline); font-weight: 600; }
+  .stack .s-epoch i { background: #B9CCEA; }
+  .stack .s-bar i { background: #CBD7EA; }
+  .stack .s-head i { background: #D5DAE0; }
+  .stack .s-comp i { background: #E9EDF1; border: 1px solid var(--rule-2); border-width: 0 1px; }
+  .col-s .gain { margin-top: 10px; font-size: 13px; }
+  .col-s .gain b { font-size: 20px; font-weight: 700; display: block; }
+  .col-s .gain .up { color: var(--redline); font-weight: 600; }
+
+  .map { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+  thead th { font-weight: 640; border-bottom: 1px solid var(--rule-2); }
+  tbody th { font-weight: 560; width: 260px; }
+  tr.grp th { background: #EEF0F3; color: var(--ink-3); font-size: 12px; font-weight: 600; padding: 5px 12px; }
+
+  .viewer { margin-top: 16px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 12px; }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; }
+  .ctl-label { font-size: 12px; color: var(--ink-3); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule-2); background: var(--paper); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { font: 500 13px/1 var(--ui); color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 6px 11px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--signal); color: #fff; font-weight: 620; }
+  .seg button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .frame-box { background: #fff; border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+  .frame-box img { display: block; width: 100%; height: auto; }
+  .frame-cap { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+  .open-item { background: #fff; border: 1px solid var(--rule); border-left: 3px solid var(--marker); border-radius: 6px; padding: 10px 14px; font-size: 14px; max-width: 80ch; }
+</style>
+</head>
+<body>
+<main>
+  <header class="prose">
+    <h1>The review workbench's scaffolding, as decided</h1>
+    <div class="byline">BPR-1106, design round v6, the owner's decisions of 2026-09-24</div>
+    <p class="lede">The title row carries the window, the pull request and the modality, which sits at the right. A review bar holds the active tab's controls on its left and Compose review and Comment on its right. The Updates line folds away above it. The comparison's header is document tabs, each with its own file, comparison and position.</p>
+  </header>
+
+  <section>
+    <div class="strata" id="strata"></div>
+    <p class="note">The window's rows at 1280×852 on macOS, half scale, measured on the frames. On Windows the same three measure 712, 712 and 746; at 1920×1080 on macOS, 935, 938 and 972.</p>
+  </section>
+
+  <section>
+    <h2>The decisions, verbatim</h2>
+    <div class="prose">
+      <p>From the owner's answers in the design session, after round v5:</p>
+      <blockquote>
+        <p>1. For modality lets do Right.</p>
+        <p>2. Tools I like the idea of Review bar with tools and collapsable updates line, but controls should be on the left and updates line should be fully above tools when expanded.</p>
+        <p>3. T</p>
+        <p>4. I like the icons + tooltips, I think mark as read in tab tools can also be an icon with tooltip.</p>
+        <p>5. Review bar</p>
+      </blockquote>
+      <p>And earlier in the same session, bringing back RFC-BPR-0025's tabs:</p>
+      <blockquote><p>Let's update the design and incorporate the tabs, i think I set that aside to get something up and working but now that we have something more or less functional I want to bring them back.</p></blockquote>
+      <p>The candidates had been narrowed to "T without caption, T comment in tray, and V Tabs"; T is the first, so the Updates line loses its permanent caption. Tabs carry their own comparison, with new tabs taking the window's, as RFC-BPR-0025 specified and the owner approved on 2026-09-04.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where every control goes</h2>
+    <div class="map"><table>
+      <thead><tr><th>Control</th><th>Today</th><th>Decided</th></tr></thead>
+      <tbody>
+        <tr class="grp"><th colspan="3">The title row</th></tr>
+        <tr><th>Home, the drawer toggles, the pull request's name</th><td>Title row, left</td><td>Title row, left; the name has the room the navigation took</td></tr>
+        <tr><th>The modality</th><td>Centred in the space left over</td><td>Title row, right, beside refresh</td></tr>
+        <tr><th>Refresh, the comments toggle, account, settings</th><td>Title row, right</td><td>The same; the comments toggle carries the new-comment count</td></tr>
+        <tr class="grp"><th colspan="3">The Updates line</th></tr>
+        <tr><th>The timeline and "Comparing …"</th><td>A 50-pixel row, always shown</td><td>A 34-pixel row above the review bar, folded or open; it shows the active tab's pair</td></tr>
+        <tr><th>"Known updates · display order is not push order"</th><td>A permanent caption</td><td>The line's tooltip, with a mark on the line only when history is incomplete</td></tr>
+        <tr><th>Loading words</th><td>A 26-pixel row that comes and goes</td><td>The Updates line's track, or the bar's summary when folded</td></tr>
+        <tr class="grp"><th colspan="3">The review bar, full width, always shown</th></tr>
+        <tr><th>Previous and next change, with the position</th><td>Title row</td><td>Review bar, left</td></tr>
+        <tr><th>Previous and next file, with the position</th><td>Title row</td><td>Review bar, left</td></tr>
+        <tr><th>Private progress (Seen, Read, Accept, Exclude)</th><td>Title row, a check mark</td><td>Review bar, left, an icon whose tooltip names this file's state</td></tr>
+        <tr><th>The Updates fold</th><td>None</td><td>Review bar, after the controls; folded, it names the comparison and its dates</td></tr>
+        <tr><th>Compose review</th><td>"Compose review" on its own row</td><td>Review bar, right, an icon with the kept-draft mark and a tooltip; <kbd>⌥R</kbd></td></tr>
+        <tr><th>Comment</th><td>"Draft comment or reply" on its own row</td><td>Review bar, right, an icon whose arrow offers the Conventional Comments labels; <kbd>⌥C</kbd></td></tr>
+        <tr><th>Review details</th><td>Title row</td><td>The comparison's menu</td></tr>
+        <tr class="grp"><th colspan="3">The comparison and the trays</th></tr>
+        <tr><th>Views of the pull request</th><td>One per window</td><td>Document tabs in the comparison's header, each with its file, comparison and position</td></tr>
+        <tr><th>Reply</th><td>Discuss only; beside the code, Comment here</td><td>On every thread card</td></tr>
+        <tr><th>Comments, tour and findings</th><td>One stacked column</td><td>Tabs in the right tray's header</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>The frames</h2>
+    <div class="viewer">
+      <div class="controls">
+        <span class="ctl"><span class="ctl-label">Updates line</span><span class="seg" id="c-f"></span></span>
+        <span class="ctl"><span class="ctl-label">Window</span><span class="seg" id="c-w"></span></span>
+        <span class="ctl"><span class="ctl-label">State</span><span class="seg" id="c-st"></span></span>
+      </div>
+      <div class="frame-box"><img id="frame" alt=""></div>
+      <div class="frame-cap" id="frame-cap"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Still open</h2>
+    <div class="open-item">Whether a new window starts with the Updates line open or folded. Proposed: folded, since the review bar still names the comparison and its dates; each window then remembers the owner's choice, and nothing folds or opens on its own.</div>
+  </section>
+
+  <section class="prose">
+    <h2>How this was reached</h2>
+    <p><a href="BPR-1106-composition-entries-v2.html">Round v2</a> traced what the two entries do and drew four placements. Round v3 (the tray headers without tabs) was superseded in the session by <a href="BPR-1106-scaffolding-v4.html">round v4</a>, which added the tabs and the vertical rail. <a href="BPR-1106-scaffolding-v5.html">Round v5</a> tried the modality's places, icons, three homes for the tab's controls and the fold. This page draws the answers.</p>
+    <p>The frames are drawn from the accepted surface's tokens and the product's measured rows, rendered by headless Chrome at exact window size, device scale 1, reduced to 256 colours and looked at; every height is read back from the page's layout. The Windows frames use the Mac's type.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const MAN = new Set(["T-bar-mac-dark-1280x852-fold-tip-progress.png","T-bar-mac-dark-1280x852-fold.png","T-bar-mac-dark-1280x852-labels.png","T-bar-mac-dark-1280x852-tab2-fold.png","T-bar-mac-dark-1280x852-tab2.png","T-bar-mac-dark-1280x852.png","T-bar-mac-light-1920x1080-fold.png","T-bar-mac-light-1920x1080.png","T-bar-win-dark-floor-fold.png","T-bar-win-dark-floor.png","T-bar-win-light-1280x852-fold-tip-compose.png","T-bar-win-light-1280x852-fold.png","T-bar-win-light-1280x852.png"]);
+  const directions = [
+    { name: "Today", sub: "the entry row, as built", rows: [["s-strip", "title", 30], ["s-entry", "entries", 22], ["s-epoch", "Updates", 50], ["s-head", "status", 21]], comp: 707 },
+    { name: "Decided, open", sub: "the Updates line above the review bar", rows: [["s-strip", "title", 30], ["s-epoch", "Updates", 34], ["s-bar", "review bar", 28], ["s-head", "tabs", 28]], comp: 710 },
+    { name: "Decided, folded", sub: "the review bar names the comparison", rows: [["s-strip", "title", 30], ["s-bar", "review bar", 28], ["s-head", "tabs", 28]], comp: 744 },
+  ];
+  document.getElementById("strata").innerHTML = directions.map((d) => {
+    const rows = [...d.rows, ["s-comp", "code", d.comp], ["s-status", "status", 22]];
+    const gain = d.comp - 707;
+    return `<div class="col-s"><h4>${d.name}</h4><div class="sub">${d.sub}</div>
+      <div class="stack">${rows.map(([cls, label, h]) => `<div class="${cls}" style="height:${Math.round(h * 0.5)}px"><i></i><span>${label}</span><span>${h}</span></div>`).join("")}</div>
+      <div class="gain"><b>${d.comp}</b>${gain > 0 ? `<span class="up">+${gain}</span> on today` : "the baseline"}</div></div>`;
+  }).join("");
+  const state = { f: "fold", w: "mac-dark-1280x852", st: "review" };
+  const opts = {
+    f: [["fold", "Folded"], ["open", "Open"]],
+    w: [["mac-dark-1280x852", "macOS 1280×852"], ["win-light-1280x852", "Windows 1280×852"], ["mac-light-1920x1080", "macOS 1920×1080"], ["win-dark-floor", "Windows 902"]],
+    st: [["review", "Review"], ["tab2", "Second tab, older pair"], ["tip-progress", "Progress tooltip"], ["tip-compose", "Compose tooltip"], ["labels", "Comment's labels"]],
+  };
+  const name = (f, w, st) => {
+    const fold = f === "fold" ? "-fold" : "";
+    if (st === "review") return `T-bar-${w}${fold}.png`;
+    if (st === "tab2") return `T-bar-${w}-tab2${fold}.png`;
+    if (st === "labels") return `T-bar-${w}-labels.png`;
+    return `T-bar-${w}${fold}-${st}.png`;
+  };
+  const seg = (id, key) => {
+    const host = document.getElementById(id);
+    host.innerHTML = "";
+    for (const [value, label] of opts[key]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = label;
+      b.setAttribute("aria-pressed", String(state[key] === value));
+      b.addEventListener("click", () => { state[key] = value; draw(); });
+      host.appendChild(b);
+    }
+  };
+  const draw = () => {
+    seg("c-f", "f"); seg("c-w", "w"); seg("c-st", "st");
+    const tries = [name(state.f, state.w, state.st)];
+    for (const w of opts.w.map(([v]) => v)) for (const f of ["fold", "open"]) tries.push(name(f, w, state.st));
+    tries.push(name(state.f, state.w, "review"), name("fold", "mac-dark-1280x852", "review"));
+    const found = tries.find((n) => MAN.has(n));
+    document.getElementById("frame").src = `../verification/BPR-1106-scaffolding-v6/${found}`;
+    document.getElementById("frame").alt = found;
+    document.getElementById("frame-cap").textContent = `${found.replace(".png", "")}${found === tries[0] ? "" : ": the nearest frame drawn for this choice"}.`;
+  };
+  draw();
+})();
+</script>
+</body>
+</html>

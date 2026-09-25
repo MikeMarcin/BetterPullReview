@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 scaffolding frames v4</title>
+<!--
+  [[BPR-1106]] design round v4: the review workbench's outer scaffolding,
+  redrawn around the composition entries, review tours (RFC-BPR-0039 to 0046),
+  Conventional Comments (RFC-BPR-0047 to 0051) and, brought back by the owner
+  on 2026-09-24, RFC-BPR-0025's browser-style document tabs: a tab is a file, a
+  pair of updates and a reading position, and new tabs take the window's
+  comparison. Same tokens, code and
+  threads as BPR-1106-composition-entries-frames-v2.html, whose A and C frames
+  are the baseline. Query parameters:
+
+    p      T  tray headers, with the Updates line kept full width
+           V  tray headers, with the Updates line turned into a vertical rail
+    comp   line (T default): Compose review and Comment at the Updates line's end
+           split: Compose review there, Comment in the Comments tray
+    trim   1: the Updates line without its permanent caption (T only)
+    os     mac | win
+    theme  dark | light
+    size   1280x852 | 1920x1080 | floor (900x852 macOS, 902x852 Windows)
+    state  review | tab2 (the same file over an older pair) | tabmenu |
+           labels | tour | author | compose | loading | hover (V)
+
+  Rendered headless at exactly the window size; the page is the window.
+-->
+<style>
+  :root {
+    --bg: #1C2026; --side: #20252C; --panel: #242930; --panel-2: #2A3039; --rule: #343A44; --rule-2: #414955;
+    --ink: #E6EDF3; --ink-2: #A0A8B2; --ink-3: #6E7681;
+    --signal: #7FB0E8; --signal-soft: #26374F; --marker: #E0B15A; --marker-soft: #3A3120;
+    --code: #0D1117; --gutter: #141921; --lnum: #8B949E;
+    --add: #153622; --del: #3E1F1F; --add2: #145E20; --hunk: #18212F; --hunk-ink: #9FB6D4;
+    --unread: #58A6FF; --accepted: #3FB950; --defect: #FF7B72;
+    --kw: #F49795; --cf: #FFA198; --op: #C9D1D9; --fn: #D2A8FF; --var: #79C0FF; --ty: #CC99FF; --num: #A5D6FF; --str: #7EE787; --cm: #A5B0BA; --nm: #E6EDF3;
+    --on-signal: #0d1117; --menu-shadow: 0 10px 30px rgba(0,0,0,.5); --field: #161B22;
+    --ui: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --mono: "JetBrains Mono NL", "JetBrainsMonoNL Nerd Font", "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  body.light {
+    --bg: #F6F7F9; --side: #F0F2F5; --panel: #FFFFFF; --panel-2: #EEF1F5; --rule: #D9DEE5; --rule-2: #C3CAD3;
+    --ink: #1F2328; --ink-2: #57606A; --ink-3: #8B949E;
+    --signal: #2F6FD6; --signal-soft: #DCE8F9; --marker: #B7791F; --marker-soft: #FBF1DC;
+    --code: #FFFFFF; --gutter: #F0F2F5; --lnum: #5B6570;
+    --add: #E6FFEC; --del: #FFEBE9; --add2: #9EFFB5; --hunk: #E7EEF9; --hunk-ink: #3B5070;
+    --unread: #0969DA; --accepted: #1A7F37; --defect: #CF222E;
+    --kw: #B51D27; --cf: #A40E26; --op: #24292F; --fn: #6639BA; --var: #24509B; --ty: #6E3EC8; --num: #0550AE; --str: #086A49; --cm: #555E69; --nm: #1F2328;
+    --on-signal: #ffffff; --menu-shadow: 0 10px 28px rgba(31,35,40,.18); --field: #FFFFFF;
+  }
+  body.win { --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --mono: "JetBrains Mono NL", "JetBrains Mono", "Cascadia Mono", Consolas, monospace; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--ink); font: 12px/1.4 var(--ui); }
+  .window { position: relative; display: flex; flex-direction: column; width: 100vw; height: 100vh; overflow: hidden; }
+
+  /* the title row: window, document and mode only */
+  .strip { position: relative; flex: 0 0 30px; display: flex; align-items: center; padding: 0 4px; background: var(--panel); border-bottom: 1px solid var(--rule-2); font-size: 11px; z-index: 3; }
+  body.win .strip { padding-right: 0; }
+  .strip .l, .strip .r, .strip .c { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .strip .l { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+  .strip .c, .strip .r { flex: none; }
+  .strip .gap { flex: 1 1 8px; min-width: 6px; }
+  .inset { flex: none; width: 78px; display: flex; align-items: center; }
+  .lights { display: flex; gap: 8px; margin-left: 9px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+  .ib { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; flex: none; min-width: 30px; height: 22px; padding: 0 7px; border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink); border-radius: 5px; white-space: nowrap; font-size: 11px; }
+  .ib svg { width: 15px; height: 15px; stroke: var(--ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .ib.on { background: var(--signal-soft); border-color: var(--signal); }
+  .ib.on svg { stroke: var(--signal); }
+  .ib.flat { border-color: transparent; background: transparent; }
+  .ib .arrow { font-size: 9px; color: var(--ink-2); margin-left: 2px; }
+  .ib.labelled { padding: 0 9px 0 7px; gap: 6px; }
+  .ib.labelled svg { width: 14px; height: 14px; }
+  .ib.split { padding-right: 0; gap: 0; }
+  .ib.split .main { display: inline-flex; align-items: center; gap: 5px; padding-right: 6px; }
+  .ib.split .drop { display: inline-flex; align-items: center; align-self: stretch; padding: 0 6px; border-left: 1px solid var(--rule-2); color: var(--ink-2); font-size: 9px; }
+  .ib.split.open .drop { background: var(--signal-soft); color: var(--signal); }
+  .ib .dot { position: absolute; left: 17px; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--marker); box-shadow: 0 0 0 1.5px var(--panel-2); }
+  .ib .badge { position: absolute; right: -3px; top: -3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--unread); color: var(--on-signal); font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; }
+  .id { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; margin: 0 6px 0 6px; flex: 0 1 auto; font-size: 12px; }
+  .id span { color: var(--ink-2); font-weight: 400; margin-left: 6px; }
+  .div { width: 1px; height: 18px; background: var(--rule-2); margin: 0 6px; flex: none; }
+  .mode { display: inline-flex; border: 1px solid var(--rule-2); background: var(--bg); border-radius: 6px; padding: 2px; gap: 2px; }
+  .mode span { border-radius: 4px; line-height: 18px; padding: 0 12px; color: var(--ink); font-weight: 500; white-space: nowrap; }
+  .mode span.on { background: var(--signal); color: var(--on-signal); font-weight: 600; }
+  .mode span small { opacity: .6; margin-left: 5px; font-size: 10px; }
+  body.compact .mode span small { display: none; }
+  .caption { display: flex; align-self: stretch; margin-left: 4px; flex: none; }
+  .caption span { width: 46px; display: flex; align-items: center; justify-content: center; }
+  .caption svg { width: 10px; height: 10px; stroke: var(--ink); stroke-width: 1; fill: none; }
+
+  /* the Updates line (T), as built: 50 px, or 34 without its permanent caption */
+  .epoch { position: relative; flex: 0 0 50px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 12px; background: var(--panel); border-bottom: 1px solid var(--rule); font-size: 11px; z-index: 2; }
+  body.trim .epoch { flex-basis: 34px; }
+  .epoch .name { flex: 0 0 52px; color: var(--ink-3); }
+  .epoch .line { position: relative; flex: 1 1 auto; min-width: 80px; align-self: stretch; }
+  .epoch .sum { flex: none; color: var(--ink-3); white-space: nowrap; }
+  .epoch .cmp { flex: none; color: var(--ink-2); white-space: nowrap; }
+  .epoch .cmp b { color: var(--ink); font-weight: 500; }
+  .epoch .end { flex: none; display: flex; align-items: center; gap: 6px; }
+  .epoch .end .div { margin: 0 4px 0 0; }
+  .line .track { position: absolute; left: 0; right: 0; top: 8px; height: 1px; background: var(--rule-2); }
+  .line .span { position: absolute; top: 7px; height: 3px; background: var(--signal); }
+  .line .nd { position: absolute; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--ink-3); transform: translateX(-50%); }
+  .line .hd { position: absolute; top: 1px; width: 7px; height: 13px; border: 1.5px solid var(--signal); background: var(--panel); transform: translateX(-50%); border-radius: 2px; }
+  .line .yt { position: absolute; top: 2px; width: 2px; height: 11px; background: var(--marker); transform: translateX(-50%); }
+  .line .lb { position: absolute; top: 18px; transform: translateX(-50%); color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+  .line .lb.sel { color: var(--ink); }
+  .line .lb.last { transform: translateX(calc(-100% + 4px)); }
+  .line .cap { position: absolute; left: 0; top: 34px; color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+  .line .loading { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; color: var(--ink); font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .bar { position: relative; flex: none; width: 100px; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+  .bar::after { content: ""; position: absolute; top: 0; bottom: 0; left: 22%; width: 34%; border-radius: 3px; background: var(--signal); }
+
+  /* the vertical Updates rail (V) */
+  .vr { position: relative; background: var(--panel); border-right: 1px solid var(--rule); min-height: 0; }
+  .vr .cell { height: 28px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--rule); }
+  .vr .cell .ib { min-width: 24px; height: 20px; padding: 0 3px; }
+  .vr .cell .ib svg { width: 13px; height: 13px; }
+  .vr .t { position: absolute; left: 16px; width: 1px; background: var(--rule-2); }
+  .vr .sp { position: absolute; left: 15px; width: 3px; background: var(--signal); }
+  .vr .nd { position: absolute; left: 12px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--ink-3); }
+  .vr .hd { position: absolute; left: 10px; width: 13px; height: 7px; border: 1.5px solid var(--signal); background: var(--panel); border-radius: 2px; }
+  .vr .yt { position: absolute; left: 11px; width: 11px; height: 2px; background: var(--marker); }
+  .vr .now { position: absolute; left: 6px; width: 21px; height: 21px; border-radius: 5px; border: 1px dashed var(--rule-2); display: flex; align-items: center; justify-content: center; }
+  .vr .now svg { width: 12px; height: 12px; stroke: var(--ink-3); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .vr .loadbar { position: absolute; left: 14px; width: 5px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+  .vr .loadbar::after { content: ""; position: absolute; left: 0; right: 0; top: 20%; height: 30%; background: var(--signal); border-radius: 3px; }
+  .hovercard { position: absolute; z-index: 7; width: 272px; background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: 8px; box-shadow: var(--menu-shadow); padding: 10px 12px; font-size: 12px; }
+  .hovercard b { font-weight: 600; }
+  .hovercard .k { color: var(--ink-3); font-size: 11px; }
+  .hovercard .row { display: flex; justify-content: space-between; margin-top: 4px; color: var(--ink-2); }
+  .hovercard .acts { display: flex; gap: 12px; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 11px; }
+
+  /* body and tray headers */
+  .body { position: relative; flex: 1 1 auto; min-height: 0; display: grid; }
+  .col { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  .th-row { flex: 0 0 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); background: var(--panel); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+  .th-row b { color: var(--ink); font-weight: 600; }
+  .th-row .sp { flex: 1; min-width: 4px; }
+  .th-row .k { color: var(--ink-3); }
+  .th-row .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+  .th-row .file { font-family: var(--mono); font-size: 11px; color: var(--ink); font-weight: 500; }
+  .th-row .stat { font-family: var(--mono); font-size: 11px; }
+  .th-row .stat .a { color: var(--accepted); } .th-row .stat .d { color: var(--defect); }
+  .grp { display: inline-flex; align-items: center; border: 1px solid var(--rule-2); background: var(--panel-2); border-radius: 5px; overflow: hidden; flex: none; height: 20px; }
+  .grp .g { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; color: var(--ink); font-weight: 600; }
+  .grp .g + .g { border-left: 1px solid var(--rule-2); }
+  .grp .lbl { padding: 0 7px; color: var(--ink); line-height: 18px; border-left: 1px solid var(--rule-2); }
+  .chipbtn { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); color: var(--ink); flex: none; }
+  .chipbtn svg { width: 13px; height: 13px; stroke: var(--ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .chipbtn .arrow { font-size: 9px; color: var(--ink-2); }
+  .chipbtn.plain { border-color: transparent; background: transparent; padding: 0 4px; }
+  .chipbtn.accent { color: var(--signal); }
+
+  .pane { background: var(--side); border-right: 1px solid var(--rule); }
+  .pane .flt { flex: none; margin: 6px 8px; border: 1px solid var(--rule-2); border-radius: 5px; padding: 2px 8px; color: var(--ink-3); background: var(--bg); font-size: 11px; white-space: nowrap; overflow: hidden; }
+  .pane .list { flex: 1; min-height: 0; overflow: hidden; font-size: 12px; }
+  .ft { position: relative; display: grid; grid-template-columns: 12px 10px 1fr auto; gap: 4px; align-items: center; height: 22px; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+  .ft .ch { color: var(--ink-2); text-align: center; font-size: 9px; }
+  .ft .n { overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+  .ft .n.f { font-family: var(--ui); color: var(--ink); }
+  .ft .c { color: var(--ink-3); font-size: 10px; font-family: var(--mono); }
+  .ft.on { background: var(--signal-soft); }
+  .ft.d2 { padding-left: 20px; } .ft.d3 { padding-left: 32px; } .ft.d4 { padding-left: 44px; }
+  .ft.d2::before, .ft.d3::before, .ft.d4::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .ft.d2::before { left: 14px; } .ft.d3::before { left: 26px; } .ft.d4::before { left: 38px; }
+  .st { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+  .st.read { background: var(--accepted); border-color: var(--accepted); }
+  .st.part { background: linear-gradient(90deg, var(--accepted) 50%, transparent 50%); border-color: var(--accepted); }
+  .st.new { background: var(--unread); border-color: var(--unread); }
+
+  .center { background: var(--code); }
+  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr) 16px; font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--nm); overflow: hidden; }
+  .cp { min-width: 0; overflow: hidden; position: relative; }
+  .map { background: var(--gutter); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); overflow: hidden; }
+  .map svg { width: 30px; height: 100%; display: block; }
+  .sb { background: var(--gutter); border-left: 1px solid var(--rule); position: relative; }
+  .sb::after { content: ""; position: absolute; left: 4px; right: 4px; top: 2px; height: 38%; border-radius: 4px; background: var(--rule-2); }
+  .ln { position: relative; display: grid; grid-template-columns: 40px 6px 1fr; height: 20px; }
+  .ln .n { background: var(--gutter); color: var(--lnum); text-align: right; padding-right: 6px; }
+  .ln .g { background: var(--gutter); }
+  .ln .t { padding-left: 8px; white-space: pre; overflow: hidden; text-overflow: ellipsis; tab-size: 4; }
+  .ln.add .t { background: var(--add); }
+  .ln.del .t { background: var(--del); }
+  .ln.cur .t { box-shadow: inset 2px 0 var(--signal); }
+  .ln.cur .n { color: var(--ink); }
+  .ln.c .g { background: var(--marker); }
+  .ln.u .g { background: var(--unread); }
+  .ln.stop .t { box-shadow: inset 2px 0 var(--marker); background-image: linear-gradient(90deg, var(--marker-soft), transparent 60%); }
+  .ln.stop .n { color: var(--marker); }
+  .kw { color: var(--kw); } .cf { color: var(--cf); } .op { color: var(--op); } .fn { color: var(--fn); } .va { color: var(--var); } .ty { color: var(--ty); } .nu { color: var(--num); } .s2 { color: var(--str); } .cm { color: var(--cm); }
+
+  /* the right tray: tabs in its header, the tab's tools under them */
+  .tray { background: var(--side); border-left: 1px solid var(--rule); }
+  .tabs { flex: 0 0 28px; display: flex; align-items: stretch; gap: 2px; padding: 0 6px 0 4px; border-bottom: 1px solid var(--rule); background: var(--panel); font-size: 12px; white-space: nowrap; }
+  .tabs .tab { display: flex; align-items: center; gap: 6px; padding: 0 9px; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs .tab.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--signal); }
+  .tabs .tab .n { font-size: 10px; color: var(--ink-3); font-weight: 500; }
+  .tabs .tab .nb { min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--unread); color: var(--on-signal); font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; }
+  .tabs .sp { flex: 1; }
+  .tabs .more { display: flex; align-items: center; color: var(--ink-3); padding: 0 4px; }
+  .tools { flex: 0 0 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+  .tools .sp { flex: 1; min-width: 4px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 5px; overflow: hidden; height: 20px; flex: none; }
+  .seg span { padding: 0 7px; line-height: 18px; color: var(--ink-2); }
+  .seg span + span { border-left: 1px solid var(--rule-2); }
+  .seg span.on { background: var(--signal-soft); color: var(--ink); font-weight: 600; }
+  .threads { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .th { position: absolute; left: 0; right: 0; padding: 0 8px 0 12px; }
+  .th::before { content: ""; position: absolute; left: 0; top: 12px; width: 8px; height: 1px; background: var(--rule-2); }
+  .th.cur::before { background: var(--signal); width: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 10px 6px; }
+  .th.cur .card { border-color: var(--signal); }
+  .msgs { position: relative; }
+  .msgs.rail::before { content: ""; position: absolute; left: 8px; top: 18px; bottom: 18px; width: 2px; background: var(--rule-2); }
+  .msg { position: relative; display: grid; grid-template-columns: 18px 1fr; gap: 8px; margin-bottom: 8px; }
+  .msg .av { position: relative; width: 18px; height: 18px; border-radius: 50%; background: var(--rule-2); font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--ink); font-weight: 600; }
+  .msg .av.me { background: var(--signal-soft); color: var(--signal); }
+  .msg .who { font-weight: 600; }
+  .msg .when { color: var(--ink-3); margin-left: 6px; font-size: 11px; }
+  .msg .new { color: var(--unread); margin-left: 6px; font-size: 10px; font-weight: 600; }
+  .msg p { margin: 2px 0 0; color: var(--ink); font-size: 12px; line-height: 1.45; }
+  .lab { display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; margin-right: 6px; border-radius: 8px; border: 1px solid var(--rule-2); color: var(--ink-2); font-size: 10px; font-weight: 600; vertical-align: 1px; }
+  .lab i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+  .lab.issue { border-color: var(--defect); color: var(--defect); } .lab.issue i { background: var(--defect); }
+  .lab.question { border-color: var(--unread); color: var(--unread); } .lab.question i { background: var(--unread); }
+  .act { color: var(--ink-3); font-size: 11px; margin-left: 26px; padding-top: 2px; }
+  .act b { color: var(--ink-2); font-weight: 500; margin-right: 10px; }
+  .draft { border: 1px dashed var(--rule-2); border-radius: 5px; padding: 6px 8px; color: var(--ink-2); }
+  .draft b { color: var(--marker); font-weight: 600; }
+  .slot { display: flex; align-items: center; gap: 8px; height: 26px; border: 1px dashed var(--signal); border-radius: 6px; padding: 0 8px; color: var(--signal); background: color-mix(in srgb, var(--signal-soft) 55%, transparent); font-size: 12px; font-weight: 500; }
+  .slot svg { width: 14px; height: 14px; stroke: var(--signal); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .slot .sp { flex: 1; }
+  .slot .k { color: var(--ink-3); font-weight: 400; font-size: 11px; }
+
+  /* Tour */
+  .tour { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .road { display: flex; gap: 4px; padding: 8px 8px 6px; font-size: 11px; color: var(--ink-2); }
+  .road span { padding: 2px 7px; border-radius: 9px; border: 1px solid var(--rule-2); }
+  .road span.done { color: var(--ink); }
+  .road span.done::before { content: "✓ "; color: var(--accepted); }
+  .road span.on { border-color: var(--signal); background: var(--signal-soft); color: var(--ink); font-weight: 600; }
+  .outline { padding: 4px 0; }
+  .stop { display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; align-items: center; padding: 5px 10px 5px 8px; font-size: 12px; }
+  .stop .no { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--rule-2); color: var(--ink-2); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .stop.seen .no { border-color: var(--accepted); color: var(--accepted); }
+  .stop.on { background: var(--signal-soft); }
+  .stop.on .no { border-color: var(--marker); background: var(--marker); color: var(--on-signal); }
+  .stop .ti { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stop .w { color: var(--ink-3); font-size: 10px; font-family: var(--mono); }
+  .stop .stt { font-size: 10px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--rule-2); color: var(--ink-2); }
+  .stop .stt.ready { color: var(--accepted); border-color: var(--accepted); }
+  .stop .stt.edit { color: var(--signal); border-color: var(--signal); }
+  .stop .stt.attn { color: var(--marker); border-color: var(--marker); }
+  .stopcard { margin: 6px 8px; background: var(--panel); border: 1px solid var(--rule); border-radius: 7px; padding: 9px 10px 7px; }
+  .stopcard h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+  .stopcard .where { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-bottom: 6px; }
+  .stopcard p { margin: 0 0 8px; font-size: 12px; line-height: 1.45; }
+  .ed-title { border: 1px solid var(--rule-2); border-radius: 5px; background: var(--field); padding: 4px 8px; font-size: 12px; margin-bottom: 6px; font-weight: 600; }
+  .ed-body { border: 1px solid var(--signal); border-radius: 5px; background: var(--field); padding: 6px 8px; font-size: 12px; line-height: 1.45; min-height: 104px; }
+  .ed-bar { display: flex; gap: 6px; align-items: center; margin-top: 6px; color: var(--ink-3); font-size: 11px; }
+  .ed-bar .sp { flex: 1; }
+
+  /* menus */
+  .menu { position: absolute; z-index: 8; min-width: 230px; background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: 6px; padding: 4px 0; box-shadow: var(--menu-shadow); font-size: 12px; color: var(--ink); white-space: nowrap; }
+  .menu .sec { padding: 4px 12px 3px; color: var(--ink-3); font-size: 11px; }
+  .menu .it { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; padding: 3px 12px 3px 8px; }
+  .menu .it.hot { background: var(--signal); color: var(--on-signal); }
+  .menu .it.hot .k { color: var(--on-signal); opacity: .85; }
+  .menu .it .k { color: var(--ink-3); font-size: 11px; padding-left: 16px; }
+  .menu hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+  .menu .cols { display: grid; grid-template-columns: 1fr 1fr; }
+
+  /* pages */
+  .overview { overflow: hidden; padding: 22px 28px; background: var(--bg); }
+  .overview h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .overview .meta { color: var(--ink-2); font-size: 12px; margin-bottom: 16px; }
+  .overview .desc { font-size: 12px; line-height: 1.5; margin-bottom: 18px; max-width: 70ch; }
+  .overview .go { display: inline-flex; align-items: center; height: 26px; padding: 0 14px; border-radius: 5px; background: var(--signal-soft); color: var(--ink-2); border: 1px solid var(--rule-2); font-weight: 600; margin-bottom: 20px; }
+  .overview .tbl { max-width: 900px; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .overview .tbl .hr { display: grid; grid-template-columns: 1fr 70px 70px 90px; padding: 6px 10px; background: var(--panel); color: var(--ink-3); font-size: 11px; border-bottom: 1px solid var(--rule); }
+  .overview .tbl .row { height: 26px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; padding: 0 10px; }
+  .overview .tbl .row i { display: block; height: 8px; border-radius: 4px; background: var(--rule); }
+  .overview .tbl .note { padding: 8px 10px; color: var(--ink-3); font-size: 11px; }
+  .compose { overflow: hidden; padding: 12px 20px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  .compose .back { display: inline-flex; align-items: center; gap: 8px; height: 22px; padding: 0 9px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); font-size: 12px; margin-bottom: 14px; }
+  .compose .back .k { color: var(--ink-3); font-size: 11px; }
+  .compose h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+  .compose .target { color: var(--ink-2); font-size: 12px; margin-bottom: 14px; }
+  .compose .target b { color: var(--ink); font-weight: 500; }
+  .compose .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .compose .combo { display: inline-flex; align-items: center; gap: 18px; height: 22px; padding: 0 8px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); }
+  .compose .field { height: 220px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--field); padding: 8px 10px; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+  .compose .btns { display: flex; gap: 8px; margin-bottom: 10px; }
+  .compose .btn { height: 24px; padding: 0 12px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); display: inline-flex; align-items: center; }
+  .compose .btn.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); font-weight: 600; }
+  .compose .note { color: var(--ink-2); font-size: 12px; }
+  .pre { margin-top: 36px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; font-size: 12px; }
+  .pre h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; }
+  .pre .item { padding: 6px 0; border-top: 1px solid var(--rule); }
+  .pre .item .w { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .pre .item .a { color: var(--signal); font-size: 11px; margin-right: 10px; }
+
+  /* the comparison's header: the document tabs, then the active tab's tools */
+  .tabrow { flex: 0 0 28px; display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--rule); font-size: 11px; white-space: nowrap; overflow: hidden; }
+  .tabrow .strip-tabs { display: flex; align-items: stretch; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  .dtab { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 7px 0 10px; border-right: 1px solid var(--rule); color: var(--ink-2); min-width: 64px; max-width: 230px; flex: 1 1 0; }
+  .dtab.haspair { flex-grow: 1.5; max-width: 290px; }
+  .dtab .nm { flex: 1 1 auto; }
+  .dtab .nm { font-size: 12px; overflow: hidden; text-overflow: ellipsis; min-width: 24px; }
+  .dtab .pair { flex: none; font-size: 10px; line-height: 15px; padding: 0 6px; border-radius: 8px; background: var(--signal-soft); color: var(--signal); font-weight: 600; }
+  .dtab .x { flex: none; color: var(--ink-3); font-size: 13px; line-height: 1; }
+  .dtab.on { background: var(--code); color: var(--ink); margin-bottom: -1px; }
+  .dtab.on::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--signal); }
+  .dtab.more { color: var(--ink-3); padding: 0 9px; flex: none; }
+  .newtab { display: flex; align-items: center; padding: 0 9px; color: var(--ink-3); font-size: 15px; flex: none; }
+  .tabtools { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-left: 1px solid var(--rule); }
+  .tray-empty { padding: 14px 12px; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+  .tray-empty b { color: var(--ink); font-weight: 600; }
+  .tray-empty .a { color: var(--signal); }
+
+  /* status bar */
+  .status { flex: 0 0 22px; display: flex; gap: 18px; align-items: center; padding: 0 12px; border-top: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); font-size: 11px; white-space: nowrap; overflow: hidden; }
+  body.win .status { flex-basis: 20px; }
+  .status .k { color: var(--ink-3); }
+</style>
+</head>
+<body>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const p = q.get("p") === "V" ? "V" : "T";
+  const comp = p === "V" ? "split" : (q.get("comp") === "split" ? "split" : "line");
+  const os = q.get("os") === "win" ? "win" : "mac";
+  const theme = q.get("theme") === "light" ? "light" : "dark";
+  const size = ["1920x1080", "floor"].includes(q.get("size")) ? q.get("size") : "1280x852";
+  const state = q.get("state") || "review";
+  // The second tab is the same file, compared over an older pair.
+  const tab2 = state === "tab2" || state === "tabmenu";
+  const trim = p === "T" && q.get("trim") === "1";
+  const wide = size === "1920x1080";
+  const floor = size === "floor";
+  const mac = os === "mac";
+  document.body.classList.add(theme, os);
+  if (trim) document.body.classList.add("trim");
+  if (floor) document.body.classList.add("compact");
+  const key = (k) => (mac ? `⌥${k}` : `Alt+${k}`);
+  const icon = {
+    home: '<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+    repos: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14"/></svg>',
+    files: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14M9 10h11"/></svg>',
+    details: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+    comments: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM15 5v14"/></svg>',
+    account: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+    settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
+    menu: '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>',
+    compose: '<svg viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/><path d="M13.5 6.5l4 4"/></svg>',
+    comment: '<svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/><path d="M12 7.5v5M9.5 10h5"/></svg>',
+    compare: '<svg viewBox="0 0 24 24"><path d="M8 4v16M16 4v16M5 7h6M13 17h6"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+  };
+  const ib = (name, extra = "", cls = "") => `<span class="ib ${cls}">${icon[name]}${extra}</span>`;
+  const composeOn = state === "compose";
+  const composeBtn = `<span class="ib labelled ${composeOn ? "on" : ""}">${icon.compose}<i class="dot"></i>${floor && p === "V" ? "" : "Compose review"}</span>`;
+  const commentBtn = (open, compact) => `<span class="ib split ${open ? "open" : ""}"><span class="main">${icon.comment}${compact ? "" : "Comment"}</span><span class="drop">▾</span></span>`;
+
+  // ---- the title row ------------------------------------------------------
+  const modalityName = state === "loading" ? "Overview" : "Review";
+  const shortcut = (n) => (mac ? `⌘${n}` : `Ctrl+${n}`);
+  const modality = `<span class="mode">${["Overview", "Read", "Review", "Discuss"].map((m, i) => `<span class="${m === modalityName ? "on" : ""}">${m}${floor ? "" : `<small>${shortcut(i + 1)}</small>`}</span>`).join("")}</span>`;
+  const identity = floor
+    ? `<span class="id">UnrealEngine<span>#14366</span></span>`
+    : `<span class="id">EpicGames/UnrealEngine<span>#14366 Hair strand lighting fixes for LSS</span></span>`;
+  const lead = mac ? `<span class="inset"><span class="lights"><i></i><i></i><i></i></span></span>` : ib("menu");
+  const drawers = !["loading", "compose"].includes(state);
+  const caption = mac ? "" : `<span class="caption"><span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span><span><svg viewBox="0 0 10 10"><path d="M.5 .5h9v9h-9z"/></svg></span><span><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></span></span>`;
+  const titleCompose = p === "V" ? composeBtn : "";
+  const strip = `<div class="strip">
+      <div class="l">${lead}${ib("home")}${ib("repos", "", wide && drawers ? "on" : "")}${ib("files", "", drawers ? "on" : "")}${identity}</div>
+      <span class="gap"></span><div class="c">${modality}</div><span class="gap"></span>
+      <div class="r">${titleCompose}${ib("refresh")}${ib("comments", '<span class="badge">2</span>', drawers ? "on" : "")}<span class="div"></span>${ib("account")}${ib("settings")}${caption}</div>
+    </div>`;
+
+  // ---- the Updates line (T) ----------------------------------------------
+  const loading = state === "loading";
+  const readinessWords = "Loading review threads… 4 pages received.";
+  const labelsOpen = state === "labels";
+  const lineContent = loading
+    ? `<div class="loading"><span>${readinessWords}</span><span class="bar"></span></div>`
+    : (() => {
+        const pts = [["Feb 4", 4], ["Feb 9", 28], ["Feb 12", 52], ["Feb 15, latest", 96]];
+        const pair = tab2 ? [0, 1] : [2, 3];
+        const [a, b] = pair.map((i) => pts[i][1]);
+        return `<div class="track"></div><div class="span" style="left:${a}%; right:${100 - b}%"></div>`
+          + pts.map(([label, x], i) => `<div class="${pair.includes(i) ? "hd" : "nd"}" style="left:${x}%"></div><span class="lb ${pair.includes(i) ? "sel" : ""} ${i === 3 ? "last" : ""}" style="left:${x}%">${label}</span>`).join("")
+          + `<div class="yt" style="left:58%"></div>`
+          + (trim ? "" : `<span class="cap">Known updates · display order is not push order</span>`);
+      })();
+  const endControls = comp === "line" ? `${composeBtn}${commentBtn(labelsOpen)}` : composeBtn;
+  const epoch = p === "T"
+    ? `<div class="epoch"><span class="name">Updates</span><div class="line">${lineContent}</div><span class="sum">${loading ? "no pair yet" : "pair ready"}</span><span class="cmp">Comparing <b>${loading ? "whole PR" : tab2 ? "Feb 4 → Feb 9" : "since my last review"}</b> ▾</span><span class="end"><span class="div"></span>${endControls}</span></div>`
+    : "";
+
+  // ---- code ---------------------------------------------------------------
+  const base = [
+    "void AddHairStrandsLightingPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FHairStrandsVisibilityData& VisibilityData)",
+    "{", "\tFRDGTextureRef LightingTexture = nullptr;", "\tif (!bUseStrandLighting)", "\t{", "\t\treturn;", "\t}",
+    "\tconst FIntPoint Resolution = View.ViewRect.Size();",
+    "\tFHairStrandsLightingParameters* Parameters = GraphBuilder.AllocParameters<FHairStrandsLightingParameters>();",
+    "\tParameters->View = View.ViewUniformBuffer;", "\t// Shadow parameters follow the deep shadow path.",
+    "\tFHairStrandsDeepShadowResources Shadow;", "\tShadow.Bias = 0.001f;", "\tShadow.Resolution = Resolution / 2;",
+    "\tShadow.bEnableDeepShadow = CVarHairDeepShadow.GetValueOnRenderThread() != 0;", "\tParameters->Shadow = Shadow;",
+    "\tParameters->VisibilityData = VisibilityData.NodeIndex;", "\tParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, View);",
+    "\tParameters->LightingTexture = GraphBuilder.CreateUAV(LightingTexture);", "",
+    "\t// Each light that touches strands is accumulated in one pass.", "\tfor (const FLightSceneInfoCompact& Light : View.VisibleLightInfos)",
+    "\t{", "\t\tif (!Light.bAffectsHair)", "\t\t{", "\t\t\tcontinue;", "\t\t}",
+    "\t\tFHairStrandsLightDesc LightDesc = MakeLightDesc(Light, View);", "\t\tLightDesc.Intensity *= HairLightScale;",
+    "\t\tAddLightToPass(GraphBuilder, *Parameters, LightDesc);", "\t}", "",
+    "\tTShaderMapRef<FHairStrandsLightingCS> ComputeShader(View.ShaderMap);",
+    "\tconst FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(Resolution, 8);",
+    "\tFComputeShaderUtils::AddPass(", "\t\tGraphBuilder,", "\t\tRDG_EVENT_NAME(\"HairStrands::Lighting\"),", "\t\tComputeShader,", "\t\tParameters,", "\t\tGroupCount);", "}", "",
+    "void AddHairStrandsTransmittancePass(FRDGBuilder& GraphBuilder, const FViewInfo& View)", "{",
+    "\tif (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform()))", "\t{", "\t\treturn;", "\t}",
+    "\tFHairStrandsTransmittanceParameters* Parameters = GraphBuilder.AllocParameters<FHairStrandsTransmittanceParameters>();",
+    "\tParameters->View = View.ViewUniformBuffer;", "\tParameters->MaxDistance = CVarHairTransmittanceMaxDistance.GetValueOnRenderThread();",
+    "\tParameters->DeepShadowResolution = FIntPoint(1024, 1024);", "\tParameters->bUseLegacyTransmittance = false;",
+    "\tAddTransmittanceToPass(GraphBuilder, *Parameters);", "}",
+  ];
+  const head = base.slice();
+  head[3] = "\tif (!bUseStrandLighting || !View.HairStrandsViewData.IsValid())";
+  head[12] = "\tShadow.Bias = FMath::Clamp(CVarHairShadowBias.GetValueOnRenderThread(), 0.0f, 0.05f);";
+  head[28] = "\t\tLightDesc.Intensity *= GetHairLightScale(View);";
+  head.splice(42, 0, "static float GetHairLightScale(const FViewInfo& View)", "{", "\treturn FMath::Max(View.FinalPostProcessSettings.HairLightScale, 0.0f);", "}", "");
+  const allHunks = [{ l: 3, lc: 1, r: 3, rc: 1 }, { l: 12, lc: 1, r: 12, rc: 1 }, { l: 28, lc: 1, r: 28, rc: 1 }, { l: 42, lc: 0, r: 42, rc: 5 }];
+  const older = base.slice();
+  older[3] = head[3];
+  const hunks = tab2 ? [{ l: 3, lc: 1, r: 3, rc: 1 }] : allHunks;
+  const rightLines = tab2 ? older : head;
+  const escape = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const keywords = new Set(["const", "static", "void", "float", "nullptr", "false", "true", "auto"]);
+  const control = new Set(["if", "for", "return", "continue"]);
+  const colour = (line) => {
+    const cmt = line.indexOf("//");
+    const code = cmt >= 0 ? line.slice(0, cmt) : line;
+    const tail = cmt >= 0 ? `<span class="cm">${escape(line.slice(cmt))}</span>` : "";
+    const pieces = code.match(/"[^"]*"|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?f?|\s+|./g) || [];
+    return pieces.map((piece, i) => {
+      if (/^\s+$/.test(piece)) return piece;
+      if (piece.startsWith('"')) return `<span class="s2">${escape(piece)}</span>`;
+      if (/^\d/.test(piece)) return `<span class="nu">${piece}</span>`;
+      if (/^[A-Za-z_]/.test(piece)) {
+        if (control.has(piece)) return `<span class="cf">${piece}</span>`;
+        if (keywords.has(piece)) return `<span class="kw">${piece}</span>`;
+        const next = pieces.slice(i + 1).find((later) => !/^\s+$/.test(later));
+        if (next === "(" || next === "<") return `<span class="fn">${piece}</span>`;
+        if (/^(F|T|E)[A-Z]/.test(piece)) return `<span class="ty">${piece}</span>`;
+        return `<span class="va">${piece}</span>`;
+      }
+      return `<span class="op">${escape(piece)}</span>`;
+    }).join("") + tail;
+  };
+  const firstLine = 410;
+  const touring = state === "tour" || state === "author";
+  const currentIndex = touring ? 12 : tab2 ? 3 : 21;
+  const paneLines = (lines, side) => lines.map((text, index) => {
+    const cls = ["ln"];
+    for (const h of hunks) {
+      const start = side === "l" ? h.l : h.r, count = side === "l" ? h.lc : h.rc;
+      if (index >= start && index < start + count) cls.push(side === "l" ? "del" : "add");
+    }
+    if (side === "r" && index === 3 && !tab2) cls.push("c");
+    if (side === "r" && index === 12 && !touring && !tab2) cls.push("u");
+    if (side === "r" && index === currentIndex) cls.push(touring ? "stop" : "cur");
+    return `<div class="${cls.join(" ")}" data-side="${side}" data-i="${index}"><span class="n">${firstLine + index}</span><span class="g"></span><span class="t">${colour(text)}</span></div>`;
+  }).join("");
+  const mapPaths = hunks.map((h) => {
+    const y0 = h.l * 20, y1 = (h.l + h.lc) * 20, z0 = h.r * 20, z1 = (h.r + h.rc) * 20;
+    const fill = h.lc === 0 ? "var(--add)" : "var(--hunk)";
+    const stroke = h.lc === 0 ? "var(--add2)" : "var(--hunk-ink)";
+    return `<path d="M0 ${y0} C 15 ${y0}, 15 ${z0}, 30 ${z0} L30 ${z1} C 15 ${z1}, 15 ${y1}, 0 ${y1} Z" fill="${fill}" stroke="${stroke}" stroke-opacity=".7" stroke-width="1"/>`;
+  }).join("");
+
+  // ---- columns --------------------------------------------------------------
+  const filesCol = `<div class="col pane">
+      <div class="th-row"><b>Files</b><span class="k">#14366</span><span class="sp"></span><span class="k">12 of 40 read</span><span class="chipbtn plain">Tree<span class="arrow">▾</span></span></div>
+      <div class="flt">Filter by name or path</div>
+      <div class="list">
+        <div class="ft"><span class="ch">▾</span><span></span><span class="n f">Engine</span><span class="c"></span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Source/Runtime</span><span class="c"></span></div>
+        <div class="ft d3"><span class="ch">▾</span><span></span><span class="n f">Renderer/Private/HairStrands</span><span class="c">5</span></div>
+        <div class="ft d4"><span></span><span class="st new"></span><span class="n">HairStrandsVoxelization.cpp</span><span class="c">+88 −20</span></div>
+        <div class="ft d4 on"><span></span><span class="st part"></span><span class="n">HairStrandsLighting.cpp</span><span class="c">+212 −48</span></div>
+        <div class="ft d4"><span></span><span class="st"></span><span class="n">HairStrandsRendering.h</span><span class="c">+31 −4</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsInterface.cpp</span><span class="c">+12 −12</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsLegacyLighting.cpp</span><span class="c">−310</span></div>
+        <div class="ft d3"><span class="ch">▸</span><span></span><span class="n f">RenderCore/Public</span><span class="c">1</span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Shaders/Private/HairStrands</span><span class="c">2</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsLightingCommon.ush</span><span class="c">+140 −60</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsDeepShadow.usf</span><span class="c">+19</span></div>
+      </div>
+    </div>`;
+  // V names the comparison in the tab row at full width; narrower, the chip
+  // yields to its icon and the name moves to its tooltip, as the strip yields.
+  const pairWords = tab2 ? "Feb 4 → Feb 9" : "since my last review";
+  const comparingChip = p === "V" ? `<span class="chipbtn ${tab2 ? "accent" : ""}" title="Comparing ${pairWords}">${wide ? pairWords : icon.compare}<span class="arrow">▾</span></span>` : "";
+  // The header's own yields at the width floor: path and diffstat first,
+  // then the positions' words, then the progress chip's label.
+  const pos = (words, short) => (wide ? words : short);
+  const docTabs = [
+    { name: "HairStrandsLighting.cpp", pair: "", on: !tab2 },
+    { name: "HairStrandsLighting.cpp", pair: "Feb 4 → 9", on: tab2 },
+    { name: "HairStrandsDeepShadow.usf", pair: "", on: false },
+  ];
+  const tabHtml = (t, i) => `<span class="dtab ${t.on ? "on" : ""} ${t.pair ? "haspair" : ""}" data-tab="${i}"><span class="nm">${t.name}</span>${t.pair ? `<span class="pair">${t.pair}</span>` : ""}<span class="x">×</span></span>`;
+  const tabStrip = floor
+    ? docTabs.map((t, i) => (t.on ? tabHtml(t, i) : "")).join("") + `<span class="dtab more">+${docTabs.length - 1}</span>`
+    : docTabs.map(tabHtml).join("");
+  const centreCol = `<div class="col center">
+      <div class="tabrow"><div class="strip-tabs">${tabStrip}<span class="newtab">+</span></div>
+        <div class="tabtools">${comparingChip}
+        <span class="grp"><span class="g">‹</span><span class="g">›</span><span class="lbl">${pos(tab2 ? "change 1 of 4" : "change 3 of 11", tab2 ? "1/4" : "3/11")}</span></span>
+        <span class="grp"><span class="g">«</span><span class="g">»</span><span class="lbl">${pos("file 3 of 40", "3/40")}</span></span>
+        <span class="chipbtn">${icon.check}${wide ? "Read" : ""}<span class="arrow">▾</span></span></div>
+      </div>
+      <div class="panes">
+        <div class="cp">${paneLines(base, "l")}</div>
+        <div class="map"><svg viewBox="0 0 30 1400" preserveAspectRatio="xMinYMin slice">${mapPaths}</svg></div>
+        <div class="cp">${paneLines(rightLines, "r")}</div>
+        <div class="sb"></div>
+      </div>
+    </div>`;
+
+  const tabs = (active) => `<div class="tabs">
+      <span class="tab ${active === "comments" ? "on" : ""}">Comments<span class="nb">2</span></span>
+      <span class="tab ${active === "tour" ? "on" : ""}">Tour<span class="n">${state === "author" ? "draft" : "6"}</span></span>
+      <span class="tab">Findings</span><span class="sp"></span><span class="more">⋯</span></div>`;
+  const commentTools = `<div class="tools"><span class="seg"><span class="on">This file</span><span>Whole PR</span></span>${floor ? `<span class="chipbtn plain">Filter<span class="arrow">▾</span></span>` : `<span class="chipbtn plain">Unresolved<span class="arrow">▾</span></span>`}<span class="sp"></span>${comp === "split" ? commentBtn(labelsOpen, floor) : `<span class="chipbtn plain">Next new</span>`}</div>`;
+  const threads = `
+      <div class="th cur" data-at="3"><div class="card">
+        <div class="msgs rail">
+          <div class="msg"><span class="av">J</span><div><span class="who">jiayincaonv</span><span class="when">Feb 15</span><p>Guarding on view data validity avoids the null deref on secondary views.</p></div></div>
+          <div class="msg"><span class="av me">M</span><div><span class="who">MikeMarcin</span><span class="when">Feb 15</span><p>Is IsValid cheap enough to call per view? It looked like it walks the instance list.</p></div></div>
+          <div class="msg"><span class="av">J</span><div><span class="who">jiayincaonv</span><span class="when">today</span><span class="new">new</span><p>It is a flag check now, the walk moved into the update pass.</p></div></div>
+        </div>
+        <div class="act"><b>Reply</b><b>Mark read</b><b>Resolve</b></div>
+      </div></div>
+      <div class="th" data-at="12"><div class="card">
+        <div class="msgs"><div class="msg"><span class="av">T</span><div><span class="who">tbutler</span><span class="when">today</span><span class="new">new</span><p><span class="lab question"><i></i>question</span>Where does 0.01 come from? The deep shadow path clamps to 0.05.</p></div></div></div>
+        <div class="act"><b>Reply</b><b>Mark read</b><b>Resolve</b></div>
+      </div></div>
+      ${comp === "split" && !tab2 ? `<div class="th cur" data-at="21"><div class="slot">${icon.comment}<span>Comment here</span><span class="sp"></span><span class="k">${key("C")}</span></div></div>` : ""}
+      <div class="th" data-at="28">
+        <div class="draft"><b>My note</b> on line 438, not published<br><span class="lab issue"><i></i>issue (blocking)</span>Check the post-process default before publishing.</div>
+        <div class="act" style="margin-left:0;padding-top:4px"><b>Publish</b><b>Edit</b><b>Delete</b></div>
+      </div>`;
+  const stops = [
+    ["Why the strand pass now checks view data", "Lighting.cpp:413"],
+    ["Where the shadow bias limit comes from", "Lighting.cpp:422"],
+    ["Light scale moves to the view", "Lighting.cpp:438"],
+    ["The GetHairLightScale helper", "Lighting.cpp:452"],
+    ["Transmittance keeps the legacy path off", "Transmittance.cpp:61"],
+    ["What I would like checked", "pull request"],
+  ];
+  const reviewerTour = `<div class="tools"><span class="grp"><span class="g">‹</span><span class="g">›</span><span class="lbl">stop 2 of 6</span></span><span class="k">${key("]")} next stop</span><span class="sp"></span><span class="chipbtn plain">Return to tour</span></div>
+      <div class="tour"><div class="outline">${stops.map(([t, w], i) => `<div class="stop ${i === 0 ? "seen" : ""} ${i === 1 ? "on" : ""}"><span class="no">${i + 1}</span><span class="ti">${t}</span><span class="w">${w}</span></div>`).join("")}</div>
+        <div class="stopcard"><h4>Where the shadow bias limit comes from</h4><div class="where">HairStrandsLighting.cpp, line 422, right</div>
+          <p>The deep shadow path already clamps its bias to 0.05. Reading the limit from the same CVar keeps the two in step; the old 0.001f sat below it and never took effect.</p>
+          <div class="msgs"><div class="msg"><span class="av">T</span><div><span class="who">tbutler</span><span class="when">today</span><p><span class="lab question"><i></i>question</span>Can the CVar go negative?</p></div></div></div>
+          <div class="act"><b>Reply</b><b>Resolve</b><b>Open in code</b></div></div></div>`;
+  const statusWord = (s) => s === 0 || s === 2 || s === 5 ? `<span class="stt ready">Ready</span>` : s === 1 ? `<span class="stt edit">Editing</span>` : s === 3 ? `<span class="stt">Suggested</span>` : `<span class="stt attn">Needs attention</span>`;
+  const authorTour = `<div class="tools"><span class="k">Saved locally</span><span class="sp"></span><span class="chipbtn">${icon.plus}Add stop</span><span class="chipbtn accent">Preview</span></div>
+      <div class="tour"><div class="road"><span class="done">Problem</span><span class="done">Solution</span><span class="on">Stops 6</span><span>Preview</span></div>
+        <div class="outline">${stops.map(([t], i) => `<div class="stop ${i === 1 ? "on" : ""}"><span class="no">${i + 1}</span><span class="ti">${t}</span>${statusWord(i)}</div>`).join("")}</div>
+        <div class="stopcard"><div class="ed-title">Where the shadow bias limit comes from</div><div class="where">HairStrandsLighting.cpp, line 422, right</div>
+          <div class="ed-body">The deep shadow path already clamps its bias to 0.05. Reading the limit from the same CVar keeps the two in step; the old 0.001f sat below it and never took effect.</div>
+          <div class="ed-bar"><span class="chipbtn plain">${icon.spark}Rewrite</span><span class="sp"></span><span>Save and next</span></div></div></div>`;
+  const olderTray = `<div class="tray-empty"><b>No threads on Feb 4 → Feb 9.</b><br>Two threads and my note are on later updates of this file. <span class="a">Show them</span></div>`;
+  const trayCol = `<div class="col tray">${tabs(touring ? "tour" : "comments")}${touring ? (state === "tour" ? reviewerTour : authorTour) : `${commentTools}${tab2 ? olderTray : `<div class="threads">${threads}</div>`}`}</div>`;
+
+  // ---- pages ---------------------------------------------------------------
+  const overviewLoading = `<div class="col overview">
+      <h1>Hair strand lighting fixes for LSS</h1>
+      <div class="meta">EpicGames/UnrealEngine #14366, jiayincaonv wants to merge hair-lss into ue5-main</div>
+      <div class="desc">Guards the strand lighting pass on view data validity, clamps the deep shadow bias to the path's own limit and reads the light scale per view.</div>
+      <div class="go">Start review</div>
+      <div class="tbl"><div class="hr"><span>File</span><span>Added</span><span>Removed</span><span>My read state</span></div>
+        <div class="row"><i style="width:46%"></i></div><div class="row"><i style="width:38%"></i></div><div class="row"><i style="width:52%"></i></div>
+        <div class="note">${p === "V" ? readinessWords : "Loading changed files…"}</div></div></div>`;
+  const composePage = `<div class="col compose"><div>
+      <div class="back">‹ Back<span class="k">Esc</span></div>
+      <h2>Review pull request</h2>
+      <div class="target"><b>github.com</b>, EpicGames/UnrealEngine#14366 at head 81b39fa. Submitting as MikeMarcin (account 1).</div>
+      <div class="row"><span>Review type</span><span class="combo">Request changes<span class="arrow">▾</span></span></div>
+      <div class="field">The strand pass guard reads well. Two things before this lands: the bias clamp needs its source named, and the light scale should come from the view's post-process settings rather than the global.</div>
+      <div class="btns"><span class="btn primary">Submit review</span><span class="btn">Discard</span><span class="btn">Check status</span><span class="btn">New review</span></div>
+      <div class="note">Nothing is sent until Submit review. The draft is kept for this pull request.</div></div>
+      <div class="pre"><h3>My feedback on this pull request</h3>
+        <div class="item"><span class="lab issue"><i></i>issue (blocking)</span>Check the post-process default before publishing.<div class="w">HairStrandsLighting.cpp:438, not published</div><span class="a">Open</span><span class="a">Publish</span></div>
+        <div class="item"><span class="lab question"><i></i>question</span>Is IsValid cheap enough to call per view?<div class="w">HairStrandsLighting.cpp:413, answered today</div><span class="a">Open</span></div>
+      </div></div>`;
+
+  // ---- the vertical rail (V) -------------------------------------------------
+  const railY = [62, 90, 117, 172];
+  const railPair = tab2 ? [0, 1] : [2, 3];
+  const rail = p === "V" ? `<div class="vr">
+      <div class="cell"><span class="ib">${icon.compare}</span></div>
+      ${loading ? `<div class="loadbar" style="top:46px; height:120px"></div>` : `
+      <div class="t" style="top:54px; height:122px"></div>
+      <div class="sp" style="top:${railY[railPair[0]]}px; height:${railY[railPair[1]] - railY[railPair[0]]}px"></div>
+      ${railY.map((y, i) => (railPair.includes(i) ? `<div class="hd" style="top:${y - 3}px"></div>` : `<div class="nd" style="top:${y - 4}px"></div>`)).join("")}
+      <div class="yt" style="top:138px"></div>
+      <div class="now" style="top:192px" title="My review">${icon.compose}</div>`}
+    </div>` : "";
+  const hover = p === "V" && state === "hover" ? `<div class="hovercard" style="left:38px; top:${30 + 172 - 16}px">
+      <b>Feb 15, latest</b> <span class="k">force push</span>
+      <div class="row"><span>Head</span><span>81b39fa</span></div>
+      <div class="row"><span>Files changed</span><span>7</span></div>
+      <div class="row"><span>Compared</span><span>right handle, since my last review</span></div>
+      <div class="acts"><span>Compare from</span><span>Compare to</span><span>Copy head</span></div></div>` : "";
+
+  // ---- the label menu ----------------------------------------------------------
+  const labelMenu = labelsOpen ? (() => {
+    const labels = ["praise", "nitpick", "suggestion", "issue", "todo", "question", "thought", "chore", "note", "typo", "polish", "quibble"];
+    return `<div class="menu" id="labelmenu" style="width:250px">
+      <div class="sec">Comment on line 431</div>
+      <div class="it hot"><span></span><span>Plain comment</span><span class="k">${key("C")}</span></div><hr>
+      <div class="sec">With a Conventional Comments label</div>
+      <div class="cols">${labels.map((l) => `<div class="it"><span></span><span>${l}</span><span></span></div>`).join("")}</div><hr>
+      <div class="it"><span></span><span>Blocking</span><span></span></div>
+      <div class="it"><span></span><span>Non-blocking</span><span></span></div>
+      <div class="it"><span></span><span>If minor</span><span></span></div></div>`;
+  })() : "";
+
+  // ---- the tab menu, on the second tab ------------------------------------------
+  const tabMenu = state === "tabmenu" ? `<div class="menu" id="tabmenu" style="width:300px">
+      <div class="it"><span></span><span>Duplicate tab</span><span class="k"></span></div>
+      <div class="it"><span></span><span>Close tab</span><span class="k">${mac ? "⌘W" : "Ctrl+W"}</span></div>
+      <div class="it"><span></span><span>Close other tabs</span><span class="k"></span></div><hr>
+      <div class="sec">This tab compares Feb 4 → Feb 9</div>
+      <div class="it hot"><span></span><span>Compare since my last review</span><span class="k"></span></div>
+      <div class="it"><span></span><span>Use Feb 4 → Feb 9 for new tabs</span><span class="k"></span></div><hr>
+      <div class="it"><span></span><span>Copy path</span><span class="k"></span></div></div>` : "";
+
+  // ---- assemble -------------------------------------------------------------------
+  let columns, content;
+  const trayW = wide ? 360 : floor ? 250 : 320;
+  const filesW = wide ? 280 : floor ? 190 : 220;
+  if (loading) {
+    columns = p === "V" ? "34px minmax(0,1fr)" : "minmax(0,1fr)";
+    content = rail + overviewLoading;
+  } else if (state === "compose") {
+    columns = p === "V" ? "34px minmax(0,1fr)" : "minmax(0,1fr)";
+    content = rail + composePage;
+  } else {
+    columns = `${p === "V" ? "34px " : ""}${filesW}px minmax(0,1fr) ${trayW}px`;
+    content = rail + filesCol + centreCol + trayCol;
+  }
+  const place = mac ? "Mac" : "PC";
+  const statusBar = `<div class="status"><span>${loading ? "Loading pull request…" : "Read 12 of 40 files"}</span>${loading ? "" : `<span><span class="k">Latest</span> 81b39fa</span><span><span class="k">Refreshed</span> 2 min ago</span>`}<span class="k">Notes and receipts stay on this ${place}</span></div>`;
+  document.body.innerHTML = `<div class="window">${strip}${epoch}<div class="body" style="grid-template-columns:${columns}">${content}</div>${statusBar}${hover}${labelMenu}${tabMenu}</div>`;
+
+  // Cards sit at their lines.
+  const box = document.querySelector(".threads");
+  if (box) {
+    const top0 = box.getBoundingClientRect().top;
+    let floorY = 0;
+    for (const node of box.querySelectorAll(".th")) {
+      const line = document.querySelector(`.ln[data-side="r"][data-i="${node.dataset.at}"]`);
+      if (!line) continue;
+      const y = Math.max(line.getBoundingClientRect().top - top0 - 3, floorY);
+      node.style.top = `${y}px`;
+      floorY = y + node.getBoundingClientRect().height + 8;
+    }
+  }
+  // The label menu opens under the Comment button's arrow.
+  const menu = document.getElementById("labelmenu");
+  if (menu) {
+    const drop = document.querySelector(".ib.split.open .drop");
+    const r = drop.getBoundingClientRect();
+    menu.style.top = `${Math.round(r.bottom + 4)}px`;
+    menu.style.left = `${Math.round(Math.min(r.right - 250, innerWidth - 256))}px`;
+  }
+  for (const nm of document.querySelectorAll(".dtab .nm")) {
+    const full = nm.textContent;
+    if (nm.scrollWidth <= nm.clientWidth + 1) continue;
+    let tail = full;
+    while (tail.length > 3) {
+      tail = tail.slice(1);
+      nm.textContent = `…${tail}`;
+      if (nm.scrollWidth <= nm.clientWidth + 1) break;
+    }
+    nm.title = full;
+  }
+  const tm = document.getElementById("tabmenu");
+  if (tm) {
+    const r = document.querySelector('.dtab[data-tab="1"]').getBoundingClientRect();
+    tm.style.top = `${Math.round(r.bottom + 2)}px`;
+    tm.style.left = `${Math.round(r.left + 12)}px`;
+  }
+  const measure = (sel, what = "height") => { const n = document.querySelector(sel); return n ? Math.round(n.getBoundingClientRect()[what]) : 0; };
+  const d = document.body.dataset;
+  d.window = `${innerWidth}x${innerHeight}`;
+  d.comparisonHeight = String(measure(".panes"));
+  d.comparisonWidth = String(measure(".panes", "width"));
+  d.trackWidth = String(measure(".epoch .line", "width"));
+  d.stripFree = String(Math.round((document.querySelector(".strip .gap")?.getBoundingClientRect().width ?? 0) * 2));
+  d.identityWidth = String(measure(".strip .id", "width"));
+  d.stripOverflow = String(Math.max(0, (document.querySelector(".strip")?.scrollWidth ?? 0) - innerWidth));
+})();
+</script>
+</body>
+</html>

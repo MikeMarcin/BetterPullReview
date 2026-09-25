@@ -6,9 +6,9 @@ status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"standalone follow-up; not an RFC-BPR-0028 closeout dependency","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"}}
+metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"standalone follow-up; not an RFC-BPR-0028 closeout dependency","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"},"owner_design_decision":{"date":"2026-09-24","session":"Claude Code design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, the separate session decision ece7a6f3 asked for","design":"docs/design/BPR-1106-scaffolding-v6.html","rounds":["docs/design/BPR-1106-composition-entries-v2.html","docs/design/BPR-1106-scaffolding-v4.html","docs/design/BPR-1106-scaffolding-v5.html","docs/design/BPR-1106-scaffolding-v6.html"],"open":"whether a new window starts with the Updates line open or folded"}}
 parked_on: "owner-design-discussion"
-acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 The owner's choice is recorded here, one question on its own candidate, with the fingerprint-bound verdict","outcome":"pending","revision":"4e9037e6","evidence":{"kind":"observation","detail":"Prepared, not asked: candidate BPR-1106-placement-v001, one question (A, B, C, D or E; proposed C), with the design page as its evidence. No attended session was started by this dispatch.","path":"docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#proposal-and-the-prepared-ask"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pending","revision":"4e9037e6","evidence":{"kind":"observation","detail":"Waits on AC2. The page lists, per placement, what AC-01, the chrome paragraph, BPR-1036's floor (+22 macOS, +20 Linux) and BPR-0940's window course assertion would need."}}]
+acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 (form amended by the owner's decision ece7a6f3, 2026-09-25: recorded from the owner's own design session rather than one attended candidate) The owner's choice is recorded here","outcome":"pass","revision":"053abefe","evidence":{"kind":"observation","detail":"The owner's answers in design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, 2026-09-24, verbatim in the section 'Owner decision, 2026-09-24: the review workbench's scaffolding': modality right; a review bar with the active tab's controls on its left and a collapsible Updates line fully above it when expanded; T; icons with tooltips for Compose review, Comment and the progress control; Comment in the review bar; and RFC-BPR-0025's tabs brought back. Drawn as docs/design/BPR-1106-scaffolding-v6.html from 13 frames under docs/verification/BPR-1106-scaffolding-v6/. Not fingerprint-bound: decision ece7a6f3 took the question out of attended review. One point was asked and not answered: whether a new window starts with the Updates line open or folded.","path":"docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#owner-decision-2026-09-24-the-review-workbenchs-scaffolding"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pending","revision":"053abefe","evidence":{"kind":"observation","detail":"Waits on one scheduling answer from the owner: whether the decided scaffolding amends RFC-BPR-0028 AC-01 now (so RFC-BPR-0028's closeout, BPR-1021, waits for the build, tabs included) or goes into an RFC of its own that supersedes RFC-BPR-0028's chrome where they conflict, leaving AC-01 as amended on 2026-09-24. The cards and amendments follow the answer."}}]
 ---
 
 # BPR-1106: A design round for where the composition entries sit in the review chrome
@@ -207,3 +207,161 @@ The card leaves `human-review` and is Parked on
 `owner-design-discussion`: it waits on the owner's own design session, not on
 an attended queue. Whatever that session decides is recorded here as an owner
 decision, and AC3's amendment and implementation card follow from it.
+
+## Owner decision, 2026-09-24: the review workbench's scaffolding
+
+Source: the separate design session that decision `ece7a6f3` asked for,
+Claude Code session `e76905d2-b5a2-4e58-8edd-c07bdcacd7a8`, run with the `frontend-design` skill on
+2026-09-24. The owner widened the question in the session from where two
+buttons sit to the workbench's outer scaffolding, designed around the review
+tour pack (RFC-BPR-0039 to 0046) and the Conventional Comments pack
+(RFC-BPR-0047 to 0051). Nothing under `src/` or `tests/` changed.
+
+### The rounds
+
+- [Round v2](../../design/BPR-1106-composition-entries-v2.html), with 88
+  renders under `docs/verification/BPR-1106-composition-entries-v2/`. It traced
+  what the two entries do in the product and drew four placements over the
+  rows the product builds: a 50-pixel Updates line with its caption, and the
+  comparison's own status line. v1 drew the asset's 34-pixel line, so its
+  heights ran about 39 pixels high.
+- Round v3 drew tray headers without tabs. It was superseded in the session
+  by v4 and is not kept.
+- [Round v4](../../design/BPR-1106-scaffolding-v4.html), with 66 renders under
+  `docs/verification/BPR-1106-scaffolding-v4/`. Tray headers, RFC-BPR-0025's
+  document tabs, and two ways to hold the Updates line: full width (T) or a
+  vertical rail (V).
+- [Round v5](../../design/BPR-1106-scaffolding-v5.html), with 59 renders under
+  `docs/verification/BPR-1106-scaffolding-v5/`. The modality's place, icons
+  with tooltips, three homes for the active tab's controls, and a fold for the
+  Updates line.
+- [Round v6](../../design/BPR-1106-scaffolding-v6.html), with 13 renders under
+  `docs/verification/BPR-1106-scaffolding-v6/`. The owner's answers, drawn.
+
+Every frame was rendered by headless Chrome (`--headless=new --screenshot`) at
+its exact window size, device scale 1, from the round's frames file and its
+query. Each was reduced to 256 colours and looked at. Every height quoted is
+read back from the rendered page's own layout at the same viewport. The
+Windows frames use the Mac's type, so their widths are indicative.
+
+### What the owner said, verbatim
+
+After v2, choosing to widen the question:
+
+> Now let's take a step back because I feel like we've got a UX that is, yes,
+> basically what I asked for but I think it's too busy in that title bar now
+> and it's getting distracting and overwhelming. I do love maxing out the
+> space available to the review surface itself but let's consider what can be
+> done. And also consider that the review tour creation and wizard rfc pack
+> and the conventional comments rfc pack is coming up so we may as well design
+> the UX around both of those.
+
+> From what was shown I like C best but I want to consider what can happen if
+> we open up the design to the whole outer UX scaffolding (including possibly
+> moving things into tray headers like codex desktop see top right side of
+> screen grab)
+
+> We could also consider a vertical epoch, there is some precedent for that
+> also in the codex desktop app
+
+On RFC-BPR-0025's browser-style tabs, which RFC-BPR-0028 had made a non-goal:
+
+> Let's update the design and incorporate the tabs, i think I set that aside
+> to get something up and working but now that we have something more or less
+> functional I want to bring them back.
+
+After v4:
+
+> So I think it's clearly between T without caption, T comment in tray, and V
+> Tabs
+
+The same message went on to ask for the modality at the left, the right or
+the centre rather than floating; for icons and tooltips on Compose review and
+Comment; for other places for the tab's controls; and for a disclosure arrow
+that folds the Updates line.
+
+After v5, the decision:
+
+> 1. For modality lets do Right.
+> 2. Tools I like the idea of Review bar with tools and collapsable updates
+> line, but controls should be on the left and updates line should be fully
+> above tools when expanded.
+> 3. T
+> 4. I like the icons + tooltips, I think mark as read in tab tools can also
+> be an icon with tooltip.
+> 5. Review bar
+
+That message ended with "So I". The owner then said, "there was no rest of
+the message, that was a snippet i forgot to delete".
+
+### What is decided
+
+- **The title row** keeps Home, the drawer toggles and the pull request's
+  name on the left. The modality sits at the right, beside refresh, the
+  comments toggle, account and settings. The new-comment count becomes a badge
+  on the comments toggle.
+- **The Updates line** stays full width (T) and drops its permanent caption.
+  "Known updates · display order is not push order" becomes the line's
+  tooltip, and the line shows a mark only when history is incomplete, which is
+  what RFC-BPR-0029 requires it to say. It folds. Open, it sits fully above the
+  review bar, and it shows the active tab's pair.
+- **A review bar**, full width and always shown, sits under the Updates line.
+  On its left are the active tab's controls: previous and next change with the
+  position, previous and next file with the position, and private progress as
+  an icon whose tooltip names this file's state. After them is the Updates
+  fold. Folded, the bar names the comparison and its dates. On its right are
+  Compose review, as an icon with the kept-draft mark and a tooltip, and
+  Comment, as an icon whose arrow offers the Conventional Comments labels.
+  Review details moves into the comparison's menu.
+- **Document tabs**, RFC-BPR-0025's, fill the comparison's header. Each tab
+  holds a file, a pair of updates and a reading position. New tabs take the
+  window's comparison, and a tab with its own pair says so on its label. That
+  is RFC-BPR-0025's behaviour, which the owner approved on 2026-09-04; the
+  session drew it that way from v4 on and the owner kept it.
+- **The composition entry row goes.** "Draft comment or reply" becomes
+  Comment, and every thread card offers Reply. Beside the code, a card offers
+  Comment here today, which starts a second thread rather than answering this
+  one.
+- **The right tray** takes tabs in its header: Comments, Tour and Findings.
+
+### Measured, at 1280×852
+
+| | macOS | Windows |
+|---|---|---|
+| Today, the entry row as built | 707 | 712 |
+| Decided, the Updates line open | 710 | 712 |
+| Decided, the Updates line folded | 744 | 746 |
+
+At 1920×1080 on macOS the three are 935, 938 and 972. At the Windows 902
+floor the title row shows the pull request's name ("UnrealEngine #14366") and
+the whole modality words. Today it shows neither.
+
+### Not decided
+
+- **Whether a new window starts with the Updates line open or folded.** It
+  was asked and not answered. The proposal is folded, since the bar still
+  names the comparison and its dates. Each window then remembers its choice,
+  and nothing folds or opens on its own.
+- **The keys** proposed in the rounds: ⌥R Compose review, ⌥C Comment or
+  Reply, ⌥] and ⌥[ the next and previous tour stop, ⌃Tab and ⌃⇧Tab the next
+  and previous tab, ⌘W Close tab, and Esc back from a page. They were put to
+  the owner in v2 to v4 and never answered. They stay proposals for the
+  implementation.
+
+### What follows (AC3)
+
+AC-01 now admits the entry row. The decided scaffolding removes that row and
+adds tabs, which RFC-BPR-0028 names a non-goal. So where the implementation
+lives decides what RFC-BPR-0028 says:
+
+- amend AC-01 and the chrome paragraph now, and card the work under
+  RFC-BPR-0028, so that its closeout ([[BPR-1021]]) waits for the build, tabs
+  included; or
+- keep AC-01 as amended on 2026-09-24, record this decision in RFC-BPR-0028
+  as its successor, and put the scaffolding in an RFC of its own that
+  supersedes RFC-BPR-0028's chrome where they conflict, as RFC-BPR-0028 did for
+  RFC-BPR-0025.
+
+That question is put to the owner next. The card stays Parked on
+`owner-design-discussion` until it is answered, and then AC3's amendments and
+cards follow.

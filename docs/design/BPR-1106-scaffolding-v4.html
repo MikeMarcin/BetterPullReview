@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 workbench scaffolding, v4</title>
+<!--
+  [[BPR-1106]] design round v4, from the owner's design session of 2026-09-24:
+  a calmer title row, the most room for the review surface, room for review
+  tours (RFC-BPR-0039 to 0046) and Conventional Comments (RFC-BPR-0047 to
+  0051), and RFC-BPR-0025's document tabs, which the owner brought back.
+  Frames: BPR-1106-scaffolding-frames-v4.html into
+  ../verification/BPR-1106-scaffolding-v4/, with v2's A and C frames as the
+  baseline. Every number is measured on the frames.
+-->
+<style>
+  :root {
+    --paper: #ECEEF1; --sheet: #F8F9FA; --ink: #15181C; --ink-2: #48505A; --ink-3: #78818C;
+    --rule: #D2D7DD; --rule-2: #B9C0C8;
+    --signal: #2F6FD6; --signal-soft: #E1EAF9; --marker: #B7791F;
+    --redline: #B8266B; --redline-soft: #F7E3EC;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); font-variant-numeric: tabular-nums; }
+  main { max-width: 1360px; margin: 0 auto; padding: 44px 28px 80px; }
+  .prose { max-width: 76ch; }
+  h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 12px; }
+  h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 60px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+  h3 { font-size: 16px; font-weight: 640; margin: 22px 0 6px; }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 17px; }
+  .byline { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+  code { font: 13px/1.4 "SF Mono", Menlo, monospace; background: #E4E7EB; padding: 1px 4px; border-radius: 3px; }
+  kbd { font: 12px/1 var(--ui); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: #fff; white-space: nowrap; }
+  ul.tight { padding-left: 20px; margin: 0 0 14px; }
+  ul.tight li { margin-bottom: 6px; }
+
+  .strata { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px; margin: 26px 0 8px; align-items: end; }
+  .col-s h4 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+  .col-s .sub { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; min-height: 2.6em; }
+  .stack { display: grid; font-size: 11px; line-height: 1; }
+  .stack div { display: grid; grid-template-columns: 56px 1fr auto; gap: 8px; align-items: center; color: var(--ink-2); white-space: nowrap; }
+  .stack div i { display: block; align-self: stretch; border-bottom: 1px solid #fff; }
+  .stack div span:last-child { font-weight: 600; color: var(--ink); }
+  .stack .s-strip i, .stack .s-status i { background: #C9D0D8; }
+  .stack .s-entry i { background: var(--redline); }
+  .stack .s-entry, .stack .s-entry span:last-child { color: var(--redline); font-weight: 600; }
+  .stack .s-epoch i { background: #B9CCEA; }
+  .stack .s-head i { background: #D5DAE0; }
+  .stack .s-comp i { background: #E9EDF1; border: 1px solid var(--rule-2); border-width: 0 1px; }
+  .col-s .gain { margin-top: 10px; font-size: 13px; }
+  .col-s .gain b { font-size: 20px; font-weight: 700; display: block; }
+  .col-s .gain .up { color: var(--redline); font-weight: 600; }
+  .col-s.rec h4::after { content: "proposed"; margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--signal); vertical-align: 2px; }
+
+  .moves, .costs { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+  thead th { font-weight: 640; border-bottom: 1px solid var(--rule-2); }
+  tbody th { font-weight: 560; width: 240px; }
+  td.same { color: var(--ink-3); }
+  td.new { color: var(--signal); font-weight: 560; }
+  tr.grp th { background: #EEF0F3; color: var(--ink-3); font-size: 12px; font-weight: 600; padding: 5px 12px; }
+  .costs td.rec, .costs th.rec { background: var(--signal-soft); }
+  .costs .bad { color: var(--redline); font-weight: 600; }
+  .costs thead th small { display: block; font-weight: 400; color: var(--ink-3); font-size: 12px; }
+
+  .titles { margin-top: 18px; display: grid; gap: 6px; }
+  .titles figure { margin: 0; display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; }
+  .titles img { display: block; max-width: 100%; border: 1px solid var(--rule-2); }
+  .titles figcaption { font-size: 13px; color: var(--ink-2); }
+
+  .viewer { margin-top: 16px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 12px; }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; }
+  .ctl-label { font-size: 12px; color: var(--ink-3); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule-2); background: var(--paper); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { font: 500 13px/1 var(--ui); color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 6px 11px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--signal); color: #fff; font-weight: 620; }
+  .seg button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .seg.options button b { font-weight: 700; margin-right: 6px; }
+  .frame-box { background: #fff; border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+  .frame-box img { display: block; width: 100%; height: auto; }
+  .frame-cap { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+
+  figure { margin: 0; }
+  figure img { display: block; max-width: 100%; border: 1px solid var(--rule-2); border-radius: 4px; }
+  figcaption { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  .figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 16px; align-items: start; }
+  .wide-fig { margin-top: 16px; }
+
+  .rec-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .asks { list-style: none; padding: 0; margin: 0; }
+  .asks li { background: #fff; border: 1px solid var(--rule); border-left: 3px solid var(--signal); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; font-size: 14px; }
+  .asks li b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .asks li span { color: var(--ink-2); }
+  .note { font-size: 13px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+  <header class="prose">
+    <h1>The review workbench's scaffolding, with tabs</h1>
+    <div class="byline">BPR-1106, design round v4, from the owner's design session, 2026-09-24</div>
+    <p class="lede">Round v3 cleared the title row, gave every column a header and drew two ways to hold the Updates line. This round brings back RFC-BPR-0025's document tabs, which you set aside to get the workbench working. Each tab keeps its own file, comparison and reading position; new tabs take the window's comparison. The tabs sit in the comparison's header, so they cost 2 pixels, not a row.</p>
+  </header>
+
+  <section>
+    <div class="strata" id="strata"></div>
+    <p class="note">The window's rows at 1280×852 on macOS, half scale, measured on the frames. A and C are v2's frames; the others are this round's, with the tab row.</p>
+  </section>
+
+  <section>
+    <h2>How tabs work here</h2>
+    <div class="prose">
+      <ul class="tight">
+        <li><b>A tab is a view: a file, a pair of updates and a reading position.</b> Clicking a file reuses the active tab; <kbd>⌘</kbd>-click or Open in New Tab opens another, and Duplicate Tab copies the view exactly. Previous and next file change the active tab, as RFC-BPR-0025 specifies.</li>
+        <li><b>The window has a comparison; a tab can have its own.</b> New tabs take the window's comparison. A tab that compares a different pair says so on its label, so two tabs on one file are never mistaken for each other. The tab's menu can return it to the window's comparison, or make its pair the one new tabs take.</li>
+        <li><b>The Updates line, or the rail, shows the active tab's pair.</b> It stays where it is and its handles move when you switch tabs. Overview and Discuss have no tab, so they show the window's comparison.</li>
+        <li><b>A tab over an older pair tells the truth about threads.</b> Threads made on later updates aren't placed on its lines; the tray says how many exist and offers them. A new comment starts only on the current head, as today, so Comment here doesn't appear there.</li>
+        <li><b>Review details moves into the comparison's menu</b>, since it discloses the comparison's anchors. The tab row keeps the change and file positions and this file's progress.</li>
+      </ul>
+    </div>
+    <figure class="wide-fig"><img src="../verification/BPR-1106-scaffolding-v4/closeup-tab2-T.png" alt="T with the second tab active: the Updates line's handles on Feb 4 and Feb 9, Comparing Feb 4 → Feb 9, the tab labelled Feb 4 → 9, change 1 of 4, and the tray saying no threads are on this pair."><figcaption>T, the second tab active: the same file over Feb 4 → Feb 9. The line's handles, the tab's label, the change count and the tray all follow the tab.</figcaption></figure>
+    <div class="figs">
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-tabs-V.png" alt="V's title row and tab row at 1280: three tabs eliding from the left, the comparison icon, change 3 of 11, file 3 of 40 and the progress control."><figcaption>V at 1280: tab names elide from the left, where file names differ; the comparison yields to its icon and names itself in a tooltip.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-tabmenu-V.png" alt="The tab menu: Duplicate tab, Close tab ⌘W, Close other tabs, This tab compares Feb 4 → Feb 9, Compare since my last review, Use Feb 4 → Feb 9 for new tabs, Copy path."><figcaption>The tab's menu, on a tab with its own pair.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where every control goes</h2>
+    <div class="moves"><table>
+      <thead><tr><th>Control</th><th>Today</th><th>T, the Updates line kept</th><th>V, the vertical rail</th></tr></thead>
+      <tbody>
+        <tr class="grp"><th colspan="4">Stays in the title row</th></tr>
+        <tr><th>Home, the drawer toggles, the pull request's name, the modality, refresh, account, settings</th><td>Title row</td><td class="same">Title row, with room for the whole name</td><td class="same">Title row</td></tr>
+        <tr><th>New comments count</th><td>Title row, with Next new comment</td><td class="new">A badge on the Comments toggle and tab; <kbd>⌥N</kbd> unchanged</td><td class="new">The same</td></tr>
+        <tr class="grp"><th colspan="4">The comparison's header: the document tabs, then the active tab's tools</th></tr>
+        <tr><th>The file being read</th><td>Not shown; the Files tree marks it</td><td class="new">Its tab</td><td class="new">Its tab</td></tr>
+        <tr><th>Other open views</th><td>None: one view per window</td><td class="new">Tabs; <kbd>⌘</kbd>-click, Open in New Tab, Duplicate Tab</td><td class="new">The same</td></tr>
+        <tr><th>Previous and next change; previous and next file</th><td>Title row</td><td class="new">Tab row, for the active tab</td><td class="new">The same</td></tr>
+        <tr><th>Private progress (Seen, Read, Accept, Exclude)</th><td>Title row, a check mark</td><td class="new">Tab row, for the active tab's file</td><td class="new">The same</td></tr>
+        <tr><th>Review details</th><td>Title row</td><td class="new">The comparison's menu</td><td class="new">The comparison's menu</td></tr>
+        <tr class="grp"><th colspan="4">The comparison</th></tr>
+        <tr><th>Updates and the compared pair</th><td>A 50-pixel row under the title row</td><td class="same">The same row, showing the active tab's pair; its caption can become a tooltip</td><td class="new">A 34-pixel rail at the window's left edge, showing the active tab's pair; dates on hover</td></tr>
+        <tr><th>"Comparing …"</th><td>The Updates line's right end</td><td class="same">The same, for the active tab</td><td class="new">The tab row: named at 1920, an icon with a tooltip below</td></tr>
+        <tr><th>Loading words</th><td>A 26-pixel row that comes and goes</td><td class="new">The Updates line's track</td><td class="new">The rail and Overview's own loading state</td></tr>
+        <tr class="grp"><th colspan="4">Composition, tours and Conventional Comments</th></tr>
+        <tr><th>Compose review</th><td>Its own row</td><td class="new">The Updates line's right end, as in C, with the kept-draft mark</td><td class="new">The title row's one labelled action, its icon alone at the width floor</td></tr>
+        <tr><th>Comment, with a Conventional Comments label</th><td>"Draft comment or reply" on its own row</td><td class="new">Beside Compose review; its arrow offers the labels</td><td class="new">The Comments tray, and Comment here beside the current line</td></tr>
+        <tr><th>Reply</th><td>Discuss only</td><td class="new">On every thread card</td><td class="new">On every thread card</td></tr>
+        <tr><th>Comments, tour and findings</th><td>One stacked column</td><td class="new">Tabs in the right tray: Comments, Tour, Findings</td><td class="new">The same</td></tr>
+      </tbody>
+    </table></div>
+    <div class="titles">
+      <figure><figcaption>Today</figcaption><img src="../verification/BPR-1106-scaffolding-v4/closeup-title-A-win-floor.png" alt="Today's Windows title row at 902 pixels: no pull request name, three-letter modality labels, every control packed."></figure>
+      <figure><figcaption>T</figcaption><img src="../verification/BPR-1106-scaffolding-v4/closeup-title-T-win-floor.png" alt="T's Windows title row at 902 pixels: the pull request's name and the whole modality words."></figure>
+      <figure><figcaption>V</figcaption><img src="../verification/BPR-1106-scaffolding-v4/closeup-title-V-win-floor.png" alt="V's Windows title row at 902 pixels: the name, the modality words and Compose review as its icon."></figure>
+    </div>
+    <p class="note" style="margin-top:8px">The Windows title row at its 902-pixel floor, dark.</p>
+  </section>
+
+  <section>
+    <h2>The directions, drawn</h2>
+    <p class="prose">One window and one pull request. <kbd>←</kbd> and <kbd>→</kbd> step through the directions; a state a direction has no frame for says so under the frame.</p>
+    <div class="viewer">
+      <div class="controls"><div class="seg options" role="group" aria-label="Direction" id="c-p"></div></div>
+      <div class="controls">
+        <span class="ctl"><span class="ctl-label">Platform</span><span class="seg" role="group" aria-label="Platform" id="c-os"></span></span>
+        <span class="ctl"><span class="ctl-label">Appearance</span><span class="seg" role="group" aria-label="Appearance" id="c-theme"></span></span>
+        <span class="ctl"><span class="ctl-label">Window</span><span class="seg" role="group" aria-label="Window size" id="c-size"></span></span>
+      </div>
+      <div class="controls"><span class="ctl"><span class="ctl-label">State</span><span class="seg" role="group" aria-label="State" id="c-state"></span></span></div>
+      <div class="frame-box"><img id="frame" alt=""></div>
+      <div class="frame-cap" id="frame-cap"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Room for tours and Conventional Comments</h2>
+    <div class="prose">
+      <ul class="tight">
+        <li><b>A comment's intent is chosen where the comment starts.</b> Comment's arrow lists Plain, the twelve labels and the three decorations. Labels show on cards as words; RFC-BPR-0050 designs the icons.</li>
+        <li><b>The review page shows my own feedback before I choose a verdict</b>, as RFC-BPR-0048 asks: my blocking issues and my unpublished comments, each linked.</li>
+        <li><b>A tour is a tray tab.</b> A reviewer steps through its stops with their own keys, apart from next change and next file, and the stops open in the active document tab. An author prepares a tour next to the code, as RFC-BPR-0039 asks.</li>
+      </ul>
+    </div>
+    <div class="figs">
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-labels-T.png" alt="The Comment button's menu: Plain comment, the twelve Conventional Comments labels, and Blocking, Non-blocking and If minor."><figcaption>Comment's arrow, open (T).</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-preflight-V.png" alt="My feedback on this pull request: an unpublished blocking issue and an answered question, each with Open."><figcaption>The review page's preflight (V).</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-tour-V.png" alt="The Tour tab for a reviewer: stop 2 of 6, the six stops, and stop 2's explanation with a reply."><figcaption>Following a tour (V).</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v4/closeup-author-T.png" alt="The Tour tab for an author: Saved locally, Add stop, Preview, the roadmap, six stops with their states and the stop editor."><figcaption>Preparing a tour (T).</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>What each direction costs</h2>
+    <div class="costs"><table>
+      <thead><tr><th></th><th>A<small>today</small></th><th>C<small>v2's pick</small></th><th>T<small>tabs, the line kept</small></th><th>T without caption</th><th class="rec">V<small>tabs, a vertical rail</small></th></tr></thead>
+      <tbody>
+        <tr><th>Comparison height at 1280×852, macOS</th><td class="bad">707</td><td>729</td><td>722</td><td>738</td><td class="rec">772</td></tr>
+        <tr><th>The same on Windows</th><td class="bad">712</td><td>732</td><td>724</td><td>740</td><td class="rec">774</td></tr>
+        <tr><th>At 1920×1080, macOS</th><td class="bad">935</td><td>957</td><td>950</td><td>966</td><td class="rec">1000</td></tr>
+        <tr><th>Comparison width at 1280</th><td colspan="4">unchanged by the direction</td><td class="rec">34 fewer, for the rail</td></tr>
+        <tr><th>Views of one pull request</th><td>one per window</td><td>one per window</td><td>tabs</td><td>tabs</td><td class="rec">tabs</td></tr>
+        <tr><th>Title row at the Windows floor</th><td class="bad">full; no name</td><td class="bad">full; no name</td><td>the name, and 53 spare</td><td>the same</td><td class="rec">the name, with Compose review as its icon</td></tr>
+        <tr><th>Update dates always in view</th><td>yes</td><td>yes</td><td>yes</td><td>yes</td><td class="rec"><span class="bad">no</span>: on hover; the tab names its pair</td></tr>
+        <tr><th>Owner decisions it amends</th><td>none</td><td>AC-01</td><td>AC-01; the strip; RFC-BPR-0028's tabs non-goal</td><td>and RFC-BPR-0029's caption</td><td class="rec">AC-01; the strip; the tabs non-goal; BPR-0737's full-width row; RFC-BPR-0028's dates beneath the nodes</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Recommendation</h2>
+    <div class="rec-grid">
+      <div class="prose">
+        <p><b>Tabs fit either direction, and cost almost nothing.</b> They take the comparison's header, which the tray headers created anyway: 28 pixels instead of the 21 the status line took. The window's comparison stays one decision, and a tab departs from it only when you ask it to.</p>
+        <p><b>V is still the recommendation.</b> The chrome above the comparison is 58 pixels instead of 123, so the code gets 65 more at 1280×852 in every modality. The rail follows the active tab, the way the title row follows the active document.</p>
+        <p><b>With tabs, V's cost grows a little.</b> The pair's name competes with the tabs for the header, so below 1920 it becomes an icon. If the dates and the name must stay in view, take T without its caption: 738 pixels, and a line that always says what it compares.</p>
+      </div>
+      <div>
+        <h3 style="margin-top:0">The decisions I'm asking for</h3>
+        <ol class="asks">
+          <li><b>Tabs, as RFC-BPR-0025 specified?</b><span>Proposed: yes, each with its own comparison. New tabs take the window's comparison, and a tab with its own pair says so on its label.</span></li>
+          <li><b>Tray headers, with the tabs in the comparison's header?</b><span>Proposed: yes, in either direction.</span></li>
+          <li><b>The Updates line: vertical rail (V) or full width (T)?</b><span>Proposed: V. With T, the caption becomes a tooltip with a mark only when history is incomplete.</span></li>
+          <li><b>Compose review and Comment?</b><span>With V: Compose review in the title row, Comment in the Comments tray and beside the line. With T: both at the Updates line's end, as in C.</span></li>
+          <li><b>The keys.</b><span>Proposed: <kbd>⌥R</kbd> Compose review, <kbd>⌥C</kbd> Comment or Reply, <kbd>⌥]</kbd> and <kbd>⌥[</kbd> the next and previous tour stop, <kbd>⌃Tab</kbd> and <kbd>⌃⇧Tab</kbd> the next and previous tab, <kbd>⌘W</kbd> Close tab, <kbd>Esc</kbd> back from a page. If <kbd>⌘W</kbd> closes the window today, the window moves to <kbd>⌘⇧W</kbd>; the implementation card checks.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>How the frames were made</h2>
+    <p>One frames file draws the window with the accepted surface's tokens and the product's measured rows: the 30-pixel title row, the 50-pixel Updates line with its caption, 28-pixel tray headers where the drawers' headings already sit (the comparison's replaces its 15-pixel status line), and a 22-pixel status bar (20 on Windows). Headless Chrome rendered 54 frames at their exact window size, device scale 1; each was reduced to 256 colours and looked at, and the measurements were read back from each page's layout at the same viewport. The Windows frames use the Mac's type, so their widths are indicative. Tab names elide from the left, as Qt's <code>ElideLeft</code> does. Label chips are words, not icons.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const MAN = {"v2":["A-mac-dark-1280x852-compose.png","A-mac-dark-1280x852-discuss.png","A-mac-dark-1280x852-loading.png","A-mac-dark-1280x852.png","A-mac-dark-1920x1080.png","A-mac-dark-floor.png","A-mac-light-1280x852-discuss.png","A-mac-light-1280x852-loading.png","A-mac-light-1280x852.png","A-mac-light-1920x1080.png","A-win-dark-1280x852-discuss.png","A-win-dark-1280x852-loading.png","A-win-dark-1280x852.png","A-win-dark-1920x1080.png","A-win-dark-floor.png","A-win-light-1280x852-compose.png","A-win-light-1280x852-discuss.png","A-win-light-1280x852-loading.png","A-win-light-1280x852.png","A-win-light-1920x1080.png","C-mac-dark-1280x852.png","C-mac-dark-1920x1080.png","C-mac-dark-floor.png","C-mac-light-1280x852.png","C-mac-light-1920x1080.png","C-win-dark-1280x852.png","C-win-dark-1920x1080.png","C-win-dark-floor.png","C-win-light-1280x852.png","C-win-light-1920x1080.png","F-mac-dark-1280x852-compose.png","F-mac-dark-1280x852-discuss.png","F-mac-dark-1280x852-gutter.png","F-mac-dark-1280x852-loading.png","F-mac-dark-1280x852.png","F-mac-dark-1920x1080.png","F-mac-dark-floor.png","F-mac-light-1280x852-compose.png","F-mac-light-1280x852-discuss.png","F-mac-light-1280x852-gutter.png","F-mac-light-1280x852-loading.png","F-mac-light-1280x852.png","F-mac-light-1920x1080.png","F-win-dark-1280x852-compose.png","F-win-dark-1280x852-discuss.png","F-win-dark-1280x852-gutter.png","F-win-dark-1280x852-loading.png","F-win-dark-1280x852-menu.png","F-win-dark-1280x852.png","F-win-dark-1920x1080.png","F-win-dark-floor.png","F-win-light-1280x852-compose.png","F-win-light-1280x852-discuss.png","F-win-light-1280x852-gutter.png","F-win-light-1280x852-loading.png","F-win-light-1280x852-menu.png","F-win-light-1280x852.png","F-win-light-1920x1080.png","H-mac-dark-1280x852.png","H-mac-dark-1920x1080.png","H-mac-light-1280x852.png","H-mac-light-1920x1080.png","H-win-dark-1280x852.png","H-win-dark-1920x1080.png","H-win-light-1280x852.png","H-win-light-1920x1080.png","closeup-A-comment-mac-dark.png","closeup-A-comment-mac-light.png","closeup-A-loading-mac-dark.png","closeup-A-loading-mac-light.png","closeup-A-mac-dark.png","closeup-A-mac-light.png","closeup-C-mac-dark.png","closeup-C-mac-light.png","closeup-F-comment-mac-dark.png","closeup-F-comment-mac-light.png","closeup-F-gutter-mac-dark.png","closeup-F-gutter-mac-light.png","closeup-F-loading-mac-dark.png","closeup-F-loading-mac-light.png","closeup-F-mac-dark.png","closeup-F-mac-light.png","closeup-H-mac-dark.png","closeup-H-mac-light.png","menu-mac-dark.png","menu-mac-light.png","states-dark.png","states-light.png"],"v4":["T-mac-dark-1280x852-author.png","T-mac-dark-1280x852-compose.png","T-mac-dark-1280x852-labels.png","T-mac-dark-1280x852-loading.png","T-mac-dark-1280x852-split.png","T-mac-dark-1280x852-tab2.png","T-mac-dark-1280x852-tabmenu.png","T-mac-dark-1280x852-tour.png","T-mac-dark-1280x852-trim.png","T-mac-dark-1280x852.png","T-mac-dark-floor.png","T-mac-light-1280x852.png","T-mac-light-1920x1080.png","T-mac-light-floor.png","T-win-dark-1280x852.png","T-win-dark-1920x1080.png","T-win-dark-floor.png","T-win-light-1280x852-author.png","T-win-light-1280x852-compose.png","T-win-light-1280x852-labels.png","T-win-light-1280x852-loading.png","T-win-light-1280x852-split.png","T-win-light-1280x852-tab2.png","T-win-light-1280x852-tabmenu.png","T-win-light-1280x852-tour.png","T-win-light-1280x852-trim.png","T-win-light-1280x852.png","T-win-light-floor.png","V-mac-dark-1280x852-author.png","V-mac-dark-1280x852-compose.png","V-mac-dark-1280x852-hover.png","V-mac-dark-1280x852-labels.png","V-mac-dark-1280x852-loading.png","V-mac-dark-1280x852-tab2.png","V-mac-dark-1280x852-tabmenu.png","V-mac-dark-1280x852-tour.png","V-mac-dark-1280x852.png","V-mac-dark-floor.png","V-mac-light-1280x852.png","V-mac-light-1920x1080.png","V-mac-light-floor.png","V-win-dark-1280x852.png","V-win-dark-1920x1080.png","V-win-dark-floor.png","V-win-light-1280x852-author.png","V-win-light-1280x852-compose.png","V-win-light-1280x852-hover.png","V-win-light-1280x852-labels.png","V-win-light-1280x852-loading.png","V-win-light-1280x852-tab2.png","V-win-light-1280x852-tabmenu.png","V-win-light-1280x852-tour.png","V-win-light-1280x852.png","V-win-light-floor.png","closeup-author-T.png","closeup-hover-V.png","closeup-labels-T.png","closeup-preflight-V.png","closeup-tab2-T.png","closeup-tabmenu-V.png","closeup-tabs-V-tab2.png","closeup-tabs-V.png","closeup-title-A-win-floor.png","closeup-title-T-win-floor.png","closeup-title-V-win-floor.png","closeup-tour-V.png"]};
+  const has = { v2: new Set(MAN.v2), v4: new Set(MAN.v4) };
+  const directions = [
+    { name: "A, today", sub: "the row, as built", rows: [["s-strip", "title row", 30], ["s-entry", "entry row", 22], ["s-epoch", "Updates", 50], ["s-head", "status line", 21]], comp: 707 },
+    { name: "C", sub: "v2: both at the Updates line's end", rows: [["s-strip", "title row", 30], ["s-epoch", "Updates", 50], ["s-head", "status line", 21]], comp: 729 },
+    { name: "T", sub: "tabs, the Updates line kept", rows: [["s-strip", "title row", 30], ["s-epoch", "Updates", 50], ["s-head", "tab row", 28]], comp: 722 },
+    { name: "T without caption", sub: "the caption in a tooltip", rows: [["s-strip", "title row", 30], ["s-epoch", "Updates", 34], ["s-head", "tab row", 28]], comp: 738 },
+    { name: "V", sub: "tabs, a vertical rail", rows: [["s-strip", "title row", 30], ["s-head", "tab row", 28]], comp: 772, rec: true },
+  ];
+  const k = 0.5;
+  document.getElementById("strata").innerHTML = directions.map((d) => {
+    const rows = [...d.rows, ["s-comp", "comparison", d.comp], ["s-status", "status bar", 22]];
+    const gain = d.comp - 707;
+    return `<div class="col-s ${d.rec ? "rec" : ""}"><h4>${d.name}</h4><div class="sub">${d.sub}</div>
+      <div class="stack">${rows.map(([cls, label, h]) => `<div class="${cls}" style="height:${Math.round(h * k)}px"><i></i><span>${label}</span><span>${h}</span></div>`).join("")}</div>
+      <div class="gain"><b>${d.comp}</b>${gain ? `<span class="up">+${gain}</span> on today` : "the baseline"}, ${d.rows.reduce((s, r) => s + r[2], 0)} above</div></div>`;
+  }).join("");
+
+  const options = { A: "Today", C: "v2's pick", T: "Tabs, the line kept", Tt: "Without caption", Ts: "Comment in the tray", V: "Tabs, vertical rail" };
+  const states = { review: "Review", tab2: "Second tab, older pair", tabmenu: "Tab menu", labels: "Comment's labels", tour: "Following a tour", author: "Preparing a tour", compose: "Compose page", loading: "Loading", hover: "Rail hover" };
+  const sizes = { "1280x852": "1280×852", "1920x1080": "1920×1080", floor: "Width floor" };
+  const state = { p: "V", os: "mac", theme: "dark", size: "1280x852", st: "review" };
+  const candidates = () => {
+    const { p, os, theme, size, st } = state;
+    const out = [];
+    const push = (dir, name) => out.push([dir, name]);
+    if (p === "A" || p === "C") {
+      if (st === "review") push("v2", size === "floor" ? `${p}-${os}-dark-floor.png` : `${p}-${os}-${theme}-${size}.png`);
+      else if (st === "loading" && p === "A") push("v2", `A-${os}-${theme}-1280x852-loading.png`);
+      else if (st === "compose" && p === "A") push("v2", os === "mac" ? "A-mac-dark-1280x852-compose.png" : "A-win-light-1280x852-compose.png");
+      return out;
+    }
+    const base = p === "Tt" || p === "Ts" ? "T" : p;
+    const variant = p === "Tt" ? "-trim" : p === "Ts" ? "-split" : "";
+    if (variant) {
+      if (st === "review") { push("v4", `T-${os}-${theme}-1280x852${variant}.png`); push("v4", `T-mac-dark-1280x852${variant}.png`); push("v4", `T-win-light-1280x852${variant}.png`); }
+      return out;
+    }
+    if (st === "review") {
+      if (size === "floor") push("v4", `${base}-${os}-${theme}-floor.png`);
+      else if (size === "1920x1080") { push("v4", `${base}-${os}-${theme}-1920x1080.png`); push("v4", `${base}-mac-light-1920x1080.png`); push("v4", `${base}-win-dark-1920x1080.png`); }
+      else push("v4", `${base}-${os}-${theme}-1280x852.png`);
+    } else {
+      push("v4", `${base}-${os}-${theme}-1280x852-${st}.png`);
+      push("v4", `${base}-${os === "mac" ? "mac-dark" : "win-light"}-1280x852-${st}.png`);
+    }
+    return out;
+  };
+  const seg = (id, entries, key, fmt) => {
+    const host = document.getElementById(id);
+    host.innerHTML = "";
+    for (const [value, label] of entries) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = fmt ? fmt(value, label) : label;
+      b.setAttribute("aria-pressed", String(state[key] === value));
+      b.addEventListener("click", () => { state[key] = value; draw(); });
+      host.appendChild(b);
+    }
+  };
+  const draw = () => {
+    seg("c-p", Object.entries(options), "p", (k2, l) => `<b>${k2 === "Tt" || k2 === "Ts" ? "T" : k2}</b>${l}`);
+    seg("c-os", [["mac", "macOS"], ["win", "Windows"]], "os");
+    seg("c-theme", [["dark", "Dark"], ["light", "Light"]], "theme");
+    seg("c-size", Object.entries(sizes), "size");
+    seg("c-state", Object.entries(states), "st");
+    const list = candidates();
+    const found = list.find(([dir, name]) => has[dir].has(name));
+    const img = document.getElementById("frame");
+    const cap = document.getElementById("frame-cap");
+    if (!found) {
+      cap.textContent = `No ${states[state.st].toLowerCase()} frame for ${options[state.p]}. ${state.p === "A" || state.p === "C" ? "v2 drew the review, loading and Compose states for the baseline." : "Variants are drawn in Review at 1280×852."}`;
+      img.style.opacity = ".25";
+      return;
+    }
+    img.style.opacity = "1";
+    const [dir, name] = found;
+    img.src = `../verification/${dir === "v2" ? "BPR-1106-composition-entries-v2" : "BPR-1106-scaffolding-v4"}/${name}`;
+    img.alt = `${options[state.p]}, ${states[state.st]}`;
+    cap.textContent = `${name.replace(".png", "")}${list[0][1] === name ? "" : ": the nearest frame drawn for this choice"}.`;
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const order = Object.keys(options);
+    const i = order.indexOf(state.p);
+    state.p = order[(i + (e.key === "ArrowRight" ? 1 : order.length - 1)) % order.length];
+    draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

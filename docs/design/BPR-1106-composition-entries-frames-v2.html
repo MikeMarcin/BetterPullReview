@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 placement frames v2</title>
+<!--
+  [[BPR-1106]] design round, v2. The frame source for every render of
+  BPR-1106-composition-entries-v2.html. One window, drawn with the accepted
+  RFC-BPR-0028 surface's tokens but with the rows the product builds above and
+  inside the comparison: the 30-pixel strip, the 50-pixel Updates line with its
+  history caption and pair summary (epoch_line.hpp, epoch_comparison_control.cpp),
+  the comparison's own status line and 6-pixel spacing (diff_workbench.cpp), no
+  path bar, and a 22-pixel status bar on macOS (20 elsewhere). Query parameters:
+
+    p        A  the entry row as built (baseline)
+             C  v1's proposal: both entries at the Updates line's right end
+             F  split by job: Compose review at the Updates line's right end,
+                comment and reply where the line and the thread are
+             H  split by job, with Compose review at the status bar's end
+    os       mac | win
+    theme    dark | light
+    size     1280x852 | 1920x1080 | floor (900x852 on macOS, 902x852 on Windows)
+    state    review | loading | discuss | compose | winmenu
+             macmenu and states are component sheets, not windows
+    comment  slot (default) | gutter   where F and H put "Comment here"
+    draft    1 shows the Compose control's kept-draft mark
+
+  Rendered headless at exactly the window size; the page is the window.
+  Without parameters it lists every frame.
+-->
+<style>
+  :root {
+    --bg: #1C2026; --side: #20252C; --panel: #242930; --panel-2: #2A3039; --rule: #343A44; --rule-2: #414955;
+    --ink: #E6EDF3; --ink-2: #A0A8B2; --ink-3: #6E7681;
+    --signal: #7FB0E8; --signal-soft: #26374F; --marker: #E0B15A; --marker-soft: #3A3120;
+    --code: #0D1117; --gutter: #141921; --lnum: #8B949E;
+    --add: #153622; --del: #3E1F1F; --add2: #145E20; --del2: #933030; --hunk: #18212F; --hunk-ink: #9FB6D4;
+    --unread: #58A6FF; --accepted: #3FB950; --defect: #FF7B72;
+    --kw: #F49795; --cf: #FFA198; --op: #C9D1D9; --fn: #D2A8FF; --var: #79C0FF; --ty: #CC99FF; --num: #A5D6FF; --str: #7EE787; --cm: #A5B0BA; --nm: #E6EDF3;
+    --on-signal: #0d1117; --menu-shadow: 0 10px 30px rgba(0,0,0,.5);
+    --field: #161B22;
+    --ui: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --mono: "JetBrains Mono NL", "JetBrainsMonoNL Nerd Font", "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  body.light {
+    --bg: #F6F7F9; --side: #F0F2F5; --panel: #FFFFFF; --panel-2: #EEF1F5; --rule: #D9DEE5; --rule-2: #C3CAD3;
+    --ink: #1F2328; --ink-2: #57606A; --ink-3: #8B949E;
+    --signal: #2F6FD6; --signal-soft: #DCE8F9; --marker: #B7791F; --marker-soft: #FBF1DC;
+    --code: #FFFFFF; --gutter: #F0F2F5; --lnum: #5B6570;
+    --add: #E6FFEC; --del: #FFEBE9; --add2: #9EFFB5; --del2: #F1B9B4; --hunk: #E7EEF9; --hunk-ink: #3B5070;
+    --unread: #0969DA; --accepted: #1A7F37; --defect: #CF222E;
+    --kw: #B51D27; --cf: #A40E26; --op: #24292F; --fn: #6639BA; --var: #24509B; --ty: #6E3EC8; --num: #0550AE; --str: #086A49; --cm: #555E69; --nm: #1F2328;
+    --on-signal: #ffffff; --menu-shadow: 0 10px 28px rgba(31,35,40,.18);
+    --field: #FFFFFF;
+  }
+  body.win { --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --mono: "JetBrains Mono NL", "JetBrains Mono", "Cascadia Mono", Consolas, monospace; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--ink); font: 12px/1.4 var(--ui); }
+  body.index { overflow: auto; padding: 24px; font-size: 13px; }
+  body.index a { color: var(--signal); }
+  body.sheet { overflow: hidden; }
+
+  .window { display: flex; flex-direction: column; width: 100vw; height: 100vh; background: var(--bg); overflow: hidden; }
+
+  /* the strip, as built: 30 px, 22 px presenters, 4 px spacing */
+  .strip { position: relative; flex: 0 0 30px; display: flex; align-items: center; padding: 0 4px; background: var(--panel); border-bottom: 1px solid var(--rule-2); font-size: 11px; z-index: 3; }
+  body.win .strip { padding-right: 0; }
+  .strip .l, .strip .r, .strip .c { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .strip .l { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+  .strip .c, .strip .r { flex: none; }
+  .strip .gap { flex: 1 1 8px; min-width: 4px; }
+  .inset { flex: none; width: 78px; display: flex; align-items: center; }
+  .lights { display: flex; gap: 8px; margin-left: 9px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+  .ib { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; flex: none; min-width: 30px; height: 22px; padding: 0 7px; border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink); border-radius: 5px; white-space: nowrap; font-size: 11px; }
+  .ib svg { width: 15px; height: 15px; stroke: var(--ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .ib.on { background: var(--signal-soft); border-color: var(--signal); }
+  .ib.on svg { stroke: var(--signal); }
+  .ib .arrow { font-size: 9px; color: var(--ink-2); margin-left: 2px; }
+  .ib.wide { min-width: 55px; }
+  .ib.labelled { padding: 0 9px 0 7px; gap: 6px; }
+  .ib.labelled svg { width: 14px; height: 14px; }
+  .ib .dot { position: absolute; left: 17px; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--marker); box-shadow: 0 0 0 1.5px var(--panel-2); }
+  .ib.on .dot { box-shadow: 0 0 0 1.5px var(--signal-soft); }
+  .id { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; margin: 0 6px 0 4px; flex: 0 1 auto; }
+  .id span { color: var(--ink-2); font-weight: 400; margin-left: 6px; }
+  .div { width: 1px; height: 18px; background: var(--rule-2); margin: 0 6px; flex: none; }
+  .grp { display: inline-flex; align-items: center; border: 1px solid var(--rule-2); background: var(--panel-2); border-radius: 5px; overflow: hidden; flex: none; }
+  .grp .g { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; color: var(--ink); font-weight: 600; }
+  .grp .g + .g { border-left: 1px solid var(--rule-2); }
+  .grp .lbl { padding: 0 7px; color: var(--ink); line-height: 20px; border-left: 1px solid var(--rule-2); }
+  .mode { display: inline-flex; border: 1px solid var(--rule-2); background: var(--bg); border-radius: 6px; padding: 2px; gap: 2px; }
+  .mode span { border-radius: 4px; line-height: 18px; padding: 0 12px; color: var(--ink); font-weight: 500; white-space: nowrap; }
+  .mode span.on { background: var(--signal); color: var(--on-signal); font-weight: 600; }
+  .mode span small { opacity: .6; margin-left: 5px; font-size: 10px; }
+  body.compact .mode span small { display: none; }
+  body.floor .mode span { padding: 0 9px; }
+  .caption { display: flex; align-self: stretch; margin-left: 4px; flex: none; }
+  .caption span { width: 46px; display: flex; align-items: center; justify-content: center; }
+  .caption svg { width: 10px; height: 10px; stroke: var(--ink); stroke-width: 1; fill: none; }
+
+  /* menus */
+  .menu { position: absolute; z-index: 6; min-width: 230px; background: var(--panel-2); border: 1px solid var(--rule-2); border-radius: 6px; padding: 4px 0; box-shadow: var(--menu-shadow); font-size: 12px; color: var(--ink); text-align: left; white-space: nowrap; }
+  .menu .it { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; padding: 3px 12px 3px 8px; }
+  .menu .it.hot { background: var(--signal); color: var(--on-signal); }
+  .menu .it.hot .k { color: var(--on-signal); opacity: .85; }
+  .menu .it.new { font-weight: 600; }
+  .menu .it .k { color: var(--ink-3); font-size: 11px; padding-left: 18px; }
+  .menu .it.sub .k { font-size: 10px; }
+  .menu hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+  .menu u { text-underline-offset: 2px; }
+
+  /* the entry row, as built: a bare layout, flush at x 0 */
+  .entries { flex: 0 0 22px; display: flex; align-items: center; gap: 0; padding: 0; background: var(--bg); }
+  body.win .entries { flex-basis: 20px; }
+  .entries .tb { height: 20px; line-height: 18px; padding: 0 6px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--panel); color: var(--ink); font-size: 12px; white-space: nowrap; }
+  body.win .entries .tb { height: 19px; line-height: 17px; border-radius: 2px; }
+  .entries .tb + .tb { margin-left: 6px; }
+
+  /* the readiness line, as built: 26 px, margins 12/6 */
+  .ready { flex: 0 0 26px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--bg); color: var(--ink); font-size: 12px; }
+  .ready .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { position: relative; flex: none; width: 100px; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+  .bar::after { content: ""; position: absolute; top: 0; bottom: 0; left: 22%; width: 34%; border-radius: 3px; background: var(--signal); }
+
+  /* the Updates line, as built: 50 px, margins 12/0/8/0, spacing 10 */
+  .epoch { position: relative; flex: 0 0 50px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 12px; background: var(--panel); border-bottom: 1px solid var(--rule); font-size: 11px; z-index: 2; }
+  .epoch .name { flex: 0 0 52px; color: var(--ink-3); }
+  .epoch .line { position: relative; flex: 1 1 auto; min-width: 80px; align-self: stretch; }
+  .epoch .sum { flex: none; color: var(--ink-3); white-space: nowrap; }
+  .epoch .cmp { flex: none; color: var(--ink-2); white-space: nowrap; }
+  .epoch .cmp b { color: var(--ink); font-weight: 500; }
+  .epoch .end { flex: none; display: flex; align-items: center; gap: 6px; }
+  .epoch .end .div { margin: 0 4px 0 0; }
+  .line .track { position: absolute; left: 0; right: 0; top: 8px; height: 1px; background: var(--rule-2); }
+  .line .span { position: absolute; top: 7px; height: 3px; background: var(--signal); }
+  .line .nd { position: absolute; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--ink-3); transform: translateX(-50%); }
+  .line .hd { position: absolute; top: 1px; width: 7px; height: 13px; border: 1.5px solid var(--signal); background: var(--panel); transform: translateX(-50%); border-radius: 2px; }
+  .line .yt { position: absolute; top: 2px; width: 2px; height: 11px; background: var(--marker); transform: translateX(-50%); }
+  .line .lb { position: absolute; top: 18px; transform: translateX(-50%); color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+  .line .lb.sel { color: var(--ink); }
+  .line .lb.last { transform: translateX(calc(-100% + 4px)); }
+  .line .cap { position: absolute; left: 0; top: 34px; color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+  .line .empty { position: absolute; inset: 0; display: flex; align-items: center; color: var(--ink-3); font-size: 11px; }
+  .line .loading { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; color: var(--ink); font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .line .loading .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  /* body */
+  .body { position: relative; flex: 1 1 auto; min-height: 0; display: grid; }
+  .pane { background: var(--side); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+  .pane .h { flex: none; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+  .pane .h b { color: var(--ink); font-weight: 600; }
+  .pane .h .sp { flex: 1; }
+  .pane .h .k { color: var(--ink-3); }
+  .pane .flt { flex: none; margin: 6px 8px; border: 1px solid var(--rule-2); border-radius: 5px; padding: 2px 8px; color: var(--ink-3); background: var(--bg); font-size: 11px; white-space: nowrap; overflow: hidden; }
+  .pane .list { flex: 1; min-height: 0; overflow: hidden; font-size: 12px; }
+  .rp { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; height: 26px; padding: 0 8px 0 6px; background: var(--panel); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .rp + .rp { border-top: 0; }
+  .rp .ch { color: var(--ink-2); text-align: center; font-size: 10px; }
+  .rp .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .rp .n small { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+  .rp .c { color: var(--ink-3); font-size: 11px; }
+  .rp .c b { color: var(--unread); font-weight: 600; }
+  .pl { position: relative; display: grid; grid-template-columns: 8px 1fr auto; gap: 6px; align-items: center; height: 24px; padding: 0 8px 0 30px; white-space: nowrap; }
+  .pl::before { content: ""; position: absolute; left: 14px; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .pl.on { background: var(--signal-soft); }
+  .pl .d { width: 6px; height: 6px; border-radius: 50%; }
+  .pl .d.u { background: var(--unread); }
+  .pl .n { overflow: hidden; text-overflow: ellipsis; }
+  .pl .n .num { color: var(--ink-3); font-family: var(--mono); font-size: 11px; margin-right: 6px; }
+  .pl .r { color: var(--ink-3); font-size: 10px; }
+  .pl .r.hot { color: var(--marker); }
+  .pl.q .n { color: var(--ink-2); }
+  .ft { position: relative; display: grid; grid-template-columns: 12px 10px 1fr auto; gap: 4px; align-items: center; height: 22px; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+  .ft .ch { color: var(--ink-2); text-align: center; font-size: 9px; }
+  .ft .n { overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+  .ft .n.f { font-family: var(--ui); color: var(--ink); }
+  .ft .c { color: var(--ink-3); font-size: 10px; font-family: var(--mono); }
+  .ft.on { background: var(--signal-soft); }
+  .ft.d2 { padding-left: 20px; } .ft.d3 { padding-left: 32px; } .ft.d4 { padding-left: 44px; }
+  .ft.d2::before, .ft.d3::before, .ft.d4::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .ft.d2::before { left: 14px; } .ft.d3::before { left: 26px; } .ft.d4::before { left: 38px; }
+  .st { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+  .st.read { background: var(--accepted); border-color: var(--accepted); }
+  .st.part { background: linear-gradient(90deg, var(--accepted) 50%, transparent 50%); border-color: var(--accepted); }
+  .st.new { background: var(--unread); border-color: var(--unread); }
+
+  /* the centre column: the comparison's status line, 6 px, then the panes */
+  .center { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); overflow: hidden; }
+  .cstatus { flex: 0 0 15px; margin-bottom: 6px; padding: 0 8px; font-size: 11px; line-height: 15px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+  body.win .cstatus { flex-basis: 14px; line-height: 14px; }
+  .panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr) 16px; font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--nm); overflow: hidden; background: var(--code); }
+  .cp { min-width: 0; overflow: hidden; position: relative; }
+  .map { background: var(--gutter); border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); overflow: hidden; }
+  .map svg { width: 30px; height: 100%; display: block; }
+  .sb { background: var(--gutter); border-left: 1px solid var(--rule); position: relative; }
+  .sb::after { content: ""; position: absolute; left: 4px; right: 4px; top: 2px; height: 38%; border-radius: 4px; background: var(--rule-2); }
+  .ln { position: relative; display: grid; grid-template-columns: 40px 6px 1fr; height: 20px; }
+  .ln .n { background: var(--gutter); color: var(--lnum); text-align: right; padding-right: 6px; }
+  .ln .g { background: var(--gutter); }
+  .ln .t { padding-left: 8px; white-space: pre; overflow: hidden; text-overflow: ellipsis; tab-size: 4; }
+  .ln.add .t { background: var(--add); }
+  .ln.del .t { background: var(--del); }
+  .ln.cur .t { box-shadow: inset 2px 0 var(--signal); }
+  .ln.cur .n { color: var(--ink); }
+  .ln.c .g { background: var(--marker); }
+  .ln.u .g { background: var(--unread); }
+  .ln .plus { position: absolute; left: 50px; top: 2px; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--signal); background: var(--signal-soft); display: flex; align-items: center; justify-content: center; }
+  .ln .plus svg { width: 12px; height: 12px; stroke: var(--signal); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .kw { color: var(--kw); } .cf { color: var(--cf); } .op { color: var(--op); } .fn { color: var(--fn); } .va { color: var(--var); } .ty { color: var(--ty); } .nu { color: var(--num); } .s2 { color: var(--str); } .cm { color: var(--cm); }
+
+  /* the comments column beside the code (the accepted asset's aligned cards) */
+  .cmts { position: relative; background: var(--side); border-left: 1px solid var(--rule); min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .cmts .head { flex: none; height: 22px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-bottom: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+  .cmts .head .on { color: var(--ink); font-weight: 600; }
+  .cmts .head .sp { flex: 1; }
+  .cmts .threads { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .th { position: absolute; left: 0; right: 0; padding: 0 8px 0 12px; }
+  .th::before { content: ""; position: absolute; left: 0; top: 12px; width: 8px; height: 1px; background: var(--rule-2); }
+  .th.cur::before { background: var(--signal); width: 10px; }
+  .th .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 10px 6px; }
+  .th.cur .card { border-color: var(--signal); }
+  .msgs { position: relative; }
+  .msgs.rail::before { content: ""; position: absolute; left: 8px; top: 18px; bottom: 18px; width: 2px; background: var(--rule-2); }
+  .msg { position: relative; display: grid; grid-template-columns: 18px 1fr; gap: 8px; margin-bottom: 8px; }
+  .msg .av { position: relative; width: 18px; height: 18px; border-radius: 50%; background: var(--rule-2); font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--ink); font-weight: 600; }
+  .msg .av.me { background: var(--signal-soft); color: var(--signal); }
+  .msg .who { font-weight: 600; }
+  .msg .when { color: var(--ink-3); margin-left: 6px; font-size: 11px; }
+  .msg .new { color: var(--unread); margin-left: 6px; font-size: 10px; font-weight: 600; }
+  .msg p { margin: 2px 0 0; color: var(--ink); font-size: 12px; line-height: 1.45; }
+  .th .act { color: var(--ink-3); font-size: 11px; margin-left: 26px; padding-top: 2px; }
+  .th .act b { color: var(--ink-2); font-weight: 500; margin-right: 10px; }
+  .th .act b.changed { color: var(--signal); }
+  .draft { border: 1px dashed var(--rule-2); border-radius: 5px; padding: 6px 8px; color: var(--ink-2); }
+  .draft b { color: var(--marker); font-weight: 600; }
+  .slot { display: flex; align-items: center; gap: 8px; height: 26px; border: 1px dashed var(--signal); border-radius: 6px; padding: 0 8px; color: var(--signal); background: color-mix(in srgb, var(--signal-soft) 55%, transparent); font-size: 12px; font-weight: 500; }
+  .slot svg { width: 14px; height: 14px; stroke: var(--signal); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .slot .sp { flex: 1; }
+  .slot .k { color: var(--ink-3); font-weight: 400; font-size: 11px; }
+
+  /* status bar */
+  .status { flex: 0 0 22px; display: flex; gap: 18px; align-items: center; padding: 0 0 0 12px; border-top: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); font-size: 11px; white-space: nowrap; overflow: hidden; }
+  body.win .status { flex-basis: 20px; }
+  .status .k { color: var(--ink-3); }
+  .status .sp { flex: 1; }
+  .status .sbtn { display: inline-flex; align-items: center; gap: 6px; height: 18px; padding: 0 8px 0 6px; margin-right: 4px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--panel-2); color: var(--ink); }
+  body.win .status .sbtn { height: 16px; }
+  .status .sbtn svg { width: 12px; height: 12px; stroke: var(--ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* overview while loading */
+  .overview { overflow: hidden; padding: 22px 28px; background: var(--bg); }
+  .overview .col { max-width: 900px; }
+  .overview h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .overview .meta { color: var(--ink-2); font-size: 12px; margin-bottom: 16px; }
+  .overview .desc { color: var(--ink); font-size: 12px; line-height: 1.5; margin-bottom: 18px; max-width: 70ch; }
+  .overview .go { display: inline-flex; align-items: center; height: 26px; padding: 0 14px; border-radius: 5px; background: var(--signal-soft); color: var(--ink-2); border: 1px solid var(--rule-2); font-weight: 600; margin-bottom: 20px; }
+  .overview .tbl { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .overview .tbl .hr { display: grid; grid-template-columns: 1fr 70px 70px 90px; padding: 6px 10px; background: var(--panel); color: var(--ink-3); font-size: 11px; border-bottom: 1px solid var(--rule); }
+  .overview .tbl .row { height: 26px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; padding: 0 10px; }
+  .overview .tbl .row i { display: block; height: 8px; border-radius: 4px; background: var(--rule); }
+  .overview .tbl .note { padding: 8px 10px; color: var(--ink-3); font-size: 11px; }
+
+  /* Discuss */
+  .discuss { display: grid; min-height: 0; overflow: hidden; }
+  .dlist { background: var(--side); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .dlist .h { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+  .pill { border: 1px solid var(--rule-2); border-radius: 10px; padding: 1px 8px; background: var(--bg); }
+  .pill.on { border-color: var(--signal); background: var(--signal-soft); color: var(--ink); }
+  .dr { position: relative; padding: 6px 10px 6px 14px; border-bottom: 1px solid var(--rule); font-size: 12px; }
+  .dr.on { background: var(--signal-soft); }
+  .dr .p { font-family: var(--mono); font-size: 11px; color: var(--ink-2); display: flex; gap: 8px; }
+  .dr .p .sp { flex: 1; }
+  .dr .p .ct { color: var(--ink-3); font-family: var(--ui); }
+  .dr .s { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .dr .s b { font-weight: 600; margin-right: 6px; }
+  .dr .u { position: absolute; left: 5px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--unread); }
+  .dr.rep { padding-left: 30px; }
+  .dr.rep::before { content: ""; position: absolute; left: 18px; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .feed { min-width: 0; overflow: hidden; padding: 14px 18px; background: var(--bg); }
+  .fc { max-width: 860px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px 8px; margin-bottom: 14px; }
+  .fc.on { border-color: var(--signal); }
+  .fc .fh { font-size: 11px; color: var(--ink-2); margin-bottom: 8px; display: flex; gap: 10px; }
+  .fc .fh b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
+  .fc .ex { font-family: var(--mono); font-size: 12px; line-height: 20px; background: var(--code); border: 1px solid var(--rule); border-radius: 5px; margin-bottom: 10px; overflow: hidden; }
+  .fc .ex .ln { grid-template-columns: 40px 6px 1fr; }
+  .fc .act { color: var(--ink-3); font-size: 11px; margin-left: 26px; }
+  .fc .act b { color: var(--ink-2); font-weight: 500; margin-right: 12px; }
+
+  /* Compose review page */
+  .compose { overflow: hidden; padding: 12px 20px; background: var(--bg); }
+  .compose .back { display: inline-flex; align-items: center; gap: 8px; height: 22px; padding: 0 9px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); font-size: 12px; margin-bottom: 14px; }
+  .compose .back .k { color: var(--ink-3); font-size: 11px; }
+  .compose h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+  .compose .target { color: var(--ink-2); font-size: 12px; margin-bottom: 14px; }
+  .compose .target b { color: var(--ink); font-weight: 500; }
+  .compose .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .compose .combo { display: inline-flex; align-items: center; gap: 18px; height: 22px; padding: 0 8px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); }
+  .compose .field { max-width: 900px; height: 240px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--field); padding: 8px 10px; color: var(--ink); font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+  .compose .field .ph { color: var(--ink-3); }
+  .compose .btns { display: flex; gap: 8px; margin-bottom: 10px; }
+  .compose .btn { height: 24px; padding: 0 12px; border: 1px solid var(--rule-2); border-radius: 5px; background: var(--panel-2); display: inline-flex; align-items: center; }
+  .compose .btn.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); font-weight: 600; }
+  .compose .note { color: var(--ink-2); font-size: 12px; }
+
+  /* component sheets */
+  .macbar { height: 24px; display: flex; align-items: center; gap: 18px; padding: 0 14px; font-size: 13px; background: rgba(236,236,236,.92); color: #1d1d1f; }
+  body:not(.light) .macbar { background: rgba(40,40,44,.94); color: #f2f2f2; }
+  .macbar .open { background: rgba(0,0,0,.14); border-radius: 4px; padding: 0 7px; margin: 0 -7px; }
+  body:not(.light) .macbar .open { background: rgba(255,255,255,.18); }
+  .macmenu { position: absolute; top: 24px; min-width: 300px; padding: 5px; border-radius: 7px; font-size: 13px; background: rgba(246,246,246,.98); color: #1d1d1f; box-shadow: 0 8px 26px rgba(0,0,0,.25); border: .5px solid rgba(0,0,0,.18); }
+  body:not(.light) .macmenu { background: rgba(44,44,48,.98); color: #f2f2f2; border-color: rgba(255,255,255,.14); }
+  .macmenu .mi { display: flex; justify-content: space-between; padding: 3px 10px; border-radius: 4px; }
+  .macmenu .mi .k { opacity: .55; margin-left: 30px; letter-spacing: .5px; }
+  .macmenu .mi.hot { background: #0A64D6; color: #fff; }
+  .macmenu .mi.hot .k { opacity: .85; }
+  .macmenu hr { border: 0; border-top: 1px solid rgba(128,128,128,.28); margin: 5px 10px; }
+  .sheet-grid { display: grid; gap: 14px; padding: 16px; }
+  .sheet-grid .cap { font-size: 11px; color: var(--ink-2); margin: 0 0 4px 2px; }
+  .sheet-grid .frame { border: 1px solid var(--rule-2); overflow: hidden; }
+  .sheet-grid .epoch { height: 50px; }
+</style>
+</head>
+<body>
+<script>
+(() => {
+  const query = new URLSearchParams(location.search);
+  const placements = ["A", "C", "F", "H"];
+  if (!query.has("p") && !query.has("state")) {
+    document.body.classList.add("index");
+    const out = ["<h1>BPR-1106 placement frames, v2</h1><p>Each link is one render at its window size.</p><ul>"];
+    for (const p of placements) for (const os of ["mac", "win"]) for (const theme of ["dark", "light"]) for (const size of ["1280x852", "1920x1080", "floor"]) {
+      const q = `p=${p}&os=${os}&theme=${theme}&size=${size}`;
+      out.push(`<li><a href="?${q}">${q}</a></li>`);
+    }
+    out.push("</ul>");
+    document.body.innerHTML = out.join("");
+    return;
+  }
+  const p = placements.includes(query.get("p")) ? query.get("p") : "F";
+  const os = query.get("os") === "win" ? "win" : "mac";
+  const theme = query.get("theme") === "light" ? "light" : "dark";
+  const size = ["1920x1080", "floor"].includes(query.get("size")) ? query.get("size") : "1280x852";
+  const state = query.get("state") || "review";
+  const gutterComment = query.get("comment") === "gutter";
+  const draftKept = query.get("draft") === "1";
+  const wide = size === "1920x1080";
+  const floor = size === "floor";
+  document.body.classList.add(theme, os);
+  if (floor) document.body.classList.add("floor", "compact");
+  if (!floor && size !== "1920x1080" && os === "win") document.body.classList.add("compact");
+  const split = p === "F" || p === "H";
+  const mac = os === "mac";
+  const key = (k) => (mac ? `⌥${k}` : `Alt+${k}`);
+
+  const icon = {
+    home: '<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+    repos: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14"/></svg>',
+    files: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14M9 10h11"/></svg>',
+    details: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+    comments: '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM15 5v14"/></svg>',
+    account: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+    settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
+    menu: '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>',
+    compose: '<svg viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/><path d="M13.5 6.5l4 4"/></svg>',
+    reply: '<svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg>',
+    commentPlus: '<svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/><path d="M12 7.5v5M9.5 10h5"/></svg>',
+  };
+  const ib = (name, extra = "", cls = "") => `<span class="ib ${cls}">${icon[name]}${extra}</span>`;
+
+  // The Compose control, in the Updates line (F, C) or the status bar (H).
+  const composeOn = state === "compose";
+  const composeControl = (cls = "") => `<span class="ib labelled ${composeOn ? "on" : ""} ${cls}">${icon.compose}${draftKept ? '<i class="dot"></i>' : ""}Compose review</span>`;
+
+  // ---- the strip -------------------------------------------------------
+  const showPositions = !floor;
+  const identityText = floor
+    ? (mac ? `<span class="id">#14366</span>` : "")
+    : wide
+      ? `<span class="id">EpicGames/UnrealEngine<span>#14366 Hair strand lighting fixes for LSS</span></span>`
+      : mac
+        ? `<span class="id">EpicGames/UnrealEngine<span>#14366</span></span>`
+        : `<span class="id">UnrealEngine<span>#14366</span></span>`;
+  const positions = !showPositions ? ""
+    : state === "loading"
+      ? `<span class="grp"><span class="g">‹</span><span class="g">›</span><span class="lbl">change –</span></span><span class="grp"><span class="g">«</span><span class="g">»</span><span class="lbl">file –</span></span>`
+      : `<span class="grp"><span class="g">‹</span><span class="g">›</span><span class="lbl">change 3 of 11</span></span><span class="grp"><span class="g">«</span><span class="g">»</span><span class="lbl">file 3 of 40</span></span><span class="grp"><span class="g">●</span><span class="lbl">2 new</span></span>`;
+  const navOnly = !showPositions ? `<span class="grp"><span class="g">‹</span><span class="g">›</span></span><span class="grp"><span class="g">«</span><span class="g">»</span></span><span class="grp"><span class="g">●</span></span>` : "";
+  const shortcut = (n) => (mac ? `⌘${n}` : `Ctrl+${n}`);
+  const modalityName = state === "loading" ? "Overview" : state === "discuss" ? "Discuss" : "Review";
+  const labels = (floor && !mac) ? ["Ove", "Rea", "Rev", "Dis"] : ["Overview", "Read", "Review", "Discuss"];
+  const compactStrip = floor || (!wide && !mac);
+  const modality = `<span class="mode">${["Overview", "Read", "Review", "Discuss"].map((m, i) => `<span class="${m === modalityName ? "on" : ""}">${labels[i]}${compactStrip ? "" : `<small>${shortcut(i + 1)}</small>`}</span>`).join("")}</span>`;
+  const progressButton = `<span class="ib wide">${icon.check}<span class="arrow">▾</span></span>`;
+  const caption = mac ? "" : `<span class="caption"><span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span><span><svg viewBox="0 0 10 10"><path d="M.5 .5h9v9h-9z"/></svg></span><span><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></span></span>`;
+  const lead = mac ? `<span class="inset"><span class="lights"><i></i><i></i><i></i></span></span>` : ib("menu", "", state === "winmenu" ? "on" : "");
+  // On the Compose page the drawers are hidden but the core's drawer state is
+  // unchanged, so the strip's toggles keep it.
+  const drawersShown = state === "review" || state === "winmenu" || state === "compose";
+  const strip = `<div class="strip">
+      <div class="l">${lead}${ib("home")}${ib("repos", "", wide && drawersShown ? "on" : "")}${ib("files", "", drawersShown ? "on" : "")}${identityText}<span class="div"></span>${positions}${navOnly}</div>
+      <span class="gap"></span><div class="c">${modality}</div><span class="gap"></span>
+      <div class="r">${ib("details")}${progressButton}${ib("refresh")}${ib("comments", "", drawersShown ? "on" : "")}<span class="div"></span>${ib("account")}${ib("settings")}${caption}</div>
+    </div>`;
+
+  // ---- the rows between the strip and the Updates line ------------------
+  const loading = state === "loading";
+  const readinessWords = "Loading review threads… 4 pages received.";
+  const readinessRow = `<div class="ready"><span class="t">${readinessWords}</span><span class="bar"></span></div>`;
+  const entryRow = `<div class="entries"><span class="tb">Compose review</span><span class="tb">Draft comment or reply</span></div>`;
+
+  // ---- the Updates line -------------------------------------------------
+  const lineContent = loading
+    ? (p === "A"
+        ? `<div class="empty">Loading review history…</div>`
+        : `<div class="loading"><span class="t">${readinessWords}</span><span class="bar"></span></div>`)
+    : `<div class="track"></div>
+       <div class="span" style="left:52%; right:4%"></div>
+       <div class="nd" style="left:4%"></div><span class="lb" style="left:4%">Feb 4</span>
+       <div class="nd" style="left:28%"></div><span class="lb" style="left:28%">Feb 9</span>
+       <div class="hd" style="left:52%"></div><span class="lb sel" style="left:52%">Feb 12</span>
+       <div class="yt" style="left:58%"></div>
+       <div class="hd" style="left:96%"></div><span class="lb sel last" style="left:96%">Feb 15, latest</span>
+       <span class="cap">Known updates · display order is not push order</span>`;
+  const comparing = `<span class="cmp">Comparing <b>${loading ? "whole PR" : "since my last review"}</b> ▾</span>`;
+  const summary = `<span class="sum">${loading ? "no pair yet" : "pair ready"}</span>`;
+  let epochEnd = "";
+  if (p === "C") epochEnd = `<span class="end"><span class="div"></span><span class="ib labelled">${icon.compose}Compose review</span><span class="ib labelled">${icon.reply}Draft comment or reply</span></span>`;
+  if (p === "F") epochEnd = `<span class="end"><span class="div"></span>${composeControl()}</span>`;
+  const epoch = `<div class="epoch"><span class="name">Updates</span><div class="line">${lineContent}</div>${summary}${comparing}${epochEnd}</div>`;
+
+  // ---- code -------------------------------------------------------------
+  const base = [
+    "void AddHairStrandsLightingPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FHairStrandsVisibilityData& VisibilityData)",
+    "{",
+    "\tFRDGTextureRef LightingTexture = nullptr;",
+    "\tif (!bUseStrandLighting)",
+    "\t{",
+    "\t\treturn;",
+    "\t}",
+    "\tconst FIntPoint Resolution = View.ViewRect.Size();",
+    "\tFHairStrandsLightingParameters* Parameters = GraphBuilder.AllocParameters<FHairStrandsLightingParameters>();",
+    "\tParameters->View = View.ViewUniformBuffer;",
+    "\t// Shadow parameters follow the deep shadow path.",
+    "\tFHairStrandsDeepShadowResources Shadow;",
+    "\tShadow.Bias = 0.001f;",
+    "\tShadow.Resolution = Resolution / 2;",
+    "\tShadow.bEnableDeepShadow = CVarHairDeepShadow.GetValueOnRenderThread() != 0;",
+    "\tParameters->Shadow = Shadow;",
+    "\tParameters->VisibilityData = VisibilityData.NodeIndex;",
+    "\tParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, View);",
+    "\tParameters->LightingTexture = GraphBuilder.CreateUAV(LightingTexture);",
+    "",
+    "\t// Each light that touches strands is accumulated in one pass.",
+    "\tfor (const FLightSceneInfoCompact& Light : View.VisibleLightInfos)",
+    "\t{",
+    "\t\tif (!Light.bAffectsHair)",
+    "\t\t{",
+    "\t\t\tcontinue;",
+    "\t\t}",
+    "\t\tFHairStrandsLightDesc LightDesc = MakeLightDesc(Light, View);",
+    "\t\tLightDesc.Intensity *= HairLightScale;",
+    "\t\tAddLightToPass(GraphBuilder, *Parameters, LightDesc);",
+    "\t}",
+    "",
+    "\tTShaderMapRef<FHairStrandsLightingCS> ComputeShader(View.ShaderMap);",
+    "\tconst FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(Resolution, 8);",
+    "\tFComputeShaderUtils::AddPass(",
+    "\t\tGraphBuilder,",
+    "\t\tRDG_EVENT_NAME(\"HairStrands::Lighting\"),",
+    "\t\tComputeShader,",
+    "\t\tParameters,",
+    "\t\tGroupCount);",
+    "}",
+    "",
+    "void AddHairStrandsTransmittancePass(FRDGBuilder& GraphBuilder, const FViewInfo& View)",
+    "{",
+    "\tif (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform()))",
+    "\t{",
+    "\t\treturn;",
+    "\t}",
+    "\tFHairStrandsTransmittanceParameters* Parameters = GraphBuilder.AllocParameters<FHairStrandsTransmittanceParameters>();",
+    "\tParameters->View = View.ViewUniformBuffer;",
+    "\tParameters->MaxDistance = CVarHairTransmittanceMaxDistance.GetValueOnRenderThread();",
+    "\tParameters->DeepShadowResolution = FIntPoint(1024, 1024);",
+    "\tParameters->bUseLegacyTransmittance = false;",
+    "\tAddTransmittanceToPass(GraphBuilder, *Parameters);",
+    "}",
+  ];
+  const head = base.slice();
+  head[3] = "\tif (!bUseStrandLighting || !View.HairStrandsViewData.IsValid())";
+  head[12] = "\tShadow.Bias = FMath::Clamp(CVarHairShadowBias.GetValueOnRenderThread(), 0.0f, 0.05f);";
+  head[28] = "\t\tLightDesc.Intensity *= GetHairLightScale(View);";
+  head.splice(42, 0, "static float GetHairLightScale(const FViewInfo& View)", "{", "\treturn FMath::Max(View.FinalPostProcessSettings.HairLightScale, 0.0f);", "}", "");
+  const hunks = [{ l: 3, lc: 1, r: 3, rc: 1 }, { l: 12, lc: 1, r: 12, rc: 1 }, { l: 28, lc: 1, r: 28, rc: 1 }, { l: 42, lc: 0, r: 42, rc: 5 }];
+  const escape = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const keywords = new Set(["const", "static", "void", "float", "nullptr", "false", "true", "auto"]);
+  const control = new Set(["if", "for", "return", "continue"]);
+  const colour = (line) => {
+    const comment = line.indexOf("//");
+    const code = comment >= 0 ? line.slice(0, comment) : line;
+    const tail = comment >= 0 ? `<span class="cm">${escape(line.slice(comment))}</span>` : "";
+    const pieces = code.match(/"[^"]*"|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?f?|\s+|./g) || [];
+    return pieces.map((piece, index) => {
+      if (/^\s+$/.test(piece)) return piece;
+      if (piece.startsWith('"')) return `<span class="s2">${escape(piece)}</span>`;
+      if (/^\d/.test(piece)) return `<span class="nu">${piece}</span>`;
+      if (/^[A-Za-z_]/.test(piece)) {
+        if (control.has(piece)) return `<span class="cf">${piece}</span>`;
+        if (keywords.has(piece)) return `<span class="kw">${piece}</span>`;
+        const next = pieces.slice(index + 1).find((later) => !/^\s+$/.test(later));
+        if (next === "(" || next === "<") return `<span class="fn">${piece}</span>`;
+        if (/^(F|T|E)[A-Z]/.test(piece)) return `<span class="ty">${piece}</span>`;
+        return `<span class="va">${piece}</span>`;
+      }
+      return `<span class="op">${escape(piece)}</span>`;
+    }).join("") + tail;
+  };
+  const firstLine = 410;
+  const currentIndex = 21; // line 431 on the right: no thread on it
+  const paneLines = (lines, side) => lines.map((text, index) => {
+    const classes = ["ln"];
+    for (const hunk of hunks) {
+      const start = side === "l" ? hunk.l : hunk.r;
+      const count = side === "l" ? hunk.lc : hunk.rc;
+      if (index >= start && index < start + count) classes.push(side === "l" ? "del" : "add");
+    }
+    if (side === "r" && index === 3) classes.push("c");
+    if (side === "r" && index === 12) classes.push("u");
+    const isCurrent = side === "r" && index === currentIndex;
+    if (isCurrent) classes.push("cur");
+    const plus = isCurrent && split && gutterComment ? `<span class="plus">${icon.commentPlus}</span>` : "";
+    return `<div class="${classes.join(" ")}" data-side="${side}" data-i="${index}"><span class="n">${firstLine + index}</span><span class="g"></span><span class="t">${colour(text)}</span>${plus}</div>`;
+  }).join("");
+  const mapPaths = hunks.map((hunk) => {
+    const y0 = hunk.l * 20, y1 = (hunk.l + hunk.lc) * 20, z0 = hunk.r * 20, z1 = (hunk.r + hunk.rc) * 20;
+    const fill = hunk.lc === 0 ? "var(--add)" : "var(--hunk)";
+    const stroke = hunk.lc === 0 ? "var(--add2)" : "var(--hunk-ink)";
+    return `<path d="M0 ${y0} C 15 ${y0}, 15 ${z0}, 30 ${z0} L30 ${z1} C 15 ${z1}, 15 ${y1}, 0 ${y1} Z" fill="${fill}" stroke="${stroke}" stroke-opacity=".7" stroke-width="1"/>`;
+  }).join("");
+  const comparison = `<div class="center">
+      <div class="cstatus">Diff ready — 11 semantic changes</div>
+      <div class="panes">
+        <div class="cp">${paneLines(base, "l")}</div>
+        <div class="map"><svg viewBox="0 0 30 1400" preserveAspectRatio="xMinYMin slice">${mapPaths}</svg></div>
+        <div class="cp">${paneLines(head, "r")}</div>
+        <div class="sb"></div>
+      </div>
+    </div>`;
+
+  // ---- drawers -----------------------------------------------------------
+  const repositories = `<div class="pane">
+      <div class="h"><b>Repositories</b><span class="k">github.com, MikeMarcin</span><span class="sp"></span><span class="k">Home</span></div>
+      <div class="flt">Filter repositories and pull requests</div>
+      <div class="list">
+        <div class="rp"><span class="ch">▾</span><span class="n">EpicGames/UnrealEngine</span><span class="c"><b>3</b> of 6</span></div>
+        <div class="pl on"><span class="d u"></span><span class="n"><span class="num">#14366</span>Hair strand lighting fixes for LSS</span><span class="r hot">changed</span></div>
+        <div class="pl"><span class="d u"></span><span class="n"><span class="num">#15157</span>Fix bindless uniform buffer CBV residency</span><span class="r hot">requested</span></div>
+        <div class="pl"><span class="d u"></span><span class="n"><span class="num">#15149</span>RHICore: fix transient heap range coalescing</span><span class="r hot">replied</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#15150</span>Fix copy constructor causing static shadows</span><span class="r">waiting</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#15141</span>Support multiple IHV frame gen solutions</span><span class="r">approved</span></div>
+        <div class="rp"><span class="ch">▾</span><span class="n">MikeMarcin/BetterPullReview</span><span class="c">1</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#1773</span>Stress test: 9,311 commits</span><span class="r">stress</span></div>
+      </div>
+    </div>`;
+  const files = `<div class="pane">
+      <div class="h"><b>Files</b><span class="k">#14366</span><span class="sp"></span><span class="k">12 of 40 read</span><span class="k">Tree ▾</span></div>
+      <div class="flt">Filter by name or path</div>
+      <div class="list">
+        <div class="ft"><span class="ch">▾</span><span></span><span class="n f">Engine</span><span class="c"></span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Source/Runtime</span><span class="c"></span></div>
+        <div class="ft d3"><span class="ch">▾</span><span></span><span class="n f">Renderer/Private/HairStrands</span><span class="c">5</span></div>
+        <div class="ft d4"><span></span><span class="st new"></span><span class="n">HairStrandsVoxelization.cpp</span><span class="c">+88 −20</span></div>
+        <div class="ft d4 on"><span></span><span class="st part"></span><span class="n">HairStrandsLighting.cpp</span><span class="c">+212 −48</span></div>
+        <div class="ft d4"><span></span><span class="st"></span><span class="n">HairStrandsRendering.h</span><span class="c">+31 −4</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsInterface.cpp</span><span class="c">+12 −12</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsLegacyLighting.cpp</span><span class="c">−310</span></div>
+        <div class="ft d3"><span class="ch">▸</span><span></span><span class="n f">RenderCore/Public</span><span class="c">1</span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Shaders/Private/HairStrands</span><span class="c">2</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsLightingCommon.ush</span><span class="c">+140 −60</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsDeepShadow.usf</span><span class="c">+19</span></div>
+        <div class="ft d2"><span class="ch">▸</span><span></span><span class="n f">Plugins/Experimental/HairStrands</span><span class="c">32</span></div>
+      </div>
+    </div>`;
+  // Beside the code a thread card offers "Comment here" as built; the split
+  // options give it Reply, as the accepted asset draws it.
+  const cardFirst = split ? `<b>Reply</b>` : `<b>Comment here</b>`;
+  const threads = `
+      <div class="th cur" data-at="3"><div class="card">
+        <div class="msgs rail">
+          <div class="msg"><span class="av">J</span><div><span class="who">jiayincaonv</span><span class="when">Feb 15</span><p>Guarding on view data validity avoids the null deref on secondary views.</p></div></div>
+          <div class="msg"><span class="av me">M</span><div><span class="who">MikeMarcin</span><span class="when">Feb 15</span><p>Is IsValid cheap enough to call per view? It looked like it walks the instance list.</p></div></div>
+          <div class="msg"><span class="av">J</span><div><span class="who">jiayincaonv</span><span class="when">today</span><span class="new">new</span><p>It is a flag check now, the walk moved into the update pass.</p></div></div>
+        </div>
+        <div class="act">${cardFirst}<b>Mark read</b><b>Resolve</b></div>
+      </div></div>
+      <div class="th" data-at="12"><div class="card">
+        <div class="msgs">
+          <div class="msg"><span class="av">T</span><div><span class="who">tbutler</span><span class="when">today</span><span class="new">new</span><p>Where does 0.01 come from? The deep shadow path clamps to 0.05.</p></div></div>
+        </div>
+        <div class="act">${cardFirst}<b>Mark read</b><b>Resolve</b></div>
+      </div></div>
+      ${split && !gutterComment ? `<div class="th cur" data-at="${currentIndex}"><div class="slot">${icon.commentPlus}<span>Comment here</span><span class="sp"></span><span class="k">${key("C")}</span></div></div>` : ""}
+      <div class="th" data-at="28">
+        <div class="draft"><b>My note</b> on line 438, not published<br>Check the post-process default before publishing.</div>
+        <div class="act" style="margin-left:0;padding-top:4px"><b>Publish</b><b>Edit</b><b>Delete</b></div>
+      </div>`;
+  const comments = `<div class="cmts">
+      <div class="head"><span class="on">This file</span><span>Whole PR</span><span class="sp"></span><span>Unresolved 2</span></div>
+      <div class="threads">${threads}</div>
+    </div>`;
+
+  // ---- the centre by state ------------------------------------------------
+  const overviewLoading = `<div class="overview"><div class="col">
+      <h1>Hair strand lighting fixes for LSS</h1>
+      <div class="meta">EpicGames/UnrealEngine #14366, jiayincaonv wants to merge hair-lss into ue5-main</div>
+      <div class="desc">Guards the strand lighting pass on view data validity, clamps the deep shadow bias to the path's own limit and reads the light scale per view.</div>
+      <div class="go">Start review</div>
+      <div class="tbl"><div class="hr"><span>File</span><span>Added</span><span>Removed</span><span>My read state</span></div>
+        <div class="row"><i style="width:46%"></i></div><div class="row"><i style="width:38%"></i></div><div class="row"><i style="width:52%"></i></div>
+        <div class="note">Loading changed files…</div></div>
+    </div></div>`;
+  const excerpt = (from, to, side) => head.slice(from, to).map((text, k) => {
+    const index = from + k;
+    const cls = ["ln"];
+    if (index === 12) cls.push("add");
+    return `<div class="${cls.join(" ")}"><span class="n">${firstLine + index}</span><span class="g"></span><span class="t">${colour(text)}</span></div>`;
+  }).join("");
+  const discuss = `<div class="discuss" style="grid-template-columns:${wide ? "440px" : "340px"} minmax(0,1fr)">
+      <div class="dlist">
+        <div class="h"><span class="pill on">Whole PR</span><span class="pill">This file</span><span class="pill">Unread</span><span class="pill">Unresolved</span></div>
+        <div class="dr"><span class="u"></span><div class="p"><span>HairStrandsLighting.cpp:413</span><span class="sp"></span><span class="ct">3</span></div><div class="s"><b>jiayincaonv</b>Guarding on view data validity avoids the null deref</div></div>
+        <div class="dr rep"><div class="s"><b>MikeMarcin</b>Is IsValid cheap enough to call per view?</div></div>
+        <div class="dr rep"><span class="u" style="left:22px"></span><div class="s"><b>jiayincaonv</b>It is a flag check now, the walk moved</div></div>
+        <div class="dr on"><span class="u"></span><div class="p"><span>HairStrandsLighting.cpp:422</span><span class="sp"></span><span class="ct">1</span></div><div class="s"><b>tbutler</b>Where does 0.01 come from? The deep shadow path</div></div>
+        <div class="dr"><div class="p"><span>Review summary</span><span class="sp"></span><span class="ct">Feb 14</span></div><div class="s"><b>tbutler</b>Changes requested: the bias needs a source.</div></div>
+        <div class="dr"><div class="p"><span>HairStrandsVoxelization.cpp:88</span><span class="sp"></span><span class="ct">2, resolved</span></div><div class="s"><b>MikeMarcin</b>Does the voxel pass still need the old mip?</div></div>
+      </div>
+      <div class="feed">
+        <div class="fc on">
+          <div class="fh"><b>HairStrandsLighting.cpp</b><span>line 422, inline thread</span></div>
+          <div class="ex">${excerpt(11, 14)}</div>
+          <div class="msgs"><div class="msg"><span class="av">T</span><div><span class="who">tbutler</span><span class="when">today</span><span class="new">new</span><p>Where does 0.01 come from? The deep shadow path clamps to 0.05.</p></div></div></div>
+          <div class="act"><b>Reply</b><b>Mark read</b><b>Resolve</b><b>Open in code</b></div>
+        </div>
+        <div class="fc">
+          <div class="fh"><b>HairStrandsLighting.cpp</b><span>line 413, inline thread</span></div>
+          <div class="ex">${excerpt(2, 5)}</div>
+          <div class="msgs rail">
+            <div class="msg"><span class="av">J</span><div><span class="who">jiayincaonv</span><span class="when">Feb 15</span><p>Guarding on view data validity avoids the null deref on secondary views.</p></div></div>
+            <div class="msg"><span class="av me">M</span><div><span class="who">MikeMarcin</span><span class="when">Feb 15</span><p>Is IsValid cheap enough to call per view? It looked like it walks the instance list.</p></div></div>
+          </div>
+          <div class="act"><b>Reply</b><b>Resolve</b><b>Open in code</b></div>
+        </div>
+      </div>
+    </div>`;
+  const composePage = `<div class="compose">
+      <div class="back">‹ Back${split ? `<span class="k">Esc</span>` : ""}</div>
+      <h2>Review pull request</h2>
+      <div class="target"><b>github.com</b>, EpicGames/UnrealEngine#14366 at head 81b39fa. Submitting as MikeMarcin (account 1).</div>
+      <div class="row"><span>Review type</span><span class="combo">Request changes<span class="arrow">▾</span></span></div>
+      <div class="field">The strand pass guard reads well. Two things before this lands: the bias clamp needs its source named (tbutler's question on line 422), and the light scale should come from the view's post-process settings rather than the global.</div>
+      <div class="btns"><span class="btn primary">Submit review</span><span class="btn">Discard</span><span class="btn">Check status</span><span class="btn">New review</span></div>
+      <div class="note">Nothing is sent until Submit review. The draft is kept for this pull request.</div>
+    </div>`;
+
+  let columns, content;
+  if (state === "review" || state === "winmenu") {
+    columns = floor ? "210px minmax(0, 1fr) 240px" : wide ? "260px 280px minmax(0, 1fr) 320px" : "240px minmax(0, 1fr) 280px";
+    content = (wide && !floor ? repositories : "") + files + comparison + comments;
+  } else if (state === "loading") {
+    columns = "minmax(0, 1fr)";
+    content = overviewLoading;
+  } else if (state === "discuss") {
+    columns = "minmax(0, 1fr)";
+    content = discuss;
+  } else {
+    columns = "minmax(0, 1fr)";
+    content = composePage;
+  }
+  const body = `<div class="body" style="grid-template-columns:${columns}">${content}</div>`;
+  const place = mac ? "Mac" : "PC";
+  const statusBar = loading
+    ? `<div class="status"><span>Loading pull request…</span><span class="k">Notes and receipts stay on this ${place}</span><span class="sp"></span>${p === "H" ? `<span class="sbtn">${icon.compose}Compose review</span>` : ""}</div>`
+    : `<div class="status"><span>Read 12 of 40 files</span><span><span class="k">Latest</span> 81b39fa</span><span><span class="k">Refreshed</span> 2 min ago</span><span class="k">Notes and receipts stay on this ${place}</span><span class="sp"></span>${p === "H" ? `<span class="sbtn">${icon.compose}${draftKept ? "" : ""}Compose review</span>` : ""}</div>`;
+
+  // ---- the Windows application menu, open on Pull Request ---------------
+  const winMenu = state === "winmenu" ? `
+      <div class="menu" style="left:4px; top:27px; min-width:190px">
+        <div class="it sub"><span></span><span><u>F</u>ile</span><span class="k">›</span></div>
+        <div class="it sub"><span></span><span><u>P</u>rofiles</span><span class="k">›</span></div>
+        <div class="it sub hot"><span></span><span>P<u>u</u>ll Request</span><span class="k">›</span></div>
+        <div class="it sub"><span></span><span><u>V</u>iew</span><span class="k">›</span></div>
+      </div>
+      <div class="menu" style="left:193px; top:78px; min-width:290px">
+        <div class="it"><span>✓</span><span><u>F</u>ollow</span><span class="k"></span></div>
+        <div class="it"><span></span><span><u>S</u>ave Repository</span><span class="k"></span></div>
+        <hr>
+        <div class="it new"><span></span><span><u>C</u>ompose review…</span><span class="k">${key("R")}</span></div>
+        <div class="it new"><span></span><span>Co<u>m</u>ment on line 431…</span><span class="k">${key("C")}</span></div>
+      </div>` : "";
+
+  // ---- component sheets ---------------------------------------------------
+  if (state === "macmenu") {
+    document.body.classList.add("sheet");
+    document.body.innerHTML = `<div style="position:relative; width:100vw; height:100vh; background:var(--bg)">
+      <div class="macbar"><b>BetterPullReview</b><span>File</span><span>Profiles</span><span class="open">Pull Request</span><span>View</span></div>
+      <div class="macmenu" style="left:222px">
+        <div class="mi"><span>✓ Follow</span><span class="k"></span></div>
+        <div class="mi"><span>&nbsp;&nbsp;&nbsp;Save Repository</span><span class="k"></span></div>
+        <hr>
+        <div class="mi hot"><span>&nbsp;&nbsp;&nbsp;Compose review…</span><span class="k">⌥R</span></div>
+        <div class="mi"><span>&nbsp;&nbsp;&nbsp;Comment on line 431…</span><span class="k">⌥C</span></div>
+      </div></div>`;
+    return;
+  }
+  if (state === "states") {
+    // The Compose control in each of its states, at the Updates line's end.
+    document.body.classList.add("sheet");
+    const row = (caption, control, words) => `<div><p class="cap">${caption}</p><div class="frame"><div class="epoch" style="width:100%"><span class="name">Updates</span><div class="line">${words
+      ? `<div class="loading"><span class="t">${words}</span><span class="bar"></span></div>`
+      : `<div class="track"></div><div class="span" style="left:52%; right:6%"></div><div class="nd" style="left:8%"></div><span class="lb" style="left:8%">Feb 9</span><div class="hd" style="left:52%"></div><span class="lb sel" style="left:52%">Feb 12</span><div class="yt" style="left:60%"></div><div class="hd" style="left:94%"></div><span class="lb sel last" style="left:94%">Feb 15, latest</span><span class="cap">Known updates · display order is not push order</span>`}</div>
+      <span class="sum">${words ? "no pair yet" : "pair ready"}</span><span class="cmp">Comparing <b>${words ? "whole PR" : "since my last review"}</b> ▾</span><span class="end"><span class="div"></span>${control}</span></div></div></div>`;
+    const plain = `<span class="ib labelled">${icon.compose}Compose review</span>`;
+    const kept = `<span class="ib labelled">${icon.compose}<i class="dot"></i>Compose review</span>`;
+    const open = `<span class="ib labelled on">${icon.compose}<i class="dot"></i>Compose review</span>`;
+    document.body.innerHTML = `<div class="sheet-grid">
+      ${row("Nothing kept: the label alone.", plain)}
+      ${row("A review draft is kept (a summary or a chosen type): the amber mark, the colour of my last review's tick.", kept)}
+      ${row("The Compose review page is open: the control shows it, and pressing it again goes Back, as Esc does.", open)}
+      ${row("While the pull request loads: the words take the line's place, and the control stays where it is.", plain, readinessWords)}
+    </div>`;
+    return;
+  }
+
+  const rows = [strip];
+  if (loading && p === "A") rows.push(readinessRow);
+  if (p === "A") rows.push(entryRow);
+  rows.push(epoch, body, p === "H" || true ? statusBar : "");
+  document.body.innerHTML = `<div class="window">${rows.join("")}${winMenu}</div>`;
+
+  // Threads sit at their lines: measured from the rendered right pane.
+  const threadsBox = document.querySelector(".threads");
+  if (threadsBox) {
+    const top0 = threadsBox.getBoundingClientRect().top;
+    let floorY = 0;
+    for (const node of threadsBox.querySelectorAll(".th")) {
+      const at = Number(node.dataset.at);
+      const line = document.querySelector(`.ln[data-side="r"][data-i="${at}"]`);
+      if (!line) continue;
+      const lineTop = line.getBoundingClientRect().top - top0;
+      const y = Math.max(lineTop - 3, floorY);
+      node.style.top = `${y}px`;
+      floorY = y + node.getBoundingClientRect().height + 8;
+    }
+  }
+
+  // The measured geometry, for the design page's ledger.
+  const measure = (selector, what = "height") => {
+    const node = document.querySelector(selector);
+    return node ? Math.round(node.getBoundingClientRect()[what]) : 0;
+  };
+  const data = document.body.dataset;
+  data.window = `${innerWidth}x${innerHeight}`;
+  data.comparisonHeight = String(measure(".panes"));
+  data.comparisonTop = String(Math.round(document.querySelector(".panes")?.getBoundingClientRect().top ?? 0));
+  data.stripHeight = String(measure(".strip"));
+  data.entryHeight = String(measure(".entries"));
+  data.readinessHeight = String(measure(".ready"));
+  data.epochHeight = String(measure(".epoch"));
+  data.trackWidth = String(measure(".epoch .line", "width"));
+  data.epochEndWidth = String(measure(".epoch .end", "width"));
+  data.statusHeight = String(measure(".status"));
+  data.stripOverflow = String(Math.max(0, (document.querySelector(".strip")?.scrollWidth ?? 0) - innerWidth));
+  document.title = `BPR-1106 v2 ${p} ${os} ${theme} ${size} ${state} comparison ${data.comparisonHeight} track ${data.trackWidth}`;
+})();
+</script>
+</body>
+</html>

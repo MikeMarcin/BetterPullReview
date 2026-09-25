@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106 workbench scaffolding, v5</title>
+<!--
+  [[BPR-1106]] design round v5, from the owner's review of v4 on 2026-09-24:
+  the candidates are T without its caption, T with Comment in the tray, and V;
+  the modality should sit left, centre or right rather than float; Compose
+  review and Comment as icons with tooltips; the active tab's tools off the tab
+  row; and a fold for the horizontal Updates line.
+  Frames: BPR-1106-scaffolding-frames-v5.html into
+  ../verification/BPR-1106-scaffolding-v5/. Every number is measured on them.
+-->
+<style>
+  :root {
+    --paper: #ECEEF1; --sheet: #F8F9FA; --ink: #15181C; --ink-2: #48505A; --ink-3: #78818C;
+    --rule: #D2D7DD; --rule-2: #B9C0C8;
+    --signal: #2F6FD6; --signal-soft: #E1EAF9;
+    --redline: #B8266B; --redline-soft: #F7E3EC;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); font-variant-numeric: tabular-nums; }
+  main { max-width: 1360px; margin: 0 auto; padding: 44px 28px 80px; }
+  .prose { max-width: 76ch; }
+  h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 12px; }
+  h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 60px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+  h3 { font-size: 16px; font-weight: 640; margin: 22px 0 6px; }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 17px; }
+  .byline { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+  kbd { font: 12px/1 var(--ui); border: 1px solid var(--rule-2); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: #fff; white-space: nowrap; }
+  ul.tight { padding-left: 20px; margin: 0 0 14px; }
+  ul.tight li { margin-bottom: 6px; }
+  .note { font-size: 13px; color: var(--ink-2); }
+
+  .strata { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; margin: 26px 0 8px; align-items: end; }
+  .col-s h4 { margin: 0 0 2px; font-size: 14px; font-weight: 700; }
+  .col-s .sub { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; min-height: 2.6em; }
+  .stack { display: grid; font-size: 11px; line-height: 1; }
+  .stack div { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: center; color: var(--ink-2); white-space: nowrap; }
+  .stack div i { display: block; align-self: stretch; border-bottom: 1px solid #fff; }
+  .stack div span:last-child { font-weight: 600; color: var(--ink); }
+  .stack .s-strip i, .stack .s-status i { background: #C9D0D8; }
+  .stack .s-entry i { background: var(--redline); }
+  .stack .s-entry, .stack .s-entry span:last-child { color: var(--redline); font-weight: 600; }
+  .stack .s-epoch i { background: #B9CCEA; }
+  .stack .s-head i { background: #D5DAE0; }
+  .stack .s-bar i { background: #E3E7EC; }
+  .stack .s-comp i { background: #E9EDF1; border: 1px solid var(--rule-2); border-width: 0 1px; }
+  .col-s .gain { margin-top: 10px; font-size: 13px; }
+  .col-s .gain b { font-size: 20px; font-weight: 700; display: block; }
+  .col-s .gain .up { color: var(--redline); font-weight: 600; }
+  .col-s.rec h4::after { content: "proposed"; margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--signal); vertical-align: 1px; }
+
+  .strips { display: grid; gap: 4px; margin-top: 12px; }
+  .strips figure { margin: 0; display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center; }
+  .strips img { display: block; max-width: 100%; border: 1px solid var(--rule-2); }
+  .strips figcaption { font-size: 13px; color: var(--ink-2); }
+  .strips figcaption b { color: var(--ink); font-weight: 600; }
+  .pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+
+  .chrome { display: grid; gap: 14px; margin-top: 12px; }
+  .chrome figure { margin: 0; }
+  .chrome img { display: block; width: 100%; border: 1px solid var(--rule-2); }
+  .chrome figcaption { font-size: 13px; color: var(--ink-2); margin-top: 5px; }
+  .chrome figcaption b { color: var(--ink); font-weight: 600; }
+  figure { margin: 0; }
+  figure img { display: block; max-width: 100%; border: 1px solid var(--rule-2); border-radius: 3px; }
+  figcaption { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+
+  .viewer { margin-top: 16px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 12px; }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; }
+  .ctl-label { font-size: 12px; color: var(--ink-3); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule-2); background: var(--paper); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { font: 500 13px/1 var(--ui); color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 6px 11px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--signal); color: #fff; font-weight: 620; }
+  .seg button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .frame-box { background: #fff; border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+  .frame-box img { display: block; width: 100%; height: auto; }
+  .frame-cap { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+
+  .rec-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .asks { list-style: none; padding: 0; margin: 0; }
+  .asks li { background: #fff; border: 1px solid var(--rule); border-left: 3px solid var(--signal); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; font-size: 14px; }
+  .asks li b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .asks li span { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+  <header class="prose">
+    <h1>Where the tab's tools go, and a fold for the Updates line</h1>
+    <div class="byline">BPR-1106, design round v5, from your review of v4, 2026-09-24</div>
+    <p class="lede">You narrowed the candidates to T without its caption, T with Comment in the tray, and V. This round tries what you asked. The modality sits at a fixed place, Compose review and Comment become icons with tooltips, and the active tab's tools come off the tab row. The horizontal Updates line gets a fold.</p>
+  </header>
+
+  <section>
+    <div class="strata" id="strata"></div>
+    <p class="note">The window's rows at 1280×852 on macOS, half scale, measured on the frames. V with its tools left of the tabs measures 772 and T 738, but both keep the tab row shared, which you found cluttered.</p>
+  </section>
+
+  <section>
+    <h2>The modality, fixed in place</h2>
+    <p class="prose">It floated because it was centred in whatever the name and the right-hand icons left over: 207 pixels right of the window's centre at 1280. Fixed, it can sit at the window's true centre, after the drawer toggles, or beside refresh. Centred, the name elides to fit on its left; RFC-BPR-0028 already says "centre, alone".</p>
+    <div style="display:grid; gap:18px">
+      <div class="strips">
+        <figure><figcaption><b>Today</b>, centred in the space left over</figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-float-T-mac.png" alt="Today's title row: the modality 207 pixels right of centre."></figure>
+        <figure><figcaption><b>Left</b>, after the drawer toggles</figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-left-T-mac.png" alt="The modality after the drawer toggles, the name after it."></figure>
+        <figure><figcaption><b>Centre</b>, the window's middle</figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-center-T-mac.png" alt="The modality at the window's centre, the name eliding on its left."></figure>
+        <figure><figcaption><b>Right</b>, beside refresh</figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-right-T-mac.png" alt="The modality beside refresh, the name taking the left."></figure>
+        <p class="note">T at 1280, macOS dark.</p>
+      </div>
+      <div class="strips">
+        <figure><figcaption><b>Today</b></figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-float-V-win.png" alt="V's Windows title row at 902, today's placement."></figure>
+        <figure><figcaption><b>Left</b></figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-left-V-win.png" alt="V's Windows title row at 902, the modality left."></figure>
+        <figure><figcaption><b>Centre</b></figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-center-V-win.png" alt="V's Windows title row at 902, the modality centred."></figure>
+        <figure><figcaption><b>Right</b></figcaption><img src="../verification/BPR-1106-scaffolding-v5/title-right-V-win.png" alt="V's Windows title row at 902, the modality right."></figure>
+        <p class="note">V at the Windows 902 floor: there is little room, so the choices converge. Centred yields 26 pixels left when the Compose icon needs them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where the active tab's tools go</h2>
+    <p class="prose">The change and file positions and this file's progress. The tab row keeps only tabs in two of the three.</p>
+    <div class="chrome">
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-T-left.png" alt="T, the tools left of the tabs in the tab row."><figcaption><b>Left of the tabs, 738.</b> The tools get their own compartment, but the row still does two jobs and the tabs still elide.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-T-above.png" alt="T, the tools on the Updates line, before the Compose review and Comment icons; the tab row holds only tabs."><figcaption><b>Above the tabs, 738.</b> In T that row is the Updates line: the timeline, the comparison, the tools, then Compose review and Comment. Tabs get full names.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-T-below.png" alt="T, a bar under the tab names in the diff pane with the path, diffstat and tools."><figcaption><b>Below the tabs, 712.</b> A bar in the diff pane with the path, the diffstat and the tools. The clearest reading, and a 26-pixel row.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-V-above.png" alt="V, a row above the tabs with the comparison, the tools, and the Compose review and Comment icons; the title row has no Compose."><figcaption><b>V, above the tabs, 744.</b> A row with the comparison's name, the tools, Compose review and Comment; the title row loses Compose review.</figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-V-below.png" alt="V, a bar under the tab names with the comparison, file, diffstat and tools."><figcaption><b>V, below the tabs, 746.</b> The comparison's name, the file and the tools under the tab names.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Folding the Updates line</h2>
+    <p class="prose">The arrow before "Updates" folds the timeline to one line that still names the comparison and its dates. Its menu, the tools and the icons stay where they were. Folding frees only 6 pixels, because the row keeps the tools; what it buys is a quiet row when you aren't choosing updates. The window remembers the fold.</p>
+    <div class="chrome">
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-T-above.png" alt="T, tools above the tabs, the Updates line open."><figcaption><b>Open, 738.</b></figcaption></figure>
+      <figure><img src="../verification/BPR-1106-scaffolding-v5/chrome-T-above-fold.png" alt="T, tools above the tabs, the Updates line folded: Updates, Comparing since my last review, Feb 12 → Feb 15, then the tools and the icons."><figcaption><b>Folded, 744.</b> The same height as V with its tools above the tabs, with 34 pixels more code width than V and the dates one click away.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Compose review and Comment as icons</h2>
+    <div class="pairs">
+      <div class="prose">
+        <p>Both work as icons because each is reachable three other ways. The tooltip names the command and its key, and says whether a review draft is kept. The Pull Request menu lists both with their keys, <kbd>⌥R</kbd> and <kbd>⌥C</kbd>. The amber mark says a draft is waiting without a label. Comment's arrow still opens the Conventional Comments labels.</p>
+        <p>The risk is the first week: a pen icon is where people finish a review, and nobody finds it by reading. If that worries you, keep Compose review's label and make only Comment an icon.</p>
+      </div>
+      <div style="display:grid; gap:12px">
+        <figure><img src="../verification/BPR-1106-scaffolding-v5/closeup-tooltip-T.png" alt="The Compose review icon's tooltip: Compose review ⌥R, A review draft is kept for this pull request."><figcaption>T, macOS dark.</figcaption></figure>
+        <figure><img src="../verification/BPR-1106-scaffolding-v5/closeup-tooltip-V.png" alt="The same tooltip in V's row above the tabs."><figcaption>V, macOS light.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The frames</h2>
+    <p class="prose"><kbd>←</kbd> and <kbd>→</kbd> step through the directions. A combination with no frame shows the nearest one and says so.</p>
+    <div class="viewer">
+      <div class="controls">
+        <span class="ctl"><span class="ctl-label">Direction</span><span class="seg" id="c-b"></span></span>
+        <span class="ctl"><span class="ctl-label">Tools</span><span class="seg" id="c-t"></span></span>
+        <span class="ctl"><span class="ctl-label">Updates line</span><span class="seg" id="c-f"></span></span>
+      </div>
+      <div class="controls">
+        <span class="ctl"><span class="ctl-label">Platform</span><span class="seg" id="c-os"></span></span>
+        <span class="ctl"><span class="ctl-label">Appearance</span><span class="seg" id="c-theme"></span></span>
+        <span class="ctl"><span class="ctl-label">Window</span><span class="seg" id="c-size"></span></span>
+        <span class="ctl"><span class="ctl-label">State</span><span class="seg" id="c-st"></span></span>
+      </div>
+      <div class="frame-box"><img id="frame" alt=""></div>
+      <div class="frame-cap" id="frame-cap"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recommendation</h2>
+    <div class="rec-grid">
+      <div class="prose">
+        <p><b>T, with the tools on the Updates line and the line foldable.</b> The line becomes the review bar: timeline, comparison, the active tab's position and progress, then Compose review and Comment as icons. The tab row holds only tabs, with full names. Folded, the bar is one quiet line, and the comparison gets 744 pixels at 1280×852, 37 more than today.</p>
+        <p><b>This changes my recommendation from V.</b> Once the tools leave the tab row, V gives up its lead: 744 with its tools above the tabs, the same as T folded. T keeps 34 pixels more code width and the dates in view, one click from folded. It also keeps BPR-0737's full-width line. V only stays ahead with its tools back on the tab row.</p>
+        <p><b>The modality, centred.</b> That is RFC-BPR-0028's "centre, alone", now measured from the window rather than from what's left over.</p>
+        <p>If Comment should sit with the conversation, the Comment-in-the-tray variant is the same bar with one icon fewer. Comment then lives in the Comments tray and beside the current line.</p>
+      </div>
+      <div>
+        <h3 style="margin-top:0">The decisions I'm asking for</h3>
+        <ol class="asks">
+          <li><b>Where does the modality sit?</b><span>Proposed: centred on the window.</span></li>
+          <li><b>Where do the active tab's tools go?</b><span>Proposed: above the tabs, on the Updates line (T). The alternatives are a bar below the tabs (26 pixels) or a row above the tabs in V.</span></li>
+          <li><b>T or V?</b><span>Proposed: T, with the fold.</span></li>
+          <li><b>Icons for Compose review and Comment?</b><span>Proposed: yes, with the tooltip, the menu items and the keys. Or keep Compose review's label.</span></li>
+          <li><b>Comment in the bar, or in the Comments tray?</b><span>Proposed: in the bar, with its label menu.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>How the frames were made</h2>
+    <p>As in v4, one frames file draws the window with the accepted tokens and the product's measured rows, now with four more switches: the modality's place, icons or labels, where the tab's tools go, and the fold. Headless Chrome rendered 47 frames at their exact window size, device scale 1; each was reduced to 256 colours and looked at, and every height was read back from the page's own layout. The Windows frames use the Mac's type.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const MAN = new Set(["T-above-mac-dark-1280x852-fold.png","T-above-mac-dark-1280x852-tab2.png","T-above-mac-dark-1280x852-tooltip.png","T-above-mac-dark-1280x852.png","T-above-mac-light-1920x1080.png","T-above-win-dark-floor-fold.png","T-above-win-dark-floor.png","T-above-win-light-1280x852-fold.png","T-above-win-light-1280x852.png","T-below-mac-dark-1280x852-fold.png","T-below-mac-dark-1280x852.png","T-below-mac-light-1920x1080.png","T-below-win-dark-floor.png","T-below-win-light-1280x852.png","T-left-mac-dark-1280x852-fold.png","T-left-mac-dark-1280x852.png","T-left-win-light-1280x852.png","Ts-above-mac-dark-1280x852.png","Ts-below-mac-dark-1280x852.png","V-above-mac-dark-1280x852.png","V-above-mac-light-1280x852-tooltip.png","V-above-mac-light-1920x1080.png","V-above-win-dark-floor.png","V-above-win-light-1280x852.png","V-below-mac-dark-1280x852-tab2.png","V-below-mac-dark-1280x852.png","V-below-mac-light-1920x1080.png","V-below-win-dark-floor.png","V-below-win-light-1280x852.png","V-left-mac-dark-1280x852.png","V-left-win-light-1280x852.png","chrome-T-above-fold.png","chrome-T-above.png","chrome-T-below-fold.png","chrome-T-below.png","chrome-T-left-fold.png","chrome-T-left.png","chrome-Ts-above.png","chrome-V-above.png","chrome-V-below.png","chrome-V-left.png","closeup-tooltip-T.png","closeup-tooltip-V.png","title-center-T-mac.png","title-center-T-win.png","title-center-V-mac.png","title-center-V-win.png","title-float-T-mac.png","title-float-T-win.png","title-float-V-mac.png","title-float-V-win.png","title-left-T-mac.png","title-left-T-win.png","title-left-V-mac.png","title-left-V-win.png","title-right-T-mac.png","title-right-T-win.png","title-right-V-mac.png","title-right-V-win.png"]);
+  const directions = [
+    { name: "Today", sub: "the row, as built", rows: [["s-strip", "title", 30], ["s-entry", "entries", 22], ["s-epoch", "Updates", 50], ["s-head", "status", 21]], comp: 707 },
+    { name: "T, above", sub: "tools on the Updates line", rows: [["s-strip", "title", 30], ["s-epoch", "Updates", 34], ["s-head", "tabs", 28]], comp: 738 },
+    { name: "T, folded", sub: "the same, the line folded", rows: [["s-strip", "title", 30], ["s-epoch", "Updates", 28], ["s-head", "tabs", 28]], comp: 744, rec: true },
+    { name: "T, below", sub: "a bar under the tabs", rows: [["s-strip", "title", 30], ["s-epoch", "Updates", 34], ["s-head", "tabs", 28], ["s-bar", "bar", 26]], comp: 712 },
+    { name: "V, above", sub: "a row above the tabs", rows: [["s-strip", "title", 30], ["s-bar", "row", 28], ["s-head", "tabs", 28]], comp: 744 },
+    { name: "V, below", sub: "a bar under the tabs", rows: [["s-strip", "title", 30], ["s-head", "tabs", 28], ["s-bar", "bar", 26]], comp: 746 },
+  ];
+  const k = 0.5;
+  document.getElementById("strata").innerHTML = directions.map((d) => {
+    const rows = [...d.rows, ["s-comp", "code", d.comp], ["s-status", "status", 22]];
+    const gain = d.comp - 707;
+    return `<div class="col-s ${d.rec ? "rec" : ""}"><h4>${d.name}</h4><div class="sub">${d.sub}</div>
+      <div class="stack">${rows.map(([cls, label, h]) => `<div class="${cls}" style="height:${Math.round(h * k)}px"><i></i><span>${label}</span><span>${h}</span></div>`).join("")}</div>
+      <div class="gain"><b>${d.comp}</b>${gain > 0 ? `<span class="up">+${gain}</span> on today` : "the baseline"}</div></div>`;
+  }).join("");
+
+  const state = { b: "T", t: "above", f: "open", os: "mac", theme: "dark", size: "1280x852", st: "review" };
+  const opts = {
+    b: [["T", "T"], ["Ts", "T, Comment in the tray"], ["V", "V"]],
+    t: [["left", "Left of the tabs"], ["above", "Above the tabs"], ["below", "Below the tabs"]],
+    f: [["open", "Open"], ["fold", "Folded"]],
+    os: [["mac", "macOS"], ["win", "Windows"]],
+    theme: [["dark", "Dark"], ["light", "Light"]],
+    size: [["1280x852", "1280×852"], ["1920x1080", "1920×1080"], ["floor", "Width floor"]],
+    st: [["review", "Review"], ["tab2", "Second tab"], ["tooltip", "Tooltip"]],
+  };
+  const name = (b, t, os, theme, size, st, f) => {
+    const sfx = [st !== "review" ? st : "", f === "fold" ? "fold" : ""].filter(Boolean);
+    if (size === "floor") return `${b}-${t}-${os}-${theme}-floor${f === "fold" ? "-fold" : ""}.png`;
+    return `${b}-${t}-${os}-${theme}-${size}${sfx.length ? "-" + sfx.join("-") : ""}.png`;
+  };
+  const candidates = () => {
+    const { b, t, os, theme, size, st } = state;
+    const f = b === "V" ? "open" : state.f;
+    const out = [name(b, t, os, theme, size, st, f)];
+    for (const [o2, t2] of [[os, theme === "dark" ? "light" : "dark"], ["mac", "dark"], ["win", "light"], ["win", "dark"], ["mac", "light"]]) out.push(name(b, t, o2, t2, size, st, f));
+    for (const [o2, t2] of [["mac", "dark"], ["win", "light"]]) out.push(name(b, t, o2, t2, "1280x852", st, f), name(b, t, o2, t2, "1280x852", "review", f), name(b, t, o2, t2, "1280x852", "review", "open"));
+    for (const t2 of ["above", "below", "left"]) out.push(name(b, t2, "mac", "dark", "1280x852", "review", "open"));
+    return out;
+  };
+  const seg = (id, key) => {
+    const host = document.getElementById(id);
+    host.innerHTML = "";
+    for (const [value, label] of opts[key]) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.setAttribute("aria-pressed", String(state[key] === value));
+      if (key === "f" && state.b === "V") btn.disabled = true;
+      btn.addEventListener("click", () => { state[key] = value; draw(); });
+      host.appendChild(btn);
+    }
+  };
+  const draw = () => {
+    for (const [id, key] of [["c-b", "b"], ["c-t", "t"], ["c-f", "f"], ["c-os", "os"], ["c-theme", "theme"], ["c-size", "size"], ["c-st", "st"]]) seg(id, key);
+    const list = candidates();
+    const found = list.find((n) => MAN.has(n));
+    const img = document.getElementById("frame");
+    const cap = document.getElementById("frame-cap");
+    img.src = `../verification/BPR-1106-scaffolding-v5/${found}`;
+    img.alt = found;
+    cap.textContent = `${found.replace(".png", "")}${found === list[0] ? "" : ": the nearest frame drawn for this choice"}.`;
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const order = opts.b.map(([v]) => v);
+    const i = order.indexOf(state.b);
+    state.b = order[(i + (e.key === "ArrowRight" ? 1 : order.length - 1)) % order.length];
+    draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>
