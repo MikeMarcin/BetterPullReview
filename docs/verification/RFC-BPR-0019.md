@@ -2,7 +2,105 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
-Status: **the original Dif source pack and deterministic generated sprite
+## Ordinary closeout audit — 2026-09-25
+
+**RFC-BPR-0019 remains Deferred; BPR-0295 awaits independent ordinary review
+and final closeout verification.** Run `rfc0019-20260925-parallel`, mandate
+`r1`, selects only its authored final stage. The entry/product candidate is
+`fc4b39e8c3a54ecf931d74071d7793e5e4112496`; the claimed audit revision is
+`07f41e25d4bd0793839f15c084e5d2d1e53ee251`. No product, generated asset,
+protected historical review or RFC-0052 path changes in this run.
+
+The predecessor blockers in the historical section have cleared: RFC-BPR-0006
+and RFC-BPR-0013 are Auto-Verified with terminal BPR-0115 and BPR-0617.
+Every BPR-0287–0294 prerequisite is Done. The original Markdown issue plan and
+its immutable RFC base remain unchanged; the
+[bounded current plan](../rfcs/plans/rfc-bpr-0019-closeout/milestone-plan.json)
+adopts only BPR-0295, retaining all seven criteria and the independent gate.
+
+### Existing successor authority
+
+[RFC-BPR-0030](../rfcs/RFC-BPR-0030-dif-production-animation-revision.md)
+explicitly partially supersedes RFC-0019's three clips, original resource
+limits, source-size and regeneration requirements. The operator's
+[BPR-0378 decision](../issues/60-done/BPR-0378-dif-canon-depends-on-the-local-zlib.md#operator-verdict--option-1--2026-08-19)
+and [BPR-0408 implementation](../issues/60-done/BPR-0408-the-generated-tree-comparison-is-zlib-pinned-too.md)
+compare canonical decoded PNG pixels and deterministic text, while validating
+committed compressed-payload hashes against the actual committed files.
+[RFC-BPR-0031](../rfcs/RFC-BPR-0031-dif-workbench-animation-integration.md)
+owns current runtime composition. These are existing accepted successor facts;
+this audit grants no new amendment and leaves original RFC-0019 wording intact.
+
+### Exact original criterion reconciliation
+
+The row numbers below identify the unchanged canonical criteria and matching
+rows on BPR-0295. They are not seven new acceptance criteria.
+
+| Original row | Current direct result and identity | Remaining limitation |
+|---|---|---|
+| 1 — Original source, rights and provenance | All 72 current source files match v008 intake canonical hashes; current manifest matches its reviewed candidate. Provenance binds the exact v008 human verdict hash. Asset hygiene checks 87 files, including 82 PNGs, without a forbidden marker. | BPR-0291 rights/visual receipt belongs to the old pack. The later owner accepted the exact d10 derivative scope; creator identity, provider/model/seed/version, full prompt/input-role history and service terms remain recorded as unknown. No missing fact is invented. |
+| 2 — Reproducible outputs | Public validate and verify pass. Both clean regenerations agree; the current freshly generated products also match every committed byte on this Python 3.14.7/zlib 1.2.12 host. | Portable acceptance remains the existing BPR-0378/0408 canonical-pixel/text/payload-hash policy. This one byte-equal observation does not promise identical compression on every interpreter. |
+| 3 — Exactly three clips | Current 63-case contract passes, including generated C++ descriptor consumers and hostile schema/identity/return/digest cases. | Actual schema 2 admits the ten clips authorized by RFC-0030. The literal original three-clip assertion is false for the successor pack and is not marked passing. |
+| 4 — Original bounds | Current validator accepts registered 256-square RGBA cells, geometry, alpha/gutters, timing and revised bounds. Measured content: 71 cells, 18,612,224 bytes; 20 gutters; complete strips 23,855,104 bytes; maximum 10 fps. | The original 48-cell, six-gutter, 12/13.5-MiB limits are superseded. Current 17.75/22.75-MiB use satisfies RFC-0030's 19/24-MiB ceilings, not the old numeric assertion. |
+| 5 — Mechanical and attended motion | Current mechanical validation passes. v008 session `7e489c0dd362c256bc28715a16892b65`, hand-back 123, has twelve accepts and no pending decision; the reviewed manifest and all source bytes match. | Historical BPR-0291's fifteen bound source/generated files, manifest, provenance and tool all differ now. Its unchanged receipt is historical proof only; the successor verdict supplies current scoped art/derivative acceptance. No new human verdict is inferred. |
+| 6 — Build/tool isolation | Current offline-tool import/capability audit passes, and current source/resource selection scan checks 565 files. The 63-case suite includes graph-registration, art-tool-dependency, core asset, runtime-resource and missing-selection negatives. | This is source/fixture evidence. Actual fresh dev, core-only and tests-disabled graphs and binaries were not built or audited here. BPR-0292 and RFC-0031 graph/native results remain valid only for their recorded candidates. Current runtime assets are intentionally present under RFC-0031. |
+| 7 — Honest documentation | The current documentation structure gate, all 64 documentation tests and whitespace check pass. This ledger separates old claims from the accepted current implementation. | Current architecture/asset docs truthfully describe runtime composition. The original no-runtime statement applies to RFC-0019's authored stage; final independent review must judge the explicit successor reconciliation. |
+
+### Commands and artifact identities
+
+Commands ran from the isolated worktree; product input is unchanged from the
+entry revision. `python3` is Python 3.14.7. The public maintainer entry point is
+`scripts/dif_assets.py`; its terminal outputs were `DIF_ASSETS_VALID` and
+`DIF_ASSETS_REPRODUCIBLE`.
+
+| Command | Result |
+|---|---|
+| `python3 scripts/dif_assets.py validate --assets src/adapters/qt/assets/dif` | Pass, exit 0. |
+| `python3 scripts/dif_assets.py verify --assets src/adapters/qt/assets/dif` | Pass, exit 0; two temporary empty output trees removed by the tool. |
+| `python3 tests/scripts/dif_asset_tests.py --cxx /usr/bin/clang++` | 63/63 pass, 92.602 s, no skip. Direct offline maintainer suite, not a CTest/native-application run. |
+| Current artifact/hash/authority audit | Pass for v008 identity, hygiene, generator capability, current source/resource boundary and local byte equality. Exact script and observations are retained in the [audit record](../rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r1.json). |
+| `python3 scripts/verify_documentation.py --root .` | Initial unconfigured worktree invocation failed to import `board_model`. Setting `PYTHONPATH` to the assigned installed implement-rfc `scripts` directory passed with `DOCUMENTATION_OK`; no product change was needed. |
+| `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<installed-implement-rfc>/scripts python3 tests/scripts/verify_documentation_tests.py` | 64/64 pass, 2.467 s; negative fixture diagnostics are expected. |
+| `git diff --check` | Pass after the audit edits. |
+
+The installed helper root is
+`/Users/jaeger/.mask/store/v1/6ad19f0fc539b9b393a02dbeff6bf0745f83ac499d7c953cba4d9236bf667832/payload/implement-rfc`.
+The new worktree has no ignored `.agents/skills/implement-rfc` deployment;
+`PYTHONPATH` supplies those already installed read-only helper modules.
+
+Current manifest SHA-256:
+`c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d`.
+Current provenance SHA-256:
+`f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c`.
+Current asset-tool SHA-256:
+`c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf`.
+Current v008 verdict SHA-256:
+`57a2a6d8fa6c297173b9f7a93e6411faa3b1cd0c0262ba059b1da36021f4e116`.
+The audit record includes additional exact test, boundary and resource-selector
+hashes. Both historical manifest/verdict pairs still match their durable
+validation receipts; the removed historical validator was not rerun.
+
+### Stop boundary and next action
+
+The selected coordinator-implementer recipe forbids nested reviewers. No
+separately authorized independent ordinary RFC-0019 report was supplied, and
+the historical RFC-0030/0031 review cannot be silently broadened to satisfy it.
+The 63-case test suite and this implementer's self-review do not close that gate.
+Actual final-candidate graph/runtime verification also remains open; application
+builds were not launched for this bounded mechanical audit after the formal
+closeout distinction was established.
+
+Resume BPR-0295 with this existing-successor mapping, obtain the separately
+authorized independent acceptance and select the remaining final-candidate
+build/runtime checks. Keep BPR-0295 incomplete and RFC-0019 Deferred until all
+required obligations are satisfied. The existing accepted v008 art is unchanged,
+so this run creates no new art review session, server or watch. The
+[durable handoff](../rfcs/plans/rfc-bpr-0019-closeout/handoff-r1.json) records
+writer release, command quiescence, candidate identities and branch integration.
+
+## Historical implementation evidence
+
+Historical status: **the original Dif source pack and deterministic generated sprite
 products are implemented; final source rights and all five attended visual
 subjects are accepted for the exact reviewed assets.** BPR-0288 is done at `1a5c9b8`: its initial 18-case contract closed the
 catalog-portability, neutral-body-box, and symlink-containment findings.
@@ -81,7 +179,7 @@ agent, syntax, icon, installer, signing, and release documents have no
 RFC-BPR-0019 implementation change beyond the explicit no-impact boundaries
 above.
 
-## Closeout blockers
+## Historical closeout blockers
 
 - BPR-0287 is complete: the accepted identity-only page export validated
   against batch `bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0`.
