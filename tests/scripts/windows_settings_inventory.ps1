@@ -16,13 +16,13 @@
 # clicks are posted messages, menus are driven through UI Automation, and a key
 # is sent only while one of the image's windows is in front.
 #
-#   course     AC2 and AC3. View > Settings…, modeless focus, the Ctrl+comma
+#   course     AC2 and AC3. View > Settings..., modeless focus, the Ctrl+comma
 #              singleton, Escape, Ctrl+comma reopen, Profiles > New Window, the
 #              sibling's menu reuses Settings, caption close, the sibling's
 #              shortcut, closing the first window keeps Settings, the seven
 #              pages, then File > Quit, which must exit 0.
 #   inventory  AC3 alone, for when the course stops before the pages.
-#              View > Settings…, the seven pages, Escape, then WM_CLOSE.
+#              View > Settings..., the seven pages, Escape, then WM_CLOSE.
 #   -DryRun    Checks the image, the bundle, the output and the desktop, and
 #              prints the plan. It launches nothing, makes no window, and sends
 #              no input.
@@ -122,8 +122,10 @@ $scope = [Windows.Automation.TreeScope]
 $walker = [Windows.Automation.TreeWalker]::RawViewWalker
 $trueCondition = [Windows.Automation.Condition]::TrueCondition
 $categories = @('General', 'Accounts & hosts', 'Reviews & queue', 'Appearance', 'Notifications', 'Agents & context', 'Storage & privacy')
-$workbenchTitle = '^BetterPullReview\s[—-]\s.*profile'
-$settingsTitle = '^Settings\s[—-]\s.*profile'
+$workbenchTitle = '^BetterPullReview\s[\u2014-]\s.*profile'
+$settingsTitle = '^Settings\s[\u2014-]\s.*profile'
+# The file stays ASCII: Windows PowerShell 5.1 reads a file without a BOM in
+# the ANSI code page, so the titles' em dash is written as a regex escape.
 
 function Require($condition, [string]$message) { if (-not $condition) { throw $message } }
 function Sha256([string]$path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower() }
@@ -235,9 +237,34 @@ function Menu-Item([string]$name) {
     }
     (Menu-Items $name)[0]
 }
+# Every visible menu item of the image, in any of its windows.
+function Open-Menu-Items {
+    $found = @()
+    foreach ($window in (Windows)) {
+        $found += @($window.FindAll($scope::Descendants, $trueCondition) | Where-Object {
+            $_.Current.ControlType -eq [Windows.Automation.ControlType]::MenuItem -and -not $_.Current.IsOffscreen })
+    }
+    , $found
+}
+# A menu an accessible invoke leaves open is closed with posted Escape
+# messages to its own window, never injected keys, as the activation course
+# does. Left open, the next posted click on the Application menu control only
+# closes it.
+function Close-Menus {
+    for ($i = 0; $i -lt 4 -and (Open-Menu-Items).Count -gt 0; $i++) {
+        $top = (Open-Menu-Items)[0]
+        $control = [Windows.Automation.TreeWalker]::ControlViewWalker
+        while ($true) { $up = $control.GetParent($top); if ($null -eq $up -or $up -eq $ae::RootElement) { break }; $top = $up }
+        $h = [IntPtr]$top.Current.NativeWindowHandle
+        [void]$desk::PostMessage($h, 0x100, [IntPtr]0x1B, [IntPtr]0x00010001)
+        [void]$desk::PostMessage($h, 0x101, [IntPtr]0x1B, [IntPtr]0xC0010001)
+        Pump 300
+    }
+}
 # The strip's Application menu control by a posted click, then the menu and its
 # item through UI Automation, as windows_profile_activation_course.ps1 does.
 function Menu-Command($window, [string]$menu, [string]$item) {
+    Close-Menus
     Focus $window
     Click (Find $window 'Application menu') $window
     $parent = Menu-Item $menu
@@ -248,7 +275,8 @@ function Menu-Command($window, [string]$menu, [string]$item) {
     $command = Menu-Item $item
     Write-Output "MENU_ITEM:$item ACCELERATOR:$($command.Current.AcceleratorKey) ACCESS:$($command.Current.AccessKey)"
     $command.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
-    Pump 300
+    Pump 500
+    if ($item -ne 'Quit') { Close-Menus }
 }
 function Close($window) { $window.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close() }
 function Nodes($element, [int]$depth = 0) {

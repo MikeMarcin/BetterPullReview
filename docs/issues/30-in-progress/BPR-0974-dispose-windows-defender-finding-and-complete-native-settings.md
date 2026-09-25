@@ -690,3 +690,121 @@ Each launch is its own Defender verdict. If one is flagged, the runs stop,
 and the detection is recorded here the way the first was. AC4's accounting
 (private profile, unchanged digests, no process left) comes from the same
 records.
+
+## The cleared foreground runs, 2026-09-25T04:21Z to 04:33Z (bpr-main-win)
+
+The coordinator announced and cleared a 30-minute foreground block. Before
+the first run, `foreground.cmd check` showed Windows Terminal in front and no
+WSLg (`msrdc`) window. Each script verified the candidate's two digests itself
+before launching. Every launch was `installed\better_pull_review.exe
+--render-evidence`, so every run used a private temporary profile and printed
+`AUTOMATED_PROFILE_PRIVATE_OK`, with empty standard error.
+
+| UTC | Run | PID | Result |
+| --- | --- | --- | --- |
+| 04:21:10 | Defender before | | 3 detections (the two 2026-09-22 ones and the unrelated command-line verdict); newest operational record 6554; signatures 1.459.384.0; real-time and tamper protection on |
+| 04:21:15-04:23:17 | Course, attempt 1 | 47964 | Stopped: "Initial signed-out workbench absent". The window was up, but the course's title pattern never matched. The script held a literal em dash, and Windows PowerShell 5.1 reads a file without a BOM in the ANSI code page. Script fixed: it is now ASCII, with the dash as `—` |
+| 04:25:22-04:25:37 | Course, attempt 2 | 47628 | Two checks passed: `native-menu-ctrl-comma-modeless-singleton-profile-label` and `escape-and-shortcut-reopen`. Stopped at Profiles > New Window: "Expected one visible menu item Profiles, got 0" |
+| 04:26:41-04:26:57 | Course, attempt 3, with leftover menus closed first | 17772 | The same two checks, and the same stop |
+| 04:27:36-04:27:47 | AC3 inventory | 3640 | **Passed, exit 0**: View > Settings…, the seven pages, Escape, `WM_CLOSE` |
+| 04:31:34-04:31:51 | Course with a diagnosis (a temporary edit to its failure branch, not committed) | 39444 | The same stop, now described (below) |
+| 04:33:01 | Defender final | | Still 3 detections; **no operational event after record 6554** |
+
+The BPR-0653 capture and the BPR-1123 real-platform check ran inside the same
+block, at 04:28Z to 04:32:48Z; they are recorded on their own cards. The digests of `installed\better_pull_review.exe`
+(`6aa27c8d…`), `installed\better_pull_review.rcc` (`ca3bc2b1…`) and the build
+copy were read before, between and after the runs, and never changed. A
+failed course stops its own image, so the three failed attempts and the
+diagnosis end with exit -1 from that stop. No `better_pull_review.exe` was
+left after any run. Across the candidate's eight launches, its first at
+02:21Z and these seven, Defender recorded nothing.
+
+### AC2: not met. The stop is classified, and it is the 2026-09-22 stop
+
+The course reaches exactly where the 2026-09-22 course stopped ("stopped at a
+missing Profiles menu"), now on the cleared image:
+
+- **Passed, bound to the image and its PID:**
+  - View > Settings… through the strip's Application menu opens one Settings
+    window, labelled with the profile;
+  - it is modeless;
+  - Ctrl+comma from the workbench reuses and focuses that same window
+    (singleton);
+  - Escape closes it, and Ctrl+comma reopens it.
+- **Stopped:** the second use of the Application menu. The diagnosis run
+  listed the image's windows at the stop
+  ([record](../../verification/BPR-0974-windows-native-settings/windows-course-stop-85e522d8.json)):
+  - `BetterPullReview`, class `QMenu`, on screen at 972,423, 160x189 physical
+    pixels. **The menu is open**;
+  - that `QMenu` exposes **no menu item** to UI Automation, on screen or off;
+  - invoking the Application menu control through UI Automation
+    (`InvokePattern`) instead of a posted click shows the same thing:
+    `AFTER_UIA_INVOKE visible=` is empty.
+
+  The first opening of the same menu, on a fresh window, exposes its items:
+  View > Settings… is found and invoked in every run, and so is the inventory's.
+  So the strip's Application menu, opened a second time, is **inaccessible**:
+  a screen reader or any UI Automation client would find it empty. It is a
+  product accessibility defect (in the strip's menu, or in Qt 6.11.2's
+  Windows UI Automation bridge for a `QMenu` shown again with `popup()`), not a
+  missing Profiles menu. The earlier stop was this, unrecognised.
+- **Not reached:** Profiles > New Window, the sibling's menu and shortcut,
+  caption close, retiring the first window, and File > Quit's exit 0.
+
+AC2 asks to "classify and correct any reproduced product failure, including
+Profiles". It is classified. The correction is product work, not done in this
+pass: find why the second popup's accessible children are missing, fix it, and
+pin it in a Qt row. Only then can the full course, with its exit-0 Quit, run
+again on a cleared image.
+
+### AC3: met
+
+[`windows-inventory-85e522d8.json`](../../verification/BPR-0974-windows-native-settings/windows-inventory-85e522d8.json)
+holds all seven pages: 495 nodes, DPI 144 (150%). It is bound to `85e522d8`,
+the image's and the bundle's digests, and its private profile.
+[`settings_inventory_comparison_tests.py`](../../../tests/scripts/settings_inventory_comparison_tests.py)
+compares it, 22 of 22 passing:
+
+| Page | Against Linux `b651554f` | Against macOS `2d3bdbdf` |
+| --- | --- | --- |
+| General: the updater, 9 rows | identical: automatic check on and disabled, account combo disabled, six actions disabled, View Release enabled | identical |
+| Accounts & hosts | identical, 3 | no "Use GitHub CLI". The CLI profile is macOS-only (RFC-BPR-0015): the one structural capability difference |
+| Reviews & queue | identical, 35 | identical |
+| Appearance | +"About white space", +"Draw white space" ([[BPR-1107]], `eb9a94a9`); −"Diff hunk header background", −"Diff hunk header text" ([[BPR-0986]], `8f0ec40b`) | the same four |
+| Notifications, Agents & context | identical, 4 and 3 | identical |
+| Storage & privacy: 11, the last seven the maintenance rows | identical | identical |
+
+Every difference is a named product change since the Linux capture or the
+CLI capability; each is stated once in `WINDOWS_DELTAS` and checked both
+ways.
+
+**Negative controls,** in the comparison itself:
+- a Windows checkbox with its enabled state flipped, its check state flipped,
+  or removed is caught;
+- a capture missing the stated `Draw white space` combo is refused;
+- a capture with the removed hunk-header row back is refused;
+- a disabled "Prepare profile purge…" is refused;
+- a missing "Pause notifications" is refused.
+
+With `WINDOWS_DELTAS` emptied, the comparison fails at "Appearance: other
+controls differ".
+
+### AC4: met for these runs
+
+- **Private profile.** Every launch was a private temporary profile.
+- **Nothing changed.** The candidate's files kept their digests.
+- **Nothing left behind.** No app, course or observer process remained. No
+  station lease or scheduled task was used; this station runs in the
+  session.
+- **No forbidden effect.** No sign-in, provider mutation, updater action or
+  maintenance was invoked.
+- **No writer retained.** The courses' records are station logs under
+  `build/logs/bpr-0974-main-win/`. The two committed records carry no
+  editable value.
+
+### Where the card stands
+
+AC1, AC3 and AC4 are met. **AC2 is not**: it waits for the Application menu's
+accessibility defect to be corrected, then for one more cleared course run of
+a candidate carrying the fix. That needs a new tests-disabled image, whose
+first launch is its own Defender verdict. The card stays **In Progress**.

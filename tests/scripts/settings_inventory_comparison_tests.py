@@ -6,8 +6,10 @@ The 2d3bdbdf continuation compares the refreshed Mac and Linux inventories,
 without upgrading Linux's inventory-only course to native lifetime acceptance.
 The b651554f BPR-0975 captures add the Linux focus controls, the failed full
 course and its labelled refused-activation diagnosis, whose pages are compared
-again here. This is evidence comparison, not a substitute for running a native
-capture.
+again here. The 85e522d8 BPR-0974 captures add the cleared tests-disabled
+Windows image: its native inventory, compared with Linux through named deltas,
+and the full course's stop, which claims no lifetime pass. This is evidence
+comparison, not a substitute for running a native capture.
 """
 
 from __future__ import annotations
@@ -22,6 +24,39 @@ ROOT = Path(__file__).resolve().parents[2] / "docs" / "verification"
 MAC = ROOT / "BPR-0593-macos-settings-inventory"
 CONTINUATION = ROOT / "BPR-0593-native-settings-continuation"
 LINUX_FOCUS = ROOT / "BPR-0975-linux-native-settings"
+# [[BPR-0974]]. The cleared tests-disabled Windows candidate, captured natively.
+WINDOWS_NATIVE = ROOT / "BPR-0974-windows-native-settings"
+BPR0974_REVISION = "85e522d86f29230454c72b4d965fa2e06986e394"
+BPR0974_IMAGE = "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4"
+BPR0974_BUNDLE = "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91"
+# The Windows capture at 85e522d8 against the Linux b651554f capture, per page.
+# Each entry is a named product change since b651554f; every other page must
+# match control for control.
+WINDOWS_DELTAS = {
+    "Appearance": {
+        # BPR-1107 (eb9a94a9): the white-space selector and its explanation.
+        "added": [("button", "About white space", True, ""), ("combo", "Draw white space", True, "")],
+        # BPR-0986 (8f0ec40b): the Colours card stops offering the hunk-header roles.
+        "removed": [("button", "Diff hunk header background", True, ""), ("button", "Diff hunk header text", True, "")],
+    },
+}
+UPDATER_ROWS = [
+    ("check", "Automatically check for updates", False, "On"),
+    ("combo", "Release access account", False, ""),
+    *[("button", name, False, "") for name in (
+        "Check for Updates…", "Download Update", "Later", "Skip This Version",
+        "Cancel Download", "Install and Restart")],
+    ("button", "View Release", True, ""),
+]
+MAINTENANCE_ROWS = [
+    ("button", "Preview diagnostics", True, ""),
+    ("button", "Export preview…", False, ""),
+    ("button", "Prepare diagnostic cleanup…", True, ""),
+    ("button", "Clear prepared diagnostics…", False, ""),
+    ("button", "Prepare profile purge…", True, ""),
+    ("button", "Purge prepared profile data…", False, ""),
+    ("button", "Cancel maintenance", False, ""),
+]
 ROLE_NAMES = {
     "Button": "button", "push button": "button", "button": "button", "AXButton": "button",
     "CheckBox": "check", "check box": "check", "AXCheckBox": "check",
@@ -83,6 +118,8 @@ class SettingsInventoryComparison(unittest.TestCase):
         cls.focus_control = load(LINUX_FOCUS / "linux-focus-control-b651554f.json")
         cls.full_course = load(LINUX_FOCUS / "linux-full-course-b651554f.json")
         cls.bounded = load(LINUX_FOCUS / "linux-bounded-course-b651554f.json")
+        cls.windows_inventory = load(WINDOWS_NATIVE / "windows-inventory-85e522d8.json")
+        cls.windows_course = load(WINDOWS_NATIVE / "windows-course-stop-85e522d8.json")
 
     def test_current_mac_dev_and_release_are_identical(self) -> None:
         self.assertEqual(self.dev["pages"], self.current["pages"])
@@ -252,6 +289,113 @@ class SettingsInventoryComparison(unittest.TestCase):
                 if expected["category"] == "Accounts & hosts":
                     expected_controls.remove(("button", "Use GitHub CLI", True, ""))
                 self.assertEqual(expected_controls, controls(observed))
+
+    def test_bpr0974_inventory_binds_the_cleared_candidate(self) -> None:
+        capture = self.windows_inventory
+        self.assertEqual(capture["revision"], BPR0974_REVISION)
+        self.assertEqual((capture["executable_sha256"], capture["bundle_sha256"]), (BPR0974_IMAGE, BPR0974_BUNDLE))
+        self.assertEqual((capture["course"], capture["status"], capture["exit_code"]), ("inventory", "passed", 0))
+        # A private temporary profile, and nothing left running.
+        self.assertEqual(capture["stdout"].strip(), "AUTOMATED_PROFILE_PRIVATE_OK")
+        self.assertEqual((capture["stderr"], capture["errors"], capture["remaining_bpr_processes"]), ("", [], []))
+        self.assertEqual(capture["categories"], self.current["categories"])
+        self.assertEqual(capture["categories"], [page["category"] for page in capture["pages"]])
+
+    def test_bpr0974_inventory_claims_no_lifetime_pass(self) -> None:
+        self.assertEqual(self.windows_inventory["native_checks"], [
+            "native-menu-opens-profile-labelled-settings",
+            "seven-categories-with-current-page-heading",
+            "native-window-close-process-terminated",
+        ])
+
+    @staticmethod
+    def windows_mismatches(linux: dict, windows: dict) -> list[str]:
+        """Every way a Windows capture departs from Linux beyond WINDOWS_DELTAS."""
+        problems = []
+        for expected, observed in zip(linux["pages"], windows["pages"], strict=True):
+            delta = WINDOWS_DELTAS.get(expected["category"], {"added": [], "removed": []})
+            before, after = controls(expected), controls(observed)
+            problems += [f"{expected['category']}: {c} not removed once" for c in delta["removed"]
+                         if before.count(c) != 1 or c in after]
+            problems += [f"{expected['category']}: {c} not added once" for c in delta["added"]
+                         if after.count(c) != 1 or c in before]
+            if [c for c in before if c not in delta["removed"]] != [c for c in after if c not in delta["added"]]:
+                problems.append(f"{expected['category']}: other controls differ")
+        return problems
+
+    def test_bpr0974_windows_differs_from_linux_only_where_stated(self) -> None:
+        self.assertEqual(self.windows_mismatches(self.bounded, self.windows_inventory), [])
+
+    def test_bpr0974_updater_cli_and_maintenance_rows_are_inventoried(self) -> None:
+        pages = {page["category"]: controls(page) for page in self.windows_inventory["pages"]}
+        self.assertEqual(pages["General"], UPDATER_ROWS)
+        # The GitHub CLI profile is macOS-only (RFC-BPR-0015), so Windows, like
+        # Linux, offers no "Use GitHub CLI" entry. This is the one structural
+        # capability difference from the macOS capture.
+        self.assertEqual(pages["Accounts & hosts"], [
+            ("button", "Sign in to github.com", True, ""),
+            ("check", "Show details for github.com", True, "Off"),
+            ("button", "Add enterprise server", True, ""),
+        ])
+        self.assertIn(("button", "Use GitHub CLI", True, ""), controls(self.continued_mac["pages"][1]))
+        self.assertEqual(pages["Storage & privacy"][-7:], MAINTENANCE_ROWS)
+
+    def test_bpr0974_missing_or_changed_windows_controls_are_not_normalized_away(self) -> None:
+        original = self.windows_inventory["pages"][3]
+        for index, node in enumerate(original["nodes"]):
+            if node.get("type") != "CheckBox":
+                continue
+            with self.subTest(control=node["name"]):
+                changed = copy.deepcopy(original)
+                changed["nodes"][index]["enabled"] = not node["enabled"]
+                self.assertNotEqual(controls(original), controls(changed))
+                changed = copy.deepcopy(original)
+                changed["nodes"][index]["state"] = "Off" if node["state"] == "On" else "On"
+                self.assertNotEqual(controls(original), controls(changed))
+                changed = copy.deepcopy(original)
+                del changed["nodes"][index]
+                self.assertNotEqual(controls(original), controls(changed))
+            break
+        # The stated deltas excuse nothing else, and nothing they name may be missing.
+        def mutated(page: int, change) -> dict:
+            capture = copy.deepcopy(self.windows_inventory)
+            change(capture["pages"][page]["nodes"])
+            return capture
+
+        def drop(name: str):
+            return lambda nodes: nodes.remove(next(n for n in nodes if n["name"] == name))
+
+        def restore_hunk_row(nodes: list) -> None:
+            nodes.append({"depth": 9, "type": "Button", "name": "Diff hunk header text", "enabled": True, "state": ""})
+
+        def disable_purge(nodes: list) -> None:
+            next(n for n in nodes if n["name"] == "Prepare profile purge…")["enabled"] = False
+
+        for label, capture in (
+            ("added selector missing", mutated(3, drop("Draw white space"))),
+            ("removed row back", mutated(3, restore_hunk_row)),
+            ("unrelated page changed", mutated(6, disable_purge)),
+            ("unrelated control missing", mutated(4, drop("Pause notifications"))),
+        ):
+            with self.subTest(control=label):
+                self.assertNotEqual(self.windows_mismatches(self.bounded, capture), [])
+
+    def test_bpr0974_full_course_stopped_where_the_menu_exposes_no_items(self) -> None:
+        # AC2 is not met: the course passed its first two checks and stopped at
+        # Profiles > New Window. The strip's Application menu was open on its
+        # second use, yet UI Automation saw no item in it.
+        course = self.windows_course
+        self.assertEqual((course["revision"], course["executable_sha256"]), (BPR0974_REVISION, BPR0974_IMAGE))
+        self.assertEqual((course["course"], course["status"]), ("course", "failed"))
+        self.assertEqual(course["native_checks"], [
+            "native-menu-ctrl-comma-modeless-singleton-profile-label",
+            "escape-and-shortcut-reopen",
+        ])
+        self.assertIn("Expected one visible menu item Profiles, got 0", course["failure"])
+        self.assertTrue(any("class='QMenu' offscreen=False" in line for line in course["diagnosis"]))
+        self.assertFalse(any(line.startswith("  MENUITEM") for line in course["diagnosis"]))
+        self.assertIn("AFTER_UIA_INVOKE visible=", course["diagnosis"][-1])
+        self.assertEqual(course["diagnosis"][-1], "AFTER_UIA_INVOKE visible=")
 
 
 if __name__ == "__main__":

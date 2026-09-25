@@ -1,0 +1,61 @@
+{
+ "schema": "bpr.settings-inventory.uia.v1",
+ "course": "course",
+ "status": "failed",
+ "failure": "Expected one visible menu item Profiles, got 0; observed= @ At C:\\code\\git\\BetterPullReview\\tests\\scripts\\windows_settings_inventory.ps1:250 char:9\r\n+         throw \"Expected one visible menu item $name, got $((Menu-Item ...\r\n+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+ "build": "windows-tests-disabled-qt6112-release",
+ "revision": "85e522d86f29230454c72b4d965fa2e06986e394",
+ "executable": "C:\\Users\\mikem\\bpr0974-candidate-85e522d8\\installed\\better_pull_review.exe",
+ "executable_sha256": "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4",
+ "bundle_sha256": "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91",
+ "platform": "Windows 10.0.26200.0 x64",
+ "source": "native UI Automation raw tree, user32 posted clicks and keys, no pointer",
+ "host": {
+  "computer": "JAEGAW",
+  "session": 1,
+  "user": "JAEGAW\\mikem",
+  "elevated": false,
+  "foreground_lock_timeout_ms": 2147483647,
+  "system_dpi": 144
+ },
+ "course_pid": 11004,
+ "application_pid": 39444,
+ "exit_code": -1,
+ "window_names": [
+  "BetterPullReview",
+  "BetterPullReview",
+  "BetterPullReview — Default profile",
+  "Settings — Default profile"
+ ],
+ "window_dpi": 144,
+ "started_utc": "2026-09-25T04:31:34.2626691Z",
+ "finished_utc": "2026-09-25T04:31:51.4120755Z",
+ "categories": [
+  "General",
+  "Accounts & hosts",
+  "Reviews & queue",
+  "Appearance",
+  "Notifications",
+  "Agents & context",
+  "Storage & privacy"
+ ],
+ "native_checks": [
+  "native-menu-ctrl-comma-modeless-singleton-profile-label",
+  "escape-and-shortcut-reopen"
+ ],
+ "pages": [],
+ "stdout": "AUTOMATED_PROFILE_PRIVATE_OK\r\n",
+ "stderr": "",
+ "errors": [
+  "stopped leftover pid 39444"
+ ],
+ "diagnosis": [
+  "WINDOW name='BetterPullReview' class='QMenu' offscreen=False rect=972,423,160,189 hwnd=0x42304CC fg=0x2DE0DCA",
+  "WINDOW name='BetterPullReview — Default profile' class='QMainWindow' offscreen=False rect=960,384,1920,1230 hwnd=0x2DE0DCA fg=0x2DE0DCA",
+  "WINDOW name='Settings — Default profile' class='QWidget' offscreen=False rect=1200,564,1440,960 hwnd=0x3440E22 fg=0x2DE0DCA",
+  "BUTTON rect=972,390,45,33 patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern",
+  "AFTER_UIA_INVOKE visible="
+ ],
+ "foreground_restored": true,
+ "remaining_bpr_processes": []
+}
