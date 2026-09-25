@@ -42,7 +42,7 @@ criterion text.
 
 | Card | State and remaining obligation |
 |---|---|
-| [BPR-0967](../issues/20-ready/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md) | Backlog, standalone: remaining hardware/platform/input/memory budgets, unsampled peaks and current Mac resource failures. |
+| [BPR-0967](../issues/30-in-progress/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md) | Backlog, standalone: remaining hardware/platform/input/memory budgets, unsampled peaks and current Mac resource failures. |
 | [BPR-0968](../issues/10-backlog/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md) | Backlog, standalone: complete rendered primary/secondary backoff and recovery. |
 | [BPR-0969](../issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md) | Backlog, standalone: cached-review offline/restart and visible freshness. |
 | [BPR-0970](../issues/10-backlog/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md) | Backlog, standalone: full diff/mapping, Markdown, settings/theme, API, Git-output and AI-output fuzz targets/corpora/campaigns. |
