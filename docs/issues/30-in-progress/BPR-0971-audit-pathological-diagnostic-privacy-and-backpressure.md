@@ -111,3 +111,23 @@ header joins both inventories, the full TU and manifest are resealed, and the
 production mutation-branch digest is unchanged. This is implementer self-review,
 not independent acceptance. The [terminal handoff](../../rfcs/plans/bpr0971-diagnostics/HANDOFF-terminal-2026-09-25.md)
 retains the final checks, command state and next engineering action.
+
+## MCP terminal continuation — 2026-09-25
+
+Assignment `r4-mcp-stderr-20260925`, baseline `0f0c461e`, product candidate
+`c907c173`. The [MCP terminal evidence](../../verification/bpr0971-mcp-terminal.md)
+records complete content-free environment counts/presence, a 512-byte serialized
+startup record, and one owned POSIX writer canceled and joined after its bounded
+ordinary-delivery wait. No inherited descriptor flags change. The Mac full/closed
+stderr courses preserve refusal exits and exact JSON-RPC output. The integration
+selection passes 5/5; the final audit passes 20 observations. Prior-binary and
+environment-removal-bypass negative controls fail as required. Strict tidy,
+formatting, documentation and board validation pass.
+
+This addresses the recorded Mac MCP name-content, line-injection and full-pipe
+counterexamples. Windows still has synchronous terminal delivery, Linux native
+evidence remains deferred, and the classifier/application-terminal/remaining
+pathological-source obligations remain open. The card stays In Progress. The
+[handoff](../../rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md) records
+candidate identities, command ownership and next action; no human acceptance is
+claimed or requested by this slice.

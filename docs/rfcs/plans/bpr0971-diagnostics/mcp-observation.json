@@ -1,0 +1,117 @@
+{
+  "run_id": "bpr0971-20260925",
+  "segment_id": "mcp-return",
+  "mandate_revision": "r4-mcp-stderr-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0971-diagnostics",
+    "plan_path": "docs/rfcs/plans/bpr0971-diagnostics/milestone-plan.json",
+    "milestone_id": "privacy-and-backpressure",
+    "definition_fingerprint": "sha256:562d1a732c743fe42a75057d1111af3e9430ef56da946a09a2967408c6f717b1",
+    "obligations": [
+      {
+        "id": "BPR-0971:*",
+        "source": "BPR-0971",
+        "selector": null,
+        "source_fingerprint": "sha256:b514e8a0726a7e2160b2bf63f727878edc605433a849d3989c72415a96f64573"
+      }
+    ],
+    "obligation_fingerprint": "sha256:5f261e285bc2f46ff9c290d9d7f1b2db9e09214c9c175d79b58c3a2ece2649f3",
+    "exit_criteria": [
+      {
+        "id": "privacy-and-backpressure:exit:1",
+        "text": "Every diagnostic producer and retained field across the seven named subsystems has a classified bound and evidence disposition."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:2",
+        "text": "Synthetic credential/content and oversized-input courses exercise composed logging and export boundaries without private targets."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:3",
+        "text": "Stress observations measure dropping and shutdown, and diagnostic failure isolation is verified or its exact gap retained."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "privacy-and-backpressure",
+  "disposition": "continue-milestone",
+  "candidate_revision": "c907c1731947a2e747609304a553c5137631938a",
+  "handoff_ref": "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md",
+  "required_pending": [
+    "Separate capability classifier contract and pathological sources remain open",
+    "Application synchronous stderr and remaining subsystem courses remain unqualified",
+    "Windows synchronous MCP delivery needs native cancellation/lifecycle repair; Linux native verification deferred",
+    "External native crash and uninterruptible kernel/device stalls remain unqualified"
+  ],
+  "evidence_refs": [
+    "docs/verification/bpr0971-mcp-terminal.md",
+    "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0971:*",
+      "outcome": "fail",
+      "evidence_refs": [
+        "docs/verification/bpr0971-mcp-terminal.md",
+        "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:1",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/bpr0971-mcp-terminal.md",
+        "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:2",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/bpr0971-mcp-terminal.md",
+        "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-mcp-terminal.md",
+        "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "continue",
+    "next_milestone": "privacy-and-backpressure",
+    "reason": "current-milestone",
+    "detail": "Integrate bounded MCP startup reporting and Mac pipe failure isolation; continue remaining application terminal/subsystem courses and recorded classifier resolution. Whole-card acceptance and native platform evidence remain pending."
+  },
+  "ownership": "quiescent"
+}
