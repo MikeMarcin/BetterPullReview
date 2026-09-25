@@ -111,7 +111,7 @@
     }
   ],
   "required_pending": [
-    "A separately authorized independent ordinary RFC0019 review of the complete reconciled acceptance; no delegated reviewer is permitted by this recipe.",
+    "Coordinator consumption of the supplied independent ordinary review and this correction; no terminal independent acceptance is inferred while final-candidate graph and binary verification remains pending.",
     "Actual final-candidate developer/core-only/tests-disabled build and runtime/dependency evidence required by BPR0295. This bounded audit ran source and fixture checks only.",
     "Terminal criterion acceptance and RFC/index closeout after the existing successor mapping, relevant final evidence and independent review are consumed. Original three-clip/resource/no-runtime assertions are not marked passing for current production."
   ],
@@ -130,7 +130,7 @@
         "current_manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d"
       }
     ],
-    "pending_decisions": "No new art question is ready or needed for unchanged v008 bytes. Pending ordinary independent acceptance is not an attended art verdict.",
+    "pending_decisions": "No new art question is needed for unchanged v008 bytes. The coordinator supplied ordinary independent review with one P2 bookkeeping finding; its disposition and final-candidate verification remain pending for closeout.",
     "protected_candidates": "Historical docs/verification/reviews, v008 intake/review, production asset bytes and all unrelated candidates are preserved. No server/watch was started or changed."
   },
   "ownership": {
@@ -156,7 +156,7 @@
     "intent": "stop",
     "next_milestone": "ordinary-closeout",
     "detail": "Coordinator keeps this worktree for integration after RFC0052 m2 settles; resume same bounded milestone only with remaining evidence/review authority. No successor RFC engineering.",
-    "integration": "Review git diff fc4b39e8..codex/rfc0019-closeout, then cherry-pick its three explicit documentation/tracker commits in order in coordinator-owned checkout. No merge or push performed here. Keep original immutable source/reviews untouched."
+    "integration": "Review git diff fc4b39e8..codex/rfc0019-closeout, then cherry-pick the explicit documentation/tracker commits in order in the coordinator-owned checkout. Include the post-review correction and handoff commits. No merge or push performed here."
   },
   "changed_paths": [
     "docs/issues/10-backlog/BPR-0295-anchor-rfc-0019-verification.md (moved through Ready/In Progress to Blocked)",
@@ -179,5 +179,14 @@
     "No full application build/native/installed-package/independent-review acceptance claimed.",
     "Current unknown external creative-tool metadata is intentionally retained as unknown under exact derivative authority.",
     "Configured routing is preserved; effective serving telemetry beyond this native role banner was not exposed."
-  ]
+  ],
+  "review_correction": {
+    "reported_by": "coordinator /root",
+    "reviewed_candidate": "7faf61d1b2ae3e3afe87d413952636ca03662159",
+    "mandate_revision": "r1",
+    "finding": "P2: ordinary-closeout:exit:1 was marked pass although exact final-candidate developer/core-only/tests-disabled graph and binary verification remains pending.",
+    "disposition": "Reproduced in observation-r1.json; outcome corrected to pending. The milestone remains blocked and no missing build evidence or independent terminal acceptance is inferred.",
+    "scope": "Bookkeeping correction only. No product, asset, original criterion or heavy-build command changes.",
+    "verification": "Focused JSON/semantic validation, checkpoint consistency, documentation gate and whitespace check are required before the correction commit."
+  }
 }

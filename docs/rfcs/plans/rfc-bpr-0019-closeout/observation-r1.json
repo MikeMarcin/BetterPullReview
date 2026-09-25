@@ -69,10 +69,10 @@
   },
   "milestone": "ordinary-closeout",
   "disposition": "blocked",
-  "candidate_revision": "07f41e25d4bd0793839f15c084e5d2d1e53ee251",
+  "candidate_revision": "7faf61d1b2ae3e3afe87d413952636ca03662159",
   "handoff_ref": "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r1.json",
   "required_pending": [
-    "A separately authorized independent ordinary RFC0019 review of the complete reconciled acceptance; no delegated reviewer is permitted by this recipe.",
+    "Coordinator consumption of the supplied independent ordinary review and this correction; no terminal independent acceptance is inferred while final-candidate graph and binary verification remains pending.",
     "Actual final-candidate developer/core-only/tests-disabled build and runtime/dependency evidence required by BPR0295. This bounded audit ran source and fixture checks only.",
     "Terminal criterion acceptance and RFC/index closeout after the existing successor mapping, relevant final evidence and independent review are consumed. Original three-clip/resource/no-runtime assertions are not marked passing for current production."
   ],
@@ -91,7 +91,7 @@
     },
     {
       "id": "ordinary-closeout:exit:1",
-      "outcome": "pass",
+      "outcome": "pending",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0019.md#ordinary-closeout-audit--2026-09-25",
         "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r1.json"
@@ -134,7 +134,7 @@
     "intent": "stop",
     "next_milestone": null,
     "reason": "pending-obligation",
-    "detail": "Bounded audit finished. Coordinator must supply independent acceptance and select remaining final graph/runtime evidence before RFC0019 closeout. Assignment r1 stops here."
+    "detail": "The coordinator supplied an independent ordinary review with one P2 evidence overclaim. Exit 1 is corrected to pending; consume the review disposition and complete final graph/runtime evidence before RFC0019 closeout. Assignment r1 stops here."
   },
   "ownership": "quiescent"
 }
