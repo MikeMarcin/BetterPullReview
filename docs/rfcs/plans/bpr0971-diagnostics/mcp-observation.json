@@ -61,7 +61,7 @@
   },
   "milestone": "privacy-and-backpressure",
   "disposition": "continue-milestone",
-  "candidate_revision": "c907c1731947a2e747609304a553c5137631938a",
+  "candidate_revision": "3ea11678e1953d774098f98f23edb6da03122d8a",
   "handoff_ref": "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md",
   "required_pending": [
     "Separate capability classifier contract and pathological sources remain open",

@@ -70,8 +70,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/bpr0971-mcp-stderr",
-    "source_revision": "c907c1731947a2e747609304a553c5137631938a",
+    "source_revision": "3ea11678e1953d774098f98f23edb6da03122d8a",
     "workflow_branch": "codex/bpr0971-mcp-stderr",
-    "workflow_revision": "c907c1731947a2e747609304a553c5137631938a"
+    "workflow_revision": "3ea11678e1953d774098f98f23edb6da03122d8a"
   }
 }
