@@ -987,6 +987,45 @@ namespace bpr::application {
 			}
 			return core::valid_cached_catalogue(files) ? std::optional{ std::move(files) } : std::nullopt;
 		}
+		static auto retained_thread_side(github_diff_side aSide) -> core::cached_thread_side
+		{
+			switch (aSide) {
+			case github_diff_side::left:          return core::cached_thread_side::left;
+			case github_diff_side::right:         return core::cached_thread_side::right;
+			case github_diff_side::uninitialized: return core::cached_thread_side::unknown;
+			}
+			return core::cached_thread_side::unknown;
+		}
+		static auto retain_threads(const github_pull_request_snapshot& aSnapshot)
+			-> std::optional<std::vector<core::cached_review_thread>>
+		{
+			if (aSnapshot.ReviewThreadsAvailability != github_collection_availability::available
+				|| aSnapshot.ReviewThreads.size() > core::maximum_cached_threads) {
+				return std::nullopt;
+			}
+			std::vector<core::cached_review_thread> threads;
+			std::size_t                             comments = 0, bytes = 24;
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				if (thread.Comments.size() > core::maximum_cached_thread_comments - comments) {
+					return std::nullopt;
+				}
+				comments += thread.Comments.size();
+				bytes += 88 + thread.Thread.value().size() + thread.Path.size();
+				core::cached_review_thread retained{
+					.Id = std::string{ thread.Thread.value() }, .Path = thread.Path, .Line = thread.Line, .OriginalLine = thread.OriginalLine, .Side = retained_thread_side(thread.DiffSide), .FileLevel = thread.Subject == github_review_thread_subject::file, .Resolved = thread.Resolved, .Outdated = thread.Outdated
+				};
+				for (const auto& comment : thread.Comments) {
+					bytes += 96 + comment.Comment.value().size() + comment.Body.size()
+						+ (comment.Author ? comment.Author->Login.size() : 0) + (comment.ReplyTo ? comment.ReplyTo->value().size() : 0);
+					if (bytes > core::maximum_cached_threads_bytes || comment.Body.size() > 64 * 1024) {
+						return std::nullopt;
+					}
+					retained.Comments.push_back({ .Id = std::string{ comment.Comment.value() }, .ReplyTo = comment.ReplyTo ? std::optional{ std::string{ comment.ReplyTo->value() } } : std::nullopt, .AuthorLogin = comment.Author ? comment.Author->Login : std::string{ }, .Body = comment.Body, .Line = comment.Line, .OriginalLine = comment.OriginalLine, .Outdated = comment.Outdated, .Deleted = comment.Deleted });
+				}
+				threads.push_back(std::move(retained));
+			}
+			return core::valid_cached_threads(threads) ? std::optional{ std::move(threads) } : std::nullopt;
+		}
 		void retain_overview(const core::pull_request_request_context& aRequest)
 		{
 			if (!Overviews || !CacheEffects || CacheWritePending || !AcceptedSnapshot
@@ -998,7 +1037,7 @@ namespace bpr::application {
 				return;
 			}
 			auto retained = core::cached_review_overview{
-				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot)
+				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot)
 			};
 			if (!core::valid(retained)) {
 				return;
@@ -1053,7 +1092,8 @@ namespace bpr::application {
 								.Overview      = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
 								.BaseOid       = cached->BaseOid,
 								.HeadOid       = cached->HeadOid,
-								.FileCatalogue = std::move(cached->FileCatalogue)
+								.FileCatalogue = std::move(cached->FileCatalogue),
+								.ReviewThreads = std::move(cached->ReviewThreads)
 							};
 						}
 						self->publish_transition(output, nullptr, nullptr, false, std::move(projection));

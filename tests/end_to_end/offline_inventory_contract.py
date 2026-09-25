@@ -49,7 +49,7 @@ def retained_epochs(root):
     return authority, scope, epochs, anchors
 
 
-def legacy_overview_payload(payload):
+def legacy_overview_payload(payload, keep_catalogue=False):
     # Original payload prefix: key version + fingerprint bytes encoded as u64,
     # three numeric identities, locator strings, PR number/repository/PR ids,
     # seven text fields, then four overview scalars. No catalogue extension.
@@ -64,6 +64,28 @@ def legacy_overview_payload(payload):
     offset += 4 * 8
     if not 0 < offset < len(payload):
         raise SystemExit("catalogue fixture lacks versioned extension")
+    if keep_catalogue:
+        version = int.from_bytes(payload[offset:offset + 8], "big")
+        available = int.from_bytes(payload[offset + 8:offset + 16], "big")
+        offset += 16
+        if version != 2 or available not in (0, 1):
+            raise SystemExit("invalid catalogue extension in safe fixture")
+        if available:
+            count = int.from_bytes(payload[offset:offset + 8], "big")
+            offset += 8
+            if count > 1024:
+                raise SystemExit("fixture catalogue count exceeded bound")
+            for _ in range(count):
+                size = int.from_bytes(payload[offset:offset + 8], "big")
+                offset += 8 + size
+                previous = int.from_bytes(payload[offset:offset + 8], "big")
+                offset += 8
+                if previous:
+                    size = int.from_bytes(payload[offset:offset + 8], "big")
+                    offset += 8 + size
+                offset += 3 * 8
+        if not 0 < offset < len(payload):
+            raise SystemExit("safe fixture lacks thread extension")
     return payload[:offset]
 
 
@@ -81,16 +103,16 @@ def main():
         vault = b""
         objects = None
         catalog = None
-        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-legacy", "restart-corrupt", "restart-offline")
+        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-catalogue", "restart-legacy", "restart-corrupt", "restart-offline")
         for phase in phases:
-            if phase == "restart-legacy":
+            if phase in ("restart-catalogue", "restart-legacy"):
                 databases = list(root.rglob("review-overviews.sqlite3"))
                 if len(databases) != 1:
                     raise SystemExit("expected one private overview database")
                 with store_connection(databases[0]) as connection:
                     rows = connection.execute("SELECT sequence,payload FROM overviews").fetchall()
                     for sequence, payload in rows:
-                        legacy = legacy_overview_payload(payload)
+                        legacy = legacy_overview_payload(payload, keep_catalogue=phase == "restart-catalogue")
                         connection.execute("UPDATE overviews SET payload=?,digest=? WHERE sequence=?",
                                            (legacy, hashlib.sha256(legacy).digest(), sequence))
             if phase == "restart-corrupt":

@@ -440,6 +440,43 @@ namespace bpr::qt {
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
 
+		auto cached_side_text(core::cached_thread_side aSide) -> QString
+		{
+			switch (aSide) {
+			case core::cached_thread_side::left:    return QStringLiteral("left");
+			case core::cached_thread_side::right:   return QStringLiteral("right");
+			case core::cached_thread_side::unknown: return QStringLiteral("unknown side");
+			}
+			return QStringLiteral("unknown side");
+		}
+		auto cached_thread_text(const std::vector<core::cached_review_thread>& aThreads) -> QString
+		{
+			QString result;
+			for (const auto& thread : aThreads) {
+				result += QStringLiteral("%1 · %2%3\n")
+							  .arg(text(thread.Path), thread.Resolved ? QStringLiteral("was resolved") : QStringLiteral("was unresolved"),
+								   thread.Outdated ? QStringLiteral(" · was outdated") : QString{ });
+				if (thread.FileLevel) {
+					result += QStringLiteral("File discussion\n");
+				} else {
+					const auto side = cached_side_text(thread.Side);
+					result += QStringLiteral("Observed anchor: %1 · line %2 · original line %3\n")
+								  .arg(side, thread.Line ? QString::number(*thread.Line) : QStringLiteral("unavailable"),
+									   thread.OriginalLine ? QString::number(*thread.OriginalLine) : QStringLiteral("unavailable"));
+				}
+				if (thread.Comments.empty()) {
+					result += QStringLiteral("No comments observed in this thread.\n");
+				}
+				for (const auto& comment : thread.Comments) {
+					result += QStringLiteral("%1%2%3\n%4\n\n")
+								  .arg(comment.ReplyTo ? QStringLiteral("Reply · ") : QString{ },
+									   comment.AuthorLogin.empty() ? QStringLiteral("Unknown author") : text(comment.AuthorLogin),
+									   comment.Outdated ? QStringLiteral(" · was outdated") : QString{ },
+									   comment.Deleted ? QStringLiteral("Comment was deleted") : text(comment.Body));
+				}
+			}
+			return result;
+		}
 		auto cached_file_rows(const std::optional<std::vector<core::cached_review_file>>& aCatalogue)
 			-> std::vector<application::overview_file_row>
 		{
@@ -1229,6 +1266,15 @@ namespace bpr::qt {
 			}
 		});
 		mainColumn->addWidget(Files, 1);
+		CachedThreadsHeading = make_heading(QString{ }, QStringLiteral("overviewCachedThreadsHeading"), main);
+		mainColumn->addWidget(CachedThreadsHeading);
+		CachedThreads = new QPlainTextEdit{ main };
+		CachedThreads->setObjectName(QStringLiteral("overviewCachedThreads"));
+		CachedThreads->setAccessibleName(QStringLiteral("Historical review threads; freshness unknown"));
+		CachedThreads->setAccessibleDescription(QStringLiteral("Read-only historical text. Anchors and links cannot be opened. General comments and review summaries are unavailable."));
+		CachedThreads->setReadOnly(true);
+		CachedThreads->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+		mainColumn->addWidget(CachedThreads, 1);
 
 		auto* const sideScroll = new QScrollArea{ this };
 		sideScroll->setObjectName(QStringLiteral("overviewSideScroll"));
@@ -1321,6 +1367,9 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present(const application::pull_request_overview_projection& aProjection)
 	{
+		CachedThreads->clear();
+		CachedThreads->hide();
+		CachedThreadsHeading->hide();
 		const auto bodyChanged = Projection.has_value() && Projection->Body != aProjection.Body;
 		const auto updateBody  = !Projection.has_value() || bodyChanged;
 		Projection             = aProjection;
@@ -1438,6 +1487,9 @@ namespace bpr::qt {
 	{
 		set_description_expanded(false);
 		Projection.reset();
+		CachedThreads->clear();
+		CachedThreads->hide();
+		CachedThreadsHeading->hide();
 		Title->setText(QStringLiteral("No pull request"));
 		Summary->clear();
 		Summary->setToolTip({ });
@@ -1516,9 +1568,16 @@ namespace bpr::qt {
 			Files->setColumnHidden(column, true);
 		}
 		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Source, conversation counts and review progress unavailable. Files cannot be opened."));
+		CachedThreadsHeading->setText(aOverview.ReviewThreads
+										  ? QStringLiteral("Cached review threads — %1 observed · freshness unknown").arg(count_text(aOverview.ReviewThreads->size()))
+										  : QStringLiteral("Review threads unavailable offline"));
+		CachedThreadsHeading->show();
+		CachedThreads->setPlainText(aOverview.ReviewThreads ? cached_thread_text(*aOverview.ReviewThreads) : QString{ });
+		CachedThreads->setVisible(aOverview.ReviewThreads && !aOverview.ReviewThreads->empty());
 		SinceHeading->setText(QStringLiteral("Review state unavailable offline"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
-			none->setText(QStringLiteral("Conversations unavailable offline"));
+			none->setWordWrap(true);
+			none->setText(QStringLiteral("Participants, general comments and review summaries unavailable offline"));
 		}
 		Entry->setText(QStringLiteral("Review data unavailable offline"));
 		Entry->setAccessibleName(Entry->text());

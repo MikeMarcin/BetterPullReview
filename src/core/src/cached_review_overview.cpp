@@ -34,6 +34,47 @@ namespace bpr::core {
 		std::sort(paths.begin(), end);
 		return std::adjacent_find(paths.begin(), end) == end;
 	}
+	auto valid_cached_threads(const std::vector<cached_review_thread>& aThreads) noexcept -> bool
+	{
+		if (aThreads.size() > maximum_cached_threads) {
+			return false;
+		}
+		std::array<std::string_view, maximum_cached_threads + maximum_cached_thread_comments> ids;
+		std::size_t                                                                           count = 0, comments = 0, bytes = 24;
+		const auto                                                                            lineValid = [](auto aLine) { return !aLine || (*aLine > 0 && *aLine <= 2147483647U); };
+		for (const auto& thread : aThreads) {
+			if (thread.Id.empty() || !text_valid(thread.Id, 256) || thread.Path.empty() || !text_valid(thread.Path, 4096)
+				|| thread.Side > cached_thread_side::right || !lineValid(thread.Line) || !lineValid(thread.OriginalLine)
+				|| (thread.FileLevel && (thread.Line || thread.OriginalLine))
+				|| thread.Comments.size() > maximum_cached_thread_comments - comments) {
+				return false;
+			}
+			comments += thread.Comments.size();
+			bytes += 88 + thread.Id.size() + thread.Path.size();
+			ids[count++]            = thread.Id;
+			const auto firstComment = count;
+			for (const auto& comment : thread.Comments) {
+				const auto end = ids.begin() + static_cast<std::ptrdiff_t>(count);
+				if (comment.Id.empty() || !text_valid(comment.Id, 256) || !text_valid(comment.AuthorLogin, 256)
+					|| !text_valid(comment.Body, 64 * 1024) || !lineValid(comment.Line) || !lineValid(comment.OriginalLine)
+					|| (thread.FileLevel && (comment.Line || comment.OriginalLine))
+					|| (comment.ReplyTo && std::find(ids.begin() + static_cast<std::ptrdiff_t>(firstComment), end, *comment.ReplyTo) == end)) {
+					return false;
+				}
+				bytes += 96 + comment.Id.size() + comment.AuthorLogin.size() + comment.Body.size() + (comment.ReplyTo ? comment.ReplyTo->size() : 0);
+				if (bytes > maximum_cached_threads_bytes) {
+					return false;
+				}
+				ids[count++] = comment.Id;
+			}
+			if (bytes > maximum_cached_threads_bytes) {
+				return false;
+			}
+		}
+		const auto end = ids.begin() + static_cast<std::ptrdiff_t>(count);
+		std::sort(ids.begin(), end);
+		return std::adjacent_find(ids.begin(), end) == end;
+	}
 	auto valid(const cached_review_key& aKey) noexcept -> bool
 	{
 		return std::ranges::any_of(aKey.Authority, [](auto aByte) { return aByte != 0; })
@@ -48,6 +89,7 @@ namespace bpr::core {
 			&& text_valid(aOverview.AuthorLogin, 256) && text_valid(aOverview.BaseRef, 256)
 			&& text_valid(aOverview.HeadRef, 256) && aOverview.State <= 2
 			&& aOverview.Files <= 10000 && aOverview.Commits <= 1000000
+			&& (!aOverview.ReviewThreads || valid_cached_threads(*aOverview.ReviewThreads))
 			&& (!aOverview.FileCatalogue || (aOverview.FileCatalogue->size() == aOverview.Files && valid_cached_catalogue(*aOverview.FileCatalogue)));
 	}
 	auto admit_cached_overview(const github_state&                 aState,

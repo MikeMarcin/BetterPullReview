@@ -165,7 +165,7 @@ namespace {
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
 		return summary && summary->isVisible() && summary->text().contains(QStringLiteral("Cached overview"));
 	}
-	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0, bool aCatalogueAvailable = true)
+	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0, bool aCatalogueAvailable = true, bool aThreadsAvailable = true)
 	{
 		expect(cached_visible(aWindow) && !aWindow.showing_home(), "durable cached overview is actually visible after offline reopen");
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
@@ -183,7 +183,19 @@ namespace {
 		if (!aCatalogueAvailable) {
 			const auto* heading = aWindow.findChild<QLabel*>(QStringLiteral("overviewFilesHeading"));
 			expect(model && model->file_count() == 0 && heading && heading->text().contains(QStringLiteral("catalogue unavailable")), "legacy overview remains catalogue unavailable, never observed empty");
+			const auto* threadsHeading = aWindow.findChild<QLabel*>(QStringLiteral("overviewCachedThreadsHeading"));
+			expect(threadsHeading && threadsHeading->text().contains(QStringLiteral("unavailable")), "legacy threads remain unavailable, not empty");
 			return;
+		}
+		auto* threads = aWindow.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
+		if (aThreadsAvailable) {
+			expect(threads && threads->isVisible() && threads->isReadOnly()
+					   && threads->toPlainText().contains(QStringLiteral("Check the exact retained reading position."))
+					   && (aAccount || threads->toPlainText().contains(QStringLiteral("Edited server root"))),
+				   "durable cached thread bodies survive process restart as historical read-only content");
+		} else {
+			const auto* heading = aWindow.findChild<QLabel*>(QStringLiteral("overviewCachedThreadsHeading"));
+			expect(threads && threads->isHidden() && heading && heading->text().contains(QStringLiteral("unavailable")), "previous catalogue payload preserves thread unavailability");
 		}
 		expect(model && model->file_count() == 2U, "durable cached file catalogue survives process restart");
 		for (const auto* path : { "review.cpp", "secondary.cpp" }) {
@@ -200,7 +212,8 @@ namespace {
 		QMetaObject::invokeMethod(files, "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
 		QApplication::processEvents();
 		expect(cached_visible(aWindow) && !aWindow.comparison_surface()->current_result(), "cached catalogue activation grants no source navigation");
-		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown catalogue=2 source=unavailable conversations=unavailable\n";
+		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown catalogue=2 source=unavailable threads="
+				  << (aThreadsAvailable ? "historical" : "unavailable") << '\n';
 	}
 	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
@@ -219,7 +232,7 @@ try {
 	const auto argument       = std::string_view{ aArgv[1] };
 	const bool identityCourse = argument.starts_with("identity-");
 	const auto phase          = identityCourse ? argument.substr(9) : argument;
-	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || phase == "restart-legacy" || (identityCourse && phase == "legacy"), "known offline phase");
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue" || (identityCourse && phase == "legacy"), "known offline phase");
 	std::array<char, 2049U> bytes{ };
 	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
@@ -267,7 +280,7 @@ try {
 			expect_unavailable(*owner, window);
 			report(*owner, window, "identity-legacy");
 		}
-		if (phase == "restart-read" || phase == "restart-corrupt" || phase == "restart-legacy") {
+		if (phase == "restart-read" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue") {
 			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
 			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
 			if (identityCourse) {
@@ -285,12 +298,13 @@ try {
 				expect(!cached_visible(window), "corrupt overview refuses visible metadata through real composition");
 				report(*owner, window, "restart-corrupt-offline");
 			} else {
-				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy");
-				report(*owner, window, phase == "restart-legacy" ? "restart-legacy-offline" : "restart-read-offline");
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue");
+				report(*owner, window, phase == "restart-legacy" ? "restart-legacy-offline" : phase == "restart-catalogue" ? "restart-catalogue-offline"
+																														   : "restart-read-offline");
 				window.home_action()->trigger();
 				expect(window.showing_home(), "cached overview can return to Home");
 				window.home_landing()->primary_button()->click();
-				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy");
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue");
 				if (!identityCourse) {
 					open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
 					wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "cached view replaced by foreign offline failure");
@@ -305,6 +319,12 @@ try {
 		select_source(*owner, window);
 		const auto snapshot = access::large_review_snapshot(*owner);
 		expect(!visible_freshness_notice(window) && !cached_visible(window), "accepted online data clears cached and failed-refresh notices");
+		const auto* historical = window.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
+		expect(historical && historical->isHidden() && historical->toPlainText().isEmpty(), "reconnect removes historical thread content");
+		if (!identityCourse && phase == "restart-read") {
+			expect(snapshot && snapshot->ReviewThreads.front().Comments.front().Body == "Check the exact retained reading position.",
+				   "reconnect replaces the prior process edited root with the newly observed server body");
+		}
 		const auto key   = window.comparison_surface()->current_context()->Key;
 		const auto left  = window.comparison_surface()->left_pane()->toPlainText();
 		const auto right = window.comparison_surface()->right_pane()->toPlainText();

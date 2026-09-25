@@ -32,6 +32,9 @@ int main()
 		.BaseOid     = std::string(40, '1'),
 		.HeadOid     = std::string(40, '2')
 	};
+	cached.ReviewThreads = std::vector<cached_review_thread>{
+		{ .Id = "T1", .Path = "src/file.cpp", .Line = 3, .Side = cached_thread_side::right, .Comments = { { .Id = "C1", .AuthorLogin = "reviewer", .Body = "Root" }, { .Id = "C2", .ReplyTo = "C1", .Body = "Reply" } } }
+	};
 	const auto admits = [&](const auto& aState, const auto& aRecord) {
 		return admit_cached_overview(aState, cachedRequest, github_failure::network, cached.Key, aRecord);
 	};
@@ -49,7 +52,13 @@ int main()
 		|| !refuses([](auto& aValue) { aValue.Key.Authority[0] = 9; })
 		|| !refuses([](auto& aValue) { aValue.Key.Locator.Name = "foreign"; })
 		|| !refuses([](auto& aValue) { aValue.Key.Number = pull_request_number{ 9 }; })
-		|| !refuses([](auto& aValue) { aValue.HeadOid = "invalid"; })) {
+		|| !refuses([](auto& aValue) { aValue.HeadOid = "invalid"; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().Comments.back().ReplyTo = "foreign"; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().Comments.front().ReplyTo = "C2"; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().Comments.back().Id = "C1"; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().FileLevel = true; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().Line = 0; })
+		|| !refuses([](auto& aValue) { aValue.ReviewThreads->front().Side = static_cast<cached_thread_side>(255); })) {
 		return EXIT_FAILURE;
 	}
 	auto changedState             = lane.state();

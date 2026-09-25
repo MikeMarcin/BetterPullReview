@@ -135,6 +135,99 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 			}
+			template <typename TValue>
+			void optional_number(std::optional<TValue>& aValue)
+			{
+				bool present = aValue.has_value();
+				number(present);
+				if (present && Good) {
+					if (Reading) {
+						aValue.emplace();
+					}
+					number(*aValue);
+				}
+			}
+			void thread_comment(core::cached_thread_comment& aComment)
+			{
+				text(aComment.Id, 256);
+				bool reply = aComment.ReplyTo.has_value();
+				number(reply);
+				if (reply && Good) {
+					if (Reading) {
+						aComment.ReplyTo.emplace();
+					}
+					text(*aComment.ReplyTo, 256);
+				}
+				text(aComment.AuthorLogin, 256);
+				text(aComment.Body, 64 * 1024);
+				optional_number(aComment.Line);
+				optional_number(aComment.OriginalLine);
+				number(aComment.Outdated);
+				number(aComment.Deleted);
+			}
+			void thread(core::cached_review_thread& aThread, std::size_t& aComments)
+			{
+				text(aThread.Id, 256);
+				text(aThread.Path, 4096);
+				optional_number(aThread.Line);
+				optional_number(aThread.OriginalLine);
+				auto side = static_cast<std::uint8_t>(aThread.Side);
+				number(side);
+				aThread.Side = static_cast<core::cached_thread_side>(side);
+				number(aThread.FileLevel);
+				number(aThread.Resolved);
+				number(aThread.Outdated);
+				auto count = static_cast<std::uint64_t>(aThread.Comments.size());
+				integer(count);
+				if (!Good || count > core::maximum_cached_thread_comments - aComments || (Reading && count > Input.size() / 64)) {
+					Good = false;
+					return;
+				}
+				aComments += static_cast<std::size_t>(count);
+				if (Reading) {
+					aThread.Comments.resize(static_cast<std::size_t>(count));
+				}
+				for (auto& comment : aThread.Comments) {
+					thread_comment(comment);
+					if (!Good) {
+						return;
+					}
+				}
+			}
+			void threads(std::optional<std::vector<core::cached_review_thread>>& aThreads)
+			{
+				// Previous records omit this extension; absence stays unavailable.
+				if (Reading && Input.empty()) {
+					return;
+				}
+				auto version = std::uint64_t{ 3 };
+				integer(version);
+				bool available = aThreads.has_value();
+				number(available);
+				if (!Good || version != 3) {
+					Good = false;
+					return;
+				}
+				if (!available) {
+					return;
+				}
+				auto count = static_cast<std::uint64_t>(aThreads ? aThreads->size() : 0);
+				integer(count);
+				if (!Good || count > core::maximum_cached_threads || (Reading && count > Input.size() / 72)) {
+					Good = false;
+					return;
+				}
+				if (Reading) {
+					aThreads.emplace(static_cast<std::size_t>(count));
+				}
+				std::size_t comments = 0;
+				for (auto& value : *aThreads) {
+					thread(value, comments);
+					if (!Good) {
+						return;
+					}
+				}
+			}
 			void overview(core::cached_review_overview& aOverview)
 			{
 				key(aOverview.Key);
@@ -153,6 +246,9 @@ namespace bpr::adapters::sqlite {
 				number(aOverview.Draft);
 				if (Good) {
 					catalogue(aOverview.FileCatalogue);
+				}
+				if (Good) {
+					threads(aOverview.ReviewThreads);
 				}
 			}
 		};

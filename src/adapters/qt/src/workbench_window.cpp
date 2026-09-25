@@ -10218,7 +10218,7 @@ namespace bpr::qt {
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
 			status = ReviewReadinessText != nullptr ? ReviewReadinessText->text() : QStringLiteral("Loading pull request…");
 		} else if (!home && HasCachedOverview) {
-			status = QStringLiteral("Cached overview; freshness unknown. Source and conversations are unavailable offline.");
+			status = QStringLiteral("Cached review data; freshness unknown. Source and current review state are unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {
 			// A failed refresh retains the accepted observation. State its
 			// freshness beside the content, including when its diff is ready.

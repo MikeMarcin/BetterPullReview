@@ -163,19 +163,29 @@ namespace {
 			&cache,
 			&effects
 		};
-		auto identity = session();
+		auto identity                                          = session();
+		identity.CapabilityEvidence.Capabilities.ReviewThreads = core::github_capability_state::supported;
+		identity.CapabilityEvidence.ReadShape.ReviewThreads    = true;
+		identity.Session.CapabilityEvidence.Capabilities       = identity.CapabilityEvidence.Capabilities;
+		identity.Session.CapabilityEvidence.ReadShape          = identity.CapabilityEvidence.ReadShape;
 		expect(host.adopt(identity), "cache course adopts authenticated account");
 		const auto                                   open = [&] { host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } }); };
 		std::vector<application::github_file_record> serverFiles{
 			{ .Path = "src/renamed.cpp", .PreviousPath = "old.cpp", .Change = application::github_file_change::renamed, .Additions = 9, .Deletions = 4 }
 		};
+		std::vector<application::github_review_thread_record> serverThreads{
+			{ .Thread = application::github_thread_id{ "T1" }, .Path = "src/renamed.cpp", .Line = 7, .OriginalLine = 5, .DiffSide = application::github_diff_side::right, .Comments = { { .Comment = application::github_comment_id{ "C1" }, .Body = "Historical root", .Path = "src/renamed.cpp", .Line = 7 }, { .Comment = application::github_comment_id{ "C2" }, .ReplyTo = application::github_comment_id{ "C1" }, .Body = "Historical reply", .Path = "src/renamed.cpp", .Line = 7 } } }
+		};
 		auto       serverBase = std::string(40, '1'), serverHead = std::string(40, '2');
 		const auto succeed = [&] {
-			const auto call          = provider.Calls.back();
-			auto       data          = snapshot(call.Request);
-			data.Files               = serverFiles;
-			data.PullRequest.BaseOid = application::commit_oid{ serverBase };
-			data.PullRequest.HeadOid = application::commit_oid{ serverHead };
+			const auto call                = provider.Calls.back();
+			auto       data                = snapshot(call.Request);
+			data.Files                     = serverFiles;
+			data.ReviewThreadsAvailability = call.Request.CapabilityEvidence.ReadShape.ReviewThreads ? application::github_collection_availability::available : application::github_collection_availability::unavailable;
+			data.ReviewThreads             = serverThreads;
+			data.RateLimits.Graphql        = application::github_rate_limit_record{ application::github_rate_limit_resource::graphql, 5000, 4999, 100 };
+			data.PullRequest.BaseOid       = application::commit_oid{ serverBase };
+			data.PullRequest.HeadOid       = application::commit_oid{ serverHead };
 			call.Complete(application::github_pull_request_success{ call.Request, std::move(data) });
 			lane.drain();
 		};
@@ -207,6 +217,12 @@ namespace {
 				   && cache.Value->FileCatalogue->front() == core::cached_review_file{ "src/renamed.cpp", "old.cpp", core::cached_file_change::renamed, 9, 4 }
 				   && updates.back().Presentation.CachedOverview->FileCatalogue == cache.Value->FileCatalogue,
 			   "cached catalogue preserves exact path provenance, operation and counts without live authority");
+		expect(cache.Value->ReviewThreads && cache.Value->ReviewThreads->size() == 1
+				   && cache.Value->ReviewThreads->front().Comments.back().ReplyTo == "C1"
+				   && cache.Value->ReviewThreads->front().Comments.back().Body == "Historical reply"
+				   && cache.Value->ReviewThreads->front().Line == 7
+				   && updates.back().Presentation.CachedOverview->ReviewThreads == cache.Value->ReviewThreads,
+			   "exact thread roots, replies and anchors persist and project without live authority");
 		open();
 		fail(application::github_provider_failure::permission);
 		expect(!cached() && effects.pending() == 0, "permission failure cannot expose historical metadata");
@@ -230,9 +246,11 @@ namespace {
 		effects.drain();
 		lane.drain();
 		expect(!cached(), "core refuses a cache port returning foreign account data");
-		serverBase  = std::string(40, '3');
-		serverHead  = std::string(40, '4');
-		serverFiles = { { .Path = "new-server.cpp", .Change = application::github_file_change::added, .Additions = 27 } };
+		serverThreads.front().Comments.front().Body = "Changed server root";
+		serverThreads.front().Resolved              = true;
+		serverBase                                  = std::string(40, '3');
+		serverHead                                  = std::string(40, '4');
+		serverFiles                                 = { { .Path = "new-server.cpp", .Change = application::github_file_change::added, .Additions = 27 } };
 		open();
 		succeed();
 		effects.drain();
@@ -240,8 +258,11 @@ namespace {
 		expect(host.accepted_snapshot() && !cached(), "reconnection adopts new server truth and clears cached presentation");
 		expect(cache.Value->BaseOid == serverBase && cache.Value->HeadOid == serverHead
 				   && cache.Value->FileCatalogue->front().Path == "new-server.cpp"
-				   && cache.Value->FileCatalogue->front().Additions == 27,
+				   && cache.Value->FileCatalogue->front().Additions == 27
+				   && cache.Value->ReviewThreads->front().Comments.front().Body == "Changed server root"
+				   && cache.Value->ReviewThreads->front().Resolved,
 			   "changed base/head and catalogue replace one historical observation atomically");
+		serverThreads.clear();
 		serverFiles.clear();
 		open();
 		succeed();
@@ -254,6 +275,8 @@ namespace {
 		expect(cached() && updates.back().Presentation.CachedOverview->FileCatalogue
 				   && updates.back().Presentation.CachedOverview->FileCatalogue->empty(),
 			   "observed empty file catalogue survives cache admission");
+		expect(updates.back().Presentation.CachedOverview->ReviewThreads && updates.back().Presentation.CachedOverview->ReviewThreads->empty(), "observed empty threads survive cache admission");
+		serverThreads.push_back({ .Thread = application::github_thread_id{ "large" }, .Path = "file", .DiffSide = application::github_diff_side::right, .Comments = { { .Comment = application::github_comment_id{ "large-comment" }, .Body = std::string(64 * 1024 + 1, 'x'), .Path = "file" } } });
 		for (std::size_t index = 0; index <= core::maximum_cached_files; ++index) {
 			serverFiles.push_back({ .Path = "file" + std::to_string(index), .Change = application::github_file_change::modified });
 		}
@@ -263,6 +286,20 @@ namespace {
 		lane.drain();
 		expect(cache.Value->Files == serverFiles.size() && !cache.Value->FileCatalogue,
 			   "oversized optional catalogue keeps current overview with unavailable files, never a truncated or old catalogue");
+		expect(!cache.Value->ReviewThreads, "over-limit thread collection becomes unavailable without keeping old or partial threads");
+		serverThreads.clear();
+		expect(host.retire(identity), "retire thread-capable session");
+		identity.Generation                                    = core::github_identity_generation{ 3 };
+		identity.CapabilityEvidence.Capabilities.ReviewThreads = core::github_capability_state::unsupported;
+		identity.CapabilityEvidence.ReadShape.ReviewThreads    = false;
+		identity.Session.CapabilityEvidence.Capabilities       = identity.CapabilityEvidence.Capabilities;
+		identity.Session.CapabilityEvidence.ReadShape          = identity.CapabilityEvidence.ReadShape;
+		expect(host.adopt(identity), "adopt session without thread capability");
+		open();
+		succeed();
+		effects.drain();
+		lane.drain();
+		expect(!cache.Value->ReviewThreads, "unobserved threads remain unavailable despite empty provider vector");
 		open();
 		fail();
 		host.shutdown();

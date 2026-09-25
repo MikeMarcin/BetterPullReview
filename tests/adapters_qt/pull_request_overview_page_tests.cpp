@@ -728,12 +728,23 @@ namespace {
 		page.present_cached(cached);
 		auto* heading = page.findChild<QLabel*>(QStringLiteral("overviewFilesHeading"));
 		expect(heading->text().contains(QStringLiteral("catalogue unavailable")), "missing catalogue is explicitly unavailable");
+		auto* threadsHeading = page.findChild<QLabel*>(QStringLiteral("overviewCachedThreadsHeading"));
+		auto* threads        = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
+		expect(threadsHeading->text().contains(QStringLiteral("unavailable")) && threads->isHidden(), "unobserved thread collection never implies empty");
+		cached.ReviewThreads.emplace();
+		page.present_cached(cached);
+		expect(threadsHeading->text().contains(QStringLiteral("0 observed")), "observed empty thread collection is explicit");
+		cached.ReviewThreads->push_back({ .Id = "T1", .Path = "src/new.cpp", .Line = 7, .OriginalLine = 5, .Side = core::cached_thread_side::right, .Resolved = true, .Outdated = true, .Comments = { { .Id = "C1", .AuthorLogin = "author", .Body = "<b>literal root</b>" }, { .Id = "C2", .ReplyTo = "C1", .AuthorLogin = "reader", .Body = "literal reply" } } });
 		cached.FileCatalogue.emplace();
 		page.present_cached(cached);
 		expect(heading->text().contains(QStringLiteral("0 files observed")), "empty observed catalogue is different from unavailable");
 		cached.FileCatalogue->push_back({ "src/new.cpp", "src/old.cpp", core::cached_file_change::renamed, 12, 3 });
 		page.present_cached(cached);
 		settle();
+		expect(threads->isVisible() && threads->isReadOnly() && threads->toPlainText().contains(QStringLiteral("<b>literal root</b>"))
+				   && threads->toPlainText().contains(QStringLiteral("Reply · reader")) && threads->toPlainText().contains(QStringLiteral("was resolved · was outdated"))
+				   && threads->toPlainText().contains(QStringLiteral("line 7 · original line 5")) && threadsHeading->text().contains(QStringLiteral("freshness unknown")),
+			   "historical thread bodies, replies and inert anchors are literal and explicitly stale");
 		const auto index = page.file_model()->index_for_path(QStringLiteral("src/new.cpp"));
 		expect(index.isValid() && index.data(Qt::ToolTipRole).toString().contains(QStringLiteral("src/old.cpp")), "cached rename preserves both exact paths");
 		expect(page.file_model()->row_at(index)->Operation == application::overview_file_operation::renamed, "cached operation preserved");
@@ -743,6 +754,7 @@ namespace {
 		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
 		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
 		page.present(projection());
+		expect(threads->isHidden() && threads->toPlainText().isEmpty() && threadsHeading->isHidden(), "fresh projection removes cached thread content and labels");
 		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
 			expect(!page.files_view()->isColumnHidden(column), "fresh server view restores current workflow columns");
 		}

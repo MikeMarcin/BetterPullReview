@@ -160,13 +160,14 @@ namespace bpr::application {
 		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
-	/// \brief Previously accepted overview and optional file catalogue; freshness is unknown.
+	/// \brief Previously accepted overview, optional file catalogue and inert thread history; freshness is unknown.
 	struct github_cached_overview_projection
 	{
-		github_loading_overview_projection                   Overview;
-		std::string                                          BaseOid, HeadOid;
-		std::optional<std::vector<core::cached_review_file>> FileCatalogue;
-		auto                                                 operator<=>(const github_cached_overview_projection&) const = default;
+		github_loading_overview_projection                     Overview;
+		std::string                                            BaseOid, HeadOid;
+		std::optional<std::vector<core::cached_review_file>>   FileCatalogue;
+		std::optional<std::vector<core::cached_review_thread>> ReviewThreads;
+		auto                                                   operator<=>(const github_cached_overview_projection&) const = default;
 	};
 
 	enum class github_conversation_kind : std::uint8_t {

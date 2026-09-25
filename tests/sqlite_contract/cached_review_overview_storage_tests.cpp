@@ -31,6 +31,9 @@ namespace {
 			{ "src/new.cpp", "src/old.cpp", core::cached_file_change::renamed, 23, 8 },
 			{ "removed.cpp", std::nullopt, core::cached_file_change::removed, 0, 42 }
 		};
+		result.ReviewThreads = std::vector<core::cached_review_thread>{
+			{ .Id = "T1", .Path = "src/new.cpp", .Line = 7, .OriginalLine = 5, .Side = core::cached_thread_side::right, .Resolved = true, .Comments = { { .Id = "C1", .AuthorLogin = "author", .Body = "<literal> root\ntext", .Line = 7 }, { .Id = "C2", .ReplyTo = "C1", .AuthorLogin = "reader", .Body = "Reply", .OriginalLine = 5, .Outdated = true, .Deleted = true } } }
+		};
 		return result;
 	}
 	struct commit_cancellation
@@ -150,20 +153,41 @@ try {
 	invalid.FileCatalogue->resize(core::maximum_cached_files + 1);
 	invalid.Files = static_cast<std::uint32_t>(invalid.FileCatalogue->size());
 	expect(!store->save(invalid, { }), "file count allocation bound enforced");
+	invalid = next;
+	invalid.ReviewThreads->front().Comments.front().Body.resize(64 * 1024 + 1, 'x');
+	expect(!store->save(invalid, { }), "thread body limit refuses complete record without truncation");
+	invalid = next;
+	invalid.ReviewThreads->resize(core::maximum_cached_threads + 1);
+	expect(!store->save(invalid, { }), "thread count bounded before allocation");
+	invalid = next;
+	invalid.ReviewThreads->front().Comments.resize(core::maximum_cached_thread_comments + 1);
+	expect(!store->save(invalid, { }), "aggregate comment count bounded");
+	invalid = next;
+	invalid.ReviewThreads->front().Comments[0].Body.resize(64 * 1024, 'x');
+	invalid.ReviewThreads->front().Comments[1].Body.resize(64 * 1024, 'x');
+	expect(!store->save(invalid, { }) && store->load(next.Key, { }) == next, "aggregate thread budget refuses without replacing accepted evidence");
+	auto catalogueOnly = next;
+	catalogueOnly.ReviewThreads.reset();
+	expect(store->save(catalogueOnly, { }), "unavailable threads save independently of catalogue");
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 16); });
+	expect(store->load(next.Key, { }) == catalogueOnly, "previous catalogue payload keeps threads unavailable");
 	auto empty  = next;
 	empty.Files = 0;
 	empty.FileCatalogue->clear();
+	empty.ReviewThreads->clear();
 	expect(store->save(empty, { }) && store->load(empty.Key, { }) == empty, "observed empty catalogue remains present and empty");
 	alter_payload(path, [](auto& aPayload) { aPayload.back() = 255; });
 	expect(!store->load(empty.Key, { }), "forged count with valid digest refuses before file allocation");
 	auto legacy = next;
 	legacy.FileCatalogue.reset();
+	legacy.ReviewThreads.reset();
 	expect(store->save(legacy, { }), "unavailable catalogue overview saves");
-	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 16); });
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 32); });
 	expect(store->load(legacy.Key, { }) == legacy, "original payload loads with unavailable catalogue, never observed empty");
 	expect(store->save(next, { }) && store->load(next.Key, { }) == next, "new accepted record replaces legacy payload atomically");
 	auto malformed = next;
 	malformed.FileCatalogue.reset();
+	malformed.ReviewThreads.reset();
 	expect(store->save(malformed, { }), "extension-version control saved");
 	alter_payload(path, [](auto& aPayload) { aPayload[aPayload.size() - 9] = 99; });
 	expect(!store->load(next.Key, { }), "unknown extension version refuses all historical content");
