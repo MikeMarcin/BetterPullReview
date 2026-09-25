@@ -1,0 +1,329 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-review-cycles-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0053",
+      "RFC-BPR-0054",
+      "RFC-BPR-0055",
+      "RFC-BPR-0056",
+      "RFC-BPR-0057",
+      "RFC-BPR-0058",
+      "RFC-BPR-0059",
+      "RFC-BPR-0060",
+      "RFC-BPR-0061"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "All new identities and the eleven authored milestone groups are safely imported with live predecessor drift recorded.",
+      "work": [
+        {
+          "issue": "BPR-1143"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All new identities and the eleven authored milestone groups are safely imported with live predecessor drift recorded.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "domain",
+      "outcome": "Local cycle authority, durable records and bounded source seams exist independently of providers.",
+      "work": [
+        {
+          "issue": "BPR-1144"
+        },
+        {
+          "issue": "BPR-1145"
+        },
+        {
+          "issue": "BPR-1146"
+        },
+        {
+          "issue": "BPR-1147"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "Local cycle authority, durable records and bounded source seams exist independently of providers.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "snapshots",
+      "outcome": "Exact scoped local source can be captured, retained and compared without modifying the developer checkout.",
+      "work": [
+        {
+          "issue": "BPR-1148"
+        },
+        {
+          "issue": "BPR-1149"
+        },
+        {
+          "issue": "BPR-1150"
+        },
+        {
+          "issue": "BPR-1151"
+        },
+        {
+          "issue": "BPR-1152"
+        }
+      ],
+      "depends_on": [
+        "domain"
+      ],
+      "exit_criteria": [
+        "Exact scoped local source can be captured, retained and compared without modifying the developer checkout.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "authoring",
+      "outcome": "Source-first native review supports connected notes and exact small suggested edits in the accepted workbench scaffold.",
+      "work": [
+        {
+          "issue": "BPR-1153"
+        },
+        {
+          "issue": "BPR-1154"
+        },
+        {
+          "issue": "BPR-1155"
+        },
+        {
+          "issue": "BPR-1156"
+        },
+        {
+          "issue": "BPR-1157"
+        }
+      ],
+      "depends_on": [
+        "snapshots"
+      ],
+      "exit_criteria": [
+        "Source-first native review supports connected notes and exact small suggested edits in the accepted workbench scaffold.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "portable-rounds",
+      "outcome": "One complete frozen assignment can be copied/saved/read by a human with no model or BPR dependency.",
+      "work": [
+        {
+          "issue": "BPR-1158"
+        },
+        {
+          "issue": "BPR-1159"
+        },
+        {
+          "issue": "BPR-1160"
+        },
+        {
+          "issue": "BPR-1161"
+        },
+        {
+          "issue": "BPR-1162"
+        }
+      ],
+      "depends_on": [
+        "authoring"
+      ],
+      "exit_criteria": [
+        "One complete frozen assignment can be copied/saved/read by a human with no model or BPR dependency.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "manual-iteration",
+      "outcome": "The real manual two-round loop works without callback/report requirements and with explicit reviewer verification.",
+      "work": [
+        {
+          "issue": "BPR-1163"
+        },
+        {
+          "issue": "BPR-1164"
+        },
+        {
+          "issue": "BPR-1165"
+        },
+        {
+          "issue": "BPR-1166"
+        }
+      ],
+      "depends_on": [
+        "portable-rounds"
+      ],
+      "exit_criteria": [
+        "The real manual two-round loop works without callback/report requirements and with explicit reviewer verification.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "external-consumers",
+      "outcome": "AI-free terminal and permitted external harnesses read the same round through one local owner and a thin skill.",
+      "work": [
+        {
+          "issue": "BPR-1167"
+        },
+        {
+          "issue": "BPR-1168"
+        },
+        {
+          "issue": "BPR-1169"
+        },
+        {
+          "issue": "BPR-1170"
+        },
+        {
+          "issue": "BPR-1171"
+        }
+      ],
+      "depends_on": [
+        "manual-iteration"
+      ],
+      "exit_criteria": [
+        "AI-free terminal and permitted external harnesses read the same round through one local owner and a thin skill.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "publication",
+      "outcome": "A selected final result can be explicitly published as a clean new PR with recovery and local history preserved.",
+      "work": [
+        {
+          "issue": "BPR-1172"
+        },
+        {
+          "issue": "BPR-1173"
+        },
+        {
+          "issue": "BPR-1174"
+        },
+        {
+          "issue": "BPR-1175"
+        },
+        {
+          "issue": "BPR-1176"
+        },
+        {
+          "issue": "BPR-1177"
+        },
+        {
+          "issue": "BPR-1178"
+        }
+      ],
+      "depends_on": [
+        "external-consumers"
+      ],
+      "exit_criteria": [
+        "A selected final result can be explicitly published as a clean new PR with recovery and local history preserved.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "optional-adapters",
+      "outcome": "Agent-free packages are proven before optional direct Send; consistent capability/security boundaries are qualified.",
+      "work": [
+        {
+          "issue": "BPR-1179"
+        },
+        {
+          "issue": "BPR-1180"
+        },
+        {
+          "issue": "BPR-1181"
+        }
+      ],
+      "depends_on": [
+        "publication"
+      ],
+      "exit_criteria": [
+        "Agent-free packages are proven before optional direct Send; consistent capability/security boundaries are qualified.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "qualification",
+      "outcome": "Native usability, hostile/recovery, packaging and human-steering evidence are recorded with honest open gates.",
+      "work": [
+        {
+          "issue": "BPR-1182"
+        },
+        {
+          "issue": "BPR-1183"
+        },
+        {
+          "issue": "BPR-1184"
+        },
+        {
+          "issue": "BPR-1185"
+        }
+      ],
+      "depends_on": [
+        "optional-adapters"
+      ],
+      "exit_criteria": [
+        "Native usability, hostile/recovery, packaging and human-steering evidence are recorded with honest open gates.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "closeout",
+      "outcome": "Nine RFCs close individually in live canonical order only on earned criterion evidence.",
+      "work": [
+        {
+          "issue": "BPR-1186"
+        },
+        {
+          "issue": "BPR-1187"
+        },
+        {
+          "issue": "BPR-1188"
+        },
+        {
+          "issue": "BPR-1189"
+        },
+        {
+          "issue": "BPR-1190"
+        },
+        {
+          "issue": "BPR-1191"
+        },
+        {
+          "issue": "BPR-1192"
+        },
+        {
+          "issue": "BPR-1193"
+        },
+        {
+          "issue": "BPR-1194"
+        }
+      ],
+      "depends_on": [
+        "qualification"
+      ],
+      "exit_criteria": [
+        "Nine RFCs close individually in live canonical order only on earned criterion evidence.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    }
+  ],
+  "unplanned_work": []
+}

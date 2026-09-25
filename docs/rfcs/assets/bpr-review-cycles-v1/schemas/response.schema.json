@@ -1,0 +1,164 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "bpr.cycle.response.v1"
+    },
+    "response_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "cycle_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "round_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "round_payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "claimed_author": {
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "human",
+            "agent",
+            "unknown"
+          ]
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "display_name",
+        "kind",
+        "provider",
+        "model",
+        "effort"
+      ],
+      "additionalProperties": false
+    },
+    "result_source_revision_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+          },
+          "item_revision": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "disposition": {
+            "enum": [
+              "addressed",
+              "partially_addressed",
+              "disputed",
+              "blocked",
+              "discussion_only"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "text",
+                    "path",
+                    "commit",
+                    "url",
+                    "test_report"
+                  ]
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 256
+          }
+        },
+        "required": [
+          "item_id",
+          "item_revision",
+          "disposition",
+          "body",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 4096
+    }
+  },
+  "required": [
+    "schema",
+    "response_id",
+    "cycle_id",
+    "round_id",
+    "round_payload_sha256",
+    "claimed_author",
+    "result_source_revision_id",
+    "items"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Review Cycles untrusted recipient response v1"
+}

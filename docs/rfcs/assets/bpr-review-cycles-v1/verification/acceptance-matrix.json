@@ -1,0 +1,1574 @@
+{
+  "schema": "bpr.review-cycles.acceptance.v1",
+  "scope": "product; not archive self-tests",
+  "requirements": [
+    {
+      "id": "RC53-01",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Create and reopen a local cycle with no PR, remote, Git commit, account or agent, including an empty initial diff.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-02"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-02",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Persist distinct cycle, revision, item, round, response, verification and publication identities without fake provider IDs or counter reuse.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-02"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-03",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Use bounded provider-independent material/application ports while preserving the existing PR authority and epoch contracts.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-02",
+        "PACK-CYCLE-04"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-04",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Crash during source/catalog/draft/freeze persistence leaves complete recoverable records or explicit unavailable state, never a partial ready round.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-03",
+        "PACK-CYCLE-10"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-05",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Expected revisions and operation IDs reject stale/conflicting writes and deduplicate identical retries across interfaces.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-03"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-06",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Core cycle services initialize and operate without agent libraries, provider configuration or executable discovery.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-04"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-07",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Existing PR profiles, caches, receipts and drafts survive additive migration without fabricated local-cycle ownership or altered historical evidence.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-04"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-08",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Pinned source/round/verification evidence survives publication and quota pressure; explicit removal previews irrecoverable local history loss.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-03"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-09",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Scope versions and partial coverage distinguish unknown source from deletion and do not imply project-wide review.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-02"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC53-10",
+      "rfc": "RFC-BPR-0053",
+      "requirement": "Current product/domain/security documentation records the narrow new local/publication scope and unchanged shared-GitHub authority.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-01",
+        "PACK-CYCLE-05",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-44",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-01",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Open Git/linked-worktree/dirty checkout, plain folder and single-file scopes without network/authentication or a prerequisite commit.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-06"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-02",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Capture changes neither source bytes, user index nor refs and runs no hooks, filters, textconv, lazy fetch or repository scripts.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-07"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-03",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Reject root replacement, symlink/junction escape and unsafe descendant paths under native filesystem semantics.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-06",
+        "PACK-CYCLE-41"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-04",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Detected instability retries finitely; capture-quality metadata never asserts global atomicity from ordinary copying or two matching passes.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-07",
+        "PACK-CYCLE-10"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-05",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Scope exclusions, sparse/missing content, explicit deletions and new scope versions remain distinguishable in manifests/comparisons.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-07"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-06",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "CRLF/LF/BOM/no-final-newline, raw hashes, encoding offsets, file mode and path identities are preserved without lossy normalization.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-08"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-07",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Binary, unsupported encoding, LFS/filter-managed, symlink/gitlink and platform-collision cases remain visible with accurate capability limits.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-08"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-08",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Large enumeration/capture/diff access is paged/cancellable and measured without UI-thread hashing or unbounded core state.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-09",
+        "PACK-CYCLE-42"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-09",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Retained material resolves the exact captured bytes after external edits, deletion or restart; corruption/missing pins are not replaced by live files.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-09",
+        "PACK-CYCLE-10"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC54-10",
+      "rfc": "RFC-BPR-0054",
+      "requirement": "Explicit workspace rebind/import mapping prevents the same path/alias in another checkout from silently becoming the review subject.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-06"
+      ],
+      "closeout_card": "PACK-CYCLE-45",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-01",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Author range/file/module/cycle notes and one multi-location discussion from full source or a diff without mandatory per-item metadata.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-11"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-02",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Original source and ranges remain immutable; current exact/ambiguous/deleted/unavailable correspondence is separately represented.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-11"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-03",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Plain and all twelve shared labels preserve authored Markdown and do not imply patches, severity, permissions or verification.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-12"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-04",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Suggestion authoring preserves original/replacement bytes, insertion/deletion, explicit intent, byte ranges and before/after preview.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-13"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-05",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Exact application refuses stale whole-blob preconditions and overlapping/same-boundary edits; nonoverlapping edits use original coordinates.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-13"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-06",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Editing a suggestion does not write the checkout; actually applied edits are observed/labeled instead of dispatched for double application.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-13"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-07",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Native IME, undo, multi-caret/virtual-space and clipboard workflows preserve exact text and selections in the suggestion composer.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-14",
+        "PACK-CYCLE-40"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-08",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Human, adapter-observed, self-reported and unknown provenance remain distinct and private unless selected for disclosure.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-12"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-09",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Whole-round preparation preserves the reviewer wording and suggestions without a required model call, summarizer or second combined prompt.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-14"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC55-10",
+      "rfc": "RFC-BPR-0055",
+      "requirement": "Cycle threads reuse the shared narrow private-thread/lineage seam and do not fork or falsely complete deferred RFC0023.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-11",
+        "PACK-CYCLE-12"
+      ],
+      "closeout_card": "PACK-CYCLE-46",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-01",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Freeze every selected note, exact suggestion, source binding, explicit action and chosen order into one complete deterministic payload.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-16"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-02",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Frozen payloads/digests never change; identical freezes reuse identity and edits create a new round/amendment.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-16"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-03",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Clipboard, Markdown, bundle, CLI retrieval and adapter delivery preserve the same canonical selection and byte semantics.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-17",
+        "PACK-CYCLE-24"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-04",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "A human without BPR can understand the complete Markdown assignment and proposed changes; rendering safely handles embedded fences and whitespace.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-17"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-05",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Bundle/import validation rejects bad hashes, duplicate keys/members, traversal, symlink entries, compression abuse and invalid versions before admission.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-18",
+        "PACK-CYCLE-20",
+        "PACK-CYCLE-41"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-06",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Unselected scratch/history/provenance, absolute local paths and credentials do not leak into default outputs.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-16"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-07",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Copy/save/retrieval/adapter/acknowledgment observations remain distinct and do not imply delivery completion or review acceptance.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-19"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-08",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Limits/pagination never silently drop feedback; completeness/counts/digest are explicit and oversized assignment partitioning requires a user decision.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-17"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-09",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Interrupted/repeated freeze/export/import operations recover without partial ready state or duplicate logical round identity.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-16"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC56-10",
+      "rfc": "RFC-BPR-0056",
+      "requirement": "Export policy applies consistently to all channels, including plain folders of unknown origin, without disguising a denied disclosure as a fallback.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-19"
+      ],
+      "closeout_card": "PACK-CYCLE-47",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-01",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Capture R1/R2 and continue manually without delivery receipt, structured report, BPR-managed agent, Git commit or completion callback.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-21",
+        "PACK-CYCLE-24"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-02",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Full source/This round/Since my last review/All cycle/exact-pair views resolve the intended immutable material and never retarget explicit tabs.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-09",
+        "PACK-CYCLE-21"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-03",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Reconciliation distinguishes exact, ambiguous, deleted and unavailable source and never turns proximity/code disappearance into proof of resolution.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-23"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-04",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Reports/manual replies attach to exact rounds/items as append-only untrusted recipient statements with observed provenance.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-22"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-05",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Identical report replay is idempotent; reused report IDs with different bytes and late/wrong-cycle output conflict or refuse.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-22"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-06",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Recipient addressed status and reviewer verification are separate; verification binds checked item/material and becomes visibly historical when relevant code changes.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-23"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-07",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Next-round selection/amendment preserves prior assignments and can include unresolved/new feedback without auto-dispatch or forced per-item interaction.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-23"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-08",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Human-only, mixed-recipient, partial-response and prose-only returns work without JSON/protocol requirements or invented missing responses.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-20",
+        "PACK-CYCLE-22"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-09",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Local capture order, imported source DAG and provider upload chronology remain separate, with gaps/divergence explicit.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-21"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC57-10",
+      "rfc": "RFC-BPR-0057",
+      "requirement": "Claimed code/test outcomes remain reported evidence; importing them executes no tests, writes no source and grants no verification/publication authority.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-22"
+      ],
+      "closeout_card": "PACK-CYCLE-48",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-01",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Agent-free headless cycle commands run without desktop/GUI/display/provider installation and share the desktop application services.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-25"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-02",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Normal terminal output is human-readable; explicit JSON, stderr separation, noninteractive refusal and typed errors meet the CLI contract.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-25"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-03",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Commands bind exact profile/workspace/cycle/round identities; ambiguous targets and active-window changes cannot redirect work.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-27",
+        "PACK-CYCLE-29"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-04",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "External reads expose only admitted prepared payload/context and never require database scraping or a generic file/HTTP server.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-27"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-05",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Desktop-open and CLI-alone paths use one owner with qualified native IPC, bounded messages, peer checks and no competing writer.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-26",
+        "PACK-CYCLE-29"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-06",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Cross-interface edits/freeze/undo preserve dirty text/IME and revision conflicts without lost updates or duplicate application.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-26",
+        "PACK-CYCLE-29"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-07",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Consumers can obtain and verify every instruction page before implementing; counts/digests and limit outcomes are explicit.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-27",
+        "PACK-CYCLE-29"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-08",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "The thin bpr-cycle skill uses the active harness, no second model/orchestrator, no direct provider publisher, and no silent skill installation.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-28"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-09",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Response-only automation appends reports but cannot verify, alter original instructions, export other history or publish.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-27"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC58-10",
+      "rfc": "RFC-BPR-0058",
+      "requirement": "Manual terminal/Markdown and observed supported harness paths remain useful; missing skill support/reachability does not block the cycle.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-28",
+        "PACK-CYCLE-29"
+      ],
+      "closeout_card": "PACK-CYCLE-49",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-01",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Distinguish R0, Rn and publication parent/target and visibly handle preexisting dirty work, selected improvements and base drift.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-30"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-02",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Candidate/squash preparation uses isolated objects/index and never resets, stashes, cleans, commits or rewrites the user checkout/branch.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-31"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-03",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Outgoing complete trees preserve untouched base entries; partial scopes, deletions, selected dependencies and empty candidates are handled explicitly.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-30"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-04",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Bytes/modes/object format/filter/LFS/signing/protected-path requirements are preserved or capability-blocked with truthful external preparation.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-31",
+        "PACK-CYCLE-33"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-05",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Native object/new-branch/PR creation is a separately admitted finite GitHub capability with exact host/account permissions and no implicit credential-helper push.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-33",
+        "PACK-CYCLE-34"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-06",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Exact candidate/destination/title/body/attribution preview plus current authorization is required; edits or changed authority invalidate the plan.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-32"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-07",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Object/ref/PR uncertainty, cancellation and concurrent drift recover without duplicate PRs, blind retries, force updates or unearned rollback claims.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-32",
+        "PACK-CYCLE-34",
+        "PACK-CYCLE-36"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-08",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Squashing outgoing code and publishing retain every pinned local revision, round, response and verification until explicit history removal.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-35"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-09",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Link the actual PR and reuse existing PR/tour/publication semantics without uploading private history or fabricating GitHub review events.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-35"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC59-10",
+      "rfc": "RFC-BPR-0059",
+      "requirement": "Native supported-host publication has designated live evidence; external publication/linking stays usable but is not misreported as native qualification.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-34",
+        "PACK-CYCLE-36"
+      ],
+      "closeout_card": "PACK-CYCLE-50",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-01",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "An agent-free build/package genuinely omits agent-specific libraries/resources/helpers and starts without agent/provider discovery or credentials.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-37",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-02",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "The complete two-round source/suggestion/Copy-Save/capture/verification/publication-preparation course works with integrations absent.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-37",
+        "PACK-CYCLE-40",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-03",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Local automation is separately removable/disableable and does not remove core GUI/manual iteration or destroy stored cycles.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-37",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-04",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "GUI/CLI/file/clipboard/adapter disclosure uses consistent scope/enterprise policy and never treats a skill/provider claim as permission.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-05",
+        "PACK-CYCLE-39"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-05",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Untrusted source/Markdown/imports cannot execute code, mint authority, alter original rounds or mark feedback verified.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-05",
+        "PACK-CYCLE-39",
+        "PACK-CYCLE-41"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-06",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Private data, pins, IPC bounds/identity and diagnostic redaction follow documented native boundaries without false same-user sandbox/encryption claims.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-39",
+        "PACK-CYCLE-41"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-07",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Optional Send uses the exact frozen payload, one selected assignment and the same response model as external/manual channels.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-38"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-08",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Existing provider/harness/account/host restrictions, explicit session selection and separate credentials remain in force.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-38"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-09",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Late, failed, uncertain or removed-adapter deliveries preserve the cycle and never auto-resend, auto-fallback, auto-capture or auto-verify.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-38"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC60-10",
+      "rfc": "RFC-BPR-0060",
+      "requirement": "Native installed-package, startup effects, IPC, attack corpus and removal evidence distinguish real qualification from fixtures/cross-compilation.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-39",
+        "PACK-CYCLE-40"
+      ],
+      "closeout_card": "PACK-CYCLE-51",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-01",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Open Project/Review Cycles offers a simple no-account/no-agent local entry with a clear Local cycle identity distinct from PRs and Review Tours.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-15",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-02",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Cycle controls integrate the 0052 title/review bar, folding Updates line, tabs and tray without a new unapproved persistent row or PR regression.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-15"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-03",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Initial/full-source browsing is single-pane and remains available after comparisons; unchanged/historical local source stays commentable.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-15"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-04",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Native note/suggestion workflows support primary/related anchors, accurate before/after, keyboard editing and explicit stale/ambiguous states.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-14"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-05",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Compose/Share prepares one complete assignment with first-class Copy and Save and no mandatory AI setup, second prompt or per-item ceremony.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-19"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-06",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Whole-round feedback and exact delivery observations remain legible; optional direct/external routes add no hidden context or automatic dispatch.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-19"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-07",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Capture, response display, comparison, reviewer verification and next-round composition work without callback/protocol prerequisites.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-24"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-08",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Publication preview differentiates bases and selected final content and links the actual PR while preserving local history/privacy.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-35"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-09",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Native width/focus/shortcuts/accessibility/IME/tab-restoration courses preserve accepted workbench design and record actual platform/user evidence.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-15",
+        "PACK-CYCLE-40"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    },
+    {
+      "id": "RC61-10",
+      "rfc": "RFC-BPR-0061",
+      "requirement": "Named-corpus latency/memory and the eight-item/two-suggestion human-steering course measure benefit/limitations without unverified savings claims.",
+      "status": "Not run",
+      "implementation_cards": [
+        "PACK-CYCLE-42",
+        "PACK-CYCLE-43"
+      ],
+      "closeout_card": "PACK-CYCLE-52",
+      "evidence": {
+        "check": null,
+        "result": "Not run",
+        "producing_revision": null,
+        "environment": null,
+        "limitations": "Implementation/native/service/human evidence must be supplied in the live repository."
+      }
+    }
+  ]
+}

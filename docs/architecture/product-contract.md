@@ -1,5 +1,7 @@
 # BetterPullReview Product Contract
 
+Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
+
 ## Definition
 
 BetterPullReview is an alternative native client for reviewing code contained in GitHub pull requests. It is not a replacement pull-request server, a second collaborative review database, a merge client, or an IDE.

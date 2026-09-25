@@ -1,0 +1,328 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-review-cycles-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0053",
+      "RFC-BPR-0054",
+      "RFC-BPR-0055",
+      "RFC-BPR-0056",
+      "RFC-BPR-0057",
+      "RFC-BPR-0058",
+      "RFC-BPR-0059",
+      "RFC-BPR-0060",
+      "RFC-BPR-0061"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "All new identities and the eleven authored milestone groups are safely imported with live predecessor drift recorded.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-01"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All new identities and the eleven authored milestone groups are safely imported with live predecessor drift recorded.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "domain",
+      "outcome": "Local cycle authority, durable records and bounded source seams exist independently of providers.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-02"
+        },
+        {
+          "issue": "PACK-CYCLE-03"
+        },
+        {
+          "issue": "PACK-CYCLE-04"
+        },
+        {
+          "issue": "PACK-CYCLE-05"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "Local cycle authority, durable records and bounded source seams exist independently of providers.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "snapshots",
+      "outcome": "Exact scoped local source can be captured, retained and compared without modifying the developer checkout.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-06"
+        },
+        {
+          "issue": "PACK-CYCLE-07"
+        },
+        {
+          "issue": "PACK-CYCLE-08"
+        },
+        {
+          "issue": "PACK-CYCLE-09"
+        },
+        {
+          "issue": "PACK-CYCLE-10"
+        }
+      ],
+      "depends_on": [
+        "domain"
+      ],
+      "exit_criteria": [
+        "Exact scoped local source can be captured, retained and compared without modifying the developer checkout.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "authoring",
+      "outcome": "Source-first native review supports connected notes and exact small suggested edits in the accepted workbench scaffold.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-11"
+        },
+        {
+          "issue": "PACK-CYCLE-12"
+        },
+        {
+          "issue": "PACK-CYCLE-13"
+        },
+        {
+          "issue": "PACK-CYCLE-14"
+        },
+        {
+          "issue": "PACK-CYCLE-15"
+        }
+      ],
+      "depends_on": [
+        "snapshots"
+      ],
+      "exit_criteria": [
+        "Source-first native review supports connected notes and exact small suggested edits in the accepted workbench scaffold.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "portable-rounds",
+      "outcome": "One complete frozen assignment can be copied/saved/read by a human with no model or BPR dependency.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-16"
+        },
+        {
+          "issue": "PACK-CYCLE-17"
+        },
+        {
+          "issue": "PACK-CYCLE-18"
+        },
+        {
+          "issue": "PACK-CYCLE-19"
+        },
+        {
+          "issue": "PACK-CYCLE-20"
+        }
+      ],
+      "depends_on": [
+        "authoring"
+      ],
+      "exit_criteria": [
+        "One complete frozen assignment can be copied/saved/read by a human with no model or BPR dependency.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "manual-iteration",
+      "outcome": "The real manual two-round loop works without callback/report requirements and with explicit reviewer verification.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-21"
+        },
+        {
+          "issue": "PACK-CYCLE-22"
+        },
+        {
+          "issue": "PACK-CYCLE-23"
+        },
+        {
+          "issue": "PACK-CYCLE-24"
+        }
+      ],
+      "depends_on": [
+        "portable-rounds"
+      ],
+      "exit_criteria": [
+        "The real manual two-round loop works without callback/report requirements and with explicit reviewer verification.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "external-consumers",
+      "outcome": "AI-free terminal and permitted external harnesses read the same round through one local owner and a thin skill.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-25"
+        },
+        {
+          "issue": "PACK-CYCLE-26"
+        },
+        {
+          "issue": "PACK-CYCLE-27"
+        },
+        {
+          "issue": "PACK-CYCLE-28"
+        },
+        {
+          "issue": "PACK-CYCLE-29"
+        }
+      ],
+      "depends_on": [
+        "manual-iteration"
+      ],
+      "exit_criteria": [
+        "AI-free terminal and permitted external harnesses read the same round through one local owner and a thin skill.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "publication",
+      "outcome": "A selected final result can be explicitly published as a clean new PR with recovery and local history preserved.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-30"
+        },
+        {
+          "issue": "PACK-CYCLE-31"
+        },
+        {
+          "issue": "PACK-CYCLE-32"
+        },
+        {
+          "issue": "PACK-CYCLE-33"
+        },
+        {
+          "issue": "PACK-CYCLE-34"
+        },
+        {
+          "issue": "PACK-CYCLE-35"
+        },
+        {
+          "issue": "PACK-CYCLE-36"
+        }
+      ],
+      "depends_on": [
+        "external-consumers"
+      ],
+      "exit_criteria": [
+        "A selected final result can be explicitly published as a clean new PR with recovery and local history preserved.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "optional-adapters",
+      "outcome": "Agent-free packages are proven before optional direct Send; consistent capability/security boundaries are qualified.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-37"
+        },
+        {
+          "issue": "PACK-CYCLE-38"
+        },
+        {
+          "issue": "PACK-CYCLE-39"
+        }
+      ],
+      "depends_on": [
+        "publication"
+      ],
+      "exit_criteria": [
+        "Agent-free packages are proven before optional direct Send; consistent capability/security boundaries are qualified.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "qualification",
+      "outcome": "Native usability, hostile/recovery, packaging and human-steering evidence are recorded with honest open gates.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-40"
+        },
+        {
+          "issue": "PACK-CYCLE-41"
+        },
+        {
+          "issue": "PACK-CYCLE-42"
+        },
+        {
+          "issue": "PACK-CYCLE-43"
+        }
+      ],
+      "depends_on": [
+        "optional-adapters"
+      ],
+      "exit_criteria": [
+        "Native usability, hostile/recovery, packaging and human-steering evidence are recorded with honest open gates.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    },
+    {
+      "id": "closeout",
+      "outcome": "Nine RFCs close individually in live canonical order only on earned criterion evidence.",
+      "work": [
+        {
+          "issue": "PACK-CYCLE-44"
+        },
+        {
+          "issue": "PACK-CYCLE-45"
+        },
+        {
+          "issue": "PACK-CYCLE-46"
+        },
+        {
+          "issue": "PACK-CYCLE-47"
+        },
+        {
+          "issue": "PACK-CYCLE-48"
+        },
+        {
+          "issue": "PACK-CYCLE-49"
+        },
+        {
+          "issue": "PACK-CYCLE-50"
+        },
+        {
+          "issue": "PACK-CYCLE-51"
+        },
+        {
+          "issue": "PACK-CYCLE-52"
+        }
+      ],
+      "depends_on": [
+        "qualification"
+      ],
+      "exit_criteria": [
+        "Nine RFCs close individually in live canonical order only on earned criterion evidence.",
+        "Owned acceptance rows have direct evidence or an explicit unresolved gate; no fabricated pass."
+      ],
+      "boundary": "Focused card checks plus one relevant integration boundary. Preserve the authored grouping; no automatic exhaustive whole-repository matrix or new orchestration topology."
+    }
+  ]
+}

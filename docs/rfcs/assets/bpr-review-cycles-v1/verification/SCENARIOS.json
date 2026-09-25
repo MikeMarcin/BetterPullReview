@@ -1,0 +1,484 @@
+{
+  "schema": "bpr.review-cycles.scenarios.v1",
+  "kind": "production obligations, not observed test results",
+  "scenarios": [
+    {
+      "id": "S01",
+      "name": "No PR and no account",
+      "procedure": "Open an ordinary folder, module and individual file without authentication, initial diff or agent configuration. Add a note immediately.",
+      "requirements": [
+        "RC53-01",
+        "RC53-02",
+        "RC61-01"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S02",
+      "name": "Dirty R0",
+      "procedure": "Start with tracked staged/unstaged and chosen untracked changes; inspect exact working bytes, distinguish index and commit, change nothing in the source tree.",
+      "requirements": [
+        "RC54-01",
+        "RC54-02"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S03",
+      "name": "Scope is not deletion",
+      "procedure": "Capture a module within a larger repository, extend scope later, and prepare publication without deleting omitted files.",
+      "requirements": [
+        "RC54-05",
+        "RC59-01",
+        "RC59-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S04",
+      "name": "Concurrent capture",
+      "procedure": "Writer changes several files during scan; demonstrate consistency classification, bounded retry/refusal, no false atomic snapshot claim.",
+      "requirements": [
+        "RC54-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S05",
+      "name": "Root substitution",
+      "procedure": "Replace/move a root, link, parent or source file while capture is pending; enforce root/handle identity and explicit rebind.",
+      "requirements": [
+        "RC54-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S06",
+      "name": "Representation edges",
+      "procedure": "CRLF, tabs, no-final-newline, Unicode, invalid text, binary, symlink mode and unsupported LFS/filters preserve exact evidence or fail explicitly.",
+      "requirements": [
+        "RC54-06",
+        "RC55-05",
+        "RC59-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S07",
+      "name": "Repeated snippets",
+      "procedure": "Rename, move, copy and delete identical blocks across revisions; no nearest-line correspondence presented as certainty.",
+      "requirements": [
+        "RC55-02",
+        "RC57-05"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S08",
+      "name": "Exact edit conflicts",
+      "procedure": "Test deletion/insertion, adjacent replacement, overlap and duplicate boundary insertion against the same original blob.",
+      "requirements": [
+        "RC55-04",
+        "RC55-05",
+        "RC55-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S09",
+      "name": "Stale replacement",
+      "procedure": "Change unrelated bytes in the original file; exact apply requires revalidation, not a fuzzy match on the edited slice.",
+      "requirements": [
+        "RC55-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S10",
+      "name": "Already applied and illustrative",
+      "procedure": "Deliver an illustrative snippet and an observed already-applied edit; neither is blindly applied as a proposed exact replacement.",
+      "requirements": [
+        "RC55-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S11",
+      "name": "Native editing",
+      "procedure": "Virtual-space/multi-caret/box selection, clipboard, IME and undo preserve per-line intent, without moving source anchors or modifying the working tree.",
+      "requirements": [
+        "RC55-07",
+        "RC61-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S12",
+      "name": "Freeze and re-share",
+      "procedure": "Share one round by copy, file, CLI and direct adapter; canonical content is identical and post-share edits are new revisions.",
+      "requirements": [
+        "RC56-01",
+        "RC56-02",
+        "RC56-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S13",
+      "name": "No summarizer",
+      "procedure": "Prepare eight items/two suggestions with all model code absent; output preserves selected prose/context without a second prompt or lossy summary.",
+      "requirements": [
+        "RC56-03",
+        "RC60-01",
+        "RC60-02"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S14",
+      "name": "Oversized assignment",
+      "procedure": "Exceed item/source/export bounds; display exact counts/limits and refuse silent truncation. Paged consumers assemble the same round before acting.",
+      "requirements": [
+        "RC56-07",
+        "RC58-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S15",
+      "name": "Archive hostile members",
+      "procedure": "Traversal, drive/UNC, encoded traversal, duplicates, Unicode/case aliases, links, encrypted ZIP and expansion bomb refuse before admission.",
+      "requirements": [
+        "RC56-05",
+        "RC60-05"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S16",
+      "name": "Private-context exclusion",
+      "procedure": "Unselected scratch notes, earlier replies, model logs, credentials and absolute local user paths are absent from all outgoing channels.",
+      "requirements": [
+        "RC56-06",
+        "RC60-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S17",
+      "name": "Human callback-free iteration",
+      "procedure": "Give readable feedback to a human outside BPR, obtain source changes, capture R1 and compose F2 without JSON or completion protocol.",
+      "requirements": [
+        "RC57-01",
+        "RC57-02",
+        "RC60-02"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S18",
+      "name": "Recipient claim versus verified",
+      "procedure": "Import addressed/disputed/blocked replies; none verifies feedback. Reviewer verification binds to observed material and later changes are explicit.",
+      "requirements": [
+        "RC57-03",
+        "RC57-04",
+        "RC57-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S19",
+      "name": "Duplicate and forged report",
+      "procedure": "Replay identical report, alter its content under the same ID, change target/item revision and forge verified/model authority.",
+      "requirements": [
+        "RC57-03",
+        "RC57-07",
+        "RC60-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S20",
+      "name": "Owner concurrent use",
+      "procedure": "Desktop and multiple terminal/harness sessions target explicit cycles/rounds; late completions and active tab changes cannot redirect reads/writes.",
+      "requirements": [
+        "RC58-02",
+        "RC58-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S21",
+      "name": "Automation independently denied",
+      "procedure": "Remove automation while leaving GUI; manual copy/save/capture/compare still work. Revoke one read scope without changing other cycles.",
+      "requirements": [
+        "RC58-05",
+        "RC60-03",
+        "RC60-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S22",
+      "name": "Actual adapter removal",
+      "procedure": "Install agent-free package, remove adapter mid-cycle, restart; no model discovery/network or lost notes/revisions and manual continuation works.",
+      "requirements": [
+        "RC60-01",
+        "RC60-02",
+        "RC60-07"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S23",
+      "name": "Send uncertain",
+      "procedure": "Interrupt direct delivery after possible acceptance, then remove adapter; no automatic resend/fallback and capture is still available.",
+      "requirements": [
+        "RC60-08",
+        "RC60-09"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S24",
+      "name": "Storage and pins",
+      "procedure": "Crash/fill disk/corrupt bytes during capture/freeze, prune with pinned histories and restore backup; no dangling success or silent retargeting.",
+      "requirements": [
+        "RC53-07",
+        "RC54-07",
+        "RC54-09"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S25",
+      "name": "Initial work versus iteration",
+      "procedure": "Publish all selected finished work or iteration-only changes over explicit base; expose required initial dependencies and unrelated checkout edits.",
+      "requirements": [
+        "RC59-01",
+        "RC59-03"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S26",
+      "name": "Isolated candidate",
+      "procedure": "Hash user index/refs/worktree before and after planning/candidate/publish; hooks/filters/signing unsupported paths execute nothing.",
+      "requirements": [
+        "RC59-02",
+        "RC59-04"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S27",
+      "name": "Publication grant invalidation",
+      "procedure": "Change source/selection/base/head/title/body/identity after preview; the old finite grant cannot authorize the changed effects.",
+      "requirements": [
+        "RC59-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S28",
+      "name": "Publication lost receipts",
+      "procedure": "Lose each blob/tree/commit/ref/PR response; read first, match exact planned identities, no duplicate PR or foreign object adoption.",
+      "requirements": [
+        "RC59-07",
+        "RC59-10"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S29",
+      "name": "Server capability and drift",
+      "procedure": "Unsupported GHES/API/object format/permissions/branch rules and moved base/head produce honest limits or refreshed review; no raw-shell workaround.",
+      "requirements": [
+        "RC59-05",
+        "RC59-10"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S30",
+      "name": "History after squash",
+      "procedure": "Create real PR from final result and revisit R0/R1/R2 and all private rounds. Only selected public description/comments leave BPR.",
+      "requirements": [
+        "RC59-08",
+        "RC59-09"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S31",
+      "name": "Old PR compatibility",
+      "procedure": "Review ordinary PR/tour, including GitHub-only collaborator and mixed-client behavior; local cycle additions do not become shadow public authority.",
+      "requirements": [
+        "RC53-09",
+        "RC61-06"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S32",
+      "name": "Accepted scaffold",
+      "procedure": "Width floors, folded Updates line, exact document pairs, comments tray, shortcuts, focus and owner attended review are measured natively.",
+      "requirements": [
+        "RC61-02",
+        "RC61-04",
+        "RC61-05",
+        "RC61-09"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S33",
+      "name": "Large project",
+      "procedure": "Measure cold/warm capture and browsing on named 1M LOC / 100k file corpora; retain bounded interaction and report limits without hidden omissions.",
+      "requirements": [
+        "RC54-08",
+        "RC61-10"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S34",
+      "name": "Context benefit",
+      "procedure": "Compare eight-item/two-suggestion round with manually assembled prompt on fixed code/task; measure preparation, steering and rework, not assumed token savings.",
+      "requirements": [
+        "RC61-10"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S35",
+      "name": "External skill denied or absent",
+      "procedure": "CLI/skill unavailable or not permitted: readable handoff remains useful where policy allows, no guessed flags, SQL scrape or forced model install.",
+      "requirements": [
+        "RC58-06",
+        "RC58-07",
+        "RC58-08"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    },
+    {
+      "id": "S36",
+      "name": "Standalone source portability",
+      "procedure": "Read exported feedback on another machine without BPR, interpret exact bytes correctly, explicitly map project/source before association.",
+      "requirements": [
+        "RC56-04",
+        "RC56-05",
+        "RC58-09"
+      ],
+      "status": "Not run",
+      "check": null,
+      "producing_revision": null,
+      "environment": null
+    }
+  ]
+}

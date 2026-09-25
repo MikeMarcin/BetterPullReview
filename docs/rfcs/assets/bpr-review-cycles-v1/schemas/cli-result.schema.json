@@ -1,0 +1,93 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "bpr.cycle.result.v1"
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "outcome": {
+      "enum": [
+        "ok",
+        "refused",
+        "unavailable",
+        "conflict",
+        "cancelled",
+        "uncertain",
+        "interaction_required"
+      ]
+    },
+    "code": {
+      "type": "string"
+    },
+    "cycle_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "round_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payload_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "data": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "operation_id",
+    "outcome",
+    "code",
+    "cycle_id",
+    "round_id",
+    "payload_sha256",
+    "complete",
+    "next_cursor",
+    "data"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Review Cycles CLI operation envelope v1"
+}

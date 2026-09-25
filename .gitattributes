@@ -38,3 +38,6 @@ src/adapters/qt/assets/dif/generated/dif-sprite-digests.json text eol=lf
 # BPR-0372.
 tests/fixtures/github/**/*.json text eol=lf
 tests/fixtures/github/**/*.md text eol=lf
+
+# The Review Cycles source archive pins exact fixture bytes, including CRLF.
+docs/rfcs/assets/bpr-review-cycles-v1/** -text -eol

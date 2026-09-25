@@ -1,0 +1,1043 @@
+{
+  "schema": "bpr.review-cycles.card-index.v1",
+  "cards": [
+    {
+      "id": "PACK-CYCLE-01",
+      "file": "cards/PACK-CYCLE-01.md",
+      "rfcs": [
+        "RFC-BPR-0053",
+        "RFC-BPR-0054",
+        "RFC-BPR-0055",
+        "RFC-BPR-0056",
+        "RFC-BPR-0057",
+        "RFC-BPR-0058",
+        "RFC-BPR-0059",
+        "RFC-BPR-0060",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [],
+      "milestone": "intake",
+      "acceptance": [
+        "RC53-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-02",
+      "file": "cards/PACK-CYCLE-02.md",
+      "rfcs": [
+        "RFC-BPR-0053"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-01"
+      ],
+      "milestone": "domain",
+      "acceptance": [
+        "RC53-01",
+        "RC53-02",
+        "RC53-03",
+        "RC53-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-03",
+      "file": "cards/PACK-CYCLE-03.md",
+      "rfcs": [
+        "RFC-BPR-0053"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-02"
+      ],
+      "milestone": "domain",
+      "acceptance": [
+        "RC53-04",
+        "RC53-05",
+        "RC53-08"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-04",
+      "file": "cards/PACK-CYCLE-04.md",
+      "rfcs": [
+        "RFC-BPR-0053",
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-02"
+      ],
+      "milestone": "domain",
+      "acceptance": [
+        "RC53-03",
+        "RC53-06",
+        "RC53-07"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-05",
+      "file": "cards/PACK-CYCLE-05.md",
+      "rfcs": [
+        "RFC-BPR-0053",
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-02"
+      ],
+      "milestone": "domain",
+      "acceptance": [
+        "RC53-10",
+        "RC60-04",
+        "RC60-05"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-06",
+      "file": "cards/PACK-CYCLE-06.md",
+      "rfcs": [
+        "RFC-BPR-0054"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-04",
+        "PACK-CYCLE-05"
+      ],
+      "milestone": "snapshots",
+      "acceptance": [
+        "RC54-01",
+        "RC54-03",
+        "RC54-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-07",
+      "file": "cards/PACK-CYCLE-07.md",
+      "rfcs": [
+        "RFC-BPR-0054"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-03",
+        "PACK-CYCLE-06"
+      ],
+      "milestone": "snapshots",
+      "acceptance": [
+        "RC54-02",
+        "RC54-04",
+        "RC54-05"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-08",
+      "file": "cards/PACK-CYCLE-08.md",
+      "rfcs": [
+        "RFC-BPR-0054"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-06"
+      ],
+      "milestone": "snapshots",
+      "acceptance": [
+        "RC54-06",
+        "RC54-07"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-09",
+      "file": "cards/PACK-CYCLE-09.md",
+      "rfcs": [
+        "RFC-BPR-0054",
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-07",
+        "PACK-CYCLE-08"
+      ],
+      "milestone": "snapshots",
+      "acceptance": [
+        "RC54-08",
+        "RC54-09",
+        "RC57-02"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-10",
+      "file": "cards/PACK-CYCLE-10.md",
+      "rfcs": [
+        "RFC-BPR-0053",
+        "RFC-BPR-0054"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-07",
+        "PACK-CYCLE-08"
+      ],
+      "milestone": "snapshots",
+      "acceptance": [
+        "RC53-04",
+        "RC54-04",
+        "RC54-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-11",
+      "file": "cards/PACK-CYCLE-11.md",
+      "rfcs": [
+        "RFC-BPR-0055"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-03",
+        "PACK-CYCLE-09"
+      ],
+      "milestone": "authoring",
+      "acceptance": [
+        "RC55-01",
+        "RC55-02",
+        "RC55-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-12",
+      "file": "cards/PACK-CYCLE-12.md",
+      "rfcs": [
+        "RFC-BPR-0055"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-11"
+      ],
+      "milestone": "authoring",
+      "acceptance": [
+        "RC55-03",
+        "RC55-08",
+        "RC55-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-13",
+      "file": "cards/PACK-CYCLE-13.md",
+      "rfcs": [
+        "RFC-BPR-0055"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-11",
+        "PACK-CYCLE-08"
+      ],
+      "milestone": "authoring",
+      "acceptance": [
+        "RC55-04",
+        "RC55-05",
+        "RC55-06"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-14",
+      "file": "cards/PACK-CYCLE-14.md",
+      "rfcs": [
+        "RFC-BPR-0055",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-12",
+        "PACK-CYCLE-13"
+      ],
+      "milestone": "authoring",
+      "acceptance": [
+        "RC55-07",
+        "RC55-09",
+        "RC61-04"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-15",
+      "file": "cards/PACK-CYCLE-15.md",
+      "rfcs": [
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-04",
+        "PACK-CYCLE-09"
+      ],
+      "milestone": "authoring",
+      "acceptance": [
+        "RC61-01",
+        "RC61-02",
+        "RC61-03",
+        "RC61-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-16",
+      "file": "cards/PACK-CYCLE-16.md",
+      "rfcs": [
+        "RFC-BPR-0056"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-11",
+        "PACK-CYCLE-12",
+        "PACK-CYCLE-13"
+      ],
+      "milestone": "portable-rounds",
+      "acceptance": [
+        "RC56-01",
+        "RC56-02",
+        "RC56-06",
+        "RC56-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-17",
+      "file": "cards/PACK-CYCLE-17.md",
+      "rfcs": [
+        "RFC-BPR-0056"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-16"
+      ],
+      "milestone": "portable-rounds",
+      "acceptance": [
+        "RC56-03",
+        "RC56-04",
+        "RC56-08"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-18",
+      "file": "cards/PACK-CYCLE-18.md",
+      "rfcs": [
+        "RFC-BPR-0056"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-16"
+      ],
+      "milestone": "portable-rounds",
+      "acceptance": [
+        "RC56-05"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-19",
+      "file": "cards/PACK-CYCLE-19.md",
+      "rfcs": [
+        "RFC-BPR-0056",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-14",
+        "PACK-CYCLE-15",
+        "PACK-CYCLE-17"
+      ],
+      "milestone": "portable-rounds",
+      "acceptance": [
+        "RC56-07",
+        "RC56-10",
+        "RC61-05",
+        "RC61-06"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-20",
+      "file": "cards/PACK-CYCLE-20.md",
+      "rfcs": [
+        "RFC-BPR-0056",
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-18",
+        "PACK-CYCLE-04",
+        "PACK-CYCLE-05"
+      ],
+      "milestone": "portable-rounds",
+      "acceptance": [
+        "RC56-05",
+        "RC57-08"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-21",
+      "file": "cards/PACK-CYCLE-21.md",
+      "rfcs": [
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-09",
+        "PACK-CYCLE-10",
+        "PACK-CYCLE-16"
+      ],
+      "milestone": "manual-iteration",
+      "acceptance": [
+        "RC57-01",
+        "RC57-02",
+        "RC57-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-22",
+      "file": "cards/PACK-CYCLE-22.md",
+      "rfcs": [
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-16",
+        "PACK-CYCLE-20"
+      ],
+      "milestone": "manual-iteration",
+      "acceptance": [
+        "RC57-04",
+        "RC57-05",
+        "RC57-08",
+        "RC57-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-23",
+      "file": "cards/PACK-CYCLE-23.md",
+      "rfcs": [
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-11",
+        "PACK-CYCLE-21",
+        "PACK-CYCLE-22"
+      ],
+      "milestone": "manual-iteration",
+      "acceptance": [
+        "RC57-03",
+        "RC57-06",
+        "RC57-07"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-24",
+      "file": "cards/PACK-CYCLE-24.md",
+      "rfcs": [
+        "RFC-BPR-0056",
+        "RFC-BPR-0057",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-19",
+        "PACK-CYCLE-21",
+        "PACK-CYCLE-23"
+      ],
+      "milestone": "manual-iteration",
+      "acceptance": [
+        "RC56-03",
+        "RC57-01",
+        "RC61-07"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-25",
+      "file": "cards/PACK-CYCLE-25.md",
+      "rfcs": [
+        "RFC-BPR-0058"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-04",
+        "PACK-CYCLE-16",
+        "PACK-CYCLE-17",
+        "PACK-CYCLE-22"
+      ],
+      "milestone": "external-consumers",
+      "acceptance": [
+        "RC58-01",
+        "RC58-02"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-26",
+      "file": "cards/PACK-CYCLE-26.md",
+      "rfcs": [
+        "RFC-BPR-0058"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-03",
+        "PACK-CYCLE-25"
+      ],
+      "milestone": "external-consumers",
+      "acceptance": [
+        "RC58-05",
+        "RC58-06"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-27",
+      "file": "cards/PACK-CYCLE-27.md",
+      "rfcs": [
+        "RFC-BPR-0058",
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-05",
+        "PACK-CYCLE-25",
+        "PACK-CYCLE-26"
+      ],
+      "milestone": "external-consumers",
+      "acceptance": [
+        "RC58-03",
+        "RC58-04",
+        "RC58-07",
+        "RC58-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-28",
+      "file": "cards/PACK-CYCLE-28.md",
+      "rfcs": [
+        "RFC-BPR-0058"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-27"
+      ],
+      "milestone": "external-consumers",
+      "acceptance": [
+        "RC58-08",
+        "RC58-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-29",
+      "file": "cards/PACK-CYCLE-29.md",
+      "rfcs": [
+        "RFC-BPR-0058"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-24",
+        "PACK-CYCLE-28"
+      ],
+      "milestone": "external-consumers",
+      "acceptance": [
+        "RC58-03",
+        "RC58-05",
+        "RC58-06",
+        "RC58-07",
+        "RC58-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-30",
+      "file": "cards/PACK-CYCLE-30.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-21",
+        "PACK-CYCLE-23"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-01",
+        "RC59-03"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-31",
+      "file": "cards/PACK-CYCLE-31.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-30",
+        "PACK-CYCLE-08"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-02",
+        "RC59-04"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-32",
+      "file": "cards/PACK-CYCLE-32.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-30",
+        "PACK-CYCLE-03"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-06",
+        "RC59-07"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-33",
+      "file": "cards/PACK-CYCLE-33.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-31",
+        "PACK-CYCLE-32",
+        "PACK-CYCLE-05"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-04",
+        "RC59-05"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-34",
+      "file": "cards/PACK-CYCLE-34.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-33"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-05",
+        "RC59-07",
+        "RC59-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-35",
+      "file": "cards/PACK-CYCLE-35.md",
+      "rfcs": [
+        "RFC-BPR-0059",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-19",
+        "PACK-CYCLE-34"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-08",
+        "RC59-09",
+        "RC61-08"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-36",
+      "file": "cards/PACK-CYCLE-36.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-35"
+      ],
+      "milestone": "publication",
+      "acceptance": [
+        "RC59-07",
+        "RC59-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-37",
+      "file": "cards/PACK-CYCLE-37.md",
+      "rfcs": [
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-04",
+        "PACK-CYCLE-25",
+        "PACK-CYCLE-29"
+      ],
+      "milestone": "optional-adapters",
+      "acceptance": [
+        "RC60-01",
+        "RC60-02",
+        "RC60-03"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-38",
+      "file": "cards/PACK-CYCLE-38.md",
+      "rfcs": [
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-37",
+        "PACK-CYCLE-27",
+        "PACK-CYCLE-22"
+      ],
+      "milestone": "optional-adapters",
+      "acceptance": [
+        "RC60-07",
+        "RC60-08",
+        "RC60-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-39",
+      "file": "cards/PACK-CYCLE-39.md",
+      "rfcs": [
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-37",
+        "PACK-CYCLE-38",
+        "PACK-CYCLE-20"
+      ],
+      "milestone": "optional-adapters",
+      "acceptance": [
+        "RC60-04",
+        "RC60-05",
+        "RC60-06",
+        "RC60-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-40",
+      "file": "cards/PACK-CYCLE-40.md",
+      "rfcs": [
+        "RFC-BPR-0055",
+        "RFC-BPR-0060",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-24",
+        "PACK-CYCLE-29",
+        "PACK-CYCLE-35",
+        "PACK-CYCLE-39"
+      ],
+      "milestone": "qualification",
+      "acceptance": [
+        "RC55-07",
+        "RC60-02",
+        "RC60-10",
+        "RC61-09"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-41",
+      "file": "cards/PACK-CYCLE-41.md",
+      "rfcs": [
+        "RFC-BPR-0054",
+        "RFC-BPR-0056",
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-10",
+        "PACK-CYCLE-18",
+        "PACK-CYCLE-23",
+        "PACK-CYCLE-36",
+        "PACK-CYCLE-39"
+      ],
+      "milestone": "qualification",
+      "acceptance": [
+        "RC54-03",
+        "RC56-05",
+        "RC60-05",
+        "RC60-06"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-42",
+      "file": "cards/PACK-CYCLE-42.md",
+      "rfcs": [
+        "RFC-BPR-0054",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-24",
+        "PACK-CYCLE-29"
+      ],
+      "milestone": "qualification",
+      "acceptance": [
+        "RC54-08",
+        "RC61-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-43",
+      "file": "cards/PACK-CYCLE-43.md",
+      "rfcs": [
+        "RFC-BPR-0053",
+        "RFC-BPR-0060",
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-40",
+        "PACK-CYCLE-41",
+        "PACK-CYCLE-42"
+      ],
+      "milestone": "qualification",
+      "acceptance": [
+        "RC53-10",
+        "RC60-01",
+        "RC60-02",
+        "RC60-03",
+        "RC61-01",
+        "RC61-10"
+      ],
+      "closeout_for": []
+    },
+    {
+      "id": "PACK-CYCLE-44",
+      "file": "cards/PACK-CYCLE-44.md",
+      "rfcs": [
+        "RFC-BPR-0053"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-43"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC53-01",
+        "RC53-02",
+        "RC53-03",
+        "RC53-04",
+        "RC53-05",
+        "RC53-06",
+        "RC53-07",
+        "RC53-08",
+        "RC53-09",
+        "RC53-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0053"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-45",
+      "file": "cards/PACK-CYCLE-45.md",
+      "rfcs": [
+        "RFC-BPR-0054"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-44"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC54-01",
+        "RC54-02",
+        "RC54-03",
+        "RC54-04",
+        "RC54-05",
+        "RC54-06",
+        "RC54-07",
+        "RC54-08",
+        "RC54-09",
+        "RC54-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0054"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-46",
+      "file": "cards/PACK-CYCLE-46.md",
+      "rfcs": [
+        "RFC-BPR-0055"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-45"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC55-01",
+        "RC55-02",
+        "RC55-03",
+        "RC55-04",
+        "RC55-05",
+        "RC55-06",
+        "RC55-07",
+        "RC55-08",
+        "RC55-09",
+        "RC55-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0055"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-47",
+      "file": "cards/PACK-CYCLE-47.md",
+      "rfcs": [
+        "RFC-BPR-0056"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-46"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC56-01",
+        "RC56-02",
+        "RC56-03",
+        "RC56-04",
+        "RC56-05",
+        "RC56-06",
+        "RC56-07",
+        "RC56-08",
+        "RC56-09",
+        "RC56-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0056"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-48",
+      "file": "cards/PACK-CYCLE-48.md",
+      "rfcs": [
+        "RFC-BPR-0057"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-47"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC57-01",
+        "RC57-02",
+        "RC57-03",
+        "RC57-04",
+        "RC57-05",
+        "RC57-06",
+        "RC57-07",
+        "RC57-08",
+        "RC57-09",
+        "RC57-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0057"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-49",
+      "file": "cards/PACK-CYCLE-49.md",
+      "rfcs": [
+        "RFC-BPR-0058"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-48"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC58-01",
+        "RC58-02",
+        "RC58-03",
+        "RC58-04",
+        "RC58-05",
+        "RC58-06",
+        "RC58-07",
+        "RC58-08",
+        "RC58-09",
+        "RC58-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0058"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-50",
+      "file": "cards/PACK-CYCLE-50.md",
+      "rfcs": [
+        "RFC-BPR-0059"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-49"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC59-01",
+        "RC59-02",
+        "RC59-03",
+        "RC59-04",
+        "RC59-05",
+        "RC59-06",
+        "RC59-07",
+        "RC59-08",
+        "RC59-09",
+        "RC59-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0059"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-51",
+      "file": "cards/PACK-CYCLE-51.md",
+      "rfcs": [
+        "RFC-BPR-0060"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-50"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC60-01",
+        "RC60-02",
+        "RC60-03",
+        "RC60-04",
+        "RC60-05",
+        "RC60-06",
+        "RC60-07",
+        "RC60-08",
+        "RC60-09",
+        "RC60-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0060"
+      ]
+    },
+    {
+      "id": "PACK-CYCLE-52",
+      "file": "cards/PACK-CYCLE-52.md",
+      "rfcs": [
+        "RFC-BPR-0061"
+      ],
+      "depends_on": [
+        "PACK-CYCLE-51"
+      ],
+      "milestone": "closeout",
+      "acceptance": [
+        "RC61-01",
+        "RC61-02",
+        "RC61-03",
+        "RC61-04",
+        "RC61-05",
+        "RC61-06",
+        "RC61-07",
+        "RC61-08",
+        "RC61-09",
+        "RC61-10"
+      ],
+      "closeout_for": [
+        "RFC-BPR-0061"
+      ]
+    }
+  ]
+}

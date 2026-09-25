@@ -1,0 +1,40 @@
+{
+  "schema": "bpr.review-cycles.artifact-evidence.v1",
+  "scope": "RFC archive and reference examples only; not BPR implementation or release evidence",
+  "recorded_at_utc": "2026-09-25T08:46:00.501873+00:00",
+  "python": "3.13.5",
+  "checks": [
+    {
+      "command": "python3 -B scripts/verify_pack.py",
+      "result": "pass",
+      "checks": "File hashes/inventory, internal links, nine new RFCs, 52 cards, eleven milestone groups, DAGs, 90 traced requirements, 36 scenario obligations, examples and skill identity."
+    },
+    {
+      "command": "python3 -B -m unittest discover -s tests -p 'test_*.py' -v",
+      "result": "pass",
+      "tests_run": 57,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "output": "REFERENCE-TEST-OUTPUT.txt"
+    },
+    {
+      "command": "Draft202012Validator.check_schema + iter_errors for three schemas and four example documents",
+      "result": "pass",
+      "tool": "jsonschema 4.26.0",
+      "note": "Additional authoring-environment schema check; not required by the standard-library archive validation commands."
+    }
+  ],
+  "product_acceptance": {
+    "total": 90,
+    "status": "Not run",
+    "native_import": "Not performed",
+    "application_build": "Not performed",
+    "native_UI_and_packaging": "Not performed",
+    "model_execution": "Not performed",
+    "GitHub_GHES_publication": "Not performed",
+    "owner_acceptance": "Not performed",
+    "skill_installation": "Not performed"
+  },
+  "limitations": "Reference Python checks selected in-memory semantics, not the entire production schema/parser, filesystem/IPC boundary, Git implementation or security contract. No source repository, user checkout, credentials or remote content was modified."
+}

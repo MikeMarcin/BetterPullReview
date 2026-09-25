@@ -1,0 +1,27 @@
+---
+schema: "implement-rfc.card.v1"
+id: "PACK-CYCLE-43"
+title: "Finish documentation, examples and installed-package verification"
+status: "Backlog"
+rfcs: ["RFC-BPR-0053", "RFC-BPR-0060", "RFC-BPR-0061"]
+depends_on: ["PACK-CYCLE-40", "PACK-CYCLE-41", "PACK-CYCLE-42"]
+metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC53-10", "RC60-01", "RC60-02", "RC60-03", "RC61-01", "RC61-10"], "alias_requires_live_allocation": true, "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+---
+
+# PACK-CYCLE-43: Finish documentation, examples and installed-package verification
+
+## Outcome and bounded work
+
+Update current product/domain/git/ledger/round-trip/AI/security/storage/build docs and user help. Publish exact supported CLI/schema/skill/capability guidance and limitations. Re-run one integration-focused package course, not every historical project test indiscriminately.
+
+## Acceptance and direct evidence
+
+Native documentation structure check, runnable help/examples, installed agent-free/automation-off evidence, complete per-criterion ledger with open gates explicit and no accidental changes to settled predecessor status.
+
+Criteria: RC53-10, RC60-01, RC60-02, RC60-03, RC61-01, RC61-10.
+
+## Ownership and constraints
+
+Use the owning RFC and [integration map](../supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
+
+Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.

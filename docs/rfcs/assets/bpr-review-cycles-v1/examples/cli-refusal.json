@@ -1,0 +1,14 @@
+{
+  "schema": "bpr.cycle.result.v1",
+  "operation_id": "OP-example-2",
+  "outcome": "refused",
+  "code": "access_scope_denied",
+  "cycle_id": "RC-17",
+  "round_id": "F1",
+  "payload_sha256": null,
+  "complete": false,
+  "next_cursor": null,
+  "data": {
+    "reason": "Requested round is outside the admitted local read scope. No review content returned."
+  }
+}

@@ -1,5 +1,7 @@
 # BetterPullReview System Architecture
 
+Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
+
 ## Normative pattern
 
 BetterPullReview must be implemented using the pack's [Deterministic Functional Core, Imperative Host, and Qt Presentation Adapter](deterministic-functional-core-imperative-host-qt-presentation-adapter.md) architecture. This document specializes that architecture for the review workbench.

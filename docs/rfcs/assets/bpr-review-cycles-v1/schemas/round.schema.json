@@ -1,0 +1,441 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "bpr.cycle.round-envelope.v1"
+    },
+    "canonicalization": {
+      "const": "bpr.cycle.canonical-json.v1"
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload": {
+      "$ref": "#/$defs/payload"
+    }
+  },
+  "required": [
+    "schema",
+    "canonicalization",
+    "payload_sha256",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Review Cycles immutable round envelope v1",
+  "$defs": {
+    "bytes": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "base64": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "maxLength": 178956972
+        }
+      },
+      "required": [
+        "length",
+        "sha256",
+        "base64"
+      ],
+      "additionalProperties": false
+    },
+    "anchor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "range",
+            "file",
+            "module",
+            "cycle"
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_revision_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "blob_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_byte": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_byte": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "source_revision_id",
+        "blob_sha256",
+        "start_byte",
+        "end_byte"
+      ],
+      "additionalProperties": false
+    },
+    "suggestion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "intent": {
+          "enum": [
+            "exact_replacement",
+            "illustrative"
+          ]
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "observed_already_applied"
+          ]
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "original": {
+          "$ref": "#/$defs/bytes"
+        },
+        "replacement": {
+          "$ref": "#/$defs/bytes"
+        },
+        "already_applied_result_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "intent",
+        "state",
+        "anchor",
+        "original",
+        "replacement",
+        "already_applied_result_revision"
+      ],
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "action_override": {
+          "anyOf": [
+            {
+              "enum": [
+                "discuss",
+                "plan",
+                "implement"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/anchor"
+          },
+          "maxItems": 256
+        },
+        "related_item_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+          },
+          "maxItems": 256
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suggestion"
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "body",
+        "action_override",
+        "anchors",
+        "related_item_ids",
+        "suggestions"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "path": {
+          "type": "string"
+        },
+        "source_revision_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "kind": {
+          "enum": [
+            "full_file",
+            "excerpt"
+          ]
+        },
+        "start_byte": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "end_byte": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "blob_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "$ref": "#/$defs/bytes"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "source_revision_id",
+        "kind",
+        "start_byte",
+        "end_byte",
+        "blob_sha256",
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "bpr.cycle.round.v1"
+        },
+        "cycle_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "round_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "source_revision_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+        },
+        "source_consistency": {
+          "enum": [
+            "observed_stable",
+            "immutable_source",
+            "incomplete"
+          ]
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+            },
+            "label": {
+              "type": "string"
+            },
+            "scope_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 1024
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "scope_paths"
+          ],
+          "additionalProperties": false
+        },
+        "assignment": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "enum": [
+                "discuss",
+                "plan",
+                "implement"
+              ]
+            },
+            "goal": {
+              "type": "string"
+            },
+            "constraints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 256
+            },
+            "write_scope": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 1024
+            }
+          },
+          "required": [
+            "action",
+            "goal",
+            "constraints",
+            "write_scope"
+          ],
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          },
+          "maxItems": 4096
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          },
+          "maxItems": 10000
+        },
+        "selection": {
+          "type": "object",
+          "properties": {
+            "item_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "source_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "intentional_omissions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 4096
+            },
+            "instruction_set_complete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "item_count",
+            "source_count",
+            "intentional_omissions",
+            "instruction_set_complete"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "cycle_id",
+        "round_id",
+        "source_revision_id",
+        "source_consistency",
+        "project",
+        "assignment",
+        "items",
+        "sources",
+        "selection"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
