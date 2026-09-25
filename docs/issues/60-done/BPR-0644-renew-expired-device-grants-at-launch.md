@@ -597,3 +597,29 @@ Windows TIMEOUT is 180 s and it took 86 s there before these phases, so
 watch it). On Windows Debug, `application_github_host` currently ends in
 `std::terminate` in [[BPR-1112]]'s allocation sweeps (reserved as BPR-1124),
 before these tests run.
+
+## Post-close: Linux at `85e522d8` (bpr-main-linux, 2026-09-24)
+
+**The Linux rerun owed above passes, 3 of 3.** Windows is still owed. The
+Linux note above, at `45191097`, predates `518fcc37`.
+
+The run was in the station's main checkout, with a clean tree, at
+`85e522d8`, which contains `aac61b27` and `518fcc37`. WSL2 Ubuntu 26.04, GCC
+15.2, Qt 6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `85e522d8` with
+no `warning:` line. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots. The names were resolved with
+`ctest -N`. The three rows ran together with [[BPR-1107]]'s three.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | pass, 0.03 s |
+| `github_provider` | pass, 13.13 s |
+| `application_device_binding_launch_renewal` | pass, 86.52 s, against about 85 s on macOS |
+
+This station's uncommitted [[BPR-1121]] edits to the launch-renewal course
+were set aside for the run, so the result is the Mac's change alone. The run
+added nothing to `/tmp` and no `bpr-` name to `/run/user/1000`. The log is a
+station record, not committed:
+`build/logs/bpr-main-linux-20260924/batch7-linux/closeout-1107-0644-rows.log`,
+with `build-dev-85e522d8.log`.

@@ -559,3 +559,27 @@ for. No further confirmation is asked. Every criterion is met, and the card is
 new check and the label. On Windows, `qt_diff_workbench_scale_100/125/200`
 fail on [[BPR-1032]]'s measurement, not on white space (see the Windows
 record above). That follow-up is reserved as BPR-1123 for bpr-main-win.
+
+## Post-close: Linux at `85e522d8` (bpr-main-linux, 2026-09-24)
+
+**The Linux rerun owed above passes, 3 of 3.** Nothing else is owed from
+Linux. The Linux note above, at `45191097`, predates `c0268e85`.
+
+The run was in the station's main checkout, with a clean tree, at
+`85e522d8`, which contains `aac61b27` and `c0268e85`. WSL2 Ubuntu 26.04, GCC
+15.2, Qt 6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `85e522d8` with
+no `warning:` line. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots. The names were resolved with
+`ctest -N`. The three rows ran together with [[BPR-0644]]'s three.
+
+| Row | Result |
+| --- | --- |
+| `qt_code_sample_painter` | pass, 0.02 s |
+| `qt_type_preview` | pass, 0.04 s |
+| `qt_appearance_settings_panel` | pass, 0.20 s |
+
+The run added nothing to `/tmp` and no `bpr-` name to `/run/user/1000`. The
+log is a station record, not committed:
+`build/logs/bpr-main-linux-20260924/batch7-linux/closeout-1107-0644-rows.log`,
+with `build-dev-85e522d8.log`.
