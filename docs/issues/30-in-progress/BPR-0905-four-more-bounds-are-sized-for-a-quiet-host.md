@@ -195,3 +195,40 @@ Semantic documentation disposition: this affects automated course budgets and
 diagnostics only. The build/test guide and survey own that contract; runtime
 review behavior, public APIs, identity, persistence, provider and package
 contracts have no semantic change.
+
+### Candidate verification and acceptance boundary
+
+Product candidate `eb55ff7f` (documentation-only continuation `50e33ccb`),
+macOS 26.6.2 arm64, Qt 6.11.2, Debug:
+
+- The four corrected rows passed 4/4, 218.81 seconds total: SQLite 40.84 s,
+  ledger 36.34 s, defect 51.22 s, saved-server 90.39 s. The initial ledger
+  single phase had the temporary maximum allowance in that pass; its final
+  split was then verified independently as below.
+- Final integration passed 5/5: ordinary public path, production composition
+  including its tests-disabled Release application, final ledger, source-pinned
+  review round-trip, and positive/stalled automated-budget contract. Final
+  ledger phases recorded 10,846/12,476 ms at 120,000 ms and its unavailable
+  phase 10,645 ms at the unchanged 40,000 ms.
+- Forced 1 ms runs of each affected driver failed with `RUN_BUDGET_EXPIRED`
+  in the driver's headline. The generic result helper's five controls passed
+  (success, expiry, expiry with a false zero exit, process timeout, ordinary
+  failure). No live provider was contacted.
+- Source formatting and scoped main.cpp tidy pass. Documentation gate, board
+  validation, 64 documentation verifier tests, and network manifest pass.
+  The manifest's first invocation failed because a required audit executable
+  was not in this partial build; building that exact target resolved it.
+
+Runtime logs and machine-readable control results are retained under
+`/Users/jaeger/.codex/tmp/bpr0905-3mteyp25`. The
+[durable handoff](../../rfcs/plans/bpr0905-run-bounds/HANDOFF-2026-09-25.md)
+records commands, candidate scope, source review and continuation.
+
+**Remaining:** AC1's full-suite contention runs on Mac, Windows and Linux
+are unperformed on this candidate. The survey records the available Mac
+graph and historical station logs; native-only inventory and passing-run
+phase margins without observations remain unknown. Windows/Linux runs were
+explicitly deferred by the owner. The card returns to Backlog, with the
+implementation and focused Mac evidence complete, so a coordinator can
+integrate it and schedule the owed runs without treating an isolated pass as
+full-suite or cross-platform acceptance.
