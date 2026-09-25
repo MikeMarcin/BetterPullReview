@@ -365,6 +365,12 @@ namespace bpr::app::detail::large_review_fixture {
 		}
 		[[nodiscard]] auto consumed_all() const noexcept -> bool { return Next == Exchanges.size(); }
 		void               rewind() noexcept { Next = 0U; }
+		/// \brief Restarts an explicitly repeated read at its first exact operation.
+		void replay_from(const wire::read_operation aOperation) noexcept
+		{
+			const auto found = std::ranges::find_if(Exchanges, [aOperation](const auto& aExchange) { return aExchange.Request.Operation == aOperation; });
+			Next             = static_cast<std::size_t>(std::distance(Exchanges.begin(), found));
+		}
 
 	private:
 		std::vector<wire::recorded_exchange> Exchanges;

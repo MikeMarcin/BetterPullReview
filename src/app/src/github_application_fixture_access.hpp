@@ -102,6 +102,16 @@ namespace bpr::app::detail {
 		std::vector<pull_request> OpenPullRequests;
 	};
 
+	/// \brief Safe wire-level primary/secondary refusal control for BPR-0968.
+	struct github_rate_limit_fixture
+	{
+		/// 0 serves the recording, 1 exhausts core, 2 throttles core.
+		std::atomic<unsigned>     Mode{ 0U };
+		std::atomic<unsigned>     Responses{ 0U };
+		std::atomic<std::int64_t> LastResponseNanoseconds{ 0 };
+		std::uint32_t             RetryAfterSeconds = 2U;
+	};
+
 	struct github_public_path_fixture_options
 	{
 		struct github_cli_discovery_account
@@ -254,6 +264,7 @@ namespace bpr::app::detail {
 		bool DistinctProfileAccounts = false;
 		/// [[BPR-0990]]. Serves personal discovery over this repository list.
 		std::optional<github_personal_discovery_fixture> PersonalDiscovery;
+		std::shared_ptr<github_rate_limit_fixture>       RateLimit;
 	};
 
 	struct queue_notification_fixture_evidence

@@ -503,6 +503,16 @@ pages and retries. A primary, secondary, or structured GraphQL `RATE_LIMITED`
 terminal retains its exact causal record; a bounded `Retry-After` remains a
 separate scheduling observation. Raw provider messages never cross inward.
 
+An authenticated pull-request refresh failure now retains its bounded diagnostic
+in the connected server card's **Details → Last problem** disclosure, including
+the distinct primary/secondary wording and reported retry interval. The account
+remains connected. BPR-0968's large-review course proves that presentation and
+explicit recovery, but also observes that another manual Refresh currently
+reaches the provider before `Retry-After` expires. Window-read admission has no
+shared account/resource cooldown. The standalone card retains that scheduling
+and cross-window cancellation/authority work; this display does not promise an
+enforced delay or automatic retry.
+
 ### Personal discovery reads
 
 [[BPR-0988]] (RFC-BPR-0026) adds a second, independent read to the same

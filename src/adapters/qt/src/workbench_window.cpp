@@ -7692,6 +7692,8 @@ namespace bpr::qt {
 					// reading, in the card's Details, rather than under the Home bar.
 					if (reading) {
 						shown.LastProblem = SessionPanel->public_preview_refusal_text();
+					} else if (status == core::github_status::pull_request_failed && SessionPanel->showing_diagnostic()) {
+						shown.LastProblem = QString::fromStdString(SessionPanel->diagnostic_text());
 					}
 					break;
 				}

@@ -460,6 +460,20 @@ namespace bpr::app::detail {
 				{ .Name = "X-RateLimit-Resource", .Value = std::move(resource) });
 		}
 
+		[[nodiscard]] auto rate_limit_response(const github_rate_limit_fixture& aFixture, const unsigned aMode) -> wire_response
+		{
+			const auto secondary = aMode == 2U;
+			auto       limited   = wire_response{ .Status = 403, .Headers = response_headers(), .Body = secondary ? R"({"message":"You have exceeded a secondary rate limit. Please wait."})" : R"({"message":"API rate limit exceeded."})" };
+			append_rate_limit_headers(limited, read_operation::get_repository);
+			for (auto& header : limited.Headers) {
+				if (header.Name == "X-RateLimit-Remaining") {
+					header.Value = secondary ? "4999" : "0";
+				}
+			}
+			limited.Headers.push_back({ .Name = "Retry-After", .Value = std::to_string(aFixture.RetryAfterSeconds) });
+			return limited;
+		}
+
 		/// \brief Keeps the two-file reading graph's metadata local to its descriptor.
 		void overlay_window_reading(std::string& aBody, read_operation aOperation, const fixture_descriptor& aDescriptor)
 		{
@@ -1004,10 +1018,14 @@ namespace bpr::app::detail {
 			}
 			/// [[BPR-0657]]. Replays the strict script from the exchange one
 			/// operation starts at, for a refresh; a paged script has its own
-			/// history and is left alone.
-			void replay_from(const read_operation aOperation) noexcept
+			/// history and is left alone unless the rate-limit course explicitly
+			/// repeats that same head.
+			void replay_from(const read_operation aOperation, const bool aRepeatPaged = false) noexcept
 			{
 				if (Paged) {
+					if (aRepeatPaged) {
+						Paged->replay_from(aOperation);
+					}
 					return;
 				}
 				Strict.rewind();
@@ -1208,6 +1226,7 @@ namespace bpr::app::detail {
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
+			std::shared_ptr<github_rate_limit_fixture>       RateLimit;
 			std::size_t                                      DiscoverySearches    = 0U;
 			std::size_t                                      DiscoveryDetailReads = 0U;
 			std::vector<std::string>                         DiscoverySearchTerms;
@@ -1718,6 +1737,17 @@ namespace bpr::app::detail {
 							application::github_provider_failure::authentication),
 					};
 				}
+				if (Role == fixture_transport_role::account && State->RateLimit
+					&& aRequest.Wire.Operation == read_operation::get_repository
+					&& State->RateLimit->Mode.load() != 0U) {
+					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					auto limited                              = rate_limit_response(*State->RateLimit, State->RateLimit->Mode.load());
+					State->RateLimit->LastResponseNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+					++State->RateLimit->Responses;
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(limited) };
+				}
 				// [[BPR-0990]]. Personal discovery is answered by the fixture
 				// server, not the recorded review script, and only on the
 				// account's transport.
@@ -1757,7 +1787,7 @@ namespace bpr::app::detail {
 				// replay still validates the complete exact recorded request below.
 				if (Role != fixture_transport_role::bootstrap && State->RepeatReads
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
-					recording.replay_from(read_operation::get_repository);
+					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr);
 				}
 				auto response = State->IndependentWindowReads && Role != fixture_transport_role::anonymous
 					? perform_independent_read(Role == fixture_transport_role::bootstrap ? State->IndependentBootstrap : State->IndependentRecording, aRequest.Wire)
@@ -3382,6 +3412,7 @@ namespace bpr::app::detail {
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
+			Recording->RateLimit               = std::move(aOptions.RateLimit);
 			Factory                            = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                         = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since

@@ -1685,6 +1685,25 @@ platform/build/Qt/scale, phase/event-loop and host/scroll observations to
 `large_review_replay_contract` rejects skipped pages, changed cursors and
 noncanonical bodies while retaining strict single-page fixture validation.
 
+`application_rate_limit_render_recovery` (BPR-0968) uses the same 515-file,
+1,000-thread workload and safe recorded wire transport. After a successful read,
+it serves HTTP 403 primary exhaustion and secondary throttling at the next
+canonical repository read, each with `Retry-After: 2`. It opens Account → Details,
+checks the actual visible diagnostic, renders the Settings window, and verifies
+an explicit later Refresh restores the exact repository, viewer, PR/head, files
+and threads. It counts 88 ordinary account requests and four refusal requests in
+the current course; no mutation is submitted. Optional
+`BPR_RATE_LIMIT_RENDER_DIR` saves the two synthetic rasters in an existing local
+directory. The fixture repeats only this course's same-head paged read and still
+compares every request to the exact recorded exchange.
+
+The default row is a rendering/recovery regression, **not complete BPR-0968
+acceptance**. The executable's `--require-backoff` mode additionally requires an
+immediate second Refresh to issue no request before the interval expires. It
+currently fails: the second primary and secondary requests reach the transport
+within the two-second interval. The card preserves cancellation, authority
+replacement, exact file-selection retention and retry-policy obligations.
+
 BPR-0624 records the initial Mac baseline; BPR-0627 tracks its measured UI stalls.
 These checks do not establish 32 application epochs, memory/pruning ceilings,
 scrolling responsiveness during active work, universal timing budgets or native

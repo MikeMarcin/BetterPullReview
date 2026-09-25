@@ -3039,3 +3039,14 @@ set_tests_properties(application_epoch_ordinary_update_recreated PROPERTIES
 bpr_bound_automated_run(application_epoch_ordinary_update_recreated
     TIMEOUT 400 BUDGET_MS ${bpr_fixture_run_budget_ms} RUNS 6 RESERVE_MS 10000
 )
+
+bpr_add_executable(test_rate_limit_public_path rate_limit_public_path_tests.cpp)
+target_link_libraries(test_rate_limit_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_rate_limit_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_rate_limit_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_rate_limit_public_path)
+bpr_enable_warnings(test_rate_limit_public_path)
+bpr_add_network_isolated_test(NAME application_rate_limit_render_recovery WINDOWS_UNCONTAINED COMMAND test_rate_limit_public_path)
+set_tests_properties(application_rate_limit_render_recovery PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "rate-limit-public-path:render-and-recovery-pass")
