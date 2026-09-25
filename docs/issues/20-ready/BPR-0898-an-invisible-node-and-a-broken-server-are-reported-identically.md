@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0898"
 title: "A node the account cannot see and a genuinely broken server are reported identically"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
