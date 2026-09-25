@@ -1,0 +1,65 @@
+{
+  "schema": "bpr.rfc0019.graph_verification.v1",
+  "candidate_revision": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
+  "platform": "macOS arm64, 2026-09-25",
+  "commands": [
+    {
+      "command": "cmake --build --preset dev --parallel 4",
+      "result": "pass; 297-step combined-main incremental developer build after BPR-0898 integration"
+    },
+    {
+      "command": "ctest --test-dir build/dev -j1 -R ^(application_composition_contract|application_review_round_trip_composition_contract|application_review_mutation_application_host|application_review_mutation|qt_review_draft_editor|github_mutation_contract)$ --output-on-failure",
+      "result": "6/6 pass, 223.30 s; focused combined application evidence"
+    },
+    {
+      "command": "cmake --preset core-only",
+      "result": "pass; BPR_BUILD_QT=OFF"
+    },
+    {
+      "command": "cmake --build --preset core-only --parallel 4",
+      "result": "pass; 153-step current-source build"
+    },
+    {
+      "command": "ctest --preset core-only --output-on-failure",
+      "result": "163/163 pass, 498.47 s"
+    },
+    {
+      "command": "cmake --preset app-release",
+      "result": "pass; BUILD_TESTING=OFF, Release"
+    },
+    {
+      "command": "cmake --build --preset app-release --parallel 4",
+      "result": "pass; 242-step application build"
+    },
+    {
+      "command": "python3 scripts/verify_dif_asset_boundaries.py --source . --dev-build build/dev --core-build build/core-only --app-build build/app-release",
+      "result": "DIF_ASSET_BOUNDARIES_OK; 87 asset files and 568 runtime source files inspected; selected dev/core-only/app-release graphs and binaries scanned"
+    }
+  ],
+  "selected_profiles": {
+    "dev": {
+      "build_testing": "ON",
+      "bpr_build_qt": "ON",
+      "accepted_compiled_strips": 10,
+      "application_sha256": "4d6950e4c5467423f4a23ac99747495310490007543ca0f5a586b64a7f27cb83"
+    },
+    "core-only": {
+      "build_testing": "ON",
+      "bpr_build_qt": "OFF",
+      "core_artifact_count": 4,
+      "combined_sha256": "5432e0a8143091637399c3792ab456f74b5b0cdd9dc3cb93fc0daf6a3e7ce735"
+    },
+    "app-release": {
+      "build_testing": "OFF",
+      "bpr_build_qt": "ON",
+      "accepted_compiled_strips": 10,
+      "application_sha256": "bfa2ee687035720dddcf8af249cfb5e39114aee63e5d0d05f1e4401e79a2671e"
+    }
+  },
+  "limits": [
+    "Developer CTest was focused, not a full developer suite; the current source also has RFC-0052 m2 full and affected-path evidence.",
+    "This is an ordinary local build graph and binary audit, not an installed, signed, notarized, or certified package.",
+    "Visual originality and character/mark exclusion remain bound to attended decisions for the exact accepted v008 asset candidate.",
+    "Literal original three-clip, 48-frame and no-runtime criteria are superseded by RFC-BPR-0030/0031; this record does not claim those literals pass."
+  ]
+}
