@@ -1,0 +1,40 @@
+{
+  "assignment": "native_menu_resident_fix",
+  "mandate_revision": "r1",
+  "baseline": "f6de40b6",
+  "candidate": "1ebd9a0708b1e7b2de818ff2406a22dccbbc73f3",
+  "logs": [
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-build-before.log",
+      "sha256": "ceb98adcfdde06f387de0e71a0fe0d59384092533efbd2fae19182af7f6e1865"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-native-before.log",
+      "sha256": "e79156a82571958eb95eb5010d9b1bd22c7558fd7e4567ef5c47d9553a31ad65"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-build-after.log",
+      "sha256": "3dbe055d01b23e04e600fd6ae19bf4ccefc6e0c8adcba52c9c325f24fed955ac"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-focused-after.log",
+      "sha256": "2fd5fb230fa93c0ec610f17e6fbb8e08477b7336ee89fe472b7a71444631f42f"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-first-after-detail.log",
+      "sha256": "86c69ef033257f7f7a1a70099ec6ad2ee6f5584e6451fc701972136fcde2df0a"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-build-profile-final.log",
+      "sha256": "ed7787beeab0520826ec84f6d3bd11b1420719a92668674ca7e7cca3e4636bf3"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-profile-final.log",
+      "sha256": "c249d0dc254a530b0051ce8e7dcc921038df752bb1f65d456daf56a8ccf7fcb2"
+    },
+    {
+      "path": "/Users/jaeger/.codex/tmp/bpr1195-tidy.log",
+      "sha256": "f9aaeb90fd2511a67e9633b84e0efdf8957f027053d1440767d51431e4d6f7ee"
+    }
+  ]
+}
