@@ -22,6 +22,11 @@ Tests are direct evidence, not naming evidence.
   uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
   fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
+- A scratch root in the system temporary directory is made by the test at a
+  random name, only if nothing is at that name, owner-private, and removed
+  only by the test that made it: `mkdtemp`, `QTemporaryDir`, or the SQLite
+  contracts' `tests/sqlite_contract/scratch_root.hpp`. Never remove a fixed
+  or predictable temporary path before creating it (BPR-1126).
 - A course's application data root is the `data` child of a temporary
   directory the course has narrowed to owner-private, made by that language's
   helper (`docs/development/build-and-test.md`, "A course's data root sits one

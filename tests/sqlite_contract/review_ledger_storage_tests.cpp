@@ -6,6 +6,7 @@
 
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "scratch_root.hpp"
 
 #include <sqlite3.h>
 
@@ -95,52 +96,24 @@ namespace {
 
 	using bpr::tests::expect;
 
-	class scratch_directory final
+	/// \brief This contract's scratch root: `bpr-ledger-` and a random part.
+	/// \details [[BPR-1126]]. Made at a name nothing had, owner-private from
+	/// creation, and removed only by the course that made it.
+	class scratch_directory final : public test_platform::scratch_root
 	{
 	public:
 		scratch_directory()
+			: scratch_root{ "ledger" }
 		{
-			Path = std::filesystem::temp_directory_path()
-				/ ("bpr-ledger-" + std::to_string(Counter++));
-			std::filesystem::remove_all(Path);
-			std::filesystem::create_directories(Path);
-			// Both stores require the root to be the path it resolves to, and
-			// the temporary directory on macOS reaches it through a symbolic
-			// link. `prepare_application_data_root` canonicalizes for the same
-			// reason.
-			std::error_code ignored;
-			if (auto resolved = std::filesystem::canonical(Path, ignored);
-				!ignored) {
-				Path = std::move(resolved);
-			}
-		}
-		scratch_directory(const scratch_directory&)                    = delete;
-		auto operator=(const scratch_directory&) -> scratch_directory& = delete;
-		scratch_directory(scratch_directory&&)                         = delete;
-		auto operator=(scratch_directory&&) -> scratch_directory&      = delete;
-		~scratch_directory()
-		{
-			std::error_code ignored;
-			std::filesystem::remove_all(Path, ignored);
-		}
-
-		[[nodiscard]] auto file(const std::string_view aName) const
-			-> std::filesystem::path
-		{
-			return Path / aName;
-		}
-
-		[[nodiscard]] auto path() const -> const std::filesystem::path&
-		{
-			return Path;
 		}
 
 		/// \brief Narrows the root to owner-only, as the application does.
 		///
 		/// \details `prepare_application_data_root` gives the real storage
-		/// root `owner_all` before either store sees it. A scratch directory
-		/// created with the default mode is not a root either store would
-		/// accept, and pretending otherwise would test the wrong refusal.
+		/// root `owner_all` before either store sees it. The scratch root is
+		/// already owner-private when it is made ([[BPR-1126]]). A course that
+		/// depends on that calls this too, so the precondition is stated where
+		/// it matters and set by this suite's own definition.
 		///
 		/// On Windows `std::filesystem::permissions` toggles only
 		/// `FILE_ATTRIBUTE_READONLY` and writes no DACL, so it reported success
@@ -154,21 +127,17 @@ namespace {
 		[[nodiscard]] auto make_private() const -> bool
 		{
 #if defined(_WIN32)
-			return test_platform::make_owner_private(Path, true);
+			return test_platform::make_owner_private(path(), true);
 #else
 			std::error_code failed;
 			std::filesystem::permissions(
-				Path,
+				path(),
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace,
 				failed);
 			return !failed;
 #endif
 		}
-
-	private:
-		static inline int     Counter = 0;
-		std::filesystem::path Path;
 	};
 
 	[[nodiscard]] auto scope_of(

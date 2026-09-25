@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QString>
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <array>
@@ -475,13 +476,14 @@ namespace {
 		};
 		write_canary(plantedRoot.path() / "syntax");
 
-		const auto control = owned_tree{
-			std::filesystem::temp_directory_path() / "bpr-syntax-canary-control"
-		};
-		write_canary(control.path() / "syntax");
+		// [[BPR-1126]]. At a name nobody could have taken first, owner-private,
+		// and removed only by this course. It was `bpr-syntax-canary-control`
+		// in the temporary directory, and whatever was there was removed first.
+		const auto control = QTemporaryDir{ QDir::tempPath() + QStringLiteral("/bpr-syntax-canary-control-XXXXXX") };
+		expect(control.isValid(), "the control root is made at a name nothing had");
+		write_canary(std::filesystem::path{ control.path().toStdU16String() } / "syntax");
 		auto controlRepository = KSyntaxHighlighting::Repository{ };
-		controlRepository.addCustomSearchPath(
-			QString::fromStdString(control.path().string()));
+		controlRepository.addCustomSearchPath(control.path());
 		expect(controlRepository.definitionForName(
 									QStringLiteral("BprStandardPathCanary"))
 				   .isValid(),

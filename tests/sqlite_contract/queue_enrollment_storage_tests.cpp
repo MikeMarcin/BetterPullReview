@@ -3,6 +3,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "scratch_root.hpp"
 
 #include <sqlite3.h>
 
@@ -29,40 +30,15 @@ namespace {
 
 	using bpr::tests::expect;
 
-	class scratch_directory final
+	/// \brief This contract's scratch root: `bpr-queue-` and a random part.
+	/// \details [[BPR-1126]]. Made at a name nothing had, owner-private from
+	/// creation, and removed only by the course that made it.
+	class scratch_directory final : public bpr::tests::sqlite_contract::scratch_root
 	{
 	public:
 		scratch_directory()
+			: scratch_root{ "queue" }
 		{
-			Path = std::filesystem::temp_directory_path()
-				/ ("bpr-queue-" + std::to_string(Counter++));
-			std::filesystem::remove_all(Path);
-			std::filesystem::create_directories(Path);
-			std::error_code ignored;
-			if (auto resolved = std::filesystem::canonical(Path, ignored);
-				!ignored) {
-				Path = std::move(resolved);
-			}
-		}
-		scratch_directory(const scratch_directory&)                    = delete;
-		auto operator=(const scratch_directory&) -> scratch_directory& = delete;
-		scratch_directory(scratch_directory&&)                         = delete;
-		auto operator=(scratch_directory&&) -> scratch_directory&      = delete;
-		~scratch_directory()
-		{
-			std::error_code ignored;
-			std::filesystem::remove_all(Path, ignored);
-		}
-
-		[[nodiscard]] auto file(const std::string_view aName) const
-			-> std::filesystem::path
-		{
-			return Path / aName;
-		}
-
-		[[nodiscard]] auto path() const -> const std::filesystem::path&
-		{
-			return Path;
 		}
 
 		/// \brief Narrows the root to owner-only, as the state directory requires.
@@ -72,21 +48,17 @@ namespace {
 			// [[BPR-0845]]. The stores' own rule: on Windows a directory under the
 			// temporary directory inherits a list the stores refuse, and changing
 			// mode bits does not change it.
-			return bpr::adapters::sqlite::make_storage_root_owner_private(Path);
+			return bpr::adapters::sqlite::make_storage_root_owner_private(path());
 #else
 			std::error_code failed;
 			std::filesystem::permissions(
-				Path,
+				path(),
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace,
 				failed);
 			return !failed;
 #endif
 		}
-
-	private:
-		static inline int     Counter = 0;
-		std::filesystem::path Path;
 	};
 
 	[[nodiscard]] auto ref(const std::int64_t aNumber) -> core::pull_request_ref

@@ -2,6 +2,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "scratch_root.hpp"
 
 #include <sqlite3.h>
 
@@ -23,40 +24,16 @@ namespace {
 
 	using bpr::tests::expect;
 
-	class scratch_directory final
+	/// \brief This contract's scratch root: `bpr-workbench-` and a random part.
+	/// \details [[BPR-1126]]. Made at a name nothing had, owner-private from
+	/// creation, and removed only by the course that made it.
+	class scratch_directory final : public bpr::tests::sqlite_contract::scratch_root
 	{
 	public:
 		scratch_directory()
+			: scratch_root{ "workbench" }
 		{
-			Path = std::filesystem::temp_directory_path()
-				/ ("bpr-workbench-" + std::to_string(Counter++));
-			std::filesystem::remove_all(Path);
-			std::filesystem::create_directories(Path);
-			std::error_code ignored;
-			if (auto resolved = std::filesystem::canonical(Path, ignored);
-				!ignored) {
-				Path = std::move(resolved);
-			}
 		}
-		scratch_directory(const scratch_directory&)                    = delete;
-		auto operator=(const scratch_directory&) -> scratch_directory& = delete;
-		scratch_directory(scratch_directory&&)                         = delete;
-		auto operator=(scratch_directory&&) -> scratch_directory&      = delete;
-		~scratch_directory()
-		{
-			std::error_code ignored;
-			std::filesystem::remove_all(Path, ignored);
-		}
-
-		[[nodiscard]] auto file(const std::string_view aName) const
-			-> std::filesystem::path
-		{
-			return Path / aName;
-		}
-
-	private:
-		static inline int     Counter = 0;
-		std::filesystem::path Path;
 	};
 
 	/// \brief A layout that differs from the defaults in every field.
