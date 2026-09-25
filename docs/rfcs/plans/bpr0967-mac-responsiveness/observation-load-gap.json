@@ -1,0 +1,149 @@
+{
+  "run_id": "bpr0967-mac-load-gap",
+  "segment_id": "load-gap",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0967-mac-responsiveness",
+    "plan_path": "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "milestone_id": "mac-load-gap",
+    "definition_fingerprint": "sha256:d6dfbfc35b7cd434cd55b44413993a4cf335b5769aba0bcb3bf8843e55fed829",
+    "obligations": [
+      {
+        "id": "BPR-0967:*",
+        "source": "BPR-0967",
+        "selector": null,
+        "source_fingerprint": "sha256:03e6dbd7146145ba44a640ab743397a7cad641aaba2badc751111ad4ea96d1db"
+      }
+    ],
+    "obligation_fingerprint": "sha256:01f9ec0d06cebca2e86ecebed27e29604cbe7409aefa73618f01459febe36b20",
+    "exit_criteria": [
+      {
+        "id": "mac-load-gap:exit:1",
+        "text": "Phase timing includes synchronous-ready work and the final event-loop gap, with a failing-before control for both blind spots."
+      },
+      {
+        "id": "mac-load-gap:exit:2",
+        "text": "The real network-isolated Mac composition measures visible large-file navigation, drawer, theme and fallback interactions while preserving exact source and cache assertions."
+      },
+      {
+        "id": "mac-load-gap:exit:3",
+        "text": "An exact-candidate report distinguishes measured results, enforceable justified budgets, known input-budget failures and unmeasured platforms or launch/active-work gaps; BPR-0967 remains open when broader acceptance is missing."
+      },
+      {
+        "id": "mac-load-gap:exit:4",
+        "text": "Attribute the baseline metadata/load, first-source and revisit stalls with exact public-course observations."
+      },
+      {
+        "id": "mac-load-gap:exit:5",
+        "text": "Repair justified owning-boundary causes with failing-before controls and affected composed verification, without raising existing thresholds; retain exact diagnosis for any unresolved gap."
+      },
+      {
+        "id": "mac-load-gap:exit:6",
+        "text": "Record exact candidate, unchanged cache/source/cleanup invariants, command quiescence and remaining acceptance in a durable coordinator handoff."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "mac-load-gap",
+  "disposition": "continue-milestone",
+  "candidate_revision": "cdbb208df52cf4478d2807b8aaedb20e3170356b",
+  "handoff_ref": "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-load-gap.json",
+  "required_pending": [
+    "Initial metadata/Git load remains108.991709ms above unchanged100ms target; separately bounded owning analysis or justified scheduling design needed.",
+    "True process/QApplication-to-first-frame launch and separate first metadata",
+    "Full active-work input/cancellation, generated/pathological fallback and peak live heap",
+    "Windows/Linux native measurements explicitly deferred; full BPR0967 stays unfinished"
+  ],
+  "evidence_refs": [
+    "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+    "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+    "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0967:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-stall-repair-2026-09-25.md",
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-load-gap:exit:6",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "pending-obligation",
+    "detail": "Assigned bounded attribution and repair cycle complete: proven Overview visible-row sizing control, rejected unhelpful read-state index, exact public load still 108.991709 ms above unchanged 100 ms target. All 18 affected checks have passing observations; original sleep-interrupted failures preserved. Return quiescent to coordinator; full BPR-0967 remains pending."
+  },
+  "ownership": "quiescent"
+}

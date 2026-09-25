@@ -1,0 +1,521 @@
+{
+  "schema": "bpr0967.mac-load-gap-handoff.v1",
+  "assignment": "/root/bpr0967_load_gap",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "baseline": "e944da20b0dce838dc4a26c4e13615473ce0d06b",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-load-gap",
+  "status": "Bounded Overview sizing milestone complete; initial-load acceptance remains partial; whole BPR-0967 unfinished",
+  "owner": "/root/bpr0967_load_gap",
+  "writer": "Released to coordinator by the final handoff; exclusive main writes complete, all other worktrees and the protected RFC0052 review preserved",
+  "candidate": "cdbb208df52cf4478d2807b8aaedb20e3170356b",
+  "paths": [
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp",
+    "tests/end_to_end/large_review_benchmark.cpp"
+  ],
+  "current_evidence": [
+    "Unchanged baseline load 145.381 / first source 75.358 / revisit 78.698 ms",
+    "Original full-table header control fails; original temporary public load gate fails at 149.630 ms",
+    "Header-only instrumented load 107.183 ms is attribution evidence only",
+    "Rejected combined uninstrumented host/header experiment remains failed at 125.359 ms; read index removed",
+    "Final uninstrumented code candidate load 108.991709 ms remains above 100 ms; first source 83.999917 and revisit 86.241166 ms pass"
+  ],
+  "commands": {
+    "active": [],
+    "review_server": null,
+    "collected_exec_sessions": [
+      49159,
+      74822,
+      33383,
+      81625,
+      84751,
+      28457,
+      20352,
+      39001,
+      56903,
+      42596,
+      56921,
+      20094,
+      53489,
+      62251,
+      10268,
+      14128
+    ],
+    "completed": "All owned build/test/measurement processes exited; initial CTest exited 8, bound assertion exited 0, retry exited 0. A trace-build session whose ID was not retained completed in its build log; final process inventory shows no task test/build child.",
+    "sleep_assertions": "Original PID 72006 was bound to CTest 65292 and exited with it. Retry PID 75989 asserted on behalf of CTest 75981 from startup and exited with it. Both test/ assertion PID pairs absent; pmset shows no caffeinate assertion. No persistent power setting changed.",
+    "verification_commands": [
+      "ctest --preset dev -R '^(architecture_boundaries|qt_pull_request_overview_page|qt_workbench_overview|qt_github_conversation_panel|qt_diff_workbench_scale_(100|125|200)|qt_composed_github_scale_100|application_large_review_(timing_control|responsiveness|benchmark|cache_bytes|cache_entries|history|loaded_close|resources)|application_(unavailable|approximate)_diff_public_path)$' --output-on-failure",
+      "/usr/bin/caffeinate -i -s ctest --preset dev -R '^application_large_review_(cache_bytes|cache_entries|history)$' --output-on-failure",
+      "python3 _coding-standard/scripts/format_check.py --root . src/adapters/qt/src/pull_request_overview_page.cpp tests/adapters_qt/pull_request_overview_page_tests.cpp tests/end_to_end/large_review_benchmark.cpp",
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py",
+      "python3 .agents/skills/implement-rfc/scripts/issue_board.py --repo-root . validate --include BPR-0967 --json",
+      "git diff --check"
+    ]
+  },
+  "temporary_instrumentation": "All temporary timers, host/read-index edits and 16 source snapshots/scripts removed. Ignored reports, logs, screenshots and failing-control patch remain as evidence; no build/log/private content committed. Removed the sole empty runner shell /tmp/bpr-net-00pebjdu (created 11:10:49.323 during timed-out cache-entry run), containing only its sandbox profile and empty fixture directory; exact children validated before deletion. No unrelated temporary roots removed.",
+  "pending": [
+    "Initial metadata/Git load remains108.991709ms above unchanged100ms target; separately bounded owning analysis or justified scheduling design needed.",
+    "True process/QApplication-to-first-frame launch and separate first metadata",
+    "Full active-work input/cancellation, generated/pathological fallback and peak live heap",
+    "Windows/Linux native measurements explicitly deferred; full BPR0967 stays unfinished"
+  ],
+  "next_action": "Coordinator may integrate/push these explicit commits. Any next engineering assignment must separately bound the remaining initial-load cause or justified scheduling design; do not close full BPR-0967 from this milestone.",
+  "code_candidate": "cdbb208df52cf4478d2807b8aaedb20e3170356b",
+  "verification": {
+    "final_responsiveness": {
+      "candidate": "cdbb208df52cf4478d2807b8aaedb20e3170356b",
+      "load_ms": 108.991709,
+      "first_source_ms": 83.999917,
+      "revisit_ms": 86.241166,
+      "input_limit_ms": 100,
+      "input_failures": [
+        "paged_review_and_git_load"
+      ],
+      "fixture_gates_passed": 20,
+      "native_style_acceptance": false
+    },
+    "controls": "Original header delegate control fails; repaired passes including exact last-file scrolling. Temporary original public 100ms load gate fails149.630ms; rejected combined host/header experiment fails125.359ms. Final course reports unresolved108.992ms honestly rather than adopting a passing load gate.",
+    "format": "All 3 changed C++ files pass clang-format 23.1.1; final log retained.",
+    "self_review": "Only the 3-line Overview behavior change is retained. The delegate test observes native sizing calls and exact model/scroll identities. Public unread checks compare each accepted thread/post identity. Every host experiment and timer was removed; authority, ordering and scheduling remain unchanged.",
+    "documentation_tests": "64/64 pass; negative-fixture ERROR lines are expected and test summary is OK.",
+    "integration": "Initial 18-course pass: 15 passed and 3 sleep-interrupted failures in 1875.02 s. Exact unchanged-candidate retry: 3/3 passed in 730.77 s. All 18 selected checks have passing observations; the original red results remain recorded.",
+    "render_inspection": "Final full-window Files-drawer frame inspected with both source panes and selected exact file visible; fixture capture only.",
+    "sleep_interruption": {
+      "evidence": "build/bpr0967-load-gap/sleep-interruption.log",
+      "cache_bytes": {
+        "status": "failed",
+        "duration_seconds": 366.42,
+        "phase": "byte_epoch_refresh_31",
+        "phase_elapsed_ms": 100697,
+        "diagnostic": "EPOCH_CACHE_FAILURE:10 / revision-prepare:6"
+      },
+      "cache_entries": {
+        "status": "timeout",
+        "duration_seconds": 1011.44,
+        "last_phase": "cache_entry_selection_37"
+      },
+      "sleep_intervals": [
+        "2026-09-25 11:09:09 -0700 to11:10:47,98s",
+        "2026-09-25 11:11:32 -0700 to11:27:40,968s",
+        "2026-09-25 11:28:27 -0700 to11:29:11,44s"
+      ],
+      "retry": "3/3 passed in 730.77 s under process-scoped caffeinate; identical source, measurement boundaries and budgets. Original failures retained.",
+      "history": {
+        "status": "failed",
+        "duration_seconds": 357.47,
+        "epoch4_elapsed_ms": 49674.176125,
+        "epoch4_input_gap_ms": 41617.518333,
+        "epoch5_elapsed_ms": 13192.776667,
+        "epochs_observed": 32,
+        "retained_epochs_verified": 32,
+        "history_model_resets": 0
+      }
+    },
+    "initial_integration_command": "ctest --preset dev -R '^(architecture_boundaries|qt_pull_request_overview_page|qt_workbench_overview|qt_github_conversation_panel|qt_diff_workbench_scale_(100|125|200)|qt_composed_github_scale_100|application_large_review_(timing_control|responsiveness|benchmark|cache_bytes|cache_entries|history|loaded_close|resources)|application_(unavailable|approximate)_diff_public_path)$' --output-on-failure",
+    "interrupted_course_retry_command": "/usr/bin/caffeinate -i -s ctest --preset dev -R '^application_large_review_(cache_bytes|cache_entries|history)$' --output-on-failure",
+    "initial_integration_results": [
+      "1/18 Test   #5: architecture_boundaries ....................   Passed   17.73 sec",
+      "2/18 Test #177: qt_composed_github_scale_100 ...............   Passed    4.06 sec",
+      "3/18 Test #190: qt_github_conversation_panel ...............   Passed    0.93 sec",
+      "4/18 Test #202: qt_pull_request_overview_page ..............   Passed    1.92 sec",
+      "5/18 Test #224: qt_diff_workbench_scale_100 ................   Passed    2.44 sec",
+      "6/18 Test #225: qt_diff_workbench_scale_125 ................   Passed    2.28 sec",
+      "7/18 Test #226: qt_diff_workbench_scale_200 ................   Passed    2.56 sec",
+      "8/18 Test #241: qt_workbench_overview ......................   Passed    0.85 sec",
+      "9/18 Test #349: application_large_review_benchmark .........   Passed   23.98 sec",
+      "10/18 Test #350: application_large_review_timing_control ....   Passed    0.83 sec",
+      "11/18 Test #351: application_unavailable_diff_public_path ...   Passed   15.50 sec",
+      "12/18 Test #352: application_approximate_diff_public_path ...   Passed   13.76 sec",
+      "13/18 Test #354: application_large_review_responsiveness ....   Passed   24.73 sec",
+      "14/18 Test #355: application_large_review_cache_bytes .......***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]366.42 sec",
+      "15/18 Test #357: application_large_review_cache_entries .....***Timeout 1011.44 sec",
+      "16/18 Test #358: application_large_review_loaded_close ......   Passed   13.43 sec",
+      "17/18 Test #359: application_large_review_history ...........***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]357.47 sec",
+      "18/18 Test #360: application_large_review_resources .........   Passed   14.66 sec",
+      "83% tests passed, 3 tests failed out of 18",
+      "Total Test time (real) = 1875.02 sec"
+    ],
+    "completed_resource_samples": {
+      "loaded-close": {
+        "report": "build/dev/tests/end_to_end/large-review-loaded-close.json",
+        "sha256": "27da15232b060608a4d3fe3c8fc8b79f3e2ef87908bbbd63fa0f646ee255116a",
+        "max_lifetime_peak_growth_bytes": 135282976,
+        "limit_bytes": 167772160,
+        "shutdown_live_heap_growth_bytes": 69633936,
+        "destroyed_live_heap_growth_bytes": 14792544,
+        "cleanup_limits_bytes": [
+          88080384,
+          33554432
+        ],
+        "all_resource_jobs_drained": true
+      },
+      "resources": {
+        "report": "build/dev/tests/end_to_end/large-review-resources.json",
+        "sha256": "25f9b04eea36b21462925a63a1484f27f765ea60f8e227ad2e797870a9038786",
+        "max_lifetime_peak_growth_bytes": 135184696,
+        "limit_bytes": 167772160,
+        "shutdown_live_heap_growth_bytes": 69714544,
+        "destroyed_live_heap_growth_bytes": 14857712,
+        "cleanup_limits_bytes": [
+          88080384,
+          33554432
+        ],
+        "all_resource_jobs_drained": true
+      },
+      "cache-bytes": {
+        "report": "build/dev/tests/end_to_end/large-review-cache-bytes.json",
+        "sha256": "4c4a73e91f6980337a16b05429b5ae998b4829246cf17f71716f26c896538247",
+        "max_lifetime_peak_growth_bytes": 168427880,
+        "limit_bytes": 192937984,
+        "shutdown_live_heap_growth_bytes": 69453968,
+        "destroyed_live_heap_growth_bytes": 13995888,
+        "cleanup_limits_bytes": [
+          88080384,
+          33554432
+        ],
+        "all_resource_jobs_drained": true
+      },
+      "cache-entries": {
+        "report": "build/dev/tests/end_to_end/large-review-cache-entries.json",
+        "sha256": "d95f53c808e126ae6fc4944898cdf21cb4b5508e68ce1007b920833f696086d3",
+        "max_lifetime_peak_growth_bytes": 94519608,
+        "limit_bytes": 167772160,
+        "shutdown_live_heap_growth_bytes": 64934064,
+        "destroyed_live_heap_growth_bytes": 13978208,
+        "cleanup_limits_bytes": [
+          88080384,
+          33554432
+        ],
+        "all_resource_jobs_drained": true
+      }
+    },
+    "responsiveness_observation": {
+      "InputIntervalLimitMs": 100,
+      "InputBudgetFailures": [
+        "paged_review_and_git_load"
+      ],
+      "CompletionBudgets": [
+        {
+          "Name": "composition_startup_render",
+          "MeasuredMs": 559.009791,
+          "LimitMs": 1000,
+          "Passed": true
+        },
+        {
+          "Name": "paged_review_and_git_load",
+          "MeasuredMs": 10472.823292,
+          "LimitMs": 12000,
+          "Passed": true
+        },
+        {
+          "Name": "large_file_selection",
+          "MeasuredMs": 1972.973166,
+          "LimitMs": 2500,
+          "Passed": true
+        },
+        {
+          "Name": "binary_fallback_render",
+          "MeasuredMs": 988.110042,
+          "LimitMs": 1250,
+          "Passed": true
+        },
+        {
+          "Name": "large_source_revisit_render",
+          "MeasuredMs": 661.203958,
+          "LimitMs": 1000,
+          "Passed": true
+        },
+        {
+          "Name": "large_file_selection_input_gap",
+          "MeasuredMs": 83.999917,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "large_source_revisit_render_input_gap",
+          "MeasuredMs": 86.241166,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "rapid_selection_supersession",
+          "MeasuredMs": 8153.588958,
+          "LimitMs": 10000,
+          "Passed": true
+        },
+        {
+          "Name": "supersession_final_drain",
+          "MeasuredMs": 969.661625,
+          "LimitMs": 1250,
+          "Passed": true
+        },
+        {
+          "Name": "read_modality",
+          "MeasuredMs": 72.46525,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "files_drawer_open",
+          "MeasuredMs": 52.841,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "files_drawer_close",
+          "MeasuredMs": 32.435667,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "conversations_drawer_open",
+          "MeasuredMs": 33.636917,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "conversations_drawer_close",
+          "MeasuredMs": 29.887541,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "appearance_settings_open",
+          "MeasuredMs": 20.128917,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "theme_light",
+          "MeasuredMs": 24.52475,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "theme_dark",
+          "MeasuredMs": 33.825459,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "next_change_dispatch",
+          "MeasuredMs": 9.635958,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "wheel_dispatch",
+          "MeasuredMs": 5.119084,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "measurement_input_gap",
+          "MeasuredMs": 5.454417,
+          "LimitMs": 100,
+          "Passed": true
+        }
+      ],
+      "CompositionStartupMs": 559.009791,
+      "InteractionFrames": 9,
+      "phase_maximum_ms": {
+        "fixture_connect": 7.198,
+        "paged_review_and_git_load": 108.991709,
+        "read_modality": 72.46525,
+        "large_file_selection": 83.999917,
+        "files_drawer_open": 18.913542,
+        "files_drawer_close": 14.318292,
+        "conversations_drawer_close": 13.307625,
+        "conversations_drawer_open": 15.744209,
+        "appearance_settings_open": 20.128917,
+        "theme_light": 12.727875,
+        "theme_dark": 28.184167,
+        "binary_fallback_render": 27.957959,
+        "large_source_revisit_render": 86.241166,
+        "rapid_selection_supersession": 47.341166,
+        "shutdown": 13.486834
+      }
+    },
+    "source_candidate_scope": "Every final executable check uses cdbb208df52cf4478d2807b8aaedb20e3170356b; later edits are documentation, fixture README, board and checkpoint only.",
+    "cache-bytes_invariants": {
+      "ByteSelections": 20,
+      "BytePeakCacheBytes": 66839408,
+      "ByteAdmittedBytes": 70353760,
+      "BytePeakCacheEntries": 20,
+      "ByteHeldSourceObservations": 8,
+      "ByteSupersessionsWithWork": 1,
+      "ByteEvictedDiff": true,
+      "ByteEvictedIndex": true,
+      "ByteRevisitExact": true,
+      "ByteSupersessionHeldExact": true,
+      "EpochsObserved": 32
+    },
+    "cache-entries_invariants": {
+      "EntrySelections": 65,
+      "EntryPeakCacheEntries": 64,
+      "EntryPeakCacheBytes": 213504,
+      "EntryEvictedDiff": true,
+      "EntryEvictedIndex": true,
+      "EntryRevisitExact": true
+    },
+    "format_command": "python3 _coding-standard/scripts/format_check.py --root . src/adapters/qt/src/pull_request_overview_page.cpp tests/adapters_qt/pull_request_overview_page_tests.cpp tests/end_to_end/large_review_benchmark.cpp",
+    "cache_and_cleanup": "Exact source/blob/anchor,64-entry / 64 MiB cache ceilings, evicted diff/index lifetime, exact revisit, held-source supersession, loaded-close, prune/delete and destruction assertions pass unchanged. Cache-byte: 20 selections,66,839,408 peak retained bytes,70,353,760 total admitted bytes,8 held-source observations. Entry: 65 selections, 64 peak entries; both exact revisits pass. History retry passes all 32-epoch, selection and timing assertions.",
+    "retry_results": {
+      "cache_bytes_seconds": 341.21,
+      "cache_entries_seconds": 74.05,
+      "history_seconds": 315.49,
+      "total_seconds": 730.77,
+      "passed": 3,
+      "failed": 0
+    },
+    "history": {
+      "observed_epochs": 32,
+      "retained_epochs_verified": 32,
+      "model_resets": 0,
+      "selections": 31,
+      "selections_with_outstanding_work": 30,
+      "maximum_refresh_interval_ms": 72.395709,
+      "maximum_refresh_elapsed_ms": 8725.518375,
+      "maximum_source_selection_elapsed_ms": 976.450125,
+      "unchanged_limits_ms": {
+        "input": 100,
+        "refresh": 12000,
+        "source_selection": 2000
+      }
+    },
+    "documentation": "DOCUMENTATION_OK; 64/64 documentation tests pass; scoped board valid with 1186 cards; final diff check passes.",
+    "independence": "No independent, human, native compositor or packaged/release acceptance supplied.",
+    "checkpoint": "Shared helper returns action=stop at quiescent execution; engineering_acceptance=not-evaluated. Full-card acceptance record remains pending."
+  },
+  "pending_obligations": [
+    "Initial metadata/Git load remains108.991709ms above unchanged100ms target; separately bounded owning analysis or justified scheduling design needed.",
+    "True process/QApplication-to-first-frame launch and separate first metadata",
+    "Full active-work input/cancellation, generated/pathological fallback and peak live heap",
+    "Windows/Linux native measurements explicitly deferred; full BPR0967 stays unfinished"
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Coordinator-owned RFC0052 14-question session, candidate, state and server untouched."
+  },
+  "selection": "coordinator-implementer recipe revision2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "observed": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh startup banner",
+    "host_load": "not_verified",
+    "inherited_preflight": "Previous handoff records MASK readiness drift/artifact.corrupt and workflow not_declared; no repair or observed-loading claim supplied by this milestone."
+  },
+  "completed_commits": [
+    "eee1f22d",
+    "1501b6050955c4d73d214d5b20b4ee9bfe49ac21",
+    "cdbb208df52cf4478d2807b8aaedb20e3170356b"
+  ],
+  "evidence": "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+  "executable": {
+    "path": "build/dev/tests/end_to_end/better_pull_review_large_review",
+    "sha256": "bf93be054115add71cdfea2980f7017c21141c075892b711da985284bb0a704b",
+    "candidate": "cdbb208df52cf4478d2807b8aaedb20e3170356b"
+  },
+  "repository_ownership": {
+    "branch": "main",
+    "exclusive_writer": "Released to coordinator in final report after explicit documentation commit",
+    "registered_worktrees": 24,
+    "other_worktrees": "All23 preserved, including protected RFC0052 review worktree; no worktree created or deleted",
+    "protected_review": "No changes to coordinator-owned candidate, session state,14questions, loopback server or waiter",
+    "remote": "No push, live account, remote mutation or release"
+  },
+  "evidence_files": {
+    "build/bpr0967-load-gap/baseline.json": {
+      "sha256": "0a477ad7d25e98ec21660d3cb5d70a792d03bc11f5274166da36de8fcaae88d9"
+    },
+    "build/bpr0967-load-gap/controls-before.log": {
+      "sha256": "c9aa55b66327abf1b94723ae61e6e9e6565a592a6dbaac7d92926f5c12678eb4"
+    },
+    "build/bpr0967-load-gap/controls-before.json": {
+      "sha256": "a939efe6c7855439c405ae6e6a0edfe9bcf04e4f04520982ab7ed3807451d87a"
+    },
+    "build/bpr0967-load-gap/controls-after.log": {
+      "sha256": "bc83b8cdc23f14b689a467d1f53482365cb5057ba4be1be9dd2d6565f7c05811"
+    },
+    "build/bpr0967-load-gap/repair-first.json": {
+      "sha256": "4cd5e51877156aa029e3a679996bbbd616bf2184b2832750689dbe596dace968"
+    },
+    "build/bpr0967-load-gap/repair-trace-course.log": {
+      "sha256": "0bc27986f62bd87cee280395a1ead171501aaa745ed56b8a7d5cd91c191feef5"
+    },
+    "build/bpr0967-load-gap/trace3-course.log": {
+      "sha256": "f89ae09517990836bcfdcf6966d92ba7224eef0b7bee51dd9ddc89fccbc89357"
+    },
+    "build/bpr0967-load-gap/load-gate-control.patch": {
+      "sha256": "83d5a5dc0752b528348aeb7bb01ddb3154eefd7dff80186048f097cbc67537f5"
+    },
+    "build/bpr0967-load-gap/final-courses.log": {
+      "sha256": "ae521ef24b692ee9cdce163b2e4e5e18a35e43455d9f434ce97119ca9d8ccf6b"
+    },
+    "build/bpr0967-load-gap/history-interrupted.json": {
+      "sha256": "f98f987c3efedc4ba3d2ae60eec780bf9d696da1287cd500a1f006029b09ddaa"
+    },
+    "build/bpr0967-load-gap/sleep-interruption.log": {
+      "sha256": "7a7620ff5fcb667ef75ab02043d421a1ff69586c30c6d33c420805c2cd05fd35"
+    },
+    "build/bpr0967-load-gap/final-build.log": {
+      "sha256": "a262f6b4650ef427723d1191b0f6fc098dcecfc7d313ebc2150d7637506d239d"
+    },
+    "build/bpr0967-load-gap/documentation-tests.log": {
+      "sha256": "b8dad3d4b27b56ba0c90a1977ff7602cc6c052136a043896baed022c70d34694"
+    },
+    "build/dev/tests/end_to_end/large-review-responsiveness.json": {
+      "sha256": "65a12a93b882e3d7bdf8333646db9fe99abf522e884b6218f4c6d5c083038e8f"
+    },
+    "build/dev/tests/end_to_end/large-review-cache-bytes.json": {
+      "sha256": "4c4a73e91f6980337a16b05429b5ae998b4829246cf17f71716f26c896538247"
+    },
+    "build/dev/tests/end_to_end/large-review-cache-entries.json": {
+      "sha256": "d95f53c808e126ae6fc4944898cdf21cb4b5508e68ce1007b920833f696086d3"
+    },
+    "build/bpr0967-load-gap/format-final.log": {
+      "sha256": "543368eb1126d6ebd296669588a8801c238d07f181206d7c8e8eb7a27088ac2c"
+    },
+    "build/bpr0967-load-gap/sleep-retry.log": {
+      "sha256": "bdf6533faa49e840eb3b8c96db8c7ef974c807f9ef9c2954a32515cb7a4dddb4"
+    },
+    "build/dev/tests/end_to_end/large-review-history.json": {
+      "sha256": "f70135cc6693bc1069114119ce618df2a2cbb9c8ae1fdc27d52dfbb11b217b55"
+    },
+    "build/bpr0967-load-gap/assertion-lifecycle.log": {
+      "sha256": "fb2f7c3404a6d5f86926201b32c9ed1b541d1165bb6ca0d89117d035c1150d3c"
+    },
+    "build/bpr0967-load-gap/documentation-final.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    "build/bpr0967-load-gap/board-final.json": {
+      "sha256": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24"
+    }
+  },
+  "checkpoint": "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-load-gap.json",
+  "observation": "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-load-gap.json",
+  "check_result": "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-load-gap.json",
+  "tracker_state": "BPR-0967 returned to 10-backlog with wider acceptance unchanged; not Done",
+  "changed_paths": [
+    "docs/architecture/system-architecture.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/MILESTONES.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-load-gap.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-load-gap.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-load-gap.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-load-gap.json",
+    "docs/verification/BPR-0967-mac-load-gap-2026-09-25.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "tests/fixtures/github/pull-requests/large-review-v1/README.md",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp",
+    "tests/end_to_end/large_review_benchmark.cpp"
+  ]
+}

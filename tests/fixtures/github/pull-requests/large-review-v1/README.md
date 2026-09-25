@@ -139,3 +139,9 @@ The [Mac stall repair evidence](../../../../../docs/verification/BPR-0967-mac-st
 records the source and conversation-layout controls. Initial metadata/Git load
 still exceeds 100 ms and remains a separate unfinished obligation. Every exact
 source, anchor, cache, eviction/revisit and cleanup assertion remains in force.
+
+The [Mac load-gap evidence](../../../../../docs/verification/BPR-0967-mac-load-gap-2026-09-25.md)
+isolates the first Overview table's full-row column sizing and bounds it to
+visible rows. The course now also verifies every accepted thread/post's initial
+unread identity. Initial-load acceptance stays open at 100 ms; the report retains
+that failure separately from the unchanged source-input and completion gates.

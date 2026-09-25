@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -178,3 +178,35 @@ eviction/revisit, history and cleanup courses. Further work needs a separate
 bounded load repair plus the other Mac dimensions above. Windows/Linux are
 explicitly deferred; no full BPR-0967, human, native-style or release acceptance
 is claimed, and the RFC0052 attended session remains protected.
+
+## Mac first Overview column sizing — 2026-09-25
+
+The bounded successor at code `cdbb208df52cf4478d2807b8aaedb20e3170356b`
+reproduces the remaining initial-load gap at 145.381 ms. Nested public-course
+traces isolate about 40 ms of native column sizing while Overview becomes
+visible. Its header now sizes from visible rows, retaining all exact model
+rows; a thousand-file delegate control fails before and passes after, including
+scrolling to the last file. A candidate read-state identity-index optimization
+showed no useful composed benefit and was removed. Host, persistence and
+event-loop scheduling behavior are unchanged.
+
+The final uninstrumented load gap is **108.992 ms**: improved, still above the
+unchanged 100 ms target. First source **84.000 ms** and revisit **86.241 ms**
+retain their passing gates; the course passes its 20 existing fixture limits
+while `InputBudgetFailures` still names initial load. Every accepted thread/post's
+initial unread identity is now checked on the same composition. The
+[load-gap evidence](../../verification/BPR-0967-mac-load-gap-2026-09-25.md) and
+[handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-load-gap.json)
+retain exact attribution, rejected experiment, controls and affected verification.
+
+AC3 stays partial. Further initial-load work requires a separately bounded
+owning analysis or a justified scheduling design with ordering and stale-state
+controls. True process/Qt launch, separate metadata, active-work input/cancellation,
+generated/pathological fallback, peak live heap and explicitly deferred
+Windows/Linux evidence remain open. The protected RFC0052 review is untouched.
+
+All 18 selected checks have passing observations on the exact code candidate.
+The first pass is 15/18 with three system-sleep interruptions; their unchanged
+repeat passes 3/3. The evidence retains both results, exact sleep intervals and
+resource/history invariants. The card returns to Backlog for the remaining
+acceptance; this milestone supplies no full BPR-0967 closeout.
