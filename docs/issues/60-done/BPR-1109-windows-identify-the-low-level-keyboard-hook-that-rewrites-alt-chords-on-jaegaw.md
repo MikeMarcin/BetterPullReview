@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
-metadata: {"origin":"owner verdict on attended candidate BPR-1022-alt-chord-hook-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 7876410c-e657-44f8-be30-846db8115778, 2026-09-24","related_cards":["BPR-1022","BPR-1074"],"first_seen":"after 2026-09-23T22:47Z; seen at 9f144f1e (05:13Z-05:24Z) and 21332605 (06:46Z), 2026-09-24","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json"}
+metadata: {"origin":"owner verdict on attended candidate BPR-1022-alt-chord-hook-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 7876410c-e657-44f8-be30-846db8115778, 2026-09-24","related_cards":["BPR-1022","BPR-1074"],"first_seen":"after 2026-09-23T22:47Z; seen at 9f144f1e (05:13Z-05:24Z) and 21332605 (06:46Z), 2026-09-24","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1109-hook-owner-v001","decision":"af08ddab-5306-42af-a140-82a8fec95007","selected":"Ignore it"}}
 acceptance: [{"criterion":"AC1 The hook's owner is named; if it cannot be named read-only, the card names the remaining candidates and the evidence that rules out the rest","outcome":"pass","revision":"38507ec5","evidence":{"kind":"observation","detail":"Second branch. The hook rewrote back-to-back Alt chords at 05:13Z-06:46Z (BPR-1022 r4-r7) and 21:52Z-21:56Z (r8, r9). A WH_KEYBOARD_LL hook lives only with its installing thread on its desktop, so the owner is an interactive-session process running at both times. No still-running process started between the last clean observation (2026-09-23T22:47Z) and 05:13Z. Of those running, only code in msrdc 37336 (rdclientax.dll), ChatGPT 17592 and codex-computer-use-swift 21016, NVIDIA Overlay 10740, Everything 28156, Slack/Discord/Chrome, Visual Studio 20452 and OneDrive 18292, and the Windows shell imports SetWindowsHookExW (PE import scan of every loaded non-system module). Ruled out: station automation, exited processes, processes without the import, and the Claude desktop restarted at 19:55Z (started after 05:13Z; its predecessor only if the successor re-installed the same hook). r9 shows the hook keys on timing (same key 0x97, same application: back to back rewritten, 47-57 ms gap intact), not on the chord key.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#who-owns-it-ac1-not-nameable-read-only-candidates-narrowed"}},{"criterion":"AC2 Nothing is stopped, unloaded, reconfigured or uninstalled, and no setting is changed; the symptom is observed unchanged at the start and at the end","outcome":"pass","revision":"38507ec5","evidence":{"kind":"command","detail":"Read-only survey (process/module lists, PE import scan, event logs, signers); cleared foreground runs sent synthetic keys only: 21:48Z/21:49Z probes into the foreground Terminal (unassigned VK 0x97, 30 ms gaps), 21:52Z r8 BPR-1022 rows and 21:56Z r9 Alt+0x97 into pid-guarded test instances on fresh private data roots, closed with WM_CLOSE exit 0. A back-to-back Alt chord's Alt reaches raw input as vk=0x00 identically at the start baseline (BPR-1022 r7, 06:46Z) and at the end (r8 Alt+Space/F/Up/F4, r9 Alt+0x97). The 21:48Z gapped chords are explained by r9's timing contrast. Nothing stopped or changed.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#where-the-criteria-stand-2"}},{"criterion":"AC3 The finding is reported to the owner; only the owner decides what to do about the hook","outcome":"pass","revision":"38507ec5","evidence":{"kind":"observation","detail":"'For the owner (AC3)' states what the hook does, whom it affects (scripted and very fast chords; human-paced chords mostly pass), which applications' global-shortcut settings to check, and how the owner can identify it (quit one candidate at a time, then the station reruns the 1-minute check). The card changes nothing; the owner decides.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#for-the-owner-ac3"}}]
 ---
 
@@ -571,3 +571,21 @@ active at the time.
 
 The logs are station records under `build/logs/bpr-1022-main-win/`
 (`paced-*`), not committed.
+
+## Owner decision, 2026-09-25: ignore it (attended session 70834742)
+
+Source: attended session `7083474240820608cdf9ff551ddd298f`, packet
+[owner-decisions-20260924-scoped-v001](../../verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md),
+hand-back at sequence 32. Candidate `BPR-1109-hook-owner-v001`, revision
+"38507ec5 (finished 877e3d60)", fingerprint `d08bca99…` equal to the
+prepared candidate's in
+[session-identity.json](../../verification/reviews/owner-decisions-20260924-scoped-v001/session-identity.json),
+decision `af08ddab-5306-42af-a140-82a8fec95007`, sequence 31,
+2026-09-25T00:42:39Z, `actor: human`: **select**, verbatim:
+
+> Ignore it
+
+The note is empty. The card stays Done, as it has been since `877e3d60`.
+Nothing is stopped or looked for, the quit-one-at-a-time procedure is not
+run, and no follow-up card is opened. If the rewriting comes back, the paced
+course above is still the check.

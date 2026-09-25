@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0974"
 title: "Dispose Windows Defender finding and complete native Settings qualification"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-0730","BPR-1110"]
 priority: "P1"
 platforms: ["win"]
-blocked_by: "security-owner-disposition"
-metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Windows full native menu/shortcut/window-lifetime course","AC-11 current Windows inventory refresh"],"related_cards":["BPR-0960","BPR-0962","BPR-1110"],"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0974-defender-disposition-v001","decision":"3482f766-1945-42d2-b175-b2e89434c4e6","outcome":"reject","note":"Explain why this is being triggered."}}
+metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Windows full native menu/shortcut/window-lifetime course","AC-11 current Windows inventory refresh"],"related_cards":["BPR-0960","BPR-0962","BPR-1110"],"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0974-defender-disposition-v001","decision":"3482f766-1945-42d2-b175-b2e89434c4e6","outcome":"reject","note":"Explain why this is being triggered."},"owner_disposition":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-0974-defender-disposition-v002","decision":"5c30287a-e458-4c2c-89fd-d952174016bb","selected":"Lower the static signals: add a VERSIONINFO resource, keep a PDB reference in Release (/PDBALTPATH:%_PDB%), and move the 3.6 MB of compressed resource blobs out of the executable","not_now":"Authenticode signing"}}
 ---
 
 # Dispose Windows Defender finding and complete native Settings qualification
@@ -215,3 +214,61 @@ machine-learning verdict on the image's first launch, against a file
 structurally identical to an unflagged sibling. The card ends with the
 reversible options the disposition question can offer. This card stays
 **Blocked** on `security-owner-disposition` until the owner is asked again.
+
+## Owner decision, 2026-09-25: lower the static signals and go ahead (attended session 70834742)
+
+Source: attended session `7083474240820608cdf9ff551ddd298f`, packet
+[owner-decisions-20260924-scoped-v001](../../verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md),
+hand-back at sequence 32. Candidate `BPR-0974-defender-disposition-v002`,
+revision "BPR-1110 finding at 94a09016 (finished 657ca3bb); threat 2147731250
+on source 2d3bdbdf", fingerprint `debb579e…` equal to the prepared
+candidate's in
+[session-identity.json](../../verification/reviews/owner-decisions-20260924-scoped-v001/session-identity.json),
+decision `5c30287a-e458-4c2c-89fd-d952174016bb`, sequence 24,
+2026-09-25T00:01:50Z, `actor: human`: **select**, one of the six choices,
+verbatim:
+
+> Lower the static signals: add a VERSIONINFO resource, keep a PDB reference
+> in Release (/PDBALTPATH:%_PDB%), and move the 3.6 MB of compressed resource
+> blobs out of the executable
+
+Note, verbatim:
+
+> We will do the authentiode signing eventually, but not at this moment. Just
+> go ahead with this option and lets hope defender doesn't flag our next runs.
+
+**What this authorizes.**
+
+- The three static-signal changes to the Windows images, as [[BPR-1110]]
+  lists them:
+  - a `VERSIONINFO` resource;
+  - a PDB reference kept in Release (`/PDBALTPATH:%_PDB%`);
+  - the 3.6 MB of compressed resource blobs moved out of the executable.
+- Then a fresh tests-disabled Release image carrying them, built in a new
+  task root, and AC2 and AC3 on that exact digest. The owner's "go ahead"
+  covers launching it.
+
+**What it does not authorize.**
+
+- Authenticode signing. The owner will sign eventually, not now; it stays
+  RFC-BPR-0038's release work ([[BPR-0960]]).
+- A false-positive submission. It was not chosen, so nothing is disclosed.
+- Deferral to RFC-BPR-0038. It was not chosen, so the card leaves Blocked.
+- Restoring the quarantined sample, adding an exclusion, turning protection
+  off, or renaming around the detection. These stay forbidden.
+
+**If Defender flags the new image.** BPR-1110 says the static-signal changes
+lower the risk without removing it, and the owner's note says the same. A
+new detection is recorded the way the first was: threat identity, image
+digest and the Defender events. Nothing is restored or excluded, and the
+disposition goes back to the owner as one question.
+
+AC1 now reads against this disposition: it is met when the three changes are
+in the image, the image's source, build and digest are recorded, and Defender
+has not detected that digest. The 2026-09-22 finding stays recorded and is not
+called a false positive.
+
+`security-owner-disposition` is answered, and both dependencies are Done, so
+the card leaves Blocked for **Ready** on Windows, for bpr-main-win.
+[[BPR-0653]]'s Windows capture waited on this answer and needs the same kind
+of image.

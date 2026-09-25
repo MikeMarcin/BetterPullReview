@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1107"
 title: "Draw white space the Sublime Text way, dots for spaces and lines for tabs, with a setting for when"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"origin":"owner rejection of attended candidate BPR-0986-rendered-panes-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 6b7243c3-f194-4396-a3b9-0f8309dabfcf, 2026-09-24","origin_rfc":"RFC-BPR-0034","related_rfcs":["RFC-BPR-0006","RFC-BPR-0018"],"related_cards":["BPR-0986","BPR-0790","BPR-0791"],"owner_reference":"docs/verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json"}
-parked_on: "human-review"
+metadata: {"origin":"owner rejection of attended candidate BPR-0986-rendered-panes-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 6b7243c3-f194-4396-a3b9-0f8309dabfcf, 2026-09-24","origin_rfc":"RFC-BPR-0034","related_rfcs":["RFC-BPR-0006","RFC-BPR-0018"],"related_cards":["BPR-0986","BPR-0790","BPR-0791"],"owner_reference":"docs/verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","owner_decisions":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","drawing":"5a19ba24-8687-4719-bdca-294d1b1a02c7 accept (tab is a line, not line + dot)","choices":"0eb6d682-db01-4e68-be37-a16bd03745ba accept, default renamed Selection"}}
 acceptance: [{"criterion":"AC1 A design page shows the drawing and the setting on the four themes, with the owner's reference beside it, rendered and inspected headless","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"artifact","detail":"docs/design/BPR-1107-white-space-v1.html: the owner's reference beside the panes, the panes in all four themes, the Type card in all four themes, each choice in Light and Dark, the proposed default and what is left out. Every image is a real capture from gated courses (BPR_WHITE_SPACE_CAPTURE_DIR in qt_diff_workbench_scale_200 and qt_appearance_settings_panel). Rendered headless with Chrome --headless=new --screenshot at 1360 px and inspected.","path":"docs/design/BPR-1107-white-space-v1.html"}},{"criterion":"AC2 The review panes and the preview draw spaces as dots and tabs as lines to their stop, through one shared painter, for each setting value offered; qt_diff_workbench_scale_100/125/200, qt_code_sample_painter, qt_type_preview and qt_theme_preview_strip pin it, and each fails with the drawing switched off","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"command","detail":"paint_white_space is the one renderer (panes and preview through paint_white_space_of_block, tiles through paint_code_sample); the core decides which characters (core::white_space_drawn). The six rows pass and each fails with the drawing switched off: qt_code_sample_painter 'one mark per white space character', qt_theme_preview_strip 'all draws the snippet's spaces on the tiles', qt_type_preview 'under the selection, the selected row's two tabs and three spaces', qt_diff_workbench_scale_100/125/200 'every choice but none draws something on these lines'."}},{"criterion":"AC3 The setting is a live control on the Appearance page and persists; qt_appearance_settings_panel, qt_appearance_profile, sqlite_appearance_settings_storage and the appearance end-to-end contracts pass","outcome":"pass","revision":"eb9a94a9","evidence":{"kind":"command","detail":"White space row beneath Tab width dispatches the typography intent (test_white_space_is_a_row_beside_tab_width); appearance store version 8 round-trips every choice, migrates version 7 to the default and refuses a value past the CHECK (test_white_space_round_trips_migrates_and_refuses). qt_appearance_settings_panel, qt_appearance_profile, sqlite_appearance_settings_storage, application_appearance_host and the four appearance end-to-end contracts pass in the 34-row selection."}},{"criterion":"AC4 The owner accepts the rendered drawing and the setting in an attended session: one question for the drawing and one for the setting's choices and default","outcome":"pending","revision":"eb9a94a9","evidence":{"kind":"observation","detail":"Prepared, not asked: two questions on the card's owner-ask section, bound to eb9a94a9 and the design page.","path":"docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md#owner-asks--parked-on-human-review-ac4-two-questions"}}]
 ---
 
@@ -415,3 +414,61 @@ The acceptance record above is unchanged, and the card stays parked on AC4.
 The logs are station records under `build/logs/batch7-main-win/`
 (`rows-3f8f954d.log`, `trial-revert-1032-*.log`, `probe-*.log`), and are not
 committed.
+
+## Owner verdicts, 2026-09-25: the drawing and the six choices accepted, with two corrections (attended session 70834742)
+
+Source: attended session `7083474240820608cdf9ff551ddd298f`, packet
+[owner-decisions-20260924-scoped-v001](../../verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md),
+hand-back at sequence 32. Both verdicts are `actor: human` and carry their
+prepared candidate's fingerprint in
+[session-identity.json](../../verification/reviews/owner-decisions-20260924-scoped-v001/session-identity.json).
+
+**Question 1, the drawing.** Candidate `BPR-1107-white-space-drawing-v001`,
+revision `eb9a94a9`, fingerprint `141b0941…`, decision
+`5a19ba24-8687-4719-bdca-294d1b1a02c7`, sequence 30, 2026-09-25T00:42:22Z:
+**accept**, with this note. Its first line, verbatim:
+
+> I think I had inadventently put a space after the tab in my sublime example
+
+Then this example, byte for byte (the indents on the second and third lines
+are tab characters):
+
+```text
+     4 spaces.          8 more spaces
+		2 tabs.
+	1 tab.	Another tab, smaller because of spacing
+```
+
+And its last line, verbatim:
+
+> Just be sure tab renders as line not a line + dot, dot is space
+
+**Question 2, the choices and the default.** Candidate
+`BPR-1107-white-space-choices-v001`, revision `eb9a94a9`, fingerprint
+`d787c4e1…`, decision `0eb6d682-db01-4e68-be37-a16bd03745ba`, sequence 29,
+2026-09-25T00:16:27Z: **select**, verbatim:
+
+> Accept the six choices, default Under the selection (proposed; Sublime's own
+> default)
+
+Note, verbatim:
+
+> "Under the selection" is weird phrasing, made me want to look at lines
+> beneath the selection. Just call it selection.
+
+**What they settle.** AC4 is accepted on both questions, with two corrections
+to make before Done:
+
+1. **The name.** The default choice is called **Selection** in the product and
+   in the docs. The stored value does not change: ordinal 1, stable name
+   `selection`, appearance store version 8. So no migration is needed.
+2. **A tab is a line alone.** The owner's reading is right. v1's design
+   captures copied the reference's stray spaces (`\t\t 2 tabs.` and
+   `\t 1 tab.`), so each tab run in them ended in a dot. The painter draws
+   one mark per character, a line for a tab and a dot for a space, so the
+   drawing itself needs no change. The captures are retaken with the owner's
+   text above, and a check on that exact text pins a tab as a line with no
+   dot.
+
+The card leaves human-review for **Ready** on macOS for those two
+corrections.

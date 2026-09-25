@@ -924,3 +924,17 @@ disposition:
 
 Until then, criteria 2 and 4 stay pending, and the card stays parked on
 human-review.
+
+## BPR-0974's disposition arrived, 2026-09-25
+
+The owner answered [[BPR-0974]]'s disposition in attended session
+`7083474240820608cdf9ff551ddd298f` (decision `5c30287a`): lower the static
+signals (a `VERSIONINFO` resource, a PDB reference in Release, and the 3.6 MB
+of resource blobs moved out of the executable) and go ahead, with Authenticode
+signing later. The verdict and its limits are on BPR-0974, which is Ready for
+bpr-main-win. None of this card's four options above was chosen for it
+directly. What it changes here: once BPR-0974's changes land, a
+tests-disabled bundle built at a commit that contains them is the image ask 1
+can use. If Defender flags it, the capture stops and the detection is recorded
+on BPR-0974. Criteria 2 and 4 stay pending, and the card stays parked on
+human-review.

@@ -52,3 +52,9 @@ Use shared attended-review when an explicit human criterion remains; park with h
 path would require editing a protected historical review packet. Keep the
 packet's bytes intact and record the exact blocked link and acceptance evidence
 on the card until a safe path-preserving migration is available.
+
+`owner-design-discussion` parks a card whose owner asked to settle its
+question in a separate design session rather than through attended review.
+The card keeps its prepared material and pending criteria, the attended queue
+does not ask it again, and the outcome of the owner's session is recorded on
+the card as an owner decision.

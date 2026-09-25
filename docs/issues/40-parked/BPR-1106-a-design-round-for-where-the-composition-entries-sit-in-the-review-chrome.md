@@ -6,8 +6,8 @@ status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"standalone follow-up; not an RFC-BPR-0028 closeout dependency"}
-parked_on: "human-review"
+metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"standalone follow-up; not an RFC-BPR-0028 closeout dependency","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"}}
+parked_on: "owner-design-discussion"
 acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 The owner's choice is recorded here, one question on its own candidate, with the fingerprint-bound verdict","outcome":"pending","revision":"4e9037e6","evidence":{"kind":"observation","detail":"Prepared, not asked: candidate BPR-1106-placement-v001, one question (A, B, C, D or E; proposed C), with the design page as its evidence. No attended session was started by this dispatch.","path":"docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#proposal-and-the-prepared-ask"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pending","revision":"4e9037e6","evidence":{"kind":"observation","detail":"Waits on AC2. The page lists, per placement, what AC-01, the chrome paragraph, BPR-1036's floor (+22 macOS, +20 Linux) and BPR-0940's window course assertion would need."}}]
 ---
 
@@ -181,3 +181,29 @@ verdict (AC2). If the pick is B, C, D or E, RFC-BPR-0028 AC-01 and its chrome
 paragraph are amended again, and the implementation is carded (AC3). That card
 carries BPR-1036's floor (+22 on macOS, +20 on Linux) and BPR-0940's window
 course assertion, plus the placement's own needs listed on the page.
+
+## Owner answer, 2026-09-25: settle it outside attended review (attended session 70834742)
+
+Source: attended session `7083474240820608cdf9ff551ddd298f`, packet
+[owner-decisions-20260924-scoped-v001](../../verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md),
+hand-back at sequence 32. Candidate `BPR-1106-placement-v001`, revision
+"4e9037e6 (parked a7dd1cd2)", fingerprint `a115198c…` equal to the
+prepared candidate's in
+[session-identity.json](../../verification/reviews/owner-decisions-20260924-scoped-v001/session-identity.json),
+decision `ece7a6f3-3e54-459f-9c41-eba06732a91d`, sequence 28,
+2026-09-25T00:14:58Z, `actor: human`: **select** "Other: my answer is in the
+note", with this note, verbatim:
+
+> Let's discuss this outside of the attended review flow, give me a handoff
+> prompt to tackle this properly in a separate session thread.
+
+No placement is chosen: not A to E, and not the proposed C. AC2 stays
+pending, and AC3 waits on it. RFC-BPR-0028 AC-01 stays as the owner amended it
+on 2026-09-24. The design page, its frames and the costs above are the
+material for the separate session; the coordinator gives the owner its
+handoff prompt. The placement is not asked again through attended review.
+
+The card leaves `human-review` and is Parked on
+`owner-design-discussion`: it waits on the owner's own design session, not on
+an attended queue. Whatever that session decides is recorded here as an owner
+decision, and AC3's amendment and implementation card follow from it.
