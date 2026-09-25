@@ -52,7 +52,7 @@ criterion text.
 | [BPR-0825](../issues/60-done/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md) | Parked, standalone: shared Windows private-descriptor ownership decision. Native supervisor/ACE/junction fixes remain accepted only as recorded. |
 | [BPR-0940](../issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md) | Backlog, standalone: existing composed GitHub/window-layout failures and current benchmark visible-page mismatch. |
 | [BPR-0944](../issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md) | Backlog, standalone: Whole PR basis, readable partial pane and missing-earlier explanation. Not fixed. |
-| [BPR-0945](../issues/30-in-progress/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md) | Backlog, standalone: existing strict-tidy header diagnostics. No tidy pass inferred. |
+| [BPR-0945](../issues/60-done/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md) | Done on 2026-09-25 as standalone BPR-0945: both recorded header diagnostics repaired; the four affected translation units pass canonical strict tidy at `f8b589e7`. This does not assert repository-wide tidy acceptance. |
 
 BPR-0934 Overview folder collapse remains RFC0037 work. BPR-0966's later Dif
 workshop cue mismatch remains a separate follow-up from RFC0012. No historical
@@ -301,3 +301,16 @@ persistence, provider/authentication, package and security behavior have **no
 runtime change** in this documentation-only closeout round. System architecture
 continues to describe the currently implemented both-pane refusal, not the
 deferred partial-pane design.
+
+## Standalone BPR-0945 tidy follow-up — 2026-09-25
+
+The r4 transfer above remains the historical RFC closeout decision. Its later
+standalone repair changes only `dif_runtime.hpp`'s inclusion guard and the
+unsigned intermediate arithmetic of Home's existing four-bit mask, at
+`f8b589e7f10811126c1b811ca6f2b28d48738e38`. The canonical helper first reproduced
+both recorded diagnostics, then passed the four affected translation units with
+warnings as errors and the host SDK. Seven focused Home, SQLite, Dif and composed
+Qt checks pass. The [BPR-0945 handoff](../rfcs/plans/bpr0945-tidy-headers/HANDOFF-2026-09-25.md)
+records exact commands and candidate limits. Public values/types, persisted
+schema, behavior, provider authority, lifecycle, assets and build selection have
+no semantic change. No wider tidy or native-platform acceptance is inferred.
