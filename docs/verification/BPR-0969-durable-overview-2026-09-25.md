@@ -14,7 +14,7 @@ MASK readiness or observed serving claim is made.
 
 This completes the four bounded exits, with partial evidence and repair for
 canonical AC2/AC3. It does not accept those whole criteria. The
-[card](../issues/20-ready/BPR-0969-verify-cached-review-offline-restart-freshness.md)
+[card](../issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md)
 returns to Backlog; the
 [handoff](../rfcs/plans/bpr0969-offline-inventory/durable-snapshot-handoff.json)
 records exact source, commands, ownership and continuation.
