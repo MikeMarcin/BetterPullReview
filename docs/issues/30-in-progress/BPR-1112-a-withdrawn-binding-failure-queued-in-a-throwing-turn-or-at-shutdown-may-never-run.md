@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1112"
 title: "A withdrawn binding failure queued in a throwing turn or at shutdown may never run, and start_delete/prepare_device_rotation lose their completion on allocation failure"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
