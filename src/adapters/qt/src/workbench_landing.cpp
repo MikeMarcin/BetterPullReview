@@ -1,5 +1,7 @@
 #include "bpr/qt/workbench_landing.hpp"
 
+#include "this_machine_text.hpp"
+
 #include <QFont>
 #include <QHBoxLayout>
 #include <QKeySequence>
@@ -117,10 +119,12 @@ namespace bpr::qt {
 			Title->setText(QStringLiteral("Sign in to GitHub"));
 			// [[BPR-0775]]. The accepted first-launch card: one sentence, then
 			// the two ways in. The bar above it reads a public pull request
-			// without an account, and it says so itself.
-			Body->setText(QStringLiteral(
-				"A device code in the browser signs this Mac in once; the session is "
-				"remembered here. Paste a pull request link to start a review."));
+			// without an account, and it says so itself. [[BPR-1137]]: the
+			// machine is named by the product's rule, not the macOS mockup.
+			Body->setText(
+				QStringLiteral("A device code in the browser signs %1 in once; the session is "
+							   "remembered here. Paste a pull request link to start a review.")
+					.arg(detail::this_machine_text()));
 			Primary->setText(QStringLiteral("Sign in"));
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(

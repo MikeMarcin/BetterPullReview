@@ -3387,6 +3387,47 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1137]]. Signed out, Home's first-launch card names the
+	/// machine the way the rest of the product does ([[BPR-0773]]): "this Mac"
+	/// on macOS, "this computer" on Windows and Linux. The sentence is
+	/// otherwise [[BPR-0775]]'s, word for word. Each platform's build checks
+	/// its own sentence, so the Windows and Linux wording is proved on those
+	/// platforms.
+	auto test_home_sign_in_sentence_names_this_machine() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const landing = window.home_landing();
+#if defined(__APPLE__)
+		const auto expected = QStringLiteral(
+			"A device code in the browser signs this Mac in once; the session is "
+			"remembered here. Paste a pull request link to start a review.");
+#else
+		const auto expected = QStringLiteral(
+			"A device code in the browser signs this computer in once; the session is "
+			"remembered here. Paste a pull request link to start a review.");
+#endif
+		const auto said = landing->body_label()->text();
+		if (said != expected) {
+			std::cerr << "Home's first-launch card says: " << said.toStdString() << '\n';
+		}
+		expect(landing->state() == qt::landing_state::sign_in && landing->body_label()->isVisible()
+				   && said == expected,
+			   "signed out, Home's first-launch card names this platform's machine in the accepted sentence");
+#if !defined(__APPLE__)
+		expect(!said.contains(QStringLiteral("Mac")), "off macOS the card does not say Mac");
+#endif
+		window.hide();
+	}
+
 	/// \brief [[BPR-0775]]. Signed in, Home's first row is the bar: labelled,
 	/// focused on arrival and reachable by Command-L from anywhere. A first
 	/// load enters the explicit loading Overview ([[BPR-0795]]).
@@ -7373,6 +7414,13 @@ auto main(int argc, char** argv) -> int
 		std::cout << "GitHub Qt loading and refusal tests passed\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1137]]. The first-launch card's sentence on this platform, alone,
+	// so each platform confirms its own wording without the full run.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--home-sign-in"))) {
+		test_home_sign_in_sentence_names_this_machine();
+		std::cout << "home-sign-in:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-0981]]. The resident drawer filters' composed gesture path alone;
 	// the full run stops later at the card assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
@@ -7402,6 +7450,7 @@ auto main(int argc, char** argv) -> int
 	test_drawer_filters_are_resident_and_keep_the_open_views();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_signed_out_is_one_paste_field();
+	test_home_sign_in_sentence_names_this_machine();
 	test_home_leads_with_the_bar_signed_in();
 	test_home_lists_recently_viewed_pull_requests();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();

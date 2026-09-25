@@ -1,5 +1,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 
+#include "this_machine_text.hpp"
+
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
@@ -51,15 +53,6 @@ namespace bpr::qt {
 			return match != aCommands.end() && match->Enabled;
 		}
 
-		[[nodiscard]] auto this_machine_text() -> QString
-		{
-#if defined(__APPLE__)
-			return QObject::tr("this Mac");
-#else
-			return QObject::tr("this computer");
-#endif
-		}
-
 		// One sentence per typed stage, in the words the account row says.
 		[[nodiscard]] auto stage_text(
 			const core::device_authorization_stage aStage) -> QString
@@ -71,7 +64,7 @@ namespace bpr::qt {
 				return QObject::tr("Asking for a code.");
 			case core::device_authorization_stage::awaiting_authorization:
 				return QObject::tr("Waiting for the browser to authorize %1.")
-					.arg(this_machine_text());
+					.arg(detail::this_machine_text());
 			case core::device_authorization_stage::cancelling:
 				return QObject::tr("Cancelling.");
 			case core::device_authorization_stage::authorized:

@@ -5,6 +5,7 @@
 #include "bpr/qt/usage_ring.hpp"
 
 #include "github_presentation_text.hpp"
+#include "this_machine_text.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -47,15 +48,6 @@ namespace bpr::qt {
 		constexpr auto avatar_side  = 32;
 		constexpr auto card_radius  = 8.0;
 		constexpr auto label_column = 150;
-
-		[[nodiscard]] auto this_machine_text() -> QString
-		{
-#if defined(__APPLE__)
-			return QStringLiteral("this Mac");
-#else
-			return QStringLiteral("this computer");
-#endif
-		}
 
 		[[nodiscard]] auto device_capable(
 			const application::github_profile_option& aOption) noexcept -> bool

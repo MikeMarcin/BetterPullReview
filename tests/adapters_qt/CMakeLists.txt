@@ -102,6 +102,20 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# [[BPR-1137]]. Home's first-launch sentence names this platform's machine:
+# "this Mac" on macOS, "this computer" on Windows and Linux.
+bpr_add_network_isolated_test(
+    NAME qt_composed_home_sign_in
+    COMMAND test_better_pull_review_qt_github_tests --home-sign-in
+)
+set_tests_properties(
+    qt_composed_home_sign_in
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+        PASS_REGULAR_EXPRESSION "home-sign-in:pass"
+        TIMEOUT 30
+)
+
 # [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window, alone.
 bpr_add_network_isolated_test(
     NAME qt_composed_resident_drawer_filters
