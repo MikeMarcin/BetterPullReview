@@ -1,0 +1,41 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr0969-offline-inventory",
+  "scope": {
+    "issues": [
+      "BPR-0969"
+    ]
+  },
+  "coverage": "partial",
+  "milestones": [
+    {
+      "id": "inventory-offline-reopen",
+      "outcome": "Inventory actual cached metadata, source, threads and retained epochs through safe Mac composition, distinguish unavailable from observed empty, and identify the next implementation boundary.",
+      "work": [
+        {
+          "issue": "BPR-0969",
+          "criteria": [
+            "AC1"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Trace the public offline and restart entry points and exact authority and revision boundaries.",
+        "Exercise a safe real-composition course early and record runtime observations with unavailable versus empty semantics.",
+        "Implement only a demonstrated narrow repair with negative controls, or preserve the exact larger limitation and next milestone.",
+        "Record exact candidate, focused verification, remaining AC2/AC3 obligations and quiescent ownership handoff."
+      ],
+      "boundary": "Assignment /root/bpr0969_offline_inventory; mandate r4-standalone-offline-inventory-20260925; baseline 552d0e02c65668b0d49f0050bf0c778e077fc2df; exclusive main writer in /Users/jaeger/Documents/GitHub/BetterPullReview. No live account, remote mutation, push, delegation, Windows/Linux acceptance, release, or modification to protected RFC0052 review resources."
+    }
+  ],
+  "unplanned_work": [
+    {
+      "issue": "BPR-0969",
+      "criteria": [
+        "AC2",
+        "AC3"
+      ]
+    }
+  ]
+}
