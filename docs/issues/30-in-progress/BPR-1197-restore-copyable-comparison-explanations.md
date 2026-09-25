@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1197"
 title: "Restore copyable comparison explanations beside document tabs"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1132"]
 priority: "P2"
