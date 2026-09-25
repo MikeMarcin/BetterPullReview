@@ -1,0 +1,83 @@
+{
+  "run_id": "bpr0968-rate-limit",
+  "segment_id": "mac-20260925",
+  "mandate_revision": "r4",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0968-rate-limit",
+    "plan_path": "docs/rfcs/plans/bpr0968-rate-limit/milestone-plan.json",
+    "milestone_id": "rendered-rate-recovery",
+    "definition_fingerprint": "sha256:07bc66d0ddd3784fe808386705906bea0c139e0544d796056a857476c76a7502",
+    "obligations": [
+      {
+        "id": "BPR-0968:*",
+        "source": "BPR-0968",
+        "selector": null,
+        "source_fingerprint": "sha256:5037263ce68171bfe57238f8660fbb5e444fdf0521db6ee7b9cd0bcf29ed61ce"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8fc3b09e976d5e13305d7e1ce977867458d3eaa036e07aefb8700c087f54378c",
+    "exit_criteria": [
+      {
+        "id": "rendered-rate-recovery:exit:1",
+        "text": "AC1: Render primary and secondary rate-limit failures through a safe real-composition fixture."
+      },
+      {
+        "id": "rendered-rate-recovery:exit:2",
+        "text": "AC2: Verify Retry-After, capped retries, explicit retry/cancel, authority replacement and exact-selection recovery without storms or stale publication."
+      },
+      {
+        "id": "rendered-rate-recovery:exit:3",
+        "text": "AC3: Record candidate, request counts, rendered states, timing and negative controls; retain any precise unsatisfied obligation."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "rendered-rate-recovery",
+  "disposition": "continue-milestone",
+  "candidate_revision": "34c86e0b3823b058db672479700cec216ccedd8a",
+  "handoff_ref": "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+  "required_pending": [
+    "AC1 bounded scheduling",
+    "AC2 Retry-After admission, retry caps, cancellation, authority replacement and exact selection",
+    "AC3 full backoff negative course"
+  ],
+  "evidence_refs": [
+    "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
+    "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md"
+  ],
+  "acceptance_records": [],
+  "continuation": {
+    "intent": "continue",
+    "next_milestone": "rendered-rate-recovery",
+    "reason": "current-milestone",
+    "detail": "Rendered diagnostic correction complete; preserve failing scheduling criterion for a bound PR-read policy round."
+  },
+  "ownership": "quiescent"
+}

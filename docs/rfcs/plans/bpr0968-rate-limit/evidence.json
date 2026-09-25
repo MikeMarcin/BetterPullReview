@@ -1,0 +1,25 @@
+{
+  "candidate": "34c86e0b",
+  "baseline": "7c07a1cb",
+  "sources": {
+    "src/adapters/qt/src/workbench_window.cpp": "5eadae3564bf2e4bd895af8015ba2644e98663b378159df32933c871a30aa982",
+    "src/app/src/github_application_fixture_access.hpp": "2d272634ae8cf607f89adcb748a9c8b38405912eeeb9a2377cacfe13800f59d1",
+    "src/app/src/github_public_path_fixture.cpp": "8488267550942e7641a861b7f886900fd43e7f63527151a1de34b10c5a99d390",
+    "src/app/src/large_review_fixture.hpp": "198527a1dea78c7a679247923fd0880062a6310189d1571180f1d967ceb2075c",
+    "tests/end_to_end/rate_limit_public_path_tests.cpp": "dfbaa19c7f8704b4445eb34143fab90811da48df749e0241a57905b7db4201bd",
+    "tests/end_to_end/CMakeLists.txt": "35e082f2bc1178452f6b18e4ffe4009e7b61d43bc7297c9d10024a8ad6f0a536"
+  },
+  "evidence": {
+    "backoff-required.log": "fc19587cd69a30a674feb1692d83454eb77d219c276472f6c4c54baa653b0258",
+    "projection-cut-build.log": "03414659ff4f06a63984726f18d0f88cfd13f19bb4db27d8e67d8e14a22b035d",
+    "final-positive.log": "1f85fd1fff5cc28240ba1bde02cfa51c9a2a827e589000a3d61a36bf7dc1cb25",
+    "restored-course.log": "bfb89782e65c9c6ade6fd571a4e220159aafb97fc7c6e7fa26cd7d8dfb6ced92",
+    "integration.log": "9385bb28e0e20a08cfb0ed51f65e8b262ac7ed1ba892b6877fa432bf1a5adb8a",
+    "rate-limit-2.png": "fa900f6bcede0f1959330b18d1b7a89b9b610c4d98030431139146e6eb476dc3",
+    "rate-limit-1.png": "948c98a9ff41c9a913a4ebc6f2b2074a052db8c04c2b1aa4f6f881cd5b2ece63",
+    "projection-cut.log": "55ec80a31f0f878e13ebf1fdac24ebfc63da31571b1b171302c876b2823039de",
+    "build-controls.log": "4f98a86de2616e8fc25084b2a7ee1a076f5dc04eda55622aa113a688b816bdae",
+    "projection-cut-result.json": "bb4026ce841c7b147e7f084bc2f7fc199dcad6756ae1554ee169403b6a3aaa30",
+    "restored-build.log": "7fa5f93da931bc04f0003c1d2e78582e4486e688b43a47048530e70b17a2455c"
+  }
+}
