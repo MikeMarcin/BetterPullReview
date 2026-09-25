@@ -210,9 +210,11 @@ mutation was performed.
   Windows/Linux station courses and measured platform floors remain owed. A
   platform failure remains the originating implementation card's defect. m3 is
   not eligible until the m2 exits and remaining closeout acceptance hold.
-- **Review preparation:** one fresh session under the runtime above will bind
-  only those 14 decisions, one criterion per item with choices and Other/write-in,
-  to a frozen app and static renders. Its final identity and command ownership
+- **Review preparation:** fresh session `60bd1ed56e768d60a40b104920641436` at cursor 42
+  has exactly 14 ready candidates and no decisions; it binds only those 14 decisions, one criterion per item with choices and Other/write-in,
+  to the frozen app at revision `ba9d272339ad235f1d99688c5c1af198b0c9c7ef`
+  and static renders. The loopback server is running (PID 25339); the coordinator
+  owns the hand-back watch. Windows native appearance remains pending. Its final identity and command ownership
   are recorded in [the durable handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2-2026-09-25.md).
 - **Workflow:** MASK preflight is `ready` / `ready_pinned` after the coordinator
   removed disposable installed bytecode; route `rfc-implementer`, `gpt-6-astra`,
