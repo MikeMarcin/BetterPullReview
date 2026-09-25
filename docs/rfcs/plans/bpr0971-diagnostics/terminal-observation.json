@@ -1,0 +1,114 @@
+{
+  "run_id": "bpr0971-20260925",
+  "segment_id": "terminal-return",
+  "mandate_revision": "r4-terminal-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0971-diagnostics",
+    "plan_path": "docs/rfcs/plans/bpr0971-diagnostics/milestone-plan.json",
+    "milestone_id": "privacy-and-backpressure",
+    "definition_fingerprint": "sha256:562d1a732c743fe42a75057d1111af3e9430ef56da946a09a2967408c6f717b1",
+    "obligations": [
+      {
+        "id": "BPR-0971:*",
+        "source": "BPR-0971",
+        "selector": null,
+        "source_fingerprint": "sha256:f839988172b1fdd8d0d526d4536ee2b3428e86a2f393a87ce24087435ad8e32e"
+      }
+    ],
+    "obligation_fingerprint": "sha256:f78c7d67d55337ffb0601175f64a7055a56b13b4ff13fcf08229ef943c907e22",
+    "exit_criteria": [
+      {
+        "id": "privacy-and-backpressure:exit:1",
+        "text": "Every diagnostic producer and retained field across the seven named subsystems has a classified bound and evidence disposition."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:2",
+        "text": "Synthetic credential/content and oversized-input courses exercise composed logging and export boundaries without private targets."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:3",
+        "text": "Stress observations measure dropping and shutdown, and diagnostic failure isolation is verified or its exact gap retained."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "privacy-and-backpressure",
+  "disposition": "continue-milestone",
+  "candidate_revision": "2b58ce291200cf93ba6cf6074a69711130d5d61d",
+  "handoff_ref": "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-terminal-2026-09-25.md",
+  "required_pending": [
+    "MCP environment-name content and line injection reproduced; no declared complete report/output bound",
+    "Full inherited MCP stderr pipe blocks terminal delivery; other synchronous writers remain unqualified",
+    "Remaining subsystem pathological privacy courses and RFC0027 classifier obligations remain open",
+    "Windows/Linux owner-deferred; external native crash privacy remains unqualified"
+  ],
+  "evidence_refs": [
+    "docs/verification/bpr0971-terminal-bounds.md",
+    "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-terminal-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0971:*",
+      "outcome": "fail",
+      "evidence_refs": [
+        "docs/verification/bpr0971-terminal-bounds.md",
+        "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-terminal-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:1",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/bpr0971-terminal-bounds.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:2",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/bpr0971-terminal-bounds.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-terminal-bounds.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "continue",
+    "next_milestone": "privacy-and-backpressure",
+    "reason": "current-milestone",
+    "detail": "Integrate the bounded startup/Git repair; reconcile MCP complete-environment diagnostics with content-safe bounds and explicitly owned nonblocking terminal output, then finish the remaining composed courses. No policy waiver or native acceptance is inferred."
+  },
+  "ownership": "quiescent"
+}

@@ -288,6 +288,13 @@ endfunction()
 # budget output on success, expiry before the failed-run marker. No scheduling,
 # course verdict, credential, provider or mutation admission changed. The
 # github_application.cpp and mutation-branch pins remain unchanged.
+# BPR-0971 terminal reseal: f6de40b6..e1dbf44b replaces the tests-enabled
+# startup exception capture with a private helper that copies at most 2 KiB,
+# flattens ASCII controls and marks truncation. main.cpp uses the same helper;
+# the public header documents the bound and the new private header joins both
+# inventories. Source review is recorded on BPR-0971. First-failure ordering,
+# mapped failures, tests-disabled behavior and mutation admission are unchanged;
+# the production mutation-branch pin is unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -306,7 +313,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5bc3de4d81fc806d9ad3a1b9dd0470200e5b00030daaddd0edc2345aea6cbbb6"
+		"c1793c1df7235e4434cddb12c7b3322c84fe036bd15a9b1fa0d89153ae351d28"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -348,6 +355,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/release_update_desktop.cpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
+        "src/startup_diagnostic.hpp"
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
@@ -419,6 +427,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
+        "src/startup_diagnostic.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
 		"src/windows_title_row_host.cpp"
@@ -451,7 +460,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "394acf6599072cf46bd80e45a56d0ce1557bf0d15b56ab41892d5695c535fb47"
+        "1cb2bfb3393b08bc4cf803149b5db0a11a7d5df1e7c62406d6183c3de3f1027e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

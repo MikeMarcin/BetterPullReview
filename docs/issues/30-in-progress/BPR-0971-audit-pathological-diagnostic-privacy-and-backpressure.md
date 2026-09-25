@@ -90,3 +90,24 @@ The [new handoff](../../rfcs/plans/bpr0971-diagnostics/CLASSIFIER-HANDOFF-2026-0
 releases the isolated writer and identifies direct terminal-output bounds and
 failure isolation as the next independent engineering slice. Earlier remaining
 obligations and owner-deferred Windows/Linux verification are preserved.
+## Terminal bounds checkpoint — 2026-09-25
+
+The isolated `r4-terminal-20260925` continuation at baseline `f6de40b6` adds
+bounded developer startup exception capture (`e1dbf44b`) and caps each Git
+diagnostic replacement append before growth (`2b58ce29`). The
+[terminal inventory and evidence](../../verification/bpr0971-terminal-bounds.md)
+records exact limits and the real MCP helper's remaining content, line-injection
+and blocked-pipe counterexamples. Final focused startup/Git tests pass 3/3;
+architecture and the two composition contracts pass 3/3, including an actual
+tests-disabled Release build. Documentation and board validation pass. Strict
+tidy retains two recorded baseline findings outside the changed lines.
+BPR0971 remains In Progress.
+
+App-source pin review for `f6de40b6..e1dbf44b`: the two tests-enabled exception
+callers share a private 2 KiB capture helper; ASCII controls become spaces and
+truncation is explicit. First-failure ownership, mapped failures, exit codes,
+tests-disabled behavior and mutation admission are unchanged. The new private
+header joins both inventories, the full TU and manifest are resealed, and the
+production mutation-branch digest is unchanged. This is implementer self-review,
+not independent acceptance. The [terminal handoff](../../rfcs/plans/bpr0971-diagnostics/HANDOFF-terminal-2026-09-25.md)
+retains the final checks, command state and next engineering action.

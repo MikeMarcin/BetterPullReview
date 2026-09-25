@@ -3054,6 +3054,17 @@ comparison. Nested catalog recovery currently retains its mapped core reason,
 so its earlier adapter detail may already be unavailable. Logging refusal or
 backpressure does not change the history result.
 
+Developer startup terminal diagnostics are a separate surface. A tests-enabled
+application retains at most 2,048 bytes of a caught exception cause, replaces
+ASCII controls with spaces, and marks a longer cause `[truncated]` before
+recording or rendering it. The first recorded startup arm still wins. These
+bytes can contain identifying or private text; the bound is not a privacy
+classifier. Tests-disabled builds omit these exception causes. Installed-Git
+nonzero-exit detail keeps its separate 16 KiB limit and URL/SSH-token replacement;
+replacement text is capped before each append. Direct stderr writers remain
+synchronous. The [BPR-0971 terminal audit](../verification/bpr0971-terminal-bounds.md)
+records the MCP helper's still-open environment-name and full-pipe failures.
+
 One owner-only file survives quit and appends across launches. The 16 MiB cap
 stops further recording; automatic rotation is not implemented. RFC-0014 extends
 the same Quill sink with Windows private ACL/handle support and composes explicit
