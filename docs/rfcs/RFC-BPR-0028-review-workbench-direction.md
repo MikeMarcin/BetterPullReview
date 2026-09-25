@@ -746,8 +746,9 @@ verbatim on BPR-1106, has five parts:
 - the modality at the title row's right;
 - the Updates line kept full width, without its permanent caption, folding,
   and fully above a review bar;
-- the review bar holding the active tab's controls on its left and Compose
-  review and Comment as icons with tooltips on its right;
+- the review bar reading, from its left, Updates and the comparison, then
+  the active tab's controls, with Compose review and Comment as icons with
+  tooltips on its right (the owner's same-day revision);
 - private progress as an icon;
 - RFC-BPR-0025's document tabs brought back, each with its own comparison.
 

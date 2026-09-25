@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
 milestone: "Review workbench scaffolding"
-metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v6.html","criteria":["AC-01","AC-02","AC-03","AC-10","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
+metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v7.html","criteria":["AC-01","AC-02","AC-03","AC-10","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
 ---
 
 # BPR-1129: The title row and the review bar replace the composition entry row
@@ -19,8 +19,9 @@ modality at its right, refresh, the comments toggle with the new-comment
 count, account and settings. A full-width review bar under the Updates line
 takes what leaves it and replaces the composition entry row:
 
-- previous and next change, previous and next file, and private progress as
-  an icon on its left, and the Updates fold after them;
+- from its left, the Updates disclosure with the comparison and its dates,
+  then previous and next change, previous and next file, and private progress
+  as an icon;
 - Compose review and Comment as icons on its right, with tooltips naming the
   command and its key, and Compose review marking a kept review draft.
 
@@ -56,8 +57,8 @@ commands join the Pull Request menu.
 - The title row holds only the listed controls, with the modality at its
   right; every control stays top level at each platform's width floor, swept
   again on Windows.
-- The review bar holds the active tab's controls on its left and the two
-  icons on its right. Tooltips name each command and key; Compose review marks
+- The review bar reads Updates and the comparison, then the active tab's
+  controls, from its left, with the two icons on its right. Tooltips name each command and key; Compose review marks
   a kept draft; Review details opens from the comparison's menu.
 - Option-R, Option-C and Esc work, both commands are in the Pull Request menu,
   and no key sequence is used twice.
@@ -67,7 +68,7 @@ commands join the Pull Request menu.
 ## Boundaries
 
 This card implements [RFC-BPR-0052](../../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)
-AC-01, AC-02, AC-03, AC-10, AC-11 as drawn in [round v6](../../design/BPR-1106-scaffolding-v6.html). The
+AC-01, AC-02, AC-03, AC-10, AC-11 as drawn in [round v7](../../design/BPR-1106-scaffolding-v7.html). The
 core decides, the host performs, Qt presents. It changes no publication,
 authority or review semantics and no provider, Git or storage capability. It
 starts in canonical order, after RFC-BPR-0028 to RFC-BPR-0038 close. Run the

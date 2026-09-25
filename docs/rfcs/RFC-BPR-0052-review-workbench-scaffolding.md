@@ -16,8 +16,9 @@ round that decision `ece7a6f3` asked for began with where two buttons sit.
 The owner widened it in the session to the workbench's outer scaffolding,
 designed around the review-tour pack (RFC-BPR-0039 to 0046) and the
 Conventional Comments pack (RFC-BPR-0047 to 0051). The decided design is
-[round v6](../design/BPR-1106-scaffolding-v6.html). The rounds behind it are
-[v2](../design/BPR-1106-composition-entries-v2.html),
+[round v7](../design/BPR-1106-scaffolding-v7.html), the owner's same-day
+revision of [round v6](../design/BPR-1106-scaffolding-v6.html). The rounds
+behind it are [v2](../design/BPR-1106-composition-entries-v2.html),
 [v4](../design/BPR-1106-scaffolding-v4.html) and
 [v5](../design/BPR-1106-scaffolding-v5.html). BPR-1106 records the owner's
 answers verbatim.
@@ -67,21 +68,24 @@ name and the whole modality words, where today it shows neither.
 shows the active tab's pair. It loses its permanent caption: "Known updates ·
 display order is not push order" becomes its tooltip, and a mark on the line
 says when history is incomplete or ambiguous, which is the statement
-RFC-BPR-0029 requires the line to make. It folds. Open, it sits fully above
-the review bar; folded, it leaves no row, and the review bar names the
-comparison and its dates. A new window starts with it folded, and each window
-remembers its own choice. Nothing folds or opens on its own.
+RFC-BPR-0029 requires the line to make. It folds. Open, its timeline runs
+alone across the whole window, fully above the review bar; folded, it leaves no
+row. Its label and its "Comparing …" menu live in the review bar, which names
+the comparison and its dates either way. A new window starts with it folded,
+and each window remembers its own choice. Nothing folds or opens on its own.
 
 **The review bar**, full width and always shown, sits under the Updates line.
-On its left are the active tab's controls:
+From its left it reads:
 
+- the Updates disclosure, then the comparison and its dates, with the
+  "Comparing …" menu;
 - previous and next change, with the position;
 - previous and next file, with the position;
 - private progress (Seen, Read, Accept, Exclude), as an icon whose tooltip
   names this file's state.
 
-After them comes the Updates fold. On the bar's right are Compose review and
-Comment, as icons whose tooltips name the command and its key. Compose review
+On the bar's right are Compose review and Comment, as icons whose tooltips
+name the command and its key. Compose review
 shows a mark, in the amber of my last review's tick, while a review draft is
 kept. Comment's arrow is where the Conventional Comments labels are offered
 once RFC-BPR-0048 lands. Review details moves into the comparison's menu,
@@ -155,7 +159,7 @@ publication, authority or review semantics.
 
 - AC-01 The chrome above the comparison is the title row, then the Updates line while it is open, then the review bar, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar, a new window starts with it folded, and each window restores its own choice.
 - AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor.
-- AC-03 The review bar holds, on its left, previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; after them the Updates fold, which while folded names the comparison and its dates; and on its right Compose review and Comment as icons whose tooltips name the command and its key. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
+- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width above it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
 - AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires.
 - AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart.
 - AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted.
