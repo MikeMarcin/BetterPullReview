@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DIF_RUNTIME_HPP
+#define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DIF_RUNTIME_HPP
 
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
@@ -281,3 +282,5 @@ namespace bpr::qt {
 		void                             resume_home();
 	};
 }
+
+#endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DIF_RUNTIME_HPP
