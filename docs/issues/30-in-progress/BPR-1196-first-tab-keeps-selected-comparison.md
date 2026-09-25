@@ -38,3 +38,25 @@ selection, repair only the comparison/tab composition boundary, prove a
 focused failure control and run the complete cache-byte course, then review,
 commit explicit paths and release the writer to the coordinator. The primary
 checkout and frozen attended app are outside this writer's scope.
+
+## Diagnosis and candidate
+
+The short two-head public course failed at `f6de40b6` plus the passive evidence
+sampler: before opening the file, accepted/window/tab were `1:1 / 2:2 / none`;
+after opening, accepted/window/tab/displayed were all `2:2`. It failed in
+29.74 seconds with the exact-pair assertion. Updating the empty-tab observer
+alone still failed in 28.84 seconds: epoch acceptance had queued its observation
+behind the next file gesture. The corrected composition also adopts that
+observation synchronously before first-tab creation. The focused course then
+passed in 27.35 seconds, rendered the full Read window and drained shutdown.
+
+The product change is confined to the empty-tab observer and first-file
+composition; existing active-tab rules and the core's immutable pair identities
+are unchanged. The sampler is test-build-only and reads state without driving
+it. The full application and production-manifest pins are resealed after this
+source review; the mutation-branch digest is unchanged. The architecture and
+workbench specification now describe comparison ownership with no tab open.
+
+Full cache-byte, existing tab/epoch integration and final upkeep evidence are
+pending at this implementation checkpoint. Logs and generated renders remain
+under `/Users/jaeger/.codex/tmp/bpr1196-*` and this worktree's `build/dev`.

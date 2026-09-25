@@ -830,9 +830,19 @@ namespace bpr::app::detail {
 		bool          Quiescent                    = false;
 	};
 
+	/// \brief Samples comparison ownership without driving any host.
+	struct tab_comparison_fixture_evidence
+	{
+		std::optional<core::comparison_pair> Accepted;
+		std::optional<core::comparison_pair> Window;
+		std::optional<core::comparison_pair> ActiveTab;
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
+		/// \brief Copies the accepted and tab-owned pairs on the decision lane.
+		[[nodiscard]] static auto tab_comparison_evidence(const github_application& aApplication) -> tab_comparison_fixture_evidence;
 		/// \brief Copies the host-accepted records for independent fixture identity checks.
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication)
 			-> std::optional<application::github_pull_request_snapshot>;

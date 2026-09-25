@@ -295,6 +295,10 @@ endfunction()
 # inventories. Source review is recorded on BPR-0971. First-failure ordering,
 # mapped failures, tests-disabled behavior and mutation admission are unchanged;
 # the production mutation-branch pin is unchanged.
+# [[BPR-1196]]: reviewed the empty-tab comparison observer and synchronous
+# first-file observation at f6de40b6 plus this patch. The test-only passive
+# sampler reports accepted/window/active pairs; production ownership stays in
+# the existing tab and epoch hosts. No mutation/provider/credential path changed.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -313,7 +317,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c1793c1df7235e4434cddb12c7b3322c84fe036bd15a9b1fa0d89153ae351d28"
+		"c5d02aff600f061d41148f7a05c2b020655130aaecc8780c1b718dd91977f3f4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest

@@ -122,7 +122,8 @@ Ctrl+Shift+Tab step between tabs on every platform; Cmd-W (Ctrl+W elsewhere)
 closes the active tab, choosing the next neighbour or the previous one at the
 end. Closing the last tab leaves the pull request and its file chooser open.
 Overview and Discuss show the window's comparison; Read and Review show the
-active tab's. Resume restores the retained tab order, active tab, exact pairs
+active tab's. When no tab is open, changing the comparison sets the window's
+pair; the first file opened takes that pair. Resume restores the retained tab order, active tab, exact pairs
 and reading positions. Unavailable material stays unavailable on its own tab.
 
 An older-pair tab places only threads belonging to its revisions and disables

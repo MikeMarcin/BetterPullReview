@@ -98,8 +98,9 @@ namespace bpr::e2e::large_review {
 
 	struct benchmark_report
 	{
-		std::string   Schema          = "bpr.large-review-measurement.v1";
-		bool          ResourceCourse  = false;
+		std::string   Schema         = "bpr.large-review-measurement.v1";
+		bool          ResourceCourse = false;
+		bool          FirstTabCourse = false, FirstTabExact = false;
 		bool          CacheByteCourse = false, ByteEvictedDiff = false, ByteEvictedIndex = false, ByteRevisitExact = false, ByteSupersessionHeldExact = false;
 		std::size_t   ByteHeldSourceObservations = 0U;
 		std::size_t   ByteSelections = 0U, BytePeakCacheEntries = 0U, ByteSupersessionsWithWork = 0U;
@@ -667,6 +668,61 @@ namespace bpr::e2e::large_review {
 		require(aReport.Rendered, "entry-pressure public window render failed");
 	}
 
+	void report_tab_comparison(app::github_application& aApplication, const char* aPhase)
+	{
+		const auto evidence = access::tab_comparison_evidence(aApplication);
+		const auto pair     = [](const char* aName, const std::optional<core::comparison_pair>& aPair) {
+			std::cerr << ' ' << aName << '=';
+			if (aPair) {
+				std::cerr << aPair->Left.Identity.Epoch.value() << ':' << aPair->Right.Identity.Epoch.value();
+			} else {
+				std::cerr << "none";
+			}
+		};
+		std::cerr << "first-tab-comparison:" << aPhase;
+		pair("accepted", evidence.Accepted);
+		pair("window", evidence.Window);
+		pair("tab", evidence.ActiveTab);
+		if (const auto result = aApplication.window().comparison_surface()->current_result()) {
+			std::cerr << " displayed=" << result->Alignment.Key.LeftAnchor.Epoch.value() << ':' << result->Alignment.Key.RightAnchor.Epoch.value();
+		}
+		std::cerr << '\n';
+	}
+
+	/// \brief First-file selection must keep an epoch gesture made with no tab.
+	void run_first_tab(app::github_application& aApplication, const fixture_manifest& aManifest,
+					   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window   = aApplication.window();
+		auto&      controls = *window.epoch_selectors();
+		auto&      surface  = *window.comparison_surface();
+		const auto settled  = [&] { return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U; };
+		require(measure_wait(aApplication, aBudget, aReport, "first_tab_second_head", [&] { window.github_refresh_action()->trigger(); }, [&] { return controls.right_oid_editor()->text().toStdString() == aManifest.heads[1] && settled(); }), "second head refresh timed out");
+		aReport.EpochsObserved = 2U;
+		enter_read(aApplication, aReport, aBudget);
+		require(measure_wait(aApplication, aBudget, aReport, "first_tab_history", [&] { controls.refresh_action()->trigger(); }, [&] { return controls.history_model()->epoch_count() == 2U && settled(); }), "first-tab history timed out");
+		require(measure_wait(aApplication, aBudget, aReport, "first_tab_base", [&] { select_epoch(controls, 1, core::comparison_side::left); }, settled), "first-tab base selection timed out");
+		require(measure_wait(aApplication, aBudget, aReport, "first_tab_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, settled), "first-tab head selection timed out");
+		const auto expected = access::tab_comparison_evidence(aApplication);
+		report_tab_comparison(aApplication, "before-file");
+		require(expected.Accepted && !expected.ActiveTab && expected.Accepted->Left.Identity.Epoch.value() == 1 && expected.Accepted->Right.Identity.Epoch.value() == 1, "epoch gesture accepted exact first pair before any tab opens");
+		require(measure_wait(aApplication, aBudget, aReport, "first_tab_file", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && settled(); }), "first-tab file selection timed out");
+		report_tab_comparison(aApplication, "after-file");
+		const auto  actual    = access::tab_comparison_evidence(aApplication);
+		const auto& key       = surface.current_result()->Alignment.Key;
+		aReport.FirstTabExact = actual.Accepted == expected.Accepted && actual.Window == expected.Accepted && actual.ActiveTab == expected.Accepted
+			&& key.LeftAnchor == expected.Accepted->Left.Identity && key.RightAnchor == expected.Accepted->Right.Identity;
+		require(aReport.FirstTabExact, "first file replaced the accepted comparison with a stale window pair");
+		verify_large(surface, aManifest);
+		aReport.ExactLargeSource = true;
+		aReport.ExactFinalSource = true;
+		aReport.WindowWidth      = window.width();
+		aReport.WindowHeight     = window.height();
+		aReport.DevicePixelRatio = window.devicePixelRatioF();
+		aReport.Rendered         = window.grab().save(QString::fromLocal8Bit(aImage));
+		require(aReport.Rendered, "first-tab public window render failed");
+	}
+
 	void run_cache_bytes(app::github_application& aApplication, const fixture_manifest& aManifest,
 						 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
 	{
@@ -695,6 +751,7 @@ namespace bpr::e2e::large_review {
 		require(measure_wait(aApplication, aBudget, aReport, "byte_load_history", [&] { controls.refresh_action()->trigger(); }, [&] { return controls.history_model()->epoch_count() == aManifest.heads.size() && settled(); }), "byte-pressure retained history unavailable");
 		require(measure_wait(aApplication, aBudget, aReport, "byte_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, settled), "byte-pressure base selection timed out");
 		require(measure_wait(aApplication, aBudget, aReport, "byte_first_head_selection", [&] { select_epoch(controls, 1, core::comparison_side::right); }, settled), "byte-pressure first head selection timed out");
+		report_tab_comparison(aApplication, "cache-before-file");
 		const auto ready = [&](std::int64_t aOrdinal) {
 			return selected(surface, QStringLiteral("large/comparison.cpp"))
 				&& surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1
@@ -745,6 +802,9 @@ namespace bpr::e2e::large_review {
 					select_epoch(controls, ordinal, core::comparison_side::right);
 				} }, [&] { return ready(ordinal); }), "byte-pressure large selection timed out");
 			verify(ordinal);
+			if (ordinal == 1) {
+				report_tab_comparison(aApplication, "cache-after-file");
+			}
 			const auto work = access::diff_work_evidence(aApplication);
 			if (ordinal == 1) {
 				require(work.CacheEntries == 1U && work.CacheBytes > 0U, "first large key was not cached");
@@ -873,7 +933,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -905,6 +965,7 @@ namespace bpr::e2e::large_review {
 		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
 		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
+		report.FirstTabCourse                                              = argc == 5 && std::string_view{ argv[4] } == "--first-tab";
 		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
 		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
@@ -921,7 +982,7 @@ namespace bpr::e2e::large_review {
 			fixture_manifest  manifest;
 			require(!glz::read<glz::opts{ .error_on_unknown_keys = false }>(manifest, bytes) && manifest.schema == "bpr.large-review-fixture.v1" && manifest.heads.size() == 32U, "stored manifest");
 			report.Base                       = manifest.base;
-			report.Head                       = (report.HistoryCourse || report.CacheByteCourse) ? manifest.heads.front() : manifest.heads.back();
+			report.Head                       = (report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse) ? manifest.heads.front() : manifest.heads.back();
 			report.PackBytes                  = manifest.pack_bytes;
 			report.Platform                   = QSysInfo::prettyProductName().toStdString();
 			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
@@ -930,7 +991,7 @@ namespace bpr::e2e::large_review {
 			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors          = QThread::idealThreadCount();
 			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ argv[1] } };
-			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse;
+			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
 			if (report.UnavailableCourse) {
 				// [[BPR-0858]]. Since BPR-0719 a work limit only degrades the alignment;
 				// a segment overflow is what still refuses a file. The stored 20,000-line
@@ -983,7 +1044,9 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
-			if (report.CacheByteCourse) {
+			if (report.FirstTabCourse) {
+				run_first_tab(*application, manifest, report, budget, argv[3]);
+			} else if (report.CacheByteCourse) {
 				run_cache_bytes(*application, manifest, report, budget, argv[3]);
 			} else if (report.CacheEntryCourse) {
 				run_cache_entries(*application, manifest, report, budget, argv[3]);
@@ -1304,13 +1367,14 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.CacheByteCourse ? "LARGE_REVIEW_CACHE_BYTES_OK\n" : report.CacheEntryCourse ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
-							  : report.LoadedCloseCourse                                                     ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
-							  : report.HistoryCourse                                                         ? "LARGE_REVIEW_HISTORY_OK\n"
-							  : report.ResourceCourse                                                        ? "LARGE_REVIEW_RESOURCES_OK\n"
-							  : report.UnavailableCourse                                                     ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-							  : report.ApproximateCourse                                                     ? "APPROXIMATE_DIFF_COMPOSED_OK\n"
-																											 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.FirstTabCourse ? "FIRST_TAB_COMPARISON_OK\n" : report.CacheByteCourse ? "LARGE_REVIEW_CACHE_BYTES_OK\n"
+							  : report.CacheEntryCourse                                                ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
+							  : report.LoadedCloseCourse                                               ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
+							  : report.HistoryCourse                                                   ? "LARGE_REVIEW_HISTORY_OK\n"
+							  : report.ResourceCourse                                                  ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                               ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+							  : report.ApproximateCourse                                               ? "APPROXIMATE_DIFF_COMPOSED_OK\n"
+																									   : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {

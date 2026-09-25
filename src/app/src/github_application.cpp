@@ -6274,13 +6274,16 @@ namespace bpr::app {
 				return;
 			}
 			const auto& accepted = *epoch.AcceptedComparison;
-			if (!TabHost->state().WindowComparison.has_value()) {
-				TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
-			}
-			if (!tab_modality(WorkbenchHost->state().Modality)) {
+			const auto  showsTab = tab_modality(WorkbenchHost->state().Modality);
+			// With no active tab, an epoch gesture still chooses the window's
+			// pair, including in Read or Review. The first file must inherit
+			// that accepted pair rather than restore a remembered earlier one.
+			if (!TabHost->state().WindowComparison || !TabHost->state().Active || !showsTab) {
 				if (TabHost->state().WindowComparison != std::optional{ accepted }) {
 					TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
 				}
+			}
+			if (!showsTab) {
 				return;
 			}
 			const auto activeTab = [this]() -> const core::document_tab* {
@@ -8055,7 +8058,12 @@ namespace bpr::app {
 			const auto  openFile = selected != nullptr ? std::optional{ selected->File } : std::nullopt;
 			WorkbenchHost->apply(std::move(aIntent));
 			if (openFile && TabHost && !TabHost->state().Active) {
-				TabHost->apply(core::open_in_active_tab_intent{ .File = *openFile });
+				// The accepted epoch can have queued an observation behind this
+				// gesture. Adopt it before opening the first tab synchronously.
+				observe_tab_changes();
+				if (!TabHost->state().Active) {
+					TabHost->apply(core::open_in_active_tab_intent{ .File = *openFile });
+				}
 			}
 		}
 
@@ -14841,6 +14849,19 @@ namespace bpr::app {
 	{
 		const auto found = aApplication.Sessions.find(aContext);
 		return found == aApplication.Sessions.end() || !found->second->ReadDecision ? 0U : found->second->ReadDecision->held();
+	}
+
+	auto detail::github_application_fixture_access::tab_comparison_evidence(
+		const github_application& aApplication) -> tab_comparison_fixture_evidence
+	{
+		const auto& implementation = *aApplication.Implementation;
+		const auto& tabs           = implementation.TabHost->state();
+		const auto* active         = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		return {
+			.Accepted  = implementation.EpochHost->state().AcceptedComparison,
+			.Window    = tabs.WindowComparison,
+			.ActiveTab = active ? std::optional{ active->View.Comparison } : std::nullopt,
+		};
 	}
 
 	auto detail::github_application_fixture_access::diff_work_evidence(

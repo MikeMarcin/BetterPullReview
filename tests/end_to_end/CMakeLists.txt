@@ -1149,6 +1149,19 @@ set_tests_properties(application_approximate_diff_public_path PROPERTIES
 # native memory sampler in `large_review_benchmark.cpp`, which is Mac-only and
 # throws on any other platform. The two history rows take no sample, and no
 # reason for keeping them on macOS alone has been recorded.
+# [[BPR-1196]]. A short public-path control before the complete byte-pressure run.
+bpr_add_network_isolated_test(
+    NAME application_first_tab_comparison
+    WINDOWS_UNCONTAINED
+    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        $<TARGET_FILE:Git::Git>
+        "${CMAKE_CURRENT_BINARY_DIR}/first-tab-comparison.json"
+        "${CMAKE_CURRENT_BINARY_DIR}/first-tab-comparison.png"
+        --first-tab)
+set_tests_properties(application_first_tab_comparison PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "FIRST_TAB_COMPARISON_OK")
+
 if(APPLE)
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
