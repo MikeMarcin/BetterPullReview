@@ -72,6 +72,26 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_cached_thread_comments = 512;
 	inline constexpr std::size_t maximum_cached_threads_bytes   = 128 * 1024;
 
+	enum class cached_discussion_kind : std::uint8_t {
+		general_comment,
+		pending_review,
+		commented_review,
+		approved_review,
+		changes_requested_review,
+		dismissed_review,
+	};
+	/// \brief Historical general comment or review summary; no review authority.
+	struct cached_discussion_message
+	{
+		std::string                Id, AuthorLogin, Body;
+		cached_discussion_kind     Kind = cached_discussion_kind::general_comment;
+		std::optional<std::string> CommitOid;
+		bool                       Deleted                                             = false;
+		auto                       operator<=>(const cached_discussion_message&) const = default;
+	};
+	inline constexpr std::size_t maximum_cached_discussion_messages = 256;
+	inline constexpr std::size_t maximum_cached_discussion_bytes    = 64 * 1024;
+
 	/// \brief Bounded historical metadata, without source, live conversation or permission authority.
 	/// Base/head are the exact accepted revisions, never a claim about the current server head.
 	struct cached_review_overview
@@ -88,19 +108,25 @@ namespace bpr::core {
 		/// The catalogue and base/head are one atomic historical observation.
 		std::optional<std::vector<cached_review_file>> FileCatalogue;
 		/// Absent means unavailable; present empty means no threads were observed.
-		std::optional<std::vector<cached_review_thread>> ReviewThreads;
-		auto                                             operator<=>(const cached_review_overview&) const = default;
+		std::optional<std::vector<cached_review_thread>>      ReviewThreads;
+		std::optional<std::vector<cached_discussion_message>> GeneralComments, ReviewSummaries;
+		auto                                                  operator<=>(const cached_review_overview&) const = default;
 	};
 	inline constexpr std::size_t maximum_cached_overviews      = 10;
-	inline constexpr std::size_t maximum_cached_overview_bytes = 560 * 1024;
+	inline constexpr std::size_t maximum_cached_overview_bytes = 704 * 1024;
 
 	/// \brief Bounds complete catalogue content and rejects duplicate paths and malformed records.
 	[[nodiscard]] auto valid_cached_catalogue(const std::vector<cached_review_file>& aFiles) noexcept -> bool;
 	/// \brief Bounds complete thread content and validates identities and ordered reply links.
 	[[nodiscard]] auto valid_cached_threads(const std::vector<cached_review_thread>& aThreads) noexcept -> bool;
+	/// \brief Validates a complete bounded general-comment or review-summary collection.
+	[[nodiscard]] auto valid_cached_discussion(const std::vector<cached_discussion_message>& aMessages, bool aReviews) noexcept -> bool;
 	/// \brief Validates storage bounds and exact durable identities.
 	[[nodiscard]] auto valid(const cached_review_key& aKey) noexcept -> bool;
 	[[nodiscard]] auto valid(const cached_review_overview& aOverview) noexcept -> bool;
+	/// \brief Revalidates a retained historical read after a failed open; no live authority.
+	[[nodiscard]] auto admit_cached_source(const github_state& aState, const pull_request_request_context& aRequest,
+										   const cached_review_key& aExpected, const cached_review_overview& aOverview, std::string_view aPath) noexcept -> bool;
 	/// \brief Admits historical metadata only for the current authenticated transport-failed open.
 	/// An accepted live snapshot, cancellation, identity retirement or a foreign key refuses it.
 	[[nodiscard]] auto admit_cached_overview(const github_state&                 aState,

@@ -108,6 +108,8 @@ namespace bpr::application {
 	{
 		core::application_session_id ApplicationSession;
 		epoch_catalog_authority_key  Authority;
+		/// Historical readers cannot create or reactivate durable scopes.
+		bool ExistingOnly = false;
 
 		auto operator<=>(const epoch_catalog_open_request&) const = default;
 	};

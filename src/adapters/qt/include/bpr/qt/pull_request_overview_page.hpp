@@ -205,6 +205,8 @@ namespace bpr::qt {
 		void present_observation(const application::github_loading_overview_projection& aObservation);
 		/// \brief Shows bounded historical metadata with explicit unavailable review content.
 		void               present_cached(const application::github_cached_overview_projection& aOverview);
+		void               present_cached_source(const application::cached_review_source_projection& aSource);
+		void               set_cached_source_dispatch(overview_path_dispatch aDispatch);
 		[[nodiscard]] auto presented() const noexcept -> bool;
 		/// \brief [[BPR-0671]]. Takes the commit-oid disclosure the drawer's
 		/// summary box used to carry, and puts it under the branches.
@@ -236,6 +238,7 @@ namespace bpr::qt {
 
 	private:
 		void set_description_expanded(bool aExpanded);
+		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 
@@ -243,6 +246,11 @@ namespace bpr::qt {
 		overview_colours                                             Colours;
 		overview_entry_dispatch                                      EntryDispatch;
 		overview_path_dispatch                                       FileDispatch;
+		overview_path_dispatch                                       CachedSourceDispatch;
+		bool                                                         Cached = false;
+		std::string                                                  CachedBase, CachedHead;
+		QPlainTextEdit*                                              CachedSource         = nullptr;
+		QPushButton*                                                 CachedSourceBack     = nullptr;
 		QHBoxLayout*                                                 TechnicalRow         = nullptr;
 		QLabel*                                                      Title                = nullptr;
 		QLabel*                                                      Summary              = nullptr;
@@ -254,6 +262,7 @@ namespace bpr::qt {
 		QPushButton*                                                 ReturnToFiles        = nullptr;
 		QLabel*                                                      CachedThreadsHeading = nullptr;
 		QPlainTextEdit*                                              CachedThreads        = nullptr;
+		QPlainTextEdit*                                              CachedDiscussion     = nullptr;
 		QLabel*                                                      FilesHeading         = nullptr;
 		QTreeView*                                                   Files                = nullptr;
 		overview_file_model*                                         Model                = nullptr;

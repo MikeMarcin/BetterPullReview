@@ -320,6 +320,7 @@ namespace {
 		std::vector<application::git_cache_open_request>        CacheOpenRequests;
 		std::function<void()>                                   DuringCacheDestruction;
 		std::vector<application::git_cache_blob_request>        BlobRequests;
+		std::optional<std::vector<std::uint8_t>>                CachedBlobOverride;
 		bool                                                    CachedBlobMissing          = false;
 		bool                                                    SparseObjects              = false;
 		bool                                                    SparseTreeMismatch         = false;
@@ -1762,7 +1763,7 @@ namespace {
 			if (State.CachedBlobMissing) {
 				return std::unexpected{ application::git_cache_failure::object_mismatch };
 			}
-			return std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' };
+			return State.CachedBlobOverride.value_or(std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' });
 		}
 
 		[[nodiscard]] auto find_blob_at_path(
@@ -4773,6 +4774,66 @@ namespace {
 				&& value.Host->state().AcceptedRevision->Source.Snapshot == core::provider_snapshot_id{ 2U },
 			"the old loaded page becomes one stale diagnostic and cannot publish "
 			"rows into the new source");
+	}
+
+	void historical_source_does_not_accept_live_authority()
+	{
+		fixture     value;
+		const auto  handoff             = make_handoff(value.State);
+		const auto& identity            = value.State.Binding.Authority;
+		value.State.Snapshot.LatestLive = summary_for({ .BaseBranch = handoff.BaseBranch, .Base = handoff.Base, .Head = handoff.Head }, value.State.Binding.Catalog);
+		const auto original             = value.State.Snapshot;
+		auto       request              = application::cached_review_source_request{
+			.Catalog = { .ApplicationSession = core::application_session_id{ 91 }, .Authority = { .Profile = identity.Profile, .ProfileRevision = identity.ProfileRevision, .Host = identity.Host, .HostAuthority = identity.HostAuthority, .Account = identity.Account, .Viewer = identity.Viewer, .Repository = identity.Repository, .PullRequest = identity.PullRequest, .Number = identity.Number, .ObjectFormat = core::git_hash_algorithm::sha1 }, .ExistingOnly = true },
+			.Base    = handoff.Base,
+			.Head    = handoff.Head,
+			.File    = { .Path = "new.cpp", .PreviousPath = "old.cpp", .Change = core::cached_file_change::renamed }
+		};
+		std::optional<application::cached_review_source_projection> observed;
+		const auto                                                  read = [&](std::stop_token aStop = std::stop_token{ }) { observed.reset(); expect(value.Host->read_cached_source(request,aStop,[&](auto aResult) { observed=std::move(aResult); }), "historical source admitted as bounded effect"); drain(value); expect(observed.has_value(), "historical source completes"); };
+		read();
+		expect(observed->Status == application::cached_source_status::available && observed->BaseText == "blob\n" && observed->HeadText == "blob\n", "exact retained pair materializes bounded source");
+		expect(value.State.TreeEntryRequests[0].Commit == request.Base && value.State.TreeEntryRequests[0].Path == "old.cpp" && value.State.TreeEntryRequests[1].Commit == request.Head && value.State.TreeEntryRequests[1].Path == "new.cpp", "rename reads exact endpoint paths");
+		expect(value.State.CacheMutationCalls == 0 && value.State.TransportCalls == 0 && value.State.Snapshot == original && !value.Host->state().Authority && !value.Host->state().AcceptedRevision, "historical reading never ingests or changes epoch authority");
+		const auto reads = value.State.TreeEntryRequests.size();
+		for (const auto base : { false, true }) {
+			if (base) {
+				request.Base = oid<core::git_commit_oid>(99);
+			} else {
+				request.Head = oid<core::git_commit_oid>(99);
+			}
+			read();
+			expect(observed->Status == application::cached_source_status::unavailable && value.State.TreeEntryRequests.size() == reads, "foreign base or head cannot borrow retained source");
+			request.Base = handoff.Base;
+			request.Head = handoff.Head;
+		}
+		value.State.Snapshot.Binding.Authority.Account = core::github_account_id{ 999 };
+		read();
+		expect(observed->Status == application::cached_source_status::unavailable && value.State.TreeEntryRequests.size() == reads, "foreign catalogue reader refused before Git");
+		value.State.Snapshot                              = original;
+		value.State.Snapshot.LatestLive->HeadAvailability = core::anchor_availability::unavailable;
+		read();
+		expect(observed->Status == application::cached_source_status::unavailable, "missing retained endpoint unavailable");
+		value.State.Snapshot          = original;
+		value.State.CachedBlobMissing = true;
+		read();
+		expect(observed->Status == application::cached_source_status::unavailable && !observed->BaseText && !observed->HeadText, "missing physical blob returns no partial text");
+		value.State.CachedBlobMissing  = false;
+		value.State.CachedBlobOverride = std::vector<std::uint8_t>{ };
+		value.State.TreeEntryResults   = { std::nullopt, oid<core::git_blob_oid>(33) };
+		read();
+		expect(!observed->BaseText && observed->HeadText && observed->HeadText->empty(), "absent path differs from an observed empty blob");
+		value.State.CachedBlobOverride = std::vector<std::uint8_t>{ 'x', 0, 'y' };
+		read();
+		expect(observed->Status == application::cached_source_status::binary && !observed->BaseText, "binary source is not relabeled text");
+		value.State.CachedBlobOverride = std::vector<std::uint8_t>(application::maximum_cached_source_bytes + 1, 'x');
+		read();
+		expect(observed->Status == application::cached_source_status::too_large, "misbehaving oversized blob port is bounded again");
+		value.State.CachedBlobOverride.reset();
+		std::stop_source stop;
+		value.State.DuringTreeEntryLookup = [&](std::stop_token) { stop.request_stop(); };
+		read(stop.get_token());
+		expect(observed->Status == application::cached_source_status::unavailable && !observed->BaseText && value.Host->outstanding_jobs() == 0, "cancelled source stops materialization and drains");
 	}
 
 	void unchanged_and_association_only_skip_git()
@@ -7835,6 +7896,7 @@ namespace {
 
 int main()
 {
+	historical_source_does_not_accept_live_authority();
 	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
 	intervening_provider_update_excludes_old_event_despite_observation_interval();
 	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(true, true);

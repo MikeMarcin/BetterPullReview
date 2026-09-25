@@ -357,7 +357,7 @@ namespace bpr::application {
 					   github_pull_request_port& aReads, decision_executor& aLane, publication aPublish,
 					   github_epoch_handoff_port* aEpochs, github_pull_request_port* aNonymous,
 					   git_smart_transport_factory_port* aGit, diagnostic_log_port* aLog,
-					   cached_review_overview_port* aOverviews, effect_executor* aCacheEffects)
+					   cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources)
 			: Policy{ aWindow, aSession }
 			, State{ Policy.state() }
 			, DiagnosticWindowSession{ aSession }
@@ -370,6 +370,7 @@ namespace bpr::application {
 			, DiagnosticLog{ aLog }
 			, Overviews{ aOverviews }
 			, CacheEffects{ aCacheEffects }
+			, Sources{ aSources }
 		{ }
 		void record_pull_request(const diagnostic_outcome aOutcome, const core::request_id aRequest,
 								 const std::optional<core::github_failure>         aFailure            = std::nullopt,
@@ -463,6 +464,7 @@ namespace bpr::application {
 		}
 		void dispatch_core(const core::github_window_read_event& aEvent)
 		{
+			forget_cached_source();
 			auto output = decide(aEvent);
 			for (const auto& request : output.Requests) {
 				const auto* fetch = std::get_if<core::fetch_pull_request_request>(&request);
@@ -1026,6 +1028,33 @@ namespace bpr::application {
 			}
 			return core::valid_cached_threads(threads) ? std::optional{ std::move(threads) } : std::nullopt;
 		}
+		static auto retain_discussion(const github_pull_request_snapshot& aSnapshot, bool aReviews)
+			-> std::optional<std::vector<core::cached_discussion_message>>
+		{
+			if ((aReviews ? aSnapshot.Reviews.size() : aSnapshot.IssueComments.size()) > core::maximum_cached_discussion_messages) {
+				return std::nullopt;
+			}
+			std::vector<core::cached_discussion_message> messages;
+			if (aReviews) {
+				for (const auto& review : aSnapshot.Reviews) {
+					core::cached_discussion_kind kind;
+					switch (review.State) {
+					case github_review_state::pending:           kind = core::cached_discussion_kind::pending_review; break;
+					case github_review_state::commented:         kind = core::cached_discussion_kind::commented_review; break;
+					case github_review_state::approved:          kind = core::cached_discussion_kind::approved_review; break;
+					case github_review_state::changes_requested: kind = core::cached_discussion_kind::changes_requested_review; break;
+					case github_review_state::dismissed:         kind = core::cached_discussion_kind::dismissed_review; break;
+					case github_review_state::uninitialized:     return std::nullopt;
+					}
+					messages.push_back({ .Id = std::string{ review.Review.value() }, .AuthorLogin = review.Author ? review.Author->Login : std::string{ }, .Body = review.Body, .Kind = kind, .CommitOid = review.Commit ? std::optional{ std::string{ review.Commit->value() } } : std::nullopt });
+				}
+			} else {
+				for (const auto& comment : aSnapshot.IssueComments) {
+					messages.push_back({ .Id = std::string{ comment.Comment.value() }, .AuthorLogin = comment.Author ? comment.Author->Login : std::string{ }, .Body = comment.Body, .Deleted = comment.Deleted });
+				}
+			}
+			return core::valid_cached_discussion(messages, aReviews) ? std::optional{ std::move(messages) } : std::nullopt;
+		}
 		void retain_overview(const core::pull_request_request_context& aRequest)
 		{
 			if (!Overviews || !CacheEffects || CacheWritePending || !AcceptedSnapshot
@@ -1037,7 +1066,7 @@ namespace bpr::application {
 				return;
 			}
 			auto retained = core::cached_review_overview{
-				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot)
+				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
 			};
 			if (!core::valid(retained)) {
 				return;
@@ -1088,12 +1117,16 @@ namespace bpr::application {
 						auto                                             output = self->decide(core::pull_request_load_failed_event{ error.Request.Context, core::github_failure::network });
 						std::optional<github_cached_overview_projection> projection;
 						if (admitted) {
-							projection = github_cached_overview_projection{
-								.Overview      = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
-								.BaseOid       = cached->BaseOid,
-								.HeadOid       = cached->HeadOid,
-								.FileCatalogue = std::move(cached->FileCatalogue),
-								.ReviewThreads = std::move(cached->ReviewThreads)
+							self->CachedOverview = *cached;
+							self->CachedRequest  = error.Request.Context;
+							projection           = github_cached_overview_projection{
+								.Overview        = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
+								.BaseOid         = cached->BaseOid,
+								.HeadOid         = cached->HeadOid,
+								.FileCatalogue   = std::move(cached->FileCatalogue),
+								.ReviewThreads   = std::move(cached->ReviewThreads),
+								.GeneralComments = std::move(cached->GeneralComments),
+								.ReviewSummaries = std::move(cached->ReviewSummaries)
 							};
 						}
 						self->publish_transition(output, nullptr, nullptr, false, std::move(projection));
@@ -1288,8 +1321,91 @@ namespace bpr::application {
 			});
 		}
 
+		void forget_cached_source()
+		{
+			CachedSourceStop.request_stop();
+			CachedOverview.reset();
+			CachedRequest.reset();
+		}
+		void publish_cached_source(cached_review_source_projection aSource)
+		{
+			if (!Publish || Closing || SuppressPublication) {
+				return;
+			}
+			try {
+				Publish({ Policy.window(), { }, { }, { }, github_presentation_update{ .CachedSource = std::move(aSource) } });
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
+		}
+		auto source_admitted(std::string_view aPath) const -> bool
+		{
+			return !Closing && Session && AcceptedProfileAuthority && CachedRequest && CachedOverview
+				&& core::admit_cached_source(State, *CachedRequest, overview_key(*CachedRequest), *CachedOverview, aPath);
+		}
+		void read_cached_source(std::string aPath)
+		{
+			if (!source_admitted(aPath)) {
+				return;
+			}
+			CachedSourceStop.request_stop();
+			CachedSourceStop        = std::stop_source{ };
+			const auto  stop        = CachedSourceStop.get_token();
+			const auto& overview    = *CachedOverview;
+			const auto  unavailable = cached_review_source_projection{ .Path = aPath, .BaseOid = overview.BaseOid, .HeadOid = overview.HeadOid };
+			if (!Sources) {
+				publish_cached_source(unavailable);
+				return;
+			}
+			const auto base = core::parse_git_commit_oid(overview.BaseOid), head = core::parse_git_commit_oid(overview.HeadOid);
+			if (!base || !head || base->algorithm() != head->algorithm()) {
+				publish_cached_source(unavailable);
+				return;
+			}
+			const auto  file    = std::ranges::find(*overview.FileCatalogue, aPath, &core::cached_review_file::Path);
+			const auto& profile = *AcceptedProfileAuthority;
+			auto        request = cached_review_source_request{
+				.Catalog = { .ApplicationSession = State.ApplicationSession,
+							 .Authority          = { .Profile = profile.Profile, .ProfileRevision = core::github_profile_revision{ profile.ProfileRevision.value() }, .Host = profile.Host, .HostAuthority = host_authority_fingerprint(profile), .Account = overview.Key.Account, .Viewer = core::github_viewer_actor_id{ overview.Key.Account.value() }, .Repository = overview.Repository, .PullRequest = overview.PullRequest, .Number = overview.Key.Number, .ObjectFormat = base->algorithm() },
+							 .ExistingOnly       = true },
+				.Base    = *base,
+				.Head    = *head,
+				.File    = *file
+			};
+			auto loading   = unavailable;
+			loading.Status = cached_source_status::loading;
+			publish_cached_source(std::move(loading));
+			if (stop.stop_requested() || !source_admitted(aPath)) {
+				return;
+			}
+			++Outstanding;
+			auto self     = shared_from_this();
+			auto admitted = false;
+			try {
+				admitted = Sources->read_cached_source(std::move(request), stop, [self, stop, unavailable](cached_review_source_projection aSource) {
+					--self->Outstanding;
+					if (stop.stop_requested() || !self->source_admitted(unavailable.Path)) {
+						return;
+					}
+					const auto textValid = [](const auto& aText) { return !aText || (aText->size() <= maximum_cached_source_bytes && aText->find('\0') == std::string::npos); };
+					if (aSource.Path != unavailable.Path || aSource.BaseOid != unavailable.BaseOid || aSource.HeadOid != unavailable.HeadOid
+						|| !textValid(aSource.BaseText) || !textValid(aSource.HeadText)
+						|| aSource.Status == cached_source_status::loading || aSource.Status > cached_source_status::too_large) {
+						aSource = unavailable;
+					}
+					self->publish_cached_source(std::move(aSource));
+				});
+			} catch (...) { }
+			if (!admitted) {
+				--Outstanding;
+				if (!stop.stop_requested() && source_admitted(aPath)) {
+					publish_cached_source(unavailable);
+				}
+			}
+		}
 		void cancel()
 		{
+			forget_cached_source();
 			CacheReadStop.request_stop();
 			if (!PendingProvider) {
 				return;
@@ -1374,6 +1490,10 @@ namespace bpr::application {
 		diagnostic_log_port*                                DiagnosticLog;
 		cached_review_overview_port*                        Overviews;
 		effect_executor*                                    CacheEffects;
+		cached_review_source_port*                          Sources;
+		std::optional<core::cached_review_overview>         CachedOverview;
+		std::optional<core::pull_request_request_context>   CachedRequest;
+		std::stop_source                                    CachedSourceStop;
 		std::stop_source                                    CacheReadStop;
 		bool                                                CacheWritePending = false;
 		std::optional<github_profile_session>               Session;
@@ -1411,8 +1531,8 @@ namespace bpr::application {
 	github_window_read_host::github_window_read_host(core::bpr_window_context     aWindow,
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
-													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects)
-		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects) }
+													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources)
+		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects, aSources) }
 	{ }
 	github_window_read_host::~github_window_read_host()
 	{
@@ -1476,6 +1596,7 @@ namespace bpr::application {
 			Implementation->dispatch_core(aEvent);
 		}
 	}
+	void github_window_read_host::read_cached_source(std::string aPath) { Implementation->read_cached_source(std::move(aPath)); }
 	void github_window_read_host::cancel() { Implementation->cancel(); }
 	void github_window_read_host::share_snapshot(
 		const std::span<const std::shared_ptr<github_window_read_host>> aWindows,

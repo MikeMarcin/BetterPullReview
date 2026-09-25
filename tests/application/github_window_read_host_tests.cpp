@@ -143,11 +143,30 @@ namespace {
 			return true;
 		}
 	};
+	struct historical_sources final : application::cached_review_source_port
+	{
+		std::vector<application::cached_review_source_request>    Requests;
+		std::vector<application::cached_review_source_completion> Completions;
+		std::vector<std::stop_token>                              Stops;
+		auto                                                      read_cached_source(application::cached_review_source_request aRequest, std::stop_token aStop, application::cached_review_source_completion aCompletion) -> bool override
+		{
+			Requests.push_back(std::move(aRequest));
+			Stops.push_back(aStop);
+			Completions.push_back(std::move(aCompletion));
+			return true;
+		}
+		void complete(std::size_t aIndex, bool aForeign = false)
+		{
+			const auto& request = Requests[aIndex];
+			Completions[aIndex]({ .Path = request.File.Path, .BaseOid = std::string{ core::canonical_hex(request.Base).view() }, .HeadOid = aForeign ? std::string(40, '9') : std::string{ core::canonical_hex(request.Head).view() }, .Status = application::cached_source_status::available, .BaseText = "old text", .HeadText = "retained text" });
+		}
+	};
 	void test_durable_overview_lifecycle()
 	{
 		reads                                               provider;
 		application::manual_executor                        lane, effects;
 		overview_cache                                      cache;
+		historical_sources                                  sources;
 		epoch_handoffs                                      epochs;
 		std::vector<application::github_window_read_update> updates;
 		application::github_window_read_host                host{
@@ -161,7 +180,8 @@ namespace {
 			nullptr,
 			nullptr,
 			&cache,
-			&effects
+			&effects,
+			&sources
 		};
 		auto identity                                          = session();
 		identity.CapabilityEvidence.Capabilities.ReviewThreads = core::github_capability_state::supported;
@@ -223,6 +243,33 @@ namespace {
 				   && cache.Value->ReviewThreads->front().Line == 7
 				   && updates.back().Presentation.CachedOverview->ReviewThreads == cache.Value->ReviewThreads,
 			   "exact thread roots, replies and anchors persist and project without live authority");
+		host.read_cached_source("foreign.cpp");
+		expect(sources.Requests.empty(), "unlisted source path is refused before effects");
+		host.read_cached_source("src/renamed.cpp");
+		expect(sources.Requests.size() == 1 && sources.Requests.back().Catalog.ExistingOnly && sources.Requests.back().File.PreviousPath == "old.cpp"
+				   && sources.Requests.back().Catalog.Authority.Account == identity.Session.Viewer.Account,
+			   "historical source warrant carries exact current reader, retained pair and rename provenance");
+		sources.complete(0);
+		expect(updates.back().Presentation.CachedSource && updates.back().Presentation.CachedSource->HeadText == "retained text" && !host.accepted_snapshot() && epochs.AcceptCount == 1 && !host.mutation_transport(), "historical source text publishes without live authority");
+		host.read_cached_source("src/renamed.cpp");
+		sources.complete(1, true);
+		expect(updates.back().Presentation.CachedSource->Status == application::cached_source_status::unavailable && !updates.back().Presentation.CachedSource->HeadText, "foreign head completion cannot publish content");
+		host.read_cached_source("src/renamed.cpp");
+		host.cancel();
+		const auto cancelledCount = updates.size();
+		sources.complete(2);
+		expect(sources.Stops[2].stop_requested() && updates.size() == cancelledCount && host.is_quiescent(), "cancelled historical source completion drains without publication");
+		open();
+		fail();
+		effects.drain();
+		lane.drain();
+		host.read_cached_source("src/renamed.cpp");
+		expect(host.retire(identity), "retire during historical source read");
+		const auto retiredCount = updates.size();
+		sources.complete(3);
+		expect(sources.Stops[3].stop_requested() && updates.size() == retiredCount && host.is_quiescent(), "old session historical source cannot publish into another account");
+		identity.Generation = core::github_identity_generation{ identity.Generation.value() + 1 };
+		expect(host.adopt(identity), "readopt for remaining lifecycle controls");
 		open();
 		fail(application::github_provider_failure::permission);
 		expect(!cached() && effects.pending() == 0, "permission failure cannot expose historical metadata");
@@ -238,7 +285,7 @@ namespace {
 		effects.drain();
 		lane.drain();
 		expect(!cached() && host.is_quiescent(), "retired cache result cannot reach another session");
-		identity.Generation = core::github_identity_generation{ 2 };
+		identity.Generation = core::github_identity_generation{ identity.Generation.value() + 1 };
 		expect(host.adopt(identity), "replacement generation adopted");
 		cache.Value->Key.Account = core::github_account_id{ 99 };
 		open();
@@ -289,7 +336,7 @@ namespace {
 		expect(!cache.Value->ReviewThreads, "over-limit thread collection becomes unavailable without keeping old or partial threads");
 		serverThreads.clear();
 		expect(host.retire(identity), "retire thread-capable session");
-		identity.Generation                                    = core::github_identity_generation{ 3 };
+		identity.Generation                                    = core::github_identity_generation{ identity.Generation.value() + 1 };
 		identity.CapabilityEvidence.Capabilities.ReviewThreads = core::github_capability_state::unsupported;
 		identity.CapabilityEvidence.ReadShape.ReviewThreads    = false;
 		identity.Session.CapabilityEvidence.Capabilities       = identity.CapabilityEvidence.Capabilities;

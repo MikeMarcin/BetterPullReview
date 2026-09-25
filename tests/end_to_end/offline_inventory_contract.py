@@ -103,8 +103,34 @@ def main():
         vault = b""
         objects = None
         catalog = None
-        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-catalogue", "restart-legacy", "restart-corrupt", "restart-offline")
+        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-mismatched-source", "restart-missing-source", "restart-catalogue", "restart-legacy", "restart-corrupt", "restart-offline")
         for phase in phases:
+            hidden_packs = []
+            if phase == "restart-missing-source":
+                for pack in root.rglob("*.pack"):
+                    hidden = pack.with_suffix(".offline-fixture-held")
+                    pack.rename(hidden)
+                    hidden_packs.append((pack, hidden))
+            if phase == "restart-mismatched-source":
+                databases = list(root.rglob("review-overviews.sqlite3"))
+                if len(databases) != 1:
+                    raise SystemExit("expected private overview fixture")
+                with store_connection(databases[0]) as connection:
+                    for sequence, original in connection.execute("SELECT sequence,payload FROM overviews").fetchall():
+                        payload = bytearray(original)
+                        offset = 8 * (1 + 32 + 3)
+                        for _ in range(2):
+                            offset += 8 + int.from_bytes(payload[offset:offset + 8], "big")
+                        offset += 3 * 8
+                        for digit in (b"1", b"2"):
+                            size = int.from_bytes(payload[offset:offset + 8], "big")
+                            if size != 40:
+                                raise SystemExit("expected fixture SHA-1 endpoint")
+                            offset += 8
+                            payload[offset:offset + size] = digit * size
+                            offset += size
+                        connection.execute("UPDATE overviews SET payload=?,digest=? WHERE sequence=?",
+                                           (payload, hashlib.sha256(payload).digest(), sequence))
             if phase in ("restart-catalogue", "restart-legacy"):
                 databases = list(root.rglob("review-overviews.sqlite3"))
                 if len(databases) != 1:
@@ -151,6 +177,10 @@ def main():
                 expected = {("910001", "17"), ("910002", "18")} if phase != "identity-legacy" else {("910001", "17"), ("0", "17"), ("0", "18")}
                 if {(row[0], row[1]) for row in recent} != expected or any(not row[3] for row in recent):
                     raise SystemExit("Recent persistence lost exact account/destination/reading identity")
+            for pack, hidden in hidden_packs:
+                if pack.exists():
+                    raise SystemExit("historical reading unexpectedly fetched missing source")
+                hidden.rename(pack)
             current = retained_objects(root)
             if not current:
                 raise SystemExit("no retained Git pack survived orderly process exit")

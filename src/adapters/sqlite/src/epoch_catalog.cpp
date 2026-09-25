@@ -929,6 +929,9 @@ namespace bpr::adapters::sqlite {
 			}
 
 			if (!cacheScope) {
+				if (aRequest.ExistingOnly) {
+					return std::unexpected(failure::unavailable);
+				}
 				constexpr std::size_t scopeAllocationAttempts = 8U;
 				for (std::size_t attempt = 0U;
 					 attempt < scopeAllocationAttempts && !cacheScope;
@@ -964,7 +967,7 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
-			if (repositoryLifecycle == 1) {
+			if (repositoryLifecycle == 1 && !aRequest.ExistingOnly) {
 				auto activeScopeCount = prepare(
 					database,
 					"SELECT count(*) FROM pull_request_scope "
@@ -1093,6 +1096,9 @@ namespace bpr::adapters::sqlite {
 			}
 
 			if (!prScope) {
+				if (aRequest.ExistingOnly) {
+					return std::unexpected(failure::unavailable);
+				}
 				if (repositoryLifecycle != 1) {
 					return std::unexpected(failure::operation_conflict);
 				}
@@ -1203,7 +1209,8 @@ namespace bpr::adapters::sqlite {
 					&& (verifiedRepositoryLifecycle == 1
 						|| verifiedRepositoryLifecycle == 2))
 				|| (prLifecycle == 3 && verifiedRepositoryLifecycle == 3);
-			if (verifiedRevision != catalogRevision || retained < 0
+			if ((aRequest.ExistingOnly && (prLifecycle != 1 || verifiedRepositoryLifecycle != 1 || rehydrationRequired != 0))
+				|| verifiedRevision != catalogRevision || retained < 0
 				|| retained != observedRetained
 				|| retained
 					> static_cast<std::int64_t>(

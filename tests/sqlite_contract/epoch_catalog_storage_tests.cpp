@@ -410,11 +410,18 @@ namespace {
 		expect(made.has_value(), "owner-private root bootstraps a catalog");
 		auto port = std::move(*made);
 
-		const auto authority = authority_key();
-		auto       opened    = port->open(open_request(authority), { });
+		const auto authority           = authority_key();
+		auto       historicalRequest   = open_request(authority);
+		historicalRequest.ExistingOnly = true;
+		expect(!port->open(historicalRequest, { }), "historical open cannot create absent cache or PR scope");
+		auto opened = port->open(open_request(authority), { });
 		expect(opened.has_value(), "complete high-bit authority opens");
 		auto       first        = std::move(*opened);
 		const auto firstBinding = first->binding();
+		auto       historical   = port->open(historicalRequest, { });
+		expect(historical && (*historical)->binding() == firstBinding, "historical open reuses exact retained identities without revision changes");
+		historicalRequest.Authority.PullRequest = core::pull_request_id{ 999 };
+		expect(!port->open(historicalRequest, { }), "historical open cannot allocate a PR in an existing repository");
 		expect(app::valid(firstBinding), "allocated catalog binding is valid");
 		expect(
 			firstBinding.Authority.Cache.valid()

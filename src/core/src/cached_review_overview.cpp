@@ -9,6 +9,23 @@ namespace bpr::core {
 		{
 			return aText.size() <= aLimit && aText.find('\0') == std::string_view::npos;
 		}
+		auto cached_reader_matches(const github_state& aState, const pull_request_request_context& aRequest,
+								   const cached_review_key& aExpected, const cached_review_overview& aOverview) noexcept -> bool
+		{
+			return !aState.AcceptedSnapshot && !aState.PendingSession
+				&& aState.AccessMode == github_access_mode::authenticated
+				&& aRequest.Mode == github_access_mode::authenticated
+				&& aState.ApplicationSession == aRequest.ApplicationSession
+				&& aState.IdentityGeneration == aRequest.IdentityGeneration
+				&& aState.ActiveProfile == aExpected.Profile && aState.Host == aExpected.Host
+				&& aState.Account == aExpected.Account && aRequest.Profile == aExpected.Profile
+				&& aRequest.Host == aExpected.Host && aRequest.Account == aExpected.Account
+				&& aRequest.Repository == aExpected.Locator && aRequest.Number == aExpected.Number
+				&& aOverview.Key == aExpected && valid(aOverview)
+				&& (!aRequest.ExpectedRepository || *aRequest.ExpectedRepository == aOverview.Repository)
+				&& (!aRequest.ExpectedPullRequest || *aRequest.ExpectedPullRequest == aOverview.PullRequest);
+		}
+
 	}
 	auto valid_cached_catalogue(const std::vector<cached_review_file>& aFiles) noexcept -> bool
 	{
@@ -75,6 +92,31 @@ namespace bpr::core {
 		std::sort(ids.begin(), end);
 		return std::adjacent_find(ids.begin(), end) == end;
 	}
+	auto valid_cached_discussion(const std::vector<cached_discussion_message>& aMessages, bool aReviews) noexcept -> bool
+	{
+		if (aMessages.size() > maximum_cached_discussion_messages) {
+			return false;
+		}
+		std::array<std::string_view, maximum_cached_discussion_messages> ids;
+		std::size_t                                                      bytes = 24, count = 0;
+		for (const auto& message : aMessages) {
+			if (message.Id.empty() || !text_valid(message.Id, 256) || !text_valid(message.AuthorLogin, 256)
+				|| !text_valid(message.Body, 64 * 1024)
+				|| (aReviews ? message.Kind < cached_discussion_kind::pending_review || message.Kind > cached_discussion_kind::dismissed_review
+							 : message.Kind != cached_discussion_kind::general_comment || message.CommitOid.has_value())
+				|| (message.CommitOid && !parse_git_commit_oid(*message.CommitOid))) {
+				return false;
+			}
+			bytes += 56 + message.Id.size() + message.AuthorLogin.size() + message.Body.size() + (message.CommitOid ? message.CommitOid->size() : 0);
+			if (bytes > maximum_cached_discussion_bytes) {
+				return false;
+			}
+			ids[count++] = message.Id;
+		}
+		const auto end = ids.begin() + static_cast<std::ptrdiff_t>(count);
+		std::sort(ids.begin(), end);
+		return std::adjacent_find(ids.begin(), end) == end;
+	}
 	auto valid(const cached_review_key& aKey) noexcept -> bool
 	{
 		return std::ranges::any_of(aKey.Authority, [](auto aByte) { return aByte != 0; })
@@ -89,25 +131,26 @@ namespace bpr::core {
 			&& text_valid(aOverview.AuthorLogin, 256) && text_valid(aOverview.BaseRef, 256)
 			&& text_valid(aOverview.HeadRef, 256) && aOverview.State <= 2
 			&& aOverview.Files <= 10000 && aOverview.Commits <= 1000000
+			&& (!aOverview.GeneralComments || valid_cached_discussion(*aOverview.GeneralComments, false))
+			&& (!aOverview.ReviewSummaries || valid_cached_discussion(*aOverview.ReviewSummaries, true))
 			&& (!aOverview.ReviewThreads || valid_cached_threads(*aOverview.ReviewThreads))
 			&& (!aOverview.FileCatalogue || (aOverview.FileCatalogue->size() == aOverview.Files && valid_cached_catalogue(*aOverview.FileCatalogue)));
 	}
-	auto admit_cached_overview(const github_state&                 aState,
-							   const pull_request_request_context& aRequest, github_failure aFailure,
+	auto admit_cached_source(const github_state& aState, const pull_request_request_context& aRequest,
+							 const cached_review_key& aExpected, const cached_review_overview& aOverview, std::string_view aPath) noexcept -> bool
+	{
+		if (aState.PendingPullRequest || aState.PullRequestGeneration != aRequest.Generation
+			|| aState.ActiveLocator != aRequest.Repository || aState.ActiveNumber != aRequest.Number
+			|| !aOverview.FileCatalogue || aPath.empty() || aPath.starts_with('/') || aPath.find('\\') != std::string_view::npos) {
+			return false;
+		}
+		return cached_reader_matches(aState, aRequest, aExpected, aOverview)
+			&& std::ranges::any_of(*aOverview.FileCatalogue, [aPath](const auto& aFile) { return aFile.Path == aPath; });
+	}
+	auto admit_cached_overview(const github_state& aState, const pull_request_request_context& aRequest, github_failure aFailure,
 							   const cached_review_key& aExpected, const cached_review_overview& aOverview) noexcept -> bool
 	{
 		return aFailure == github_failure::network && aState.PendingPullRequest == aRequest
-			&& !aState.AcceptedSnapshot && !aState.PendingSession
-			&& aState.AccessMode == github_access_mode::authenticated
-			&& aRequest.Mode == github_access_mode::authenticated
-			&& aState.ApplicationSession == aRequest.ApplicationSession
-			&& aState.IdentityGeneration == aRequest.IdentityGeneration
-			&& aState.ActiveProfile == aExpected.Profile && aState.Host == aExpected.Host
-			&& aState.Account == aExpected.Account && aRequest.Profile == aExpected.Profile
-			&& aRequest.Host == aExpected.Host && aRequest.Account == aExpected.Account
-			&& aRequest.Repository == aExpected.Locator && aRequest.Number == aExpected.Number
-			&& aOverview.Key == aExpected && valid(aOverview)
-			&& (!aRequest.ExpectedRepository || *aRequest.ExpectedRepository == aOverview.Repository)
-			&& (!aRequest.ExpectedPullRequest || *aRequest.ExpectedPullRequest == aOverview.PullRequest);
+			&& cached_reader_matches(aState, aRequest, aExpected, aOverview);
 	}
 }

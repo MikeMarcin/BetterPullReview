@@ -85,6 +85,43 @@ int main()
 		|| !refuses([](auto& aValue) { aValue.BaseOid = "invalid"; })) {
 		return EXIT_FAILURE;
 	}
+	auto sourceState = lane.state();
+	sourceState.PendingPullRequest.reset();
+	const auto sourceAdmits = [&](const auto& aState, const auto& aRecord) { return admit_cached_source(aState, cachedRequest, cached.Key, aRecord, "src/file.cpp"); };
+	if (!sourceAdmits(sourceState, cached) || sourceAdmits(lane.state(), cached)
+		|| admit_cached_source(sourceState, cachedRequest, cached.Key, cached, "foreign.cpp")) {
+		return EXIT_FAILURE;
+	}
+	for (unsigned control = 0; control < 5; ++control) {
+		auto stale = sourceState;
+		if (control == 0) {
+			stale.Account = github_account_id{ 99 };
+		}
+		if (control == 1) {
+			stale.IdentityGeneration = github_identity_generation{ 99 };
+		}
+		if (control == 2) {
+			stale.PullRequestGeneration = request_generation{ 99 };
+		}
+		if (control == 3) {
+			stale.ActiveLocator = repository_locator{ "foreign", "repo" };
+		}
+		if (control == 4) {
+			stale.AcceptedSnapshot = provider_snapshot_id{ 99 };
+		}
+		if (sourceAdmits(stale, cached)) {
+			return EXIT_FAILURE;
+		}
+	}
+	cached.GeneralComments = std::vector<cached_discussion_message>{ { .Id = "G1", .Body = "general" } };
+	cached.ReviewSummaries = std::vector<cached_discussion_message>{ { .Id = "R1", .Body = "review", .Kind = cached_discussion_kind::approved_review, .CommitOid = std::string(40, '2') } };
+	if (!valid(cached)
+		|| !refuses([](auto& aValue) { aValue.GeneralComments->front().Kind = cached_discussion_kind::approved_review; })
+		|| !refuses([](auto& aValue) { aValue.ReviewSummaries->front().CommitOid = "invalid"; })
+		|| !refuses([](auto& aValue) { aValue.ReviewSummaries->push_back(aValue.ReviewSummaries->front()); })
+		|| !refuses([](auto& aValue) { aValue.GeneralComments->front().Body = std::string(maximum_cached_discussion_bytes, 'x'); })) {
+		return EXIT_FAILURE;
+	}
 	auto numericRequest               = cachedRequest;
 	numericRequest.ExpectedRepository = repository_id{ 99 };
 	auto numericState                 = lane.state();

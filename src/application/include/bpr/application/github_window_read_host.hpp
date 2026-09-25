@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
 
 #include "bpr/application/cached_review_overview_port.hpp"
+#include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
@@ -78,7 +79,8 @@ namespace bpr::application {
 								git_smart_transport_factory_port* aAnonymousGit   = nullptr,
 								diagnostic_log_port*              aLog            = nullptr,
 								cached_review_overview_port*      aOverviews      = nullptr,
-								effect_executor*                  aCacheEffects   = nullptr);
+								effect_executor*                  aCacheEffects   = nullptr,
+								cached_review_source_port*        aSources        = nullptr);
 		~github_window_read_host();
 		github_window_read_host(const github_window_read_host&)                                  = delete;
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;
@@ -99,6 +101,7 @@ namespace bpr::application {
 		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);
 		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
 		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		void               read_cached_source(std::string aPath);
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;

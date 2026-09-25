@@ -6943,6 +6943,9 @@ namespace bpr::qt {
 			choose_modality(review_modality::overview);
 			apply_modality_surface();
 		}
+		if (aUpdate.CachedSource && HasCachedOverview && !HasGithubPullRequest) {
+			OverviewPage->present_cached_source(*aUpdate.CachedSource);
+		}
 		if (aUpdate.Session.has_value()) {
 			// [[BPR-0803]]. A device flow still asking for its code when some
 			// other way in -- GitHub CLI above all -- has signed in is ended
@@ -10218,7 +10221,7 @@ namespace bpr::qt {
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
 			status = ReviewReadinessText != nullptr ? ReviewReadinessText->text() : QStringLiteral("Loading pull request…");
 		} else if (!home && HasCachedOverview) {
-			status = QStringLiteral("Cached review data; freshness unknown. Source and current review state are unavailable offline.");
+			status = QStringLiteral("Cached review data; freshness unknown. Current review state is unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {
 			// A failed refresh retains the accepted observation. State its
 			// freshness beside the content, including when its diff is ready.

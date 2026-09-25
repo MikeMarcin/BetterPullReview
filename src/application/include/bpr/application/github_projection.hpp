@@ -160,14 +160,29 @@ namespace bpr::application {
 		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
+	enum class cached_source_status : std::uint8_t { loading,
+													 available,
+													 unavailable,
+													 binary,
+													 too_large };
+	struct cached_review_source_projection
+	{
+		std::string          Path, BaseOid, HeadOid;
+		cached_source_status Status = cached_source_status::unavailable;
+		/// Missing path is distinct from an observed empty blob.
+		std::optional<std::string> BaseText, HeadText;
+		auto                       operator<=>(const cached_review_source_projection&) const = default;
+	};
+
 	/// \brief Previously accepted overview, optional file catalogue and inert thread history; freshness is unknown.
 	struct github_cached_overview_projection
 	{
-		github_loading_overview_projection                     Overview;
-		std::string                                            BaseOid, HeadOid;
-		std::optional<std::vector<core::cached_review_file>>   FileCatalogue;
-		std::optional<std::vector<core::cached_review_thread>> ReviewThreads;
-		auto                                                   operator<=>(const github_cached_overview_projection&) const = default;
+		github_loading_overview_projection                          Overview;
+		std::string                                                 BaseOid, HeadOid;
+		std::optional<std::vector<core::cached_review_file>>        FileCatalogue;
+		std::optional<std::vector<core::cached_review_thread>>      ReviewThreads;
+		std::optional<std::vector<core::cached_discussion_message>> GeneralComments, ReviewSummaries;
+		auto                                                        operator<=>(const github_cached_overview_projection&) const = default;
 	};
 
 	enum class github_conversation_kind : std::uint8_t {
@@ -299,6 +314,7 @@ namespace bpr::application {
 		/// A sibling's server observation updates content, not Home/modality,
 		/// first-open filters or the window's chosen comparison.
 		bool                                             PreserveWindowNavigation = false;
+		std::optional<cached_review_source_projection>   CachedSource             = std::nullopt;
 		std::optional<github_cached_overview_projection> CachedOverview           = std::nullopt;
 
 		auto operator<=>(const github_presentation_update&) const = default;

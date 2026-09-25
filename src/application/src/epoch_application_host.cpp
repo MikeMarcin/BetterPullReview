@@ -3393,25 +3393,24 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto actor_for(
-			const accepted_pull_request_handoff& aHandoff)
+			const cache_actor_key& aKey)
 			-> std::shared_ptr<authority_effect_actor>
 		{
 			std::scoped_lock lock{ CacheActorsMutex };
-			const auto       key   = actor_key(aHandoff);
 			const auto       found = std::ranges::find(
-				CacheActors, key, &decltype(CacheActors)::value_type::first);
+				CacheActors, aKey, &decltype(CacheActors)::value_type::first);
 			if (found != CacheActors.end()) {
 				return found->second;
 			}
 			if (CacheActors.size() >= maximum_cache_actors) {
 				return { };
 			}
-			auto shared = Consumer->acquire(key);
+			auto shared = Consumer->acquire(aKey);
 			if (!shared) {
 				return { };
 			}
 			auto actor = std::make_shared<authority_effect_actor>(std::move(*shared));
-			CacheActors.emplace_back(key, actor);
+			CacheActors.emplace_back(aKey, actor);
 			return actor;
 		}
 
@@ -3518,6 +3517,113 @@ namespace bpr::application {
 			-> std::optional<workbench_selected_diff_context>
 		{
 			return authorized_selected_diff_context(aAuthority, std::nullopt);
+		}
+
+		static auto retained_source(authority_effect_actor& aActor, git_cache_port& aCaches, epoch_catalog_port& aCatalogs,
+									const cached_review_source_request& aRequest, std::stop_token aStop) -> cached_review_source_projection
+		{
+			auto result = cached_review_source_projection{ .Path    = aRequest.File.Path,
+														   .BaseOid = std::string{ core::canonical_hex(aRequest.Base).view() },
+														   .HeadOid = std::string{ core::canonical_hex(aRequest.Head).view() } };
+			if (aStop.stop_requested()) {
+				return result;
+			}
+			const auto opened = aCatalogs.open(aRequest.Catalog, aStop);
+			if (!opened || !*opened) {
+				return result;
+			}
+			const auto snapshot = (*opened)->snapshot(aStop);
+			if (!snapshot || !valid(snapshot->Binding) || snapshot->Binding != (*opened)->binding() || !snapshot->LatestLive
+				|| snapshot->LatestLive->Id.Authority != snapshot->Binding.Authority.Scope
+				|| snapshot->LatestLive->Id.Incarnation != snapshot->Binding.Catalog.Incarnation
+				|| snapshot->LatestLive->Base != aRequest.Base || snapshot->LatestLive->Head != aRequest.Head
+				|| snapshot->LatestLive->BaseAvailability != core::anchor_availability::available
+				|| snapshot->LatestLive->HeadAvailability != core::anchor_availability::available
+				|| snapshot->RetentionRehydration != core::retention_rehydration_requirement::not_required) {
+				return result;
+			}
+			const auto& authority = snapshot->Binding.Authority;
+			const auto& expected  = aRequest.Catalog.Authority;
+			if (authority.Profile != expected.Profile || authority.ProfileRevision != expected.ProfileRevision
+				|| authority.Host != expected.Host || authority.HostAuthority != expected.HostAuthority
+				|| authority.Account != expected.Account || authority.Viewer != expected.Viewer
+				|| authority.Repository != expected.Repository || authority.PullRequest != expected.PullRequest
+				|| authority.Number != expected.Number || authority.Mode != expected.Mode || snapshot->Binding.ObjectFormat != expected.ObjectFormat) {
+				return result;
+			}
+			const auto cacheRequest = git_cache_open_request{ .ApplicationSession = aRequest.Catalog.ApplicationSession, .Authority = authority, .ObjectFormat = expected.ObjectFormat };
+			// The profile actor owns one physical repository session. Never replace a
+			// sibling's active session merely to read this historical pair.
+			if (aActor.Cache) {
+				const auto& current = aActor.Cache->request();
+				if (current.ObjectFormat != expected.ObjectFormat
+					|| current.Authority.Profile != authority.Profile || current.Authority.ProfileRevision != authority.ProfileRevision
+					|| current.Authority.Host != authority.Host || current.Authority.HostAuthority != authority.HostAuthority
+					|| current.Authority.Account != authority.Account || current.Authority.Viewer != authority.Viewer || current.Authority.Repository != authority.Repository
+					|| current.Authority.Cache != authority.Cache || current.Authority.Mode != authority.Mode) {
+					return result;
+				}
+			} else if (!open_actor_cache(aActor, aCaches, cacheRequest, aStop)) {
+				return result;
+			}
+			result.Status   = cached_source_status::available;
+			const auto read = [&](core::git_commit_oid aCommit, const std::string& aPath, std::optional<std::string>& aText) {
+				const auto blob = aActor.Cache->find_blob_at_path({ .Commit = aCommit, .Path = aPath }, aStop);
+				if (!blob) {
+					result.Status = cached_source_status::unavailable;
+					return;
+				}
+				if (!*blob) {
+					return;
+				}
+				const auto bytes = aActor.Cache->materialize_blob({ .Blob = **blob, .MaximumBytes = maximum_cached_source_bytes }, aStop);
+				if (!bytes || bytes->size() > maximum_cached_source_bytes) {
+					result.Status = !bytes && bytes.error().Code != git_cache_failure::quota_exceeded ? cached_source_status::unavailable : cached_source_status::too_large;
+					return;
+				}
+				if (std::ranges::find(*bytes, std::uint8_t{ 0 }) != bytes->end()) {
+					result.Status = cached_source_status::binary;
+					return;
+				}
+				aText.emplace(bytes->begin(), bytes->end());
+			};
+			read(aRequest.Base, aRequest.File.PreviousPath.value_or(aRequest.File.Path), result.BaseText);
+			if (result.Status == cached_source_status::available) {
+				read(aRequest.Head, aRequest.File.Path, result.HeadText);
+			}
+			if (aStop.stop_requested()) {
+				result.Status = cached_source_status::unavailable;
+			}
+			if (result.Status != cached_source_status::available) {
+				result.BaseText.reset();
+				result.HeadText.reset();
+			}
+			return result;
+		}
+		[[nodiscard]] auto read_cached_source(cached_review_source_request aRequest, std::stop_token aStop, cached_review_source_completion aCompletion) -> bool
+		{
+			if (Closing || !Consumer->current() || !aCompletion || aStop.stop_requested()
+				|| !valid(aRequest.Catalog) || !aRequest.Catalog.ExistingOnly
+				|| aRequest.Catalog.ApplicationSession != State.ApplicationSession
+				|| aRequest.Catalog.Authority.Mode != core::github_access_mode::authenticated
+				|| !aRequest.Base.valid() || !aRequest.Head.valid() || aRequest.Base.algorithm() != aRequest.Head.algorithm()
+				|| aRequest.Base.algorithm() != aRequest.Catalog.Authority.ObjectFormat
+				|| !core::valid_cached_catalogue({ aRequest.File })) {
+				return false;
+			}
+			const auto& key   = aRequest.Catalog.Authority;
+			auto        actor = actor_for(cache_actor_key{ .Profile = key.Profile, .ProfileRevision = key.ProfileRevision, .Host = key.Host, .HostAuthority = key.HostAuthority, .Account = key.Account, .Repository = key.Repository, .ObjectFormat = key.ObjectFormat, .Mode = key.Mode });
+			if (!actor) {
+				return false;
+			}
+			const auto unavailable = cached_review_source_projection{ .Path = aRequest.File.Path, .BaseOid = std::string{ core::canonical_hex(aRequest.Base).view() }, .HeadOid = std::string{ core::canonical_hex(aRequest.Head).view() } };
+			return submit_effect([this, actor, request = std::move(aRequest), aStop, completion = aCompletion](std::stop_token aJobStop) -> worker_completion {
+				std::stop_source combined;
+				std::stop_callback external{aStop, [&] { combined.request_stop(); }};
+				std::stop_callback job{aJobStop, [&] { combined.request_stop(); }};
+				auto result = retained_source(*actor, Caches, Catalogs, request, combined.get_token());
+				return [answer=std::move(result), completion](implementation&) mutable { completion(std::move(answer)); }; }, [completion = aCompletion, unavailable](implementation&) { completion(unavailable); },
+								 [](implementation&, core::epoch_failure) { }, std::nullopt, std::nullopt, std::nullopt, std::nullopt, actor);
 		}
 
 		// [[BPR-0654]]. See `epoch_application_host::resolve_changed_paths`.
@@ -4761,7 +4867,7 @@ namespace bpr::application {
 			}
 			auto actor = std::shared_ptr<authority_effect_actor>{ };
 			try {
-				actor = actor_for(aHandoff);
+				actor = actor_for(actor_key(aHandoff));
 			} catch (...) {
 				if (aHandoff.SmartGit) {
 					aHandoff.SmartGit->revoke();
@@ -7941,6 +8047,11 @@ namespace bpr::application {
 		-> workbench_selected_diff_observation
 	{
 		return Implementation->resolve_selected_diff(aRequest, aStop);
+	}
+
+	auto epoch_application_host::read_cached_source(cached_review_source_request aRequest, std::stop_token aStop, cached_review_source_completion aCompletion) -> bool
+	{
+		return Implementation->read_cached_source(std::move(aRequest), aStop, std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_changed_paths(

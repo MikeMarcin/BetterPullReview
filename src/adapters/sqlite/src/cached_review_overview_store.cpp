@@ -228,6 +228,59 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 			}
+			void discussion_collection(std::optional<std::vector<core::cached_discussion_message>>& aMessages)
+			{
+				bool available = aMessages.has_value();
+				number(available);
+				if (!Good || !available) {
+					return;
+				}
+				auto count = static_cast<std::uint64_t>(aMessages ? aMessages->size() : 0);
+				integer(count);
+				if (!Good || count > core::maximum_cached_discussion_messages || (Reading && count > Input.size() / 48)) {
+					Good = false;
+					return;
+				}
+				if (Reading) {
+					aMessages.emplace(static_cast<std::size_t>(count));
+				}
+				for (auto& message : *aMessages) {
+					text(message.Id, 256);
+					text(message.AuthorLogin, 256);
+					text(message.Body, 64 * 1024);
+					auto kind = static_cast<std::uint8_t>(message.Kind);
+					number(kind);
+					message.Kind = static_cast<core::cached_discussion_kind>(kind);
+					bool commit  = message.CommitOid.has_value();
+					number(commit);
+					if (Good && commit) {
+						if (Reading) {
+							message.CommitOid.emplace();
+						}
+						text(*message.CommitOid, 64);
+					}
+					number(message.Deleted);
+					if (!Good) {
+						return;
+					}
+				}
+			}
+			void discussion(core::cached_review_overview& aOverview)
+			{
+				if (Reading && Input.empty()) {
+					return;
+				}
+				auto version = std::uint64_t{ 4 };
+				integer(version);
+				if (!Good || version != 4) {
+					Good = false;
+					return;
+				}
+				discussion_collection(aOverview.GeneralComments);
+				if (Good) {
+					discussion_collection(aOverview.ReviewSummaries);
+				}
+			}
 			void overview(core::cached_review_overview& aOverview)
 			{
 				key(aOverview.Key);
@@ -249,6 +302,9 @@ namespace bpr::adapters::sqlite {
 				}
 				if (Good) {
 					threads(aOverview.ReviewThreads);
+				}
+				if (Good) {
+					discussion(aOverview);
 				}
 			}
 		};

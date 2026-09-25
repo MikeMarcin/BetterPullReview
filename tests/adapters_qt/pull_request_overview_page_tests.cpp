@@ -753,8 +753,31 @@ namespace {
 		}
 		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
 		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
+		auto* discussion = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedDiscussion"));
+		expect(discussion && discussion->toPlainText().contains(QStringLiteral("General comments — unavailable")), "missing discussion remains explicitly unavailable");
+		cached.GeneralComments.emplace();
+		cached.ReviewSummaries.emplace();
+		page.present_cached(cached);
+		expect(discussion->toPlainText().contains(QStringLiteral("General comments — 0 observed")) && discussion->toPlainText().contains(QStringLiteral("Review summaries — 0 observed")), "observed empty general comments and reviews are distinct");
+		bool historicalOpened = false;
+		page.set_cached_source_dispatch([&](const QString& aPath) { historicalOpened = aPath == QStringLiteral("src/new.cpp"); });
+		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, page.file_model()->index_for_path(QStringLiteral("src/new.cpp"))));
+		expect(historicalOpened && !opened, "cached file activation uses historical ingress only");
+		application::cached_review_source_projection source{ .Path = "src/new.cpp", .BaseOid = cached.BaseOid, .HeadOid = cached.HeadOid, .Status = application::cached_source_status::available, .BaseText = std::string{ }, .HeadText = "<literal> source" };
+		page.present_cached_source(source);
+		auto* sourceText = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedSource"));
+		expect(sourceText && sourceText->isVisible() && sourceText->isReadOnly() && sourceText->toPlainText().contains(QStringLiteral("<literal> source")) && sourceText->toPlainText().contains(QStringLiteral("BASE — observed source")), "historical exact source and empty blob are literal text");
+		auto foreign     = source;
+		foreign.HeadOid  = std::string(40, '9');
+		foreign.HeadText = "FOREIGN";
+		page.present_cached_source(foreign);
+		expect(!sourceText->toPlainText().contains(QStringLiteral("FOREIGN")), "foreign revision source cannot replace historical reader");
+		source.HeadText = std::string(1, static_cast<char>(0xff));
+		page.present_cached_source(source);
+		expect(sourceText->toPlainText().contains(QStringLiteral("encoding cannot be displayed")), "invalid UTF-8 source is explicit instead of replacement-character content");
 		page.present(projection());
 		expect(threads->isHidden() && threads->toPlainText().isEmpty() && threadsHeading->isHidden(), "fresh projection removes cached thread content and labels");
+		expect(sourceText->isHidden() && sourceText->toPlainText().isEmpty() && discussion->isHidden() && discussion->toPlainText().isEmpty(), "fresh projection erases historical source and discussion");
 		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
 			expect(!page.files_view()->isColumnHidden(column), "fresh server view restores current workflow columns");
 		}

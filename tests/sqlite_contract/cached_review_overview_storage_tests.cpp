@@ -34,6 +34,8 @@ namespace {
 		result.ReviewThreads = std::vector<core::cached_review_thread>{
 			{ .Id = "T1", .Path = "src/new.cpp", .Line = 7, .OriginalLine = 5, .Side = core::cached_thread_side::right, .Resolved = true, .Comments = { { .Id = "C1", .AuthorLogin = "author", .Body = "<literal> root\ntext", .Line = 7 }, { .Id = "C2", .ReplyTo = "C1", .AuthorLogin = "reader", .Body = "Reply", .OriginalLine = 5, .Outdated = true, .Deleted = true } } }
 		};
+		result.GeneralComments = std::vector<core::cached_discussion_message>{ { .Id = "G1", .AuthorLogin = "author", .Body = "General <literal> text", .Deleted = true } };
+		result.ReviewSummaries = std::vector<core::cached_discussion_message>{ { .Id = "R1", .AuthorLogin = "reviewer", .Body = "Review text", .Kind = core::cached_discussion_kind::approved_review, .CommitOid = std::string(40, '2') } };
 		return result;
 	}
 	struct commit_cancellation
@@ -166,10 +168,22 @@ try {
 	invalid.ReviewThreads->front().Comments[0].Body.resize(64 * 1024, 'x');
 	invalid.ReviewThreads->front().Comments[1].Body.resize(64 * 1024, 'x');
 	expect(!store->save(invalid, { }) && store->load(next.Key, { }) == next, "aggregate thread budget refuses without replacing accepted evidence");
+	auto threadsOnly = next;
+	threadsOnly.GeneralComments.reset();
+	threadsOnly.ReviewSummaries.reset();
+	expect(store->save(threadsOnly, { }), "unavailable general comments and reviews save");
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 24); });
+	expect(store->load(next.Key, { }) == threadsOnly, "previous thread payload keeps general comments and review summaries unavailable");
+	auto discussionEmpty = next;
+	discussionEmpty.GeneralComments->clear();
+	discussionEmpty.ReviewSummaries->clear();
+	expect(store->save(discussionEmpty, { }) && store->load(next.Key, { }) == discussionEmpty, "observed empty discussion collections stay distinct from absent");
 	auto catalogueOnly = next;
 	catalogueOnly.ReviewThreads.reset();
+	catalogueOnly.GeneralComments.reset();
+	catalogueOnly.ReviewSummaries.reset();
 	expect(store->save(catalogueOnly, { }), "unavailable threads save independently of catalogue");
-	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 16); });
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 40); });
 	expect(store->load(next.Key, { }) == catalogueOnly, "previous catalogue payload keeps threads unavailable");
 	auto empty  = next;
 	empty.Files = 0;
@@ -181,15 +195,19 @@ try {
 	auto legacy = next;
 	legacy.FileCatalogue.reset();
 	legacy.ReviewThreads.reset();
+	legacy.GeneralComments.reset();
+	legacy.ReviewSummaries.reset();
 	expect(store->save(legacy, { }), "unavailable catalogue overview saves");
-	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 32); });
+	alter_payload(path, [](auto& aPayload) { aPayload.resize(aPayload.size() - 56); });
 	expect(store->load(legacy.Key, { }) == legacy, "original payload loads with unavailable catalogue, never observed empty");
 	expect(store->save(next, { }) && store->load(next.Key, { }) == next, "new accepted record replaces legacy payload atomically");
 	auto malformed = next;
 	malformed.FileCatalogue.reset();
 	malformed.ReviewThreads.reset();
+	malformed.GeneralComments.reset();
+	malformed.ReviewSummaries.reset();
 	expect(store->save(malformed, { }), "extension-version control saved");
-	alter_payload(path, [](auto& aPayload) { aPayload[aPayload.size() - 9] = 99; });
+	alter_payload(path, [](auto& aPayload) { aPayload[aPayload.size() - 17] = 99; });
 	expect(!store->load(next.Key, { }), "unknown extension version refuses all historical content");
 	for (std::uint32_t number = 20; number < 30; ++number) {
 		auto entry        = original;

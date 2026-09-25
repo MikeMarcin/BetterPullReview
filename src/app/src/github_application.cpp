@@ -5880,6 +5880,7 @@ namespace bpr::app {
 
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port,
+		  public application::cached_review_source_port,
 		  public application::epoch_projection_port,
 		  public application::workbench_selected_diff_projection_port,
 		  public application::workbench_projection_port,
@@ -6506,7 +6507,12 @@ namespace bpr::app {
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
-					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects);
+					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this);
+			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
+				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
+					WindowRead->read_cached_source(aPath.toStdString());
+				}
+			});
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)
@@ -9838,6 +9844,11 @@ namespace bpr::app {
 			}
 		}
 
+		auto read_cached_source(application::cached_review_source_request aRequest, std::stop_token aStop, application::cached_review_source_completion aCompletion) -> bool override
+		{
+			return !Closing && Profile->current_window(DraftWindow) && EpochHost
+				&& EpochHost->read_cached_source(std::move(aRequest), aStop, std::move(aCompletion));
+		}
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {

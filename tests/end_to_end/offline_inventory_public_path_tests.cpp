@@ -165,13 +165,16 @@ namespace {
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
 		return summary && summary->isVisible() && summary->text().contains(QStringLiteral("Cached overview"));
 	}
-	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0, bool aCatalogueAvailable = true, bool aThreadsAvailable = true)
+	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0, bool aCatalogueAvailable = true, bool aThreadsAvailable = true, bool aSourceAvailable = true, bool aMismatchedPair = false)
 	{
+		if (auto* back = aWindow.findChild<QPushButton*>(QStringLiteral("overviewCachedSourceBack")); back && back->isVisible()) {
+			back->click();
+		}
 		expect(cached_visible(aWindow) && !aWindow.showing_home(), "durable cached overview is actually visible after offline reopen");
 		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
 		expect(summary->text().contains(QStringLiteral("freshness unknown")), "cached metadata never implies fresh server truth");
-		expect(summary->toolTip().contains(QStringLiteral("a61a212aa0484929bc5f20a26e9a7c1c6541c726"))
-				   && summary->toolTip().contains(QStringLiteral("3b60c8324eee117ce72e6446fe640d85a60b37a2")),
+		expect(summary->toolTip().contains(aMismatchedPair ? QString(40, QLatin1Char{ '1' }) : QStringLiteral("a61a212aa0484929bc5f20a26e9a7c1c6541c726"))
+				   && summary->toolTip().contains(aMismatchedPair ? QString(40, QLatin1Char{ '2' }) : QStringLiteral("3b60c8324eee117ce72e6446fe640d85a60b37a2")),
 			   "cached overview retains the exact accepted base and head");
 		auto* title = aWindow.findChild<QLabel*>(QStringLiteral("overviewTitle"));
 		expect(title && !title->text().isEmpty(), "cached title is populated");
@@ -189,9 +192,15 @@ namespace {
 		}
 		auto* threads = aWindow.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
 		if (aThreadsAvailable) {
+			const auto* discussion = aWindow.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedDiscussion"));
+			expect(discussion && discussion->isVisible() && discussion->isReadOnly()
+					   && discussion->toPlainText().contains(QStringLiteral("General comments"))
+					   && discussion->toPlainText().contains(QStringLiteral("Review summaries"))
+					   && discussion->toPlainText().contains(QStringLiteral("Fixture follow-up: validation is complete."))
+					   && discussion->toPlainText().contains(QStringLiteral("Please preserve snapshot identity across refreshes.")),
+				   "durable general comments and review summaries survive actual restart as historical text");
 			expect(threads && threads->isVisible() && threads->isReadOnly()
-					   && threads->toPlainText().contains(QStringLiteral("Check the exact retained reading position."))
-					   && (aAccount || threads->toPlainText().contains(QStringLiteral("Edited server root"))),
+					   && threads->toPlainText().contains(QStringLiteral("Check the exact retained reading position.")),
 				   "durable cached thread bodies survive process restart as historical read-only content");
 		} else {
 			const auto* heading = aWindow.findChild<QLabel*>(QStringLiteral("overviewCachedThreadsHeading"));
@@ -211,8 +220,19 @@ namespace {
 		const auto index = model->index_for_path(QStringLiteral("review.cpp"));
 		QMetaObject::invokeMethod(files, "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
 		QApplication::processEvents();
-		expect(cached_visible(aWindow) && !aWindow.comparison_surface()->current_result(), "cached catalogue activation grants no source navigation");
-		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown catalogue=2 source=unavailable threads="
+		auto* historicalSource = aWindow.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedSource"));
+		wait_for([&] { return historicalSource && historicalSource->isVisible() && historicalSource->toPlainText().contains(aSourceAvailable ? QStringLiteral("HEAD — observed source") : QStringLiteral("Source unavailable")); }, "exact retained source is readable after restart without live comparison authority");
+		expect(historicalSource->isReadOnly() && (aSourceAvailable ? historicalSource->toPlainText().contains(QStringLiteral("BASE — observed source")) : !historicalSource->toPlainText().contains(QStringLiteral("observed source"))) && historicalSource->toPlainText().contains(QStringLiteral("freshness unknown")), "historical source shows both bounded exact endpoints and unknown freshness");
+		if (aSourceAvailable) {
+			QString expectedBase, expectedHead;
+			for (int line = 1; line <= 6; ++line) {
+				expectedBase += QStringLiteral("int review_line_%1 = %2;\n").arg(line).arg(10 + line);
+				expectedHead += QStringLiteral("int review_line_%1 = %2;\n").arg(line).arg(20 + line);
+			}
+			expect(historicalSource->toPlainText().contains(expectedBase) && historicalSource->toPlainText().contains(expectedHead), "rendered source preserves all six exact fixture lines on both endpoints");
+		}
+		expect(cached_visible(aWindow) && !aWindow.comparison_surface()->current_result(), "historical source grants no live comparison authority");
+		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown catalogue=2 source=historical-or-explicit-unavailable threads="
 				  << (aThreadsAvailable ? "historical" : "unavailable") << '\n';
 	}
 	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
@@ -232,7 +252,7 @@ try {
 	const auto argument       = std::string_view{ aArgv[1] };
 	const bool identityCourse = argument.starts_with("identity-");
 	const auto phase          = identityCourse ? argument.substr(9) : argument;
-	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue" || (identityCourse && phase == "legacy"), "known offline phase");
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue" || phase == "restart-missing-source" || phase == "restart-mismatched-source" || (identityCourse && phase == "legacy"), "known offline phase");
 	std::array<char, 2049U> bytes{ };
 	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
@@ -280,7 +300,7 @@ try {
 			expect_unavailable(*owner, window);
 			report(*owner, window, "identity-legacy");
 		}
-		if (phase == "restart-read" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue") {
+		if (phase == "restart-read" || phase == "restart-corrupt" || phase == "restart-legacy" || phase == "restart-catalogue" || phase == "restart-missing-source" || phase == "restart-mismatched-source") {
 			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
 			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
 			if (identityCourse) {
@@ -298,13 +318,15 @@ try {
 				expect(!cached_visible(window), "corrupt overview refuses visible metadata through real composition");
 				report(*owner, window, "restart-corrupt-offline");
 			} else {
-				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue");
-				report(*owner, window, phase == "restart-legacy" ? "restart-legacy-offline" : phase == "restart-catalogue" ? "restart-catalogue-offline"
-																														   : "restart-read-offline");
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue", phase != "restart-missing-source" && phase != "restart-mismatched-source", phase == "restart-mismatched-source");
+				report(*owner, window, phase == "restart-missing-source" ? "restart-missing-source" : phase == "restart-mismatched-source" ? "restart-mismatched-source"
+						   : phase == "restart-legacy"                                                                                     ? "restart-legacy-offline"
+						   : phase == "restart-catalogue"                                                                                  ? "restart-catalogue-offline"
+																																		   : "restart-read-offline");
 				window.home_action()->trigger();
 				expect(window.showing_home(), "cached overview can return to Home");
 				window.home_landing()->primary_button()->click();
-				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue");
+				expect_cached(window, identityCourse ? 910001U : 0U, phase != "restart-legacy", phase != "restart-catalogue", phase != "restart-missing-source" && phase != "restart-mismatched-source", phase == "restart-mismatched-source");
 				if (!identityCourse) {
 					open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
 					wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "cached view replaced by foreign offline failure");
@@ -314,100 +336,102 @@ try {
 			}
 			offline->Offline = false;
 		}
-		open(window, locator);
-		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "online original review accepted");
-		select_source(*owner, window);
-		const auto snapshot = access::large_review_snapshot(*owner);
-		expect(!visible_freshness_notice(window) && !cached_visible(window), "accepted online data clears cached and failed-refresh notices");
-		const auto* historical = window.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
-		expect(historical && historical->isHidden() && historical->toPlainText().isEmpty(), "reconnect removes historical thread content");
-		if (!identityCourse && phase == "restart-read") {
-			expect(snapshot && snapshot->ReviewThreads.front().Comments.front().Body == "Check the exact retained reading position.",
-				   "reconnect replaces the prior process edited root with the newly observed server body");
-		}
-		const auto key   = window.comparison_surface()->current_context()->Key;
-		const auto left  = window.comparison_surface()->left_pane()->toPlainText();
-		const auto right = window.comparison_surface()->right_pane()->toPlainText();
-		report(*owner, window, phase == "seed" ? "online-seed" : "restart-reconnected");
-		if (identityCourse && phase == "seed") {
-			window.home_action()->trigger();
-			expect_recent(window, 910001U, 17);
-			const auto context = owner->windows().front();
-			access::hold_window_read_terminal(*owner, context, true);
-			window.github_refresh_action()->trigger();
-			wait_for([&] { return access::held_window_read_terminals(*owner, context) > 0U; }, "first-account refresh terminal is held");
-			switch_account(window, options.RecentAccount, 910002U);
-			access::hold_window_read_terminal(*owner, context, false);
-			QApplication::processEvents();
-			report(*owner, window, "identity-other-account");
-			expect(window.home_recent_list()->count() == 0, "another account cannot see the first account's title or destination");
-			offline->Offline = true;
+		if (phase != "restart-missing-source") {
 			open(window, locator);
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "foreign account offline open completes");
-			expect(!cached_visible(window), "other account cannot borrow the cached overview by known locator");
-			offline->Offline = false;
-			expect_unavailable(*owner, window);
-			open(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/18"));
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "second account review accepted");
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "online original review accepted");
 			select_source(*owner, window);
-			expect(access::large_review_snapshot(*owner)->Account == core::github_account_id{ 910002U }, "second snapshot is exact account");
-			window.home_action()->trigger();
-			expect_recent(window, 910002U, 18);
-			switch_account(window, options.RecentAccount, 910001U);
-			expect_recent(window, 910001U, 17);
-			window.home_recent_list()->setCurrentRow(0);
-			window.home_recent_resume_action()->trigger();
-			wait_for([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key; }, "returning account resumes its exact retained comparison");
-		} else if (identityCourse && phase == "restart-read") {
-			window.home_action()->trigger();
-			switch_account(window, options.RecentAccount, 910002U);
-			expect_recent(window, 910002U, 18);
-			offline->Offline = true;
-			window.home_recent_list()->setCurrentRow(0);
-			wait_for([&] { return window.home_recent_resume_action()->isEnabled(); }, "second account retained reading offers Resume");
-			window.home_recent_resume_action()->trigger();
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "second account offline Resume fails visibly");
-			expect_unavailable(*owner, window);
-			expect_cached(window, 910002U);
-			report(*owner, window, "identity-second-account-offline");
-			offline->Offline = false;
-			switch_account(window, options.RecentAccount, 910001U);
-			expect_recent(window, 910001U, 17);
-		} else if (phase == "seed") {
-			offline->Offline = true;
-			window.github_refresh_action()->trigger();
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "network loss refresh terminal");
-			expect(offline->WireRefusals.load() > 0U && access::large_review_snapshot(*owner) == snapshot, "failed refresh preserves exact in-memory accepted snapshot");
-			report(*owner, window, "failed-refresh");
-			expect(visible_freshness_notice(window), "failed refresh visibly labels retained data and unknown freshness");
-			expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key
-					   && window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right,
-				   "failed refresh retains exact source identity and documents");
-			std::cerr << "retained_source_key=" << (window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key)
-					  << " retained_source_text=" << (window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right) << '\n';
-			offline->Offline = false;
-			access::stage_server_conversation(*owner, std::string{ snapshot->ReviewThreads.front().Thread.value() }, true);
-			window.github_refresh_action()->trigger();
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "reconnection refresh accepts server truth");
-			const auto recovered = access::large_review_snapshot(*owner);
-			expect(recovered && recovered->Snapshot != snapshot->Snapshot && recovered->Profile == snapshot->Profile
-					   && recovered->Host == snapshot->Host && recovered->Account == snapshot->Account && recovered->Repository == snapshot->Repository
-					   && recovered->PullRequest == snapshot->PullRequest && recovered->ReviewThreads.front().Comments.front().Body == "Edited server root",
-				   "fresh exact-authority snapshot adopts changed server conversation");
-			expect(!visible_freshness_notice(window), "successful refresh removes failed-refresh notice");
-			expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key, "metadata refresh preserves exact retained comparison");
-			report(*owner, window, "refresh-reconnected");
-			offline->Offline = true;
-			open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "other repository offline terminal");
-			expect_unavailable(*owner, window);
-			expect(!cached_visible(window), "foreign repository cannot borrow a cached overview");
-			report(*owner, window, "other-repository-offline");
-			offline->Offline = false;
-			open(window, locator);
-			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "original repository recovery");
-			select_source(*owner, window);
-			expect(window.comparison_surface()->current_context()->Key == key, "exact retained revision identity restored after failure");
+			const auto snapshot = access::large_review_snapshot(*owner);
+			expect(!visible_freshness_notice(window) && !cached_visible(window), "accepted online data clears cached and failed-refresh notices");
+			const auto* historical = window.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedThreads"));
+			expect(historical && historical->isHidden() && historical->toPlainText().isEmpty(), "reconnect removes historical thread content");
+			if (!identityCourse && phase == "restart-read") {
+				expect(snapshot && snapshot->ReviewThreads.front().Comments.front().Body == "Check the exact retained reading position.",
+					   "reconnect replaces the prior process edited root with the newly observed server body");
+			}
+			const auto key   = window.comparison_surface()->current_context()->Key;
+			const auto left  = window.comparison_surface()->left_pane()->toPlainText();
+			const auto right = window.comparison_surface()->right_pane()->toPlainText();
+			report(*owner, window, phase == "seed" ? "online-seed" : "restart-reconnected");
+			if (identityCourse && phase == "seed") {
+				window.home_action()->trigger();
+				expect_recent(window, 910001U, 17);
+				const auto context = owner->windows().front();
+				access::hold_window_read_terminal(*owner, context, true);
+				window.github_refresh_action()->trigger();
+				wait_for([&] { return access::held_window_read_terminals(*owner, context) > 0U; }, "first-account refresh terminal is held");
+				switch_account(window, options.RecentAccount, 910002U);
+				access::hold_window_read_terminal(*owner, context, false);
+				QApplication::processEvents();
+				report(*owner, window, "identity-other-account");
+				expect(window.home_recent_list()->count() == 0, "another account cannot see the first account's title or destination");
+				offline->Offline = true;
+				open(window, locator);
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "foreign account offline open completes");
+				expect(!cached_visible(window), "other account cannot borrow the cached overview by known locator");
+				offline->Offline = false;
+				expect_unavailable(*owner, window);
+				open(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/18"));
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "second account review accepted");
+				select_source(*owner, window);
+				expect(access::large_review_snapshot(*owner)->Account == core::github_account_id{ 910002U }, "second snapshot is exact account");
+				window.home_action()->trigger();
+				expect_recent(window, 910002U, 18);
+				switch_account(window, options.RecentAccount, 910001U);
+				expect_recent(window, 910001U, 17);
+				window.home_recent_list()->setCurrentRow(0);
+				window.home_recent_resume_action()->trigger();
+				wait_for([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key; }, "returning account resumes its exact retained comparison");
+			} else if (identityCourse && phase == "restart-read") {
+				window.home_action()->trigger();
+				switch_account(window, options.RecentAccount, 910002U);
+				expect_recent(window, 910002U, 18);
+				offline->Offline = true;
+				window.home_recent_list()->setCurrentRow(0);
+				wait_for([&] { return window.home_recent_resume_action()->isEnabled(); }, "second account retained reading offers Resume");
+				window.home_recent_resume_action()->trigger();
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "second account offline Resume fails visibly");
+				expect_unavailable(*owner, window);
+				expect_cached(window, 910002U);
+				report(*owner, window, "identity-second-account-offline");
+				offline->Offline = false;
+				switch_account(window, options.RecentAccount, 910001U);
+				expect_recent(window, 910001U, 17);
+			} else if (phase == "seed") {
+				offline->Offline = true;
+				window.github_refresh_action()->trigger();
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "network loss refresh terminal");
+				expect(offline->WireRefusals.load() > 0U && access::large_review_snapshot(*owner) == snapshot, "failed refresh preserves exact in-memory accepted snapshot");
+				report(*owner, window, "failed-refresh");
+				expect(visible_freshness_notice(window), "failed refresh visibly labels retained data and unknown freshness");
+				expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key
+						   && window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right,
+					   "failed refresh retains exact source identity and documents");
+				std::cerr << "retained_source_key=" << (window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key)
+						  << " retained_source_text=" << (window.comparison_surface()->left_pane()->toPlainText() == left && window.comparison_surface()->right_pane()->toPlainText() == right) << '\n';
+				offline->Offline = false;
+				access::stage_server_conversation(*owner, std::string{ snapshot->ReviewThreads.front().Thread.value() }, true);
+				window.github_refresh_action()->trigger();
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "reconnection refresh accepts server truth");
+				const auto recovered = access::large_review_snapshot(*owner);
+				expect(recovered && recovered->Snapshot != snapshot->Snapshot && recovered->Profile == snapshot->Profile
+						   && recovered->Host == snapshot->Host && recovered->Account == snapshot->Account && recovered->Repository == snapshot->Repository
+						   && recovered->PullRequest == snapshot->PullRequest && recovered->ReviewThreads.front().Comments.front().Body == "Edited server root",
+					   "fresh exact-authority snapshot adopts changed server conversation");
+				expect(!visible_freshness_notice(window), "successful refresh removes failed-refresh notice");
+				expect(window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key == key, "metadata refresh preserves exact retained comparison");
+				report(*owner, window, "refresh-reconnected");
+				offline->Offline = true;
+				open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "other repository offline terminal");
+				expect_unavailable(*owner, window);
+				expect(!cached_visible(window), "foreign repository cannot borrow a cached overview");
+				report(*owner, window, "other-repository-offline");
+				offline->Offline = false;
+				open(window, locator);
+				wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "original repository recovery");
+				select_source(*owner, window);
+				expect(window.comparison_surface()->current_context()->Key == key, "exact retained revision identity restored after failure");
+			}
 		}
 	}
 	expect(!staleRecentWhileSignedOut, "settled sign-out hides authenticated Recent");

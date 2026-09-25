@@ -2,6 +2,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include <QStringDecoder>
 #include <QTextEdit>
 #include <type_traits>
 
@@ -476,6 +477,43 @@ namespace bpr::qt {
 				}
 			}
 			return result;
+		}
+		auto displayable_source(const std::optional<std::string>& aSource) -> bool
+		{
+			if (!aSource) {
+				return true;
+			}
+			QStringDecoder decoder{ QStringDecoder::Utf8 };
+			const QString  decoded = decoder(QByteArrayView{ aSource->data(), static_cast<qsizetype>(aSource->size()) });
+			static_cast<void>(decoded);
+			return !decoder.hasError();
+		}
+		auto cached_discussion_text(const std::optional<std::vector<core::cached_discussion_message>>& aMessages, const QString& aHeading) -> QString
+		{
+			if (!aMessages) {
+				return aHeading + QStringLiteral(" — unavailable offline\n\n");
+			}
+			auto result = aHeading + QStringLiteral(" — %1 observed · freshness unknown\n").arg(count_text(aMessages->size()));
+			for (const auto& message : *aMessages) {
+				QString state;
+				switch (message.Kind) {
+				case core::cached_discussion_kind::general_comment:          break;
+				case core::cached_discussion_kind::pending_review:           state = QStringLiteral("was pending"); break;
+				case core::cached_discussion_kind::commented_review:         state = QStringLiteral("was commented"); break;
+				case core::cached_discussion_kind::approved_review:          state = QStringLiteral("was approved"); break;
+				case core::cached_discussion_kind::changes_requested_review: state = QStringLiteral("changes were requested"); break;
+				case core::cached_discussion_kind::dismissed_review:         state = QStringLiteral("was dismissed"); break;
+				}
+				result += text(message.AuthorLogin.empty() ? "Unknown author" : message.AuthorLogin) + QStringLiteral(" · ") + state;
+				if (message.Deleted) {
+					result += QStringLiteral(" · was deleted");
+				}
+				if (message.CommitOid) {
+					result += QStringLiteral("\nObserved review commit: ") + text(*message.CommitOid);
+				}
+				result += QStringLiteral("\n") + text(message.Body) + QStringLiteral("\n\n");
+			}
+			return result + QStringLiteral("\n");
 		}
 		auto cached_file_rows(const std::optional<std::vector<core::cached_review_file>>& aCatalogue)
 			-> std::vector<application::overview_file_row>
@@ -1263,6 +1301,8 @@ namespace bpr::qt {
 								  .toString();
 			if (Projection && !path.isEmpty() && FileDispatch) {
 				FileDispatch(path);
+			} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
+				CachedSourceDispatch(path);
 			}
 		});
 		mainColumn->addWidget(Files, 1);
@@ -1271,10 +1311,26 @@ namespace bpr::qt {
 		CachedThreads = new QPlainTextEdit{ main };
 		CachedThreads->setObjectName(QStringLiteral("overviewCachedThreads"));
 		CachedThreads->setAccessibleName(QStringLiteral("Historical review threads; freshness unknown"));
-		CachedThreads->setAccessibleDescription(QStringLiteral("Read-only historical text. Anchors and links cannot be opened. General comments and review summaries are unavailable."));
+		CachedThreads->setAccessibleDescription(QStringLiteral("Read-only historical text. Anchors and links cannot be opened."));
 		CachedThreads->setReadOnly(true);
 		CachedThreads->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 		mainColumn->addWidget(CachedThreads, 1);
+		CachedDiscussion = new QPlainTextEdit{ main };
+		CachedDiscussion->setObjectName(QStringLiteral("overviewCachedDiscussion"));
+		CachedDiscussion->setAccessibleName(QStringLiteral("Historical general comments and review summaries; freshness unknown"));
+		CachedDiscussion->setReadOnly(true);
+		CachedDiscussion->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+		mainColumn->addWidget(CachedDiscussion, 1);
+		CachedSourceBack = new QPushButton{ QStringLiteral("Back to cached overview"), main };
+		CachedSourceBack->setObjectName(QStringLiteral("overviewCachedSourceBack"));
+		connect(CachedSourceBack, &QPushButton::clicked, this, [this] { show_cached_source(false); Files->setFocus(Qt::OtherFocusReason); });
+		mainColumn->addWidget(CachedSourceBack);
+		CachedSource = new QPlainTextEdit{ main };
+		CachedSource->setObjectName(QStringLiteral("overviewCachedSource"));
+		CachedSource->setAccessibleName(QStringLiteral("Historical exact base and head source; freshness unknown"));
+		CachedSource->setReadOnly(true);
+		CachedSource->setLineWrapMode(QPlainTextEdit::NoWrap);
+		mainColumn->addWidget(CachedSource, 2);
 
 		auto* const sideScroll = new QScrollArea{ this };
 		sideScroll->setObjectName(QStringLiteral("overviewSideScroll"));
@@ -1367,6 +1423,14 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present(const application::pull_request_overview_projection& aProjection)
 	{
+		Cached = false;
+		CachedBase.clear();
+		CachedHead.clear();
+		CachedSource->clear();
+		CachedSource->hide();
+		CachedSourceBack->hide();
+		CachedDiscussion->clear();
+		CachedDiscussion->hide();
 		CachedThreads->clear();
 		CachedThreads->hide();
 		CachedThreadsHeading->hide();
@@ -1487,6 +1551,14 @@ namespace bpr::qt {
 	{
 		set_description_expanded(false);
 		Projection.reset();
+		Cached = false;
+		CachedBase.clear();
+		CachedHead.clear();
+		CachedSource->clear();
+		CachedSource->hide();
+		CachedSourceBack->hide();
+		CachedDiscussion->clear();
+		CachedDiscussion->hide();
 		CachedThreads->clear();
 		CachedThreads->hide();
 		CachedThreadsHeading->hide();
@@ -1555,32 +1627,74 @@ namespace bpr::qt {
 	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)
 	{
 		present_observation(aOverview.Overview);
+		Cached     = true;
+		CachedBase = aOverview.BaseOid;
+		CachedHead = aOverview.HeadOid;
 		Summary->setText(QStringLiteral("Cached overview · freshness unknown. Open this pull request again to retry."));
 		Summary->setToolTip(QStringLiteral("Previously accepted base %1\nPreviously accepted head %2")
 								.arg(text(aOverview.BaseOid), text(aOverview.HeadOid)));
 		Summary->setAccessibleDescription(Summary->toolTip());
 		FilesHeading->setText(aOverview.FileCatalogue
-								  ? QStringLiteral("Cached file catalogue — %1 files observed; source unavailable offline").arg(count_text(aOverview.FileCatalogue->size()))
+								  ? QStringLiteral("Cached file catalogue — %1 files observed; open a file to read retained source").arg(count_text(aOverview.FileCatalogue->size()))
 								  : QStringLiteral("File catalogue unavailable offline; source unavailable offline"));
 		FilesHeading->setToolTip(QStringLiteral("Historical GitHub change kinds and line counts, reported with the retained base/head. These are not a recomputed comparison of the base tip and head."));
 		Model->apply(cached_file_rows(aOverview.FileCatalogue));
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, true);
 		}
-		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Source, conversation counts and review progress unavailable. Files cannot be opened."));
+		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available. Current conversation counts and review progress unavailable."));
 		CachedThreadsHeading->setText(aOverview.ReviewThreads
 										  ? QStringLiteral("Cached review threads — %1 observed · freshness unknown").arg(count_text(aOverview.ReviewThreads->size()))
 										  : QStringLiteral("Review threads unavailable offline"));
 		CachedThreadsHeading->show();
+		CachedDiscussion->setPlainText(cached_discussion_text(aOverview.GeneralComments, QStringLiteral("General comments")) + cached_discussion_text(aOverview.ReviewSummaries, QStringLiteral("Review summaries")));
+		CachedDiscussion->show();
 		CachedThreads->setPlainText(aOverview.ReviewThreads ? cached_thread_text(*aOverview.ReviewThreads) : QString{ });
 		CachedThreads->setVisible(aOverview.ReviewThreads && !aOverview.ReviewThreads->empty());
 		SinceHeading->setText(QStringLiteral("Review state unavailable offline"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setWordWrap(true);
-			none->setText(QStringLiteral("Participants, general comments and review summaries unavailable offline"));
+			none->setText(QStringLiteral("Participants unavailable offline"));
 		}
 		Entry->setText(QStringLiteral("Review data unavailable offline"));
 		Entry->setAccessibleName(Entry->text());
+	}
+
+	void pull_request_overview_page::show_cached_source(bool aShow)
+	{
+		CachedSource->setVisible(aShow);
+		CachedSourceBack->setVisible(aShow);
+		Files->setVisible(!aShow);
+		FilesHeading->setVisible(!aShow);
+		CachedThreadsHeading->setVisible(!aShow);
+		CachedThreads->setVisible(!aShow && !CachedThreads->toPlainText().isEmpty());
+		CachedDiscussion->setVisible(!aShow);
+	}
+
+	void pull_request_overview_page::set_cached_source_dispatch(overview_path_dispatch aDispatch) { CachedSourceDispatch = std::move(aDispatch); }
+	void pull_request_overview_page::present_cached_source(const application::cached_review_source_projection& aSource)
+	{
+		if (!Cached || aSource.BaseOid != CachedBase || aSource.HeadOid != CachedHead) {
+			return;
+		}
+		auto content = QStringLiteral("Historical source: %1 · freshness unknown\nBase %2\nHead %3\n\n").arg(text(aSource.Path), text(aSource.BaseOid), text(aSource.HeadOid));
+		switch (aSource.Status) {
+		case application::cached_source_status::loading:     content += QStringLiteral("Reading retained source…"); break;
+		case application::cached_source_status::unavailable: content += QStringLiteral("Source unavailable for this exact retained revision."); break;
+		case application::cached_source_status::binary:      content += QStringLiteral("Binary source cannot be displayed as text."); break;
+		case application::cached_source_status::too_large:   content += QStringLiteral("Source exceeds the offline reading limit."); break;
+		case application::cached_source_status::available:
+			if (!displayable_source(aSource.BaseText) || !displayable_source(aSource.HeadText)) {
+				content += QStringLiteral("Source encoding cannot be displayed as UTF-8 text.");
+				break;
+			}
+			content += QStringLiteral("BASE — ") + (aSource.BaseText ? QStringLiteral("observed source\n") + text(*aSource.BaseText) : QStringLiteral("path absent at this commit"));
+			content += QStringLiteral("\n\nHEAD — ") + (aSource.HeadText ? QStringLiteral("observed source\n") + text(*aSource.HeadText) : QStringLiteral("path absent at this commit"));
+			break;
+		}
+		CachedSource->setPlainText(content);
+		show_cached_source(true);
+		CachedSource->setFocus(Qt::OtherFocusReason);
 	}
 
 	void pull_request_overview_page::set_description_expanded(const bool aExpanded)

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 
+#include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
@@ -21,6 +22,7 @@ namespace bpr::application {
 	/// \brief Provides the epoch application host contract.
 	class epoch_application_host final
 		: public github_epoch_handoff_port,
+		  public cached_review_source_port,
 		  public diff_blob_port,
 		  public workbench_selected_diff_port,
 		  public agent_workspace_port
@@ -70,7 +72,8 @@ namespace bpr::application {
 		auto operator=(epoch_application_host&&)
 			-> epoch_application_host& = delete;
 
-		void accept(accepted_pull_request_handoff aHandoff) override;
+		[[nodiscard]] auto read_cached_source(cached_review_source_request aRequest, std::stop_token aStop, cached_review_source_completion aCompletion) -> bool override;
+		void               accept(accepted_pull_request_handoff aHandoff) override;
 		// The issuer revokes its lease before notification. The epoch host also
 		// revokes its retained handle idempotently before dispatching core
 		// invalidation and canceling old-generation work.
