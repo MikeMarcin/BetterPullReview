@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0968"
 title: "Verify rendered primary and secondary rate-limit recovery"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693"}
+metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0968-rate-limit","path":"docs/rfcs/plans/bpr0968-rate-limit/milestone-plan.json"}}
 ---
 
 # Verify rendered primary and secondary rate-limit recovery
