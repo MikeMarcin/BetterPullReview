@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1130"
 title: "The Updates line folds and loses its permanent caption"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"

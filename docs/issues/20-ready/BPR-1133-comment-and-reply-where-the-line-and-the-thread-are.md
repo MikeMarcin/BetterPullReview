@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1133"
 title: "Comment and Reply where the line and the thread are"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
