@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0899"
 title: "The durable layout port's write-failed flag cannot tell a refusal from a write still in flight"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-win, while instrumenting BPR-0875's three named cleanup sources","found_at":"c1723a3f","run":"run-20260916-stations","dispatch":"dsp-006","milestone_plan":{"id":"bpr0899-layout-write","path":"docs/rfcs/plans/bpr0899-layout-write/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e7774b61107b4500dfbaaa914b038e186ccc2e87","evidence":{"kind":"observation","detail":"The concrete production port and real SQLite/host contract distinguish unused, in-flight, refused and recovered stores; negative old-predicate control fails at the Quit/in-flight assertion.","artifact":"docs/verification/bpr0899-layout-write.md"}},{"criterion":"AC2","outcome":"pass","revision":"e7774b61107b4500dfbaaa914b038e186ccc2e87","evidence":{"kind":"observation","detail":"Existing orderly host drain is retained: at most active plus latest coalesced layout, no further ingress or refusal retry, SQLite existing two-second busy wait; pending effect and withheld decision terminal prevent quiescence and final durable width is 600.","artifact":"docs/verification/bpr0899-layout-write.md"}},{"criterion":"AC3","outcome":"pass","revision":"e7774b61107b4500dfbaaa914b038e186ccc2e87","evidence":{"kind":"observation","detail":"Sole product reader is after host quiescence; obsolete in-flight-at-drain branch retired and cancelled/unavailable reason plus attempted/success counters retained. Public Quit exit, SQLite storage, architecture and composition checks pass in the seven-row integration run.","artifact":"docs/verification/bpr0899-layout-write.md"}}]
 ---
 
 # BPR-0899: The durable layout port's write-failed flag cannot tell a refusal from a write still in flight

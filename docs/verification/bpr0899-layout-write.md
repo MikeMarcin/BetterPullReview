@@ -20,7 +20,7 @@ The application source is bound by the LF-normalized composition digests:
 - Production mutation branch remains
   `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
 
-The [card](../issues/30-in-progress/BPR-0899-the-layout-write-failed-flag-cannot-tell-a-refusal-from-a-write-in-flight.md)
+The [card](../issues/60-done/BPR-0899-the-layout-write-failed-flag-cannot-tell-a-refusal-from-a-write-in-flight.md)
 records the design and self-review. The selected policy retains the current
 host drain: one active store plus one coalesced latest candidate, no new ingress
 or automatic retry after Quit. SQLite's existing two-second busy wait stays in
@@ -105,3 +105,23 @@ layout/composition selection if concurrent changes overlap those files. No
 source or tracker work outside this standalone issue is authorized by this
 handoff. Native release qualification and all unrelated human decisions retain
 their existing owners.
+
+## Final engineering handoff
+
+Product candidate: `e7774b61107b4500dfbaaa914b038e186ccc2e87`. The seven-row run (139.06 s)
+compiled and exercised these exact source bytes before that commit; subsequent
+changes are acceptance/checkpoint bookkeeping only. No test/build process,
+child writer, fixture app, review server or remote job remains from this task.
+The failed negative-control executable was rebuilt from the restored candidate
+before the passing integrated run. Test roots were cleaned by their owners.
+The ignored local skill link and build evidence are retained for continuation.
+
+Ordered implementation history starts with `f7133ff1` (bounded plan and Ready),
+`c7e98046` (claim), then `e7774b61` (implementation, review, tests and semantic
+documentation). The final acceptance/checkpoint commit follows them. The
+coordinator owns cherry-picking; no push or integration into main has run here.
+Writer ownership is released at the final handoff. There are no outstanding
+BPR-0899 acceptance decisions, attended sessions, or independent review gates.
+Linux/Windows execution and injected allocation/mutex exception testing were
+not performed; no such observation is implied by completing this portable
+standalone card.
