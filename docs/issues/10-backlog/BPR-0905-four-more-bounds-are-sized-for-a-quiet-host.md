@@ -224,11 +224,13 @@ Runtime logs and machine-readable control results are retained under
 [durable handoff](../../rfcs/plans/bpr0905-run-bounds/HANDOFF-2026-09-25.md)
 records commands, candidate scope, source review and continuation.
 
-**Remaining:** AC1's full-suite contention runs on Mac, Windows and Linux
-are unperformed on this candidate. The survey records the available Mac
+**Remaining:** AC1's full-suite contention runs on Windows and Linux
+are unperformed. The Mac run at integrated candidate `f6de40b6` passed all
+four target rows under `ctest --preset dev -j10`; its other failures and exact
+limits are recorded in the [Mac sweep](../../verification/BPR-0905-mac-full-suite-2026-09-25.md).
+The survey records the available Mac
 graph and historical station logs; native-only inventory and passing-run
 phase margins without observations remain unknown. Windows/Linux runs were
 explicitly deferred by the owner. The card returns to Backlog, with the
-implementation and focused Mac evidence complete, so a coordinator can
-integrate it and schedule the owed runs without treating an isolated pass as
-full-suite or cross-platform acceptance.
+implementation and Mac contention evidence complete. Cross-platform
+acceptance is not claimed.
