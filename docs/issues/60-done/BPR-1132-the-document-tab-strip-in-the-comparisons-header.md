@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1132"
 title: "The document tab strip in the comparison's header"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129", "BPR-1131"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-05","AC-06","AC-07","AC-10"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1 The composed course opens a file in a new tab, compares two pairs of one file side by side, closes, restarts and returns.","outcome":"pass","revision":"0994aa0ee80e542e980c5b5b8682e1aac0161ec0","evidence":{"kind":"command","detail":"application_document_tabs_restoration_public_path: actual file-menu background open, distinct exact pairs of one file, duplicate with a separate semantic reading position, Discuss/Read return, neighbour close, Quit, process restart and Resume preserve tab order, active tab, pairs and both positions. Closing the final tab keeps it closed; explicit file opening recreates the first tab. The full profile-window restoration course also passes the Home-during-Resume preserved-record assertion after the new persistence guard."}},{"criterion":"AC2 The tab keys are unique in the assembled window.","outcome":"pass","revision":"0994aa0ee80e542e980c5b5b8682e1aac0161ec0","evidence":{"kind":"command","detail":"qt_document_tabs_scale_100/125/200 and qt_workbench_focus_order_scale_100/125/200 pass. Synthetic Qt physical-key delivery exercises Control-Tab and Control-Shift-Tab on macOS and Cmd-W; assembled actions have no duplicate key sequence. There was no existing Cmd-W window command to move."}},{"criterion":"AC3 Tabs meet the focus, accessibility-name and 100 to 200 percent scale checks, at narrow and wide windows.","outcome":"pass","revision":"0994aa0ee80e542e980c5b5b8682e1aac0161ec0","evidence":{"kind":"command","detail":"qt_document_tabs_scale_100/125/200 pass at 1280, 1100 and the macOS 900-pixel floor, including active plus count overflow, path disambiguation, pair pill, projection stability, focus and accessible names. UIforETW geometry passes all four appearance profiles: 872 folded / 838 open at 1280x1000. Native VoiceOver/Narrator and Windows/Linux runs remain explicitly owed on BPR-1135; no cross-platform/native acceptance is inferred."}},{"criterion":"AC4 The older-pair tray notice appears and routes to the later threads.","outcome":"pass","revision":"0994aa0ee80e542e980c5b5b8682e1aac0161ec0","evidence":{"kind":"command","detail":"qt_document_tabs_scale_100/125/200 exercise the later-thread count and Show them: activate the existing current-pair sibling, return the active tab to the window pair when no sibling exists, or open Discuss when that pair is also old. Comment is disabled when neither endpoint is current; a current-head tab hides the notice. The owner's choice of listed-but-unplaced versus hidden later threads remains a separate pending decision on BPR-1135."}}]
 ---
 
 # BPR-1132: The document tab strip in the comparison's header
@@ -59,7 +60,7 @@ itself.
 Claimed at `9d1b17a4`. At the wind-down no product code for this card was on
 main. The work was saved as a patch against `c0fdd70a`; the resumed implementation
 and verification below supersede that unfinished checkpoint:
-[wip/README.md](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/wip/README.md)
+the saved patch, now consumed by product commit `0994aa0ee80e542e980c5b5b8682e1aac0161ec0`
 (`BPR-1132-document-tab-strip.patch`, SHA-256
 `830375e7239d9328585f0ba6dbbb3758200fa26288f6cb6c76fc37ba3f53eb0c`).
 

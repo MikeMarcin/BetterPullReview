@@ -128,7 +128,7 @@ m2's cards ([[BPR-1130]], [[BPR-1132]], [[BPR-1133]]) moved to Ready in
   path; nothing publishes without Publish. Both have negative controls, renders
   at 100, 125 and 200 percent, and their records on the cards.
 - **Work in progress.** [[BPR-1132]] is a patch, not on main:
-  [wip/README.md](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/wip/README.md)
+  the historical saved patch (consumed by the resumed product commit below)
   (`BPR-1132-document-tab-strip.patch` against `c0fdd70a`, SHA-256
   `830375e7239d9328585f0ba6dbbb3758200fa26288f6cb6c76fc37ba3f53eb0c`). It
   builds and passes the courses the README lists; the two
@@ -164,3 +164,58 @@ m2's cards ([[BPR-1130]], [[BPR-1132]], [[BPR-1133]]) moved to Ready in
 - **Next step.** Apply the [[BPR-1132]] patch at the current main, finish it
   (its checkpoint lists what remains), then run m2's integration pass and
   record it here; m3 follows once m2's exits hold.
+
+### m2 resume checkpoint — macOS engineering verified; human/native pending, 2026-09-25
+
+This supersedes the earlier m2 wind-down and next-action list. Assignment
+`rfc0052-20260925 / m2-resume`, mandate `owner-20260925-m2-resume`, amended to
+prepare one fresh scoped attended session after macOS engineering. The owner
+explicitly deferred Windows/Linux runs. No remote station or live GitHub review
+mutation was performed.
+
+- **Product:** `0994aa0ee80e542e980c5b5b8682e1aac0161ec0` completes [[BPR-1132]] from the saved patch,
+  alongside already completed [[BPR-1130]] and [[BPR-1133]]. The source and
+  workflow root is `/Users/jaeger/Documents/GitHub/BetterPullReview`, `main`;
+  unrelated RFC pack import `fc4b39e8` is preserved. The saved patch and its
+  README are removed after consumption; their SHA and original state remain
+  in the historical card record.
+- **Implementation:** document tabs and their path/pair labels, narrow overflow,
+  unique keys, file gestures, older-pair notice and per-window exact restoration.
+  Integration corrected request reuse, failure ownership, Home cancellation,
+  queued modality/file precedence and reopening from the retained Files cursor.
+  The full source review and both composition-pin reseals are in the product
+  commit; the mutation-branch digest is unchanged.
+- **Verification:** build, changed-file format and tidy pass. The 52-row macOS
+  integration passed 50 rows and exposed two lifecycle defects. The affected
+  11-row run passed 10, including the full profile restoration course (557.70 s),
+  and exposed request failure ownership on tab return. Its correction passed
+  tab switching/restart but the strengthened final click exposed the retained
+  list bridge. The final 9-row run passes all rows (179.47 s), including the full
+  tab/restart/reopen course (94.10 s), exact-single-request composition, all tab
+  and window scales, and Files tree. Final architecture and clean tests-disabled
+  Release/composition-pin verification also pass. The idle large-history rerun
+  passes in 309.55 s; no follow-up failure card is needed. Documentation gate
+  and all 64 documentation regression tests pass.
+- **Measurements:** all four UIforETW appearance profiles retain 872 folded /
+  838 open at 1280×1000; the document strip is 28 pixels. Linux 876/842 remains
+  derived; Windows 884/850 remains unmeasured and its owner budget is unchanged.
+- **Evidence:** command/result inventories and original failure/correction logs
+  are in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe`:
+  `verification.json`, `correction-verification.json`, `gesture-verification.json`,
+  `reopen-verification.json`, `pin-verification.json`, `integration-tests.json`
+  and `evidence/`. They are local runtime artifacts, not repository content.
+- **Pending:** m2 is not fully accepted. Exit 1 still needs the owner's readiness
+  wording placement before [[BPR-0795]] changes; its row is unchanged. The 14
+  recorded owner decisions, macOS VoiceOver, Windows native appearance/Narrator,
+  Windows/Linux station courses and measured platform floors remain owed. A
+  platform failure remains the originating implementation card's defect. m3 is
+  not eligible until the m2 exits and remaining closeout acceptance hold.
+- **Review preparation:** one fresh session under the runtime above will bind
+  only those 14 decisions, one criterion per item with choices and Other/write-in,
+  to a frozen app and static renders. Its final identity and command ownership
+  are recorded in [the durable handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2-2026-09-25.md).
+- **Workflow:** MASK preflight is `ready` / `ready_pinned` after the coordinator
+  removed disposable installed bytecode; route `rfc-implementer`, `gpt-6-astra`,
+  `xhigh`, `host_load: not_verified`. Skill CLIs use
+  `PYTHONDONTWRITEBYTECODE=1`. The parent-created selection is preserved in
+  `strategy-selection.json`; the final obligation binding is `m2-checkpoint.json`.
