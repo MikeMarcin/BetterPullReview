@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1195"
 title: "Keep the scaffolding commands in the windowless macOS menu bar"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
