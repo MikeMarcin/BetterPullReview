@@ -316,7 +316,8 @@ namespace bpr::qt {
 		auto* const lineName = new QLabel{ QStringLiteral("Updates"), this };
 		lineName->setObjectName(QStringLiteral("epochLineName"));
 		lineName->setFixedWidth(52);
-		Line = new epoch_line{ this };
+		LineName = lineName;
+		Line     = new epoch_line{ this };
 		Line->set_dispatch(
 			[this](const core::comparison_side             aSide,
 				   const core::comparison_anchor_identity& aIdentity) {
@@ -672,6 +673,14 @@ namespace bpr::qt {
 		Line->set_last_review(LastReviewCommit);
 		const auto select = command(core::epoch_command_id::select_comparison);
 		Line->set_selection_offered(select && select->Enabled && !HistoryWindowStale);
+		update_comparing_text();
+	}
+
+	void epoch_comparison_control::update_comparing_text()
+	{
+		if (Line == nullptr) {
+			return;
+		}
 		auto comparing = QStringLiteral("Comparing exact anchors");
 		if (Selection) {
 			if (const auto* const named
@@ -690,8 +699,32 @@ namespace bpr::qt {
 				}
 			}
 		}
+		// [[BPR-1129]]. The dates of the two compared updates follow the name.
+		if (const auto dates = Line->selection_dates(); dates && ComparingDatesShown) {
+			comparing.append(QStringLiteral(", %1 → %2").arg(dates->first, dates->second));
+		}
 		if (ComparingButton != nullptr && ComparingButton->text() != comparing) {
 			ComparingButton->setText(comparing);
+		}
+	}
+
+	auto epoch_comparison_control::release_comparing_button() -> QToolButton*
+	{
+		if (ComparingReleased || ComparingButton == nullptr) {
+			return nullptr;
+		}
+		ComparingReleased = true;
+		delete LineName;
+		LineName = nullptr;
+		ComparingButton->setParent(nullptr);
+		return ComparingButton;
+	}
+
+	void epoch_comparison_control::set_comparing_dates_shown(const bool aShown)
+	{
+		if (ComparingDatesShown != aShown) {
+			ComparingDatesShown = aShown;
+			update_comparing_text();
 		}
 	}
 

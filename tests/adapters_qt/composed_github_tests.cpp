@@ -3330,7 +3330,6 @@ namespace {
 			const auto  kept   = action == window.home_action() || action == window.account_action()
 				|| action == window.settings_action() || name == QStringLiteral("workbenchStripInsetAction")
 				|| name == QStringLiteral("workbenchNavigationSpacerAction")
-				|| name == QStringLiteral("workbenchModalitySpacerAction")
 #if defined(_WIN32)
 				// [[BPR-0653]]. On Windows the strip is the title row in every
 				// state: its menu control and caption buttons are the window's,
@@ -3345,6 +3344,7 @@ namespace {
 		}
 		expect(strayStripControls.isEmpty(),
 			   "the strip shows only Home, account and settings while signed out");
+		expect(!window.review_bar()->isVisible(), "[[BPR-1129]] Home has no review bar");
 		expect(surface != nullptr && !surface->isVisible()
 				   && !window.home_list()->queue_shown() && !window.queue_role_filter()->isVisible()
 				   && !window.queue_observer_filter()->isVisible() && !window.queue_bucket_filter()->isVisible()

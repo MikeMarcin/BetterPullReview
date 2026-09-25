@@ -46,6 +46,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto target_editor() const noexcept -> QTextEdit*;
 		[[nodiscard]] auto shown_draft() const noexcept -> const std::optional<core::review_submission_draft>&;
+		/// \brief [[BPR-1129]]. Called after every presentation, so the window can
+		/// mark Compose review while the presented draft is kept.
+		void set_presentation_observer(std::function<void()> aObserver);
 
 	private:
 		void                                         emit_command(core::review_submission_command_kind aKind);
@@ -53,6 +56,7 @@ namespace bpr::qt {
 		QString                                      LastAnnouncement;
 		review_submission_editor_dispatch            Dispatch;
 		std::optional<core::review_submission_draft> Draft;
+		std::function<void()>                        PresentationObserver;
 		QPlainTextEdit*                              Body        = nullptr;
 		QComboBox*                                   Disposition = nullptr;
 		QTextEdit*                                   Target      = nullptr;

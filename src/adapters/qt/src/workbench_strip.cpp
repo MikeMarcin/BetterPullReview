@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QActionEvent>
 #include <QColor>
+#include <QCoreApplication>
 #include <QEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -19,6 +20,7 @@
 #include <QStyleOptionToolButton>
 #include <QToolButton>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -26,6 +28,28 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-1129]]. The amber of my last review's tick on the line,
+		/// which a button's mark repeats.
+		[[nodiscard]] auto mark_colour() -> QColor
+		{
+			return QColor{ 0xD2, 0x99, 0x22 };
+		}
+
+		/// \brief [[BPR-1129]]. The pill a badge count is drawn in.
+		constexpr int badge_height  = 14;
+		constexpr int badge_padding = 4;
+		constexpr int badge_gap     = 4;
+
+		[[nodiscard]] auto badge_text(const QWidget* const aWidget) -> QString
+		{
+			return aWidget == nullptr ? QString{ } : aWidget->property(strip_style::badge_property).toString();
+		}
+
+		[[nodiscard]] auto badge_width(const QFontMetrics& aMetrics, const QString& aText) -> int
+		{
+			return aText.isEmpty() ? 0 : std::max(badge_height, aMetrics.horizontalAdvance(aText) + 2 * badge_padding);
+		}
+
 		/// \brief The ink a disabled strip control keeps.
 		///
 		/// \details The accepted design says nothing in the strip may read as
@@ -155,6 +179,37 @@ namespace bpr::qt {
 				aPainter.drawPath(check);
 				break;
 			}
+			case strip_glyph::compose_review: {
+				// A pencil leaning right, its point at the lower left.
+				auto pencil = QPainterPath{ };
+				pencil.moveTo(5.0, 19.0);
+				pencil.lineTo(6.0, 15.0);
+				pencil.lineTo(15.5, 5.5);
+				pencil.lineTo(18.5, 8.5);
+				pencil.lineTo(9.0, 18.0);
+				pencil.closeSubpath();
+				aPainter.drawPath(pencil);
+				aPainter.drawLine(QPointF{ 13.5, 7.5 }, QPointF{ 16.5, 10.5 });
+				break;
+			}
+			case strip_glyph::comment: {
+				// A speech balloon with its tail at the lower left.
+				auto balloon = QPainterPath{ };
+				balloon.moveTo(6.0, 5.0);
+				balloon.lineTo(18.0, 5.0);
+				balloon.quadTo(20.0, 5.0, 20.0, 7.0);
+				balloon.lineTo(20.0, 14.0);
+				balloon.quadTo(20.0, 16.0, 18.0, 16.0);
+				balloon.lineTo(11.0, 16.0);
+				balloon.lineTo(7.0, 19.5);
+				balloon.lineTo(7.0, 16.0);
+				balloon.lineTo(6.0, 16.0);
+				balloon.quadTo(4.0, 16.0, 4.0, 14.0);
+				balloon.lineTo(4.0, 7.0);
+				balloon.quadTo(4.0, 5.0, 6.0, 5.0);
+				aPainter.drawPath(balloon);
+				break;
+			}
 			}
 		}
 
@@ -211,7 +266,24 @@ namespace bpr::qt {
 		return icon;
 	}
 
-	strip_style::strip_style() = default;
+	void set_strip_badge(QToolButton& aButton, const QString& aBadge)
+	{
+		if (aButton.property(strip_style::badge_property).toString() == aBadge) {
+			return;
+		}
+		aButton.setProperty(strip_style::badge_property, aBadge);
+		// A button caches its size hint until one of its change events clears
+		// it; the badge is part of the size, so a style change is sent.
+		auto changed = QEvent{ QEvent::StyleChange };
+		QCoreApplication::sendEvent(&aButton, &changed);
+		aButton.updateGeometry();
+		aButton.update();
+	}
+
+	strip_style::strip_style(const int aRowHeight)
+		: RowHeight{ aRowHeight }
+	{
+	}
 
 	void strip_style::drawComplexControl(
 		const ComplexControl             aControl,
@@ -304,7 +376,9 @@ namespace bpr::qt {
 			? option->fontMetrics.horizontalAdvance(option->text)
 			: 0;
 		const auto gap       = hasIcon && hasText ? 4 : 0;
-		const auto total     = iconWidth + gap + textWidth;
+		const auto badge     = badge_text(aWidget);
+		const auto pill      = badge_width(option->fontMetrics, badge);
+		const auto total     = iconWidth + gap + textWidth + (pill > 0 ? badge_gap + pill : 0);
 		auto       x         = content.left() + (content.width() - total) / 2;
 		if (hasIcon) {
 			const auto mode     = !enabled ? QIcon::Disabled
@@ -322,6 +396,12 @@ namespace bpr::qt {
 				Qt::AlignCenter,
 				mode,
 				checked ? QIcon::On : QIcon::Off);
+			if (aWidget != nullptr && aWidget->property(mark_property).toBool()) {
+				// [[BPR-1129]]. A kept draft: an amber dot on the icon's upper right.
+				aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Button), 1.0 });
+				aPainter->setBrush(mark_colour());
+				aPainter->drawEllipse(QPointF{ static_cast<qreal>(iconRect.right()) - 0.5, static_cast<qreal>(iconRect.top()) + 1.5 }, 3.5, 3.5);
+			}
 			x += iconWidth + gap;
 		}
 		if (hasText) {
@@ -331,6 +411,23 @@ namespace bpr::qt {
 				QRect{ x, frame.top(), textWidth + 2, frame.height() },
 				Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
 				option->text);
+			x += textWidth;
+		}
+		if (pill > 0) {
+			// [[BPR-1129]]. The count the button carries, in a pill beside its icon.
+			x += badge_gap;
+			const auto pillRect = QRectF{
+				static_cast<qreal>(x),
+				static_cast<qreal>(frame.top()) + static_cast<qreal>(frame.height() - badge_height) / 2.0,
+				static_cast<qreal>(pill),
+				static_cast<qreal>(badge_height),
+			};
+			aPainter->setPen(Qt::NoPen);
+			aPainter->setBrush(accent);
+			aPainter->drawRoundedRect(pillRect, badge_height / 2.0, badge_height / 2.0);
+			aPainter->setPen(palette.color(QPalette::Active, QPalette::HighlightedText));
+			aPainter->setFont(option->font);
+			aPainter->drawText(pillRect, Qt::AlignCenter | Qt::TextSingleLine, badge);
 		}
 		if (menuArrow) {
 			auto pen = QPen{ ink, 1.5 };
@@ -359,14 +456,17 @@ namespace bpr::qt {
 			return QProxyStyle::sizeFromContents(
 				aType, aOption, aContentsSize, aWidget);
 		}
-		auto width = aContentsSize.width() + 14;
-		if (const auto* const option
+		auto              width = aContentsSize.width() + 14;
+		const auto* const option
 			= qstyleoption_cast<const QStyleOptionToolButton*>(aOption);
-			option != nullptr
+		if (option != nullptr
 			&& ((option->features & QStyleOptionToolButton::HasMenu) != 0
 				|| (option->features & QStyleOptionToolButton::MenuButtonPopup)
 					!= 0)) {
 			width += 9;
+		}
+		if (const auto badge = badge_text(aWidget); !badge.isEmpty() && option != nullptr) {
+			width += badge_gap + badge_width(option->fontMetrics, badge);
 		}
 		return QSize{ width, button_height };
 	}
@@ -380,8 +480,9 @@ namespace bpr::qt {
 		case PM_ToolBarItemSpacing:
 			return 4;
 		case PM_ToolBarItemMargin:
-			// 4 above and below a 22-pixel button is the 30-pixel strip.
-			return (workbench_strip::height_pixels - button_height) / 2;
+			// 4 above and below a 22-pixel button is the 30-pixel strip; 3 is
+			// the 28-pixel review bar.
+			return (RowHeight - button_height) / 2;
 		case PM_ToolBarFrameWidth:
 		case PM_ToolBarHandleExtent:
 			return 0;
@@ -395,16 +496,17 @@ namespace bpr::qt {
 		}
 	}
 
-	workbench_strip::workbench_strip(const QString& aTitle, QWidget* const aParent)
+	workbench_strip::workbench_strip(const QString& aTitle, QWidget* const aParent, const strip_role aRole)
 		: QToolBar{ aTitle, aParent }
-		, Style{ new strip_style }
+		, Style{ new strip_style{ aRole == strip_role::title_row ? height_pixels : review_bar_height_pixels } }
+		, Role{ aRole }
 	{
 		// Owned as a child so it outlives every presenter that adopted it; a
 		// widget's style pointer is guarded, so the order of destruction is
 		// not a hazard either way.
 		Style->setParent(this);
 		setStyle(Style);
-		setFixedHeight(height_pixels);
+		setFixedHeight(aRole == strip_role::title_row ? height_pixels : review_bar_height_pixels);
 		setIconSize(QSize{ 16, 16 });
 		setMovable(false);
 		setFloatable(false);
@@ -412,6 +514,11 @@ namespace bpr::qt {
 	}
 
 	workbench_strip::~workbench_strip() = default;
+
+	auto workbench_strip::role() const noexcept -> strip_role
+	{
+		return Role;
+	}
 
 	void workbench_strip::adopt_button(QToolButton* const aButton)
 	{
@@ -449,7 +556,9 @@ namespace bpr::qt {
 
 	auto workbench_strip::over_empty_space(const QMouseEvent& aEvent) const -> bool
 	{
-		return aEvent.button() == Qt::LeftButton && empty_surface_at(aEvent.position().toPoint());
+		// [[BPR-1129]]. Only the title row stands in for the title bar.
+		return Role == strip_role::title_row && aEvent.button() == Qt::LeftButton
+			&& empty_surface_at(aEvent.position().toPoint());
 	}
 
 	auto workbench_strip::empty_surface_at(const QPoint aPoint) const -> bool

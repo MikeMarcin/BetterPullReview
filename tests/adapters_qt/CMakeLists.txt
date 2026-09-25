@@ -969,21 +969,26 @@ target_link_libraries(
 )
 bpr_enable_hardening(test_better_pull_review_qt_workbench_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_workbench_window_tests)
-if(WIN32)
-    # [[BPR-1022]]. The strip menu's keyboard course delivers keys and clicks
-    # through QWindowSystemInterface, where the Windows platform plugin hands
-    # input to Qt, so the shortcut map and the window see them as they would
-    # from the keyboard. Only QtGui's one versioned header directory is taken,
-    # as the composition's title-row host and the macOS native menu course do.
+# [[BPR-1022]]. The strip menu's keyboard course delivers keys and clicks
+# through QWindowSystemInterface, where the Windows platform plugin hands
+# input to Qt, so the shortcut map and the window see them as they would
+# from the keyboard. [[BPR-1129]]: the review bar's Option-R, Option-C and
+# Esc are delivered the same way on every platform. Only QtGui's one
+# versioned header directory is taken, as the composition's title-row host
+# and the macOS native menu course do.
+if(APPLE)
+    file(GLOB bpr_qtgui_private_headers LIST_DIRECTORIES true
+        "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
+else()
     file(GLOB bpr_qtgui_private_headers LIST_DIRECTORIES true
         "${Qt6Gui_DIR}/../../../include/QtGui/[0-9]*.[0-9]*.[0-9]*")
-    list(LENGTH bpr_qtgui_private_headers bpr_qtgui_private_header_count)
-    if(NOT bpr_qtgui_private_header_count EQUAL 1)
-        message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_qtgui_private_headers}")
-    endif()
-    target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
-        "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 endif()
+list(LENGTH bpr_qtgui_private_headers bpr_qtgui_private_header_count)
+if(NOT bpr_qtgui_private_header_count EQUAL 1)
+    message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_qtgui_private_headers}")
+endif()
+target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
 bpr_add_network_isolated_test(
     NAME qt_shared_snapshot_navigation

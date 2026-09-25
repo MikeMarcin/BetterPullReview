@@ -131,6 +131,7 @@ namespace bpr::qt {
 				.Id      = row.Id,
 				.Head    = row.Head,
 				.Label   = QStringLiteral("First seen %1").arg(QLocale{ }.toString(observed_at(row).date(), QStringLiteral("MMM d"))),
+				.Date    = QLocale{ }.toString(observed_at(row).date(), QStringLiteral("MMM d")),
 				.Details = QStringLiteral("%1. Local first-seen %2. Head %3. Observed base %4.")
 							   .arg(cause_text(row.Cause.Primary), QLocale{ }.toString(observed_at(row), QLocale::ShortFormat), short_oid(row.Head), short_oid(row.Base)),
 				.HasBase = true,
@@ -153,11 +154,13 @@ namespace bpr::qt {
 			const auto date        = QDateTime::fromMSecsSinceEpoch(occurrence.DateUtcMilliseconds, QTimeZone::UTC).toLocalTime();
 			auto       label       = QStringLiteral("Date unavailable");
 			auto       dateDetails = label;
+			auto       bareDate    = QString{ };
 			if (occurrence.DateSource != core::epoch_occurrence_date_source::unavailable) {
 				const auto source = occurrence.DateSource == core::epoch_occurrence_date_source::github_event
 					? QStringLiteral("Event time")
 					: QStringLiteral("Commit date");
-				label             = QStringLiteral("%1 %2").arg(source, QLocale{ }.toString(date.date(), QStringLiteral("MMM d")));
+				bareDate          = QLocale{ }.toString(date.date(), QStringLiteral("MMM d"));
+				label             = QStringLiteral("%1 %2").arg(source, bareDate);
 				dateDetails       = QStringLiteral("%1 %2").arg(source, QLocale{ }.toString(date, QLocale::ShortFormat));
 			}
 			auto details = QStringLiteral("%1. Head %2. Local first-seen %3. %4. %5.")
@@ -179,13 +182,13 @@ namespace bpr::qt {
 			if (hasObservedBase && observed->Cause.Origin != core::epoch_origin::explicit_historical_import) {
 				details.append(QStringLiteral(" Locally observed base %1.").arg(short_oid(observed->Base)));
 			}
-			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value(), .ImportOccurrence = aAllowOccurrenceImport && !occurrence.LocalEpoch && occurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event ? std::optional{ occurrence.Id } : std::nullopt });
+			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Date = bareDate, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value(), .ImportOccurrence = aAllowOccurrenceImport && !occurrence.LocalEpoch && occurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event ? std::optional{ occurrence.Id } : std::nullopt });
 		}
 		const auto provisional = aCurrentEpoch && std::ranges::none_of(Updates, [&aCurrentEpoch](const line_row& aRow) {
 									 return aRow.Id == aCurrentEpoch->Id;
 								 });
 		if (provisional) {
-			Updates.push_back({ .Id = aCurrentEpoch->Id, .Head = aCurrentEpoch->Head, .Label = QStringLiteral("Provisional · first seen here"), .Details = QStringLiteral("Current snapshot; occurrence unresolved. Local first-seen %1. Head %2. Observed base %3.").arg(QLocale{ }.toString(observed_at(*aCurrentEpoch), QLocale::ShortFormat), short_oid(aCurrentEpoch->Head), short_oid(aCurrentEpoch->Base)), .HasBase = true });
+			Updates.push_back({ .Id = aCurrentEpoch->Id, .Head = aCurrentEpoch->Head, .Label = QStringLiteral("Provisional · first seen here"), .Date = QLocale{ }.toString(observed_at(*aCurrentEpoch).date(), QStringLiteral("MMM d")), .Details = QStringLiteral("Current snapshot; occurrence unresolved. Local first-seen %1. Head %2. Observed base %3.").arg(QLocale{ }.toString(observed_at(*aCurrentEpoch), QLocale::ShortFormat), short_oid(aCurrentEpoch->Head), short_oid(aCurrentEpoch->Base)), .HasBase = true });
 		}
 		HistoryText = aHistory.Incomplete || provisional ? QStringLiteral("Incomplete history") : QStringLiteral("Known updates");
 		if (aHistory.Ambiguous) {
@@ -302,6 +305,17 @@ namespace bpr::qt {
 			return QString{ };
 		}
 		return Updates[aUpdate].Label;
+	}
+
+	auto epoch_line::selection_dates() const -> std::optional<std::pair<QString, QString>>
+	{
+		const auto left  = left_stop();
+		const auto right = right_stop();
+		if (!left || !right || left->Update >= Updates.size() || right->Update >= Updates.size()
+			|| Updates[left->Update].Date.isEmpty() || Updates[right->Update].Date.isEmpty()) {
+			return std::nullopt;
+		}
+		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
 	}
 
 	auto epoch_line::label_shown(const std::size_t aUpdate) const -> bool

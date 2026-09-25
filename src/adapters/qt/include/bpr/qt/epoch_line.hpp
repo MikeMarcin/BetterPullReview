@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class QContextMenuEvent;
@@ -94,6 +95,11 @@ namespace bpr::qt {
 		/// \brief Where a stop's handle is drawn, in widget coordinates.
 		[[nodiscard]] auto stop_position(const epoch_line_stop& aStop) const -> QPoint;
 		[[nodiscard]] auto label_text(std::size_t aUpdate) const -> QString;
+		/// \brief [[BPR-1129]]. The dates of the two compared updates, "Feb 12"
+		/// and "Feb 15", for the review bar to name beside the comparison.
+		///
+		/// \details Empty unless both handles sit on updates with a known date.
+		[[nodiscard]] auto selection_dates() const -> std::optional<std::pair<QString, QString>>;
 		[[nodiscard]] auto label_shown(std::size_t aUpdate) const -> bool;
 		[[nodiscard]] auto node_tooltip(std::size_t aUpdate) const -> QString;
 		[[nodiscard]] auto identity_of(const epoch_line_stop& aStop) const
@@ -130,9 +136,11 @@ namespace bpr::qt {
 
 		struct line_row
 		{
-			std::optional<core::review_epoch_id>     Id;
-			core::git_commit_oid                     Head;
-			QString                                  Label;
+			std::optional<core::review_epoch_id> Id;
+			core::git_commit_oid                 Head;
+			QString                              Label;
+			/// [[BPR-1129]]. The bare date, "Feb 12"; empty when unknown.
+			QString                                  Date;
 			QString                                  Details;
 			bool                                     HasBase = false;
 			std::optional<core::epoch_occurrence_id> ImportOccurrence;

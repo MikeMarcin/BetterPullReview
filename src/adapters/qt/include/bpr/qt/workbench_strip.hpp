@@ -45,6 +45,10 @@ namespace bpr::qt {
 		home,
 		/// [[BPR-0651]]. The repositories drawer toggle.
 		repositories_drawer,
+		/// [[BPR-1129]]. Compose review, a pencil on the review bar.
+		compose_review,
+		/// [[BPR-1129]]. Comment, a speech balloon on the review bar.
+		comment,
 	};
 
 	/// \brief Paints one strip glyph for a palette.
@@ -62,12 +66,20 @@ namespace bpr::qt {
 	class strip_style final : public QProxyStyle
 	{
 	public:
-		strip_style();
+		/// \brief A style for a row of `aRowHeight` pixels, whose buttons it
+		/// centres with an equal margin above and below.
+		explicit strip_style(int aRowHeight = 30);
 
 		/// \brief Height of every strip button.
 		static constexpr int button_height = 22;
 		/// \brief The dynamic property naming a solid-filled checked button.
 		static constexpr const char* filled_property = "stripFilled";
+		/// \brief [[BPR-1129]]. The dynamic property holding a count the button
+		/// carries beside its icon, as a pill in the accent; empty for none.
+		static constexpr const char* badge_property = "stripBadge";
+		/// \brief [[BPR-1129]]. The dynamic property that marks a button's icon
+		/// with the amber of my last review's tick.
+		static constexpr const char* mark_property = "stripMark";
 
 		void drawComplexControl(
 			ComplexControl             aControl,
@@ -83,6 +95,23 @@ namespace bpr::qt {
 			PixelMetric         aMetric,
 			const QStyleOption* aOption = nullptr,
 			const QWidget*      aWidget = nullptr) const -> int override;
+
+	private:
+		int RowHeight = 30;
+	};
+
+	/// \brief [[BPR-1129]]. Gives a strip button a count to carry beside its
+	/// icon, or none, and makes the button measure itself again.
+	void set_strip_badge(QToolButton& aButton, const QString& aBadge);
+
+	/// \brief [[BPR-1129]]. Which row a strip is.
+	///
+	/// \details The title row is the window's title bar: empty surface drags
+	/// and zooms the window. The review bar under it is an ordinary row of
+	/// controls whose empty surface does nothing.
+	enum class strip_role : std::uint8_t {
+		title_row,
+		review_bar,
 	};
 
 	/// \brief Presents the 30-pixel review strip.
@@ -95,7 +124,7 @@ namespace bpr::qt {
 	class workbench_strip final : public QToolBar
 	{
 	public:
-		explicit workbench_strip(const QString& aTitle, QWidget* aParent = nullptr);
+		explicit workbench_strip(const QString& aTitle, QWidget* aParent = nullptr, strip_role aRole = strip_role::title_row);
 		~workbench_strip() override;
 
 		workbench_strip(const workbench_strip&)                    = delete;
@@ -103,6 +132,9 @@ namespace bpr::qt {
 
 		/// \brief The strip's height, from the accepted design.
 		static constexpr int height_pixels = 30;
+		/// \brief [[BPR-1129]]. The review bar's height, from RFC-BPR-0052's design.
+		static constexpr int review_bar_height_pixels = 28;
+		[[nodiscard]] auto   role() const noexcept -> strip_role;
 
 		/// \brief Gives a button the strip's style and focus policy.
 		void               adopt_button(QToolButton* aButton);
@@ -129,6 +161,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto over_empty_space(const QMouseEvent& aEvent) const -> bool;
 
 		strip_style* Style = nullptr;
+		strip_role   Role  = strip_role::title_row;
 		/// \brief Where inside the window frame the drag took hold, while held.
 		std::optional<QPoint> DragHold;
 	};

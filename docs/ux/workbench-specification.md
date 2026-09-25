@@ -31,36 +31,52 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Header: product, PR, status counters, account/host ┐
-├ Files | Previous File | Next File | Previous Change | Next Change | review controls | spacer | Conversations ┤
+┌ Title row: Home | Repositories | Files | name ········ Overview Read Review Discuss | Refresh | Comments (n) | Account | Settings ┐
+├ Review bar: Updates  Comparing …, dates ▾ | ‹ › change 3 of 11 | « » file 3 of 40 | progress ▾ ········ Compose review | Comment ┤
+├ Updates line: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
-│ filters and review map       │ independent left/right epoch pickers  │ threads, defects, AI tabs   │
-│                              │ natural-layout panes + DiffLinkMap      │                              │
+│ filters and review map       │ natural-layout panes + DiffLinkMap      │ threads, defects, AI tabs   │
 │                              │ one shared vertical scrollbar          │                              │
 │                              ├ full-width selected-change detail pane ┤                              │
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
 ```
 
-Above the comparison sit, in order, the strip, the review surface's entry rows
-and the epoch line, with no scroll area and no separate title bar
-(RFC-BPR-0028 AC-01, as the owner amended it on 2026-09-24). The entry rows are
-the composition entry row, **Compose review** and **Draft comment or reply**
-(RFC-BPR-0037, [[BPR-0929]]), and, while a pull request loads, the readiness
-line ([[BPR-0795]]). Nothing else sits between the strip and the epoch line.
-[[BPR-1106]]'s design round decided their successor on 2026-09-24:
-[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md).
-It puts a calm title row with the modality at its right, above a review bar
-and, below that, a folding Updates line. The bar holds the active tab's controls and
-Compose review and Comment. Document tabs fill the comparison's header. Until
-that lands, the chrome is as described here.
+[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)'s
+chrome is built in part ([[BPR-1129]]). Above the comparison sit, in order,
+the title row, the review bar and the Updates line's timeline, with no scroll
+area and no separate title bar. The **title row** carries the window, the pull
+request and the modality: Home, the repositories and files toggles and the pull
+request's name at its left; the modality at its right beside refresh, the
+comments toggle (which carries the count of threads with new comments),
+account and settings; on Windows the application menu and the caption buttons.
+The **review bar** is full width under it and always shown with a review: from
+its left the Updates name, the comparison's menu naming the comparison and its
+dates, previous and next change with the position, previous and next file with
+the position, and private progress as an icon whose tooltip names the file's
+state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
+(Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
+review carries an amber mark while a review draft is kept. Review details is
+reached from the comparison's menu. Both composition commands are also in the
+Pull Request menu, and Esc returns from either composition page. Nothing else
+sits between the title row and the Updates line, except the readiness line
+([[BPR-0795]]) while a pull request loads, which sits between the bar and the
+line until [[BPR-1130]] asks the owner where its words go. The composition
+entry row is gone. Home has no review bar.
 
-The entry row is inside the review state's space budget ([[BPR-0246]]). In
-Review at 1280x1000 with every drawer collapsed, the comparison takes 842/1000
-of the window's height on Linux and 835/1000 on macOS (offscreen, where the menu
-bar takes a row on both), and `application_uiforetw_selected_diff_contract`
-holds it there: a further row that takes height from the comparison fails that
-course, whose failure line names every row stacked with the comparison
-([[BPR-1036]]).
+Still to come under RFC-BPR-0052: the Updates line folds from the bar and loses
+its permanent caption ([[BPR-1130]]), document tabs fill the comparison's header
+([[BPR-1132]]), and Comment names its target and every thread card offers Reply
+([[BPR-1133]]). Until they land those parts are as described here.
+
+The chrome is inside the review state's space budget ([[BPR-0246]]). In Review
+at 1280x1000 with every drawer collapsed, the comparison takes 829/1000 of the
+window's height on macOS (offscreen, where the menu bar takes a row), measured
+with the 28-pixel review bar and the 50-pixel Updates line; the Linux figure,
+834, is derived from the Linux stack [[BPR-1036]] measured until the Linux
+station measures it, and Windows keeps the owner's 850.
+`application_uiforetw_selected_diff_contract` holds those floors: a further
+row that takes height from the comparison fails that course, whose failure
+line names every row stacked with the comparison ([[BPR-1036]]).
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
@@ -392,14 +408,17 @@ flow from the mounted control reaches the device host is proven end to end
 
 ## Primary actions
 
-Previous/next file and previous/next change are always visible in one compact
-top row. Files is the far-left action, then Previous file, Next file, Previous
-change, and Next change appear in that semantic order. Bounded review-details
-and private-progress controls follow, a flexible spacer absorbs remaining
-width, and Conversations is the far-right action. The six drawer/navigation
-presenters are icon-only, but each retains a stable visible tooltip, accessible
-name and description, strong-focus stop, and keyboard shortcut. No text toolbar
-appears at a narrower width.
+Previous/next change and previous/next file are always visible on the review
+bar ([[BPR-1129]]), in that semantic order after the comparison's menu, each
+pair followed by its position; private progress follows them. Files and
+Conversations are the title row's toggles. The navigation, drawer and
+private-progress presenters are icon-only, but each retains a stable visible
+tooltip, accessible name and description, strong-focus stop, and keyboard
+shortcut. No text toolbar appears at a narrower width: as the window narrows
+the review bar drops the comparison's dates and then the positions' words
+("3/40" for "file 3 of 40"), and the title row drops the name's title, its
+owner and then the modality's shortcuts, keeping the name's number. No control
+folds into an overflow menu at any width down to the platform's floor.
 
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
@@ -438,6 +457,9 @@ never invents enabled state.
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
 | Toggle source line numbers | `Alt+Shift+5` |
+| Compose review | `Alt+R` (Option-R) |
+| Comment | `Alt+C` (Option-C) |
+| Back from a composition page | `Esc` |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
 the composed epoch control already holds `Alt+1` through `Alt+3` with
@@ -446,8 +468,8 @@ focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
 plain-`Alt` form produced two silently dead toggles. No key sequence may be
 duplicated anywhere in the assembled window.
 
-The row contains one presenter for each semantic action at every supported
-width. Review details is a compact disclosure. Seen, Reviewed, Accepted, and
+The bar contains one presenter for each semantic action at every supported
+width. Review details is an item of the comparison's menu. Seen, Reviewed, Accepted, and
 Excluded remain the same receipt `QAction` instances and appear in one
 keyboard-operable private-progress popup; the popup adds no duplicate policy,
 shortcut, or persistent text width. Closing the popup leaves the actions owned

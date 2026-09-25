@@ -60,6 +60,22 @@ namespace {
 		expect(controls(current) == review_submission_controls{ }, "invalid identity enables nothing");
 	}
 
+	// [[BPR-1129]]. Compose review's mark: a summary or a verdict while
+	// drafting, or a submission not yet settled, is kept work.
+	void test_kept_drafts()
+	{
+		auto current = draft();
+		expect(kept(current), "a drafted summary is kept");
+		current.Body.clear();
+		expect(!kept(current), "an empty comment draft keeps nothing");
+		current.Disposition = review_disposition::approve;
+		expect(kept(current), "a chosen verdict is kept even with no summary");
+		current = *apply(draft(), command(kind::begin_submit)).Draft;
+		expect(kept(current), "a submission in flight is kept");
+		expect(!kept(*apply(current, command(kind::complete_submit, 1U)).Draft), "a submitted review keeps nothing");
+		expect(!kept(*apply(draft(), command(kind::discard)).Draft), "a discarded draft keeps nothing");
+	}
+
 	void test_transitions()
 	{
 		const auto initial = draft();
@@ -250,6 +266,7 @@ namespace {
 int main()
 {
 	test_decided_controls();
+	test_kept_drafts();
 	test_transitions();
 	test_body_policy();
 	test_late_terminals_do_not_inspect_or_return_body();

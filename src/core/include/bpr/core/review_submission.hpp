@@ -118,6 +118,11 @@ namespace bpr::core {
 		auto operator<=>(const review_submission_controls&) const = default;
 	};
 	[[nodiscard]] auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls;
+	/// \brief [[BPR-1129]]. Whether a draft holds review work that is kept: a
+	/// summary or a chosen verdict while drafting, or a submission not yet
+	/// settled. An empty comment draft, a submitted and a discarded one keep
+	/// nothing. RFC-BPR-0052's Compose review mark is this, presented.
+	[[nodiscard]] auto kept(const review_submission_draft& aDraft) noexcept -> bool;
 
 	/// \brief Checks the closed ordinary review disposition vocabulary.
 	[[nodiscard]] auto valid(review_disposition aDisposition) noexcept -> bool;

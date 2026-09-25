@@ -5,6 +5,8 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/epoch_line.hpp"
 
+#include <QPointer>
+#include <QToolButton>
 #include <QWidget>
 
 #include <array>
@@ -16,7 +18,6 @@ class QComboBox;
 class QEvent;
 class QLabel;
 class QLineEdit;
-class QToolButton;
 
 namespace bpr::qt {
 	/// \brief Describes the epoch comparison control statistics record.
@@ -46,7 +47,21 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0028's epoch line, the control's one always-shown row.
 		[[nodiscard]] auto line() const noexcept -> epoch_line*;
 		/// \brief "Comparing ..." with the named comparisons and history actions.
+		///
+		/// \details [[BPR-1129]]. Its text names the comparison in force and,
+		/// while both compared updates have a date, the dates: "Comparing
+		/// since my last review, Feb 12 → Feb 15".
 		[[nodiscard]] auto comparing_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1129]]. Hands the "Comparing" button to the review bar.
+		///
+		/// \details The line keeps its own row; its "Updates" name goes, since
+		/// the bar names Updates before the button. The control keeps the
+		/// button's text, menu and state current wherever it is placed, and
+		/// the caller places it. A second call returns null.
+		[[nodiscard]] auto release_comparing_button() -> QToolButton*;
+		/// \brief [[BPR-1129]]. Whether the button names the compared dates;
+		/// the review bar drops them first as it narrows.
+		void set_comparing_dates_shown(bool aShown);
 		/// \brief The exact anchors, OIDs, status and maintenance, shown on request.
 		[[nodiscard]] auto details() const noexcept -> QWidget*;
 		void               set_details_visible(bool aVisible);
@@ -86,7 +101,10 @@ namespace bpr::qt {
 		void dispatch_identity(
 			core::comparison_side                   aSide,
 			const core::comparison_anchor_identity& aIdentity);
-		void               update_line();
+		void update_line();
+		/// \brief [[BPR-1129]]. The "Comparing" button's words: the comparison in
+		/// force and, while shown, its dates.
+		void               update_comparing_text();
 		void               dispatch_older_history_page();
 		void               dispatch_newest_history_page();
 		[[nodiscard]] auto maintenance_scope_text() const -> QString;
@@ -110,31 +128,36 @@ namespace bpr::qt {
 		std::optional<core::pull_request_authority> ScopeAuthority;
 		QString                                     ScopeLabel;
 		application::epoch_intent_dispatch          Dispatch;
-		epoch_history_model*                        HistoryModel            = nullptr;
-		epoch_line*                                 Line                    = nullptr;
-		QToolButton*                                ComparingButton         = nullptr;
-		QWidget*                                    Details                 = nullptr;
-		QComboBox*                                  LeftSelector            = nullptr;
-		QComboBox*                                  RightSelector           = nullptr;
-		QLineEdit*                                  LeftOid                 = nullptr;
-		QLineEdit*                                  RightOid                = nullptr;
-		QLabel*                                     StatusLabel             = nullptr;
-		QLabel*                                     ComparisonLabel         = nullptr;
-		QAction*                                    WholePrAction           = nullptr;
-		QAction*                                    PreviousUploadAction    = nullptr;
-		QAction*                                    LastReviewedAction      = nullptr;
-		QAction*                                    LoadHistoryAction       = nullptr;
-		QAction*                                    ReturnNewestAction      = nullptr;
-		QAction*                                    RefreshAction           = nullptr;
-		QAction*                                    CancelAction            = nullptr;
-		QAction*                                    PruneAction             = nullptr;
-		QAction*                                    DeleteCacheAction       = nullptr;
-		QAction*                                    CancelMaintenanceAction = nullptr;
-		QToolButton*                                LoadHistoryButton       = nullptr;
-		QToolButton*                                ReturnNewestButton      = nullptr;
-		QToolButton*                                RefreshButton           = nullptr;
-		QToolButton*                                CancelButton            = nullptr;
-		QToolButton*                                MaintenanceButton       = nullptr;
+		epoch_history_model*                        HistoryModel = nullptr;
+		epoch_line*                                 Line         = nullptr;
+		/// [[BPR-1129]]. Guarded: once released it belongs to the review bar,
+		/// which may be destroyed before this control.
+		QPointer<QToolButton> ComparingButton;
+		QLabel*               LineName                = nullptr;
+		bool                  ComparingReleased       = false;
+		bool                  ComparingDatesShown     = true;
+		QWidget*              Details                 = nullptr;
+		QComboBox*            LeftSelector            = nullptr;
+		QComboBox*            RightSelector           = nullptr;
+		QLineEdit*            LeftOid                 = nullptr;
+		QLineEdit*            RightOid                = nullptr;
+		QLabel*               StatusLabel             = nullptr;
+		QLabel*               ComparisonLabel         = nullptr;
+		QAction*              WholePrAction           = nullptr;
+		QAction*              PreviousUploadAction    = nullptr;
+		QAction*              LastReviewedAction      = nullptr;
+		QAction*              LoadHistoryAction       = nullptr;
+		QAction*              ReturnNewestAction      = nullptr;
+		QAction*              RefreshAction           = nullptr;
+		QAction*              CancelAction            = nullptr;
+		QAction*              PruneAction             = nullptr;
+		QAction*              DeleteCacheAction       = nullptr;
+		QAction*              CancelMaintenanceAction = nullptr;
+		QToolButton*          LoadHistoryButton       = nullptr;
+		QToolButton*          ReturnNewestButton      = nullptr;
+		QToolButton*          RefreshButton           = nullptr;
+		QToolButton*          CancelButton            = nullptr;
+		QToolButton*          MaintenanceButton       = nullptr;
 
 		std::optional<core::epoch_occurrence_history>           OccurrenceHistory;
 		bool                                                    AllowOccurrenceImport = false;

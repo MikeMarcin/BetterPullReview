@@ -240,6 +240,19 @@ endfunction()
 # BPR-0974 commit (85e522d8); 9577a516 and 518fcc37, rebased beneath it,
 # touched only fixture sources outside the manifest. Review recorded on
 # BPR-0974.
+# BPR-1129 reseal: RFC-BPR-0052's title row and review bar. Inside the
+# BPR_BUILD_TESTING UIforETW capture only: it finds the navigation presenters
+# on the window's review bar and the drawer toggles on the title row, asserts
+# both rows' exact order (sixteen title-row actions, fourteen review-bar
+# actions, Review details in the comparison's menu), writes capture schema v5
+# with both rows' rectangles, names the review bar in its layout failure line,
+# and takes the height floor from the measured stack: 829 on macOS, 834 on
+# Linux (derived from BPR-1036's Linux stack), 850 kept on Windows. The capture
+# reads window state and writes only to standard streams and its evidence
+# directory; every product action it takes is unchanged. No credential,
+# provider, vault, transport or mutation path changes; the mutation-branch pin
+# is unchanged. Covers 0114d6a8..the BPR-1129 commit; nothing else touched the
+# pinned scope. Review recorded on BPR-1129.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -258,7 +271,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fcf7b4bb564b51655cfe81b4b49b50b1d6e437cf389d39bd39e339495cfe29cb"
+		"c328c2b399293f529b6913aac607e9955f6a3db5309ac59adb2ade4b19304c1e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -401,7 +414,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cda616e0eb98e9cda18e09dc6e6fda7876367140999a43fa8363398b4e7ba5a1"
+        "1a1d42e5d613b06fdcc8046c2c0e6cfb284ee41f4741dae66f37280a3e31b09e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

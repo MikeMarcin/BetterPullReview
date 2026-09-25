@@ -180,6 +180,20 @@ namespace bpr::core {
 		}
 	} // namespace
 
+	auto kept(const review_submission_draft& aDraft) noexcept -> bool
+	{
+		switch (aDraft.State) {
+		case review_submission_state::drafting:
+			return !aDraft.Body.empty() || aDraft.Disposition != review_disposition::comment;
+		case review_submission_state::submitting:
+			return true;
+		case review_submission_state::submitted:
+		case review_submission_state::discarded:
+			return false;
+		}
+		return false;
+	}
+
 	auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls
 	{
 		if (!valid(aDraft)) {

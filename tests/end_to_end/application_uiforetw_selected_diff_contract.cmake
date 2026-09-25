@@ -55,17 +55,18 @@ bpr_private_data_root(BPR_ROOT)
 
 # [[BPR-1036]]. The comparison's height floor, in pixels of the 1000-pixel
 # capture window and so in thousandths of it, asserted here on its own as well
-# as in the capture. RFC-BPR-0028 AC-01, as the owner amended it on 2026-09-24,
-# admits the review surface's entry rows between the strip and the epoch line,
-# so the floor is the stack measured with the composition entry row in place:
-# 842 on Linux and 835 on macOS. Windows has no menu bar row and no measured
-# stack yet, so it keeps the owner's 850 budget ([[BPR-0246]]).
+# as in the capture. [[BPR-1129]]: RFC-BPR-0052's 28-pixel review bar replaces
+# the composition entry row, and the Updates line keeps its 50-pixel row until
+# [[BPR-1130]]. Measured on macOS the comparison is 829 (the entry row was 22
+# there); on Linux, where the entry row measured 20, the same bar gives 834,
+# derived until the Linux station measures it. Windows has no menu bar row and
+# keeps the owner's 850 budget ([[BPR-0246]]), unmeasured with the bar.
 if(CMAKE_HOST_APPLE)
-    set(bpr_comparison_height_floor 835)
+    set(bpr_comparison_height_floor 829)
 elseif(CMAKE_HOST_WIN32)
     set(bpr_comparison_height_floor 850)
 else()
-    set(bpr_comparison_height_floor 842)
+    set(bpr_comparison_height_floor 834)
 endif()
 
 set(bpr_evidence_root "${BPR_ROOT}/evidence")
@@ -181,7 +182,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
-        "\"schema\": \"bpr.uiforetw_intraline_capture.v4\""
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v5\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -200,7 +201,9 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		files_drawer_toggle_exercised
 		conversations_drawer_toggle_exercised
 		repositories_drawer_toggle_exercised
-		navigation_row_exact_order
+		title_row_exact_order
+		review_bar_exact_order
+		review_details_in_comparison_menu
 		navigation_actions_icon_only
 		navigation_actions_have_native_icons
 		navigation_icons_palette_aware
@@ -300,15 +303,18 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 
     foreach(rect IN ITEMS
         full_window_rect
-        navigation_row_rect_in_window
-        files_toggle_rect_in_row
-        previous_file_rect_in_row
-        next_file_rect_in_row
-        previous_change_rect_in_row
-        next_change_rect_in_row
-        review_details_rect_in_row
-        private_progress_rect_in_row
-        conversations_toggle_rect_in_row
+        title_row_rect_in_window
+        review_bar_rect_in_window
+        files_toggle_rect_in_title_row
+        conversations_toggle_rect_in_title_row
+        comparing_rect_in_bar
+        previous_change_rect_in_bar
+        next_change_rect_in_bar
+        previous_file_rect_in_bar
+        next_file_rect_in_bar
+        private_progress_rect_in_bar
+        compose_review_rect_in_bar
+        comment_rect_in_bar
         comparison_rect_in_window
         left_pane_rect_in_window
         right_pane_rect_in_window
@@ -336,59 +342,76 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             "UIforETW ${profile} full-window rectangle is not exact"
         )
     endif()
-	if(NOT navigation_row_rect_in_window_x EQUAL 0
-			OR NOT navigation_row_rect_in_window_width EQUAL 1280
-			OR navigation_row_rect_in_window_y LESS 0
-			OR navigation_row_rect_in_window_height LESS 1)
+	# [[BPR-1129]]. RFC-BPR-0052's two rows: the title row spans the window,
+	# and the review bar spans it directly beneath, at 30 and 28 pixels.
+	math(EXPR title_row_bottom
+		"${title_row_rect_in_window_y} + ${title_row_rect_in_window_height}")
+	if(NOT title_row_rect_in_window_x EQUAL 0
+			OR NOT title_row_rect_in_window_width EQUAL 1280
+			OR title_row_rect_in_window_y LESS 0
+			OR NOT title_row_rect_in_window_height EQUAL 30
+			OR NOT review_bar_rect_in_window_x EQUAL 0
+			OR NOT review_bar_rect_in_window_width EQUAL 1280
+			OR NOT review_bar_rect_in_window_y EQUAL title_row_bottom
+			OR NOT review_bar_rect_in_window_height EQUAL 28)
 		message(FATAL_ERROR
-			"UIforETW ${profile} compact navigation row does not span the window"
+			"UIforETW ${profile} the title row and the review bar do not span the window, one under the other: "
+			"title=${title_row_rect_in_window_y}+${title_row_rect_in_window_height} "
+			"bar=${review_bar_rect_in_window_y}+${review_bar_rect_in_window_height}"
 		)
 	endif()
-	math(EXPR files_toggle_right
-		"${files_toggle_rect_in_row_x} + ${files_toggle_rect_in_row_width}")
-	math(EXPR previous_file_right
-		"${previous_file_rect_in_row_x} + ${previous_file_rect_in_row_width}")
-	math(EXPR next_file_right
-		"${next_file_rect_in_row_x} + ${next_file_rect_in_row_width}")
-	math(EXPR previous_change_right
-		"${previous_change_rect_in_row_x} + ${previous_change_rect_in_row_width}")
-	math(EXPR next_change_right
-		"${next_change_rect_in_row_x} + ${next_change_rect_in_row_width}")
-	math(EXPR review_details_right_in_row
-		"${review_details_rect_in_row_x} + ${review_details_rect_in_row_width}")
-	math(EXPR private_progress_right
-		"${private_progress_rect_in_row_x} + ${private_progress_rect_in_row_width}")
-	math(EXPR conversations_toggle_right
-		"${conversations_toggle_rect_in_row_x} + ${conversations_toggle_rect_in_row_width}")
-	# [[BPR-0646]] [[BPR-0647]]. RFC-BPR-0028's strip is the title row: the
-	# platform inset for the window controls and the Home button precede the
-	# files toggle, the change pair comes before the file pair, the two
-	# flexible spacers flank the modality control between the file pair and
-	# the review details, and refresh, the divider, account and settings
-	# follow the comments toggle at the right.
+	foreach(control IN ITEMS
+		files_toggle_rect_in_title_row
+		conversations_toggle_rect_in_title_row
+		comparing_rect_in_bar
+		previous_change_rect_in_bar
+		next_change_rect_in_bar
+		previous_file_rect_in_bar
+		next_file_rect_in_bar
+		private_progress_rect_in_bar
+		compose_review_rect_in_bar
+		comment_rect_in_bar
+	)
+		math(EXPR ${control}_right "${${control}_x} + ${${control}_width}")
+	endforeach()
+	# [[BPR-0646]] [[BPR-1129]]. The title row keeps the platform inset for the
+	# window controls and the Home button before the files toggle, and the
+	# comments toggle, the divider, account and settings at its right.
 	# [[BPR-1033]]. On Windows the caption buttons end the row after settings;
 	# their width comes off the right edge first, so the bound below stays the
-	# one for refresh, the divider, account and settings on every platform.
-	# The rectangle is empty where the row has no window controls at its right.
+	# one for the divider, account and settings on every platform. The
+	# rectangle is empty where the row has no window controls at its right.
 	string(JSON window_controls_width GET
-		"${capture_facts}" window_controls_rect_in_row width)
-	math(EXPR left_edge_gap "${files_toggle_rect_in_row_x}")
+		"${capture_facts}" window_controls_rect_in_title_row width)
+	math(EXPR left_edge_gap "${files_toggle_rect_in_title_row_x}")
 	math(EXPR right_edge_gap
-		"${navigation_row_rect_in_window_width} - ${conversations_toggle_right} - ${window_controls_width}")
-	math(EXPR centre_region_width
-		"${review_details_rect_in_row_x} - ${next_file_right}")
+		"${title_row_rect_in_window_width} - ${conversations_toggle_rect_in_title_row_right} - ${window_controls_width}")
 	if(left_edge_gap GREATER 160
 			OR right_edge_gap GREATER 110
-			OR files_toggle_right GREATER previous_change_rect_in_row_x
-			OR previous_change_right GREATER next_change_rect_in_row_x
-			OR next_change_right GREATER previous_file_rect_in_row_x
-			OR previous_file_right GREATER next_file_rect_in_row_x
-			OR next_file_right GREATER review_details_rect_in_row_x
-			OR review_details_right_in_row GREATER private_progress_rect_in_row_x
-			OR private_progress_right GREATER conversations_toggle_rect_in_row_x
-			OR centre_region_width LESS 100)
+			OR files_toggle_rect_in_title_row_right GREATER conversations_toggle_rect_in_title_row_x)
 		message(FATAL_ERROR
-			"UIforETW ${profile} compact navigation order/edges/spacer drifted"
+			"UIforETW ${profile} title row order/edges drifted"
+		)
+	endif()
+	# [[BPR-1129]]. The review bar reads, from its left, the comparison's menu,
+	# the change pair, the file pair and private progress; Compose review and
+	# Comment close its right, after a flexible gap.
+	math(EXPR bar_right_gap
+		"${review_bar_rect_in_window_width} - ${comment_rect_in_bar_right}")
+	math(EXPR bar_gap_width
+		"${compose_review_rect_in_bar_x} - ${private_progress_rect_in_bar_right}")
+	if(comparing_rect_in_bar_x GREATER 160
+			OR comparing_rect_in_bar_right GREATER previous_change_rect_in_bar_x
+			OR previous_change_rect_in_bar_right GREATER next_change_rect_in_bar_x
+			OR next_change_rect_in_bar_right GREATER previous_file_rect_in_bar_x
+			OR previous_file_rect_in_bar_right GREATER next_file_rect_in_bar_x
+			OR next_file_rect_in_bar_right GREATER private_progress_rect_in_bar_x
+			OR private_progress_rect_in_bar_right GREATER compose_review_rect_in_bar_x
+			OR compose_review_rect_in_bar_right GREATER comment_rect_in_bar_x
+			OR bar_right_gap GREATER 20
+			OR bar_gap_width LESS 100)
+		message(FATAL_ERROR
+			"UIforETW ${profile} review bar order/edges/gap drifted"
 		)
 	endif()
     math(EXPR review_details_right

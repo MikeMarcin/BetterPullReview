@@ -64,6 +64,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -204,13 +205,10 @@ namespace bpr::qt {
 		/// the drawer's design width instead and the next drag persists a
 		/// real one.
 		constexpr std::uint32_t minimum_presented_drawer_width = 160U;
-		/// \brief Width from which the strip identity carries the title.
-		///
-		/// \details [[BPR-0722]]. Below this the title yields, below
-		/// identity_owner_width the owner yields too; the repository and the
-		/// number stay as far down as the number has room (apply_strip_width).
-		constexpr int identity_full_width  = 1'400;
-		constexpr int identity_owner_width = 1'180;
+		/// \brief [[BPR-1129]]. The least of the title worth showing after the
+		/// number; with less room the name drops the title rather than show a
+		/// sliver of it.
+		constexpr int identity_title_minimum = 80;
 		/// \brief Least width the repository keeps beside the number when elided.
 		constexpr int identity_fragment_width = 24;
 #if defined(__APPLE__)
@@ -648,17 +646,18 @@ namespace bpr::qt {
 	void workbench_window::build_primary_toolbar()
 	{
 		// [[BPR-0646]]. RFC-BPR-0028's strip: one 30-pixel row in full ink
-		// with bordered buttons, three regions. It stays the window's one
-		// toolbar so every action keeps its presenter, shortcut and place in
-		// the declared focus order.
-		Strip = new workbench_strip{ QStringLiteral("Review strip"), this };
+		// with bordered buttons. It stays the window's one toolbar so every
+		// action keeps its presenter, shortcut and place in the declared focus
+		// order. [[BPR-1129]]: RFC-BPR-0052 makes it the calm title row, and
+		// what acts on the review moves to the review bar beneath it.
+		Strip = new workbench_strip{ QStringLiteral("Title row"), this };
 		addToolBar(Strip);
 		PrimaryToolbar = Strip;
 		PrimaryToolbar->setObjectName(QStringLiteral("workbenchPrimaryToolbar"));
-		PrimaryToolbar->setAccessibleName(QStringLiteral("Review strip"));
+		PrimaryToolbar->setAccessibleName(QStringLiteral("Title row"));
 		PrimaryToolbar->setAccessibleDescription(QStringLiteral(
-			"Drawer toggles, pull request identity, change and file navigation, "
-			"the review modality, refresh, account and settings"));
+			"Home, the drawer toggles, the pull request, the review modality, "
+			"refresh, comments, account and settings"));
 
 		const auto makeDrawer = [this](const QString&      aText,
 									   const QString&      aName,
@@ -867,10 +866,11 @@ namespace bpr::qt {
 			}
 		});
 
-		const auto stripLabel = [this](const QString& aObjectName,
-									   const QString& aAccessible,
-									   const QString& aDescription) {
-			auto* const label = new QLabel{ PrimaryToolbar };
+		const auto rowLabel = [](QWidget* const aRow,
+								 const QString& aObjectName,
+								 const QString& aAccessible,
+								 const QString& aDescription) {
+			auto* const label = new QLabel{ aRow };
 			label->setObjectName(aObjectName);
 			label->setAccessibleName(aAccessible);
 			label->setAccessibleDescription(aDescription);
@@ -879,28 +879,28 @@ namespace bpr::qt {
 			label->setContentsMargins(2, 0, 4, 0);
 			return label;
 		};
-		const auto stripWidget = [this](QWidget* const aWidget, const QString& aActionName) {
-			auto* const action = PrimaryToolbar->addWidget(aWidget);
+		const auto rowWidget = [](QToolBar* const aRow, QWidget* const aWidget, const QString& aActionName) {
+			auto* const action = aRow->addWidget(aWidget);
 			action->setObjectName(aActionName);
 			return action;
 		};
-		const auto stripSpacer = [this, &stripWidget](
-									 const QString& aObjectName, const QString& aActionName) {
-			auto* const spacer = new QWidget{ PrimaryToolbar };
+		const auto rowSpacer = [&rowWidget](QToolBar* const aRow, const QString& aObjectName, const QString& aActionName) {
+			auto* const spacer = new QWidget{ aRow };
 			spacer->setObjectName(aObjectName);
 			spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 			spacer->setFocusPolicy(Qt::NoFocus);
-			stripWidget(spacer, aActionName);
+			rowWidget(aRow, spacer, aActionName);
 			return spacer;
 		};
 
-		// Exact persistent order, the design's three regions left to right.
-		// Left: the files drawer toggle, the identity, a rule, the change
-		// navigation with its position, the file navigation with its position.
-		// Centre: the modality control alone between two expanding spacers.
-		// Right: the secondary review controls, refresh (inserted once the
-		// session chrome has made it), the comments drawer toggle, a rule,
-		// account, settings.
+		// [[BPR-1129]]. RFC-BPR-0052's title row carries the window, the pull
+		// request and the modality, in this exact persistent order: the
+		// platform inset, Home, the repositories and files toggles, the pull
+		// request's name, then at the right the modality, refresh (inserted
+		// once the session chrome has made it), the comments toggle with the
+		// new-comment count, a rule, account and settings. No navigation,
+		// progress or composition control sits in it; they are the review
+		// bar's, so the name has the room they took.
 		// The platform inset comes first: on macOS the width the three window
 		// buttons occupy plus the gap Fork and Visual Studio Code leave before
 		// their first control; nothing elsewhere. A widget item rather than a
@@ -913,7 +913,7 @@ namespace bpr::qt {
 #else
 		StripInset->setFixedWidth(0);
 #endif
-		stripWidget(StripInset, QStringLiteral("workbenchStripInsetAction"));
+		rowWidget(PrimaryToolbar, StripInset, QStringLiteral("workbenchStripInsetAction"));
 #if defined(_WIN32)
 		// [[BPR-0653]]. The Windows form of the title row, after Visual Studio
 		// Code: no menu bar row, but one compact menu control first in the
@@ -941,7 +941,7 @@ namespace bpr::qt {
 		StripMenuButton->setFocusPolicy(Qt::StrongFocus);
 		StripMenuButton->setIcon(windows_menu_icon(palette()));
 		connect(StripMenuButton, &QToolButton::clicked, this, &workbench_window::open_strip_menu);
-		stripWidget(StripMenuButton, QStringLiteral("workbenchStripMenuAction"));
+		rowWidget(PrimaryToolbar, StripMenuButton, QStringLiteral("workbenchStripMenuAction"));
 #endif
 		// [[BPR-0650]]. Home first: the way back to the landing and the queue
 		// from any review, checked while Home shows.
@@ -961,35 +961,17 @@ namespace bpr::qt {
 		PrimaryToolbar->addAction(HomeAction);
 		PrimaryToolbar->addAction(Drawers[2].Toggle);
 		PrimaryToolbar->addAction(Drawers[0].Toggle);
-		IdentityLabel = stripLabel(
+		IdentityLabel = rowLabel(
+			PrimaryToolbar,
 			QStringLiteral("workbenchStripIdentity"),
 			QStringLiteral("Open pull request"),
-			QStringLiteral("Repository and pull request the strip navigates"));
+			QStringLiteral("Repository, number and title of the open pull request"));
 		IdentityLabel->setContentsMargins(4, 0, 4, 0);
-		IdentityAction = stripWidget(
-			IdentityLabel, QStringLiteral("workbenchStripIdentityAction"));
-		stripWidget(
-			new strip_divider{ PrimaryToolbar },
-			QStringLiteral("workbenchStripLeftDividerAction"));
-		PrimaryToolbar->addAction(Navigation[2].Action);
-		PrimaryToolbar->addAction(Navigation[3].Action);
-		ChangePositionLabel = stripLabel(
-			QStringLiteral("workbenchStripChangePosition"),
-			QStringLiteral("Change position"),
-			QStringLiteral("The selected change's position among the comparison's changes"));
-		ChangePositionAction = stripWidget(
-			ChangePositionLabel,
-			QStringLiteral("workbenchStripChangePositionAction"));
-		PrimaryToolbar->addAction(Navigation[0].Action);
-		PrimaryToolbar->addAction(Navigation[1].Action);
-		FilePositionLabel = stripLabel(
-			QStringLiteral("workbenchStripFilePosition"),
-			QStringLiteral("File position"),
-			QStringLiteral("The selected file's position among the actionable files"));
-		FilePositionAction = stripWidget(
-			FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
-		// [[BPR-0656]]. Next new comment with its count: the unread threads
-		// the ledger host decided, walked in file order.
+		IdentityAction = rowWidget(
+			PrimaryToolbar, IdentityLabel, QStringLiteral("workbenchStripIdentityAction"));
+		// [[BPR-0656]]. Next new comment keeps its key and its window
+		// ownership; [[BPR-1129]] its count rides on the comments toggle and its
+		// presenter leaves the title row.
 		NextNewCommentAction = new QAction{ QStringLiteral("Next new &comment"), this };
 		NextNewCommentAction->setObjectName(QStringLiteral("nextNewCommentAction"));
 		NextNewCommentAction->setIconText(QStringLiteral("Next new comment"));
@@ -1001,29 +983,18 @@ namespace bpr::qt {
 		NextNewCommentAction->setEnabled(false);
 		addAction(NextNewCommentAction);
 		connect(NextNewCommentAction, &QAction::triggered, this, [this] { step_to_next_new_comment(); });
-		PrimaryToolbar->addAction(NextNewCommentAction);
-		NewCommentCountLabel = stripLabel(
-			QStringLiteral("workbenchStripNewCommentCount"),
-			QStringLiteral("New comments"),
-			QStringLiteral("How many threads carry a post newer than what you have read"));
-		NewCommentCountAction = stripWidget(
-			NewCommentCountLabel, QStringLiteral("workbenchStripNewCommentCountAction"));
 
-		ToolbarSpacer = stripSpacer(
+		ToolbarSpacer = rowSpacer(
+			PrimaryToolbar,
 			QStringLiteral("workbenchNavigationSpacer"),
 			QStringLiteral("workbenchNavigationSpacerAction"));
 		Modality = new modality_control{ *Strip, PrimaryToolbar };
 		Modality->set_dispatch(
 			[this](const review_modality aModality) { choose_modality(aModality); });
-		stripWidget(Modality, QStringLiteral("workbenchModalityAction"));
-		ModalitySpacer = stripSpacer(
-			QStringLiteral("workbenchModalitySpacer"),
-			QStringLiteral("workbenchModalitySpacerAction"));
-
-		PrimaryToolbar->addAction(ReviewDetailsAction);
-		stripWidget(ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		rowWidget(PrimaryToolbar, Modality, QStringLiteral("workbenchModalityAction"));
 		PrimaryToolbar->addAction(Drawers[1].Toggle);
-		stripWidget(
+		rowWidget(
+			PrimaryToolbar,
 			new strip_divider{ PrimaryToolbar },
 			QStringLiteral("workbenchStripRightDividerAction"));
 		PrimaryToolbar->addAction(AccountAction);
@@ -1032,13 +1003,81 @@ namespace bpr::qt {
 		// [[BPR-0653]]. The caption buttons end the row, after settings. The
 		// host dispatches their presses and reports the window's state.
 		CaptionButtons = new windows_caption_buttons{ PrimaryToolbar };
-		stripWidget(CaptionButtons->reserve(), QStringLiteral("workbenchCaptionButtonsAction"));
+		rowWidget(PrimaryToolbar, CaptionButtons->reserve(), QStringLiteral("workbenchCaptionButtonsAction"));
 		// The menu bar's row is the strip's menu control on Windows. The bar
 		// stays the menus' owner, hidden, so the Quit shortcut it carried is
 		// the window's to keep live.
 		PrimaryMenuBar->setVisible(false);
 		addAction(QuitProfilesAction);
 #endif
+
+		// [[BPR-1129]]. RFC-BPR-0052's review bar: full width under the title
+		// row and always shown with a review, in this exact order. From its
+		// left, Updates and the comparison it names with its dates and menu (the
+		// epoch control hands its "Comparing" button over once it exists), the
+		// change pair with its position, the file pair with its position and
+		// private progress; at its right Compose review and Comment. It is an
+		// ordinary row: its bare surface drags nothing.
+		ReviewBar = new workbench_strip{ QStringLiteral("Review bar"), this, strip_role::review_bar };
+		ReviewBar->setObjectName(QStringLiteral("workbenchReviewBar"));
+		ReviewBar->setAccessibleName(QStringLiteral("Review bar"));
+		ReviewBar->setAccessibleDescription(QStringLiteral(
+			"Updates and the comparison, change and file navigation, private "
+			"progress, Compose review and Comment"));
+		auto* const barInset = new QWidget{ ReviewBar };
+		barInset->setObjectName(QStringLiteral("reviewBarInset"));
+		barInset->setFocusPolicy(Qt::NoFocus);
+		barInset->setFixedWidth(5);
+		rowWidget(ReviewBar, barInset, QStringLiteral("reviewBarInsetAction"));
+		UpdatesLabel = rowLabel(
+			ReviewBar,
+			QStringLiteral("reviewBarUpdates"),
+			QStringLiteral("Updates"),
+			QStringLiteral("The pull request's updates, whose timeline runs below this bar"));
+		UpdatesLabel->setText(QStringLiteral("Updates"));
+		rowWidget(ReviewBar, UpdatesLabel, QStringLiteral("reviewBarUpdatesAction"));
+		ReviewBar->addAction(Navigation[2].Action);
+		ReviewBar->addAction(Navigation[3].Action);
+		ChangePositionLabel = rowLabel(
+			ReviewBar,
+			QStringLiteral("workbenchStripChangePosition"),
+			QStringLiteral("Change position"),
+			QStringLiteral("The selected change's position among the comparison's changes"));
+		ChangePositionAction = rowWidget(
+			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
+		ReviewBar->addAction(Navigation[0].Action);
+		ReviewBar->addAction(Navigation[1].Action);
+		FilePositionLabel = rowLabel(
+			ReviewBar,
+			QStringLiteral("workbenchStripFilePosition"),
+			QStringLiteral("File position"),
+			QStringLiteral("The selected file's position among the actionable files"));
+		FilePositionAction = rowWidget(
+			ReviewBar, FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
+		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
+		// [[BPR-1129]]. The two composition commands are the window's, so their
+		// keys work from anywhere in it without a visible presenter; the bar and
+		// the Pull Request menu present them. They keep the object names the
+		// composition pages and their tests already know.
+		const auto makeComposition = [this](const QString& aText, const QString& aName, const QString& aKey, const bool aInline) {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aName);
+			action->setIconText(action->text().remove(QLatin1Char{ '&' }));
+			action->setShortcut(QKeySequence{ aKey });
+			action->setShortcutContext(Qt::WindowShortcut);
+			addAction(action);
+			connect(action, &QAction::triggered, this, [this, aInline] { open_review_composition(aInline); });
+			return action;
+		};
+		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), QStringLiteral("Alt+R"), false);
+		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), QStringLiteral("Alt+C"), true);
+		ReviewBar->addAction(ComposeReviewAction);
+		ReviewBar->addAction(CommentAction);
+		PullRequestMenu->addSeparator();
+		PullRequestMenu->addAction(ComposeReviewAction);
+		PullRequestMenu->addAction(CommentAction);
+		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
 		apply_strip_width();
@@ -1099,9 +1138,27 @@ namespace bpr::qt {
 		readiness->addWidget(ReviewReadinessText, 1);
 		readiness->addWidget(ReviewReadinessProgress);
 		ReviewReadiness->hide();
+		// [[BPR-1129]]. The review surface reads, top to bottom, the review bar,
+		// the readiness line while a pull request loads ([[BPR-0795]]'s row,
+		// which [[BPR-1130]] asks the owner about), the Updates line's timeline,
+		// and the drawers and panes. The bar takes the epoch control's
+		// "Comparing" menu, and that menu takes Review details, since what it
+		// discloses are the comparison's anchors.
+		review->addWidget(ReviewBar);
 		review->addWidget(ReviewReadiness);
 		review->addWidget(EpochSelectors);
 		review->addWidget(CentralSplitter, 1);
+		if (auto* const comparing = EpochSelectors->release_comparing_button(); comparing != nullptr) {
+			comparing->setAutoRaise(true);
+			comparing->setParent(ReviewBar);
+			ReviewBar->insertWidget(Navigation[2].Action, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
+			ReviewBar->insertWidget(Navigation[2].Action, new strip_divider{ ReviewBar })
+				->setObjectName(QStringLiteral("reviewBarComparisonDividerAction"));
+			if (auto* const menu = comparing->menu(); menu != nullptr) {
+				menu->addSeparator();
+				menu->addAction(ReviewDetailsAction);
+			}
+		}
 		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
@@ -1508,32 +1565,21 @@ namespace bpr::qt {
 			back->setObjectName(aName + QStringLiteral("Back"));
 			back->setAccessibleDescription(tr("Return to the previous surface without submitting"));
 			connect(back, &QPushButton::clicked, this, [this] { close_review_composition(); });
+			// [[BPR-1129]]. Esc is Back, from anywhere on the page.
+			auto* const escape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, scroll };
+			escape->setObjectName(aName + QStringLiteral("Escape"));
+			escape->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(escape, &QShortcut::activated, this, [this] { close_review_composition(); });
 			column->addWidget(back, 0, Qt::AlignLeft);
 			column->addWidget(aEditor, 1);
 			scroll->setWidget(page);
 			CentreStack->addWidget(scroll);
 			return scroll;
 		};
-		ComposeReviewPage        = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"));
-		ComposeInlinePage        = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"));
-		auto* compositionEntries = new QHBoxLayout;
-		review->insertLayout(1, compositionEntries);
-		const auto addCompositionEntry = [this, compositionEntries](const QString& aText, const QString& aName, bool aInline) {
-			auto* action = new QAction{ aText, this };
-			action->setObjectName(aName);
-			action->setToolTip(tr("Open the retained draft without submitting"));
-			auto* button = new QToolButton{ ReviewSurface };
-			button->setObjectName(aName + QStringLiteral("Button"));
-			button->setDefaultAction(action);
-			button->setFocusPolicy(Qt::StrongFocus);
-			button->setAccessibleName(aText);
-			button->setAccessibleDescription(action->toolTip());
-			connect(action, &QAction::triggered, this, [this, aInline] { open_review_composition(aInline); });
-			compositionEntries->addWidget(button);
-		};
-		addCompositionEntry(tr("Compose review"), QStringLiteral("composeReviewAction"), false);
-		addCompositionEntry(tr("Draft comment or reply"), QStringLiteral("composeInlineDraftAction"), true);
-		compositionEntries->addStretch();
+		ComposeReviewPage = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"));
+		ComposeInlinePage = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"));
+		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
+		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		conversationLayout->addWidget(AgentPanel);
@@ -4990,24 +5036,86 @@ namespace bpr::qt {
 		return NextNewCommentAction;
 	}
 
-	auto workbench_window::new_comment_count_label() const noexcept -> QLabel*
+	auto workbench_window::review_bar() const noexcept -> QToolBar*
 	{
-		return NewCommentCountLabel;
+		return ReviewBar;
+	}
+
+	auto workbench_window::updates_label() const noexcept -> QLabel*
+	{
+		return UpdatesLabel;
+	}
+
+	auto workbench_window::compose_review_action() const noexcept -> QAction*
+	{
+		return ComposeReviewAction;
+	}
+
+	auto workbench_window::comment_action() const noexcept -> QAction*
+	{
+		return CommentAction;
 	}
 
 	void workbench_window::update_new_comment_group()
 	{
-		if (NextNewCommentAction == nullptr || NewCommentCountLabel == nullptr
-			|| ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+		if (NextNewCommentAction == nullptr || ConversationPanel == nullptr
+			|| ConversationPanel->cards() == nullptr) {
 			return;
 		}
 		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
-		NewCommentCountLabel->setText(
-			unread.empty() ? QString{ } : QStringLiteral("%1 new").arg(unread.size()));
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
 						   : QStringLiteral("Next new comment (%1 threads)").arg(unread.size()));
+		// [[BPR-1129]]. The comments toggle carries the count of threads with a
+		// post newer than what I have read, and says it to accessibility.
+		if (auto* const toggle = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(Drawers[1].Toggle));
+			toggle != nullptr) {
+			set_strip_badge(*toggle, unread.empty() ? QString{ } : QString::number(unread.size()));
+			const auto counted = unread.empty()
+				? Drawers[1].Toggle->toolTip()
+				: QStringLiteral("%1 %2 with new comments.").arg(Drawers[1].Toggle->toolTip()).arg(unread.size() == 1U ? QStringLiteral("One thread") : QStringLiteral("%1 threads").arg(unread.size()));
+			toggle->setAccessibleDescription(counted);
+		}
+	}
+
+	void workbench_window::update_compose_mark()
+	{
+		if (ComposeReviewAction == nullptr || CommentAction == nullptr) {
+			return;
+		}
+		// [[BPR-1129]]. The mark is the review workflow's draft state, as its
+		// editor was last given it; the rule for "kept" is the core's.
+		const auto& shown     = ReviewSubmissionEditor != nullptr ? ReviewSubmissionEditor->shown_draft() : std::optional<core::review_submission_draft>{ };
+		const auto  keptDraft = shown.has_value() && core::kept(*shown);
+		const auto  key       = [](const QAction* const aAction) {
+			return aAction->shortcut().toString(QKeySequence::NativeText);
+		};
+		const auto compose = keptDraft
+			? QStringLiteral("Compose review (%1)\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
+			: QStringLiteral("Compose review (%1)").arg(key(ComposeReviewAction));
+		ComposeReviewAction->setToolTip(compose);
+		ComposeReviewAction->setStatusTip(compose);
+		const auto comment = QStringLiteral("Comment (%1)").arg(key(CommentAction));
+		CommentAction->setToolTip(comment);
+		CommentAction->setStatusTip(comment);
+		if (ReviewBar == nullptr) {
+			return;
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeReviewAction)); button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Compose review"));
+			button->setAccessibleDescription(keptDraft
+												 ? QStringLiteral("Open the review page; a review draft is kept for this pull request")
+												 : QStringLiteral("Open the review page without submitting"));
+			if (button->property(strip_style::mark_property).toBool() != keptDraft) {
+				button->setProperty(strip_style::mark_property, keptDraft);
+				button->update();
+			}
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Comment"));
+			button->setAccessibleDescription(QStringLiteral("Open the comment page on the retained draft without submitting"));
+		}
 	}
 
 	void workbench_window::step_to_next_new_comment()
@@ -5637,7 +5745,6 @@ namespace bpr::qt {
 					|| action == HomeAction
 					|| name == QLatin1String{ "workbenchStripInsetAction" }
 					|| name == QLatin1String{ "workbenchNavigationSpacerAction" }
-					|| name == QLatin1String{ "workbenchModalitySpacerAction" }
 					// [[BPR-0653]]. On Windows the strip is the title row on
 					// Home too: its menu control and caption buttons stay.
 					|| name == QLatin1String{ "workbenchStripMenuAction" }
@@ -5975,21 +6082,30 @@ namespace bpr::qt {
 		if (FilePositionLabel == nullptr || ChangePositionLabel == nullptr) {
 			return;
 		}
-		auto fileText = QString{ };
+		// [[BPR-1129]]. On a narrow review bar the positions keep their numbers
+		// and drop their words: "3/40" for "file 3 of 40". The accessible
+		// name and the tooltip keep the words.
+		auto fileText  = QString{ };
+		auto fileWords = QString{ };
 		if (Cursor && Cursor->ActionableCount > 0U) {
-			fileText = Cursor->Ordinal > 0U
+			fileWords = Cursor->Ordinal > 0U
 				? QStringLiteral("file %1 of %2")
 					  .arg(Cursor->Ordinal)
 					  .arg(Cursor->ActionableCount)
 				: QStringLiteral("%1 files").arg(Cursor->ActionableCount);
+			fileText  = ReviewBarCompact && Cursor->Ordinal > 0U
+				? QStringLiteral("%1/%2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
+				: fileWords;
 		}
 		FilePositionLabel->setText(fileText);
+		FilePositionLabel->setToolTip(fileWords);
 
 		// Derived from the comparison the surface holds, exactly as the host
 		// derives the change cursor it observes for the core: the group the
 		// selection names, counted among the alignment's groups. No second
 		// authority, and nothing when the selection is for another comparison.
-		auto changeText = QString{ };
+		auto changeText  = QString{ };
+		auto changeWords = QString{ };
 		if (ComparisonSurface != nullptr) {
 			const auto& result    = ComparisonSurface->current_result();
 			const auto& selection = ComparisonSurface->selection();
@@ -6005,13 +6121,17 @@ namespace bpr::qt {
 							std::ranges::distance(groups.begin(), found) + 1);
 					}
 				}
-				changeText = ordinal > 0U
+				changeWords = ordinal > 0U
 					? QStringLiteral("change %1 of %2").arg(ordinal).arg(groups.size())
 					: groups.empty() ? QStringLiteral("no changes")
 									 : QStringLiteral("%1 changes").arg(groups.size());
+				changeText  = ReviewBarCompact && ordinal > 0U
+					? QStringLiteral("%1/%2").arg(ordinal).arg(groups.size())
+					: changeWords;
 			}
 		}
 		ChangePositionLabel->setText(changeText);
+		ChangePositionLabel->setToolTip(changeWords);
 	}
 
 	void workbench_window::update_strip_identity()
@@ -6024,26 +6144,33 @@ namespace bpr::qt {
 		// last. By width it sheds the title, then the owner; the number stays
 		// as far down as it has room (apply_strip_width decides that). Nothing
 		// here folds into an overflow menu.
-		const auto  available = width();
-		const auto& metrics   = IdentityLabel->fontMetrics();
-		// What the other strip items leave: the toolbar folds anything past
-		// its width into the extension button, so the identity never asks
+		const auto& metrics = IdentityLabel->fontMetrics();
+		// What the other title row items leave: the toolbar folds anything
+		// past its width into the extension button, so the name never asks
 		// for more than that remainder.
 		const auto margins = IdentityLabel->contentsMargins();
 		const auto room    = std::max(strip_identity_budget() - margins.left() - margins.right(), 0);
 		auto       text    = QString{ };
-		if (IdentityText.isEmpty()) {
-			text = QString{ };
-		} else if (available >= identity_full_width) {
-			text = metrics.elidedText(IdentityText, Qt::ElideRight, std::min(360, room));
-		} else {
-			const auto repository = available >= identity_owner_width
-				? QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository)
-				: IdentityRepository;
-			const auto number     = QStringLiteral("  #%1").arg(IdentityNumber);
-			const auto budget     = std::min(available >= identity_owner_width ? 300 : 200, room)
-				- metrics.horizontalAdvance(number);
-			text = metrics.elidedText(repository, Qt::ElideMiddle, std::max(budget, identity_fragment_width)) + number;
+		if (!IdentityText.isEmpty()) {
+			// [[BPR-1129]]. The name has the room the navigation took, so the
+			// forms follow the room rather than fixed widths: the whole name
+			// with its title elided at the right, then owner/repository with
+			// the number, then the repository, then a fragment of it; the
+			// number stays in every form.
+			const auto number = QStringLiteral("  #%1").arg(IdentityNumber);
+			const auto owned  = QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) + number;
+			const auto titled = metrics.horizontalAdvance(owned) + identity_title_minimum;
+			const auto bare   = IdentityRepository + number;
+			if (room >= titled) {
+				text = metrics.elidedText(IdentityText, Qt::ElideRight, room);
+			} else if (room >= metrics.horizontalAdvance(owned)) {
+				text = owned;
+			} else if (room >= metrics.horizontalAdvance(bare)) {
+				text = bare;
+			} else {
+				const auto budget = room - metrics.horizontalAdvance(number);
+				text              = metrics.elidedText(IdentityRepository, Qt::ElideMiddle, std::max(budget, identity_fragment_width)) + number;
+			}
 		}
 		IdentityLabel->setText(text);
 		IdentityLabel->setToolTip(IdentityText);
@@ -7854,9 +7981,9 @@ namespace bpr::qt {
 			}
 		};
 
-		// The strip's stops in the strip's reading order: files, the change
-		// pair, the file pair, the four modalities, the secondary review
-		// controls, refresh, comments, account, settings.
+		// The title row's stops in its reading order: Home, the drawer
+		// toggles, the four modalities, Home's own controls, refresh, comments,
+		// account, settings ([[BPR-1129]]).
 		const auto presenter = [this](QAction* const aAction) {
 			return qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(aAction));
@@ -7868,17 +7995,11 @@ namespace bpr::qt {
 		append(presenter(HomeAction));
 		append(presenter(Drawers[2].Toggle));
 		append(presenter(Drawers[0].Toggle));
-		append(presenter(Navigation[2].Action));
-		append(presenter(Navigation[3].Action));
-		append(presenter(Navigation[0].Action));
-		append(presenter(Navigation[1].Action));
 		if (Modality != nullptr) {
 			for (std::size_t index = 0U; index < review_modality_count; ++index) {
 				append(Modality->button(static_cast<review_modality>(index)));
 			}
 		}
-		append(presenter(ReviewDetailsAction));
-		append(ReviewControlsButton);
 		// [[BPR-0783]]. Home's three controls, in the strip's reading order,
 		// before the refresh glyph they stand with.
 		append(HomeGroupButton);
@@ -7897,6 +8018,22 @@ namespace bpr::qt {
 			}
 		}
 #endif
+		// [[BPR-1129]]. The review bar under the title row, in its reading
+		// order: the comparison's menu, the change pair, the file pair, private
+		// progress, Compose review and Comment.
+		if (ReviewBar != nullptr && EpochSelectors != nullptr) {
+			const auto barPresenter = [this](QAction* const aAction) {
+				return qobject_cast<QToolButton*>(ReviewBar->widgetForAction(aAction));
+			};
+			append(EpochSelectors->comparing_button());
+			append(barPresenter(Navigation[2].Action));
+			append(barPresenter(Navigation[3].Action));
+			append(barPresenter(Navigation[0].Action));
+			append(barPresenter(Navigation[1].Action));
+			append(ReviewControlsButton);
+			append(barPresenter(ComposeReviewAction));
+			append(barPresenter(CommentAction));
+		}
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		// The session chrome and the device sign-in are the Accounts and
@@ -7937,22 +8074,19 @@ namespace bpr::qt {
 			append(FilesFilterNotice->clear_button());
 		}
 		append(Drawers[0].Panel->focus_stop());
-		// The line and its comparing menu first, then the two selectors on
-		// one grid row above their two exact OIDs, the row order the composed
-		// control already walks.
+		// The line first (its comparing menu is the review bar's now), then
+		// the two selectors on one grid row above their two exact OIDs, the row
+		// order the composed control already walks.
 		if (HomeLanding != nullptr) {
 			append(HomeLanding->primary_button());
 			append(HomeLanding->secondary_button());
 			append(HomeLanding->tertiary_button());
 		}
 		append(EpochSelectors->line());
-		append(EpochSelectors->comparing_button());
 		append(EpochSelectors->left_selector());
 		append(EpochSelectors->right_selector());
 		append(EpochSelectors->left_oid_editor());
 		append(EpochSelectors->right_oid_editor());
-		append(findChild<QToolButton*>(QStringLiteral("composeReviewActionButton")));
-		append(findChild<QToolButton*>(QStringLiteral("composeInlineDraftActionButton")));
 		// One stop stands for the whole composed comparison surface: its last.
 		// Everything before it inside that surface is RFC-BPR-0004's declared
 		// order, which the shell reports through that card rather than restating
@@ -8180,75 +8314,38 @@ namespace bpr::qt {
 				  "Show the exact review anchors and the selected-change details.");
 		ReviewDetailsAction->setToolTip(description);
 		ReviewDetailsAction->setStatusTip(description);
-		if (auto* const button = qobject_cast<QToolButton*>(
-				PrimaryToolbar->widgetForAction(ReviewDetailsAction));
-			button != nullptr) {
-			button->setAccessibleDescription(description);
-		}
 	}
 
 	void workbench_window::apply_strip_width()
 	{
-		// The strip never folds a control into an overflow menu: a control
+		// The title row never folds a control into an overflow menu: a control
 		// that disappears at one width and returns at another is exactly the
-		// chrome the accepted design rejects. What yields first is the text
-		// that restates what the panes already show -- the identity, then the
-		// two positions -- and it yields before the window's floor is reached.
-		if (IdentityAction == nullptr || ChangePositionAction == nullptr
-			|| FilePositionAction == nullptr) {
+		// chrome the accepted design rejects. What yields is text: the name's
+		// title and owner, then the modality's shortcuts, then the name.
+		if (IdentityAction == nullptr) {
 			return;
 		}
 		const auto available = width();
-		// [[BPR-0722]]. With a pull request open the identity stays as far
-		// down as its number fits: below 1400 it drops the title, below 1180
-		// the owner, and keeps repository and number elided to what the other
-		// items leave (see update_strip_identity). BPR-0647 hid it whole
-		// below 1400 because a long identity at 1280 pushed the right region
-		// into the overflow menu; the shorter forms fit instead. With nothing
-		// open there is nothing to identify, and the label takes no width.
+		// [[BPR-0722]], [[BPR-1129]]. With a pull request open the name stays
+		// as far down as its number fits, taking whatever the title row's other
+		// items leave (see update_strip_identity). With nothing open there is
+		// nothing to identify, and the label takes no width.
 		IdentityAction->setVisible(!StripHome && !IdentityText.isEmpty());
-		// The yield order as the window narrows: the identity's title, then
-		// its owner (update_strip_identity), then the modality shortcuts,
-		// then the positions, and last the identity's number. Each step only
-		// frees room, so nothing that has yielded returns at a narrower
-		// width. When the number has no room even after all of them -- at
-		// 100% scale on macOS the other items fill about 900 pixels, the
-		// window's floor -- the identity yields whole and the positions keep
-		// their own rule; which control should give way there is the owner's
-		// call, not this card's.
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
 		};
-		auto       positions     = !StripHome && available >= 960;
-		const auto showPositions = [this, &positions] {
-			ChangePositionAction->setVisible(positions);
-			FilePositionAction->setVisible(positions);
-			if (NextNewCommentAction != nullptr && NewCommentCountAction != nullptr) {
-				NextNewCommentAction->setVisible(!StripHome);
-				NewCommentCountAction->setVisible(positions);
+		const auto remeasure = [this] {
+			if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
+				layout->invalidate();
 			}
 		};
-		showPositions();
 		if (Modality != nullptr) {
 			// The segments keep their names and lose the shortcut beside them.
-			// [[BPR-0722]]. 1100, not 1000: with the positions shown from 960,
-			// the expanded segments overflowed the strip between 1000 and
-			// about 1050 (a 1040 window laid out 1050 pixels), which the
-			// width sweep in the window tests now pins.
-			// [[BPR-0824]]. Decided from the width alone. It once measured the
-			// segments in whatever form the previous resize had left: compact
-			// segments made the number fit, so they expanded and the positions
-			// yielded instead, and the next resize compacted them again, so
-			// every resize alternated and the number could go while the
-			// positions stayed. And the toolbar's hint does not always follow
-			// set_compact, so a large resize measured the segments at their old
-			// width. Hence the form the width admits first, then compact only if
-			// the number is still short, with the toolbar remeasured after each.
-			const auto remeasure = [this] {
-				if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
-					layout->invalidate();
-				}
-			};
+			// [[BPR-0824]]. Decided from the width first, then compact only if
+			// the number is still short, with the toolbar remeasured after each,
+			// so a resize never alternates between the two forms.
+			// [[BPR-1129]]. The title row holds no navigation now, so the
+			// shortcuts stay down to the width the old strip needed for them.
 			Modality->set_abbreviated(false);
 			Modality->set_compact(available < 1'100);
 			remeasure();
@@ -8257,30 +8354,17 @@ namespace bpr::qt {
 				remeasure();
 			}
 		}
-		if (positions && identityShort()) {
-			positions = false;
-			showPositions();
-		}
 		if (identityShort()) {
 			IdentityAction->setVisible(false);
-			positions = !StripHome && available >= 960;
-			showPositions();
 		}
 		update_strip_identity();
-		// [[BPR-0653]]. The last yield, the owner's: when the strip still asks
+		// [[BPR-0653]]. The last yield, the owner's: when the row still asks
 		// for more than the window after every step above, the modality
 		// segments show three-character prefixes. It is taken only then, so a
-		// strip that already fits -- macOS and Linux at or above their floor --
-		// never shortens. On Windows the menu control and caption buttons make
-		// it the step that keeps every control top level down to the floor.
-		// Measured after the identity has been elided to its budget, or the
-		// text it is about to give up would be counted as overflow.
+		// row that already fits never shortens. Measured after the identity has
+		// been elided to its budget, or the text it is about to give up would
+		// be counted as overflow.
 		if (Modality != nullptr && PrimaryToolbar != nullptr) {
-			const auto remeasure = [this] {
-				if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
-					layout->invalidate();
-				}
-			};
 			remeasure();
 			if (PrimaryToolbar->sizeHint().width() > available) {
 				Modality->set_abbreviated(true);
@@ -8288,6 +8372,38 @@ namespace bpr::qt {
 				// The room the prefixes free is the identity's to use.
 				update_strip_identity();
 			}
+		}
+		apply_review_bar_width();
+	}
+
+	void workbench_window::apply_review_bar_width()
+	{
+		if (ReviewBar == nullptr || EpochSelectors == nullptr) {
+			return;
+		}
+		// [[BPR-1129]]. Every control on the review bar stays top level. As the
+		// window narrows the comparison's dates go first, then the positions'
+		// words ("3/11" for "change 3 of 11"). Each width starts from the whole
+		// form and measures, so nothing that yielded returns at a narrower
+		// width and a resize never alternates.
+		const auto available = width();
+		const auto remeasure = [this] {
+			if (auto* const layout = ReviewBar->layout(); layout != nullptr) {
+				layout->invalidate();
+			}
+		};
+		EpochSelectors->set_comparing_dates_shown(true);
+		ReviewBarCompact = false;
+		update_strip_positions();
+		remeasure();
+		if (ReviewBar->sizeHint().width() > available) {
+			EpochSelectors->set_comparing_dates_shown(false);
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available) {
+			ReviewBarCompact = true;
+			update_strip_positions();
+			remeasure();
 		}
 	}
 
@@ -9087,7 +9203,7 @@ namespace bpr::qt {
 	{
 		for (const auto& entry : Navigation) {
 			auto* const button = qobject_cast<QToolButton*>(
-				PrimaryToolbar->widgetForAction(entry.Action));
+				ReviewBar->widgetForAction(entry.Action));
 			if (button == nullptr) {
 				continue;
 			}
@@ -9105,14 +9221,8 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
-		if (auto* const button = qobject_cast<QToolButton*>(
-				PrimaryToolbar->widgetForAction(ReviewDetailsAction));
-			button != nullptr) {
-			button->setAccessibleName(QStringLiteral("Review details toggle"));
-			button->setAccessibleDescription(ReviewDetailsAction->toolTip());
-			button->setFocusPolicy(Qt::StrongFocus);
-		}
-		Strip->adopt_button(ReviewControlsButton);
+		ReviewBar->adopt_button(ReviewControlsButton);
+		update_compose_mark();
 		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(GithubRefreshAction));
 			button != nullptr) {
@@ -9163,6 +9273,10 @@ namespace bpr::qt {
 		}
 		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
 		ReviewControlsButton->setIcon(strip_icon(strip_glyph::private_progress, ink));
+		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
+			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
+			CommentAction->setIcon(strip_icon(strip_glyph::comment, ink));
+		}
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
 		if (GithubRefreshAction != nullptr) {
 			GithubRefreshAction->setIcon(strip_icon(strip_glyph::refresh, ink));
@@ -9314,6 +9428,32 @@ namespace bpr::qt {
 				projected != nullptr && projected->Enabled && !LedgerUnavailable,
 				QStringLiteral("Update private progress for the selected exact file material."),
 				disabled);
+		}
+		// [[BPR-1129]]. The review bar's progress icon says this file's state in
+		// its tooltip, with the key and the four actions it offers.
+		if (ReviewControlsButton != nullptr) {
+			auto state = QString{ };
+			if (LedgerUnavailable) {
+				state = QStringLiteral("Private review progress is unavailable.");
+			} else if (!Receipt.has_value()) {
+				state = QStringLiteral("No file comparison is selected.");
+			} else {
+				const auto& receipt = Receipt->Receipt;
+				auto        words   = QStringList{ receipt.Read == core::file_read_state::read         ? QStringLiteral("Read")
+													   : receipt.Read == core::file_read_state::unread ? QStringLiteral("unread")
+																									   : QStringLiteral("Seen") };
+				if (receipt.Accepted) {
+					words.push_back(QStringLiteral("accepted"));
+				}
+				if (receipt.Excluded) {
+					words.push_back(QStringLiteral("excluded"));
+				}
+				state = QStringLiteral("This file is %1.").arg(words.join(QStringLiteral(", ")));
+			}
+			const auto key = ReviewControlsButton->shortcut().toString(QKeySequence::NativeText);
+			ReviewControlsButton->setToolTip(QStringLiteral("Private progress (%1)\n%2 Seen, Read, Accept or Exclude").arg(key, state));
+			ReviewControlsButton->setStatusTip(state);
+			ReviewControlsButton->setAccessibleDescription(QStringLiteral("%1 Opens Seen, Read, Accept and Exclude.").arg(state));
 		}
 	}
 

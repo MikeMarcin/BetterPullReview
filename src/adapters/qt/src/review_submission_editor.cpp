@@ -14,6 +14,8 @@
 #include <QVBoxLayout>
 #include <cmath>
 
+#include <utility>
+
 namespace bpr::qt {
 	review_submission_editor::review_submission_editor(review_submission_editor_dispatch aDispatch, QWidget* aParent)
 		: QWidget{ aParent }
@@ -119,6 +121,13 @@ namespace bpr::qt {
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&event);
 		}
+		if (PresentationObserver) {
+			PresentationObserver();
+		}
+	}
+	void review_submission_editor::set_presentation_observer(std::function<void()> aObserver)
+	{
+		PresentationObserver = std::move(aObserver);
 	}
 	void review_submission_editor::emit_command(core::review_submission_command_kind aKind)
 	{

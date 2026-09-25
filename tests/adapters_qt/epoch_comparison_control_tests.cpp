@@ -979,6 +979,33 @@ namespace {
 			   "an imported epoch never labels its derived comparison anchor as a local observation");
 	}
 
+	/// \brief [[BPR-1129]]. The review bar takes the "Comparing" button; the
+	/// control keeps it current wherever it is placed.
+	auto test_the_comparing_button_moves_to_the_review_bar() -> void
+	{
+		qt::epoch_comparison_control control{ };
+		control.resize(700, 80);
+		control.show();
+		QApplication::processEvents();
+		auto* const name = control.findChild<QLabel*>(QStringLiteral("epochLineName"));
+		expect(name != nullptr && control.isAncestorOf(control.comparing_button()),
+			   "before it is released the button and the line's name are the control's");
+		auto  bar      = QWidget{ };
+		auto* released = control.release_comparing_button();
+		expect(released == control.comparing_button() && released != nullptr && released->parentWidget() == nullptr
+				   && control.release_comparing_button() == nullptr,
+			   "the button is released once, to no parent, for the caller to place");
+		released->setParent(&bar);
+		QApplication::processEvents();
+		expect(control.findChild<QLabel*>(QStringLiteral("epochLineName")) == nullptr && control.line()->isVisible(),
+			   "the line keeps its row and gives its Updates name to the bar");
+		control.publish(loaded_catalog_update({ epoch_row(2, '3', '4'), epoch_row(1, '1', '2') }));
+		QApplication::processEvents();
+		expect(released->text().startsWith(QStringLiteral("Comparing")) && released->menu() != nullptr
+				   && released->menu()->actions().contains(control.whole_pr_action()),
+			   "the control keeps the released button's text and menu current");
+	}
+
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
 	{
 		std::vector<application::epoch_intent> intents;
@@ -1025,14 +1052,24 @@ namespace {
 				   && line->node_tooltip(1).contains(QStringLiteral("Update 2 of 3"))
 				   && line->node_tooltip(1).contains(QStringLiteral("upload")),
 			   "legacy labels identify local first-seen without claiming a latest update");
+		// [[BPR-1129]]. The button names the comparison and the dates of the
+		// two compared updates, the bare dates the line's labels carry.
+		const auto dates = line->selection_dates();
+		expect(dates.has_value() && line->label_text(0).endsWith(dates->first)
+				   && line->label_text(2).endsWith(dates->second),
+			   "the compared updates' dates are the bare dates of their labels");
 		expect(control.comparing_button() != nullptr
 				   && control.comparing_button()->text()
-					   == QStringLiteral("Comparing whole PR")
+					   == QStringLiteral("Comparing whole PR, %1 → %2").arg(dates->first, dates->second)
 				   && control.comparing_button()->menu() != nullptr
 				   && control.comparing_button()->menu()->actions().contains(
 					   control.last_reviewed_action()),
-			   "the comparing menu names the alias in force and carries the "
-			   "named comparisons");
+			   "the comparing menu names the alias in force with its dates and "
+			   "carries the named comparisons");
+		control.set_comparing_dates_shown(false);
+		expect(control.comparing_button()->text() == QStringLiteral("Comparing whole PR"),
+			   "where the review bar is narrow the button drops the dates and keeps the name");
+		control.set_comparing_dates_shown(true);
 		expect(line->selection_offered(),
 			   "with the select command offered the line takes gestures");
 
@@ -1177,8 +1214,8 @@ namespace {
 		expect(line->left_stop()->Update == 1U && line->right_stop()->Update == 2U
 				   && line->last_review_update() == std::optional<std::size_t>{ 1U }
 				   && line->node_tooltip(1).contains(QStringLiteral("My last review"))
-				   && control.comparing_button()->text()
-					   == QStringLiteral("Comparing since my last review"),
+				   && control.comparing_button()->text().startsWith(QStringLiteral("Comparing since my last review, "))
+				   && control.comparing_button()->text().contains(QStringLiteral(" → ")),
 			   "the line draws the published pair, marks my last review on the "
 			   "update whose head I reviewed, and the menu names the alias");
 
@@ -1879,6 +1916,7 @@ auto main(int argc, char** argv) -> int
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	test_epoch_line_menu_goes_with_its_window();
+	test_the_comparing_button_moves_to_the_review_bar();
 	std::cout << "epoch-comparison-control-tests:pass\n";
 	return EXIT_SUCCESS;
 }

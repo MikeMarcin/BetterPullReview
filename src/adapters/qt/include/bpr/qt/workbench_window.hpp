@@ -498,16 +498,33 @@ namespace bpr::qt {
 		/// \brief Adopts the read state of the review's conversations.
 		///
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
-		/// thread's line blue, and the strip's "next new comment" group
-		/// counts the unread threads and walks them in file order.
-		void               present_read_state(std::vector<thread_read_state> aState);
+		/// thread's line blue, and "next new comment" walks the unread threads
+		/// in file order. [[BPR-1129]]: the title row's comments toggle carries
+		/// their count.
+		void present_read_state(std::vector<thread_read_state> aState);
+		/// \brief Next new comment: window-owned, with its key, and no presenter
+		/// in the title row ([[BPR-1129]]).
 		[[nodiscard]] auto next_new_comment_action() const noexcept -> QAction*;
-		[[nodiscard]] auto new_comment_count_label() const noexcept -> QLabel*;
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects);
 		void clear_defects();
 
+		/// \brief The title row: the window, the pull request and the modality.
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
+		/// \brief [[BPR-1129]]. The review bar under the title row.
+		///
+		/// \details RFC-BPR-0052's bar, full width over the review surface: from
+		/// its left, Updates and the comparison with its dates and menu, the
+		/// change and file navigation with their positions and private
+		/// progress; at its right Compose review and Comment. Home has none.
+		[[nodiscard]] auto review_bar() const noexcept -> QToolBar*;
+		/// \brief [[BPR-1129]]. The bar's "Updates" name, before the comparison.
+		[[nodiscard]] auto updates_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1129]]. Compose review: Option-R (Alt+R), window-owned,
+		/// marked while a review draft is kept.
+		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
+		[[nodiscard]] auto comment_action() const noexcept -> QAction*;
 #if defined(_WIN32)
 		/// \brief Which part of the Windows title row a window point falls on.
 		///
@@ -521,7 +538,7 @@ namespace bpr::qt {
 		/// \brief The compact menu control at the strip's left, standing in for the menu bar.
 		[[nodiscard]] auto strip_menu_button() const noexcept -> QToolButton*;
 #endif
-		/// \brief The strip's modality control, alone at its centre.
+		/// \brief The title row's modality control, at its right beside refresh.
 		///
 		/// \details [[BPR-0646]]. Overview, Read, Review and Discuss are
 		/// presets for which drawers are open. Choosing one dispatches the
@@ -1015,6 +1032,11 @@ namespace bpr::qt {
 		void update_strip_identity();
 		void update_account_action();
 		void apply_strip_width();
+		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows: the
+		/// comparison's dates, then the positions' words. Nothing folds away.
+		void apply_review_bar_width();
+		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
+		void update_compose_mark();
 		void apply_review_details_visibility();
 		void update_home_landing();
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
@@ -1223,8 +1245,14 @@ namespace bpr::qt {
 		QLabel*           IdentityLabel       = nullptr;
 		QLabel*           ChangePositionLabel = nullptr;
 		QLabel*           FilePositionLabel   = nullptr;
-		QWidget*          ModalitySpacer      = nullptr;
 		QWidget*          StripInset          = nullptr;
+		/// [[BPR-1129]]. The review bar, its "Updates" name and its two commands.
+		workbench_strip* ReviewBar           = nullptr;
+		QLabel*          UpdatesLabel        = nullptr;
+		QAction*         ComposeReviewAction = nullptr;
+		QAction*         CommentAction       = nullptr;
+		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
+		bool ReviewBarCompact = false;
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;
@@ -1314,9 +1342,7 @@ namespace bpr::qt {
 		epoch_comparison_control* EpochSelectors = nullptr;
 
 		std::array<navigation_entry, 4> Navigation{ };
-		QAction*                        NextNewCommentAction  = nullptr;
-		QLabel*                         NewCommentCountLabel  = nullptr;
-		QAction*                        NewCommentCountAction = nullptr;
+		QAction*                        NextNewCommentAction = nullptr;
 		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };

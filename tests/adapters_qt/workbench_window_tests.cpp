@@ -66,9 +66,7 @@
 #include <QToolButton>
 #include <QWidget>
 #include <QWindow>
-#if defined(_WIN32)
-	#include <qpa/qwindowsysteminterface.h>
-#endif
+#include <qpa/qwindowsysteminterface.h>
 
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -697,6 +695,9 @@ namespace {
 			   "the host failure is explicit in status text");
 	}
 
+	/// \brief [[BPR-1129]]. RFC-BPR-0052's chrome: the title row carries the
+	/// window, the pull request and the modality, and the review bar under it
+	/// carries what acts on the review, each in its exact persistent order.
 	void test_compact_icon_row_preserves_exact_order_and_edges()
 	{
 		intent_log           log;
@@ -714,67 +715,115 @@ namespace {
 		QApplication::processEvents();
 
 		auto* const toolbar       = window.primary_toolbar();
+		auto* const bar           = window.review_bar();
 		auto* const files         = window.files_drawer_toggle_action();
 		auto* const conversations = window.conversations_drawer_toggle_action();
 		const auto  navigation    = navigation_actions(window);
 		const auto  actions       = toolbar->actions();
-		expect(window.findChildren<QToolBar*>().size() == 1,
-			   "the focused review surface has exactly one toolbar row");
-		// [[BPR-0646]]. RFC-BPR-0028's strip order: Files is the far-left
-		// action; Settings is the far-right one, after the account button;
-		// the change pair precedes the file pair, each followed by its
-		// position; Conversations sits in the right region after refresh.
+		const auto  rows          = window.findChildren<QToolBar*>();
+		expect(rows.size() == 2 && rows.contains(toolbar) && rows.contains(bar) && bar != toolbar,
+			   "the review surface has exactly two rows of controls: the title row and the review bar");
+		const auto named = [](const QList<QAction*>& aActions, const qsizetype aIndex, const char* const aName) {
+			return aIndex >= 0 && aIndex < aActions.size() && aActions[aIndex]->objectName() == QLatin1String{ aName };
+		};
+		// [[BPR-1129]]. The title row, left to right: the platform inset, Home,
+		// Repositories, Files, the name and a spacer; then the modality, Home's
+		// own three controls (hidden outside Home), refresh, Home's discovery
+		// refresh (hidden outside Home), comments, a rule, account, settings.
 #if defined(_WIN32)
-		// [[BPR-0653]]. On Windows the strip is the title row: the compact menu
-		// control follows the inset, and the caption buttons end the row after
-		// Settings.
+		// [[BPR-0653]]. On Windows the title row carries the compact menu
+		// control after the inset, and the caption buttons end it.
 		const auto lead  = qsizetype{ 1 };
 		const auto trail = qsizetype{ 1 };
-		expect(actions.size() >= 6
-				   && actions[1]->objectName() == QStringLiteral("workbenchStripMenuAction")
-				   && actions.back()->objectName()
-					   == QStringLiteral("workbenchCaptionButtonsAction"),
-			   "the Windows strip opens with its menu control and ends with the caption buttons");
+		expect(named(actions, 1, "workbenchStripMenuAction") && named(actions, actions.size() - 1, "workbenchCaptionButtonsAction"),
+			   "the Windows title row opens with its menu control and ends with the caption buttons");
 #else
 		const auto lead  = qsizetype{ 0 };
 		const auto trail = qsizetype{ 0 };
 #endif
-		expect(actions.size() >= 3 + lead + trail
-				   && actions.front()->objectName()
-					   == QStringLiteral("workbenchStripInsetAction")
-				   && actions[1 + lead] == window.home_action()
-				   && actions[2 + lead] == window.repositories_drawer_toggle_action()
-				   && actions[3 + lead] == files
-				   && actions[actions.size() - 1 - trail] == window.settings_action()
-				   && actions.indexOf(window.account_action())
-					   == actions.size() - 2 - trail,
-			   "after the platform inset and Home, Repositories then Files are the far-left actions and Settings, after Account, is the far-right action");
-		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
-				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
-				   && actions.indexOf(navigation[0]) < actions.indexOf(navigation[1])
-				   && actions.indexOf(navigation[1]) < actions.indexOf(conversations)
-				   && actions.indexOf(files) < actions.indexOf(navigation[2]),
-			   "the change pair precedes the file pair between the drawer toggles");
-		expect(actions.indexOf(navigation[3]) + 1 == actions.indexOf(navigation[2]) + 2
-				   && actions.indexOf(navigation[1]) == actions.indexOf(navigation[0]) + 1,
-			   "each navigation pair is adjacent");
+		const auto titleRow = actions.size() == 16 + lead + trail
+			&& named(actions, 0, "workbenchStripInsetAction")
+			&& actions[1 + lead] == window.home_action()
+			&& actions[2 + lead] == window.repositories_drawer_toggle_action()
+			&& actions[3 + lead] == files
+			&& named(actions, 4 + lead, "workbenchStripIdentityAction")
+			&& named(actions, 5 + lead, "workbenchNavigationSpacerAction")
+			&& named(actions, 6 + lead, "workbenchModalityAction")
+			&& named(actions, 7 + lead, "homeGroupAction")
+			&& named(actions, 8 + lead, "homeStateHeadersAction")
+			&& named(actions, 9 + lead, "homeFilterAction")
+			&& actions[10 + lead] == window.github_refresh_action()
+			&& actions[11 + lead] == window.queue_refresh_action()
+			&& actions[12 + lead] == conversations
+			&& named(actions, 13 + lead, "workbenchStripRightDividerAction")
+			&& actions[14 + lead] == window.account_action()
+			&& actions[15 + lead] == window.settings_action();
+		if (!titleRow) {
+			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
+				std::cerr << "title row " << index << ": " << actions[index]->objectName().toStdString() << '\n';
+			}
+		}
+		expect(titleRow, "the title row holds exactly the window, the pull request and the modality, in order");
+		for (auto* const action : { navigation[0], navigation[1], navigation[2], navigation[3], window.review_details_toggle_action(),
+									window.compose_review_action(), window.comment_action(), window.next_new_comment_action() }) {
+			expect(!actions.contains(action), "no navigation, progress or composition control sits in the title row");
+		}
+		expect(!toolbar->isAncestorOf(window.review_controls_button()) && bar->isAncestorOf(window.review_controls_button()),
+			   "private progress is the review bar's, not the title row's");
 		expect(toolbar->height() == qt::workbench_strip::height_pixels,
-			   "the strip is the design's 30-pixel row");
+			   "the title row is the design's 30-pixel row");
+
+		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
+		// comparison's menu and a rule, the change pair and its position, the
+		// file pair and its position, private progress, a spacer, Compose
+		// review and Comment.
+		const auto barActions = bar->actions();
+		const auto reviewRow  = barActions.size() == 14
+			&& named(barActions, 0, "reviewBarInsetAction")
+			&& named(barActions, 1, "reviewBarUpdatesAction")
+			&& named(barActions, 2, "reviewBarComparingAction")
+			&& named(barActions, 3, "reviewBarComparisonDividerAction")
+			&& barActions[4] == navigation[2]
+			&& barActions[5] == navigation[3]
+			&& named(barActions, 6, "workbenchStripChangePositionAction")
+			&& barActions[7] == navigation[0]
+			&& barActions[8] == navigation[1]
+			&& named(barActions, 9, "workbenchStripFilePositionAction")
+			&& named(barActions, 10, "workbenchReviewControlsAction")
+			&& named(barActions, 11, "reviewBarSpacerAction")
+			&& barActions[12] == window.compose_review_action()
+			&& barActions[13] == window.comment_action();
+		if (!reviewRow) {
+			for (auto index = qsizetype{ 0 }; index < barActions.size(); ++index) {
+				std::cerr << "review bar " << index << ": " << barActions[index]->objectName().toStdString() << '\n';
+			}
+		}
+		expect(reviewRow, "the review bar reads Updates and the comparison, then the change and file navigation and progress, with Compose review and Comment at its right");
+		expect(bar->height() == qt::workbench_strip::review_bar_height_pixels,
+			   "the review bar is the design's 28-pixel row");
+		expect(window.updates_label()->text() == QStringLiteral("Updates")
+				   && bar->widgetForAction(barActions[2]) == window.epoch_selectors()->comparing_button()
+				   && window.epoch_selectors()->comparing_button()->text().startsWith(QStringLiteral("Comparing")),
+			   "Updates names the line, and the comparison's own menu follows it");
+		expect(window.epoch_selectors()->comparing_button()->menu()->actions().contains(window.review_details_toggle_action()),
+			   "Review details is reached from the comparison's menu");
+
 		const auto required = std::array{
-			files,
-			navigation[0],
-			navigation[1],
-			navigation[2],
-			navigation[3],
-			conversations,
+			std::pair{ files, toolbar },
+			std::pair{ navigation[0], bar },
+			std::pair{ navigation[1], bar },
+			std::pair{ navigation[2], bar },
+			std::pair{ navigation[3], bar },
+			std::pair{ conversations, toolbar },
+			std::pair{ window.compose_review_action(), bar },
+			std::pair{ window.comment_action(), bar },
 		};
-		for (auto* const action : required) {
-			auto* const button = qobject_cast<QToolButton*>(
-				toolbar->widgetForAction(action));
+		for (const auto& [action, row] : required) {
+			auto* const button = qobject_cast<QToolButton*>(row->widgetForAction(action));
 			expect(button != nullptr && button->isVisible()
 					   && button->toolButtonStyle() == Qt::ToolButtonIconOnly
 					   && !button->icon().isNull(),
-				   "every required drawer/navigation presenter is visible, native-icon, and icon-only");
+				   "every drawer, navigation and composition presenter is visible, icon-only and has its icon");
 			expect(button->focusPolicy() == Qt::StrongFocus
 					   && !button->accessibleName().isEmpty()
 					   && !button->accessibleDescription().isEmpty(),
@@ -782,28 +831,45 @@ namespace {
 			expect(window.actions().contains(action) && !action->shortcut().isEmpty()
 					   && action->shortcutContext() == Qt::WindowShortcut,
 				   "every required action retains its stable window shortcut");
+			expect(action->toolTip().contains(action->shortcut().toString(QKeySequence::NativeText))
+					   || action == files || action == conversations || std::ranges::find(navigation, action) != navigation.end(),
+				   "Compose review's and Comment's tooltips name the command and its key");
 		}
-		auto* const spacer = toolbar->findChild<QWidget*>(
-			QStringLiteral("workbenchNavigationSpacer"));
-		auto* const modalitySpacer = toolbar->findChild<QWidget*>(
-			QStringLiteral("workbenchModalitySpacer"));
+		expect(window.compose_review_action()->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
+				   && window.comment_action()->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
+				   && window.compose_review_action()->toolTip().startsWith(QStringLiteral("Compose review"))
+				   && window.comment_action()->toolTip().startsWith(QStringLiteral("Comment")),
+			   "Option-R (Alt+R) composes the review and Option-C (Alt+C) comments");
+		expect(window.pull_request_menu()->actions().contains(window.compose_review_action())
+				   && window.pull_request_menu()->actions().contains(window.comment_action()),
+			   "both composition commands are in the Pull Request menu, with their keys");
+
+		auto* const spacer = toolbar->findChild<QWidget*>(QStringLiteral("workbenchNavigationSpacer"));
 		expect(spacer != nullptr && spacer->width() > 0
-				   && modalitySpacer != nullptr && modalitySpacer->width() > 0
-				   && spacer->x()
-					   > toolbar->widgetForAction(window.next_file_action())->x()
+				   && spacer->x() > window.identity_label()->x()
 				   && window.modality()->x() > spacer->x()
-				   && modalitySpacer->x() > window.modality()->x()
+				   && toolbar->widgetForAction(window.github_refresh_action())->x() > window.modality()->x()
 				   && toolbar->widgetForAction(conversations)->x()
-					   > modalitySpacer->x(),
-			   "two flexible spacers hold the modality control alone at the centre");
+					   > toolbar->widgetForAction(window.github_refresh_action())->x(),
+			   "the modality sits at the title row's right, beside refresh and the comments toggle");
+		auto* const barSpacer = bar->findChild<QWidget*>(QStringLiteral("reviewBarSpacer"));
+		auto* const compose   = bar->widgetForAction(window.compose_review_action());
+		auto* const comment   = bar->widgetForAction(window.comment_action());
+		expect(barSpacer != nullptr && barSpacer->width() > 0
+				   && barSpacer->x() > window.review_controls_button()->x()
+				   && compose->x() > barSpacer->x() && comment->x() > compose->x()
+				   && comment->geometry().right() > bar->width() - 12,
+			   "Compose review and Comment sit at the review bar's right, after its spacer");
 
 		auto* const reviewButton = window.review_controls_button();
 		auto* const reviewMenu   = window.review_controls_menu();
 		expect(reviewButton != nullptr && reviewButton->menu() == reviewMenu
 				   && reviewButton->toolButtonStyle() == Qt::ToolButtonIconOnly
 				   && reviewButton->focusPolicy() == Qt::StrongFocus
-				   && !reviewButton->shortcut().isEmpty(),
-			   "secondary private-progress controls use one keyboard-accessible icon popup");
+				   && !reviewButton->shortcut().isEmpty()
+				   && reviewButton->toolTip().contains(reviewButton->shortcut().toString(QKeySequence::NativeText))
+				   && reviewButton->toolTip().contains(QStringLiteral("Seen, Read, Accept or Exclude")),
+			   "private progress is one keyboard-accessible icon popup whose tooltip names its key and its four actions");
 		expect(reviewMenu->actions()
 				   == QList<QAction*>{ window.seen_action(),
 									   window.read_action(),
@@ -813,18 +879,15 @@ namespace {
 		const auto secondaryIcons = std::array{
 			files->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			conversations->icon().pixmap(QSize{ 24, 24 }).toImage(),
-			window.review_details_toggle_action()
-				->icon()
-				.pixmap(QSize{ 24, 24 })
-				.toImage(),
+			window.review_details_toggle_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 			reviewButton->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			window.compose_review_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			window.comment_action()->icon().pixmap(QSize{ 24, 24 }).toImage(),
 		};
 		for (std::size_t first = 0U; first < secondaryIcons.size(); ++first) {
-			for (std::size_t second = first + 1U;
-				 second < secondaryIcons.size(); ++second) {
-				expect(!secondaryIcons[first].isNull()
-						   && secondaryIcons[first] != secondaryIcons[second],
-					   "drawer, details, and private-progress symbols remain visually distinct");
+			for (std::size_t second = first + 1U; second < secondaryIcons.size(); ++second) {
+				expect(!secondaryIcons[first].isNull() && secondaryIcons[first] != secondaryIcons[second],
+					   "drawer, details, progress, compose and comment symbols remain visually distinct");
 			}
 		}
 
@@ -832,25 +895,30 @@ namespace {
 								 QEvent::FontChange,
 								 QEvent::StyleChange,
 								 QEvent::ThemeChange }) {
-			for (auto* const action : required) {
+			for (const auto& [action, row] : required) {
+				static_cast<void>(row);
 				action->setIcon(QIcon{ });
 			}
 			reviewButton->setIcon(QIcon{ });
 			auto appearanceChange = QEvent{ type };
 			QApplication::sendEvent(&window, &appearanceChange);
-			expect(std::ranges::all_of(required, [](const QAction* const aAction) {
-					   return !aAction->icon().isNull();
+			expect(std::ranges::all_of(required, [](const auto& aEntry) {
+					   return !aEntry.first->icon().isNull();
 				   }) && !reviewButton->icon().isNull(),
-				   "every native appearance change refreshes every derived toolbar icon");
+				   "every native appearance change refreshes every derived row icon");
 		}
 
 		window.resize(window.minimumWidth(), 720);
 		QApplication::processEvents();
-		for (auto* const action : required) {
-			expect(toolbar->actions().contains(action)
-					   && toolbar->widgetForAction(action)->isVisible()
+		for (const auto& [action, row] : required) {
+			expect(row->actions().contains(action)
+					   && row->widgetForAction(action)->isVisible()
 					   && action->isEnabled(),
-				   "all six primary icon actions remain top-level and enabled at the supported width floor");
+				   "every drawer, navigation and composition control stays top level and enabled at the width floor");
+		}
+		for (auto* const row : { static_cast<QToolBar*>(toolbar), static_cast<QToolBar*>(bar) }) {
+			auto* const extension = row->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+			expect(extension == nullptr || !extension->isVisible(), "no control folds into an overflow menu at the width floor");
 		}
 
 		log.Workbench.clear();
@@ -868,9 +936,12 @@ namespace {
 		expect(!window.primary_toolbar()->accessibleName().isEmpty()
 				   && !window.primary_toolbar()->accessibleDescription().isEmpty(),
 			   "the primary toolbar carries an accessible name and description");
+		expect(!window.review_bar()->accessibleName().isEmpty()
+				   && !window.review_bar()->accessibleDescription().isEmpty(),
+			   "the review bar carries an accessible name and description");
 		for (auto* const action : navigation_actions(window)) {
 			auto* const button = qobject_cast<QToolButton*>(
-				window.primary_toolbar()->widgetForAction(action));
+				window.review_bar()->widgetForAction(action));
 			expect(button != nullptr && !button->accessibleName().isEmpty()
 					   && !button->accessibleDescription().isEmpty(),
 				   "every primary action carries an accessible name and "
@@ -926,8 +997,8 @@ namespace {
 					   < 0.001,
 				   "the window runs at the exact expected device scale");
 		}
-		expect(window.findChildren<QToolBar*>().size() == 1,
-			   "every tested scale retains one compact navigation row");
+		expect(window.findChildren<QToolBar*>().size() == 2,
+			   "every tested scale keeps the title row and the review bar, and no other row of controls");
 		window.hide();
 	}
 
@@ -992,8 +1063,8 @@ namespace {
 		expect(window.primary_toolbar()->actions().indexOf(files) == 3 + strip_lead_actions
 				   && window.primary_toolbar()->actions().indexOf(conversations)
 					   > window.primary_toolbar()->actions().indexOf(
-						   window.review_details_toggle_action()),
-			   "Files opens the strip after the platform inset, Home and Repositories, and Conversations sits in its right region");
+						   window.github_refresh_action()),
+			   "Files opens the title row after the platform inset, Home and Repositories, and Conversations sits at its right after refresh");
 		for (auto* const toggle : { files, conversations }) {
 			auto* const button = qobject_cast<QToolButton*>(
 				window.primary_toolbar()->widgetForAction(toggle));
@@ -1497,33 +1568,33 @@ namespace {
 					   ->isVisible(),
 				   "every modality segment stays visible at the width floor");
 		}
-		// [[BPR-0722]]. The positions yield at the floor. No pull request is
-		// open here, so the identity has nothing to say and takes no width;
-		// with one open it stays at every width
+		// [[BPR-1129]]. The positions are the review bar's and stay at the
+		// floor, keeping their numbers where they drop their words. No pull
+		// request is open here, so the name has nothing to say and takes no
+		// width; with one open it stays at every width
 		// (test_strip_identity_stays_at_every_width).
 		expect(!window.identity_label()->isVisible()
-				   && !window.file_position_label()->isVisible(),
-			   "the position text is what yields at the width floor");
+				   && window.file_position_label()->isVisible()
+				   && window.file_position_label()->text().contains(QStringLiteral("3"))
+				   && window.file_position_label()->text().contains(QStringLiteral("40"))
+				   && window.file_position_label()->toolTip() == QStringLiteral("file 3 of 40"),
+			   "the file position stays on the review bar at the width floor, its words in its tooltip");
 		window.hide();
 	}
 
-	/// [[BPR-0722]]. With a long identity published, the strip shows the
-	/// repository and number at the default size and at 1280, nothing enters
-	/// the toolbar's overflow at any width, and the parts yield in order:
-	/// title, owner, modality shortcuts, positions, then the number. Where
-	/// the number has no room the identity yields whole; which control should
-	/// give way there is asked of the owner on the card.
+	/// [[BPR-0722]], [[BPR-1129]]. With a long name published, nothing enters
+	/// either row's overflow at any width, and each row yields text in order.
+	/// The title row's name has the room the navigation took: it drops its
+	/// title, then its owner, then elides its repository, and keeps its number
+	/// at every width down to the floor; the modality drops its shortcuts on
+	/// the way. The review bar drops the comparison's dates, then the
+	/// positions' words, and never a control.
 	///
-	/// [[BPR-0824]]. The widths at which the shortcuts, the positions and the
-	/// number stop fitting are measured here, not pinned, because they are
-	/// the strip's laid-out width and that differs by platform. On macOS the
-	/// strip starts with a 78 pixel inset for the window buttons, is set in
-	/// the system font through Core Text, and each segment's shortcut is the
-	/// command glyph and a digit; on Linux there is no inset, the font comes
-	/// through fontconfig, and the shortcut reads "Ctrl+1". At 100% scale the
-	/// number stops fitting near 1000 pixels on macOS and near 930 on Linux,
-	/// so a fixed 960 pixel case expected opposite things on the two. What is
-	/// pinned is the order, at every width.
+	/// [[BPR-0824]]. The widths at which each step happens are measured, not
+	/// pinned: the rows' laid-out widths differ by platform (the macOS inset
+	/// and command-glyph shortcuts, the Windows menu control and caption
+	/// buttons, fontconfig's metrics on Linux). What is pinned is the order,
+	/// at every width.
 	void test_strip_identity_stays_at_every_width()
 	{
 		intent_log           log;
@@ -1546,144 +1617,97 @@ namespace {
 				.Title          = "Fix the ScreenBufferTests suite so that every scrolling case restores the viewport it started with",
 			},
 		});
+		auto positioned      = every_primary_command_offered();
+		positioned.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																	.Ordinal           = 3U,
+																	.ActionableCount   = 40U,
+																	.PreviousAvailable = true,
+																	.NextAvailable     = true,
+																} };
+		window.publish(positioned);
 		QApplication::processEvents();
 
 		const auto overflowShown = [&window]() {
-			auto* const extension = window.primary_toolbar()->findChild<QToolButton*>(
-				QStringLiteral("qt_toolbar_ext_button"));
-			return extension != nullptr && extension->isVisible();
+			for (auto* const row : { window.primary_toolbar(), window.review_bar() }) {
+				auto* const extension = row->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+				if (extension != nullptr && extension->isVisible()) {
+					return true;
+				}
+			}
+			return false;
 		};
-		struct width_case
-		{
-			int  Width      = 0;
-			bool Title      = false;
-			bool Owner      = true;
-			bool Repository = true;
-		};
-		// Both widths hold the number and the positions on every platform.
-		// [[BPR-0653]]. At 1280 the Windows strip also carries the menu control
-		// and the caption buttons, about 180 pixels the identity does not have:
-		// it keeps its number and elides the repository to a fragment, which is
-		// the identity's own yield order (see update_strip_identity), one step
-		// further along than on a strip without those controls.
-		//
-		// The owner is its own case rather than `Repository && Title`, because
-		// the ladder drops the title first and the owner second: at 1280 off
-		// Windows the title has gone while the owner and the repository both
-		// remain, so tying the owner to the title would assert the owner away a
-		// step early. update_strip_identity is unchanged by BPR-0653, and this
-		// is the behaviour the row asserted before it.
-		const auto cases = std::array{
-			width_case{ 1'920, true, true, true },
-#if defined(_WIN32)
-			width_case{ 1'280, false, false, false },
-#else
-			width_case{ 1'280, false, true, true },
-#endif
-		};
-		for (const auto& testCase : cases) {
-			window.resize(testCase.Width, 820);
+		// The design's widths: the whole name, title included, at 1920 and at
+		// 1280 on every platform, now that the title row carries no navigation.
+		for (const auto width : { 1'920, 1'280 }) {
+			window.resize(width, 820);
 			QApplication::processEvents();
-			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
-			expect(window.identity_label()->isVisible() && window.file_position_label()->isVisible(),
-				   "the identity and the positions both have room at 1920 and 1280");
 			const auto text = window.identity_label()->text();
-			expect(text.contains(QStringLiteral("#20607")), "the strip identity carries the number");
-			expect(text.contains(QStringLiteral("terminal")) == testCase.Repository,
-				   "the strip identity keeps the repository while it has the room");
-			expect(text.contains(QStringLiteral("Fix the ScreenBufferTests")) == testCase.Title,
-				   "the title is the first part of the identity to yield");
-			expect(text.contains(QStringLiteral("microsoft/")) == testCase.Owner,
-				   "the owner yields after the title");
+			expect(!overflowShown() && window.identity_label()->isVisible()
+					   && text.contains(QStringLiteral("microsoft/terminal  #20607"))
+					   && text.contains(QStringLiteral("Fix the")),
+				   "at 1920 and 1280 the title row shows the whole name with its title");
 			expect(window.identity_label()->toolTip().contains(QStringLiteral("microsoft/terminal  #20607 Fix the ScreenBufferTests")),
-				   "the full identity stays in the tooltip");
+				   "the full name stays in the tooltip");
+			expect(window.file_position_label()->text() == QStringLiteral("file 3 of 40"),
+				   "the review bar's positions keep their words at 1280");
 		}
 		// Every width down to the floor: 20 pixels at a time to 1300, then
-		// pixel by pixel. The number and the positions both still show at
-		// 1280, so where each of them yields falls in the fine part, and
-		// segments that change form on every resize show in either part.
-		constexpr auto positionsRule    = 960; // apply_strip_width's own rule for the positions
-		auto           identityGone     = false;
-		auto           positionsYielded = false;
-		auto           widestYield      = 0; // the widest width with the positions gone beside the number
-		auto           narrowestNumber  = 0; // the narrowest width that still shows the number
+		// pixel by pixel.
+		auto titleGone    = false;
+		auto ownerGone    = false;
+		auto wordsGone    = false;
+		auto compactFirst = 0; // the widest width with the modality's shortcuts gone
 		for (auto width = 1'920; width >= window.minimumWidth(); width -= width > 1'300 ? 20 : 1) {
 			window.resize(width, 820);
 			QApplication::processEvents();
-			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
-#if !defined(_WIN32)
-			// [[BPR-0653]]. The three-character labels are the last yield, taken
-			// only while the strip still overflows; this strip fits at every
-			// width down to its floor, so it never shortens.
+			expect(!overflowShown(), "no control folds into an overflow menu at any width");
 			expect(!window.modality()->abbreviated(),
-				   "where the strip fits at every width the modality labels never shorten");
-#endif
-			expect(!window.modality()->abbreviated() || !window.identity_label()->isVisible(),
-				   "the modality labels shorten only after the identity has yielded whole");
-			const auto identity  = window.identity_label()->isVisible();
-			const auto positions = window.file_position_label()->isVisible();
-			expect(!identity || window.identity_label()->text().contains(QStringLiteral("#20607")),
-				   "a visible identity always carries the number");
-			expect(!(identityGone && identity), "the identity yields once, at the width its number stops fitting");
-			expect(positions == (width >= positionsRule) || identity,
-				   "the positions yield before the number does and keep their rule once it has gone");
-			expect(width >= positionsRule || !positions, "below their own rule the positions never show");
-			if (identity) {
-				expect(positions || window.modality()->compact(),
-					   "the modality shortcuts yield before the positions do");
-				expect(!(positionsYielded && positions),
-					   "once the positions have yielded beside the number they stay gone while it shows");
-				if (!positions && !positionsYielded) {
-					widestYield = width;
-				}
-				positionsYielded = positionsYielded || !positions;
-				narrowestNumber  = width;
+				   "the title row fits at every width down to its floor, so the modality never shortens to prefixes");
+			const auto text  = window.identity_label()->text();
+			const auto title = text.contains(QStringLiteral("Fix the"));
+			const auto owner = text.contains(QStringLiteral("microsoft/"));
+			expect(window.identity_label()->isVisible() && text.contains(QStringLiteral("#20607")),
+				   "the name keeps its number at every width down to the floor");
+			expect(!(titleGone && title), "the title yields once and does not return at a narrower width");
+			expect(!(ownerGone && owner), "the owner yields once and does not return at a narrower width");
+			expect(owner || !title, "the title yields before the owner");
+			titleGone = titleGone || !title;
+			ownerGone = ownerGone || !owner;
+			if (window.modality()->compact() && compactFirst == 0) {
+				compactFirst = width;
 			}
-			identityGone = identityGone || !identity;
+			const auto words = window.file_position_label()->text().startsWith(QStringLiteral("file"));
+			expect(window.file_position_label()->isVisible() && window.change_position_label()->isVisible(),
+				   "the review bar's positions stay at every width");
+			expect(!(wordsGone && words), "the positions' words yield once and do not return at a narrower width");
+			wordsGone = wordsGone || !words;
 		}
-		// The positions yield for room above their own rule where the strip is
-		// as wide as it is on macOS and Linux. Where it is narrower they yield
-		// at the rule instead, beside a number that still fits; either way
-		// they yield first.
-		expect(widestYield > narrowestNumber,
-			   "the positions yield before the number does and keep their rule once it has gone");
-		// [[BPR-0722]]. The sweep ends at the floor, where the identity has
-		// yielded whole and the positions follow their rule.
-		expect(identityGone && !window.identity_label()->isVisible()
-				   && !window.file_position_label()->isVisible(),
-			   "at the width floor the identity has yielded whole and the positions keep their rule");
+		expect(compactFirst > 0, "the modality's shortcuts yield on the way down to the floor");
 #if defined(_WIN32)
-		// [[BPR-0653]]. The owner's floor on Windows is 902: with the menu
-		// control and the caption buttons, the compact labels do not fit there,
-		// so the segments show their three-character prefixes. Only the text
-		// shortens; the names and tooltips keep the whole word.
-		expect(window.minimumWidth() == 902, "the Windows strip's width floor is 902");
-		expect(window.modality()->abbreviated() && !window.caption_buttons()->isHidden()
-				   && !window.strip_menu_button()->isHidden(),
-			   "at the Windows floor the modality labels have shortened and every title-row control shows");
-		const auto prefixes = std::array{ QStringLiteral("Ove"), QStringLiteral("Rea"), QStringLiteral("Rev"), QStringLiteral("Dis") };
+		// [[BPR-0653]], [[BPR-1129]]. The owner's floor on Windows is 902. With the
+		// navigation on the review bar, the title row there holds the name and
+		// the whole modality words, with the menu control and caption buttons.
+		expect(window.minimumWidth() == 902, "the Windows title row's width floor is 902");
+		expect(!window.modality()->abbreviated() && window.identity_label()->isVisible()
+				   && !window.caption_buttons()->isHidden() && !window.strip_menu_button()->isHidden(),
+			   "at the Windows floor the name, the whole modality words and every title-row control show");
 		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
-			const auto  modality = static_cast<qt::review_modality>(index);
-			auto* const segment  = window.modality()->button(modality);
-			const auto  title    = qt::review_modality_title(modality);
-			expect(segment->text() == prefixes[index]
-					   && segment->accessibleName() == title + QStringLiteral(" modality")
-					   && segment->toolTip().size() > title.size()
-					   && window.modality()->action(modality)->text() == title,
-				   "a shortened segment shows its prefix and keeps its full accessible name, tooltip and action text");
+			const auto modality = static_cast<qt::review_modality>(index);
+			expect(window.modality()->button(modality)->text() == qt::review_modality_title(modality),
+				   "at the Windows floor each segment shows its whole word");
 		}
 #else
-		expect(window.minimumWidth() == 900, "the strip's width floor stays 900 off Windows");
+		expect(window.minimumWidth() == 900, "the width floor stays 900 off Windows");
 #endif
-		// Straight from the default width to the narrowest that shows the
-		// positions beside the number: the toolbar measures the segments in
-		// the form this resize gives them, not the form the last one left.
+		// Straight from the default width to the narrowest that keeps the
+		// shortcuts: the rows measure their items in the form this resize
+		// gives them, not the form the last one left.
 		window.resize(1'920, 820);
 		QApplication::processEvents();
-		window.resize(widestYield + 1, 820);
+		window.resize(compactFirst + 1, 820);
 		QApplication::processEvents();
-		expect(window.identity_label()->isVisible() && window.file_position_label()->isVisible(),
-			   "one large resize lays out the positions beside the number as a gradual one does");
+		expect(!window.modality()->compact() && window.identity_label()->text().contains(QStringLiteral("#20607")),
+			   "one large resize lays out the title row as a gradual one does");
 		window.hide();
 	}
 
@@ -2340,16 +2364,19 @@ namespace {
 		auto* const comparison = window.comparison_surface();
 		auto* const epochs     = window.epoch_selectors();
 		auto* const detail     = window.detail_pane();
-		auto* const button     = qobject_cast<QToolButton*>(
-			window.primary_toolbar()->widgetForAction(action));
+		// [[BPR-1129]]. Review details moved into the comparison's menu, since
+		// what they disclose are the comparison's anchors; the menu's button
+		// is a declared focus stop and the action keeps its window key.
+		auto* const comparing = window.epoch_selectors()->comparing_button();
 		expect(action != nullptr && action->isCheckable() && !action->isChecked()
-				   && !action->shortcut().isEmpty()
-				   && window.primary_toolbar()->actions().contains(action)
-				   && button != nullptr && button->focusPolicy() == Qt::StrongFocus
-				   && button->accessibleName() == QStringLiteral("Review details toggle")
-				   && !button->accessibleDescription().isEmpty()
-				   && window.focus_order().contains(button),
-			   "review details have a visible, checkable, keyboard-accessible action");
+				   && !action->shortcut().isEmpty() && window.actions().contains(action)
+				   && !window.primary_toolbar()->actions().contains(action)
+				   && comparing != nullptr && comparing->menu() != nullptr
+				   && comparing->menu()->actions().contains(action)
+				   && comparing->focusPolicy() == Qt::StrongFocus
+				   && window.review_bar()->isAncestorOf(comparing)
+				   && window.focus_order().contains(comparing),
+			   "review details are a checkable, keyboard-reachable action in the comparison's menu on the review bar");
 		// [[BPR-0646]]. Off by default: the epoch line is chrome and always
 		// shows; the exact anchors and the selected-change details are the
 		// review details, shown on request.
@@ -5326,6 +5353,123 @@ namespace {
 		return std::get_if<core::select_comparison_anchor_intent>(&aIntent);
 	}
 
+	/// \brief [[BPR-1129]]. The review bar keeps every control top level at every
+	/// width: it drops the comparison's dates first, then the positions' words,
+	/// and neither returns at a narrower width.
+	void test_the_review_bar_yields_dates_then_words()
+	{
+		qt::workbench_window window;
+		window.resize(1'920, 820);
+		window.show();
+		auto positioned      = every_primary_command_offered();
+		positioned.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																	.Ordinal           = 3U,
+																	.ActionableCount   = 40U,
+																	.PreviousAvailable = true,
+																	.NextAvailable     = true,
+																} };
+		window.publish(positioned);
+		const auto first = epoch_row(1);
+		const auto third = epoch_row(3);
+		window.publish(retained_epochs({ first, epoch_row(2), third }));
+		window.publish(resolved_pair_update(core::comparison_pair{
+			.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+			.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+		}));
+		process_events();
+		auto* const comparing = window.epoch_selectors()->comparing_button();
+		const auto  dated     = [comparing] { return comparing->text().contains(QStringLiteral(" → ")); };
+		const auto  worded    = [&window] { return window.file_position_label()->text() == QStringLiteral("file 3 of 40"); };
+		expect(dated() && worded(), "a wide review bar names the comparison's dates and the positions' words");
+		// The bar fits at the floor in the default font. A larger one, as a
+		// reviewer's system font can be, makes it yield on the way down.
+		auto larger = window.review_bar()->font();
+		larger.setPointSizeF(larger.pointSizeF() * 2.0);
+		window.review_bar()->setFont(larger);
+		process_events();
+		auto datesGone = false;
+		auto wordsGone = false;
+		for (auto width = 1'920; width >= window.minimumWidth(); width -= width > 1'100 ? 20 : 1) {
+			window.resize(width, 820);
+			process_events();
+			auto* const extension = window.review_bar()->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+			expect(extension == nullptr || !extension->isVisible(), "no review-bar control folds into an overflow menu at any width");
+			expect(!(datesGone && dated()) && !(wordsGone && worded()), "what yielded does not return at a narrower width");
+			expect(worded() || !dated(), "the dates yield before the positions' words");
+			expect(comparing->text().startsWith(QStringLiteral("Comparing")) && window.file_position_label()->text().contains(QStringLiteral("3"))
+					   && window.file_position_label()->toolTip() == QStringLiteral("file 3 of 40"),
+				   "the comparison keeps its name and the position its numbers and its words' tooltip");
+			datesGone = datesGone || !dated();
+			wordsGone = wordsGone || !worded();
+		}
+		// The words yield only where the bar still does not fit without the
+		// dates; at this font it does, so they stay, and the order above holds.
+		expect(datesGone, "in a large font the dates yield on the way down to the floor");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1129]]. The title row and the review bar as a reviewer sees
+	/// them, at the design's 1280 by 852 and at the platform's width floor, saved
+	/// beside the other window renders at each registered scale.
+	void test_the_title_row_and_review_bar_render()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "EpicGames",
+				.RepositoryName = "UnrealEngine",
+				.Number         = core::pull_request_number{ 14366U },
+				.Title          = "Hair strand lighting fixes for LSS",
+			},
+		});
+		auto positioned      = every_primary_command_offered();
+		positioned.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																	.Ordinal           = 3U,
+																	.ActionableCount   = 40U,
+																	.PreviousAvailable = true,
+																	.NextAvailable     = true,
+																} };
+		window.publish(positioned);
+		const auto first = epoch_row(1);
+		const auto third = epoch_row(3);
+		window.publish(retained_epochs({ first, epoch_row(2), third }));
+		window.publish(resolved_pair_update(core::comparison_pair{
+			.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+			.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+		}));
+		const auto head = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
+		auto       kept = core::review_submission_draft{
+			.Id            = core::review_submission_draft_id{ 1U },
+			.Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head },
+			.ActingAccount = core::github_account_id{ 4U },
+			.Body          = "Kept summary",
+		};
+		window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = kept, .Controls = core::controls(kept), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
+		process_events();
+		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
+				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
+				   && window.file_position_label()->text() == QStringLiteral("file 3 of 40"),
+			   "at 1280 the title row names the pull request whole and the review bar names the comparison's dates and the position");
+		const auto save = [&window](const QString& aSuffix) {
+			const auto rendered = window.grab();
+			expect(!rendered.isNull(), "the chrome renders in the composed window");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the chrome render is saved for inspection");
+			}
+		};
+		save(QStringLiteral("review-bar-1280x852"));
+		window.resize(window.minimumWidth(), 852);
+		process_events();
+		expect(window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("#14366")),
+			   "at the width floor the title row keeps the name and its number");
+		save(QStringLiteral("review-bar-floor"));
+		window.hide();
+	}
+
 	void test_composed_epoch_selectors_show_exact_retained_epochs()
 	{
 		std::vector<application::epoch_intent> epochs;
@@ -5691,6 +5835,23 @@ namespace {
 			   "declared stops ahead of their trees");
 		expect(walked_focus_order(expanded) == expanded.mid(1),
 			   "the live focus chain walks the declared order exactly");
+		// [[BPR-1129]]. The review bar's stops follow the title row's, in the
+		// bar's reading order.
+		const auto barStop  = [&window](QAction* const aAction) { return window.review_bar()->widgetForAction(aAction); };
+		const auto barOrder = QList<QWidget*>{
+			window.epoch_selectors()->comparing_button(),
+			barStop(window.previous_change_action()),
+			barStop(window.next_change_action()),
+			barStop(window.previous_file_action()),
+			barStop(window.next_file_action()),
+			window.review_controls_button(),
+			barStop(window.compose_review_action()),
+			barStop(window.comment_action()),
+		};
+		const auto barFirst = expanded.indexOf(barOrder.front());
+		expect(barFirst > expanded.indexOf(window.primary_toolbar()->widgetForAction(window.settings_action()))
+				   && expanded.mid(barFirst, barOrder.size()) == barOrder,
+			   "the review bar's controls are declared stops right after the title row's, in the bar's order");
 
 		// No reachable focusable widget anywhere in the assembled window may
 		// answer to a name another reachable focusable widget already uses.
@@ -5962,6 +6123,101 @@ namespace {
 	// [[BPR-0649]]. Discuss widens the conversation over the code and puts
 	// its panel in the Discuss arrangement; Open in code on a card returns
 	// to Read at that thread's line.
+	/// \brief [[BPR-1129]]. One key through the window system, where a platform
+	/// hands keys to Qt, so the shortcut map sees it before any widget.
+	///
+	/// \details On macOS the Cocoa plugin offers a key press to the shortcut map
+	/// itself before it delivers the key, and Qt's own key path skips the map
+	/// there, so the press is offered the same way here.
+	void window_key(qt::workbench_window& aWindow, const int aKey, const Qt::KeyboardModifiers aModifiers)
+	{
+#if defined(__APPLE__)
+		if (QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, aKey, aModifiers, 0U, 0U, 0U)) {
+			QApplication::processEvents();
+			return;
+		}
+#endif
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, aKey, type == QEvent::KeyPress ? aModifiers : Qt::NoModifier);
+			QApplication::processEvents();
+		}
+	}
+
+	/// \brief [[BPR-1129]]. Option-R (Alt+R) composes the review and Option-C
+	/// (Alt+C) comments, from anywhere in the window with no visible entry row,
+	/// and Esc returns from either page to where it was.
+	void test_composition_keys_open_the_pages_and_esc_returns()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		window.activateWindow();
+		process_events();
+		auto* const stack = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		auto* const start = stack->currentWidget();
+		window.modality()->button(qt::review_modality::review)->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QGuiApplication::focusWindow() == window.windowHandle() && start != nullptr,
+			   "the keys start in the active window, on the comparison");
+		window_key(window, Qt::Key_R, Qt::AltModifier);
+		expect(stack->currentWidget()->objectName() == QStringLiteral("composeReviewPage")
+				   && window.review_submission_editor_view()->body_editor()->hasFocus(),
+			   "Option-R (Alt+R) opens the review page and focuses its summary");
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
+			   "Esc returns from the review page to the invoking surface and focus");
+		window_key(window, Qt::Key_C, Qt::AltModifier);
+		expect(stack->currentWidget()->objectName() == QStringLiteral("composeInlineDraftPage")
+				   && window.review_editor()->body_editor()->hasFocus(),
+			   "Option-C (Alt+C) opens the comment page on the retained draft");
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(stack->currentWidget() == start, "Esc returns from the comment page");
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(stack->currentWidget() == start, "Esc with no page open leaves the comparison where it is");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1129]]. Compose review's mark is the kept-draft rule applied to
+	/// what the workflow last presented: none for an empty draft, the amber mark
+	/// and its words while a summary is kept, none again once it is discarded.
+	void test_compose_review_marks_a_kept_draft()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const button = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
+		const auto  marked = [button] { return button->property(qt::strip_style::mark_property).toBool(); };
+		expect(button != nullptr && !marked() && !window.compose_review_action()->toolTip().contains(QStringLiteral("kept")),
+			   "with no draft presented Compose review carries no mark");
+		const auto head  = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
+		auto       draft = core::review_submission_draft{
+			.Id            = core::review_submission_draft_id{ 1U },
+			.Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head },
+			.ActingAccount = core::github_account_id{ 4U },
+		};
+		const auto present = [&window, &draft] {
+			window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
+			process_events();
+		};
+		present();
+		expect(!marked(), "an empty comment draft is not kept work");
+		draft.Body = "Kept summary";
+		present();
+		expect(marked() && window.compose_review_action()->toolTip().contains(QStringLiteral("A review draft is kept"))
+				   && button->accessibleDescription().contains(QStringLiteral("kept")),
+			   "a kept summary marks Compose review and says so in its tooltip and description");
+		draft.State = core::review_submission_state::discarded;
+		present();
+		expect(!marked() && !window.compose_review_action()->toolTip().contains(QStringLiteral("kept")),
+			   "a discarded draft withdraws the mark");
+		window.hide();
+	}
+
 	void test_composition_pages_retain_editors_and_never_submit_on_navigation()
 	{
 		qt::workbench_window window;
@@ -6373,9 +6629,16 @@ namespace {
 			text, text, 0U, core::file_identity_of("src/file.cpp"));
 		window.set_conversation_endpoint_placement(false, true);
 		auto* const strip = window.next_new_comment_action();
-		expect(strip != nullptr && !strip->isEnabled()
-				   && window.new_comment_count_label()->text().isEmpty(),
-			   "with nothing unread the next new comment group is disabled and unlabelled");
+		// [[BPR-1129]]. The count rides on the title row's comments toggle.
+		auto* const commentsToggle = qobject_cast<QToolButton*>(
+			window.primary_toolbar()->widgetForAction(window.conversations_drawer_toggle_action()));
+		const auto badge = [commentsToggle] {
+			return commentsToggle->property(qt::strip_style::badge_property).toString();
+		};
+		expect(strip != nullptr && !strip->isEnabled() && commentsToggle != nullptr && badge().isEmpty()
+				   && window.primary_toolbar()->widgetForAction(strip) == nullptr
+				   && strip->shortcut() == QKeySequence{ QStringLiteral("Alt+N") },
+			   "with nothing unread next new comment is disabled, keeps its key without a title-row presenter, and the comments toggle carries no count");
 		const auto thread = [](const std::string& aId, const std::uint32_t aLine) {
 			return application::github_conversation_projection{
 				.Id       = aId,
@@ -6426,8 +6689,10 @@ namespace {
 		process_events();
 		expect(kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::new_thread },
 			   "the thread whose first post is unread is marked blue, the other stays amber");
-		expect(strip->isEnabled() && window.new_comment_count_label()->text() == QStringLiteral("2 new"),
-			   "the strip counts the unread threads");
+		const auto countedWidth = commentsToggle->sizeHint().width();
+		expect(strip->isEnabled() && badge() == QStringLiteral("2")
+				   && commentsToggle->accessibleDescription().contains(QStringLiteral("2 threads with new comments")),
+			   "the comments toggle carries the count of unread threads and says it");
 
 		strip->trigger();
 		process_events();
@@ -6455,9 +6720,9 @@ namespace {
 
 		window.present_read_state({ });
 		process_events();
-		expect(!strip->isEnabled() && window.new_comment_count_label()->text().isEmpty()
+		expect(!strip->isEnabled() && badge().isEmpty() && commentsToggle->sizeHint().width() < countedWidth
 				   && kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::thread },
-			   "an empty read state withdraws the count and the blue marks");
+			   "an empty read state withdraws the count, its room on the toggle, and the blue marks");
 		window.hide();
 	}
 
@@ -7953,39 +8218,52 @@ namespace {
 		process_events();
 
 		auto* const epochs = window.epoch_selectors();
+		auto* const bar    = window.review_bar();
 		auto* const client = window.centralWidget();
-		// [[BPR-0929]], [[BPR-0795]]. Above the epoch row the review surface
-		// keeps only its own entry rows: Compose review and Draft comment or
-		// reply, and the readiness line while a pull request loads. The epoch
-		// row sits directly beneath whichever of them show, so nothing else
-		// may come between the strip and it.
-		const auto entriesBottom = [&window, epochs, client] {
-			const auto top    = epochs->mapTo(&window, QPoint{ 0, 0 }).y();
-			auto       bottom = client->mapTo(&window, QPoint{ 0, 0 }).y();
+		// [[BPR-1129]]. RFC-BPR-0052 AC-01: above the Updates line the review
+		// surface holds the review bar and nothing else, directly under the
+		// title row. The one exception is [[BPR-0795]]'s readiness line while a
+		// pull request loads, whose place [[BPR-1130]] asks the owner about; it
+		// may sit only between the bar and the line. The composition entry
+		// row is gone.
+		const auto entriesBottom = [&window, epochs, bar, client] {
+			const auto top      = epochs->mapTo(&window, QPoint{ 0, 0 }).y();
+			const auto barFrame = QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() };
+			if (!bar->isVisible() || barFrame.top() != client->mapTo(&window, QPoint{ 0, 0 }).y()) {
+				return -1;
+			}
+			auto bottom = barFrame.bottom() + 1;
 			for (const auto* const row : epochs->parentWidget()->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
 				const auto placed = QRect{ row->mapTo(&window, QPoint{ 0, 0 }), row->size() };
-				if (row == epochs || !row->isVisible() || placed.top() >= top) {
+				if (row == epochs || row == bar || !row->isVisible() || placed.top() >= top) {
 					continue;
 				}
-				const auto name = row->objectName();
-				if (name != QStringLiteral("reviewReadiness") && name != QStringLiteral("composeReviewActionButton")
-					&& name != QStringLiteral("composeInlineDraftActionButton")) {
+				if (row->objectName() != QStringLiteral("reviewReadiness") || placed.top() < barFrame.bottom()) {
 					return -1;
 				}
 				bottom = std::max(bottom, placed.bottom() + 1);
 			}
 			return bottom;
 		};
-		const auto spans = [&window, epochs, client, &entriesBottom] {
+		const auto spans = [&window, epochs, bar, client, &entriesBottom] {
 			const auto row   = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 			const auto area  = QRect{ client->mapTo(&window, QPoint{ 0, 0 }), client->size() };
+			const auto top   = QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() };
 			const auto panes = window.central_splitter()->mapTo(&window, QPoint{ 0, 0 });
 			return epochs->isVisible() && row.left() == area.left() && row.width() == area.width()
+				&& top.left() == area.left() && top.width() == area.width()
 				&& row.top() == entriesBottom() && row.bottom() < panes.y();
 		};
+		const auto titleRow = window.primary_toolbar();
+		expect(QRect{ titleRow->mapTo(&window, QPoint{ 0, 0 }), titleRow->size() }.bottom() + 1
+				   == bar->mapTo(&window, QPoint{ 0, 0 }).y(),
+			   "the review bar sits directly under the title row");
+		expect(window.findChild<QToolButton*>(QStringLiteral("composeReviewActionButton")) == nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("composeInlineDraftActionButton")) == nullptr,
+			   "the composition entry row is gone");
 		const auto before = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 		expect(spans() && before.width() == client->width() && before.width() > window.width() / 2,
-			   "the epoch row is the first row of the client area below the review surface's entries, and as wide as it");
+			   "the Updates line is the first row below the review bar, and the bar and the line are as wide as the client area");
 
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
@@ -9328,6 +9606,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
 		test_compact_icon_row_preserves_exact_order_and_edges();
 		test_strip_identity_stays_at_every_width();
+		test_the_review_bar_yields_dates_then_words();
 		test_strip_is_the_title_row();
 		std::cout << "workbench-title-row:pass\n";
 		return EXIT_SUCCESS;
@@ -9381,6 +9660,8 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
+	test_composition_keys_open_the_pages_and_esc_returns();
+	test_compose_review_marks_a_kept_draft();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();
 	test_all_four_primary_actions_follow_one_core_projection();
@@ -9397,6 +9678,8 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
 	test_strip_identity_stays_at_every_width();
+	test_the_review_bar_yields_dates_then_words();
+	test_the_title_row_and_review_bar_render();
 	test_strip_is_the_title_row();
 	test_the_epoch_row_spans_the_window_in_every_modality();
 	test_rails_reopen_their_drawers();

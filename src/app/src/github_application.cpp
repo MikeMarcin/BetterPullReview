@@ -17274,25 +17274,28 @@ namespace bpr::app {
 		/// \brief [[BPR-1036]]. The capture's layout floors, in thousandths of
 		/// the window the comparison must take.
 		///
-		/// \details The height floor is the measured stack's. RFC-BPR-0028
-		/// AC-01, as the owner amended it on 2026-09-24, admits the review
-		/// surface's entry rows between the strip and the epoch line, so the
-		/// composition entry row's height is no longer a regression. The floor
-		/// is the comparison's height with that row in place: 842 on Linux and
-		/// 835 on macOS, where the menu bar, the entry row, the status line and
-		/// the status bar are each a little taller under offscreen. Any further
-		/// row that takes height fails and is named. Windows has no menu bar
-		/// row and no measured stack yet, so it keeps the owner's 850 budget
-		/// ([[BPR-0246]]), which its row already meets ([[BPR-1033]]).
-		/// [[BPR-1106]] may move the entries; if it does, the floor goes back
-		/// toward 850 with it. The course script asserts the same floors.
+		/// \details The height floor is the measured stack's. [[BPR-1129]]:
+		/// RFC-BPR-0052 replaces the composition entry row with the 28-pixel
+		/// review bar under the title row, and the Updates line keeps its
+		/// 50-pixel row until [[BPR-1130]] folds it and takes its caption away.
+		/// Measured on macOS the stack is the menu bar 20, the title row 30,
+		/// the review bar 28, the Updates line 50, the diff status 15, 6 of
+		/// margins and the status bar 22, so the comparison is 829 (the entry
+		/// row was 22 there, and the floor 835). On Linux the entry row
+		/// measured 20 ([[BPR-1036]]'s stack), so the same bar gives 834 there;
+		/// that figure is derived until the Linux station measures it. Windows
+		/// has no menu bar row and keeps the owner's 850 budget ([[BPR-0246]]),
+		/// unmeasured with the bar until the Windows station runs this course.
+		/// Any further row that takes height fails and is named. [[BPR-1130]]
+		/// takes the floors up again with the line open and folded. The course
+		/// script asserts the same floors.
 		inline constexpr int uiforetw_capture_width_floor = 750;
 	#if defined(__APPLE__)
-		inline constexpr int uiforetw_capture_height_floor = 835;
+		inline constexpr int uiforetw_capture_height_floor = 829;
 	#elif defined(_WIN32)
 		inline constexpr int uiforetw_capture_height_floor = 850;
 	#else
-		inline constexpr int uiforetw_capture_height_floor = 842;
+		inline constexpr int uiforetw_capture_height_floor = 834;
 	#endif
 
 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
@@ -17375,6 +17378,7 @@ namespace bpr::app {
 					<< " window=" << aWindow.width() << 'x' << aWindow.height()
 					<< " menu_bar=" << row(aWindow.menu_bar())
 					<< " strip=" << row(aWindow.primary_toolbar())
+					<< " review_bar=" << row(aWindow.review_bar())
 					<< " epoch_line=" << row(aWindow.epoch_selectors())
 					<< " comparison=" << comparison.left() << ',' << comparison.top() << ' '
 					<< comparison.width() << 'x' << comparison.height()
@@ -19144,6 +19148,7 @@ namespace bpr::app {
 		auto* const comparisonSurface  = workbench->comparison_splitter();
 		auto* const linkMap            = workbench->link_map();
 		auto* const toolbar            = window->primary_toolbar();
+		auto* const reviewBar          = window->review_bar();
 		auto* const filesAction        = window->files_drawer_toggle_action();
 		auto* const repositoriesAction = window->repositories_drawer_toggle_action();
 		auto* const previousFile       = window->previous_file_action();
@@ -19161,7 +19166,7 @@ namespace bpr::app {
 			|| window->conversations_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels
 			|| comparisonSurface == nullptr || linkMap == nullptr
-			|| toolbar == nullptr || filesAction == nullptr || repositoriesAction == nullptr
+			|| toolbar == nullptr || reviewBar == nullptr || filesAction == nullptr || repositoriesAction == nullptr
 			|| previousFile == nullptr || nextFile == nullptr
 			|| previousChange == nullptr || nextChange == nullptr
 			|| conversationsAction == nullptr || reviewDetails == nullptr
@@ -19176,10 +19181,15 @@ namespace bpr::app {
 			nextChange,
 			conversationsAction,
 		};
+		// [[BPR-1129]]. The drawer toggles are the title row's; the navigation
+		// is the review bar's, under it.
 		auto requiredPresenters = std::array<QToolButton*, 6U>{ };
 		for (std::size_t index = 0U; index < requiredActions.size(); ++index) {
+			const auto* const row     = index == 0U || index + 1U == requiredActions.size()
+				? static_cast<const QToolBar*>(toolbar)
+				: reviewBar;
 			requiredPresenters[index] = qobject_cast<QToolButton*>(
-				toolbar->widgetForAction(requiredActions[index]));
+				row->widgetForAction(requiredActions[index]));
 			if (requiredPresenters[index] == nullptr) {
 				return false;
 			}
@@ -19206,47 +19216,26 @@ namespace bpr::app {
 					&& aObservation.DisabledContrastHundredths >= 300
 					&& aObservation.StatesDistinct;
 			});
-		auto* const spacer = toolbar->findChild<QWidget*>(
-			QStringLiteral("workbenchNavigationSpacer"), Qt::FindDirectChildrenOnly);
-		const auto toolbarActions       = toolbar->actions();
-		const auto reviewControlsAction = std::ranges::find_if(
-			toolbarActions,
-			[toolbar, reviewControls](QAction* const aAction) {
-				return toolbar->widgetForAction(aAction) == reviewControls;
-			});
-		const auto spacerAction = std::ranges::find_if(
-			toolbarActions,
-			[toolbar, spacer](QAction* const aAction) {
-				return toolbar->widgetForAction(aAction) == spacer;
-			});
-		// [[BPR-0646]]. RFC-BPR-0028's strip, left to right: the platform
-		// inset, Home, repositories, files, the identity, a rule, the change pair with its position, the file pair
-		// with its position, a spacer, the modality control, a spacer, the
-		// review details and private progress controls, refresh, Home's
-		// discovery refresh, comments, a rule, account, settings.
+		const auto toolbarActions   = toolbar->actions();
+		const auto reviewBarActions = reviewBar->actions();
 		const auto widgetActionNamed
-			= [&toolbarActions](const std::size_t aIndex, const char* const aName) {
-				  return aIndex < static_cast<std::size_t>(toolbarActions.size())
-					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
-					  == QLatin1String{ aName };
+			= [](const QList<QAction*>& aActions, const qsizetype aIndex, const char* const aName) {
+				  return aIndex >= 0 && aIndex < aActions.size()
+					  && aActions[aIndex]->objectName() == QLatin1String{ aName };
 			  };
-		// [[BPR-0859]]. Home's Group, State headers and Filter controls joined
-		// the same strip when Home became a list of state panels, and those
-		// three sit between the review controls and refresh.
+		// [[BPR-1129]]. RFC-BPR-0052's title row, left to right: the platform
+		// inset, Home, repositories, files, the name, a spacer, the modality
+		// control, Home's Group, State headers and Filter (hidden outside
+		// Home), refresh, Home's discovery refresh (hidden outside Home),
+		// comments, a rule, account, settings. A hidden action is still one of
+		// the row's actions: the row pins order, not what is shown.
 		//
-		// [[BPR-1036]]. [[BPR-0990]]'s discovery refresh, Home's own, follows
-		// the pull request's refresh, so the exact row is twenty-eight actions
-		// off Windows. It is hidden outside Home, and a hidden action is still
-		// one of the strip's actions: the row pins order, not what is shown.
-		//
-		// [[BPR-0653]]. On Windows the strip is the title row, so it carries
-		// two more actions: a compact menu control takes index 1, right after
-		// the inset, which shifts every later action along by one, and the
-		// caption buttons end the row after settings. Hence the lead and
-		// trailing offsets rather than a second copy of the row: the row stays
-		// asserted whole, in order and exactly, on every platform, and a
-		// control added to one platform cannot be absorbed by the other's
-		// expectation.
+		// [[BPR-0653]]. On Windows the title row carries two more actions: a
+		// compact menu control takes index 1, right after the inset, which
+		// shifts every later action along by one, and the caption buttons end
+		// the row after settings. Hence the lead and trailing offsets rather
+		// than a second copy of the row: the row stays asserted whole, in order
+		// and exactly, on every platform.
 	#if defined(_WIN32)
 		constexpr auto lead     = qsizetype{ 1 };
 		constexpr auto trailing = qsizetype{ 1 };
@@ -19256,59 +19245,74 @@ namespace bpr::app {
 	#endif
 		const auto at
 			= [](const qsizetype aIndex) { return aIndex + lead; };
-		const auto named = [&widgetActionNamed](
+		const auto named = [&widgetActionNamed, &toolbarActions](
 							   const qsizetype aIndex, const char* const aName) {
-			return widgetActionNamed(static_cast<std::size_t>(aIndex + lead), aName);
+			return widgetActionNamed(toolbarActions, aIndex + lead, aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 28 + lead + trailing
-			&& widgetActionNamed(0U, "workbenchStripInsetAction")
+		const auto exactRowOrder = toolbarActions.size() == 16 + lead + trailing
+			&& widgetActionNamed(toolbarActions, 0, "workbenchStripInsetAction")
 	#if defined(_WIN32)
-			&& widgetActionNamed(1U, "workbenchStripMenuAction")
+			&& widgetActionNamed(toolbarActions, 1, "workbenchStripMenuAction")
 	#endif
 			&& toolbarActions[at(1)] == window->home_action()
 			&& toolbarActions[at(2)] == repositoriesAction
 			&& toolbarActions[at(3)] == filesAction
 			&& named(4, "workbenchStripIdentityAction")
-			&& named(5, "workbenchStripLeftDividerAction")
-			&& toolbarActions[at(6)] == previousChange
-			&& toolbarActions[at(7)] == nextChange
-			&& named(8, "workbenchStripChangePositionAction")
-			&& toolbarActions[at(9)] == previousFile
-			&& toolbarActions[at(10)] == nextFile
-			&& named(11, "workbenchStripFilePositionAction")
-			&& toolbarActions[at(12)] == window->next_new_comment_action()
-			&& named(13, "workbenchStripNewCommentCountAction")
-			&& spacerAction == toolbarActions.begin() + at(14)
-			&& named(15, "workbenchModalityAction")
-			&& named(16, "workbenchModalitySpacerAction")
-			&& toolbarActions[at(17)] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + at(18)
-			&& named(19, "homeGroupAction")
-			&& named(20, "homeStateHeadersAction")
-			&& named(21, "homeFilterAction")
-			&& toolbarActions[at(22)] == window->github_refresh_action()
-			&& toolbarActions[at(23)] == window->queue_refresh_action()
-			&& toolbarActions[at(24)] == conversationsAction
-			&& named(25, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(26)] == window->account_action()
-			&& toolbarActions[at(27)] == window->settings_action()
+			&& named(5, "workbenchNavigationSpacerAction")
+			&& named(6, "workbenchModalityAction")
+			&& named(7, "homeGroupAction")
+			&& named(8, "homeStateHeadersAction")
+			&& named(9, "homeFilterAction")
+			&& toolbarActions[at(10)] == window->github_refresh_action()
+			&& toolbarActions[at(11)] == window->queue_refresh_action()
+			&& toolbarActions[at(12)] == conversationsAction
+			&& named(13, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(14)] == window->account_action()
+			&& toolbarActions[at(15)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(28, "workbenchCaptionButtonsAction")
+			&& named(16, "workbenchCaptionButtonsAction")
 	#endif
 			;
-		if (!exactRowOrder) {
-			// [[BPR-0859]]. An exact strip order that no longer holds names the
-			// row it did find, so the difference is read from the run rather
+		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
+		// comparison's menu and a rule, the change pair with its position, the
+		// file pair with its position, private progress, a spacer, Compose
+		// review and Comment. Review details is the comparison's menu's.
+		const auto exactReviewBarOrder = reviewBarActions.size() == 14
+			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
+			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
+			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
+			&& widgetActionNamed(reviewBarActions, 3, "reviewBarComparisonDividerAction")
+			&& reviewBarActions[4] == previousChange
+			&& reviewBarActions[5] == nextChange
+			&& widgetActionNamed(reviewBarActions, 6, "workbenchStripChangePositionAction")
+			&& reviewBarActions[7] == previousFile
+			&& reviewBarActions[8] == nextFile
+			&& widgetActionNamed(reviewBarActions, 9, "workbenchStripFilePositionAction")
+			&& reviewBar->widgetForAction(reviewBarActions[10]) == reviewControls
+			&& widgetActionNamed(reviewBarActions, 11, "reviewBarSpacerAction")
+			&& reviewBarActions[12] == window->compose_review_action()
+			&& reviewBarActions[13] == window->comment_action()
+			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
+		if (!exactRowOrder || !exactReviewBarOrder) {
+			// [[BPR-0859]]. An exact row order that no longer holds names the
+			// rows it did find, so the difference is read from the run rather
 			// than from some thirty conjuncts in a debugger.
 			auto stream = QTextStream{ stderr };
 			stream << "UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions="
-				   << toolbarActions.size() << '\n';
+				   << toolbarActions.size() << ",review_bar=" << reviewBarActions.size() << '\n';
 			for (auto index = qsizetype{ 0 }; index < toolbarActions.size();
 				 ++index) {
 				stream << "UIFORETW_NAVIGATION_ROW_ACTION:" << index << '='
 					   << (toolbarActions[index]->objectName().isEmpty()
 							   ? QStringLiteral("<unnamed>")
 							   : toolbarActions[index]->objectName())
+					   << '\n';
+			}
+			for (auto index = qsizetype{ 0 }; index < reviewBarActions.size(); ++index) {
+				stream << "UIFORETW_REVIEW_BAR_ACTION:" << index << '='
+					   << (reviewBarActions[index]->objectName().isEmpty()
+							   ? QStringLiteral("<unnamed>")
+							   : reviewBarActions[index]->objectName())
 					   << '\n';
 			}
 		}
@@ -19319,12 +19323,12 @@ namespace bpr::app {
 		// at its right.
 	#if defined(_WIN32)
 		const auto windowControlsInRow = exactRowOrder
-			? toolbar->actionGeometry(toolbarActions[at(28)])
+			? toolbar->actionGeometry(toolbarActions[at(16)])
 			: QRect{ };
 	#else
 		const auto windowControlsInRow = QRect{ };
 	#endif
-		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
+		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly && reviewBar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;
 		auto uniqueNames = true;
@@ -19516,7 +19520,7 @@ namespace bpr::app {
 		};
 		auto facts = capture_object(
 			"schema",
-			"bpr.uiforetw_intraline_capture.v4",
+			"bpr.uiforetw_intraline_capture.v5",
 			"appearance",
 			appearance_mode_name(aMode).toStdString(),
 			"qt_platform",
@@ -19571,8 +19575,10 @@ namespace bpr::app {
 			implementation->UIforEtwSelectedDiffProbe->Evidence.ConversationsDrawerToggle,
 			"repositories_drawer_toggle_exercised",
 			implementation->UIforEtwSelectedDiffProbe->Evidence.RepositoriesDrawerToggle,
-			"navigation_row_exact_order",
+			"title_row_exact_order",
 			exactRowOrder,
+			"review_bar_exact_order",
+			exactReviewBarOrder,
 			"navigation_actions_icon_only",
 			iconOnly,
 			"navigation_actions_have_native_icons",
@@ -19605,26 +19611,34 @@ namespace bpr::app {
 			false,
 			"full_window_rect",
 			rectangle_json(window->rect()),
-			"navigation_row_rect_in_window",
+			"title_row_rect_in_window",
 			rectangle_json(inWindow(*toolbar)),
-			"files_toggle_rect_in_row",
+			"review_bar_rect_in_window",
+			rectangle_json(inWindow(*reviewBar)),
+			"files_toggle_rect_in_title_row",
 			rectangle_json(requiredPresenters[0]->geometry()),
-			"previous_file_rect_in_row",
-			rectangle_json(requiredPresenters[1]->geometry()),
-			"next_file_rect_in_row",
-			rectangle_json(requiredPresenters[2]->geometry()),
-			"previous_change_rect_in_row",
-			rectangle_json(requiredPresenters[3]->geometry()),
-			"next_change_rect_in_row",
-			rectangle_json(requiredPresenters[4]->geometry()),
-			"review_details_rect_in_row",
-			rectangle_json(toolbar->actionGeometry(reviewDetails)),
-			"private_progress_rect_in_row",
-			rectangle_json(reviewControls->geometry()),
-			"conversations_toggle_rect_in_row",
+			"conversations_toggle_rect_in_title_row",
 			rectangle_json(requiredPresenters[5]->geometry()),
-			"window_controls_rect_in_row",
+			"window_controls_rect_in_title_row",
 			rectangle_json(windowControlsInRow),
+			"comparing_rect_in_bar",
+			rectangle_json(window->epoch_selectors()->comparing_button()->geometry()),
+			"previous_change_rect_in_bar",
+			rectangle_json(requiredPresenters[3]->geometry()),
+			"next_change_rect_in_bar",
+			rectangle_json(requiredPresenters[4]->geometry()),
+			"previous_file_rect_in_bar",
+			rectangle_json(requiredPresenters[1]->geometry()),
+			"next_file_rect_in_bar",
+			rectangle_json(requiredPresenters[2]->geometry()),
+			"private_progress_rect_in_bar",
+			rectangle_json(reviewControls->geometry()),
+			"compose_review_rect_in_bar",
+			rectangle_json(reviewBar->actionGeometry(window->compose_review_action())),
+			"comment_rect_in_bar",
+			rectangle_json(reviewBar->actionGeometry(window->comment_action())),
+			"review_details_in_comparison_menu",
+			window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails),
 			"comparison_rect_in_window",
 			rectangle_json(comparisonRect),
 			"left_pane_rect_in_window",
