@@ -19,7 +19,7 @@ unchanged. The owner's note names the generator as "ChatGPT 5.6 Sol"; that
 statement is recorded on BPR-0295 and the RFC and is not written into
 `provenance.json`. The exact wording is on
 [RFC-BPR-0019](../rfcs/RFC-BPR-0019-dif-visual-identity-sprite-assets.md#status-and-scope)
-and [BPR-0295](../issues/20-ready/BPR-0295-anchor-rfc-0019-verification.md#owner-amendment-to-ac1--2026-09-25-attended-session-06ad5734).
+and [BPR-0295](../issues/30-in-progress/BPR-0295-anchor-rfc-0019-verification.md#owner-amendment-to-ac1--2026-09-25-attended-session-06ad5734).
 The audit below is kept as it was written.
 
 ## Ordinary closeout audit — 2026-09-25
