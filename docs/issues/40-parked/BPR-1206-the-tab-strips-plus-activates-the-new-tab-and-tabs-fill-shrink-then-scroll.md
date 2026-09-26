@@ -2,13 +2,15 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1206"
 title: "The tab strip's plus activates the new tab, and tabs fill the strip, shrink to a minimum, then scroll"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1132"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "owner decision with note on attended candidate BPR-1132-plus, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1132-plus", "decision": "c1a81e29-5ee4-4163-bed7-d2dabf843af0", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-05", "AC-11"], "related_cards": ["BPR-1132", "BPR-1131", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f080d9c471feb3b69f8d571b27ba6235c15ca240","evidence":{"kind":"command","detail":"Core/host and document-tab matrix pass; final tab/focus/window 9/9, evidence/1206-final-tests.log. Card records negative controls."}},{"criterion":"AC2","outcome":"pass","revision":"f080d9c471feb3b69f8d571b27ba6235c15ca240","evidence":{"kind":"command","detail":"Core/host and document-tab matrix pass; final tab/focus/window 9/9, evidence/1206-final-tests.log. Card records negative controls."}},{"criterion":"AC3","outcome":"pass","revision":"f080d9c471feb3b69f8d571b27ba6235c15ca240","evidence":{"kind":"command","detail":"Core/host and document-tab matrix pass; final tab/focus/window 9/9, evidence/1206-final-tests.log. Card records negative controls."}},{"criterion":"AC4","outcome":"pending","revision":"f080d9c471feb3b69f8d571b27ba6235c15ca240","evidence":{"kind":"observation","detail":"Built strip owner Mac judgment is pending; no human verdict inferred."}}]
 ---
 
 # BPR-1206: The tab strip's plus activates the new tab, and tabs fill the strip, shrink to a minimum, then scroll
