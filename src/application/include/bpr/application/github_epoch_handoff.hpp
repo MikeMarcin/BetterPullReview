@@ -124,9 +124,10 @@ namespace bpr::application {
 		selected_objects,
 	};
 
-	/// \brief Selects a bounded acquisition budget; absent or inconsistent facts never grant laziness.
-	/// \details One REST page (100 records) is the complete-loading budget for
-	/// each dimension. This is a scheduling bound, not a latency guarantee.
+	/// \brief Permits selected-object loading for a validated accepted shape.
+	/// \details PR counts do not bound repository closure size. The epoch host
+	/// separately requires a capable lease; absent or inconsistent facts never
+	/// permit missing-object acquisition.
 	[[nodiscard]] auto object_loading_for(
 		const std::optional<accepted_pull_request_shape>& aShape) noexcept
 		-> pull_request_object_loading;

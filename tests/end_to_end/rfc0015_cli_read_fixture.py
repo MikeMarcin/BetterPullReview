@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import random
 import subprocess
 import sys
 from urllib.parse import parse_qs, urlsplit
@@ -43,6 +44,29 @@ def missing_process_refusal(course, directories=PRODUCT_GH_FALLBACK_DIRECTORIES)
 
 def is_large(course):
     return course in ("large-positive", "modified-missing-left")
+
+
+def add_large_repository_history(directory, repository, base, head):
+    """Two changed files still inherit an unrelated over-limit history blob."""
+    environment = {"PATH": "/usr/bin:/bin", "HOME": str(directory / "home"),
+                   "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                   "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+                   "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+                   "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+0000",
+                   "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+0000"}
+
+    def git(*arguments, data=None):
+        return subprocess.check_output(["/usr/bin/git", "--git-dir", str(repository),
+                                        *arguments], input=data, env=environment).strip()
+
+    blob = git("hash-object", "-w", "--stdin", data=random.Random(1199).randbytes(34 * 1024 * 1024))
+    tree = git("mktree", data=b"100644 blob " + blob + b"\tunrelated.bin\n")
+    ancestor = git("commit-tree", tree.decode(), data=b"unrelated repository history\n")
+    new_base = git("commit-tree", git("rev-parse", base + "^{tree}").decode(),
+                   "-p", ancestor.decode(), data=b"base without unrelated file\n")
+    new_head = git("commit-tree", git("rev-parse", head + "^{tree}").decode(),
+                   "-p", new_base.decode(), data=b"small pull request\n")
+    return new_base.decode(), new_head.decode()
 
 
 def prepare(directory, course):
@@ -95,6 +119,8 @@ def prepare(directory, course):
             replacements.append(git("commit-tree", tree, *parent, data=b"sparse special blobs\n").decode().strip())
         base, head = replacements[0], replacements[-1]
         objects["heads"] = replacements[1:]
+    if course == "small-large-repository":
+        base, head = add_large_repository_history(directory, repository, base, head)
     source = ROOT / "tests/fixtures/github/contracts/v1/github-com"
     manifest = json.loads((source / "manifest.json").read_text())
     routes = {}
@@ -138,9 +164,8 @@ def prepare(directory, course):
     for ref, oid in (("refs/heads/main", base), ("refs/pull/17/head", head)):
         subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
                         "update-ref", ref, oid], check=True, capture_output=True)
-    if large:
-        subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
-                        "config", "uploadpack.allowFilter", "true"], check=True, capture_output=True)
+    subprocess.run(["/usr/bin/git", "--git-dir", str(repository),
+                    "config", "uploadpack.allowFilter", "true"], check=True, capture_output=True)
     return {"directory": str(directory), "gh": str(executable),
             "pull_request": "https://github.com/octo-org/review-repository/pull/17"}
 
@@ -159,7 +184,8 @@ def record_operation(directory, operation):
 def clone_fixture(directory, fixture, args):
     """Materialize only the closed production clone command, using local Git."""
     large = is_large(fixture["course"])
-    if len(args) != (20 if large else 18):
+    sparse = len(args) == 20
+    if len(args) not in (18, 20) or (large and not sparse):
         return 64
     destination = Path(args[3])
     root = destination.parent
@@ -170,7 +196,7 @@ def clone_fixture(directory, fixture, args):
                 "--revision=" + oid, "--template=" + str(template),
                 "--config", "transfer.unpackLimit=0", "--config", "fetch.unpackLimit=0",
                 "--config", "core.hooksPath=/dev/null", "--config", "core.fsmonitor=false"]
-    if large:
+    if sparse:
         expected.extend(["--depth=1", "--filter=blob:none"])
     if args != expected or oid not in (fixture["base"], fixture["head"]):
         return 64
@@ -185,7 +211,7 @@ def clone_fixture(directory, fixture, args):
             or any(template.iterdir())):
         return 64
     record_operation(directory, "clone-base" if oid == fixture["base"] else "clone-head")
-    if fixture["course"] != "positive" and not large:
+    if fixture["course"] not in ("positive", "small-large-repository") and not large:
         return 1
     # An explicitly local fixture capability: no ambient credential/config
     # environment reaches Git, and only the file protocol is enabled.
@@ -193,9 +219,9 @@ def clone_fixture(directory, fixture, args):
                    "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
                    "GIT_ATTR_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0",
                    "GIT_ALLOW_PROTOCOL": "file"}
-    fetch_source = ((directory / "repository.git").as_uri() if large else
+    fetch_source = ((directory / "repository.git").as_uri() if sparse else
                     str(directory / "repository.git"))
-    fetch_options = ["--depth=1", "--filter=blob:none"] if large else []
+    fetch_options = ["--depth=1", "--filter=blob:none"] if sparse else []
     commands = [
         ["init", "--bare", "--quiet", "--template=" + str(template), str(destination)],
         ["--git-dir", str(destination), "-c", "fetch.unpackLimit=0",
@@ -234,7 +260,8 @@ def fake_gh():
         expected = ["api", args[1], "--hostname", "github.com", "--method", "GET",
                     "--header", "Accept: application/vnd.github+json",
                     "--header", "X-GitHub-Api-Version: 2022-11-28"]
-        if args != expected or not is_large(fixture["course"]):
+        if args != expected or not (is_large(fixture["course"])
+                                    or fixture["course"] in ("positive", "small-large-repository")):
             return 64
         record_operation(directory, "exact-blob")
         blob = subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
@@ -341,7 +368,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "launch"))
     parser.add_argument("--directory", type=lambda value: Path(value).resolve(), required=True)
-    parser.add_argument("--course", choices=("positive", "large-positive", "modified-missing-left", "missing-process", "process-failure", "malformed-response"),
+    parser.add_argument("--course", choices=("positive", "small-large-repository", "large-positive", "modified-missing-left", "missing-process", "process-failure", "malformed-response"),
                         default="positive")
     parser.add_argument("--app", type=Path)
     parser.add_argument("--cmake-cache", type=Path)

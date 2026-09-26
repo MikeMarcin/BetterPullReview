@@ -621,7 +621,7 @@ namespace {
 			return application::object_loading_for(aShape);
 		};
 		expect(classify(std::nullopt) == route::complete, "missing shape grants no lazy acquisition");
-		expect(classify(shape{ 100U, 100U, 100U }) == route::complete, "one full page remains complete");
+		expect(classify(shape{ 100U, 100U, 100U }) == route::selected_objects, "PR counts cannot bound the repository closure");
 		expect(classify(shape{ 101U, 1U, 1U }) == route::selected_objects, "a second file page permits bounded selected objects");
 		expect(classify(shape{ 1U, 101U, 101U }) == route::selected_objects, "a second commit page permits bounded selected objects");
 		expect(classify(shape{ 3000U, 250U, 1000U }) == route::selected_objects, "reported total remains distinct from capped returned commits");

@@ -97,6 +97,38 @@ class cli_read_fixture_tests(unittest.TestCase):
                 self.assertEqual(pull["files"]["pageInfo"]["hasNextPage"], start + 100 < len(files))
             self.assertEqual(paths, [item["filename"] for item in files])
 
+    def test_small_pull_request_in_large_repository_has_bounded_sparse_material(self):
+        with contained_temporary_directory(prefix="bpr-cli-small-large-fixture-") as temporary:
+            directory = Path(temporary).resolve() / "small"
+            fixture.prepare(directory, "small-large-repository")
+            state = json.loads((directory / "fixture.json").read_text())
+            pull = state["routes"]["/repos/octo-org/review-repository/pulls/17"]
+            self.assertLessEqual(pull["changed_files"], 100)
+            self.assertLessEqual(pull["commits"], 100)
+            git = ["/usr/bin/git", "--git-dir", str(directory / "repository.git")]
+            ancestor = subprocess.check_output([*git, "rev-parse", state["base"] + "^"]).decode().strip()
+            size = subprocess.check_output([*git, "cat-file", "-s", ancestor + ":unrelated.bin"])
+            self.assertGreater(int(size), 32 * 1024 * 1024)
+            self.assertEqual(subprocess.check_output([*git, "ls-tree", state["base"], "--", "unrelated.bin"]), b"")
+            root = (Path("/private/tmp") if sys.platform == "darwin" else Path("/tmp")) / ("bpr-cli-git-" + secrets.token_hex(8))
+            root.mkdir(mode=0o700)
+            self.addCleanup(shutil.rmtree, root)
+            (root / "empty").mkdir()
+            destination = root / "clone-0.git"
+            command = [str(directory / "bin/gh"), "repo", "clone",
+                       "https://github.com/octo-org/review-repository.git", str(destination),
+                       "--no-upstream", "--", "--bare", "--quiet", "--revision=" + state["base"],
+                       "--template=" + str(root / "empty"), "--config", "transfer.unpackLimit=0",
+                       "--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
+                       "--config", "core.fsmonitor=false", "--depth=1", "--filter=blob:none"]
+            subprocess.run(command, check=True, capture_output=True, timeout=20)
+            self.assertLess(sum(p.stat().st_size for p in destination.rglob("*") if p.is_file()), 1024 * 1024)
+            environment = dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_ALLOW_PROTOCOL="")
+            types = subprocess.check_output(["/usr/bin/git", "--git-dir", str(destination),
+                                             "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)"], env=environment)
+            self.assertNotIn(b"blob", types)
+            self.assertEqual(types.count(b"commit"), 1)
+
     def test_denied_optional_trace_preserves_empty_stderr(self):
         output = io.StringIO()
         with patch.object(Path, "open", side_effect=PermissionError), redirect_stderr(output):

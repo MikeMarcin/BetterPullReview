@@ -24,12 +24,11 @@ namespace bpr::application {
 			|| std::min(*aShape->ReportedCommitCount, limits.MaximumCommits) != aShape->ReturnedCommitCount) {
 			return pull_request_object_loading::complete;
 		}
-		// The production REST pager admits at most 100 records per page.
-		constexpr std::size_t completeLoadingPageRecords = 100U;
-		return aShape->FileCount > completeLoadingPageRecords
-				|| *aShape->ReportedCommitCount > completeLoadingPageRecords
-			? pull_request_object_loading::selected_objects
-			: pull_request_object_loading::complete;
+		// PR counts do not bound the repository's trees, blobs or ancestors.
+		// Even a one-file change can exceed the complete-clone budget. The
+		// epoch host still requires a sparse-capable lease and exact selected
+		// tree/blob evidence before it can acquire missing material.
+		return pull_request_object_loading::selected_objects;
 	}
 
 	namespace {

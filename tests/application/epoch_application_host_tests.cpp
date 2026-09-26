@@ -5231,7 +5231,7 @@ namespace {
 		std::stop_token aStop)
 		-> application::workbench_selected_diff_observation;
 
-	void large_selected_blob_reads_only_the_exact_missing_object()
+	void selected_blob_reads_only_the_exact_missing_object()
 	{
 		const auto read = [](fixture& aValue, const application::diff_blob_request& aRequest) {
 			auto result = std::optional<application::diff_blob_observation>{ };
@@ -5245,7 +5245,7 @@ namespace {
 		fixture large;
 		large.State.SupportsSparse = true;
 		large.State.SparseObjects  = true;
-		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U });
+		establish_ready_comparison(large, application::accepted_pull_request_shape{ 40U, 4U, 4U });
 		large.State.CachedBlobMissing = true;
 		const auto fabricated         = blob_request_for(large.Host->state());
 		expect(read(large, fabricated).Status == application::diff_blob_status::failure
@@ -5313,7 +5313,7 @@ namespace {
 			   "small complete reviews never turn a missing blob into a lazy remote read");
 	}
 
-	void large_review_uses_sparse_current_pair_while_small_stays_complete()
+	void sparse_capability_applies_independently_of_pull_request_size()
 	{
 		fixture large;
 		large.State.SupportsSparse = true;
@@ -5328,12 +5328,20 @@ namespace {
 
 		fixture small;
 		small.State.SupportsSparse = true;
-		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U });
-		expect(std::ranges::find(small.State.Calls, "cache.prepare-revision") != small.State.Calls.end()
-				   && std::ranges::find(small.State.Calls, "cache.prepare-sparse-revision") == small.State.Calls.end()
+		small.State.SparseObjects  = true;
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 40U, 4U, 4U });
+		expect(std::ranges::find(small.State.Calls, "cache.prepare-sparse-revision") != small.State.Calls.end()
+				   && std::ranges::find(small.State.Calls, "cache.prepare-revision") == small.State.Calls.end()
 				   && small.State.Retained
-				   && small.State.Retained->Residency == application::git_revision_residency::complete_closure,
-			   "small accepted shape retains the complete background import");
+				   && small.State.Retained->Residency == application::git_revision_residency::sparse_commit_trees
+				   && small.Host->state().AcceptedComparison,
+			   "a small PR on a sparse-capable lease imports exact trees without unrelated repository history");
+
+		fixture complete;
+		establish_ready_comparison(complete, application::accepted_pull_request_shape{ 40U, 4U, 4U });
+		expect(complete.State.Retained
+				   && complete.State.Retained->Residency == application::git_revision_residency::complete_closure,
+			   "a lease without sparse support retains complete acquisition");
 
 		fixture missingMarker;
 		missingMarker.State.SupportsSparse             = true;
@@ -7972,8 +7980,8 @@ int main()
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
-	large_selected_blob_reads_only_the_exact_missing_object();
-	large_review_uses_sparse_current_pair_while_small_stays_complete();
+	selected_blob_reads_only_the_exact_missing_object();
+	sparse_capability_applies_independently_of_pull_request_size();
 	selected_large_occurrence_imports_only_its_sparse_head();
 	selected_large_occurrence_switch_drops_late_import();
 	selected_large_occurrence_rebases_after_superseded_commit();

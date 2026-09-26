@@ -4362,8 +4362,10 @@ namespace bpr::application {
 									observation.Status = diff_blob_status::materialization_limit;
 								} else if (
 									cached.error() == git_cache_failure::object_mismatch
-									&& object_loading_for(selectedContext->Handoff.Shape)
-										!= pull_request_object_loading::selected_objects) {
+									&& (object_loading_for(selectedContext->Handoff.Shape)
+											!= pull_request_object_loading::selected_objects
+										|| !selectedContext->Handoff.SmartGit
+										|| !selectedContext->Handoff.SmartGit->supports_sparse_commit_trees())) {
 									observation.Status = diff_blob_status::missing;
 								}
 							}
