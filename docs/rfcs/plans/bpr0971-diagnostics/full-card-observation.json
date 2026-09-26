@@ -1,0 +1,112 @@
+{
+  "run_id": "bpr0971-20260925",
+  "segment_id": "full-card",
+  "mandate_revision": "r4-full-card-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0971-diagnostics",
+    "plan_path": "docs/rfcs/plans/bpr0971-diagnostics/milestone-plan.json",
+    "milestone_id": "privacy-and-backpressure",
+    "definition_fingerprint": "sha256:562d1a732c743fe42a75057d1111af3e9430ef56da946a09a2967408c6f717b1",
+    "obligations": [
+      {
+        "id": "BPR-0971:*",
+        "source": "BPR-0971",
+        "selector": null,
+        "source_fingerprint": "sha256:83975f24ef70b8b9bf70cb99521412330fdac640aa6eabe04a1169e04ef7cf2c"
+      }
+    ],
+    "obligation_fingerprint": "sha256:2b06c976271c183c3595c4b13ceb22c6a45e4946b6c2d10852f4bc280f27938a",
+    "exit_criteria": [
+      {
+        "id": "privacy-and-backpressure:exit:1",
+        "text": "Every diagnostic producer and retained field across the seven named subsystems has a classified bound and evidence disposition."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:2",
+        "text": "Synthetic credential/content and oversized-input courses exercise composed logging and export boundaries without private targets."
+      },
+      {
+        "id": "privacy-and-backpressure:exit:3",
+        "text": "Stress observations measure dropping and shutdown, and diagnostic failure isolation is verified or its exact gap retained."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "privacy-and-backpressure",
+  "disposition": "milestone-complete",
+  "candidate_revision": "2e97c178d12abb67505d08be50b1b2b545f82b82",
+  "handoff_ref": "docs/rfcs/plans/bpr0971-diagnostics/HANDOFF-full-card-2026-09-25.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/bpr0971-completion.md",
+    "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0971:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-completion.md",
+        "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-completion.md",
+        "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-completion.md",
+        "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md"
+      ]
+    },
+    {
+      "id": "privacy-and-backpressure:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/bpr0971-completion.md",
+        "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "Whole standalone BPR-0971 milestone accepted under owner Windows/Linux native-run deferral. Coordinator may push the completed local commits after explicit writer release. Deferred native and external crash limits are retained in evidence; no RFC or release closure is inferred."
+  },
+  "ownership": "quiescent"
+}

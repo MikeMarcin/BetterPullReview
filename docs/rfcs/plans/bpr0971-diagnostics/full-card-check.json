@@ -1,0 +1,1 @@
+{"action": "stop", "detail": "Whole standalone BPR-0971 milestone accepted under owner Windows/Linux native-run deferral. Coordinator may push the completed local commits after explicit writer release. Deferred native and external crash limits are retained in evidence; no RFC or release closure is inferred.", "engineering_acceptance": "not-evaluated"}
