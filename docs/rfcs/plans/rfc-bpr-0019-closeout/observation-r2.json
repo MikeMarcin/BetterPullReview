@@ -1,0 +1,178 @@
+{
+  "run_id": "rfc0019-20260925-parallel",
+  "segment_id": "rfc0019-terminal-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0019-closeout",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0019-closeout/milestone-plan.json",
+    "milestone_id": "ordinary-closeout",
+    "definition_fingerprint": "sha256:35cab02265f0d8fb3bad194b21e857b3f822bd3029301951e04bfae62678c2d8",
+    "obligations": [
+      {
+        "id": "BPR-0295:*",
+        "source": "BPR-0295",
+        "selector": null,
+        "source_fingerprint": "sha256:30f062bd15bcca3d709b898497ded3f4168c096f849d2a065ca07bdb0f606528"
+      }
+    ],
+    "obligation_fingerprint": "sha256:59770f21bdcfff3cc67a3d711b00abca8115f189eb4832c369297aea2dd3eedb",
+    "exit_criteria": [
+      {
+        "id": "ordinary-closeout:exit:1",
+        "text": "Every original RFC-BPR-0019 criterion and BPR-0295 closeout gate has exact candidate evidence, with prior rights and visual decisions retained under their original identities."
+      },
+      {
+        "id": "ordinary-closeout:exit:2",
+        "text": "Focused current asset regeneration, schema, descriptor, boundary and documentation checks pass, and any mismatch to the original three-clip, resource-budget or no-runtime contract is explicitly reconciled by authorized acceptance before closure."
+      },
+      {
+        "id": "ordinary-closeout:exit:3",
+        "text": "Required independent ordinary closeout review is supplied separately and all material findings are resolved; self-review does not satisfy it."
+      },
+      {
+        "id": "ordinary-closeout:exit:4",
+        "text": "BPR-0295 is Done and RFC-BPR-0019 is Auto-Verified only after every required criterion and predecessor gate is accepted."
+      },
+      {
+        "id": "ordinary-closeout:exit:5",
+        "text": "A durable checkpoint records candidate revisions, changed paths, commands, verification, protected historical assets, pending obligations and next action, with task-owned commands quiescent."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "ordinary-closeout",
+  "disposition": "milestone-complete",
+  "candidate_revision": "d0de19687bcff9488ef718850acdf496baeda732",
+  "handoff_ref": "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0295:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    },
+    {
+      "id": "ordinary-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    },
+    {
+      "id": "ordinary-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    },
+    {
+      "id": "ordinary-closeout:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    },
+    {
+      "id": "ordinary-closeout:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    },
+    {
+      "id": "ordinary-closeout:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/asset-audit-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/acceptance-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/handoff-r2.json",
+        "docs/rfcs/plans/rfc-bpr-0019-closeout/checkpoint-r2.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-0295 / RFC-BPR-0019 terminal milestone complete under mandate r2; coordinator owns main integration and successor scope."
+  },
+  "ownership": "quiescent"
+}
