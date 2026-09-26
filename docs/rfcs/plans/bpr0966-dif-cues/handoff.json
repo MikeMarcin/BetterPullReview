@@ -1,57 +1,68 @@
 {
   "schema": "bpr.rfc_engineering_handoff",
   "schema_version": 1,
-  "assignment": "BPR-0966 full continuation: implement approved Compose workshop slot (AC2), exact-candidate verification (AC3), then park one scoped attended look. Sole assigned worktree; no main edits, push, live account/mutation or release.",
-  "child": "/root/bpr0966_compose",
-  "mandate_revision": "r4-with-owner-compose-20260925-r2",
-  "run_id": "bpr0966-compose-20260926",
-  "segment_id": "approved-slot-r2",
+  "assignment": "BPR-0966 final owner-verdict reconciliation and later BPR-1212 Compose UX registration; coordinator later added tracking-only BPR-1213 flat Overview correction. Exclusive assigned worktree; no source, main, push, remote mutation or release authority.",
+  "child": "/root/bpr0966_verdict",
+  "mandate_revision": "r4-with-owner-compose-20260925-r3",
+  "mandate_addendum": "Coordinator message 2026-09-26 reserves BPR-1213 and authorizes its backlog card only, not Overview implementation.",
+  "run_id": "bpr0966-verdict-20260926",
+  "segment_id": "owner-verdict-r3",
   "effective_route": "rfc-implementer | gpt-6-astra | xhigh",
   "source_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
   "tracker_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
   "runtime_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build",
   "branch": "codex/bpr0966-compose-takeover",
-  "entry_revision": "fdeea1ac",
+  "entry_revision": "858c5f666863d12ba84f9aa1e06da0c54a0058ab",
+  "checkpoint_candidate_revision": "447bdaf038e99901f3529425e09574836c378cf0",
   "product_revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
   "test_candidate_revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
-  "claim_commit": "aacead372a65fbd207203eae903f4e842d9586f3",
-  "park_commit": "a5b7c9bafcc384f6580cf0014fb25af518e5f7dc",
-  "historical_handoff": "The preceding diagnosis handoff remains in Git history and its evidence.md; old branch codex/bpr0966-dif-cues remains preserved. Owner decision dba44cfd answered its prior placement blocker.",
+  "historical_handoff": "Previous approved-slot-r2 handoff is preserved in 858c5f66:docs/rfcs/plans/bpr0966-dif-cues/handoff.json; earlier acceptance-compose.json/checkpoint-compose-*.json remain historical records.",
   "milestone": "workshop-cue-reconciliation",
   "result": {
-    "disposition": "human-pending",
+    "round": "complete: final exact-candidate Accept consumed; later requests registered; review server/protection retired",
+    "disposition": "continue-milestone",
     "card": "BPR-0966",
-    "status": "Parked",
-    "parked_on": "human-review",
-    "AC1": "pass: recorded owner slot choice and prime-slot reconciliation",
+    "status": "Backlog",
+    "platforms": [
+      "win"
+    ],
+    "accepted_scope": "Mac implementation/fixture evidence and exact Dif visual judgment; historical Mac eligibility and evidence retained",
+    "AC1": "pass: owner slot choice and prime-slot reconciliation",
     "AC2": "pass: bounded product correction verified",
-    "AC3": "macOS fixture behavior passes; one visual judgment pending; Windows deferred"
+    "AC3": "partial: exact Mac fixture and human evidence accepted; deferred Windows consider-cue and composed-course result pending",
+    "followups": {
+      "BPR-1212": "Backlog, later full Compose UX rethink with frontend-design; no design work claimed",
+      "BPR-1213": "Backlog, later flat Overview folder correction; tracking only, independent of BPR-0972 scaling and BPR-1199 private comparison"
+    }
   },
-  "checkpoint": "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-current.json",
+  "checkpoint": "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-verdict-current.json",
+  "observation": "docs/rfcs/plans/bpr0966-dif-cues/observation-verdict.json",
   "changed_paths": [
-    "docs/issues/40-parked/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
-    "docs/rfcs/plans/bpr0966-dif-cues/acceptance-compose.json",
-    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-current.json",
-    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-entry.json",
+    "docs/issues/10-backlog/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+    "docs/issues/10-backlog/BPR-1212-rethink-compose-ux-with-frontend-design.md",
+    "docs/issues/10-backlog/BPR-1213-keep-overview-folders-flat-and-collapse-only-files.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1211--BPR-1211--eab9cb4396e7.json",
+    "docs/issues/_reservations/BPR-1212--BPR-1212--1292ad3cce62.json",
+    "docs/issues/_reservations/BPR-1213--BPR-1213--0ddd70337485.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-verdict-entry.json",
     "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md",
-    "docs/rfcs/plans/bpr0966-dif-cues/compose-plan-amendment.json",
     "docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json",
-    "docs/ux/ai-experience.md",
-    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
-    "src/adapters/qt/src/workbench_window.cpp",
-    "tests/adapters_qt/CMakeLists.txt",
-    "tests/adapters_qt/workbench_window_tests.cpp",
-    "tests/end_to_end/agent_finding_composition_public_path.cpp",
+    "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/verdict-plan-amendment.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-verdict-current.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/observation-verdict.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-verdict-check.json",
     "docs/rfcs/plans/bpr0966-dif-cues/handoff.json"
   ],
   "verification": {
-    "evidence": "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md",
-    "baseline": "Dif failed only ready/acknowledge in 20.57 seconds.",
-    "candidate": "Six focused checks pass on 388f814c; actual ready/ack paints, visible button after bottom scroll, exact draft/one intent/one sprite/zero publication.",
-    "architecture": "Branch gate fails unchanged MCP Windows ownership and baseline archive reproduces. Coordinator reports main repairs ca23a9fe/ecf93cfd; root merged-candidate architecture check remains due.",
-    "documentation": "Gate and 64/64 regression tests pass; scoped board valid with 1198 cards.",
-    "format": "Touched C++ clang-format and git diff check pass.",
-    "limits": "Offscreen macOS arm64 Debug Qt 6.11.2 fixtures only; no new human/native Windows/Linux or release claim."
+    "reused": "Six exact 388f814c Mac behavior checks plus coordinator main integration recorded in a773d803; no source/test differences from reviewed product",
+    "artifact_integrity": "finding-course, canary, proposal.png and accepted.png SHA-256 values all match retained prior evidence",
+    "documentation": "DOCUMENTATION_OK after both card slices; 64/64 regression tests pass in 2.322 seconds; final scoped board valid with 1200 cards",
+    "plan": "Preserved strategy resolved; amendment checked without deleting work/exits; current binding valid; quiescent completion check returns pending for the retained Windows obligation, with no engineering acceptance inferred.",
+    "diff": "git diff --check and staged diff checks pass",
+    "limits": "No new Qt/build/native station/private service/publication/release run. Windows AC3 remains pending."
   },
   "candidate_artifacts": {
     "finding-course": {
@@ -72,80 +83,57 @@
     }
   },
   "review_handoff": {
-    "state": "ready-human-pending",
+    "state": "consumed",
     "session": "54fd75833481882c3bb47745f8e30b75",
-    "event_cursor": 3,
+    "hand_back_cursor": 6,
+    "event_cursor": 7,
     "candidate": "BPR-0966-compose-slot-v002",
     "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
-    "server_exec_session": 46244,
-    "server_pid": 41253,
-    "private_runtime_handoff": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-handoff.json",
-    "manifest": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-manifest.json",
-    "offline_html": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review.html",
-    "url_note": "Full loopback URL is in the private runtime handoff and final coordinator report; its bearer token is not committed.",
-    "protection": "Only frozen build/bpr0966-compose-review-v001 copies and their artifact resource; main and m2b source remain integrable.",
-    "pending_decisions": [
-      "One Accept/Reject judgment of the Compose workshop placement; no decision is supplied."
-    ],
-    "watch_argv": [
-      "python3",
-      "/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
-      "--repo-root",
-      "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
-      "wait",
-      "--after",
-      "3",
-      "--kind",
-      "handed-back"
-    ],
-    "watch_owner": "Coordinator must arm handed-back watch before yielding; this leaf does not interpret later review events."
+    "verdict": "accept",
+    "decision_id": "3bcafec9-7811-46dd-83dd-f7bda4cdac1b",
+    "superseded_reject": "558218a7-99a6-43c7-8d7a-5ec76870d505",
+    "pending_decisions": [],
+    "server": "Stopped with attended helper; PID41253 absent and port59834 refuses; original exec46244 not addressable from fresh context",
+    "protection": "Only this candidate released at cursor7; decision remains intact; frozen files and evidence retained",
+    "url": "No live URL: consumed session server stopped; prior private URL not committed",
+    "other_review": "BPR-1199 unrelated Overview paragraph read from its existing runtime only; its verdict, host, protection and evidence are owned elsewhere."
   },
   "ownership": {
-    "repository_writer": "released on return",
+    "repository_writer": "released on final return",
     "descendants": [],
-    "active_commands": [
-      "Only the explicitly handed-off attended-review server, exec 46244, PID 41253."
-    ],
-    "primary_checkout": "untouched",
-    "other_worktrees": "untouched",
+    "active_commands": [],
+    "background_commands": "none; no new background command started",
+    "primary_checkout": "read-only references only; unchanged",
+    "other_worktrees": "no writes",
+    "other_writers": "BPR-0972 and RFC0052 m2b remain independently owned; no overlap or revert",
     "publication": "none",
-    "protected_candidates": "Only own frozen review copy; historical packets untouched."
+    "protected_candidates": "own candidate released; all other packets untouched"
+  },
+  "commits": {
+    "integrate_in_order": [
+      "85c33f1a",
+      "447bdaf0",
+      "final handoff commit reported to coordinator"
+    ],
+    "already_on_main_imports_to_skip": {
+      "bf068326": "a5541e61 BPR-1211 reservation",
+      "aee7bcda": "cc206e44 BPR-1212 reservation",
+      "d453f0f8": "a773d803 main integration evidence",
+      "1196a220": "fa9f5389 BPR-1213 reservation"
+    }
   },
   "commands": {
-    "finished_exec_sessions": [
-      52376,
-      46758,
-      77016,
-      58707,
-      73722,
-      75200,
-      63062,
-      59863,
-      13949,
-      27556,
-      27804
-    ],
-    "initial_baseline_build": "PID 61367 finished before queued baseline CTest; no remaining task build/test process.",
-    "review_server": {
-      "exec_session": 46244,
-      "pid": 41253,
-      "http_status": 200
-    },
-    "runtime_evidence": "Ignored build/bpr0966-compose-*.log and frozen review folder retained; disposable baseline archive removed."
+    "board": "Installed issue_board.py move BPR-0966 --to 10-backlog, then scoped validate for BPR-0966/1212/1213",
+    "review": "attended_review.py with explicit source root: status --after3; stop; resume-development --candidate BPR-0966-compose-slot-v002",
+    "plan": "Installed execution_strategy resolve --preserved; milestone_plan discover/check-amendment; milestone_checkpoint bind/check",
+    "verification": "PYTHONPATH points at installed implement-rfc/scripts; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; git diff --quiet 388f814c -- src tests; four artifact SHA-256 checks",
+    "failed_attempts": "Initial board read refused stale NEXT_ID; imported paired existing main reservations. Move alias backlog refused; canonical 10-backlog succeeded. First amendment invocation omitted repo-root; corrected before adoption. Original server exec handle unknown; helper stop plus PID/port verified shutdown.",
+    "temporary_work": "Deleted only own adopted build/bpr0966-verdict-plan-proposal.json. User review evidence and prior logs retained."
   },
-  "continuation": "Coordinator integrates this final handoff commit, completes the repaired architecture/slot checks on main, preserves fixed Compose prime placement when BPR1209 lands, and arms the review hand-back watch. Fresh implementer consumes any later verdict. Keep visual acceptance and Windows/native limits explicit; do not mark Done from this return.",
+  "continuation": "Coordinator cherry-picks new verdict, Overview registration and final handoff commits only. BPR-0966 stays in Windows Backlog for the retained native course. No repeat Mac Dif question. BPR-1212 full Compose UX with requested frontend-design and BPR-1213 flat Overview correction remain later work; neither alters current m2b or scaling scope.",
   "uncertainties": [
-    "New slot visual judgment pending.",
-    "Windows consider-cue run remains deferred and no Linux/native release qualification supplied.",
-    "Existing stale conflict-status text in fixture capture reported to coordinator/m2b owner, not changed here."
-  ],
-  "integration": {
-    "owner": "coordinator",
-    "reported_main_commits": [
-      "2d970569",
-      "6729ad21",
-      "30df6679"
-    ],
-    "status": "Implementation, claim and park records landed; this handoff commit and repaired architecture/slot integration checks remain coordinator-owned."
-  }
+    "Windows consider-cue and composed-course outcome has not been observed at current integrated candidate.",
+    "frontend-design was not available here; later activation must resolve the actual skill.",
+    "Neither Compose UX redesign nor flat Overview correction is designed, implemented or accepted."
+  ]
 }

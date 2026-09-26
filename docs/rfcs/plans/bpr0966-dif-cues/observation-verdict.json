@@ -1,0 +1,119 @@
+{
+  "run_id": "bpr0966-verdict-20260926",
+  "segment_id": "owner-verdict-r3",
+  "mandate_revision": "r4-with-owner-compose-20260925-r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0966-dif-cues",
+    "plan_path": "docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json",
+    "milestone_id": "workshop-cue-reconciliation",
+    "definition_fingerprint": "sha256:1cba1317fc74ea5a1dff4189152c7892c4737192f728419a8a8c127837b9ead9",
+    "obligations": [
+      {
+        "id": "BPR-0966:*",
+        "source": "BPR-0966",
+        "selector": null,
+        "source_fingerprint": "sha256:e7f071cf91cb3b5c44cd1c387121298e03e94c969107b8f19f916989eaa8c6d2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:ca99b069a245d1e6bb37ddeb3d520607430c479dac54c9f8627963eadeade9a2",
+    "exit_criteria": [
+      {
+        "id": "workshop-cue-reconciliation:exit:1",
+        "text": "AC1: Resolve the workshop cue expectation against the dedicated editor page, documenting the approved behavior and any required owner amendment without silently rewriting terminal RFC0031 acceptance. Coordinate with BPR-0800's separate placement decision if the chosen behavior affects it."
+      },
+      {
+        "id": "workshop-cue-reconciliation:exit:2",
+        "text": "AC2: Correct the identified stale expectation or product regression with a focused failing-before check; preserve exact session/action/draft identity, single-sprite ownership, explicit acceptance and zero publication effects."
+      },
+      {
+        "id": "workshop-cue-reconciliation:exit:3",
+        "text": "AC3: Run the Dif context course and the affected router/editor/public composition checks at the exact candidate. Record native or human decisions separately if the resolved presentation contract requires them."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "workshop-cue-reconciliation",
+  "disposition": "continue-milestone",
+  "candidate_revision": "447bdaf038e99901f3529425e09574836c378cf0",
+  "handoff_ref": "docs/rfcs/plans/bpr0966-dif-cues/handoff.json",
+  "required_pending": [
+    "BPR-0966 AC3: deferred Windows consider-cue and exact-candidate public composition outcome."
+  ],
+  "evidence_refs": [
+    "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0966:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md"
+      ]
+    },
+    {
+      "id": "workshop-cue-reconciliation:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md"
+      ]
+    },
+    {
+      "id": "workshop-cue-reconciliation:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md"
+      ]
+    },
+    {
+      "id": "workshop-cue-reconciliation:exit:3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0966-dif-cues/acceptance-verdict.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json",
+        "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "wait",
+    "next_milestone": "workshop-cue-reconciliation",
+    "reason": "pending-obligation",
+    "detail": "Verdict reconciliation round is complete. Preserve BPR-0966 in Windows Backlog until the deferred station course is authorized and observed. The coordinator may continue independent work; BPR-1212 and BPR-1213 are registered for later rounds."
+  },
+  "ownership": "quiescent"
+}
