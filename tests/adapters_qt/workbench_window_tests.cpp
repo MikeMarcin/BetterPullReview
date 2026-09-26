@@ -12,6 +12,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -2670,7 +2671,7 @@ namespace {
 		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		expect(every_control_is_reachable(window),
-			   "no Findings tab control is clipped at 200 pixels; the column scrolls");
+			   "no Notes tab control is clipped at 200 pixels; the column scrolls");
 		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
@@ -7275,10 +7276,10 @@ namespace {
 	}
 
 	/// \brief [[BPR-1134]]. RFC-BPR-0052 AC-09: the right tray's header holds
-	/// Comments and Findings tabs, each tab's tools sit beneath the tabs, each
+	/// Comments and Notes tabs, each tab's tools sit beneath the tabs, each
 	/// tab shows only its own content, switching keeps each tab's scroll and
 	/// selection, and keyboard and accessibility reach every tab.
-	void test_the_right_tray_holds_comments_and_findings_tabs()
+	void test_the_right_tray_holds_comments_and_notes_tabs()
 	{
 		qt::workbench_window window;
 		window.resize(1'280, 560);
@@ -7329,9 +7330,28 @@ namespace {
 		auto* const findings = window.findings_tab_scroll();
 		auto* const drawer   = window.conversations_drawer();
 		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 2
-				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Findings")
+				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
-			   "the tray's header is its tabs, Comments then Findings, and it opens on Comments");
+			   "the tray's header is its tabs, Comments then Notes, and it opens on Comments");
+		const auto privateHeader = [&] {
+			return tabs->tabText(1) == QStringLiteral("Notes") && tabs->accessibleTabName(1) == QStringLiteral("Notes")
+				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it.")
+				&& tabs->accessibleDescription().contains(QStringLiteral("Notes"))
+				&& window.ai_tools_action()->text() == QStringLiteral("Notes");
+		};
+		expect(privateHeader(), "Notes labels, tooltip and accessible name state its private purpose");
+		tabs->setTabText(1, QStringLiteral("Findings"));
+		expect(!privateHeader(), "negative control: the obsolete Findings heading fails the Notes contract");
+		tabs->setTabText(1, QStringLiteral("Notes"));
+		auto* purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
+		expect(purpose != nullptr && purpose->text() == QStringLiteral("Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."), "empty Notes explains privacy and promotion");
+		window.agent_panel()->offer_profiles({ });
+		window.private_notes()->present({ .Scope = 1U, .Available = true });
+		expect(window.agent_panel()->profile_selector()->count() == 0
+				   && window.agent_panel()->profile_selector()->placeholderText() == QStringLiteral("No agent configured")
+				   && window.private_notes()->new_review_action()->isEnabled(),
+			   "private notes stay usable when no agent is configured");
+		expect(findings->isAncestorOf(window.private_notes()), "the private note editor belongs to Notes");
 		expect(window.comments_count_text() == QStringLiteral("2")
 				   && tabs->accessibleTabName(0).contains(QStringLiteral("2 threads with new comments")),
 			   "the Comments tab carries the new-comment count and says it");
@@ -7343,7 +7363,7 @@ namespace {
 				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
 				   && !window.finding_queue()->isVisible() && window.defect_count_label()->isVisible(),
-			   "the Comments tab shows the conversation and Next new beneath the tabs, and nothing of Findings");
+			   "the Comments tab shows the conversation and Next new beneath the tabs, and nothing of Notes");
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the right tray renders in the composed window");
@@ -7358,7 +7378,7 @@ namespace {
 				   && findings->isAncestorOf(window.side_chat()) && !findings->isAncestorOf(window.defect_card())
 				   && comments->isAncestorOf(window.defect_count_label())
 				   && findings->isAncestorOf(window.agent_panel()) && findings->findChild<QWidget*>(QStringLiteral("workbenchDifAiSlot")) == nullptr,
-			   "the private tools stay in Findings while thread defect controls are outside it");
+			   "the private tools stay in Notes while thread defect controls are outside it");
 
 		auto* const view = window.conversation_view();
 		view->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:b"));
@@ -7369,10 +7389,13 @@ namespace {
 		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
 				   && window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible() && below(window.agent_panel())
 				   && !window.conversation_panel()->isVisible(),
-			   "the Findings tab shows only its own tools, beneath the tabs, and checks the AI tools action");
-		save(QStringLiteral("tray-findings"));
+			   "the Notes tab shows only its own tools, beneath the tabs, and checks the AI tools action");
+		expect(purpose->isVisible() && purpose->width() <= findings->width()
+				   && purpose->height() >= purpose->heightForWidth(purpose->width()),
+			   "the private purpose wraps within the visible Notes page");
+		save(QStringLiteral("tray-notes"));
 		auto* const findingsBar = findings->verticalScrollBar();
-		expect(findingsBar->maximum() > 0, "fixture: the Findings column is taller than the drawer");
+		expect(findingsBar->maximum() > 0, "fixture: the Notes column is taller than the drawer");
 		findingsBar->setValue(findingsBar->maximum() / 2);
 		const auto findingsScrolled = findingsBar->value();
 		tabs->setCurrentIndex(0);
@@ -7382,7 +7405,7 @@ namespace {
 		tabs->setCurrentIndex(1);
 		process_events();
 		expect(findingsBar->value() == findingsScrolled && findingsScrolled > 0,
-			   "returning to Findings keeps its scroll position");
+			   "returning to Notes keeps its scroll position");
 
 		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
@@ -7398,7 +7421,7 @@ namespace {
 		auto* const accessible = QAccessible::queryAccessibleInterface(tabs);
 		expect(accessible != nullptr && accessible->childCount() >= 2
 				   && accessible->child(0)->text(QAccessible::Name).startsWith(QStringLiteral("Comments"))
-				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Findings"),
+				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Notes"),
 			   "accessibility reaches each tab by name");
 
 		// The AI tools action and the tab are one choice.
@@ -10321,12 +10344,12 @@ namespace {
 		expect(!window.showing_home() && inCorner(),
 			   "opening a review rests the same Dif in the status corner even with the drawer collapsed");
 
-		// [[BPR-1134]]. The explicit named selector is the tray's Findings tab.
+		// [[BPR-1134]]. The explicit named selector is the tray's Notes tab.
 		auto* const action = window.ai_tools_action();
 		auto* const tabs   = window.tray_tabs();
 		expect(action != nullptr && action->isCheckable() && !action->isChecked()
-				   && action->text() == QStringLiteral("Findings") && tabs != nullptr
-				   && tabs->tabText(1) == QStringLiteral("Findings") && tabs->currentIndex() == 0,
+				   && action->text() == QStringLiteral("Notes") && tabs != nullptr
+				   && tabs->tabText(1) == QStringLiteral("Notes") && tabs->currentIndex() == 0,
 			   "the existing AI area has an explicit named selector");
 		window.adopt_dif(core::resolve_dif(
 			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
@@ -10771,7 +10794,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
-	test_the_right_tray_holds_comments_and_findings_tabs();
+	test_the_right_tray_holds_comments_and_notes_tabs();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();
 	test_defect_queue_navigation_and_semantic_dispatch();

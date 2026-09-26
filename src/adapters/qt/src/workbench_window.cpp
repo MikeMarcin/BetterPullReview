@@ -1677,7 +1677,7 @@ namespace bpr::qt {
 		// The private tab holds AI tools and findings; thread controls belong
 		// to the thread menus and Comments navigation.
 		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
-		conversationContents->setObjectName(QStringLiteral("workbenchFindingsTab"));
+		conversationContents->setObjectName(QStringLiteral("workbenchNotesTab"));
 		auto* const findingsLayout = new QVBoxLayout{ conversationContents };
 		findingsLayout->setContentsMargins(0, 0, 0, 0);
 		DiscussPage = new QWidget{ CentreStack };
@@ -1740,6 +1740,17 @@ namespace bpr::qt {
 		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
+		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
+		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
+		notesPageLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const notesPurpose = new QLabel{ tr("Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."), notesPage };
+		notesPurpose->setObjectName(QStringLiteral("workbenchNotesPurpose"));
+		notesPurpose->setTextFormat(Qt::PlainText);
+		notesPurpose->setWordWrap(true);
+		notesPurpose->setAccessibleName(tr("About Notes"));
+		notesPurpose->setAccessibleDescription(notesPurpose->text());
+		notesPurpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		notesPageLayout->addWidget(notesPurpose);
 		PrivateNotes = new private_notes_panel{ conversationContents };
 		findingsLayout->addWidget(PrivateNotes);
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
@@ -1811,11 +1822,13 @@ namespace bpr::qt {
 			return scroll;
 		};
 		CommentsScroll     = makeTabColumn(commentsContents, QStringLiteral("workbenchCommentsScroll"));
-		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchFindingsScroll"));
+		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchNotesScroll"));
+		// Keep the purpose within the visible page even when tools scroll sideways.
+		notesPageLayout->addWidget(ConversationScroll, 1);
 
-		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Findings
+		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
 		// (RFC-BPR-0039's Tour joins them when it exists). The drawer still
-		// opens on Comments. Choosing Findings is RFC-BPR-0031's explicit move
+		// opens on Comments. Choosing Notes is RFC-BPR-0031's explicit move
 		// into the AI tools, the action that cues compare_glance in the corner; it
 		// dispatches no agent or review action and never opens the drawer.
 		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
@@ -1826,15 +1839,16 @@ namespace bpr::qt {
 		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
-			"Comments, and Findings: the AI tools, the finding queue and the defect controls"));
+			"Comments, and Notes: your private notes, AI conversations and review feedback. Nothing in Notes is published."));
 		TrayTabs->setDocumentMode(true);
 		TrayTabs->setExpanding(false);
 		TrayTabs->setDrawBase(true);
 		TrayTabs->setFocusPolicy(Qt::StrongFocus);
 		TrayTabs->addTab(tr("Comments"));
-		TrayTabs->addTab(tr("Findings"));
+		TrayTabs->addTab(tr("Notes"));
+		TrayTabs->setAccessibleTabName(1, tr("Notes"));
 		TrayTabs->setTabToolTip(0, tr("The pull request's conversations, with their scope and filters"));
-		TrayTabs->setTabToolTip(1, tr("The private AI tools, the finding queue and the defect controls"));
+		TrayTabs->setTabToolTip(1, tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		TrayCommentsCount = new tray_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
 		TrayCommentsCount->hide();
@@ -1842,14 +1856,14 @@ namespace bpr::qt {
 		TrayPages = new QStackedWidget{ conversationShell };
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
-		TrayPages->addWidget(ConversationScroll);
+		TrayPages->addWidget(notesPage);
 		conversationShellLayout->addWidget(TrayTabs);
 		conversationShellLayout->addWidget(TrayPages, 1);
-		AiToolsAction = new QAction{ tr("Findings"), this };
+		AiToolsAction = new QAction{ tr("Notes"), this };
 		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
 		AiToolsAction->setCheckable(true);
 		AiToolsAction->setToolTip(
-			tr("Show the Findings tab: the private AI tools, the finding queue and the defect controls."));
+			tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
 			AiToolsAction->setChecked(aIndex == tray_findings_tab);
@@ -8871,12 +8885,30 @@ namespace bpr::qt {
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->rail());
 		// [[BPR-1134]]. The tray's tabs, then the Comments tab's tool and its
-		// conversation; the Findings tab's stops follow.
+		// conversation; the Notes tab's stops follow.
 		append(TrayTabs);
 		append(NextNewCommentButton);
 		append(PreviousDefectButton);
 		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());
+		if (PrivateNotes != nullptr) {
+			append(PrivateNotes->notes_list());
+			const auto noteButton = [this](QAction* aAction) -> QToolButton* {
+				for (auto* button : PrivateNotes->findChildren<QToolButton*>()) {
+					if (button->defaultAction() == aAction) {
+						return button;
+					}
+				}
+				return nullptr;
+			};
+			append(noteButton(PrivateNotes->new_review_action()));
+			append(noteButton(PrivateNotes->new_file_action()));
+			append(PrivateNotes->body_editor());
+			append(noteButton(PrivateNotes->save_action()));
+			append(noteButton(PrivateNotes->promote_action()));
+			append(noteButton(PrivateNotes->erase_action()));
+			append(noteButton(PrivateNotes->discard_action()));
+		}
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
 		}

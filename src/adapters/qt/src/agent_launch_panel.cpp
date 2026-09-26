@@ -27,6 +27,7 @@ namespace bpr::qt {
 		ProfileSelector = new QComboBox{ this };
 		ProfileSelector->setObjectName(QStringLiteral("agentProfileSelector"));
 		ProfileSelector->setAccessibleName(QStringLiteral("AI agent provider"));
+		ProfileSelector->setPlaceholderText(QStringLiteral("No agent configured"));
 
 		Disclosure = new QLabel{ this };
 		Disclosure->setObjectName(QStringLiteral("agentScopeDisclosure"));
@@ -182,6 +183,10 @@ namespace bpr::qt {
 			ProfileSelector->addItem(
 				QString::fromStdString(profile.DisplayName),
 				QVariant::fromValue<qulonglong>(profile.Id.value()));
+		}
+		// A placeholder keeps QComboBox at -1; retain the offered first choice.
+		if (!aProfiles.empty()) {
+			ProfileSelector->setCurrentIndex(0);
 		}
 		update_actions();
 	}

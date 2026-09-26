@@ -24,6 +24,7 @@ namespace bpr::qt {
 		Notes = new QListWidget{ this };
 		Notes->setObjectName(QStringLiteral("privateNotesList"));
 		Notes->setAccessibleName(tr("This pull request's private notes, newest first"));
+		Notes->setAccessibleDescription(tr("Select one saved private note to edit, delete or promote to a local draft."));
 		Notes->setMinimumHeight(90);
 		Notes->setMaximumHeight(160);
 		layout->addWidget(Notes);
@@ -48,6 +49,7 @@ namespace bpr::qt {
 		Body = new QPlainTextEdit{ this };
 		Body->setObjectName(QStringLiteral("privateNoteBody"));
 		Body->setAccessibleName(tr("Private note text"));
+		Body->setAccessibleDescription(tr("Edit this note privately; Save note keeps it in this pull request's local ledger."));
 		Body->setPlaceholderText(tr("Write a note for yourself"));
 		Body->setMinimumHeight(90);
 		Body->setMaximumHeight(180);

@@ -134,3 +134,44 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Authorized last-slice implementation (2026-09-26)
+
+The coordinator relayed the owner's authorization to build the integrated header
+last, after constituent engineering and verification, and park the combined owner
+look. BPR-1208, BPR-1209 and BPR-1210 have their verified product slices; their
+human criteria remain pending. BPR-1210 also retains its distinct AC1 historical
+filename engineering gap. The claim command refused because this card is not an
+eligible Ready card. Canonical Backlog and all terminal dependencies are preserved.
+No predecessor is marked Done to bypass the guard.
+
+Rationale: the combined Notes header should describe finished constituent UI
+before the owner judges it, while terminal acceptance remains unsatisfied. The
+name, exact tooltip and exact privacy/promotion introduction follow the already
+delegated decisions. The introduction stays visible with content as a concise
+reminder and wraps within the page, above the independently scrolling tools. A provider selector with no profiles says "No agent configured"; private
+note writing remains independent. Tab/assistive names, the action, layout sketch,
+window and composed assertions follow Notes. The old Findings label is an explicit
+negative control. Notes controls join the declared keyboard order. No thread
+controls or Dif enter this tab.
+
+### Verified last product slice
+
+The first combined batch passed 13/14. The provider placeholder kept Qt's
+selection at -1, so the panel now explicitly retains its former first-profile
+selection when profiles are offered; disclosure and launch admission are unchanged.
+Render inspection also caught the introduction following the tools' horizontal
+scroll width. Its page header now wraps to the visible tray, with direct and
+composed geometry assertions.
+
+The corrected batch passes 9/9 in 99.26 seconds: agent panel, all three window
+and focus-order scales, continued chat promotion and the real review/Notes
+composition. All 100/125/200 Notes renders and the composed note-writing render
+were inspected. The earlier epoch/tab/anchored-chat successes remain applicable.
+Formatting, whitespace and documentation gates pass; documentation tests pass 64.
+Logs: `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1204-corrected-qt-tests.log`
+and `final-qt-tests.log` (the initial failure is preserved, not counted as a pass).
+
+AC1–AC3 are verified for scoped Mac engineering. AC4's purpose judgment and
+Notes-only VoiceOver listen remain two separate pending attended criteria.
+Canonical Backlog and the unmet terminal dependencies remain unchanged.

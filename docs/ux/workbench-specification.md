@@ -35,7 +35,7 @@ authored and directly requested pull requests of the saved repositories
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | « » file 3 of 40 | ‹ › change 3 of 11 | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
-│ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Findings   │
+│ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Notes      │
 │                              │ one shared vertical scrollbar          │                              │
 │                              ├ full-width selected-change detail pane ┤                              │
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
@@ -887,18 +887,22 @@ permanent status sentence and no Reload Profiles button, and nothing announces
 ## Conversation drawer
 
 The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
-**Comments**, then **Findings** ([[BPR-1134]]). It opens on Comments. The
+**Comments**, then **Notes** ([[BPR-1204]]). It opens on Comments. The
 Comments tab holds the conversation exactly as described below, with its scope
 and filters, and Next new comment beneath the tabs; the tab carries the count
 of threads with new comments as an accent pill and says it to accessibility
-("Comments, 2 threads with new comments"). The Findings tab holds the private
-AI tools, the side chat and the finding queue. [[BPR-1208]] puts thread
+("Comments, 2 threads with new comments"). The Notes tab holds private ledger notes, AI tools, side chat replies and the
+finding queue. It stays available with no agent configured. Its introductory
+sentence says: "Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."
+One note or selected reply is copied to a local draft at Comment's target; the
+source stays, and nothing is published until the existing explicit Publish.
+Finding conversions retain RFC-BPR-0012's existing actions. [[BPR-1208]] puts thread
 defects on their own cards: right-click, the context-menu key or Shift+F10
 opens the thread's actions. A classified thread also has a text badge with its
 state, severity and category; its tooltip and accessible description explain
 the state and retained context. Reclassify opens the existing severity and
 category controls. Previous defect, Next defect and Defects N/M sit beside
-Next new comment under Comments. The private tab contains none of them. Choosing Findings is RFC-BPR-0031's explicit
+Next new comment under Comments. The private tab contains none of them. Choosing Notes is RFC-BPR-0031's explicit
 move into the AI tools: when its content is shown, it permits the existing
 compare_glance cue, dispatches no agent or review action, and never opens a
 collapsed drawer. Under [[BPR-1209]], the single Dif rests at 40 pixels in the

@@ -160,6 +160,7 @@ auto main(int argc, char** argv) -> int
 					window.conversations_drawer_toggle_action()->trigger();
 				}
 				window.ai_tools_action()->trigger();
+				expect(window.tray_tabs()->tabText(1) == QStringLiteral("Notes") && window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Notes"), "the composed private editor is reached under Notes");
 				auto* notes = window.private_notes();
 				wait([&] { return notes->new_review_action()->isEnabled(); }, "private ledger available without any agent opt-in");
 				notes->new_review_action()->trigger();
@@ -185,6 +186,12 @@ auto main(int argc, char** argv) -> int
 				notes->erase_action()->trigger();
 				wait([&] { return notes->notes_list()->count() == 1; }, "revision-checked note delete commits");
 				notes->notes_list()->setCurrentRow(0);
+				QApplication::processEvents();
+				auto* const purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
+				expect(purpose != nullptr && purpose->isVisible()
+						   && purpose->width() <= window.findings_tab_scroll()->width()
+						   && purpose->height() >= purpose->heightForWidth(purpose->width()),
+					   "the Notes privacy explanation wraps within the composed tray");
 				if (argc > 1) {
 					QApplication::processEvents();
 					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-private-notes.png")), "private notes controls render");

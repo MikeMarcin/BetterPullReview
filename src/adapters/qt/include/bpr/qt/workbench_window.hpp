@@ -534,7 +534,7 @@ namespace bpr::qt {
 		/// change and file navigation with their positions and private
 		/// progress; at its right Compose review and Comment. Home has none.
 		[[nodiscard]] auto review_bar() const noexcept -> QToolBar*;
-		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, then Findings.
+		/// \brief [[BPR-1134]]. The right tray's tabs: Comments, then Notes.
 		[[nodiscard]] auto tray_tabs() const noexcept -> QTabBar*;
 		/// \brief [[BPR-1134]]. Each tab's own scrolled column.
 		[[nodiscard]] auto comments_tab_scroll() const noexcept -> QScrollArea*;
@@ -608,7 +608,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
-		/// \brief The explicit action that reveals the existing AI Findings area.
+		/// \brief The explicit action that reveals the private Notes area.
 		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
 		/// \brief Compose's illustration slot for the currently offered workshop revision.
 		[[nodiscard]] auto dif_workshop_slot() const noexcept -> QWidget*;
@@ -1396,7 +1396,7 @@ namespace bpr::qt {
 		bool                                  HomeFocused        = false;
 		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
 		/// Comments tab's column, tool and count. ConversationScroll is the
-		/// Findings tab's column.
+		/// Notes tab's column.
 		QTabBar*        TrayTabs             = nullptr;
 		QStackedWidget* TrayPages            = nullptr;
 		QScrollArea*    CommentsScroll       = nullptr;
