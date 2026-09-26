@@ -6,7 +6,7 @@ status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
-metadata: {"origin":"owner accept with note on attended candidate BPR-0641-private-pr-smoke-v001, session 06ad5734ed9f7c2fd6d0a62c8328fa0a, decision cbba6fac-e7dc-4b39-a7aa-1dbd0f7e1571, 2026-09-25","observed_revision":"3759b0d8caf5f1732c8bf807be427525f3f9a89a","observed_executable_sha256":"5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed","related_rfcs":["RFC-BPR-0037","RFC-BPR-0029","RFC-BPR-0015"],"related_cards":["BPR-0641","BPR-0922","BPR-0668","BPR-0642","BPR-0643"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json"}
+metadata: {"origin":"owner accept with note on attended candidate BPR-0641-private-pr-smoke-v001, session 06ad5734ed9f7c2fd6d0a62c8328fa0a, decision cbba6fac-e7dc-4b39-a7aa-1dbd0f7e1571, 2026-09-25","observed_revision":"3759b0d8caf5f1732c8bf807be427525f3f9a89a","observed_executable_sha256":"5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed","related_rfcs":["RFC-BPR-0037","RFC-BPR-0029","RFC-BPR-0015"],"related_cards":["BPR-0641","BPR-0922","BPR-0668","BPR-0642","BPR-0643"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"bpr1199-private-comparison","path":"docs/rfcs/plans/bpr1199-private-comparison/milestone-plan.json"}}
 ---
 
 # BPR-1199: A private pull request opens, but none of its files shows a comparison

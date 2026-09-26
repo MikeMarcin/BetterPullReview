@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1199-private-comparison",
+  "scope": {
+    "issues": [
+      "BPR-1199"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "private-comparison",
+      "outcome": "Establish the private comparison failure boundary with sanitized exact request evidence, repair only a demonstrated failing class, and retain the exact owner comparison decision.",
+      "work": [
+        {
+          "issue": "BPR-1199"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Establish the owner failure stage, reason and request identity; distinguish observation from inference and retain no private repository content.",
+        "AC2: Demonstrate supported base/head rendering or truthful legitimate limit and recovery on the exact candidate.",
+        "AC3: Demonstrate the actual failing class through a fail-before/pass-after composed safe fixture and focused affected checks.",
+        "AC4: Obtain the owner read-only exact-candidate diff observation as one separate attended criterion."
+      ],
+      "boundary": "Assignment bpr1199-comparison / mandate r1; isolated branch from de496298; no live private PR/API/Git access, remote mutations, main edits, pushes, releases or delegation. Local owner log may yield only allowlisted codes/numeric identity. Diagnostic correlation repair does not satisfy the private-rendering criteria."
+    }
+  ],
+  "unplanned_work": []
+}
