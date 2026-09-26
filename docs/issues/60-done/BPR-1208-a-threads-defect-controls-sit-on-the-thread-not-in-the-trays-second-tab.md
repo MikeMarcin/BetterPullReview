@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1208"
 title: "A thread's defect controls sit on the thread, not in the tray's second tab"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133","BPR-1134"]
 priority: "P2"
@@ -281,6 +281,15 @@ are in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-r3-rb0nbkl2/evidence/drawer-*`.
 This correction changes only Qt layout, measurement and wheel projection. The
 accepted thread menus, badge, command identities and availability remain. No
 core, host, provider, storage or application-composition source changed, so the
-reviewed composition pins from BPR-1207 remain exact. Native inspection of the
-final copied app follows before this card is finished; other-platform evidence
-remains BPR-1135 debt.
+reviewed composition pins from BPR-1207 remain exact. Native inspection of the final frozen app is complete: source
+`c777a33d7467e83cfd0d2217329953e2044f1d41`, executable SHA-256
+`8589abf9dca824127e1531aa26699c9ee9d0456626fdca090c04eacf217b50ba`.
+The macOS fixture, seeded at its final fixed path, shows two compact filter rows,
+the existing defect badge and exact line-60 reveal from Next defect. The custom
+reply tree does not expose native AX scrolling; its complete last-row reach is
+proved by the focused actual-size/paint/range tests and inspected renders above,
+not inferred from an unsupported native action. The native app was closed by
+Command-Q; no publication occurred. Other-platform evidence remains BPR-1135
+debt. A distinct Discard/Back return-path observation is tracked in [[BPR-1214]]; it
+does not revise the accepted thread controls or claim that their return
+projection was repaired here.
