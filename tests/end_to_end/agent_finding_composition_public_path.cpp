@@ -494,7 +494,7 @@ auto main(int argc, char** argv) -> int
 				dif = window.dif();
 				return aTerms.require("dif-created", dif != nullptr)
 					&& aTerms.require(
-						"dif-ai-slot", window.dif_ai_slot()->isVisible())
+						"dif-corner", window.dif_corner_slot()->isVisible() && dif->parentWidget() == &window && dif->size() == QSize{ 40, 40 })
 					&& aTerms.require(
 						"dif-visible", dif != nullptr && dif->isVisible());
 			})) {
@@ -514,9 +514,8 @@ auto main(int argc, char** argv) -> int
 	}
 	panel->profile_selector()->setCurrentIndex(codexIndex);
 	if (dif != nullptr) {
-		// [[BPR-0966]]. isVisible() alone admits a sprite entirely outside
-		// this scroll viewport. Observe the cue only after exposing its slot.
-		window.findings_tab_scroll()->ensureWidgetVisible(dif);
+		// [[BPR-1209]]. The corner stays painted even when the private
+		// content is scrolled. The cues keep their original triggers.
 		auto exposure = wait_terms{ };
 		if (!wait_until_reporting(exposure, [dif](wait_terms& aTerms) {
 				return aTerms.require("dif-in-viewport", !dif->visibleRegion().isEmpty());
@@ -680,7 +679,7 @@ auto main(int argc, char** argv) -> int
 		&& editor->shown_proposal()->Draft == draftBeforeConversion->Id
 		&& editor->shown_draft() == draftBeforeConversion;
 	const auto proposalEditorVisible   = editor->isVisible();
-	const auto proposalAiSlotVisible   = window.dif_ai_slot()->isVisible();
+	const auto proposalCornerVisible   = window.dif_corner_slot()->isVisible();
 	const auto proposalDifVisible      = dif != nullptr && dif->isVisible();
 	const auto proposalWorkshopVisible = window.dif_workshop_slot()->isVisible()
 		&& dif != nullptr && dif->parentWidget() == window.dif_workshop_slot()
@@ -729,7 +728,7 @@ auto main(int argc, char** argv) -> int
 		&& editor->shown_draft().has_value()
 		&& editor->shown_draft()->Id == draftBeforeConversion->Id;
 	const auto acceptedEditorVisible   = editor->isVisible();
-	const auto acceptedAiSlotVisible   = window.dif_ai_slot()->isVisible();
+	const auto acceptedCornerVisible   = window.dif_corner_slot()->isVisible();
 	const auto acceptedDifVisible      = dif != nullptr && dif->isVisible();
 	const auto acceptedWorkshopVisible = window.dif_workshop_slot()->isVisible()
 		&& dif != nullptr && dif->parentWidget() == window.dif_workshop_slot()
@@ -886,8 +885,8 @@ auto main(int argc, char** argv) -> int
 		contract.require("dif-attention-after-delivery", difAttention);
 		contract.require("dif-comment-ready-after-conversion", difCommentReady);
 		contract.require("dif-acknowledge-after-acceptance", difAcknowledge);
-		contract.require("proposal-in-compose-slot", proposalWorkshopVisible && !proposalAiSlotVisible);
-		contract.require("accepted-in-compose-slot", acceptedWorkshopVisible && !acceptedAiSlotVisible);
+		contract.require("proposal-in-compose-slot", proposalWorkshopVisible && !proposalCornerVisible);
+		contract.require("accepted-in-compose-slot", acceptedWorkshopVisible && !acceptedCornerVisible);
 		contract.require("ready-painted", difPaints->saw(qt::dif_clip_id::comment_ready));
 		contract.require("acknowledge-painted", difPaints->saw(qt::dif_clip_id::acknowledge));
 		contract.require("proposal-preserves-exact-draft", proposalMatchesDraft);
@@ -941,8 +940,8 @@ auto main(int argc, char** argv) -> int
 						 "agent-finding-dif-workshop-visibility:proposal-editor=%d proposal-ai-slot=%d proposal-dif=%d "
 						 "accepted-editor=%d accepted-ai-slot=%d accepted-dif=%d proposal-workshop=%d accepted-workshop=%d "
 						 "painted-consider=%d painted-ready=%d painted-acknowledge=%d\n",
-						 proposalEditorVisible, proposalAiSlotVisible, proposalDifVisible,
-						 acceptedEditorVisible, acceptedAiSlotVisible, acceptedDifVisible,
+						 proposalEditorVisible, proposalCornerVisible, proposalDifVisible,
+						 acceptedEditorVisible, acceptedCornerVisible, acceptedDifVisible,
 						 proposalWorkshopVisible, acceptedWorkshopVisible,
 						 difPaints->saw(qt::dif_clip_id::consider),
 						 difPaints->saw(qt::dif_clip_id::comment_ready),

@@ -7357,7 +7357,7 @@ namespace {
 		expect(comments->isAncestorOf(window.conversation_panel()) && findings->isAncestorOf(window.finding_queue())
 				   && findings->isAncestorOf(window.side_chat()) && !findings->isAncestorOf(window.defect_card())
 				   && comments->isAncestorOf(window.defect_count_label())
-				   && findings->isAncestorOf(window.agent_panel()) && findings->isAncestorOf(window.dif_ai_slot()),
+				   && findings->isAncestorOf(window.agent_panel()) && findings->findChild<QWidget*>(QStringLiteral("workbenchDifAiSlot")) == nullptr,
 			   "the private tools stay in Findings while thread defect controls are outside it");
 
 		auto* const view = window.conversation_view();
@@ -10281,7 +10281,7 @@ namespace {
 		window.hide();
 	}
 
-	void test_dif_moves_to_the_explicit_ai_area_without_owning_it()
+	void test_dif_uses_the_corner_except_for_prime_spots()
 	{
 		auto provider = std::make_shared<qt::dif_catalog_provider>();
 		auto window   = qt::workbench_window{ { }, { }, { }, { }, { }, nullptr, provider };
@@ -10311,9 +10311,15 @@ namespace {
 										  core::workbench_drawer_state::collapsed);
 		window.publish(collapsed);
 		process_events();
-		expect(!window.showing_home() && !window.dif_ai_slot()->isVisible()
-				   && !dif->isVisible(),
-			   "opening a review does not place Dif in a generic review or comments surface");
+		auto* const corner   = window.dif_corner_slot();
+		const auto  inCorner = [&] {
+			return corner != nullptr && corner->isVisible() && dif->isVisible()
+				&& dif->parentWidget() == &window && dif->size() == QSize{ 40, 40 }
+			&& !window.conversations_drawer()->isAncestorOf(dif)
+				&& window.findChild<QWidget*>(QStringLiteral("workbenchDifAiSlot")) == nullptr;
+		};
+		expect(!window.showing_home() && inCorner(),
+			   "opening a review rests the same Dif in the status corner even with the drawer collapsed");
 
 		// [[BPR-1134]]. The explicit named selector is the tray's Findings tab.
 		auto* const action = window.ai_tools_action();
@@ -10322,13 +10328,21 @@ namespace {
 				   && action->text() == QStringLiteral("Findings") && tabs != nullptr
 				   && tabs->tabText(1) == QStringLiteral("Findings") && tabs->currentIndex() == 0,
 			   "the existing AI area has an explicit named selector");
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
+			core::motion_observation::full));
 		tabs->setCurrentIndex(1);
 		process_events();
+		expect(dif->current_frame().Clip != qt::dif_index(qt::dif_clip_id::compare_glance),
+			   "selecting a hidden private tab does not replay the explicit-content cue in the corner");
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced },
+			core::motion_observation::full));
 		expect(action->isChecked()
 				   && window.conversations_drawer()->state()
 					   == core::workbench_drawer_state::collapsed
-				   && !window.dif_ai_slot()->isVisible() && !dif->isVisible(),
-			   "the AI selector does not open its collapsed drawer or reveal decoration elsewhere");
+				   && inCorner(),
+			   "the private tab selector leaves its collapsed drawer closed and Dif in the corner");
 
 		auto opened    = collapsed;
 		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
@@ -10339,32 +10353,46 @@ namespace {
 		};
 		window.publish(opened);
 		process_events();
-		expect(window.dif_ai_slot()->isVisible() && dif->isVisible()
-				   && dif->parentWidget() == window.dif_ai_slot()
-				   && dif->size() == QSize{ 64, 64 }
+		expect(inCorner()
 				   && window.home_landing()->illustration() == nullptr
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
 				   && provider->load_attempts() == 1U,
-			   "the selected wide AI area receives the same single compact presentation");
+			   "selecting the private tab keeps the same single 40-pixel presentation in the corner");
 		expect(dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::rest)
 				   && !dif->current_frame().NextMs,
 			   "reduced motion keeps the contextual presentation on a static frame");
 
 		drag_conversations_handle(window, 200);
 		process_events();
-		expect(!window.dif_ai_slot()->isVisible() && !dif->isVisible(),
-			   "the contextual slot yields before the narrow AI drawer's controls");
+		expect(inCorner(), "a narrow drawer does not own or hide the corner illustration");
+		dif->setParent(window.findings_tab_scroll()->widget());
+		dif->show();
+		expect(!inCorner(), "negative control: moving Dif into the private drawer fails corner placement");
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced },
+			core::motion_observation::full));
+		process_events();
+		expect(inCorner(), "the accepted placement repairs the negative control with the same widget");
+		for (const auto mode : { qt::review_modality::overview, qt::review_modality::read,
+								 qt::review_modality::review, qt::review_modality::discuss }) {
+			window.choose_modality(mode);
+			process_events();
+			expect(inCorner(), "each ordinary review surface uses the corner");
+			save_render(window, QStringLiteral("dif-corner-%1").arg(static_cast<int>(mode)));
+		}
+		window.open_review_composition(false);
+		process_events();
+		expect(inCorner(), "whole-review Compose has no workshop prime spot");
+		save_render(window, QStringLiteral("dif-corner-compose"));
 
 		window.publish(opened);
 		window.choose_home(true);
 		process_events();
 		// [[BPR-0775]] mandate r2. Over a review Home is not the first-launch
 		// card, so Dif rests in the window's bottom-left corner, out of the way.
-		auto* const corner = window.dif_corner_slot();
 		expect(window.showing_home() && window.home_landing()->illustration() == nullptr
 				   && corner != nullptr && corner->isVisible()
 				   && dif->parentWidget() == &window && dif->isVisible() && dif->size() == QSize{ 40, 40 }
-				   && !window.dif_ai_slot()->isVisible()
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
 				   && provider->load_attempts() == 1U,
 			   "Home wins and rests the same presentation in the bottom-left corner");
@@ -10401,15 +10429,12 @@ namespace {
 
 		window.choose_modality(qt::review_modality::read);
 		process_events();
-		expect(!window.showing_home() && window.dif_ai_slot()->isVisible()
-				   && dif->parentWidget() == window.dif_ai_slot() && dif->size() == QSize{ 64, 64 }
-				   && !corner->isVisible(),
-			   "returning to the review restores the still-selected explicit AI placement and leaves the corner");
+		expect(!window.showing_home() && inCorner(),
+			   "returning to the review preserves the corner independently of private tab selection");
 		tabs->setCurrentIndex(0);
 		process_events();
-		expect(!action->isChecked() && !window.dif_ai_slot()->isVisible()
-				   && !dif->isVisible(),
-			   "leaving the AI area removes its decoration without changing AI content");
+		expect(!action->isChecked() && inCorner(),
+			   "leaving the private tab preserves the corner without changing its content");
 		auto* editor = window.review_editor();
 		auto  draft  = core::review_comment_draft{
 			.Id     = core::review_draft_id{ 1U },
@@ -10423,6 +10448,7 @@ namespace {
 		auto* accept = window.findChild<QToolButton*>(QStringLiteral("reviewAcceptRevisionButton"));
 		expect(accept != nullptr && accept->isVisible() && accept->isEnabled()
 				   && window.dif_workshop_slot()->isVisible() && dif->parentWidget() == window.dif_workshop_slot()
+				   && !corner->isVisible()
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1,
 			   "Compose offers the exact proposal with the same single Dif beside visible acceptance");
 		accept->setFocus();
@@ -10436,6 +10462,7 @@ namespace {
 		expect(!window.dif_workshop_slot()->isVisible() && !accept->isEnabled()
 				   && editor->reject_revision_action()->isEnabled() && editor->statistics().DraftIntents == 0U,
 			   "another draft cannot keep the workshop illustration or accept its proposal");
+		expect(inCorner(), "an unavailable workshop acceptance returns the same widget to the corner");
 		window.hide();
 	}
 
@@ -10612,7 +10639,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--dif-workshop-placement"))) {
 		test_composition_pages_retain_editors_and_never_submit_on_navigation();
 		test_composition_keys_open_the_pages_and_esc_returns();
-		test_dif_moves_to_the_explicit_ai_area_without_owning_it();
+		test_dif_uses_the_corner_except_for_prime_spots();
 		std::cout << "dif-workshop-placement:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -10773,7 +10800,7 @@ auto main(int argc, char** argv) -> int
 	test_the_six_queue_controls_live_on_settings_queue_defaults();
 	test_home_captures_every_accepted_view();
 	test_home_composes_the_production_catalog_and_respects_motion_and_width();
-	test_dif_moves_to_the_explicit_ai_area_without_owning_it();
+	test_dif_uses_the_corner_except_for_prime_spots();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_entry_preserves_start_and_continue_semantics();
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();

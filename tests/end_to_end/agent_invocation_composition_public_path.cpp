@@ -1022,7 +1022,8 @@ auto main(int argc, char** argv) -> int
 		}
 		QApplication::processEvents();
 		workspaceFailureDif = window.dif();
-		if (workspaceFailureDif == nullptr || !window.dif_ai_slot()->isVisible()) {
+		if (workspaceFailureDif == nullptr || !window.dif_corner_slot()->isVisible()
+			|| workspaceFailureDif->parentWidget() != &window || workspaceFailureDif->size() != QSize{ 40, 40 }) {
 			return fail(*application, "workspace-diagnostic-dif");
 		}
 		auto marker = std::ofstream{

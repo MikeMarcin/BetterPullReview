@@ -127,3 +127,35 @@ process, and it gets no new preference. There is no sprite work (RFC-BPR-0030),
 and the Appearance page's Dif controls ([[BPR-0790]]) are not reopened. The
 core decides, the host performs, Qt presents. Windows and Linux station runs
 follow the owed commands on [[BPR-1135]].
+
+## Engineering candidate — 2026-09-26
+
+The physical drawer slot and its public accessor are removed. The existing
+widget, retained catalog and 40-pixel status slot now cover ordinary review
+surfaces. First-launch Home and BPR-0966's exact-draft workshop eligibility
+retain priority. The workshop header, visible Accept/Reject actions and
+ready/acknowledge routing are unchanged. BPR-0966's final Mac placement
+acceptance is recorded on main `b0ef23e2`; its Windows AC3 remains Backlog.
+
+The cue router and identities are unchanged. Because the corner is visible
+when the private tab is closed, the explicit tab-selection gesture retains
+its prior content-visible guard before asking for compare_glance. This keeps
+the trigger unchanged while allowing the other cues to play in the corner.
+The window course deliberately reparents Dif into the drawer and rejects that
+placement, then restores the same widget; it also covers every modality,
+ordinary Compose, transient messages, the first-launch card and the workshop.
+The shared composed course observes consider/attention in the corner and
+retains the exact ready/acknowledge and one-widget assertions.
+
+The isolated placement selector passes at 100/125/200 percent. All three
+Read renders were inspected, alongside the unchanged workshop mechanism.
+The real composed Dif context course passes (20.33 seconds), including
+comparison, consider, attention, ready, acknowledge, exact-draft acceptance,
+painted frames and no GitHub mutation. Workspace-diagnostic composition
+also passes (14.25 seconds), observing its failure cue at the corner.
+Evidence is in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1209-*`.
+The owner corner judgment remains pending; no native acceptance is inferred.
+
+The review-round-trip composition pin also passes; no application source
+seal changed in this presentation-only slice. Documentation and whitespace
+gates pass.
