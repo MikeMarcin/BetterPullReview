@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1210"
 title: "Private notes are written in the Notes tab, and notes and AI replies are promoted to drafts in Comments"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133","BPR-1134"]
 priority: "P2"
@@ -10,6 +10,7 @@ milestone: "Review workbench scaffolding"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"owner direction on BPR-1204's tab, 2026-09-25, in chat, relayed by the coordinator","criteria":["AC-09"],"related_rfcs":["RFC-BPR-0007","RFC-BPR-0012","RFC-BPR-0023","RFC-BPR-0048"],"related_cards":["BPR-1204","BPR-1133","BPR-1207","BPR-1135"],"reservation":"docs/issues/_reservations/BPR-1208--BPR-1210--a47a9558dfa6.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"owner_handback49":{"session":"d7cf21b16656c6ec19c8787255aa4006","cursor":49,"source_revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","binary_sha256":"96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b","decisions":[{"candidate":"BPR-1210-promote","criterion":"AC7","fingerprint":"4e3aacca34215c53cb9d1479a2fff99c9015135d47d81639f7359f174f1ad44a","decision_id":"8386d8e9-09d6-4330-8560-f6f41a3fe6d1","outcome":"accept","note":"","saved_at":"2026-09-26T20:52:42.196584+00:00","actor":"human"}]}}
 acceptance: [{"criterion":"AC1","outcome":"pending","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"observation","detail":"Engineering gap: historical file identity absent from current/previous accepted paths has no filename; current/renamed file cases pass. Owner acceptance cannot waive this."}},{"criterion":"AC2","outcome":"pass","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"command","detail":"Product5f7bf9d1: core/host3/3, initialQt5/5, finalNotesQt+composition100/125/2004/4, SQLite source persistence and explicit source-removal/publication negative controls, inspected renders, source pin and documentation pass. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*. Main architecture repair 413eabf3 adopted; focused core-only architecture replay passes 2/2 in 109.26 seconds, recorded in 1210-repaired-architecture.log. Final Notes integration fb73c462 passes 9/9 in 99.26 seconds, including real Notes writing/promotion and continued chat; inspected final Notes renders. Historical-name AC1 and owner AC7 remain pending."}},{"criterion":"AC3","outcome":"pass","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"command","detail":"Product5f7bf9d1: core/host3/3, initialQt5/5, finalNotesQt+composition100/125/2004/4, SQLite source persistence and explicit source-removal/publication negative controls, inspected renders, source pin and documentation pass. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*. Main architecture repair 413eabf3 adopted; focused core-only architecture replay passes 2/2 in 109.26 seconds, recorded in 1210-repaired-architecture.log. Final Notes integration fb73c462 passes 9/9 in 99.26 seconds, including real Notes writing/promotion and continued chat; inspected final Notes renders. Historical-name AC1 and owner AC7 remain pending."}},{"criterion":"AC4","outcome":"pass","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"command","detail":"Product5f7bf9d1: core/host3/3, initialQt5/5, finalNotesQt+composition100/125/2004/4, SQLite source persistence and explicit source-removal/publication negative controls, inspected renders, source pin and documentation pass. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*. Main architecture repair 413eabf3 adopted; focused core-only architecture replay passes 2/2 in 109.26 seconds, recorded in 1210-repaired-architecture.log. Final Notes integration fb73c462 passes 9/9 in 99.26 seconds, including real Notes writing/promotion and continued chat; inspected final Notes renders. Historical-name AC1 and owner AC7 remain pending."}},{"criterion":"AC5","outcome":"pass","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"command","detail":"Product5f7bf9d1: core/host3/3, initialQt5/5, finalNotesQt+composition100/125/2004/4, SQLite source persistence and explicit source-removal/publication negative controls, inspected renders, source pin and documentation pass. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*. Main architecture repair 413eabf3 adopted; focused core-only architecture replay passes 2/2 in 109.26 seconds, recorded in 1210-repaired-architecture.log. Final Notes integration fb73c462 passes 9/9 in 99.26 seconds, including real Notes writing/promotion and continued chat; inspected final Notes renders. Historical-name AC1 and owner AC7 remain pending."}},{"criterion":"AC6","outcome":"pass","revision":"fb73c462d028fd368d664231ba2705d0e8d0c592","evidence":{"kind":"command","detail":"Product5f7bf9d1: core/host3/3, initialQt5/5, finalNotesQt+composition100/125/2004/4, SQLite source persistence and explicit source-removal/publication negative controls, inspected renders, source pin and documentation pass. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*. Main architecture repair 413eabf3 adopted; focused core-only architecture replay passes 2/2 in 109.26 seconds, recorded in 1210-repaired-architecture.log. Final Notes integration fb73c462 passes 9/9 in 99.26 seconds, including real Notes writing/promotion and continued chat; inspected final Notes renders. Historical-name AC1 and owner AC7 remain pending."}},{"criterion":"AC7","outcome":"pass","revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","evidence":{"kind":"observation","detail":"Owner hand-back 49, session d7cf21b16656c6ec19c8787255aa4006; BPR-1210-promote accept 8386d8e9-09d6-4330-8560-f6f41a3fe6d1. Exact fingerprints and notes retained in metadata. Verdict applies only to the frozen candidate."}}]
+blocked_by: "historical-note-path-contract"
 ---
 
 # BPR-1210: Private notes are written in the Notes tab, and notes and AI replies are promoted to drafts in Comments
@@ -195,3 +196,30 @@ attachment retains only opaque file/comparison identities. The cached overview
 replaces its previous catalogue, and restored tabs retain identities rather than
 paths. None supplies a missing historical name after restart. A fabricated name
 or an unbounded Git scan cannot satisfy AC1. Its storage boundary remains intact.
+
+## Historical filename investigation after hand-back32
+
+The 2026-09-26 continuation checked the retained source, not only the current UI.
+`local_note_attachment` in `review_ledger_port.hpp` contains opaque file and
+comparison identities and explicitly stores no path. The window's accepted
+current/previous-path index is cleared at composition retirement. The persisted
+GitHub overview is the latest catalogue for the PR, not a revision-indexed path
+history, and restored document tabs retain identities. The Git cache's blob and
+rename ports require an already known path; they cannot recover a missing name
+from the note's opaque identities. No existing accepted observation supplies the
+old path after a restart once both catalogues have dropped it.
+
+AC1 therefore remains engineering pending, independently of the accepted AC7.
+The concrete prerequisite is a bounded retained-path contract: preserve the
+actual accepted attachment path when a file note is written, with a durable
+read path, revision/identity binding and migration rules for existing nameless
+notes. That requires an explicitly scoped ledger schema/contract amendment,
+which this card's no-new-schema boundary excludes. Existing nameless notes must
+remain honestly unnamed until trusted history is available; neither guessed
+basenames nor hidden Git/filesystem scans are acceptable recovery.
+
+Decision under the owner's delegated design authority: track that prerequisite
+as `historical-note-path-contract` and leave the card Blocked. Rationale: the
+retained bytes cannot reconstruct information that was never stored. This does
+not reopen AC7, request another owner judgment, or mark AC1 satisfied. BPR-1204
+keeps its terminal dependency on this card; native station debt stays BPR-1135.
