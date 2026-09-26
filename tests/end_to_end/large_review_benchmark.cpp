@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/github_public_path_fixture.hpp"
+#include "large_review_observers.hpp"
 #include "private_data_root.hpp"
 
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -10,6 +11,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -151,8 +153,25 @@ namespace bpr::e2e::large_review {
 		std::function<void(const active_input_measurement&)> OnDelivery;
 	};
 
+	struct extended_measurement
+	{
+		bool                  AllocationProfile = false;
+		live_heap_observation Heap;
+		std::uint64_t         SampledPeakHeapGrowthLimitBytes = 0;
+		double                ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
+		double                QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
+		double                ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
+		bool                  ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
+		std::string           MetadataTitle;
+		bool                  ProviderCancelCourse = false, ProviderStopped = false;
+		std::size_t           ProviderHeldInputs = 0;
+		double                ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
+		bool                  PathologicalCourse = false, ExactGeneratedSource = false;
+	};
+
 	struct benchmark_report
 	{
+		extended_measurement                  Extended;
 		std::string                           Schema               = "bpr.large-review-measurement.v1";
 		bool                                  ResourceCourse       = false;
 		bool                                  ResponsivenessCourse = false, StartupRendered = false;
@@ -181,13 +200,14 @@ namespace bpr::e2e::large_review {
 		bool                        HistoryCourse  = false;
 		std::size_t                 EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
 		std::size_t                 HistoryPeakRows = 0U, HistoryModelResets = 0U;
-		// Same M4 Pro / Debug course: refresh max input interval 67.903 ms,
-		// refresh 9.165 s, source selection 1.113 s before these thresholds.
+		// Historical Debug thresholds are retained without relaxation and
+		// revalidated by the optimized Mac BPR-0967 integration course.
 		double                       HistoryInputIntervalLimitMs = 100.0;
 		double                       HistoryRefreshLimitMs = 12'000.0, HistorySourceSelectionLimitMs = 2'000.0;
 		std::vector<resource_sample> Resources;
-		// [[BPR-0893]]. Mac fixture budgets, re-derived on an M4 Pro (48 GiB),
-		// Debug, Qt 6.11.2, macOS 26.6. They bound sampled and lifetime-peak footprint growth above the
+		// [[BPR-0893]] / [[BPR-1032]] historical Debug diagnosis below is
+		// provenance only. BPR-0967 revalidates these unchanged ceilings on
+		// Release, M4 Pro (48 GiB), Qt 6.11.2. They bound sampled and lifetime-peak footprint growth above the
 		// before_application sample, not peak live heap or other platforms.
 		//
 		// The peak bounds physical footprint at every sample. Qt 6.11 keeps a
@@ -243,7 +263,7 @@ namespace bpr::e2e::large_review {
 		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes                        = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
-		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS delivery clock or isolated cancellation acknowledgement is observed. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. No cross-platform latency budget.";
+		std::string                    TimingScope = "BuildConfiguration identifies the measured configuration; Debug is diagnostic only. 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS input-delivery clock is observed. The separate held-provider course observes continuous fixture entry, stop-token callback and provider exit on a steady clock; it models waiting work, not CPU occupancy. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. The independent 1 ms all-zone live-heap sampler reports a lower-bound peak and its largest sample interval/cost; it cannot exclude unsampled peaks. No cross-platform latency budget.";
 	};
 
 	void require(bool aCondition, const char* aReason)
@@ -314,16 +334,16 @@ namespace bpr::e2e::large_review {
 		if (!aReport.Resources.empty()) {
 			const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
 																: aReport.SampledFootprintGrowthLimitBytes;
-			require(sample.FootprintGrowthBytes <= footprintLimit,
+			require(aReport.Extended.AllocationProfile || sample.FootprintGrowthBytes <= footprintLimit,
 					"sampled Mac fixture footprint growth exceeded its budget");
-			require(sample.LifetimePeakGrowthBytes <= footprintLimit,
+			require(aReport.Extended.AllocationProfile || sample.LifetimePeakGrowthBytes <= footprintLimit,
 					"Mac fixture lifetime peak footprint growth exceeded its budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
 				const auto cleanupLimit = sample.Phase == "application_destroyed"
 					? aReport.DestroyedLiveHeapGrowthLimitBytes
 					: aReport.CleanupLiveHeapGrowthLimitBytes;
-				require(sample.LiveHeapGrowthBytes <= cleanupLimit,
+				require(aReport.Extended.AllocationProfile || sample.LiveHeapGrowthBytes <= cleanupLimit,
 						"Mac cleanup left live heap growth above its budget");
 				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
 							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
@@ -548,6 +568,28 @@ namespace bpr::e2e::large_review {
 			require(aSurface.left_pane()->document()->findBlockByNumber(line).text() == prefix + "0;"
 						&& aSurface.right_pane()->document()->findBlockByNumber(line).text() == prefix + (line % 1000 == 0 ? "1;" : "0;"),
 					"displayed source line differs from fixture");
+		}
+	}
+
+	void verify_generated(qt::diff_workbench& aSurface, const fixture_manifest& aManifest)
+	{
+		require(selected(aSurface, QStringLiteral("generated/table.inc")), "generated comparison identity");
+		const auto& result = *aSurface.current_result();
+		const auto  found  = std::ranges::find(aManifest.files, std::string{ "generated/table.inc" }, &fixture_file::path);
+		require(found != aManifest.files.end() && result.Alignment.Content == core::diff_content_state::text
+					&& result.Alignment.Key.LeftBlob == core::parse_git_blob_oid(found->base.oid)
+					&& result.Alignment.Key.RightBlob == core::parse_git_blob_oid(found->head.oid)
+					&& result.LeftDocument && result.RightDocument
+					&& result.LeftDocument->Lines.size() == 8192U && result.RightDocument->Lines.size() == 8192U,
+				"generated content lost exact blobs or lines");
+		require(aSurface.left_pane()->document()->firstBlock().text() == QStringLiteral("// Generated fixture version 0; do not edit.")
+					&& aSurface.right_pane()->document()->firstBlock().text() == QStringLiteral("// Generated fixture version 1; do not edit."),
+				"generated header mismatch");
+		for (int line = 1; line < 8192; ++line) {
+			const auto expected = QStringLiteral("ENTRY(%1, %2)").arg(line, 5, 10, QChar{ '0' }).arg(line % 17);
+			require(aSurface.left_pane()->document()->findBlockByNumber(line).text() == expected
+						&& aSurface.right_pane()->document()->findBlockByNumber(line).text() == expected,
+					"generated source line mismatch");
 		}
 	}
 
@@ -1041,9 +1083,10 @@ namespace bpr::e2e::large_review {
 		if (!aReport.ResponsivenessCourse) {
 			return;
 		}
-		// BPR-0967: two local M4 Pro / 48 GiB / Qt 6.11.2 / Debug observations
-		// justify these rounded completion regression limits. They do not waive
-		// the 100 ms event-loop target: its failing phases are reported separately.
+		// BPR-0967: optimized M4 Pro / 48 GiB / Qt 6.11.2 observations
+		// revalidate the existing completion limits and justify the new startup
+		// and metadata limits. Debug measurements are diagnostic only. All
+		// observed phase gaps must also meet the unchanged 100 ms target.
 		const auto record = [&](const std::string& aName, double aMeasured, double aLimit) {
 			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit });
 		};
@@ -1053,14 +1096,19 @@ namespace bpr::e2e::large_review {
 			record(aName, found->ElapsedMs, aLimit);
 		};
 		record("composition_startup_render", aReport.CompositionStartupMs, 1'000.0);
+		record("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
+		record("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
+		record("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
+		record("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
+		record("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
 		phase("paged_review_and_git_load", 12'000.0);
 		phase("large_file_selection", 2'500.0);
 		phase("binary_fallback_render", 1'250.0);
+		phase("generated_source_render", 2'500.0);
 		phase("large_source_revisit_render", 1'000.0);
-		// The hidden-source publication repair brings these complete intervals
-		// within the original input target. Initial review acceptance still has
-		// a separately reported gap and is not accepted by these source gates.
-		for (const auto* name : { "large_file_selection", "large_source_revisit_render" }) {
+		// These complete intervals meet the original target after the source,
+		// Overview and repeated conversation-label measurement repairs.
+		for (const auto* name : { "paged_review_and_git_load", "large_file_selection", "large_source_revisit_render", "generated_source_render" }) {
 			const auto found = std::ranges::find(aReport.Phases, name, &phase_measurement::Name);
 			record(std::string{ name } + "_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
 		}
@@ -1074,7 +1122,7 @@ namespace bpr::e2e::large_review {
 		record("next_change_dispatch", std::ranges::max(aReport.ChangeActionMs), aReport.InputIntervalLimitMs);
 		record("wheel_dispatch", aReport.MaxWheelEventMs, aReport.InputIntervalLimitMs);
 		record("measurement_input_gap", aReport.MaxMeasurementInputIntervalMs, aReport.InputIntervalLimitMs);
-		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac fixture responsiveness completion budget exceeded");
+		require(aReport.InputBudgetFailures.empty() && std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac fixture responsiveness budget exceeded");
 	}
 
 	void verify_active_work_budgets(benchmark_report& aReport)
@@ -1101,13 +1149,12 @@ namespace bpr::e2e::large_review {
 		record("active_queued_key_delivery", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::DeliveredAfterMs).DeliveredAfterMs, aReport.InputIntervalLimitMs);
 		record("active_queued_key_applied", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::AppliedAfterMs).AppliedAfterMs, aReport.InputIntervalLimitMs);
 		record("active_close_dispatch", aReport.ActiveCloseDispatchMs, aReport.InputIntervalLimitMs);
-		// Reuse the existing M4 Pro/Debug rapid-selection and final-drain limits.
-		// Close-to-quiescence measured 16.568 ms on that station: a 100 ms local
-		// regression bound leaves headroom without claiming a universal I/O bound.
+		// Release revalidates the existing fixture completion and 100 ms
+		// close-to-quiescence limits; these are not universal I/O bounds.
 		record("active_selection_completion", inputs.ElapsedMs, 10'000.0);
 		record("active_supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
 		record("active_close_quiescence", aReport.ActiveCloseDrainMs, 100.0);
-		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac active-work input or drain budget exceeded");
+		require(aReport.InputBudgetFailures.empty() && std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac active-work input or drain budget exceeded");
 	}
 
 	void run_responsiveness_interactions(app::github_application& aApplication, const fixture_manifest& aManifest,
@@ -1156,6 +1203,10 @@ namespace bpr::e2e::large_review {
 					&& aApplication.status().ClassificationSubmissions == classification,
 				"drawer/theme interaction changed comparison identity or reclassified source");
 		verify_large(surface, aManifest);
+		require(measure_wait(aApplication, aBudget, aReport, "generated_source_render", [&] { select_file(window, QStringLiteral("generated/table.inc")); }, [&] { return selected(surface, QStringLiteral("generated/table.inc")) && quiet(aApplication) && rendered(); }), "generated source timed out");
+		verify_generated(surface, aManifest);
+		aReport.Extended.ExactGeneratedSource = true;
+		save_frame("generated_source");
 		require(measure_wait(aApplication, aBudget, aReport, "binary_fallback_render", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(aApplication) && rendered(); }), "binary fallback timed out");
 		save_frame("binary_fallback");
 		require(surface.current_result()->Alignment.Content == core::diff_content_state::binary
@@ -1340,7 +1391,52 @@ namespace bpr::e2e::large_review {
 		close_active_work(aApplication, aManifest, expected, aReport, aBudget);
 	}
 
-	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
+	void run_provider_cancellation(app::github_application& aApplication, held_provider_read& aRead,
+								   benchmark_report& aReport, QElapsedTimer& aBudget)
+	{
+		auto& window = aApplication.window();
+		require(measure_wait(aApplication, aBudget, aReport, "held_provider_started", [&] { window.home_open_action()->trigger(); }, [&] { return aRead.EnteredAt.load() != 0 && aRead.ExitedAt.load() == 0 && window.showing_overview()
+																																			   && window.overview_page()->summary_label()->text().contains(QStringLiteral("Provisional metadata")); }), "provider gate or provisional metadata unavailable");
+		window.home_action()->trigger();
+		auto* field = window.home_open_bar();
+		require(field->isVisible() && field->isEnabled(), "held provider lacks visible input surface");
+		field->clear();
+		field->setFocus();
+		for (int index = 1; index <= 20; ++index) {
+			require(aRead.ExitedAt.load() == 0 && aRead.CancelledAt.load() == 0, "provider ended before queued input");
+			require(measure_wait(aApplication, aBudget, aReport, "held_provider_input", [&] {
+				QApplication::postEvent(field, new QKeyEvent{ QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x") });
+				QApplication::postEvent(field, new QKeyEvent{ QEvent::KeyRelease, Qt::Key_X, Qt::NoModifier }); }, [&] { return field->text() == QString(index, QChar{ 'x' }); }), "queued provider-work input did not apply");
+			require(aRead.ExitedAt.load() == 0 && aRead.CancelledAt.load() == 0, "provider ended during queued input");
+			++aReport.Extended.ProviderHeldInputs;
+		}
+		QObject closeLifetime;
+		QObject::connect(qApp, &QGuiApplication::lastWindowClosed, &closeLifetime, [&] {
+			aReport.WindowCloseObserved = true;
+			aApplication.begin_shutdown();
+		});
+		const auto closingAt = held_provider_read::now_ns();
+		require(measure_wait(aApplication, aBudget, aReport, "held_provider_close", [&] { window.close(); }, [&] { return aRead.ExitedAt.load() != 0 && aApplication.status().ShutdownComplete; }), "public close did not cancel held provider and drain application");
+		aReport.Extended.ProviderStopped     = aRead.Stopped.load();
+		aReport.Extended.ProviderHeldMs      = static_cast<double>(closingAt - aRead.EnteredAt.load()) / 1'000'000.0;
+		aReport.Extended.ProviderCancelAckMs = static_cast<double>(aRead.CancelledAt.load() - closingAt) / 1'000'000.0;
+		aReport.Extended.ProviderExitMs      = static_cast<double>(aRead.ExitedAt.load() - closingAt) / 1'000'000.0;
+		require(aReport.WindowCloseObserved && aReport.Extended.ProviderStopped && aRead.CancelledAt.load() >= closingAt && !window.isVisible()
+					&& aApplication.status().ShutdownComplete && !aApplication.status().ShutdownCleanupFailed
+					&& access::diff_work_evidence(aApplication).CacheEntries == 0U
+					&& !access::large_review_snapshot(aApplication).has_value(),
+				"cancelled provider published state or retained resources");
+		for (const auto& phase : aReport.Phases) {
+			aReport.CompletionBudgets.push_back({ phase.Name + "_input_gap", phase.MaxPulseIntervalMs, 100.0, phase.MaxPulseIntervalMs <= 100.0 });
+		}
+		aReport.CompletionBudgets.push_back({ "provider_cancel_ack", aReport.Extended.ProviderCancelAckMs, 100.0, aReport.Extended.ProviderCancelAckMs <= 100.0 });
+		aReport.CompletionBudgets.push_back({ "provider_cancel_exit", aReport.Extended.ProviderExitMs, 100.0, aReport.Extended.ProviderExitMs <= 100.0 });
+		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "held provider input/cancellation budget exceeded");
+		aReport.ShutdownComplete = true;
+	}
+
+	auto run_benchmark(QApplication& qtApplication, int argc, char** argv,
+					   const QElapsedTimer& aMainClock, double aQApplicationStartupMs) -> int
 	{
 		if (argc == 5 && std::string_view{ argv[4] } == "--history-session-race") {
 			if (!app::detail::verify_large_review_history_session_interleaving()) {
@@ -1349,7 +1445,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -1375,11 +1471,16 @@ namespace bpr::e2e::large_review {
 		const auto& dataRoot = *privateRoot;
 
 		benchmark_report report;
+		report.Extended.AllocationProfile                                  = argc == 5 && std::string_view{ argv[4] } == "--allocation-profile";
+		report.Extended.QApplicationStartupMs                              = aQApplicationStartupMs;
+		report.Extended.ProviderCancelCourse                               = argc == 5 && std::string_view{ argv[4] } == "--provider-cancel";
+		auto heldRead                                                      = std::make_shared<held_provider_read>();
 		report.ActiveWorkCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--active-work";
 		report.ResponsivenessCourse                                        = argc == 5 && std::string_view{ argv[4] } == "--responsiveness";
-		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
+		report.Extended.PathologicalCourse                                 = argc == 5 && std::string_view{ argv[4] } == "--pathological";
+		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (argc == 5 && std::string_view{ argv[4] } == "--unavailable");
 		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
-		report.LoadedCloseCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
+		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (argc == 5 && std::string_view{ argv[4] } == "--loaded-close");
 		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
 		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
@@ -1394,6 +1495,7 @@ namespace bpr::e2e::large_review {
 		std::optional<core::review_epoch_id>           closeTarget;
 		std::optional<core::file_comparison_key>       closeComparison;
 		std::unique_ptr<app::github_application>       application;
+		live_heap_sampler                              heapSampler{ observeResources };
 		try {
 			std::ifstream     input{ std::filesystem::path{ BPR_LARGE_REVIEW_FIXTURE_ROOT } / "manifest.json" };
 			const std::string bytes{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
@@ -1410,7 +1512,12 @@ namespace bpr::e2e::large_review {
 			report.LogicalProcessors          = QThread::idealThreadCount();
 			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ argv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
-			if (report.UnavailableCourse) {
+			if (report.Extended.ProviderCancelCourse) {
+				fixtureOptions.BeforeFilesPage = [heldRead](std::stop_token aStop) { heldRead->wait(aStop); };
+			}
+			if (report.Extended.PathologicalCourse) {
+				fixtureOptions.DiffComputeLimits.MaximumLinesPerSide = 4096U;
+			} else if (report.UnavailableCourse) {
 				// [[BPR-0858]]. Since BPR-0719 a work limit only degrades the alignment;
 				// a segment overflow is what still refuses a file. The stored 20,000-line
 				// file aligns in 40 segments and the one-line recovery file in 2, so a
@@ -1467,16 +1574,38 @@ namespace bpr::e2e::large_review {
 						"synchronous-ready phase hid its 120 ms event-loop stall");
 				require(trailing.Pulses != 0U && trailing.MaxPulseIntervalMs >= 100.0,
 						"terminal phase hid its final 120 ms event-loop stall");
+#if defined(__APPLE__)
+				live_heap_sampler heapControl{ true };
+				{
+					const auto     storage = std::make_unique<char[]>(32U * 1024U * 1024U);
+					volatile char* touched = storage.get();
+					for (std::size_t offset = 0; offset < 32U * 1024U * 1024U; offset += 4096U) {
+						touched[offset] = 1;
+					}
+					QThread::msleep(50);
+				}
+				const auto heapObservation = heapControl.finish();
+				std::cerr << "heap-control:" << *glz::write_json(heapObservation) << '\n';
+				require(heapObservation.Samples > 1U && heapObservation.PeakBytes >= heapObservation.BaselineBytes + 32U * 1024U * 1024U
+							&& heapObservation.FinalBytes + 16U * 1024U * 1024U < heapObservation.PeakBytes,
+						"independent heap sampler missed held allocation or release");
+#endif
 				std::cout << "LARGE_REVIEW_TIMING_CONTROL_OK\n";
 				return EXIT_SUCCESS;
 			}
 			auto& window = application->window();
 			window.resize(1600, 1000);
 			application->show();
+			report.WindowWidth      = window.width();
+			report.WindowHeight     = window.height();
+			report.DevicePixelRatio = window.devicePixelRatioF();
 			if (report.ResponsivenessCourse) {
-				const auto startupFrame     = window.grab();
-				report.StartupRendered      = !startupFrame.isNull();
-				report.CompositionStartupMs = static_cast<double>(compositionStartup.nsecsElapsed()) / 1'000'000.0;
+				const auto startupFrame            = window.grab();
+				report.StartupRendered             = !startupFrame.isNull();
+				report.CompositionStartupMs        = static_cast<double>(compositionStartup.nsecsElapsed()) / 1'000'000.0;
+				report.Extended.MainToHomeRenderMs = static_cast<double>(aMainClock.nsecsElapsed()) / 1'000'000.0;
+				std::cout << "LARGE_REVIEW_HOME_RENDERED\n"
+						  << std::flush;
 				require(report.StartupRendered && startupFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".startup.png")), "composition startup did not render Home");
 			}
 			auto&         surface = *window.comparison_surface();
@@ -1486,7 +1615,61 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(*application, budget, report, "fixture_connect", [&] { window.github_connect_action()->trigger(); }, [&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }), "connect timed out");
 			// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
 			window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/large-review#17"));
+			if (report.Extended.ProviderCancelCourse) {
+				report.Fixture = "large-review-v1 held provider read";
+				run_provider_cancellation(*application, *heldRead, report, budget);
+				const auto encoded = glz::write_json(report);
+				require(encoded.has_value(), "provider cancellation report encoding");
+				std::ofstream output{ argv[2], std::ios::binary };
+				output << *encoded << '\n';
+				output.close();
+				require(output.good(), "provider cancellation report write");
+				std::cout << "LARGE_REVIEW_PROVIDER_CANCEL_OK\n"
+						  << *encoded << '\n';
+				return EXIT_SUCCESS;
+			}
+			QElapsedTimer metadataClock;
+			QTimer        metadataObserver;
+			QPixmap       provisionalFrame, acceptedFrame;
+			metadataObserver.setInterval(1);
+			QObject::connect(&metadataObserver, &QTimer::timeout, &window, [&] {
+				auto* page = window.overview_page();
+				if (!window.showing_overview() || !page->isVisible()) {
+					return;
+				}
+				if (!report.Extended.ProvisionalMetadataObserved && page->summary_label()->text().contains(QStringLiteral("Provisional metadata"))
+					&& !page->entry_button()->isEnabled() && page->file_model()->file_count() == 0U) {
+					const auto captureStart                     = metadataClock.nsecsElapsed();
+					provisionalFrame                            = window.grab();
+					report.Extended.ProvisionalCaptureMs        = static_cast<double>(metadataClock.nsecsElapsed() - captureStart) / 1'000'000.0;
+					report.Extended.ProvisionalMetadataObserved = !provisionalFrame.isNull();
+					report.Extended.ProvisionalMetadataRenderMs = static_cast<double>(metadataClock.nsecsElapsed()) / 1'000'000.0;
+					report.Extended.MetadataTitle               = page->title_label()->text().toStdString();
+				}
+				if (!report.Extended.AcceptedMetadataObserved && page->projection().has_value() && page->file_model()->file_count() == 515U) {
+					const auto captureStart                  = metadataClock.nsecsElapsed();
+					acceptedFrame                            = window.grab();
+					report.Extended.AcceptedCaptureMs        = static_cast<double>(metadataClock.nsecsElapsed() - captureStart) / 1'000'000.0;
+					report.Extended.AcceptedMetadataObserved = !acceptedFrame.isNull()
+						&& page->title_label()->text().toStdString() == report.Extended.MetadataTitle
+						&& report.Extended.MetadataTitle == "Synthetic large review benchmark";
+					report.Extended.AcceptedMetadataRenderMs = static_cast<double>(metadataClock.nsecsElapsed()) / 1'000'000.0;
+				}
+			});
+			if (report.ResponsivenessCourse) {
+				metadataClock.start();
+				metadataObserver.start();
+			}
 			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
+			metadataObserver.stop();
+			if (report.ResponsivenessCourse) {
+				require(report.Extended.ProvisionalMetadataObserved && report.Extended.AcceptedMetadataObserved
+							&& report.Extended.ProvisionalMetadataRenderMs < report.Extended.AcceptedMetadataRenderMs,
+						"distinct provisional and accepted metadata did not render");
+				require(provisionalFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".provisional.png"))
+							&& acceptedFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".accepted.png")),
+						"metadata frame write failed");
+			}
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
 			if (report.FirstTabCourse) {
@@ -1499,10 +1682,15 @@ namespace bpr::e2e::large_review {
 				run_history(*application, manifest, report, budget, argv[3]);
 			} else if (report.UnavailableCourse) {
 				enter_read(*application, report, budget);
-				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "unavailable selection timed out");
-				const auto& alignment = surface.current_result()->Alignment;
-				require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == core::diff_reason_code::compute_limit, "real host result must exceed the retained comparison limit");
-				require(surface.status_text() == QStringLiteral("Comparison unavailable — file exceeds the comparison work limit"), "unavailable comparison falsely reports success");
+				const auto limitedPath = report.Extended.PathologicalCourse ? QStringLiteral("generated/table.inc") : QStringLiteral("large/comparison.cpp");
+				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, limitedPath); }, [&] { return selected(surface, limitedPath) && quiet(*application) && !window.grab().isNull(); }), "unavailable selection timed out");
+				const auto alignment   = surface.current_result()->Alignment;
+				const auto limitedFile = std::ranges::find(manifest.files, limitedPath.toStdString(), &fixture_file::path);
+				require(limitedFile != manifest.files.end() && alignment.Key.LeftBlob == core::parse_git_blob_oid(limitedFile->base.oid)
+							&& alignment.Key.RightBlob == core::parse_git_blob_oid(limitedFile->head.oid),
+						"fallback lost exact stored blob identity");
+				require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == (report.Extended.PathologicalCourse ? core::diff_reason_code::materialization_limit : core::diff_reason_code::compute_limit), "real host result must exceed the retained comparison limit");
+				require(report.Extended.PathologicalCourse ? surface.status_text() == QStringLiteral("File exceeds the comparison materialization limit") : surface.status_text() == QStringLiteral("Comparison unavailable — file exceeds the comparison work limit"), "unavailable comparison falsely reports success");
 				require(surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty() && !surface.selection(), "unavailable comparison retains stale source");
 				const auto  explanation = surface.status_text();
 				auto* const tabStatus   = window.document_tabs()->status_label();
@@ -1533,11 +1721,25 @@ namespace bpr::e2e::large_review {
 				require(label->isVisible() && label->text() == surface.status_text() && tabStatus->isVisible(), "binary comparison keeps its full explanation visible");
 				report.BinaryStatusVerified = true;
 				require(measure_wait(*application, budget, report, "supported_file_recovery", [&] { select_file(window, source_path(31)); }, [&] { return selected(surface, source_path(31)) && quiet(*application); }), "supported recovery timed out");
-				report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
+				const auto  recovered    = std::ranges::find(manifest.files, source_path(31).toStdString(), &fixture_file::path);
+				const auto& recoveredKey = surface.current_result()->Alignment.Key;
+				report.ExactFinalSource  = recovered != manifest.files.end()
+					&& recoveredKey.Authority == alignment.Key.Authority && recoveredKey.LeftAnchor == alignment.Key.LeftAnchor && recoveredKey.RightAnchor == alignment.Key.RightAnchor
+					&& recoveredKey.LeftBlob == core::parse_git_blob_oid(recovered->base.oid)
+					&& recoveredKey.RightBlob == core::parse_git_blob_oid(recovered->head.oid)
+					&& surface.left_pane()->blockCount() == 9 && surface.right_pane()->blockCount() == 9;
+				for (int line = 0; line < 8; ++line) {
+					const auto common       = QStringLiteral("// synthetic source 0031 line %1").arg(line + 1);
+					report.ExactFinalSource = report.ExactFinalSource
+						&& surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0031 = 0;") : common)
+						&& surface.right_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0031 = 1;") : common);
+				}
+				report.ExactFinalSource = report.ExactFinalSource && surface.left_pane()->document()->lastBlock().text().isEmpty()
+					&& surface.right_pane()->document()->lastBlock().text().isEmpty();
 				require(report.ExactFinalSource && surface.status_text().startsWith(QStringLiteral("Diff ready — 1 semantic changes")), "supported file must restore exact normal display");
 				require(label->isHidden() && tabStatus->isHidden(), "exact text recovery restores the compact header and reading area");
 				report.RecoverySegments = surface.current_result()->Alignment.Segments.size();
-				require(report.RecoverySegments <= report.UnavailableSegmentLimit && !surface.current_result()->AlignmentApproximate, "supported file must compute exactly within the segment limit");
+				require((report.Extended.PathologicalCourse || report.RecoverySegments <= report.UnavailableSegmentLimit) && !surface.current_result()->AlignmentApproximate, "supported file must compute exactly within the segment limit");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");
 			} else if (report.ApproximateCourse) {
 				enter_read(*application, report, budget);
@@ -1595,6 +1797,7 @@ namespace bpr::e2e::large_review {
 					if (report.ResponsivenessCourse) {
 						require(surface.isVisible() && surface.left_pane()->isVisible() && surface.right_pane()->isVisible(), "first source render is visible");
 						firstSourceFrame = window.grab();
+						report.Extended.MainToFirstSourceRenderMs = static_cast<double>(aMainClock.nsecsElapsed()) / 1'000'000.0;
 						require(!firstSourceFrame.isNull(), "first source render failed");
 						++report.InteractionFrames;
 					}
@@ -1833,6 +2036,23 @@ namespace bpr::e2e::large_review {
 					report.InputBudgetFailures.push_back(phase.Name);
 				}
 			}
+			report.Extended.Heap = heapSampler.finish();
+			if (observeResources) {
+				report.Extended.SampledPeakHeapGrowthLimitBytes = report.CacheByteCourse
+					? report.CacheByteFootprintGrowthLimitBytes
+					: report.SampledFootprintGrowthLimitBytes;
+				require(report.Extended.Heap.Samples > 1U && (report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes),
+						"sampled live-heap peak growth exceeded the Mac fixture ceiling");
+			}
+			if (report.Extended.PathologicalCourse) {
+				for (const auto* name : { "unavailable_file_selection", "binary_file_selection", "supported_file_recovery" }) {
+					const auto found = std::ranges::find(report.Phases, name, &phase_measurement::Name);
+					require(found != report.Phases.end(), "pathological fallback phase missing");
+					report.CompletionBudgets.push_back({ name, found->ElapsedMs, 1'500.0, found->ElapsedMs <= 1'500.0 });
+				}
+				require(report.InputBudgetFailures.empty() && std::ranges::all_of(report.CompletionBudgets, &latency_budget::Passed),
+						"pathological fallback completion/input budget exceeded");
+			}
 			verify_responsiveness_budgets(report);
 			verify_active_work_budgets(report);
 			auto encoded = glz::write_json(report);
@@ -1841,6 +2061,16 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
+			if (report.Extended.AllocationProfile) {
+				// Diagnostic only: preserve source, cache and lifecycle assertions,
+				// but instrumentation overhead cannot pass/fail native budgets.
+				// Allow a bounded external no-content allocation-history capture
+				// after application destruction. Never print an acceptance marker.
+				std::cout << "LARGE_REVIEW_ALLOCATION_CAPTURE_READY\n"
+						  << std::flush;
+				QThread::sleep(10);
+				return EXIT_SUCCESS;
+			}
 			std::cout << (report.ActiveWorkCourse ? "LARGE_REVIEW_ACTIVE_WORK_MEASURED\n" : report.ResponsivenessCourse ? "LARGE_REVIEW_RESPONSIVENESS_MEASURED\n"
 							  : report.FirstTabCourse                                                                   ? "FIRST_TAB_COMPARISON_OK\n"
 							  : report.CacheByteCourse                                                                  ? "LARGE_REVIEW_CACHE_BYTES_OK\n"
@@ -1854,6 +2084,7 @@ namespace bpr::e2e::large_review {
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {
+			report.Extended.Heap = heapSampler.finish();
 			std::cerr << "large-review-benchmark-failed: " << error.what() << '\n';
 			if (const auto partial = glz::write_json(report); partial) {
 				std::cerr << "large-review-partial:" << *partial << '\n';
@@ -1866,12 +2097,17 @@ namespace bpr::e2e::large_review {
 
 int main(int argc, char** argv)
 {
+	QElapsedTimer mainClock;
+	mainClock.start();
+	std::cout << "LARGE_REVIEW_MAIN_ENTERED\n"
+			  << std::flush;
 	QApplication qtApplication{ argc, argv };
+	const auto   qtStartupMs = static_cast<double>(mainClock.nsecsElapsed()) / 1'000'000.0;
 	QApplication::setQuitOnLastWindowClosed(false);
 	// Native last-window-close delivery needs QApplication's main event loop,
 	// even though individual measurement phases use nested event loops.
 	QTimer::singleShot(0, &qtApplication, [&] {
-		qtApplication.exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv));
+		qtApplication.exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv, mainClock, qtStartupMs));
 	});
 	return qtApplication.exec();
 }

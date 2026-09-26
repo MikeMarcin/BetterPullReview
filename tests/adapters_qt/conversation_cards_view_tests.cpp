@@ -474,6 +474,55 @@ namespace {
 			   "unavailable comparison removes the previous excerpt and its height");
 	}
 
+	void test_compact_labels_keep_independent_geometry()
+	{
+		qt::conversation_cards_view view;
+		view.resize(280, 600);
+		view.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+		view.set_compact(true);
+		view.set_feed(true);
+		view.set_resolution_offered(true);
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		view.show();
+		QApplication::processEvents();
+		const auto projection = std::vector<conversation>{
+			thread("first", "src/a.cpp", 1U),
+			reply("one", "first", "same_author", "first body"),
+			thread("second", "src/a.cpp", 2U),
+			reply("two", "second", "same_author", "different body"),
+			thread("third", "src/a.cpp", 3U, true, true),
+			reply("three", "third", "a_much_longer_author_that_wraps", "third body"),
+		};
+		view.adopt(projection);
+		for (const auto width : { 280, 190, 340 }) {
+			view.resize(width, 600);
+			QApplication::processEvents();
+			for (std::size_t index = 0; index < 3U; ++index) {
+				qt::conversation_cards_view single;
+				single.resize(width, 600);
+				single.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+				single.set_compact(true);
+				single.set_feed(true);
+				single.set_resolution_offered(true);
+				single.set_scope(qt::cards_scope::whole_pull_request);
+				single.show();
+				QApplication::processEvents();
+				single.adopt({ projection[index * 2U], projection[index * 2U + 1U] });
+				const auto& together = view.cards()[index];
+				const auto& alone    = single.cards().front();
+				expect(together.Id == alone.Id && together.Rect.size() == alone.Rect.size()
+						   && together.Actions.size() == alone.Actions.size(),
+					   "repeated compact labels retain each card's independent geometry");
+				for (std::size_t action = 0; action < alone.Actions.size(); ++action) {
+					expect(together.Actions[action].first == alone.Actions[action].first
+							   && together.Actions[action].second.translated(-together.Rect.topLeft())
+								   == alone.Actions[action].second.translated(-alone.Rect.topLeft()),
+						   "compact card actions keep exact local rectangles");
+				}
+			}
+		}
+	}
+
 	auto test_unchanged_refresh_retains_measured_cards() -> void
 	{
 		qt::conversation_cards_view view;
@@ -787,6 +836,7 @@ auto main(int argc, char** argv) -> int
 	test_the_feed_heads_posts_excerpts_code_and_filters();
 	test_cards_sit_at_their_lines_and_never_overlap();
 	test_unchanged_refresh_retains_measured_cards();
+	test_compact_labels_keep_independent_geometry();
 	test_alternating_widths_keep_both_widths_measured();
 	test_feed_geometry_refresh_updates_excerpts();
 	test_cached_geometry_matches_a_fresh_view();

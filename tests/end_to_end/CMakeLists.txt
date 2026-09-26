@@ -1188,6 +1188,18 @@ if(APPLE)
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESPONSIVENESS_MEASURED")
     bpr_add_network_isolated_test(
+        NAME application_large_review_launch
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_launch.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-launch.json"
+            $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-launch-course.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-launch.png"
+            --responsiveness)
+    set_tests_properties(application_large_review_launch PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_LAUNCH_OBSERVED")
+    bpr_add_network_isolated_test(
         NAME application_large_review_active_work
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
@@ -1197,6 +1209,22 @@ if(APPLE)
     set_tests_properties(application_large_review_active_work PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_ACTIVE_WORK_MEASURED")
+    foreach(course IN ITEMS pathological provider-cancel)
+        string(REPLACE "-" "_" course_name "${course}")
+        bpr_add_network_isolated_test(
+            NAME application_large_review_${course_name}
+            COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+                $<TARGET_FILE:Git::Git>
+                "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.json"
+                "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.png"
+                --${course})
+        set_tests_properties(application_large_review_${course_name} PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120)
+    endforeach()
+    set_tests_properties(application_large_review_pathological PROPERTIES
+        PASS_REGULAR_EXPRESSION "UNAVAILABLE_DIFF_COMPOSED_OK")
+    set_tests_properties(application_large_review_provider_cancel PROPERTIES
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_PROVIDER_CANCEL_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>

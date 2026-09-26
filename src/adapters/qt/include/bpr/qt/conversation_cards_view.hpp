@@ -18,6 +18,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 class QKeyEvent;
@@ -253,7 +254,13 @@ namespace bpr::qt {
 			int                                  Width = -1;
 			std::map<std::string, measured_card> Cards;
 		};
-		void               measure_cached(thread_card& aCard, int aWidth);
+		struct compact_measurement
+		{
+			int                                        Height = 0;
+			std::vector<std::pair<card_action, QRect>> Actions;
+		};
+		using compact_measurements = std::map<std::tuple<QString, bool, bool, bool, bool, bool>, compact_measurement>;
+		void               measure_cached(thread_card& aCard, int aWidth, compact_measurements* aCompact = nullptr);
 		void               clear_measurements();
 		void               forget_measurements_if(const std::function<bool(const std::string&)>& aForget);
 		[[nodiscard]] auto card_height(const thread_card& aCard, int aWidth) const -> int;

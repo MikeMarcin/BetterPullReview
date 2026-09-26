@@ -607,7 +607,7 @@ namespace bpr::qt {
 		}
 	}
 
-	void conversation_cards_view::measure_cached(thread_card& aCard, const int aWidth)
+	void conversation_cards_view::measure_cached(thread_card& aCard, const int aWidth, compact_measurements* aCompact)
 	{
 		if (MeasurementFont != font() || MeasurementFeed != Feed
 			|| MeasurementResolutionOffered != ResolutionOffered) {
@@ -640,7 +640,26 @@ namespace bpr::qt {
 			aCard.Actions = cached->second.Actions;
 			return;
 		}
-		measure(aCard, aWidth);
+		// During one layout font, width and action policy are fixed. Compact
+		// geometry depends on its complete label and action flags; the body is
+		// hidden. Keep source, identity and unread facts on each card. Include
+		// flags explicitly: provider-authored text can mimic a label's suffix.
+		if (Compact && aCompact) {
+			const auto [found, inserted] = aCompact->try_emplace({ label, has_code_anchor(aCard), aCard.Draft,
+																   aCard.Resolved, aCard.UnreadCount > 0U, aCard.Kind == QStringLiteral("Inline thread") });
+			if (inserted) {
+				measure(aCard, aWidth);
+				found->second = { aCard.Rect.height(), aCard.Actions };
+			} else {
+				aCard.Rect.setHeight(found->second.Height);
+				aCard.Actions = found->second.Actions;
+				for (auto& post : aCard.Posts) {
+					post.Rect = { };
+				}
+			}
+		} else {
+			measure(aCard, aWidth);
+		}
 		++MeasurementCount;
 		auto measured = measured_card{
 			.Label           = label,
@@ -802,12 +821,13 @@ namespace bpr::qt {
 			Cards.push_back(std::move(card));
 		}
 
-		const auto width = std::max(120, viewport()->width());
-		auto       order = std::size_t{ 0U };
+		auto       compactMeasurements = compact_measurements{ };
+		const auto width               = std::max(120, viewport()->width());
+		auto       order               = std::size_t{ 0U };
 		for (auto& card : Cards) {
 			card.ProjectionOrder = order++;
 			card.Rect            = QRect{ card_margin, 0, width - 2 * card_margin, 0 };
-			measure_cached(card, width - 2 * card_margin);
+			measure_cached(card, width - 2 * card_margin, &compactMeasurements);
 			for (auto& post : card.Posts) {
 				post.Rect.translate(card.Rect.left(), 0);
 			}
