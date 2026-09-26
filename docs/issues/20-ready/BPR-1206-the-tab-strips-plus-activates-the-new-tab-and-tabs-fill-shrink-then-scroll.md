@@ -30,6 +30,56 @@ width equally, and Ghostty with two tabs each taking half.
 Duplication is accepted as built. The new tab's focus and the strip's sizing
 are new requirements, recorded as an owner amendment on RFC-BPR-0052.
 
+## Decision under the owner's delegation, 2026-09-25
+
+The note left one point open: the RFC's "at a platform's width floor the
+strip shows the active tab and a count of the rest", and whether it survives
+once tabs scroll. In chat, relayed by the coordinator, the owner answered,
+verbatim: "pick one example and run with it, don't ask me". The implementer
+chose under that delegation. No owner question is open on this point, and
+none is to be asked.
+
+**The one reference is Xcode's editor tab bar on macOS.** Of the four
+candidates (Xcode, Sublime Text, Chrome and Ghostty), it fits best. Its tabs
+are documents in an editor's header, as this strip's are, and the owner named
+it first and attached two screenshots of it. Ghostty's tabs are macOS window
+tabs, one terminal window each, not documents in a pane. Sublime Text sizes
+each tab to its name instead of sharing the strip equally. Chrome shrinks
+tabs toward their icons instead of stopping at a readable minimum. Neither of
+those two matches the note.
+
+The strip takes this behaviour from it:
+
+- **One rule at every window width, the width floor included.** No
+  presentation is reserved for the floor.
+- Tabs share the room the strip gives them equally and grow to fill it. One
+  tab fills it alone. When the strip shows [[BPR-1197]]'s comparison status,
+  the tabs fill the room beside it, and the status keeps its complete tooltip
+  and accessible text.
+- As tabs are added, each shrinks to a fixed minimum width. No tab is ever
+  narrower than that minimum.
+- When the tabs no longer fit at the minimum, the strip scrolls sideways with
+  the trackpad or the mouse wheel, and every tab keeps the minimum width.
+- Whenever a tab becomes active, the strip scrolls until the whole of it is
+  visible. A tab becomes active by a click, the plus, Open in New Tab,
+  Ctrl+Tab or Ctrl+Shift+Tab, the close of its neighbour, or restoration.
+- There is no count and no overflow button. The built strip's collapse to
+  the active tab with a "+N" menu (`documentTabOverflow`), which it takes
+  whenever the tabs do not fit, is removed. Ctrl+Tab, Ctrl+Shift+Tab and the
+  arrow keys on the focused strip reach every tab, including tabs scrolled out
+  of view, and bring each one into view.
+- The plus stays at the strip's right end, outside the scrolling tabs, so it
+  is always reachable. That placement is this card's own requirement (AC2),
+  not something taken from Xcode.
+- Within a tab, names still elide from the left, and a tab with its own pair
+  keeps its pair label.
+
+Scrolling therefore replaces "the active tab and a count of the rest" at the
+width floor. The minimum width is an implementation constant in
+device-independent pixels. It is chosen so that a tab at the minimum still
+shows its close button, its pair label when it has one, and the end of its
+file name. The scale tests state it and pin it.
+
 ## Acceptance
 
 - AC1 The plus duplicates the active tab's exact view (file, comparison and
@@ -39,16 +89,13 @@ are new requirements, recorded as an owner amendment on RFC-BPR-0052.
   added they shrink to a minimum width. Past that the strip overflows and
   scrolls (wheel or trackpad, and a keyboard route to hidden tabs), keeping the
   active tab in view and the plus reachable. Names still elide from the left
-  within a tab.
+  within a tab. The same rule holds at every width, the width floor included,
+  as decided above: no count and no overflow button.
 - AC3 `qt_document_tabs_scale_{100,125,200}` cover 1, 3, 12 and 40 tabs at
-  1280, 1100 and the width floor, with focus and accessible names; controls
-  (a background duplicate; fixed-width tabs) fail. The width sweeps are rerun.
+  1280, 1100 and the width floor, with focus and accessible names. Three
+  controls fail: a background duplicate, fixed-width tabs, and a strip that
+  collapses to the active tab and a count. The width sweeps are rerun.
 - AC4 The owner looks at the built strip on macOS: one question.
-
-Not settled by the note: the RFC's "at a platform's width floor the strip
-shows the active tab and a count of the rest". If scrolling replaces it, or
-the two cannot both hold, ask the owner that as its own question before
-building it.
 
 ## Boundaries
 

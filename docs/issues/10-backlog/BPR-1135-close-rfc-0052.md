@@ -115,6 +115,15 @@ milestones m1, m2, m2b and m3. [[BPR-1197]] is Done and listed in this card's
 dependencies, but it is still outside the plan; the owner's approval did not
 name it.
 
+**Decided and waiting inside m2b.** [[BPR-1206]]'s open point, the width
+floor's count once tabs scroll, is decided without an owner question. The
+owner delegated it ("pick one example and run with it, don't ask me"), and
+Xcode's editor tabs are the one reference. One fill, shrink and scroll rule
+holds at every width, the floor included, and there is no count or overflow
+button. The card records the behaviour, and the RFC's design text says so.
+[[BPR-1204]]'s tab name waits on a discussion with the owner about what the
+tab is for. No name or alternative is prepared before that.
+
 **Session `60bd1ed5` imported and released (2026-09-25).** Its recorded host
 (port 63317, PID 97732), its later server (port 49975, PID 25339) and its
 hand-back waiter (PID 97747) were no longer running, and nothing listened on
@@ -139,8 +148,9 @@ server was not started. Its state stays at
 uncommitted, with a stale host entry that `serve` would replace.
 
 **Next.** m2's owner exit is now answered, so the next engineering round can
-judge m2's exits and record its acceptance. The plan then admits m2b, whose
-cards are Ready. m3 stays ineligible until m2 and m2b are accepted.
+judge m2's exits and record its acceptance. The plan then admits m2b. Its
+cards are Ready, but BPR-1204 waits for the owner's purpose discussion. m3
+stays ineligible until m2 and m2b are accepted.
 
 ## Current reconciliation — partial, 2026-09-25
 

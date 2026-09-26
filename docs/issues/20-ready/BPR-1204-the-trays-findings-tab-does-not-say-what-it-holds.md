@@ -29,6 +29,30 @@ the owner that. In the same session the owner accepted the tray's keyboard and
 VoiceOver behaviour (decision `6ee64abe`): "Comments, N threads with new
 comments" is announced and Right Arrow reaches the second tab.
 
+## The name waits on a purpose discussion (2026-09-25)
+
+The owner's note asks what the tab is for, not only what it should be called.
+The coordinator will discuss the tab's purpose with the owner first. No name
+is chosen here, and AC1's alternatives are not prepared, until that
+discussion's outcome is recorded on this card as an owner decision.
+
+For the discussion, what the tab gathers today:
+
+- the agent launch panel, side chat and finding queue of
+  [RFC-BPR-0012](../../rfcs/RFC-BPR-0012-ai-review-chat-findings-mcp.md)
+  (on RFC-BPR-0011's agent boundary), where a "finding" is an agent's
+  structured claim about the code;
+- the defect classification, navigation and verdict controls of
+  [RFC-BPR-0009](../../rfcs/RFC-BPR-0009-defect-fix-verification-workflow.md),
+  which act on review threads that the Comments tab lists;
+- Dif's decorative AI-tools slot from RFC-BPR-0031.
+
+Before [[BPR-1134]], an action labelled "AI tools and Findings" revealed the
+same area; RFC-BPR-0031 calls it the "explicit AI tools area". BPR-1134
+(`2770ebb1`) shortened the tab to "Findings", as round v4 of [[BPR-1106]]
+drew it ("Tabs in the right tray: Comments, Tour, Findings"). None of the
+owner's answers quoted in BPR-1106 uses the word.
+
 ## Acceptance
 
 - AC1 Prepare a few named alternatives for the second tab, each rendered in

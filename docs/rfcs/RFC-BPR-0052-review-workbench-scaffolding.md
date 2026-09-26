@@ -155,8 +155,12 @@ platform's width floor the strip shows the active tab and a count of the rest.
 By the owner's amendment of 2026-09-25, the strip's plus duplicates the active
 tab's exact view and makes the copy the active tab, and tabs share the strip
 as Xcode's and Ghostty's do: they expand to fill it, shrink to a minimum width
-and then scroll. Whether the width floor's count survives alongside scrolling
-is for [[BPR-1206]] to ask.
+and then scroll. The owner left the width floor to the implementer ("pick one
+example and run with it, don't ask me"), and Xcode's editor tabs were chosen
+as the one reference. The same fill, shrink and scroll rule holds at every
+width, the floor included. Scrolling replaces the floor's active tab and
+count, the active tab is always scrolled fully into view, and Ctrl+Tab
+reaches the rest ([[BPR-1206]]). No acceptance criterion changes.
 
 **Composition and conversation.** The composition entry row goes. Compose
 review opens the dedicated page RFC-BPR-0037 built, as before. "Draft comment
