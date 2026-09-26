@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1210"
 title: "Private notes are written in the Notes tab, and notes and AI replies are promoted to drafts in Comments"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133","BPR-1134"]
 priority: "P2"
