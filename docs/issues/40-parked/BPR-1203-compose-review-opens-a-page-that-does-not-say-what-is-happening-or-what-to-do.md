@@ -2,13 +2,15 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1203"
 title: "Compose review opens a page that does not say what is happening or what to do"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "owner rejection of attended candidate BPR-1129-kept, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1129-kept", "decision": "011a2ebb-f211-4096-a88a-e5a820219032", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-03"], "related_cards": ["BPR-1129", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC2","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC3","outcome":"pending","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"observation","detail":"Separate owner page and kept-mark judgments pending."}},{"criterion":"AC4","outcome":"pending","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"observation","detail":"Separate owner page and kept-mark judgments pending."}}]
 ---
 
 # BPR-1203: Compose review opens a page that does not say what is happening or what to do
