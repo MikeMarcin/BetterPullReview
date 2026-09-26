@@ -960,8 +960,8 @@ namespace {
 		for (const auto& [action, row] : required) {
 			expect(row->actions().contains(action)
 					   && row->widgetForAction(action)->isVisible()
-					   && action->isEnabled(),
-				   "every drawer, navigation and composition control stays top level and enabled at the width floor");
+					   && (action->isEnabled() || (action == window.comment_action() && action->toolTip().contains(QStringLiteral("Select a current-head")))),
+				   "every drawer, navigation and composition control stays top level at the width floor with target-dependent enablement");
 		}
 		for (auto* const row : { static_cast<QToolBar*>(toolbar), static_cast<QToolBar*>(bar) }) {
 			auto* const extension = row->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
@@ -5740,9 +5740,10 @@ namespace {
 			QStringLiteral("two conversations"));
 		// Before any comparison there is no line, and no thread chosen.
 		emit window.comment_menu()->aboutToShow();
-		expect(window.comment_action()->text() == QStringLiteral("Co&mment")
-				   && window.comment_action()->toolTip() == QStringLiteral("Comment (%1)").arg(window.comment_action()->shortcut().toString(QKeySequence::NativeText)),
-			   "with neither a line nor a thread selected Comment names no target");
+		expect(!window.comment_action()->isEnabled()
+				   && window.comment_action()->text().contains(QStringLiteral("Select a current-head"))
+				   && window.comment_action()->toolTip().contains(QStringLiteral("Select a current-head")),
+			   "without a target Comment is unavailable with its reason in the menu and tooltip");
 		static_cast<void>(publish_fixture(window, diff));
 		window.set_conversation_endpoint_placement(false, true);
 		process_events();
@@ -5755,6 +5756,23 @@ namespace {
 		expect(button != nullptr && button->popupMode() == QToolButton::MenuButtonPopup && button->menu() == menu
 				   && menu != nullptr && menu->actions() == QList<QAction*>{ comment } && stack != nullptr && page != nullptr,
 			   "Comment's arrow opens a menu that offers the plain comment alone, and no label");
+		const auto usable = [&] {
+			return comment->isEnabled() && window.review_editor()->shown_draft()
+				&& window.review_editor()->publish_action()->isEnabled();
+		};
+		expect(!usable(), "a selected line without an admitted draft does not offer Comment");
+		comment->setEnabled(true); // Negative control: activation still rechecks admission.
+		comment->trigger();
+		expect(stack->currentWidget() != page && !usable(), "an incorrectly enabled action cannot open an unusable page");
+		const auto admit = [&window](const std::optional<core::semantic_selection>& selection) {
+			if (selection) {
+				window.review_editor()->present(core::review_comment_draft{
+					.Id = core::review_draft_id{ 1U }, .Anchor = selection->PreferredLine, .Body = { } });
+			}
+		};
+		window.comparison_surface()->set_selection_sink(admit);
+		admit(window.comparison_surface()->selection());
+		expect(usable(), "the host's exact editable draft makes Comment available");
 		const auto key       = comment->shortcut().toString(QKeySequence::NativeText);
 		const auto showsMenu = [menu] { emit menu->aboutToShow(); };
 		const auto back      = [&window] {
@@ -5784,6 +5802,24 @@ namespace {
 		expect(stack->currentWidget() == page && replies.empty(), "Comment opens the inline page on the line's draft, answering no thread");
 		back();
 		expect(stack->currentWidget() != page, "Esc returns from the page");
+		// A conflict still offers an explicit recovery, so Back must not strand
+		// the kept text without a route back to that usable recovery page.
+		auto*      inlineEditor = window.review_editor();
+		const auto acceptedLine = *inlineEditor->shown_draft();
+		inlineEditor->set_revisioned_dispatch([](auto) { });
+		inlineEditor->present(core::revisioned_review_draft{ acceptedLine, 1U, core::review_draft_scope_id{ 1U } });
+		inlineEditor->body_editor()->setPlainText(QStringLiteral("retained conflict"));
+		inlineEditor->present(core::revisioned_review_draft{ acceptedLine, 2U, core::review_draft_scope_id{ 1U } });
+
+		expect(!inlineEditor->publish_action()->isEnabled() && inlineEditor->reload_draft_action()->isEnabled()
+				   && comment->isEnabled(),
+			   "a recoverable conflict keeps its Comment entry without offering Publish");
+		comment->trigger();
+		process_events();
+		expect(stack->currentWidget() == page, "Comment can reopen the retained text's actionable recovery");
+		inlineEditor->reload_draft_action()->trigger();
+		inlineEditor->set_revisioned_dispatch({ });
+		back();
 
 		// The line of a thread: Comment answers it.
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22 is selected as a click would");
@@ -6797,9 +6833,8 @@ namespace {
 		expect(stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
 			   "Esc returns from the review page to the invoking surface and focus");
 		window_key(window, Qt::Key_C, Qt::AltModifier);
-		expect(stack->currentWidget()->objectName() == QStringLiteral("composeInlineDraftPage")
-				   && window.review_editor()->body_editor()->hasFocus(),
-			   "Option-C (Alt+C) opens the comment page on the retained draft");
+		expect(stack->currentWidget() == start && !window.comment_action()->isEnabled(),
+			   "Option-C (Alt+C) without an admitted target keeps the useful surface open");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		expect(stack->currentWidget() == start, "Esc returns from the comment page");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
@@ -6909,7 +6944,7 @@ namespace {
 			back->click();
 			process_events();
 			expect(window.current_modality() == mode && invoking->hasFocus(), "Back restores invoking mode and focus");
-			inlineCompose->trigger();
+			window.open_review_composition(true);
 			process_events();
 			expect(stack->currentWidget()->objectName() == QStringLiteral("composeInlineDraftPage")
 					   && inlineEditor == window.review_editor() && inlineEditor->body_editor()->height() >= 90,

@@ -1561,6 +1561,7 @@ namespace bpr::qt {
 			Drawers[1].Panel,
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
+		ReviewEditor->set_presentation_observer([this] { update_comment_target(); });
 		DefectCard = new defect_card_view{
 			[this](core::defect_command aCommand) {
 				++Statistics.DefectIntents;
@@ -5682,19 +5683,23 @@ namespace bpr::qt {
 		auto       words  = target;
 		words.remove(QLatin1Char{ '&' });
 		words.remove(QChar{ 0x2026 });
-		const auto key  = CommentAction->shortcut().toString(QKeySequence::NativeText);
-		const auto text = target.isEmpty() ? tr("Co&mment") : target;
-		if (CommentAction->text() != text) {
-			CommentAction->setText(text);
+		const auto key        = CommentAction->shortcut().toString(QKeySequence::NativeText);
+		const auto selection  = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		const auto draftReady = ReviewEditor != nullptr
+			&& (ReviewEditor->publish_action()->isEnabled() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
+			&& ReviewEditor->shown_draft() && selection
+			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
+		auto reason = QString{ };
+		if (comparing_off_current_head()) {
+			reason = tr("Select the pull request's current head; this tab compares an earlier update.");
+		} else if (target.isEmpty()) {
+			reason = tr("Select a current-head diff line or thread to comment.");
+		} else if (!draftReady) {
+			reason = tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment.");
 		}
-		// [[BPR-1132]]. A tab over an older pair offers no new comment off the
-		// pull request's current head.
-		const auto offHead = comparing_off_current_head();
-		CommentAction->setEnabled(!offHead);
-		auto tip = words.isEmpty() ? QStringLiteral("Comment (%1)").arg(key) : QStringLiteral("%1 (%2)").arg(words, key);
-		if (offHead) {
-			tip = QStringLiteral("Comments go on the pull request's current head; this tab compares an earlier update");
-		}
+		CommentAction->setEnabled(reason.isEmpty());
+		CommentAction->setText(reason.isEmpty() ? target : tr("Co&mment unavailable — %1").arg(reason));
+		const auto tip = reason.isEmpty() ? QStringLiteral("%1 (%2)").arg(words, key) : tr("Comment (%1): %2").arg(key, reason);
 		CommentAction->setToolTip(tip);
 		CommentAction->setStatusTip(tip);
 		if (ReviewBar == nullptr) {
@@ -5702,15 +5707,16 @@ namespace bpr::qt {
 		}
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); button != nullptr) {
 			button->setAccessibleName(QStringLiteral("Comment"));
-			button->setAccessibleDescription(words.isEmpty()
-												 ? QStringLiteral("Open the comment page on the retained draft without submitting")
-												 : QStringLiteral("%1, on the comment page, without submitting").arg(words));
+			button->setAccessibleDescription(reason.isEmpty() ? QStringLiteral("%1, on the comment page, without submitting").arg(words) : reason);
 		}
 	}
 
 	void workbench_window::comment_or_reply()
 	{
 		update_comment_target();
+		if (!CommentAction->isEnabled()) {
+			return;
+		}
 		if (const auto thread = comment_reply_thread(); thread.has_value()) {
 			reply_to_thread(*thread);
 			return;
@@ -5936,7 +5942,12 @@ namespace bpr::qt {
 	{
 		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
 			ReviewReplyDispatch(aIdentity);
-			open_review_composition(true);
+			update_comment_target();
+			if (CommentAction->isEnabled()) {
+				open_review_composition(true);
+			} else {
+				ConversationPanel->present_notice(CommentAction->toolTip());
+			}
 			return;
 		}
 		ConversationPanel->present_notice(tr("Open this thread in code before replying."));

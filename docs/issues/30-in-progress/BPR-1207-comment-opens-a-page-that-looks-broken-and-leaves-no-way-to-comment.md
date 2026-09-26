@@ -52,3 +52,45 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Engineering evidence — 2026-09-26
+
+AC1: the exact frozen m2 executable (SHA-256
+`a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83`)
+ran natively with the uiforetw-74 fixture and the explicit automated fixture
+boundary. Home opened google/UIforETW#74. On file 4/5,
+UIforETW/UIforETWDlg.cpp, Comment reproduced the empty panels and disabled
+controls before a deliberate change-selection gesture. After Next change
+selected line 216, Comment still showed an unusable page. The recorded PR is
+closed, so a current diff line does not imply an admitted mutation draft.
+No publication was attempted. The frozen process exited normally; the earlier
+failed sandboxed GUI launchers and fixture processes also ended. This records
+the observed route without inventing the owner's exact previous clicks.
+
+Decision: enable Comment only for the selected target's admitted editable
+draft or actionable recovery of its retained text, with its reason in the tooltip, menu and accessible description. This
+preserves existing authority and publication decisions. Activation rechecks
+the projection. The inline page hides empty workshop panels and recovery
+controls that cannot act, retaining rejected text and its explicit recovery.
+An accepted reapply or Reload clears the stale conflict sentence.
+
+The composed fixture course selects a current-head line, opens Comment,
+types a comment and observes its accepted local text with zero provider
+submissions, comments or replies. Renders cover 100/125/200. The negative
+control forces an unavailable Comment action enabled; activation still
+refuses to open the unusable page. Editor, conversation and existing Compose
+workshop courses pass. Full-window 100/125/200 courses pass after updating
+former always-enabled assumptions. A rendered inspection then caught native
+tool buttons remaining visible despite their hidden QAction; visibility now
+follows the action and the composed assertion checks the buttons themselves.
+The final control-specific rerun and exact candidate identity are recorded
+in the acceptance evidence. AC3 remains pending: the owner's no-publish
+writing judgment must use the open synthetic fixture, not closed UIforETW.
+
+Self-review added a retained-conflict route: Comment may reopen the exact
+target's usable Reload/Reapply recovery without enabling Publish. Its new
+check exposed hidden QAction enablement being used to decide visibility;
+both properties now follow the retained-candidate facts directly. The final
+editor/workshop/window/composed rerun passes 4/4, including actual button
+visibility, retained-conflict entry and zero mutation. Earlier scale passes
+remain in the evidence directory; no failing run is counted as acceptance.

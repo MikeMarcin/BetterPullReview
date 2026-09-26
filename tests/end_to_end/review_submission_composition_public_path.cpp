@@ -131,6 +131,28 @@ auto main(int argc, char** argv) -> int
 				files->setCurrentIndex(files->model()->index(0, 0));
 				wait([&] { return window.statistics().FileSelections > selections; }, "normal file selection dispatched");
 				expect(editor.shown_draft() == draft, "file navigation preserves the PR-scoped summary");
+				window.close_review_composition();
+				wait([&] { return window.comment_action()->isEnabled(); }, "current line has an admitted editable inline draft");
+				const auto beforeComment = access::review_mutation_evidence(*application);
+				window.comment_action()->trigger();
+				wait([&] { return window.review_editor()->body_editor()->isVisible() && !window.review_editor()->body_editor()->isReadOnly(); }, "Comment opens a usable editor");
+				auto* inlineDraft = window.review_editor();
+				inlineDraft->body_editor()->setPlainText(QStringLiteral("Fixture comment kept without publishing."));
+				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "Fixture comment kept without publishing." && !inlineDraft->rejected_candidate(); }, "typed comment is accepted locally");
+				expect(inlineDraft->workshop_original_editor()->isHidden() && inlineDraft->workshop_proposal_editor()->isHidden()
+						   && !inlineDraft->reload_draft_action()->isVisible() && !inlineDraft->reapply_draft_action()->isVisible()
+						   && inlineDraft->findChild<QToolButton*>(QStringLiteral("reviewDraftReloadButton"))->isHidden()
+						   && inlineDraft->findChild<QToolButton*>(QStringLiteral("reviewDraftReapplyButton"))->isHidden(),
+					   "usable inline page has no empty proposal panels or inactive conflict actions");
+				const auto afterComment = access::review_mutation_evidence(*application);
+				expect(afterComment.Submissions == beforeComment.Submissions && afterComment.StoredComments == beforeComment.StoredComments
+						   && afterComment.Replies == beforeComment.Replies,
+					   "writing through Comment performs zero provider mutation");
+				if (argc > 1) {
+					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-inline.png")), "usable inline render");
+				}
+				window.close_review_composition();
+				window.open_review_composition();
 			}
 
 			expect(access::reaccept_fixture_revision(*application, false), "metadata refresh accepted");

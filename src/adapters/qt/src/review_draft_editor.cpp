@@ -89,6 +89,8 @@ namespace bpr::qt {
 		for (auto* action : { Members.Revisioned.Reload, Members.Revisioned.Reapply }) {
 			auto* button = new QToolButton{ this };
 			button->setDefaultAction(action);
+			button->setObjectName(action->objectName() + QStringLiteral("Button"));
+			connect(action, &QAction::changed, button, [button, action] { button->setVisible(action->isVisible()); });
 			conflictActions->addWidget(button);
 		}
 		layout->addLayout(conflictActions);
@@ -103,6 +105,7 @@ namespace bpr::qt {
 			}
 			state.Candidate.reset();
 			state.Conflict = false;
+			Members.MutationStatus->clear();
 			render_draft(state.Accepted->Draft);
 		});
 		connect(Members.Revisioned.Reapply, &QAction::triggered, this, [this] {
@@ -548,6 +551,10 @@ namespace bpr::qt {
 		}
 		render_draft(aDraft);
 	}
+	void review_draft_editor::set_presentation_observer(std::function<void()> aObserver)
+	{
+		Members.PresentationObserver = std::move(aObserver);
+	}
 	void review_draft_editor::set_revisioned_dispatch(std::function<void(core::revisioned_review_draft_command)> aDispatch)
 	{
 		Members.Revisioned.Dispatch = std::move(aDispatch);
@@ -618,6 +625,7 @@ namespace bpr::qt {
 		state.Candidate.reset();
 		state.Conflict = false;
 		state.Accepted = aAccepted;
+		Members.MutationStatus->clear();
 		render_draft(aAccepted.Draft);
 	}
 
@@ -815,15 +823,22 @@ namespace bpr::qt {
 		// A publish button enabled because the user typed something would be
 		// the widget deciding legality the core owns.
 		const auto revisionReady = !Members.Revisioned.Dispatch || (Members.Revisioned.Selected && !Members.Revisioned.Conflict);
-		Members.Revisioned.Reload->setEnabled((Members.Revisioned.Selected || Members.Revisioned.Replacement.has_value()) && Members.Revisioned.Candidate.has_value());
-		Members.Revisioned.Reapply->setEnabled(Members.Revisioned.Selected && Members.Revisioned.Candidate.has_value());
-		Members.Revisioned.Reload->setVisible(Members.Revisioned.Dispatch != nullptr);
-		Members.Revisioned.Reapply->setVisible(Members.Revisioned.Dispatch != nullptr);
+		const auto reload        = (Members.Revisioned.Selected || Members.Revisioned.Replacement.has_value()) && Members.Revisioned.Candidate.has_value();
+		const auto reapply       = Members.Revisioned.Selected && Members.Revisioned.Candidate.has_value();
+		Members.Revisioned.Reload->setVisible(reload);
+		Members.Revisioned.Reapply->setVisible(reapply);
+		Members.Revisioned.Reload->setEnabled(reload);
+		Members.Revisioned.Reapply->setEnabled(reapply);
 		const auto drafting = revisionReady && Members.ShownDraft
 			&& Members.ShownDraft->State == core::review_draft_state::drafting;
 		Members.Publish->setEnabled(drafting);
 		Members.Discard->setEnabled(drafting);
 		Members.Body->setReadOnly(!drafting);
+		Members.Body->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
+		Members.TargetLabel->setVisible(!Members.TargetLabel->text().isEmpty());
+		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
+		Members.Publish->setToolTip(drafting ? tr("Publish this draft comment.") : unavailable);
+		Members.Discard->setToolTip(drafting ? tr("Discard this local draft.") : unavailable);
 
 		const auto receipt = Members.ShownReceipt.has_value();
 		Members.MarkRead->setEnabled(receipt);
@@ -861,5 +876,11 @@ namespace bpr::qt {
 			proposed && drafting
 			&& Members.ShownDraft->Id == Members.ShownProposal->Draft);
 		Members.RejectRevision->setEnabled(proposed);
+		Members.WorkshopOriginal->setVisible(proposed);
+		Members.WorkshopProposal->setVisible(proposed);
+		Members.WorkshopOperation->setVisible(proposed || Members.WorkshopAsked);
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver();
+		}
 	}
 } // namespace bpr::qt

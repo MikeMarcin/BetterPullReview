@@ -78,6 +78,22 @@ namespace {
 		};
 	}
 
+	void test_empty_panels_wait_for_draft_or_proposal()
+	{
+		intent_log log;
+		auto*      editor = editor_for(log);
+		editor->set_revisioned_dispatch([](auto) { });
+		expect(editor->body_editor()->isHidden() && editor->workshop_original_editor()->isHidden()
+				   && editor->workshop_proposal_editor()->isHidden() && !editor->reload_draft_action()->isVisible()
+				   && !editor->reapply_draft_action()->isVisible(),
+			   "no draft shows no empty panels or unusable revision controls");
+		editor->present(core::revisioned_review_draft{ a_draft("editable"), 1, core::review_draft_scope_id{ 1 } });
+		expect(!editor->body_editor()->isHidden() && editor->workshop_original_editor()->isHidden()
+				   && editor->workshop_proposal_editor()->isHidden(),
+			   "a draft shows its body without empty workshop panels");
+		delete editor;
+	}
+
 	void test_revision_conflicts_retain_exact_candidate()
 	{
 		intent_log                                         legacy;
@@ -118,7 +134,7 @@ namespace {
 		reapplied.Draft.Body = candidate;
 		editor->present(reapplied);
 		editor->acknowledge(commands.back(), reapplied);
-		expect(!editor->rejected_candidate(), "exact accepted reapply releases candidate");
+		expect(!editor->rejected_candidate() && editor->mutation_status_text().isEmpty() && !editor->reload_draft_action()->isVisible() && !editor->reapply_draft_action()->isVisible(), "exact accepted reapply releases candidate and stale conflict controls");
 		editor->body_editor()->setPlainText(QStringLiteral("same text conflict"));
 		auto matching       = reapplied;
 		matching.Revision   = 4;
@@ -1039,6 +1055,7 @@ namespace {
 					 draftDispatch,
 					 receiptDispatch,
 					 workshopDispatch,
+					 presentationObserver,
 					 body,
 					 targetLabel,
 					 replyTarget,
@@ -1059,6 +1076,7 @@ namespace {
 					 shownProposal,
 					 statistics, revisioned] = members;
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
+		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
 		static_assert(std::is_same_v<decltype(workshopAsked), const bool>);
@@ -1116,7 +1134,7 @@ namespace {
 				const qt::review_draft_editor_statistics>);
 
 		expect(
-			!applying && !draftDispatch && !receiptDispatch
+			!applying && !draftDispatch && !receiptDispatch && !presentationObserver
 				&& body == nullptr && targetLabel == nullptr
 				&& mutationStatus == nullptr && workshopOriginal == nullptr
 				&& workshopProposal == nullptr && publish == nullptr
@@ -1194,6 +1212,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
+	test_empty_panels_wait_for_draft_or_proposal();
 	test_revision_conflicts_retain_exact_candidate();
 
 	test_publishing_emits_an_intent_and_changes_nothing();

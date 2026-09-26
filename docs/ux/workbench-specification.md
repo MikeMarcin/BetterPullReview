@@ -68,7 +68,11 @@ its arrow opens on the review bar, which offers that plain comment alone; it is
 where RFC-BPR-0048's Conventional Comments labels will be offered, and no label
 is offered before then. Either way it opens the inline composition page on the
 line's draft or on the reply draft; nothing is published without the page's
-explicit Publish. Every thread card offers **Reply**, beside the code as in
+explicit Publish. [[BPR-1207]] requires an admitted editable draft, or an explicit recovery for its
+retained text, at the named current-head target before Comment opens. Otherwise the tooltip and
+menu state why it is unavailable. The inline page hides empty workshop panels
+and inactive revision-recovery controls; refused draft text stays available
+for explicit recovery. Every thread card offers **Reply**, beside the code as in
 Discuss, through the one Reply path: the card's thread becomes current, its
 line is selected (even when another line was), and the draft on that line
 answers it. No card offers a comment that would start a second thread on the

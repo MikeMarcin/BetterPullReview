@@ -171,6 +171,8 @@ namespace bpr::qt {
 		/// composition that owns the workshop host, so an editor nobody wired
 		/// asks for nothing rather than reaching for a host of its own.
 		comment_workshop_dispatch WorkshopDispatch;
+		/// Qt composition notification after accepted presentation changes.
+		std::function<void()> PresentationObserver;
 
 		QPlainTextEdit* Body           = nullptr;
 		QLabel*         TargetLabel    = nullptr;
@@ -240,6 +242,7 @@ namespace bpr::qt {
 		/// \brief Adopts one accepted draft projection.
 		void present(const core::review_comment_draft& aDraft);
 		void set_revisioned_dispatch(std::function<void(core::revisioned_review_draft_command)> aDispatch);
+		void set_presentation_observer(std::function<void()> aObserver);
 		void present(const core::revisioned_review_draft& aDraft);
 		void present_conflict(const core::revisioned_draft_outcome& aOutcome);
 		/// Acknowledges only the exact command the host accepted, including no-op edits.
