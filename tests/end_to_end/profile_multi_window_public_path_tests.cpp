@@ -45,6 +45,8 @@
 #include <QToolButton>
 #include <QTreeView>
 
+#include <sqlite3.h>
+
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -656,6 +658,41 @@ try {
 	expect(receiptComparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest
 			   && receiptComparisonC->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest,
 		   "receipt delivery retains both windows' selected PR identity");
+	{
+		// [[BPR-0972]]. A failed exact-material reload must retain the accepted
+		// actionability. Temporarily hide this fixture's table after the writer's
+		// public commit, before the queued sibling notification is delivered.
+		const auto retainedReceiptC   = windowC->review_editor()->shown_receipt();
+		const auto beforeFailedReload = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
+		sqlite3*   ledgerRaw          = nullptr;
+		expect(sqlite3_open_v2((root / "state/v1/review-ledger.sqlite3").string().c_str(), &ledgerRaw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "fixture opens its own receipt database for a bounded read fault");
+		const auto ledgerConnection = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>{ ledgerRaw, sqlite3_close };
+		// Preserve canonical schema SQL: renaming back adds quotes, which the
+		// adapter correctly refuses when a later PR opens a new ledger scope.
+		sqlite3_stmt* schemaRaw = nullptr;
+		expect(sqlite3_prepare_v2(ledgerRaw, "SELECT sql FROM sqlite_schema WHERE name = 'file_receipt'", -1, &schemaRaw, nullptr) == SQLITE_OK, "fixture reads its canonical receipt schema");
+		const auto schemaStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>{ schemaRaw, sqlite3_finalize };
+		expect(sqlite3_step(schemaRaw) == SQLITE_ROW, "receipt schema exists before the fault");
+		const auto receiptSchema = std::string{ reinterpret_cast<const char*>(sqlite3_column_text(schemaRaw, 0)) };
+		expect(sqlite3_step(schemaRaw) == SQLITE_DONE, "fixture finishes the schema read before its write");
+		action(*windowB, "toggleSelectedFileReadAction")->trigger();
+		expect(windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread, "writer commits before the sibling read fault");
+		expect(sqlite3_exec(ledgerRaw, "ALTER TABLE file_receipt RENAME TO fixture_hidden_receipt", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture hides only its own receipt table");
+		wait_for([&] { return app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.StoreFailures > beforeFailedReload.Ledger.StoreFailures; }, "queued sibling refresh observes the actual SQLite read failure");
+		const auto afterFailedReload = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
+		expect(windowC->review_editor()->shown_receipt() == retainedReceiptC
+				   && afterFailedReload.Workbench.TargetedActionabilityUpdates == beforeFailedReload.Workbench.TargetedActionabilityUpdates
+				   && afterFailedReload.Workbench.ActionabilityObservations == beforeFailedReload.Workbench.ActionabilityObservations,
+			   "failed exact-material reload preserves accepted receipt and withheld order");
+		const auto restoreReceipt = "BEGIN IMMEDIATE; " + receiptSchema + "; INSERT INTO file_receipt SELECT * FROM fixture_hidden_receipt; DROP TABLE fixture_hidden_receipt; COMMIT;";
+		expect(sqlite3_exec(ledgerRaw, restoreReceipt.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "fixture restores exact receipt schema and rows before retry");
+		action(*windowB, "toggleSelectedFileReadAction")->trigger();
+		wait_for([&] { return app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.Publications > afterFailedReload.Ledger.Publications; }, "next public commit successfully refreshes the sibling after recovery");
+		const auto afterRecoveredReload = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
+		expect(windowC->review_editor()->shown_receipt() == retainedReceiptC
+				   && afterRecoveredReload.Workbench.TargetedActionabilityUpdates == beforeFailedReload.Workbench.TargetedActionabilityUpdates,
+			   "equal accepted receipt after recovery keeps the already-withheld order");
+	}
 	windowB->modality()->action(qt::review_modality::discuss)->trigger();
 	windowC->modality()->action(qt::review_modality::discuss)->trigger();
 	windowB->conversation_panel()->scope_whole_pull_request_button()->click();

@@ -80,3 +80,31 @@ O(changed data) alone. [BPR-1211](../10-backlog/BPR-1211-move-review-ledger-read
 retains the named synchronous ledger I/O gap; no whole-architecture or no-I/O
 acceptance is implied. Windows/Linux native remain deferred; BPR-0967 owns
 optimized hardware latency/memory budgets.
+
+
+### Exact-material reload failure amendment
+
+The follow-on self-review identified a concrete failure path: a sibling's failed
+SQLite receipt reload was treated as absent comparison material, restoring a
+withheld row while retaining the old receipt cache. A later equal receipt could
+then leave that row visible. Selection itself already clears the receipt cache;
+that pending-selection route was not the defect. The correction makes the
+conservative restoration the `else` of exact-material admission, retaining the
+last accepted receipt/order when the exact reload fails. Authority, selected-file,
+generation, material and ownership guards are unchanged.
+
+The public sibling course temporarily renames only its own disposable SQLite
+receipt table after a public writer commit, before queued sibling delivery. The
+old production binary fails `failed exact-material reload preserves accepted
+receipt and withheld order` (74.74 seconds). It then restores the table and checks
+that the next equal accepted receipt leaves the correct order in place. No
+production fault-injection seam or account/store outside the fixture is used.
+The reviewed six-line composition change updates the full-source pin to
+`08bb28a3ed661125fbfd01222b530e3e463b833b818949e970470b6b67cd3b95`
+and manifest pin to
+`bb2924c4d4c05fb6e0b498ac15db1068c3d622fd76af5216ab1b6b7c7a23ff50`;
+the mutation branch pin remains unchanged. The repaired public course passes in 80.51 seconds, including the later PR
+replacement. The composition contract and strict application/test tidy pass. The
+fixture restores the captured canonical schema and rows transactionally; a simple
+rename-back was correctly refused on the later open because it rewrote SQL
+quoting. Final integration remains required.

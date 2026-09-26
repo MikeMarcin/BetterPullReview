@@ -277,5 +277,30 @@
   "schema": "bpr0972.negative-controls.v1",
   "platform": "macOS 26.6.2 arm64; Qt 6.11.2 offscreen; Debug dev",
   "method": "Each listed production-source mutation was compiled separately, the named public or host/Qt test was run through the network-isolated CTest registration and refused it, then exact source bytes were restored in finally. Original candidate must be rebuilt before positive acceptance.",
-  "positive_replay": "pending final dev integration"
+  "positive_replay": "pending final dev integration",
+  "regressions": [
+    {
+      "case": "exact_material_receipt_reload_failure",
+      "before_product_revision": "90e21d0c359aa1a8186635a93792a2852ac92d07",
+      "production_path": "src/app/src/github_application.cpp",
+      "test_path": "tests/end_to_end/profile_multi_window_public_path_tests.cpp",
+      "fault": "Rename this course's own SQLite receipt table after a public writer commit, before queued sibling notification. Restore exact canonical schema and rows before retry.",
+      "before_test_exit": 8,
+      "before_refusal": "FAILED: failed exact-material reload preserves accepted receipt and withheld order",
+      "before_elapsed_seconds": 74.74,
+      "repair": "Use the conservative restoration as the else of exact selected-material admission, preserving accepted order when an exact reload fails.",
+      "after_test_exit": 0,
+      "after_elapsed_seconds": 80.51,
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_profile_multi_window_public_path$"
+      ],
+      "production_sha256": "08bb28a3ed661125fbfd01222b530e3e463b833b818949e970470b6b67cd3b95",
+      "scope": "Real public sibling composition and SQLite store; no production fault-injection seam."
+    }
+  ]
 }

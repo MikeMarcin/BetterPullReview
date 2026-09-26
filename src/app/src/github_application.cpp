@@ -9494,10 +9494,10 @@ namespace bpr::app {
 				&& WorkbenchHost->selected() == std::optional{ SelectedDiffPublication->Request.File.File }
 				&& ReviewLedgerHost->retained().File == SelectedDiffPublication->Request.File.File
 				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
+				// A failed reload retains the last accepted receipt and order. It
+				// does not mean that the selected comparison material is absent.
 				overviewPublished = ReviewLedgerHost->refresh_receipt().has_value();
-			}
-			if (aChanges.Receipts && !own && !overviewPublished && WorkbenchHost && ReviewLedgerAuthority) {
-				// The selected exact receipt already published its delta above.
+			} else if (aChanges.Receipts && !own && WorkbenchHost && ReviewLedgerAuthority) {
 				// Without exact material every retained file is conservative again;
 				// restoring withheld rows needs no new catalogue observation.
 				WorkbenchHost->retain_actionability(*ReviewLedgerAuthority, ReviewLedgerHost->retained().File, true);
