@@ -1,0 +1,301 @@
+{
+  "schema": "bpr0967.full-mac-handoff.v1",
+  "assignment": "/root/bpr0967_full_mac",
+  "milestone": "mac-full-remaining",
+  "mandate_revision": "r4-standalone-mac-20260925-full-remaining-release",
+  "status": "assigned eligible Mac work complete through explicit measured limitations; whole card pending",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "baseline": "964e9e5d662ce67d9b9a67e60fe2580c0f1550f8",
+  "source_candidate": "5a26d6b1b33a90d05072e953479561859d7ac7b3",
+  "integration_candidate_note": "Final bookkeeping commit contains only documentation, card return and checkpoint records. Source candidate above is the exact committed product/test input.",
+  "source_inputs": {
+    "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp": "5155364965dce63c22a98a4905ab096b8da73d8656519bc10a90727108c2ffeb",
+    "src/adapters/qt/src/conversation_cards_view.cpp": "4e4e8ae2ac80f388d9c83c4b035edbe7ebe278355f67103a34bb693a235884ea",
+    "tests/adapters_qt/conversation_cards_view_tests.cpp": "c28f93c6ef4bd89aeec76d228aef406a7cb6e264f77c70b33fe3200e116f41c6",
+    "tests/end_to_end/CMakeLists.txt": "97b5525071a554878fb9075adfcaf13bcfc5a25d391cad78a0ff08bdab638117",
+    "tests/end_to_end/large_review_benchmark.cpp": "b7809d405145fb45fca598058a1006bc28f225f1513269bfaa3687486d0780fb",
+    "tests/end_to_end/large_review_observers.hpp": "4a7277137d6121169653f78821c1e793abc5e88691d5fd3a51d024f6b22e0118",
+    "tests/end_to_end/large_review_launch.py": "0adba2a29d69957ac16885734d065d3dde7c1bc9d35c77dfcc4cdde6cbad7fa6"
+  },
+  "performance_policy": "User requires optimized Release. All Debug observations remain diagnostic/correctness history only; no Debug budget justification.",
+  "release_configuration": {
+    "directory": "build/bpr0967-release",
+    "preset_base": "dev",
+    "CMAKE_BUILD_TYPE": "Release",
+    "flags": "-O3 -DNDEBUG -arch arm64 -mmacosx-version-min=13.0; QT_NO_DEBUG",
+    "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
+    "CMAKE_OSX_ARCHITECTURES": "arm64",
+    "BPR_DEPENDENCY_OFFLINE": true,
+    "BUILD_TESTING": true,
+    "BPR_DISTRIBUTION_BUILD": false,
+    "production_relation": "same optimization and deployment as native arm64 slice of macos-release; fixture composition, not universal packaged executable",
+    "compiler": "Apple clang 21.0.0 clang-2100.1.1.101",
+    "Qt": "6.11.2",
+    "station": "Apple M4 Pro 48 GiB, 14 logical processors, macOS 26.6.2 25G83",
+    "rendering": "offscreen Fusion 1600x1000 DPR1; no cold cache reset"
+  },
+  "verification": {
+    "serial_integration": "25/26 in 907.75s; only manifest failed because fresh tree smart-transport prerequisite unbuilt. Exact prerequisite built; manifest passes subsequently. All 26 selected rows have passing observations.",
+    "manifest_and_public_supported": "2/2 in 18.59s",
+    "final_ordinary_release": "7/7 in 89.32s after profiler mode added and negative fixture source restored. Timing/heap control, responsiveness, launch, active-work, pathological, provider-cancel, loaded-close.",
+    "reuse": "Long resource/cache/history and owning Qt/architecture rows from serial integration use identical product and ordinary course behavior; subsequent harness change is explicit profile-only branch.",
+    "public_refusal": "large-review-v1 exits1 PUBLIC_PATH_FAILED; no image. Supported github-com exits0.",
+    "launch_controls": "6/6 valid/missing/reversed/failed-child/late-main/late-home",
+    "pathological_control": "Raised fixture line limit4096->16384; exact semantic refusal assertion fails. Driver expected a later assertion and failed; child semantic failure recorded, exact original source SHA restored in finally, rebuilt, final ordinary pathology passes.",
+    "tidy": "Product conversation_cards_view.cpp passes clang-tidy warnings-as-errors",
+    "format": "5 changed C++ paths pass clang-format --dry-run --Werror",
+    "documentation": "DOCUMENTATION_OK;64 script tests pass",
+    "board": "valid=true;1186 cards",
+    "self_review": "Cache key completeness and layout-local lifetime; sampler join/data lifetime; real stop-token and close relay endpoints; exact line/blob/anchor recovery; profile isolation. No product effect hook, threshold relaxation or source/cache policy change."
+  },
+  "allocation_profile": {
+    "calibration": "freed touched32MiB recovered with NoCompact; MallocStackLogging unset; no-content fullStackHistory native capture",
+    "course": "explicit --allocation-profile runs real loaded-close, preserves all semantic/cache/lifecycle assertions, excludes instrumented budgets and prints no acceptance marker",
+    "result": "ShutdownComplete and exact source/retained Git/catalog/owner release pass. Native scan21634453 records; joint high-water at21403349 prints116.8MB allocated heap+anonymousVM. Conservative captured malloc upper bound, not heap-only equality.",
+    "stack_group_sum_bytes": 122999200,
+    "accounting_note": "Rounded native summary and stack-group sum are retained separately, not equated or called an exact heap peak.",
+    "timings_and_footprint": "excluded from acceptance",
+    "temporary_copy_removed": true,
+    "original_executable_unchanged_at_capture": true,
+    "final_executable_matches_profile_source": true,
+    "further_variants": "none after coordinator-authorized bounded final attempt"
+  },
+  "required_pending": [
+    "Windows and Linux measurements explicitly deferred; whole-card AC3 remains pending.",
+    "Packaged/native process launch, compositor presentation and physical input latency are not observed by safe offscreen fixture composition. The shipped app refuses the large-review fixture; its supported control passes.",
+    "Live-heap sampler peaks are lower bounds. One calibrated noncompacting loaded-close capture supplies a joint heap/anonymous-VM upper bound, not exact heap-only peak or an uninstrumented guarantee; full cache/maintenance allocation histories remain unmeasured.",
+    "Generated 8192-line exact source and reduced-limit materialization fallback pass. Production-default 200000-line and extreme-long-line pathological workloads remain unmeasured.",
+    "Continuous held-provider waiting work and its stop/exit are measured; other active Git, persistence, syntax, agent and continuous CPU work are not.",
+    "MASK readiness inherited incomplete/state.drift, host_load not_verified. No human/native-style/independent/package/release acceptance inferred."
+  ],
+  "card_lane": "10-backlog",
+  "whole_card_acceptance": "pending",
+  "evidence_refs": [
+    "docs/verification/BPR-0967-mac-full-remaining-2026-09-25.md"
+  ],
+  "artifact_identities": {
+    "build/bpr0967-release/tests/end_to_end/large-review-cache-entries.json": {
+      "sha256": "e9e1d6ae0c9fce45b25de5e9a067e34f23667223f66ad7163874ac55dccb4324",
+      "bytes": 29191
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-resources.json": {
+      "sha256": "356a50d44f3ff9abc1fa7b02705c35ee37148c03f250fe3b372b1767ff831844",
+      "bytes": 10056
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-provider-cancel.json": {
+      "sha256": "f2e6f01f1c60590f9bc95ae89cf63bded5254482b5a48e0723568129e6eead5d",
+      "bytes": 14063
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-launch-course.json": {
+      "sha256": "32d1cc27178239bc2b7e93e1882105bcf2121929e1793750ceaaebc1e908f831",
+      "bytes": 12625
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-active-work.json": {
+      "sha256": "abb4af7cabbae24bf37c4d5855b11b4e4e0686178776c8a329a45dafeb16ef0d",
+      "bytes": 16061
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-launch.json": {
+      "sha256": "3908adcc37c364667ee5957a8761e9f1344bad08143712227719c39e31479f73",
+      "bytes": 685
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-pathological.json": {
+      "sha256": "b41d2983e67465cf22c11107f58792dbee9087181881bf4e32890caf0ea76c0c",
+      "bytes": 7719
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-measurement.json": {
+      "sha256": "cfeb97e599e265f67ee918c63e5588c8f4bdbd3efff037086d1d3819c1181dbc",
+      "bytes": 7247
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-loaded-close.json": {
+      "sha256": "ac6074643a96787b36c12fc4ab454cf12997ae7f5cc0714b9a0fbfae7e0749ce",
+      "bytes": 9224
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-responsiveness.json": {
+      "sha256": "dfdaa535bd12f10c9ccb9d251726e1cf5cb5ab9f30da198e51d4400aaeb691d5",
+      "bytes": 12632
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-cache-bytes.json": {
+      "sha256": "8b54bfaa8afb00ed15e447104e7f19524d5a2c9f37aba7a2cfac43fa9d4c4b7d",
+      "bytes": 31305
+    },
+    "build/bpr0967-release/tests/end_to_end/large-review-history.json": {
+      "sha256": "7745e091a8ff01f8db3f1e7a9619c59d48d33e22a628c2d7379529a2f62be60a",
+      "bytes": 25993
+    },
+    "build/bpr0967-full-mac/release-integration.log": {
+      "sha256": "52134c9b5327641c2de0042bf5ee90404033d6a79965b3e206f40f6da68201e5",
+      "bytes": 4301
+    },
+    "build/bpr0967-full-mac/release-public-tests.log": {
+      "sha256": "c41e54f6c5992db01b011abac2b6e5014962269bee79eafa46b86f964391f7d6",
+      "bytes": 489
+    },
+    "build/bpr0967-full-mac/release-final-focused.log": {
+      "sha256": "0a3f811058c8d0a9dba8a21d5881641ae6683fc5e675a70c89ee6909a032a269",
+      "bytes": 1159
+    },
+    "build/bpr0967-full-mac/release-large-refusal.log": {
+      "sha256": "d9f1b195d488ab684270c5a59567f289a3c7b1e8f2f98b0dc55952d4c713ff7d",
+      "bytes": 76
+    },
+    "build/bpr0967-full-mac/launch-controls.log": {
+      "sha256": "ddaec1b3ea01f33f97af4a5fb4b70e9becadb62c346e9c3947a45c2ccf8f357a",
+      "bytes": 46
+    },
+    "build/bpr0967-full-mac/launch-control-results.json": {
+      "sha256": "d8b51ac734f1b8a3205be87ef80616289049420aa0f8fe3421da8ace3600c968",
+      "bytes": 3702
+    },
+    "build/bpr0967-full-mac/pathological-negative.log": {
+      "sha256": "c6aebbe5b71355d30c783f72b2e3c47d07e2a361e29c1b970bfbe46007b9f466",
+      "bytes": 7863
+    },
+    "build/bpr0967-full-mac/pathological-control-result.json": {
+      "sha256": "d6e03a9e9acaa753eab13e4a0c40471b4c716a08bb82690da13e899544682bd1",
+      "bytes": 428
+    },
+    "build/bpr0967-full-mac/tidy.log": {
+      "sha256": "265e897ef37cf8ccd8a64bcb3541b60b516b0fbbda7afd6bda24268b1778f1ca",
+      "bytes": 844
+    },
+    "build/bpr0967-full-mac/documentation-final.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "bytes": 17
+    },
+    "build/bpr0967-full-mac/documentation-tests-final.log": {
+      "sha256": "1ca9adcde18a8ab211cf31ef20117ac333c3da72cbbf14deacc76e1ffbf73d10",
+      "bytes": 3793
+    },
+    "build/bpr0967-full-mac/board-final.json": {
+      "sha256": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24",
+      "bytes": 84
+    },
+    "build/bpr0967-full-mac/allocation-profile.json": {
+      "sha256": "cd3ee2eca496096dbd8d6c3ffb9e280bb4d9c48b46b759291d988e7d8b409e1d",
+      "bytes": 9306
+    },
+    "build/bpr0967-full-mac/allocation-profile-receipt.json": {
+      "sha256": "8bb66ff6b3e5d80907d6d075d9da872de33b04b134e22e46b784baffb9f5da06",
+      "bytes": 967
+    },
+    "build/bpr0967-full-mac/allocation-capture.log": {
+      "sha256": "d48395f3808d9e6098c4f20d69a0a3626d6f5d48cc99a338e153f73f518d288f",
+      "bytes": 410
+    },
+    "build/bpr0967-full-mac/allocation-profile.memgraph": {
+      "sha256": "051ee3a587f2c70fd580130f9067fa53a1eb42868f8ce911293b4048326a9722",
+      "bytes": 705241760
+    },
+    "build/bpr0967-full-mac/allocation-profile-highwater.txt": {
+      "sha256": "79546319fc970d764c3acfa0b3fbd10b015645f113d206993667fc98ea19b7df",
+      "bytes": 302791415
+    },
+    "build/bpr0967-full-mac/allocation-peak-summary.json": {
+      "sha256": "3783bcb078be5961e55f22f00a1b8d824ec679dcfed4bc57cebc979855b2d55c",
+      "bytes": 558
+    },
+    "build/bpr0967-full-mac/no-compact-control.memgraph": {
+      "sha256": "dc756ad1ba1e9a719123951f1e3bbe01217d3c42a878cf111a310c215ff1f29f",
+      "bytes": 441440
+    },
+    "build/bpr0967-full-mac/no-compact-control-highwater.txt": {
+      "sha256": "e68e2b955bcc0448955f619dd237a18eac370fe0691393672c43855954a861b4",
+      "bytes": 8127
+    },
+    "build/bpr0967-full-mac/no-compact-control-result.json": {
+      "sha256": "882cb77b61fc30f954fe28d5a1bf67cb72682270173d7d398130f95b758a8692",
+      "bytes": 259
+    },
+    "build/bpr0967-full-mac/no-compact-control.log": {
+      "sha256": "316c964cd15495fb5c0439fc921f129f445bc1179b388400321e65635c0f0640",
+      "bytes": 302
+    },
+    "build/bpr0967-full-mac/full-stack-loaded-close-driver.log": {
+      "sha256": "ede43d29468db167d24fc78970bc4dcca5544e1ae8fa6d4c5935cfcd5ccbdc2c",
+      "bytes": 11542
+    },
+    "build/bpr0967-full-mac/full-stack-control-driver.log": {
+      "sha256": "042de6ae417673d81e160b40cbff8df67de37619a2acd660e348e879badd40a7",
+      "bytes": 315
+    },
+    "build/bpr0967-full-mac/full-stack-direct-control-driver.log": {
+      "sha256": "1b06c2a9f14b9ddf2f732d1ad15e1ebbe70ef0ee9b4c96555516971bad7c60f3",
+      "bytes": 1481
+    },
+    "build/bpr0967-full-mac/full-stack-direct-yes-driver.log": {
+      "sha256": "306694e3f80490407a07c004993aea1c2acb938a693cf1eb95316f4c95f6c7fe",
+      "bytes": 1481
+    },
+    "build/bpr0967-full-mac/full-stack-full-control-driver.log": {
+      "sha256": "67142a0e01f4b9d1c9a121225f6d80390ef83c38d97e7ab1fc133eca840d909e",
+      "bytes": 2027
+    },
+    "build/bpr0967-full-mac/release-allocations-statistics.xml": {
+      "sha256": "fa30931297ed7963b354e6c053ab1105cfec3b4e27d9356494cebcf4f03a9e64",
+      "bytes": 174219
+    },
+    "build/bpr0967-full-mac/release-allocations-list.xml": {
+      "sha256": "724ffe513b726b4fe623d4f6ea1575c50f70db6bf221dccd5f5cdd7939e6fed0",
+      "bytes": 9928771
+    },
+    "build/bpr0967-full-mac/release-allocations-toc.xml": {
+      "sha256": "416dbf1ea9908b614cec8013e5926a485aa5dd53bc95a9d73169aaca30e4f2eb",
+      "bytes": 5746
+    },
+    "build/bpr0967-full-mac/release-allocations-probe.log": {
+      "sha256": "19aaa5d6e76d2eef3be72251b855cd1395cc1496f2ce03ca5020608ea091644b",
+      "bytes": 456
+    },
+    "build/bpr0967-full-mac/allocation-capture.py": {
+      "sha256": "1b0ff163e3c022b1582a1be8ea983f8357cc75f654b14cbbba9b3eccc06c6151",
+      "bytes": 2800
+    },
+    "build/bpr0967-full-mac/no-compact-control.py": {
+      "sha256": "198c9cb028f1a6fa5d7acc2d6a22c716f0f6a4b4f212ed5c6cb78bab19409ca0",
+      "bytes": 1683
+    },
+    "build/bpr0967-full-mac/pathological-control.py": {
+      "sha256": "38613d64a522559ff3f55a43f1b4c89cc178ad8858a5c5bfe84c5bd9870520cd",
+      "bytes": 1761
+    },
+    "build/bpr0967-full-mac/launch-controls.py": {
+      "sha256": "285f6a9d10b423a3b8cfa8fb0a9e49a89552551cf8fefb8d4df01954071cd26c",
+      "bytes": 1484
+    },
+    "build/bpr0967-full-mac/worktrees-before.txt": {
+      "sha256": "ea0a9810eca28b4c8a7adb4337d184a98f7beb8c9ede3f719b532aacedf015e0",
+      "bytes": 3987
+    },
+    "build/bpr0967-full-mac/worktrees-after.txt": {
+      "sha256": "3e39831eee62276dca22a334a8c3fa077f168613681cd7c12b9facda4d7e9266",
+      "bytes": 3987
+    },
+    "build/bpr0967-release/tests/end_to_end/better_pull_review_large_review": {
+      "sha256": "c81fa6bc156f85f4c6c7b1a61c4a53cb71801a5803d7dc832bc8609f76d2d671",
+      "bytes": 20798592
+    }
+  },
+  "commands": {
+    "configure": "cmake --preset dev -B build/bpr0967-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DBPR_DEPENDENCY_OFFLINE=ON",
+    "build": "cmake --build build/bpr0967-release --target bench_better_pull_review_large_review; exact Qt owning/composed test targets; smart-transport manifest prerequisite; app_better_pull_review",
+    "integration": "caffeinate -i -s ctest --test-dir build/bpr0967-release -R '^(architecture_boundaries|test_network_isolation_manifest|qt_conversation_cards_view|qt_github_conversation_panel|qt_pull_request_overview_page|qt_composed_github_scale_(100|125|200)|qt_diff_workbench_scale_(100|125|200)|application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path)$' --output-on-failure",
+    "final_focused": "ctest --test-dir build/bpr0967-release -R ^application_large_review_(timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close)$ --output-on-failure",
+    "documentation": [
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py"
+    ],
+    "profile": "network-denied task-owned allocation-capture.py; installed leaks --noContent --fullStackHistory live PID then malloc_history memgraph -highWaterMark -allBySize"
+  },
+  "ownership": {
+    "exclusive_writer": "same implementer across all constituent work; no delegation",
+    "background_commands": "all completed/collected; no task-owned benchmark/compiler/profiler/server/GUI remains",
+    "review": "No new attended session/server. Existing RFC0052 candidate/session/waiter untouched. Historical PID3352 absent at final check; no liveness inferred and no stop action taken.",
+    "other_worktrees": "23 identities unchanged from worktrees-before.txt; no writes outside assigned main",
+    "temporary_work": "owner-private fixture/profile directories removed by own scopes; ignored build reports/traces retained for audit; task-owned Instruments viewer closed without saved view changes",
+    "release": "writer released with final handoff report after intentional bookkeeping commit; coordinator owns subsequent push",
+    "remote_actions": "none; no push, live account, remote mutation, release, or new review"
+  },
+  "continuation": "Coordinator may push the committed source and upkeep. Resume remaining card only with eligible platform/native endpoint or expanded workload/operation evidence mandate; preserve exact limits and optimized methodology."
+}

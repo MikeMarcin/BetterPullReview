@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -270,3 +270,34 @@ Windows/Linux measurements remain open. No new human/native-style/independent
 or release acceptance is supplied. RFC0052's protected review is untouched.
 The [active-work handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-active-work.json)
 returns the candidate and exact remaining obligations. BPR-0967 remains unfinished.
+
+## Full remaining Mac continuation and optimized acceptance — 2026-09-25
+
+Source `5a26d6b1b33a90d05072e953479561859d7ac7b3` completes the one-owner remaining Mac assignment through
+its recorded limitations. The user requires optimized measurements: all earlier
+Debug timing and resource observations are diagnostic/correctness history only,
+not current performance acceptance or budget justification. Release uses the
+production arm64 optimization/deployment policy with safe fixture composition.
+
+Compact conversation geometry reuse repairs the remaining measured load miss;
+the unchanged 100 ms gate now passes. Process-entry/Qt, provisional/accepted
+metadata, widget render, generated exact source, materialization fallback and
+recovery, held-provider input/stop/exit, diff supersession, all four resource
+courses and retained history have optimized evidence. Existing source/cache/
+cleanup limits remain unchanged; new local bounds and their measured headroom
+are in the [full Mac report](../../verification/BPR-0967-mac-full-remaining-2026-09-25.md).
+Independent live-heap sampling records its missed-interval limitation. A calibrated
+noncompacting native loaded-close capture bounds heap with a joint heap/anonymous-VM
+high-water observation; it supplies no uninstrumented timing/footprint acceptance.
+
+AC3 remains partial: Windows/Linux are expressly deferred; packaged/native
+launch, compositor and physical-input endpoints, full production-limit
+pathological/long-line workloads, other active-operation stages, and complete
+heap-only peaks beyond the captured loaded-close bound are unmeasured. No new
+human/native-style/independent or release acceptance is inferred. These concrete
+limits supersede earlier suggestions to allocate another implementer per subpart.
+The same implementer completed all independently eligible work through this
+handoff, with no delegation or intermediate owner turnover. The protected
+RFC0052 session is untouched. BPR-0967 returns to Backlog, with the
+[full durable handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-full-mac.json)
+preserving commands, candidates, controls, artifact identities and next actions.

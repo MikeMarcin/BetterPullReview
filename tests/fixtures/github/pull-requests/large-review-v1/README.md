@@ -182,3 +182,36 @@ metadata/Git load. The [active-work evidence](../../../../../docs/verification/B
 keeps each timing boundary, exact candidate, negative controls and unobserved
 work categories distinct. It supplies no OS input, compositor, native-style,
 all-background-work, Windows/Linux or full-card acceptance.
+
+## Optimized Mac continuation — BPR-0967
+
+Performance acceptance now requires Release optimization; prior Debug timings
+and memory samples are diagnostic only. The [full Mac evidence](../../../../../docs/verification/BPR-0967-mac-full-remaining-2026-09-25.md)
+records the production-matching arm64 compiler/deployment settings and the
+fixture-versus-distribution limitation. `application_large_review_launch`
+observes process creation through flushed main/Home-render markers, while the
+responsiveness course separately captures provisional and accepted metadata
+and checks exact generated source. All observed responsiveness phase gaps,
+including initial load, must meet the unchanged 100 ms target.
+
+`application_large_review_provider_cancel` continuously holds the fixture
+provider through twenty queued inputs and observes the real host stop token,
+provider exit and public-close drain. `application_large_review_pathological`
+lowers the fixture materialization limit, verifies the exact unavailable reason
+and blob identities, then recovers binary and exact supported source. This is
+a reduced-limit refusal control, not a production-limit huge-file measurement.
+
+The four resource courses also report an independent all-zone sampled live-heap
+peak, largest sampling interval and cost. Its ceiling is 160 MiB growth, or
+184 MiB for byte pressure. These sampled observations cannot exclude unsampled
+heap spikes; the separate native lifetime-peak counter bounds physical footprint.
+Native compositor, packaged launch, additional active-operation stages and
+Windows/Linux acceptance remain explicit pending obligations.
+
+The explicitly selected `--allocation-profile` diagnostic reuses loaded-close,
+preserves source/cache/lifecycle assertions, marks `Extended.AllocationProfile`,
+and emits only `LARGE_REVIEW_ALLOCATION_CAPTURE_READY` after destruction. It
+allows ten seconds for a no-content external heap-history capture. Instrumented
+allocation/footprint/cleanup measurements bypass their acceptance ceilings in
+this mode; ordinary CTest courses cannot select it and retain every ceiling.
+Its timing and physical footprint are excluded from performance acceptance.
