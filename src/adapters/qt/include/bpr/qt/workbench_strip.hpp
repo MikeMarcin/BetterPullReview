@@ -4,6 +4,7 @@
 #include <QFrame>
 #include <QIcon>
 #include <QPalette>
+#include <QPointer>
 #include <QProxyStyle>
 #include <QToolBar>
 #include <QWidget>
@@ -21,6 +22,7 @@ class QAction;
 class QActionEvent;
 class QMouseEvent;
 class QPaintEvent;
+class QPainter;
 class QToolButton;
 
 namespace bpr::qt {
@@ -140,6 +142,8 @@ namespace bpr::qt {
 		/// \brief Gives a button the strip's style and focus policy.
 		void               adopt_button(QToolButton* aButton);
 		[[nodiscard]] auto button_style() const noexcept -> strip_style*;
+		/// \brief Joins each navigation label to its arrow pair with a palette-derived rail.
+		void set_navigation_rails(QAction* aFileLabel, QAction* aFileLast, QAction* aChangeLabel, QAction* aChangeLast);
 		/// \brief Whether a point in the strip is bare surface, no control.
 		///
 		/// \details The spacers, the inset, the dividers and the labels are the
@@ -160,9 +164,11 @@ namespace bpr::qt {
 
 	private:
 		[[nodiscard]] auto over_empty_space(const QMouseEvent& aEvent) const -> bool;
+		void               paint_navigation_rails(QPainter& aPainter) const;
 
-		strip_style* Style = nullptr;
-		strip_role   Role  = strip_role::title_row;
+		strip_style*                     Style = nullptr;
+		strip_role                       Role  = strip_role::title_row;
+		std::array<QPointer<QAction>, 4> NavigationRails;
 		/// \brief Where inside the window frame the drag took hold, while held.
 		std::optional<QPoint> DragHold;
 	};

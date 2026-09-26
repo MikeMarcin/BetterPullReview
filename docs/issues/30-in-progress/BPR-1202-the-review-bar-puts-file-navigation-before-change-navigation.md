@@ -30,8 +30,8 @@ RFC-BPR-0052 AC-03 is amended to that order.
 ## Outcome
 
 From its left the review bar reads: the Updates disclosure with the comparison
-and its dates; previous and next file with the position; previous and next
-change with the position; private progress. Compose review and Comment stay at
+and its dates; File and its position before the file arrows; Changes and its
+position before the change arrows; private progress. Compose review and Comment stay at
 its right. Keys and tooltips are unchanged.
 
 ## Acceptance
@@ -95,3 +95,40 @@ fingerprints are retained in the card metadata.
   > Your screenshot doesn't show changes label for some reason.
   > I think the file and changes arrow buttons should come after the labels.
   > I think there should be something like perhaps a horizontal colored rail or something to signal the relationship of label to controls more strongly.
+
+## Correction decision — hand-back 49
+
+Keep File and Changes visible before their arrows at every width and in an
+unavailable comparison. A two-pixel palette-derived accent rail runs beneath
+each named group, joining the label to both arrows. Rationale: the position
+states which thing moves; the continuous rail makes the control association
+visible without adding another row or taking room from the comparison. The
+groups retain their existing command, shortcut and focus identities.
+
+The source review from integrated baseline `eb14f40e` finds only the test-build
+14-action capture assertion changed in `github_application.cpp`. The production
+mutation/admission branch is unchanged. Qt owns label wording, order and paint;
+no source, sprite asset, provider, storage or authority policy changes.
+
+At the width floor with a doubled system font, retaining both names exposed
+an overflow. The final compact form keeps File and Changes while placing
+their ordinal numbers in the full existing tooltips. This is the last yield,
+after dates and connective words, and keeps every action top level.
+
+Correction verification: all 9 focused checks pass in 160.94 seconds: window
+and focus at 100/125/200, the shortest synthetic public path, the four-appearance
+UIforETW composed capture, and the review composition pin contract. The original
+run's three doubled-font overflow failures led to the compact correction above.
+The final run occurred after rebuilding that correction. Pixel assertions and
+inspected renders show each rail under its named group; a labels-after-controls
+negative control fails. Documentation passes after reconciling the parent's
+canonical AC-03 wording. The first smoke selector matched no tests and was
+replaced by the registered public-path name; it supplied no evidence.
+
+Reviewed full application digest:
+`e496dd1ca8e476d887b464642f7799d9bf13215fcffc3fbda5cc664909ce3856`;
+production manifest:
+`e1f84da2b4fd484736cf85524fabdc304f58e2ab0e438b336dbf217925dbce30`;
+mutation digest remains
+`a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+AC3 remains a new pending owner judgment; the original rejection is retained.

@@ -20163,12 +20163,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
 			&& widgetActionNamed(reviewBarActions, 3, "reviewBarComparisonDividerAction")
-			&& reviewBarActions[4] == previousFile
-			&& reviewBarActions[5] == nextFile
-			&& widgetActionNamed(reviewBarActions, 6, "workbenchStripFilePositionAction")
-			&& reviewBarActions[7] == previousChange
-			&& reviewBarActions[8] == nextChange
-			&& widgetActionNamed(reviewBarActions, 9, "workbenchStripChangePositionAction")
+			&& widgetActionNamed(reviewBarActions, 4, "workbenchStripFilePositionAction")
+			&& reviewBarActions[5] == previousFile
+			&& reviewBarActions[6] == nextFile
+			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
+			&& reviewBarActions[8] == previousChange
+			&& reviewBarActions[9] == nextChange
 			&& reviewBar->widgetForAction(reviewBarActions[10]) == reviewControls
 			&& widgetActionNamed(reviewBarActions, 11, "reviewBarSpacerAction")
 			&& reviewBarActions[12] == window->compose_review_action()

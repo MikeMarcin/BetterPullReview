@@ -1369,7 +1369,8 @@ namespace bpr::qt {
 		QLabel*                                              OlderPairText     = nullptr;
 		QPushButton*                                         ShowLaterThreads  = nullptr;
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
-		bool ReviewBarCompact = false;
+		bool ReviewBarCompact        = false;
+		bool ReviewBarPositionsShown = true;
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;

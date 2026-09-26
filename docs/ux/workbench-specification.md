@@ -32,7 +32,7 @@ authored and directly requested pull requests of the saved repositories
 
 ```text
 ┌ Title row: Home | Repositories | Files | name ········ Overview Read Review Discuss | Refresh | Comments (n) | Account | Settings ┐
-├ Review bar: ▸ Updates  Comparing …, dates ▾ | « » file 3 of 40 | ‹ › change 3 of 11 | progress ▾ ········ Compose review | Comment ┤
+├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Notes      │
@@ -51,13 +51,16 @@ comments toggle (which carries the count of threads with new comments),
 account and settings; on Windows the application menu and the caption buttons.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
-dates, previous and next file with the position, previous and next change with
-the position, and private progress as an icon whose tooltip names the file's
+dates, File and its position before the file arrows, Changes and its position
+before the change arrows, and private progress as an icon whose tooltip names the file's
 state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
-Pull Request menu, and Esc returns from either composition page.
+Pull Request menu, and Esc returns from either composition page. Each navigation
+label and its pair share a horizontal accent rail. File and Changes stay named
+at every width and when their position is unavailable; narrow layouts shorten
+only the position wording.
 
 **Comment and Reply** ([[BPR-1133]]). Comment answers the selected review
 thread when there is one (the thread the reviewer chose, or the thread on the
@@ -1023,3 +1026,7 @@ unsupported-capability, unavailable-revision, binary, oversized,
 authorization-required cache, and retry states. Cached private content never
 opens for an unauthenticated or different account. No spinner may conceal a
 permanent error.
+
+Owner hand-back 49 amends the review bar's last width yield: when compact
+positions still cannot fit, their numbers yield into the tooltips. File and
+Changes remain before their arrows, joined by a separate accent rail.

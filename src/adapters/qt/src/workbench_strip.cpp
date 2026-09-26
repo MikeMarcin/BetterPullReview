@@ -539,6 +539,26 @@ namespace bpr::qt {
 		return Style;
 	}
 
+	void workbench_strip::set_navigation_rails(QAction* const aFileLabel, QAction* const aFileLast, QAction* const aChangeLabel, QAction* const aChangeLast)
+	{
+		NavigationRails = { aFileLabel, aFileLast, aChangeLabel, aChangeLast };
+		update();
+	}
+
+	void workbench_strip::paint_navigation_rails(QPainter& aPainter) const
+	{
+		for (const auto index : { 0U, 2U }) {
+			if (NavigationRails[index] == nullptr || NavigationRails[index + 1U] == nullptr) {
+				continue;
+			}
+			const auto first = actionGeometry(NavigationRails[index]);
+			const auto last  = actionGeometry(NavigationRails[index + 1U]);
+			if (!first.isEmpty() && !last.isEmpty() && first.left() < last.right()) {
+				aPainter.fillRect(QRect{ first.left() + 2, height() - 3, last.right() - first.left() - 3, 2 }, palette().color(QPalette::Active, QPalette::Highlight));
+			}
+		}
+	}
+
 	void workbench_strip::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
@@ -546,6 +566,7 @@ namespace bpr::qt {
 		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
 		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
 		painter.drawLine(0, height() - 1, width(), height() - 1);
+		paint_navigation_rails(painter);
 	}
 
 	void workbench_strip::actionEvent(QActionEvent* const aEvent)

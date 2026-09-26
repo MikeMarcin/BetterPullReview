@@ -1069,7 +1069,7 @@ namespace bpr::qt {
 		// row and always shown with a review, in this exact order. From its
 		// left, Updates and the comparison it names with its dates and menu (the
 		// epoch control hands its "Comparing" button over once it exists), the
-		// file pair with its position, the change pair with its position and
+		// file label and pair, the change label and pair and
 		// private progress; at its right Compose review and Comment. It is an
 		// ordinary row: its bare surface drags nothing.
 		ReviewBar = new workbench_strip{ QStringLiteral("Review bar"), this, strip_role::review_bar };
@@ -1092,8 +1092,6 @@ namespace bpr::qt {
 			"Folds or opens the Updates line, the pull request's updates, whose timeline runs below this bar"));
 		connect(UpdatesDisclosure, &QToolButton::clicked, this, [this] { dispatch_updates_line_toggle(); });
 		rowWidget(ReviewBar, UpdatesDisclosure, QStringLiteral("reviewBarUpdatesAction"));
-		ReviewBar->addAction(Navigation[0].Action);
-		ReviewBar->addAction(Navigation[1].Action);
 		FilePositionLabel = rowLabel(
 			ReviewBar,
 			QStringLiteral("workbenchStripFilePosition"),
@@ -1101,8 +1099,8 @@ namespace bpr::qt {
 			QStringLiteral("The selected file's position among the actionable files"));
 		FilePositionAction = rowWidget(
 			ReviewBar, FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
-		ReviewBar->addAction(Navigation[2].Action);
-		ReviewBar->addAction(Navigation[3].Action);
+		ReviewBar->addAction(Navigation[0].Action);
+		ReviewBar->addAction(Navigation[1].Action);
 		ChangePositionLabel = rowLabel(
 			ReviewBar,
 			QStringLiteral("workbenchStripChangePosition"),
@@ -1110,6 +1108,9 @@ namespace bpr::qt {
 			QStringLiteral("The selected change's position among the comparison's changes"));
 		ChangePositionAction = rowWidget(
 			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
+		ReviewBar->addAction(Navigation[2].Action);
+		ReviewBar->addAction(Navigation[3].Action);
+		ReviewBar->set_navigation_rails(FilePositionAction, Navigation[1].Action, ChangePositionAction, Navigation[3].Action);
 		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
@@ -1204,8 +1205,8 @@ namespace bpr::qt {
 		if (auto* const comparing = EpochSelectors->release_comparing_button(); comparing != nullptr) {
 			comparing->setAutoRaise(true);
 			comparing->setParent(ReviewBar);
-			ReviewBar->insertWidget(Navigation[0].Action, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
-			ReviewBar->insertWidget(Navigation[0].Action, new strip_divider{ ReviewBar })
+			ReviewBar->insertWidget(FilePositionAction, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
+			ReviewBar->insertWidget(FilePositionAction, new strip_divider{ ReviewBar })
 				->setObjectName(QStringLiteral("reviewBarComparisonDividerAction"));
 			if (auto* const menu = comparing->menu(); menu != nullptr) {
 				menu->addSeparator();
@@ -6848,30 +6849,29 @@ namespace bpr::qt {
 		if (FilePositionLabel == nullptr || ChangePositionLabel == nullptr) {
 			return;
 		}
-		// [[BPR-1129]]. On a narrow review bar the positions keep their numbers
-		// and drop their words: "3/40" for "file 3 of 40". The accessible
-		// name and the tooltip keep the words.
-		auto fileText  = QString{ };
-		auto fileWords = QString{ };
+		// [[BPR-1202]]. The group names remain visible even with no selection.
+		// Narrow bars shorten the position, keeping its label before the arrows.
+		auto fileText  = QStringLiteral("File");
+		auto fileWords = QStringLiteral("No actionable file selected");
 		if (Cursor && Cursor->ActionableCount > 0U) {
 			fileWords = Cursor->Ordinal > 0U
-				? QStringLiteral("file %1 of %2")
+				? QStringLiteral("File %1 of %2")
 					  .arg(Cursor->Ordinal)
 					  .arg(Cursor->ActionableCount)
-				: QStringLiteral("%1 files").arg(Cursor->ActionableCount);
+				: QStringLiteral("Files %1").arg(Cursor->ActionableCount);
 			fileText  = ReviewBarCompact && Cursor->Ordinal > 0U
-				? QStringLiteral("%1/%2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
+				? QStringLiteral("File %1/%2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: fileWords;
 		}
-		FilePositionLabel->setText(fileText);
+		FilePositionLabel->setText(ReviewBarPositionsShown ? fileText : QStringLiteral("File"));
 		FilePositionLabel->setToolTip(fileWords);
 
 		// Derived from the comparison the surface holds, exactly as the host
 		// derives the change cursor it observes for the core: the group the
 		// selection names, counted among the alignment's groups. No second
 		// authority, and nothing when the selection is for another comparison.
-		auto changeText  = QString{ };
-		auto changeWords = QString{ };
+		auto changeText  = QStringLiteral("Changes");
+		auto changeWords = QStringLiteral("No comparison selected");
 		if (ComparisonSurface != nullptr) {
 			const auto& result    = ComparisonSurface->current_result();
 			const auto& selection = ComparisonSurface->selection();
@@ -6888,15 +6888,14 @@ namespace bpr::qt {
 					}
 				}
 				changeWords = ordinal > 0U
-					? QStringLiteral("change %1 of %2").arg(ordinal).arg(groups.size())
-					: groups.empty() ? QStringLiteral("no changes")
-									 : QStringLiteral("%1 changes").arg(groups.size());
+					? QStringLiteral("Changes %1 of %2").arg(ordinal).arg(groups.size())
+					: QStringLiteral("Changes %1").arg(groups.size());
 				changeText  = ReviewBarCompact && ordinal > 0U
-					? QStringLiteral("%1/%2").arg(ordinal).arg(groups.size())
+					? QStringLiteral("Changes %1/%2").arg(ordinal).arg(groups.size())
 					: changeWords;
 			}
 		}
-		ChangePositionLabel->setText(changeText);
+		ChangePositionLabel->setText(ReviewBarPositionsShown ? changeText : QStringLiteral("Changes"));
 		ChangePositionLabel->setToolTip(changeWords);
 	}
 
@@ -9198,8 +9197,9 @@ namespace bpr::qt {
 		}
 		// [[BPR-1129]]. Every control on the review bar stays top level. As the
 		// window narrows the comparison's dates go first, then the positions'
-		// words ("3/11" for "change 3 of 11"). Each width starts from the whole
-		// form and measures, so nothing that yielded returns at a narrower
+		// connective words ("Changes 3/11" for "Changes 3 of 11"), then the
+		// numbers. File and Changes always remain; full positions stay in their
+		// tooltips. Each width starts whole and measures, so nothing returns at a narrower
 		// width and a resize never alternates.
 		const auto available = width();
 		const auto remeasure = [this] {
@@ -9208,7 +9208,8 @@ namespace bpr::qt {
 			}
 		};
 		EpochSelectors->set_comparing_dates_shown(true);
-		ReviewBarCompact = false;
+		ReviewBarCompact        = false;
+		ReviewBarPositionsShown = true;
 		update_strip_positions();
 		remeasure();
 		if (ReviewBar->sizeHint().width() > available) {
@@ -9217,6 +9218,11 @@ namespace bpr::qt {
 		}
 		if (ReviewBar->sizeHint().width() > available) {
 			ReviewBarCompact = true;
+			update_strip_positions();
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available) {
+			ReviewBarPositionsShown = false;
 			update_strip_positions();
 			remeasure();
 		}

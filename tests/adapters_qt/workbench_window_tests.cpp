@@ -825,19 +825,35 @@ namespace {
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
 				&& named(ordered, 3, "reviewBarComparisonDividerAction")
-				&& ordered[4] == navigation[0]
-				&& ordered[5] == navigation[1]
-				&& named(ordered, 6, "workbenchStripFilePositionAction")
-				&& ordered[7] == navigation[2]
-				&& ordered[8] == navigation[3]
-				&& named(ordered, 9, "workbenchStripChangePositionAction")
+				&& named(ordered, 4, "workbenchStripFilePositionAction")
+				&& ordered[5] == navigation[0]
+				&& ordered[6] == navigation[1]
+				&& named(ordered, 7, "workbenchStripChangePositionAction")
+				&& ordered[8] == navigation[2]
+				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "workbenchReviewControlsAction")
 				&& named(ordered, 11, "reviewBarSpacerAction")
 				&& ordered[12] == window.compose_review_action()
 				&& ordered[13] == window.comment_action();
 		};
-		const auto reviewRow = matchesReviewOrder(barActions);
-		auto       oldOrder  = barActions;
+		const auto reviewRow   = matchesReviewOrder(barActions);
+		auto       labelsAfter = barActions;
+		std::rotate(labelsAfter.begin() + 4, labelsAfter.begin() + 5, labelsAfter.begin() + 7);
+		std::rotate(labelsAfter.begin() + 7, labelsAfter.begin() + 8, labelsAfter.begin() + 10);
+		expect(!matchesReviewOrder(labelsAfter), "negative control: labels after the arrow pairs fail the review-bar order");
+		const auto rails = bar->grab().toImage();
+		const auto scale = rails.devicePixelRatio();
+		for (const auto start : { 4, 7 }) {
+			const auto first = bar->actionGeometry(barActions[start]);
+			const auto last  = bar->actionGeometry(barActions[start + 2]);
+			const auto ink   = bar->palette().color(QPalette::Active, QPalette::Highlight);
+			for (const auto x : { first.left() + 3, (first.left() + last.right()) / 2, last.right() - 3 }) {
+				expect(rails.pixelColor(qRound(x * scale), qRound((bar->height() - 2) * scale)) == ink,
+					   "a continuous palette-derived rail joins each label and both arrows");
+			}
+		}
+
+		auto oldOrder = barActions;
 		std::rotate(oldOrder.begin() + 4, oldOrder.begin() + 7, oldOrder.begin() + 10);
 		expect(!matchesReviewOrder(oldOrder), "negative control: the old change-before-file order fails the exact row contract");
 		if (!reviewRow) {
@@ -1576,11 +1592,11 @@ namespace {
 		QApplication::processEvents();
 		expect(window.file_position_label() != nullptr
 				   && window.file_position_label()->text()
-					   == QStringLiteral("file 3 of 40"),
+					   == QStringLiteral("File 3 of 40"),
 			   "the strip states the selected file's position among the actionable files");
 		expect(window.change_position_label() != nullptr
-				   && window.change_position_label()->text().isEmpty(),
-			   "with no comparison held the change position says nothing");
+				   && window.change_position_label()->text() == QStringLiteral("Changes"),
+			   "with no comparison held the Changes label still names its arrow pair");
 
 		// Signed out, the account button is the way to the sign-in the
 		// header shows; its presenter is named and never reads disabled.
@@ -1623,9 +1639,9 @@ namespace {
 		// (test_strip_identity_stays_at_every_width).
 		expect(!window.identity_label()->isVisible()
 				   && window.file_position_label()->isVisible()
-				   && window.file_position_label()->text().contains(QStringLiteral("3"))
+				   && window.file_position_label()->text().startsWith(QStringLiteral("File"))
 				   && window.file_position_label()->text().contains(QStringLiteral("40"))
-				   && window.file_position_label()->toolTip() == QStringLiteral("file 3 of 40"),
+				   && window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40"),
 			   "the file position stays on the review bar at the width floor, its words in its tooltip");
 		window.hide();
 	}
@@ -1696,7 +1712,7 @@ namespace {
 				   "at 1920 and 1280 the title row shows the whole name with its title");
 			expect(window.identity_label()->toolTip().contains(QStringLiteral("microsoft/terminal  #20607 Fix the ScreenBufferTests")),
 				   "the full name stays in the tooltip");
-			expect(window.file_position_label()->text() == QStringLiteral("file 3 of 40"),
+			expect(window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
 				   "the review bar's positions keep their words at 1280");
 		}
 		// Every width down to the floor: 20 pixels at a time to 1300, then
@@ -1724,9 +1740,9 @@ namespace {
 			if (window.modality()->compact() && compactFirst == 0) {
 				compactFirst = width;
 			}
-			const auto words = window.file_position_label()->text().startsWith(QStringLiteral("file"));
+			const auto words = window.file_position_label()->text().startsWith(QStringLiteral("File"));
 			expect(window.file_position_label()->isVisible() && window.change_position_label()->isVisible(),
-				   "the review bar's positions stay at every width");
+				   "the review bar's named groups stay at every width");
 			expect(!(wordsGone && words), "the positions' words yield once and do not return at a narrower width");
 			wordsGone = wordsGone || !words;
 		}
@@ -5408,7 +5424,7 @@ namespace {
 	}
 
 	/// \brief [[BPR-1129]]. The review bar keeps every control top level at every
-	/// width: it drops the comparison's dates first, then the positions' words,
+	/// width: it drops the comparison's dates, then connective words and numbers,
 	/// and neither returns at a narrower width.
 	void test_the_review_bar_yields_dates_then_words()
 	{
@@ -5433,7 +5449,7 @@ namespace {
 		process_events();
 		auto* const comparing = window.epoch_selectors()->comparing_button();
 		const auto  dated     = [comparing] { return comparing->text().contains(QStringLiteral(" → ")); };
-		const auto  worded    = [&window] { return window.file_position_label()->text() == QStringLiteral("file 3 of 40"); };
+		const auto  worded    = [&window] { return window.file_position_label()->text() == QStringLiteral("File 3 of 40"); };
 		expect(dated() && worded(), "a wide review bar names the comparison's dates and the positions' words");
 		// The bar fits at the floor in the default font. A larger one, as a
 		// reviewer's system font can be, makes it yield on the way down.
@@ -5450,14 +5466,13 @@ namespace {
 			expect(extension == nullptr || !extension->isVisible(), "no review-bar control folds into an overflow menu at any width");
 			expect(!(datesGone && dated()) && !(wordsGone && worded()), "what yielded does not return at a narrower width");
 			expect(worded() || !dated(), "the dates yield before the positions' words");
-			expect(comparing->text().startsWith(QStringLiteral("Comparing")) && window.file_position_label()->text().contains(QStringLiteral("3"))
-					   && window.file_position_label()->toolTip() == QStringLiteral("file 3 of 40"),
-				   "the comparison keeps its name and the position its numbers and its words' tooltip");
+			expect(comparing->text().startsWith(QStringLiteral("Comparing")) && window.file_position_label()->text().startsWith(QStringLiteral("File"))
+					   && window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40"),
+				   "the comparison and navigation groups keep their names and full position tooltips");
 			datesGone = datesGone || !dated();
 			wordsGone = wordsGone || !worded();
 		}
-		// The words yield only where the bar still does not fit without the
-		// dates; at this font it does, so they stay, and the order above holds.
+		// Dates yield before positions compact; the group names never yield.
 		expect(datesGone, "in a large font the dates yield on the way down to the floor");
 		window.hide();
 	}
@@ -5504,7 +5519,7 @@ namespace {
 		process_events();
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
 				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
-				   && window.file_position_label()->text() == QStringLiteral("file 3 of 40"),
+				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
 			   "at 1280 the title row names the pull request whole and the review bar names the comparison's dates and the position");
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();

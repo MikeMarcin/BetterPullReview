@@ -125,6 +125,12 @@ delegation, [[BPR-1208]] to [[BPR-1210]] join `m2b-owner-verdict-follow-ups`,
 because AC-09 as amended cannot be met without them. [[BPR-1204]] builds the
 header after them. No other criterion changes.
 
+**Owner amendment, 2026-09-26:** hand-back 49 asks that each navigation label
+precede its arrows and that the association be visible. Both File and Changes
+remain named even without a selection and at the width floor. Under the owner's
+design delegation, a separate palette-derived horizontal rail joins each label
+and its two arrows ([[BPR-1202]]).
+
 ## Problem and outcome
 
 The owner, on round v2: the title bar is "too busy … it's getting distracting
@@ -167,8 +173,8 @@ From its left it reads:
 
 - the Updates disclosure, then the comparison and its dates, with the
   "Comparing …" menu;
-- previous and next file, with the position;
-- previous and next change, with the position (file before change, by the
+- the File label and position, then previous and next file;
+- the Changes label and position, then previous and next change (file before change, by the
   owner's amendment of 2026-09-25: "File contains changes so file should be
   left of change");
 - private progress (Seen, Read, Accept, Exclude), as an icon whose tooltip
@@ -283,7 +289,7 @@ or review semantics.
 
 - AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice.
 - AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor.
-- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next file with the position, previous and next change with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
+- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then File and its position before previous and next file, Changes and its position before previous and next change, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
 - AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires.
 - AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart.
 - AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted.

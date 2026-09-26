@@ -1,3 +1,4 @@
+# BPR-1202 hand-back49: reviewed eb14f40e delta; only test-build bar order changes.
 cmake_minimum_required(VERSION 4.4.2)
 
 function(bpr_require_literal_count source_variable token expected description)
@@ -362,7 +363,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6faa8a9eb2c4300f0fa51bce8123934e08a78a133c0e56bdead1b80fd17a5d6d"
+		"e496dd1ca8e476d887b464642f7799d9bf13215fcffc3fbda5cc664909ce3856"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -513,7 +514,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5eaffa251bd63dc74d8173eb85f739d5b38f4cef59f5c3a71d3713cd00d3e551"
+        "e1f84da2b4fd484736cf85524fabdc304f58e2ab0e438b336dbf217925dbce30"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
