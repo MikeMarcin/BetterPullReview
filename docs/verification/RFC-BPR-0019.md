@@ -2,6 +2,26 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
+## Owner amendment to AC1 — 2026-09-25
+
+**The AC1 provenance blocker recorded below is resolved by a scoped owner
+amendment; RFC-BPR-0019 stays Deferred until BPR-0295's terminal
+reconciliation.** In attended session `06ad5734ed9f7c2fd6d0a62c8328fa0a`
+([packet](reviews/owner-review-20260925-fresh-v001/operator-packet.md)),
+candidate `BPR-0295-ac1-provenance-v001` at `3759b0d8`, decision `d7af6bd8`
+(sequence 35, `actor: human`, fingerprint equal to the prepared one), the
+owner amended AC1 for this exact v008 asset set: the recorded unknowns
+(creator identity; generator provider, model, seed and version; full prompt
+and input-role history; service terms) are accepted as disclosed gaps. The
+bound bytes are the provenance, manifest and v008 verdict hashes listed under
+[Commands and artifact identities](#commands-and-artifact-identities), all
+unchanged. The owner's note names the generator as "ChatGPT 5.6 Sol"; that
+statement is recorded on BPR-0295 and the RFC and is not written into
+`provenance.json`. The exact wording is on
+[RFC-BPR-0019](../rfcs/RFC-BPR-0019-dif-visual-identity-sprite-assets.md#status-and-scope)
+and [BPR-0295](../issues/20-ready/BPR-0295-anchor-rfc-0019-verification.md#owner-amendment-to-ac1--2026-09-25-attended-session-06ad5734).
+The audit below is kept as it was written.
+
 ## Ordinary closeout audit — 2026-09-25
 
 **RFC-BPR-0019 remains Deferred; BPR-0295 is blocked on AC1 provenance

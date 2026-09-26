@@ -27,6 +27,26 @@ implementation-frontier exception. Auto-Verified closeout still requires every
 front-matter dependency to be Auto-Verified and every attended and provenance
 gate in this RFC to be resolved.
 
+**Owner amendment, 2026-09-25 (attended session 06ad5734): AC1's provenance
+for the v008 asset set.** Asked on [[BPR-0295]] whether to accept the recorded
+provenance unknowns or supply them (candidate `BPR-0295-ac1-provenance-v001`,
+decision `d7af6bd8`, 04:32:59Z), the owner selected, verbatim, "Amend AC1 for
+this exact v008 asset set: accept the recorded unknowns as disclosed gaps",
+and noted "It was ChatGPT 5.6 Sol that generated the images, but I also don't
+care." For the v008 asset set as it stands at `3759b0d8`, and for no other
+bytes (`provenance.json` `f77354d6…6f1c`, sprite manifest `c9f3f38e…f40d`,
+v008 verdict `57a2a6d8…e116`, and the 72 source files that match the accepted
+intake), AC1's complete ownership/license and tool-provenance record is met
+with these gaps disclosed: the creator's identity; the generator's provider,
+model, seed and version; the full prompt and input-role history; and the
+generator service's terms. The rights basis, distribution scope, notices and
+the absence of foreign or private material are unchanged and already evidenced.
+AC1's wording below is unchanged; this changes acceptance, not observations.
+The generator name in the note is the owner's statement and is not recorded in
+`provenance.json`, whose bytes the amendment binds. Terminal reconciliation of
+the other rows remains on [[BPR-0295]], and this RFC stays Deferred until it is
+done.
+
 ## Source material and adaptation boundary
 
 The following product-owner-supplied material informed this RFC. It is planning
