@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1202"
 title: "The review bar puts file navigation before change navigation"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
@@ -10,7 +10,6 @@ milestone: "Review workbench scaffolding"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"owner revision on attended candidate BPR-1129-bar, 2026-09-25","session":"06ad5734ed9f7c2fd6d0a62c8328fa0a","candidate":"BPR-1129-bar","decision":"fd158272-768f-469d-838a-08ef08e3e47a","reviewed_revision":"ba9d272339ad235f1d99688c5c1af198b0c9c7ef","reviewed_executable_sha256":"a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83","criteria":["AC-03"],"related_cards":["BPR-1129","BPR-1135"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"owner_handback49":{"session":"d7cf21b16656c6ec19c8787255aa4006","cursor":49,"source_revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","binary_sha256":"96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b","decisions":[{"candidate":"BPR-1202-bar","criterion":"AC3","fingerprint":"e6db6d6f9d7c8d90f18dc17bdfc4a087aa26c1c73e2fd51d64e7f1f2cee0476b","decision_id":"dc8624d3-1462-44a7-b653-0bbf7a00645c","outcome":"reject","note":"Your screenshot doesn't show changes label for some reason.\nI think the file and changes arrow buttons should come after the labels.\nI think there should be something like perhaps a horizontal colored rail or something to signal the relationship of label to controls more strongly.","saved_at":"2026-09-26T21:05:53.594560+00:00","actor":"human"}]}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"43749dade9a0b1659329fc716e3b06cb86107209","evidence":{"kind":"command","detail":"9/9 focused checks at 100/125/200, four-appearance composed capture, pin contract and documentation; rail pixels/negative order control and inspected renders. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-r2-ln5i2_nd/evidence/1202-focused-final.log"}},{"criterion":"AC2","outcome":"pass","revision":"43749dade9a0b1659329fc716e3b06cb86107209","evidence":{"kind":"command","detail":"9/9 focused checks at 100/125/200, four-appearance composed capture, pin contract and documentation; rail pixels/negative order control and inspected renders. Logs /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-r2-ln5i2_nd/evidence/1202-focused-final.log"}},{"criterion":"AC3","outcome":"pending","revision":"43749dade9a0b1659329fc716e3b06cb86107209","evidence":{"kind":"observation","detail":"Original handback49 Reject retained; corrected grouping awaits narrow successor review."}}]
-parked_on: "human-review"
 ---
 
 # BPR-1202: The review bar puts file navigation before change navigation
