@@ -21,6 +21,11 @@ one-line rationale. No push or release has been performed.
 - `1b5fec7f`, `103913d9`: BPR-0295 Done and RFC-0019 Auto-Verified.
   [Terminal handoff](rfc-bpr-0019-closeout/handoff-r2.json) preserves exact
   tested graph candidates, resolved independent findings and provenance gaps.
+- `a1941a80`, `59b72142`, `8907ad7e`, `8bee8b45`: BPR-1199 window
+  correlation and closed acquisition-step diagnostics landed; four main checks
+  passed. The original private comparison remains unresolved.
+- `cc206e44`: reservation BPR-1212 for the owner-requested later Compose UX
+  rethink using `$frontend-design`.
 - `e7c0fc51`: reservation BPR-1211 for the bounded synchronous ledger-effect
   scheduling gap. The counter and immutable receipt are committed together.
 
@@ -31,19 +36,29 @@ Implementers own the full assigned boundary and may not delegate.
 
 | Assignment | Branch | Checkout under `/Users/jaeger/.codex/worktrees/` | Frontier |
 |---|---|---|---|
-| BPR-0972 | `codex/bpr0972-takeover` | `bpr0972-takeover/BetterPullReview` | File deltas verified; queue/epoch/composed course passed 5/5. Inventory, negative controls, final gates and BPR-1211 remain. Whole card not accepted. |
-| RFC-0052 m2b | `codex/rfc0052-m2b-owner-verdicts` | `rfc0052-owner-followups/BetterPullReview` | BPR-1201/1202/1203/1205 engineering verified; further tab/editor/thread/Dif/notes work remains. BPR-1204 is built last. Owner and native judgments remain pending. |
-| BPR-1199 | `codex/bpr1199-comparison` | `bpr1199-comparison/BetterPullReview` | Original diagnostic failure class unresolved. Window-session correlation and bounded acquisition-step diagnostics are under verification. No private comparison repair or owner rerun is claimed. |
+| BPR-0972 | `codex/bpr0972-takeover` | `bpr0972-takeover/BetterPullReview` | File, queue and history courses verified; eight negative controls detected. Active-order maintenance costs are explicit. Final integration and a sibling actionability edge remain. Whole card not accepted. |
+| RFC-0052 m2b | `codex/rfc0052-m2b-owner-verdicts` | `rfc0052-owner-followups/BetterPullReview` | BPR-1201/1202/1203/1205/1206 engineering verified; editor/thread/Dif/notes work remains. BPR-1204 is built last. Owner and native judgments remain pending. |
+| BPR-1199 | `codex/bpr1199-comparison` | `bpr1199-comparison/BetterPullReview` | Owner rerun rejected the exact candidate: selected private file comparison still unavailable. Fresh implementer consumes diagnostics and investigates repair; no fix claimed. |
 
-The BPR-0966 and RFC-0019 implementers released clean writer ownership. The
-BPR-0966 checkout remains in use by its frozen review and loopback server.
+A fresh BPR-0966 implementer owns verdict reconciliation in the existing
+`bpr0966-dif-cues/BetterPullReview` checkout. The RFC-0019 writer is released.
 
 ## Review and continuation
 
-BPR-0966 session `54fd75833481882c3bb47745f8e30b75`, cursor 3, has one ready
-Accept/Reject criterion and no recorded verdict at this checkpoint. A handed-back
-watch is running; the private URL lives in its ignored runtime handoff. Only
-frozen candidate copies are protected, so main and m2b remain integrable.
+BPR-0966 session `54fd75833481882c3bb47745f8e30b75`, cursor 6, returned
+final Accept (superseding the initial Reject) for the exact Compose Dif candidate.
+The separate note requests a later full Compose UX rethink. A fresh implementer
+will preserve remaining Windows evidence as platform backlog, not claim Done.
+
+BPR-1199 session `2c2e72e3af2e2fd7fa1a566ec49bc5ca`, cursor 6, returned
+Reject: the selected private file still cannot load its diff. A fresh implementer
+owns root-cause investigation. The owner's unrelated clarification requires flat
+Overview folder rows with collapse hiding files, not a broken-out hierarchy;
+BPR-0972's implementer is assessing the affected surface. Attachments and private
+runtime observations remain outside tracked documentation.
+
+Both handed-back watches were consumed. Verdicts stay bound to exact frozen
+candidates; no fresh approval is inferred for source repairs.
 The old sessions `06ad5734` and `60bd1ed5` were consumed and closed according
 to the owner's supplied state; their verdicts are not asked again.
 
