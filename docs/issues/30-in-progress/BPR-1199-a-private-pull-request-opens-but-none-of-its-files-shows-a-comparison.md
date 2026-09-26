@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1199"
 title: "A private pull request opens, but none of its files shows a comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
