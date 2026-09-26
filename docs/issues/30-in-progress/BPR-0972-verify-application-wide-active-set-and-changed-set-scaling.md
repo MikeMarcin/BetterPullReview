@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0972"
 title: "Verify application-wide active-set and changed-set scaling"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
