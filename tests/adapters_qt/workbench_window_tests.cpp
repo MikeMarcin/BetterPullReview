@@ -10352,10 +10352,13 @@ namespace {
 		auto* const corner   = window.dif_corner_slot();
 		const auto  inCorner = [&] {
 			return corner != nullptr && corner->isVisible() && dif->isVisible()
-				&& dif->parentWidget() == &window && dif->size() == QSize{ 40, 40 }
+				&& dif->parentWidget() == &window && dif->size() == QSize{ 28, 28 }
 			&& !window.conversations_drawer()->isAncestorOf(dif)
 				&& window.findChild<QWidget*>(QStringLiteral("workbenchDifAiSlot")) == nullptr;
 		};
+		dif->setFixedSize(40, 40);
+		expect(!inCorner(), "negative control: the rejected forty-pixel corner is not accepted");
+		dif->setFixedSize(28, 28);
 		expect(!window.showing_home() && inCorner(),
 			   "opening a review rests the same Dif in the status corner even with the drawer collapsed");
 
@@ -10395,7 +10398,7 @@ namespace {
 				   && window.home_landing()->illustration() == nullptr
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
 				   && provider->load_attempts() == 1U,
-			   "selecting the private tab keeps the same single 40-pixel presentation in the corner");
+			   "selecting the private tab keeps the same single 28-pixel presentation in the corner");
 		expect(dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::rest)
 				   && !dif->current_frame().NextMs,
 			   "reduced motion keeps the contextual presentation on a static frame");
@@ -10430,7 +10433,7 @@ namespace {
 		// card, so Dif rests in the window's bottom-left corner, out of the way.
 		expect(window.showing_home() && window.home_landing()->illustration() == nullptr
 				   && corner != nullptr && corner->isVisible()
-				   && dif->parentWidget() == &window && dif->isVisible() && dif->size() == QSize{ 40, 40 }
+				   && dif->parentWidget() == &window && dif->isVisible() && dif->size() == QSize{ 28, 28 }
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
 				   && provider->load_attempts() == 1U,
 			   "Home wins and rests the same presentation in the bottom-left corner");

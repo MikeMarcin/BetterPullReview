@@ -192,10 +192,10 @@ namespace bpr::qt {
 
 		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
 		///
-		/// \details Mandate r2 asks Dif to act like AllTheThings' Nib, whose
-		/// footer presentation is 40 points over a 28-point footer slot. The
-		/// first-launch card keeps RFC-BPR-0031's 96- and 72-pixel Home sizes.
-		constexpr auto dif_corner_size = 40;
+		/// \details [[BPR-1209]]. Hand-back 49 asks for a smaller corner presence.
+		/// One status-row height leaves the first-launch Home and workshop prime
+		/// slots unchanged while reducing the corner illustration by thirty percent.
+		constexpr auto dif_corner_size = 28;
 
 		// The toolbar's first entries are the file actions and the rest are the
 		// change actions, in the core's own command order.
@@ -6599,7 +6599,7 @@ namespace bpr::qt {
 		const auto shown = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
 		const auto home  = showing_home();
 		// [[BPR-1209]]. Home and the exact offered workshop are prime spots;
-		// every other surface uses the existing 40-pixel status corner.
+		// every other surface uses the 28-pixel status corner.
 		const auto card         = home && HomeLanding->state() == landing_state::sign_in;
 		const auto cardSlot     = card && HomeLanding->illustration_space_available();
 		const auto workshopSlot = showing_dif_workshop();

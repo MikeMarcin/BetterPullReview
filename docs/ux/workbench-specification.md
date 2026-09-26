@@ -908,7 +908,7 @@ category controls. Previous defect, Next defect and Defects N/M sit beside
 Next new comment under Comments. The private tab contains none of them. Choosing Notes is RFC-BPR-0031's explicit
 move into the AI tools: when its content is shown, it permits the existing
 compare_glance cue, dispatches no agent or review action, and never opens a
-collapsed drawer. Under [[BPR-1209]], the single Dif rests at 40 pixels in the
+collapsed drawer. Under [[BPR-1209]], the single Dif rests at 28 logical pixels in the
 status bar's leading corner on every ordinary surface, stepping aside for a
 transient message. The first-launch Home and [[BPR-0966]]'s exact offered
 Compose workshop remain prime spots. No Dif slot belongs to the private tab. Each tab scrolls on its own, so switching tabs keeps each one's scroll

@@ -94,7 +94,7 @@ new owner decision.
   selecting that tab never shows Dif in the drawer.
 - AC2 On every workbench surface without a prime spot, the one Dif widget
   rests in the status bar's leading-corner slot (`workbenchDifCornerSlot`),
-  at the 40 px Home already uses. Those surfaces are signed-in Home, Home over
+  at 28 logical pixels, as amended by hand-back 49. Those surfaces are signed-in Home, Home over
   a review, Overview, Read, Discuss, and Compose with no workshop proposal
   shown. In the corner he has no pointer or focus path and takes no space
   from a control. He steps aside while the status bar carries a transient
@@ -114,7 +114,7 @@ new owner decision.
   courses. A negative control that puts Dif back in the drawer fails them.
   None is loosened.
 - AC6 The owner judges the corner on a review surface on macOS, with one
-  question: does Dif at 40 px in the corner, beside live review text, stay
+  question: does Dif at 28 px in the corner, beside live review text, stay
   out of the way? This is BPR-0800's attended criterion.
 
 ## Boundaries
@@ -171,3 +171,26 @@ fingerprints are retained in the card metadata.
 - **AC6 — Reject**, candidate `BPR-1209-corner`, decision `28f05281-5305-427a-a7c9-247adaec7c7a`.
 
   > Scale Dif down more, compare with ATT's Nib mascot in the screenshot.
+
+## Hand-back 49 sizing decision
+
+Under the owner's delegation, the corner uses 28 logical pixels, the status
+row's own height. The attached Nib comparison showed the old 40-pixel Dif
+dominating this area. Reducing each dimension by thirty percent gives him
+a quiet corner presence without editing the sprite sheet or introducing
+another widget. First Home keeps 96/72 px and the accepted workshop keeps
+64 px; the same cue, reduced-motion, hide and transient-message rules apply.
+The old 40-pixel claim above remains historical evidence for the rejected
+candidate. AC6 needs the owner's new judgment.
+
+The 100/125/200 percent isolated placement courses pass on the correction,
+including 96px Home, 64px workshop, one sprite, transient messages, pointer
+and focus exclusion, reduced motion and existing cue behavior. A forty-pixel
+negative control fails the new corner predicate. Inspected native-size render
+shows the reduced corner alongside review text. The public defect seed/reopen
+fixture below supplies the final composed review course; the scope changes
+only one Qt size constant and its tests. No application pin changes.
+
+The authored m2b exits retain their complete scope and receive the owner's
+hand-back 49 amendments for label/control order, association rails and 28px
+corner size. The helper-generated view and refreshed binding agree.

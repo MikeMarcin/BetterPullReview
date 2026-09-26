@@ -90,12 +90,16 @@ a prime spot on a screen like on the first time experience home." It extends
 to every surface the owner's direction of 2026-09-15, which RFC-BPR-0032
 records for Home.
 
+Hand-back 49 on 2026-09-26 further asks for a smaller corner presence.
+BPR-1209 adopts 28 logical pixels under the owner's delegated choice; the
+Home and workshop prime sizes remain unchanged.
+
 This amends the placement above:
 
 - **The drawer slot goes.** Dif no longer uses a slot in the conversations
   drawer.
 - **The corner is his default place.** On every workbench surface without a
-  prime spot, the same single widget rests at 40 pixels in the status bar's
+  prime spot, the same single widget rests at 28 logical pixels in the status bar's
   leading corner. There it has no pointer or focus path, and it steps aside
   while the status bar carries a transient message, as RFC-BPR-0032 records
   for Home.
