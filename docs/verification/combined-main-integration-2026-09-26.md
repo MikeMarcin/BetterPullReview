@@ -95,6 +95,10 @@ The frozen owner candidate remains source `8b5bc31c`, executable SHA-256
 session `d7cf21b16656c6ec19c8787255aa4006`, cursor 36 at engineering handoff.
 Main is a different candidate. The frozen app, shared Qt and m2b fixture tree
 remain protected and untouched. No new verdict is read or attributed here.
+The coordinator later reported cursor-49 handback at 21:06:23 UTC and assigned
+its interpretation to a fresh engineering round. This report changes no card
+acceptance; the [final integration handoff](../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-combined-main-2026-09-26.md)
+records the updated watch and ownership state.
 
 BPR-1210 AC1 historical names, the twelve owner/native questions, BPR-1204's
 terminal dependencies and Windows/Linux station evidence remain pending.

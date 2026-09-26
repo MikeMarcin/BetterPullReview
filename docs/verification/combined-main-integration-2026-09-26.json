@@ -254,5 +254,601 @@
     "tests/end_to_end/review_submission_composition_public_path.cpp",
     "tests/end_to_end/setup_destination_public_path_tests.cpp"
   ],
-  "verification": "pending focused main integration"
+  "verification": {
+    "status": "Focused combined-main integration verified; milestone acceptance remains pending.",
+    "commands": [
+      {
+        "id": "dev-configure",
+        "argv": [
+          "cmake",
+          "--preset",
+          "dev",
+          "-DBPR_DEPENDENCY_OFFLINE=ON"
+        ],
+        "candidate": "6ae4d590cb214d219d36bfeaf06c55f0a3f8a5c9",
+        "exit_code": 0,
+        "log": "build/combined-main-configure.log",
+        "log_sha256": "da4206e414fcce1e0489a264beacbaf743534dca55b72dfb7701ddb59c11008e"
+      },
+      {
+        "id": "dev-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "--preset",
+          "dev",
+          "--parallel",
+          "2"
+        ],
+        "candidate": "6ae4d590cb214d219d36bfeaf06c55f0a3f8a5c9",
+        "exit_code": 0,
+        "log": "build/combined-main-build.log",
+        "log_sha256": "8c89b064f5a767657a3780108a63078db8d53a6e6f0bc682f898562f503101c1"
+      },
+      {
+        "id": "first-public",
+        "argv": [
+          "ctest",
+          "--preset",
+          "dev",
+          "--parallel",
+          "1",
+          "--output-on-failure",
+          "-R",
+          "^application_review_submission_composition_public_path$"
+        ],
+        "candidate": "6ae4d590cb214d219d36bfeaf06c55f0a3f8a5c9",
+        "exit_code": 0,
+        "log": "build/combined-main-public-smoke.log",
+        "log_sha256": "e57884cef2d8e0951fc26e3a5079c617212f4d7d622f826e45e90b585bc38055",
+        "rows": [
+          {
+            "name": "application_review_submission_composition_public_path",
+            "outcome": "pass",
+            "seconds": 15.29
+          }
+        ]
+      },
+      {
+        "id": "focused-integration",
+        "argv": [
+          "ctest",
+          "--preset",
+          "dev",
+          "--parallel",
+          "1",
+          "--output-on-failure",
+          "-R",
+          "^(architecture_boundaries|architecture_boundary_contract|core_revisioned_review_draft|core_agent_finding_promotion|application_agent_chat_replies|application_epoch_host|application_github_window_read_host|application_workbench_host|application_review_ledger_host|qt_workbench_window_scale_100|qt_workbench_focus_order_scale_100|qt_document_tabs_scale_100|qt_composed_github_scale_100|qt_private_notes_panel|qt_conversation_cards_view|qt_github_conversation_panel|application_agent_chat_composition_contract|application_agent_chat_continued_contract|application_agent_finding_composition_contract|application_agent_finding_dif_context_contract|application_review_round_trip_composition_contract|application_defect_composition_contract|application_profile_multi_window_public_path|application_active_changed_scaling|application_uiforetw_selected_diff_contract|application_document_tabs_restoration_public_path)$"
+        ],
+        "candidate": "6ae4d590cb214d219d36bfeaf06c55f0a3f8a5c9",
+        "exit_code": 8,
+        "log": "build/combined-main-focused.log",
+        "log_sha256": "4738070add77f36c140fb062f816cb4fcf3a9179296b45531b54d76b5c3e68a3",
+        "rows": [
+          {
+            "name": "architecture_boundaries",
+            "outcome": "pass",
+            "seconds": 21.58
+          },
+          {
+            "name": "architecture_boundary_contract",
+            "outcome": "pass",
+            "seconds": 106.82
+          },
+          {
+            "name": "core_agent_finding_promotion",
+            "outcome": "pass",
+            "seconds": 0.38
+          },
+          {
+            "name": "core_revisioned_review_draft",
+            "outcome": "pass",
+            "seconds": 0.25
+          },
+          {
+            "name": "application_epoch_host",
+            "outcome": "pass",
+            "seconds": 0.7
+          },
+          {
+            "name": "application_workbench_host",
+            "outcome": "pass",
+            "seconds": 0.55
+          },
+          {
+            "name": "application_review_ledger_host",
+            "outcome": "pass",
+            "seconds": 0.28
+          },
+          {
+            "name": "application_github_window_read_host",
+            "outcome": "pass",
+            "seconds": 0.32
+          },
+          {
+            "name": "application_agent_chat_replies",
+            "outcome": "pass",
+            "seconds": 0.26
+          },
+          {
+            "name": "qt_composed_github_scale_100",
+            "outcome": "fail",
+            "seconds": 2.76
+          },
+          {
+            "name": "qt_github_conversation_panel",
+            "outcome": "pass",
+            "seconds": 1.19
+          },
+          {
+            "name": "qt_conversation_cards_view",
+            "outcome": "pass",
+            "seconds": 1.56
+          },
+          {
+            "name": "qt_document_tabs_scale_100",
+            "outcome": "pass",
+            "seconds": 1.32
+          },
+          {
+            "name": "qt_workbench_focus_order_scale_100",
+            "outcome": "pass",
+            "seconds": 0.26
+          },
+          {
+            "name": "qt_workbench_window_scale_100",
+            "outcome": "pass",
+            "seconds": 20.72
+          },
+          {
+            "name": "qt_private_notes_panel",
+            "outcome": "pass",
+            "seconds": 0.4
+          },
+          {
+            "name": "application_agent_chat_composition_contract",
+            "outcome": "pass",
+            "seconds": 14.17
+          },
+          {
+            "name": "application_agent_chat_continued_contract",
+            "outcome": "pass",
+            "seconds": 22.73
+          },
+          {
+            "name": "application_agent_finding_composition_contract",
+            "outcome": "pass",
+            "seconds": 14.21
+          },
+          {
+            "name": "application_agent_finding_dif_context_contract",
+            "outcome": "pass",
+            "seconds": 18.9
+          },
+          {
+            "name": "application_uiforetw_selected_diff_contract",
+            "outcome": "pass",
+            "seconds": 71.68
+          },
+          {
+            "name": "application_review_round_trip_composition_contract",
+            "outcome": "pass",
+            "seconds": 11.85
+          },
+          {
+            "name": "application_defect_composition_contract",
+            "outcome": "pass",
+            "seconds": 53.91
+          },
+          {
+            "name": "application_profile_multi_window_public_path",
+            "outcome": "pass",
+            "seconds": 80.93
+          },
+          {
+            "name": "application_document_tabs_restoration_public_path",
+            "outcome": "pass",
+            "seconds": 101.52
+          },
+          {
+            "name": "application_active_changed_scaling",
+            "outcome": "pass",
+            "seconds": 36.28
+          }
+        ]
+      },
+      {
+        "id": "composed-correction-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "--preset",
+          "dev",
+          "--parallel",
+          "2",
+          "--target",
+          "test_better_pull_review_qt_github_tests"
+        ],
+        "candidate": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "exit_code": 0,
+        "log": "build/combined-main-composed-build.log",
+        "log_sha256": "1c973f710b4ac37de01f206a128a4dfb8b4d8aede2545ee73cf5c2d1bf7000b3"
+      },
+      {
+        "id": "composed-correction-replay",
+        "argv": [
+          "ctest",
+          "--preset",
+          "dev",
+          "--parallel",
+          "1",
+          "--output-on-failure",
+          "-R",
+          "^qt_composed_github_scale_(100|125|200)$"
+        ],
+        "candidate": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "exit_code": 0,
+        "log": "build/combined-main-composed-replay.log",
+        "log_sha256": "440e9c9428d4b18e504c31c2e1610fb69ba53e99f411518fa866d69774bc692c",
+        "rows": [
+          {
+            "name": "qt_composed_github_scale_100",
+            "outcome": "pass",
+            "seconds": 3.84
+          },
+          {
+            "name": "qt_composed_github_scale_125",
+            "outcome": "pass",
+            "seconds": 3.51
+          },
+          {
+            "name": "qt_composed_github_scale_200",
+            "outcome": "pass",
+            "seconds": 4.15
+          }
+        ]
+      },
+      {
+        "id": "strict-tidy-initial",
+        "argv": [
+          "python3",
+          "_coding-standard/scripts/tidy.py",
+          "--root",
+          ".",
+          "--build-dir",
+          "build/dev",
+          "--clang-tidy",
+          "/opt/homebrew/opt/llvm/bin/clang-tidy",
+          "--warnings-as-errors",
+          "--paths",
+          "src/app/src/github_application.cpp",
+          "src/adapters/qt/src/workbench_window.cpp",
+          "tests/adapters_qt/composed_github_tests.cpp"
+        ],
+        "candidate": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "exit_code": 1,
+        "log": "build/combined-main-tidy.log",
+        "log_sha256": "c9850dfc133a58d6b72017d28ac03bd493eb6e2a757a4537644eeaf11ee7aa7d"
+      },
+      {
+        "id": "core-configure",
+        "argv": [
+          "cmake",
+          "--preset",
+          "core-only",
+          "-DBPR_DEPENDENCY_OFFLINE=ON"
+        ],
+        "candidate": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "exit_code": 0,
+        "log": "build/combined-main-core-configure.log",
+        "log_sha256": "2f7d8971eba37b148848404359feab919b2272b386e3a3ff8e57ee81e93c6286"
+      },
+      {
+        "id": "core-focused-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "build/core-only",
+          "--parallel",
+          "2",
+          "--target",
+          "test_better_pull_review_revisioned_review_draft_tests"
+        ],
+        "candidate": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "exit_code": 0,
+        "log": "build/combined-main-core-build.log",
+        "log_sha256": "622e0ef188929a4fdea882344b1b68b263b97a1f34b51c120f5e682249960047"
+      },
+      {
+        "id": "core-focused-tests",
+        "argv": [
+          "ctest",
+          "--preset",
+          "core-only",
+          "--parallel",
+          "1",
+          "--output-on-failure",
+          "-R",
+          "^(architecture_boundaries|architecture_boundary_contract|core_revisioned_review_draft)$"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "exit_code": 0,
+        "log": "build/combined-main-core-tests.log",
+        "log_sha256": "1daee9b5d657ce67d248b41c97aa76bce14bcafca1c9c18fb08a89e97809703e",
+        "rows": [
+          {
+            "name": "architecture_boundaries",
+            "outcome": "pass",
+            "seconds": 22.35
+          },
+          {
+            "name": "architecture_boundary_contract",
+            "outcome": "pass",
+            "seconds": 109.81
+          },
+          {
+            "name": "core_revisioned_review_draft",
+            "outcome": "pass",
+            "seconds": 0.35
+          }
+        ]
+      },
+      {
+        "id": "strict-tidy-corrected",
+        "argv": [
+          "python3",
+          "_coding-standard/scripts/tidy.py",
+          "--root",
+          ".",
+          "--build-dir",
+          "build/dev",
+          "--clang-tidy",
+          "/opt/homebrew/opt/llvm/bin/clang-tidy",
+          "--warnings-as-errors",
+          "--paths",
+          "src/app/src/github_application.cpp",
+          "src/adapters/qt/src/workbench_window.cpp"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "exit_code": 0,
+        "log": "build/combined-main-tidy-replay.log",
+        "log_sha256": "fce9336e5b9cb9b63d86a1cd5a69b7c1772bd9f55f0ed541e473c91a0ae340a5"
+      },
+      {
+        "id": "corrected-app-and-qt-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "--preset",
+          "dev",
+          "--parallel",
+          "2",
+          "--target",
+          "app_better_pull_review",
+          "test_better_pull_review_qt_github_tests",
+          "test_better_pull_review_qt_workbench_window_tests"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "exit_code": 0,
+        "log": "build/combined-main-tidy-fix-build.log",
+        "log_sha256": "24396c988a476e3d4632f1608b530c3f951cc2280f66dbe4a837278da16940f8"
+      },
+      {
+        "id": "source-inventory",
+        "argv": [
+          "cmake",
+          "-DBPR_PROVIDER_INVENTORY_SOURCE_FILE=/Users/jaeger/Documents/GitHub/BetterPullReview/src/app/src/github_application.cpp",
+          "-DBPR_APP_SOURCE_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/src/app",
+          "-P",
+          "tests/end_to_end/application_review_round_trip_composition_contract.cmake"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "exit_code": 0,
+        "log": "build/combined-main-source-inventory.log",
+        "log_sha256": "9085a45c0014c92f5a94a4c22f79d03ee9e7240a3799f8ecfe4d2d493b745098"
+      },
+      {
+        "id": "final-source-replay",
+        "argv": [
+          "ctest",
+          "--preset",
+          "dev",
+          "--parallel",
+          "1",
+          "--output-on-failure",
+          "-R",
+          "^(qt_composed_github_scale_(100|125|200)|qt_workbench_window_scale_100|application_review_round_trip_composition_contract|application_defect_composition_contract)$"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "exit_code": 0,
+        "log": "build/combined-main-final-replay.log",
+        "log_sha256": "e5a66ea742b9ac05247eed0da0af8ca29044dbf9b62160ccabb87772de8c12f4",
+        "rows": [
+          {
+            "name": "qt_composed_github_scale_100",
+            "outcome": "pass",
+            "seconds": 4.16
+          },
+          {
+            "name": "qt_composed_github_scale_125",
+            "outcome": "pass",
+            "seconds": 3.62
+          },
+          {
+            "name": "qt_composed_github_scale_200",
+            "outcome": "pass",
+            "seconds": 4.21
+          },
+          {
+            "name": "qt_workbench_window_scale_100",
+            "outcome": "pass",
+            "seconds": 21.51
+          },
+          {
+            "name": "application_review_round_trip_composition_contract",
+            "outcome": "pass",
+            "seconds": 12.77
+          },
+          {
+            "name": "application_defect_composition_contract",
+            "outcome": "pass",
+            "seconds": 54.34
+          }
+        ]
+      },
+      {
+        "id": "documentation",
+        "argv": [
+          "python3",
+          "scripts/verify_documentation.py",
+          "--root",
+          "."
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "scope": "final handoff and verification record, documentation-only delta",
+        "exit_code": 0,
+        "log": "build/combined-main-documentation.log",
+        "log_sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+      },
+      {
+        "id": "documentation-tests",
+        "argv": [
+          "python3",
+          "tests/scripts/verify_documentation_tests.py"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "scope": "final handoff and verification record, documentation-only delta",
+        "exit_code": 0,
+        "log": "build/combined-main-documentation-tests.log",
+        "log_sha256": "5593a156d2432cef64eabf7d1a8fd0a45b82c9c54e333bb9f217eece36dac75f"
+      },
+      {
+        "id": "final-format",
+        "argv": [
+          "/opt/homebrew/opt/llvm/bin/clang-format",
+          "--dry-run",
+          "--Werror",
+          "src/app/src/github_application.cpp",
+          "src/adapters/qt/src/workbench_window.cpp",
+          "tests/adapters_qt/composed_github_tests.cpp"
+        ],
+        "candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+        "scope": "final handoff and verification record, documentation-only delta",
+        "exit_code": 0,
+        "log": "build/combined-main-final-format.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "initial_failures": [
+      {
+        "id": "qt_composed_github_scale_100",
+        "diagnosis": "stale pre-1208 placement assertion expected defect buttons inside Notes",
+        "correction": "beddf1f5531e6af2c92e2298ac91348356b23638",
+        "preserved_log": "build/combined-main-focused-LastTest.log"
+      },
+      {
+        "id": "strict-tidy-initial",
+        "diagnosis": "seven Qt thread-menu parameter names and one test-only app diagnostic parameter lacked the required a-prefix; composed test TU passed",
+        "correction": "74c074fff3c21226a29e70fdaf87ec01bb8ea175"
+      }
+    ],
+    "evidence_reuse": "Initial main behavior checks at 6ae4d590 remain valid after test correction and parameter-only renames; final replay covers changed Qt/app surfaces. Unchanged m2b/0972 engineering evidence is retained, with its limitations.",
+    "checkpoint": {
+      "result": {
+        "action": "pending",
+        "detail": "Combined-main integration is verified and released after documentation commit. Coordinator reports cursor-49 handback; a fresh engineering round interprets it. This leaf changes no acceptance, and historical-name/native/platform obligations remain pending.",
+        "engineering_acceptance": "not-evaluated"
+      },
+      "binding_log": "build/combined-main-final-binding.json",
+      "observation": "build/combined-main-observation.json",
+      "result_log": "build/combined-main-final-checkpoint-result.json",
+      "definition_fingerprint": "sha256:145c4fa9ff0c3c4fd5f0fd8ba148f19baa12bf4226d2904ecf819c9e27d16eef",
+      "reconciliation": "Initial check detected this round's BPR-1202/BPR-1208 evidence additions. Renewed binding preserves criteria, milestone definition, prerequisites and mandate."
+    }
+  },
+  "reviewed_candidate": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+  "integration_commits": [
+    {
+      "revision": "6ae4d590cb214d219d36bfeaf06c55f0a3f8a5c9",
+      "purpose": "Review combined source, preserve baseline semantics, reseal actual pins; formatting only."
+    },
+    {
+      "revision": "beddf1f5531e6af2c92e2298ac91348356b23638",
+      "purpose": "Correct stale composed Notes/defect placement course; three-scale replay."
+    },
+    {
+      "revision": "74c074fff3c21226a29e70fdaf87ec01bb8ea175",
+      "purpose": "Rename eight lambda parameters to coding convention, review additional test-only app delta and reseal pins."
+    }
+  ],
+  "source_pins": {
+    "github_application_lf_sha256": "6faa8a9eb2c4300f0fa51bce8123934e08a78a133c0e56bdead1b80fd17a5d6d",
+    "production_manifest_sha256": "5eaffa251bd63dc74d8173eb85f739d5b38f4cef59f5c3a71d3713cd00d3e551",
+    "production_mutation_sha256": "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a",
+    "review": "docs/verification/combined-main-integration-2026-09-26.md"
+  },
+  "pending_obligations": [
+    "BPR-1210 AC1 historical filename resolution, independent of AC7",
+    "BPR-1204 terminal dependencies; status remains Backlog until fresh verdict engineering",
+    "Returned human/native judgments require a fresh engineering round on exact frozen candidate",
+    "BPR-0800 carried acceptance and BPR-1135 Windows/Linux station courses",
+    "BPR-0967 optimized budgets; BPR-1211 synchronous ledger I/O; host_load not_verified"
+  ],
+  "attended_handoff": {
+    "session": "d7cf21b16656c6ec19c8787255aa4006",
+    "frozen_source": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+    "frozen_executable_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+    "engineering_handoff_cursor": 36,
+    "coordinator_reported_handback_cursor": 49,
+    "coordinator_reported_handback_utc": "2026-09-26T21:06:23Z",
+    "interpretation": "Not performed by this integration leaf; assigned to fresh round",
+    "watch_session": 94005,
+    "watch_state": "returned handback, per coordinator",
+    "heartbeat": "continue-m2b-after-owner-hand-back",
+    "heartbeat_state": "paused during live intake, per coordinator"
+  },
+  "integration_changed_paths": [
+    "docs/issues/40-parked/BPR-1202-the-review-bar-puts-file-navigation-before-change-navigation.md",
+    "docs/issues/40-parked/BPR-1208-a-threads-defect-controls-sit-on-the-thread-not-in-the-trays-second-tab.md",
+    "docs/verification/combined-main-integration-2026-09-26.json",
+    "docs/verification/combined-main-integration-2026-09-26.md",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake"
+  ],
+  "render_inspection": {
+    "kind": "offscreen engineering only",
+    "paths": [
+      "build/dev/tests/adapters_qt/composed-github-100-defect-drawer.png",
+      "build/dev/tests/adapters_qt/composed-github-125-defect-drawer.png",
+      "build/dev/tests/adapters_qt/composed-github-200-defect-drawer.png",
+      "build/dev/tests/adapters_qt/composed-github-200-drawer-column.png",
+      "build/dev/tests/end_to_end/review-submission-composition.png-private-notes.png",
+      "build/dev/tests/end_to_end/review-submission-composition.png-note-promoted.png"
+    ],
+    "judgment": "Comments navigation and exact-thread text badge fit the drawer; Notes retains private controls; draft promotion shows item text and explicit Publish. Native judgments are separate.",
+    "sha256": {
+      "build/dev/tests/adapters_qt/composed-github-100-defect-drawer.png": "e672073390012716c2928b87d207e7c649ef5ba56d4d1a029928b84f81c0e02e",
+      "build/dev/tests/adapters_qt/composed-github-125-defect-drawer.png": "1f2622eb0399a9c40bacc8e947a113be58ac42fa3aee0a71a9a8e323ddcab634",
+      "build/dev/tests/adapters_qt/composed-github-200-defect-drawer.png": "0159fbdc2a7625caacb6a84455e2e465f7669d6a1484e30b1fcb434c200b12a9",
+      "build/dev/tests/adapters_qt/composed-github-200-drawer-column.png": "328dd938b80ed20335f613c1a56e873fde65bd6ea316ff77c2a915896cb15ab2",
+      "build/dev/tests/end_to_end/review-submission-composition.png-private-notes.png": "84895e4c1d95e78455e1d3cd0b47b6658a016d90471099af2c89056981946c4d",
+      "build/dev/tests/end_to_end/review-submission-composition.png-note-promoted.png": "8a6eedd4885ec56b7b963c7b2252162d19dc8dc62619f0e2921c17d1d9faa93e"
+    }
+  },
+  "candidate_binary": {
+    "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "6b7edfb3e556f6dfc5b6149ad8ab2cd9610dd36f0f40b94b99a53fe135fc669e",
+    "source": "74c074fff3c21226a29e70fdaf87ec01bb8ea175"
+  },
+  "ownership": {
+    "main_writer": "/root/combined_main_integration until final handoff commit; then coordinator",
+    "task_commands": "complete and reaped",
+    "task_owned_servers": [],
+    "sequencer": "absent",
+    "protected_resources": "unchanged; frozen executable digest rechecked",
+    "remote_mutations": false
+  }
 }
