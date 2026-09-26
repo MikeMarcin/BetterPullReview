@@ -80,6 +80,10 @@ namespace bpr::application {
 		std::optional<std::filesystem::path> PreviousPath;
 		workbench_file_change_kind           Change      = workbench_file_change_kind::uninitialized;
 		workbench_file_content_kind          ContentKind = workbench_file_content_kind::unknown;
+		/// [[BPR-0972]]. The file's position in the port's complete catalogue,
+		/// so a withheld file restored later returns to its place without a
+		/// new observation. Absent from a port that does not number it.
+		std::optional<std::size_t> Ordinal;
 
 		auto operator<=>(const workbench_file_observation_entry&) const = default;
 	};
@@ -197,6 +201,10 @@ namespace bpr::application {
 		workbench_pull_request_authority              Authority;
 		workbench_observation_status                  Status = workbench_observation_status::unavailable;
 		std::vector<workbench_file_observation_entry> Actionable;
+		/// [[BPR-0972]]. Catalogue files the port left out of the order because
+		/// an exact-material receipt makes them not actionable. A port that
+		/// names them lets the host restore one without observing again.
+		std::vector<workbench_file_observation_entry> Withheld;
 
 		auto operator<=>(const workbench_file_observation&) const = default;
 	};
@@ -721,6 +729,19 @@ namespace bpr::application {
 		auto operator<=>(const workbench_file_projection&) const = default;
 	};
 
+	/// \brief [[BPR-0972]]. A bounded change to the published file order.
+	///
+	/// \details Removals name files that left; insertions carry each joining
+	/// file at its position in the new order, ascending. A consumer removes
+	/// first, then inserts.
+	struct workbench_files_delta
+	{
+		std::vector<core::workbench_file_id>                           Removed;
+		std::vector<std::pair<std::size_t, workbench_file_projection>> Inserted;
+
+		auto operator<=>(const workbench_files_delta&) const = default;
+	};
+
 	/// \brief Describes the workbench projection record.
 	///
 	/// \details Every domain is engaged only when its published meaning changed,
@@ -739,6 +760,9 @@ namespace bpr::application {
 		std::optional<core::workbench_command_delta>          Commands;
 		std::optional<workbench_layout_delta>                 Layout;
 		std::optional<std::vector<workbench_file_projection>> Files;
+		/// [[BPR-0972]]. A bounded change to the last published file order,
+		/// published instead of `Files` when a retained receipt moves one file.
+		std::optional<workbench_files_delta> FilesDelta;
 		/// [[BPR-0661]]. Published when the preferences change, when they are
 		/// first loaded, and again when a change was refused so the page
 		/// reverts to what the host holds.
@@ -770,6 +794,7 @@ namespace bpr::application {
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value()
+			&& !aProjection.FilesDelta.has_value()
 			&& !aProjection.Behaviour.has_value()
 			&& !aProjection.Refusal.has_value()
 			&& !aProjection.HomeView.has_value()

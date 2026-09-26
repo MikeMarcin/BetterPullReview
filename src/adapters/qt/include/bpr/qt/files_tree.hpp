@@ -7,6 +7,7 @@
 
 #include <QAbstractItemModel>
 #include <QColor>
+#include <QHash>
 #include <QModelIndex>
 #include <QString>
 #include <QStyledItemDelegate>
@@ -43,6 +44,9 @@ namespace bpr::qt {
 		QString                                       Path;
 		core::workbench_file_id                       File;
 		std::optional<application::overview_file_row> Overview;
+		/// [[BPR-0972]]. Left the drawer's order; kept so its overview facts
+		/// return with it.
+		bool Withheld = false;
 	};
 
 	/// \brief One row of the tree: a folder or a file.
@@ -118,7 +122,13 @@ namespace bpr::qt {
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
 		/// \brief [[BPR-0972]]. Takes the overview facts of these files only.
-		void               apply_overview_rows(std::span<const application::overview_file_row> aRows);
+		void apply_overview_rows(std::span<const application::overview_file_row> aRows);
+		/// \brief [[BPR-0972]]. Removes and inserts single files in place.
+		/// \details A file whose folder already holds other rows, and whose
+		/// removal leaves no folder to compact, moves only its own row and its
+		/// folders' counts; anything else is reconciled as a complete list.
+		void               apply_delta(std::span<const core::workbench_file_id> aRemoved,
+									   std::span<const workbench_drawer_row>    aInserted);
 		void               set_order(files_order aOrder);
 		[[nodiscard]] auto order() const noexcept -> files_order;
 		void               set_filter(const QString& aFilter);
@@ -153,6 +163,9 @@ namespace bpr::qt {
 		void               release(std::size_t aNode);
 		void               renumber(std::size_t aParent, std::size_t aFrom);
 		[[nodiscard]] auto index_of_node(std::size_t aNode) const -> QModelIndex;
+		[[nodiscard]] auto remove_file_node(std::size_t aNode) -> bool;
+		[[nodiscard]] auto insert_file_node(std::size_t aEntry) -> bool;
+		void               count_ancestors(std::size_t aNode, bool aAdded);
 		void               rebuild_file_index();
 		[[nodiscard]] auto node_index(const QModelIndex& aIndex) const -> std::size_t;
 
@@ -160,6 +173,8 @@ namespace bpr::qt {
 		std::vector<std::size_t>           FreeNodes;
 		/// [[BPR-0972]]. Every entry by file, shown or filtered away.
 		std::vector<std::pair<core::workbench_file_id, std::size_t>> EntryIndex;
+		/// [[BPR-0972]]. Each folder row by the path it ends at.
+		QHash<QString, std::size_t>                                  FolderIndex;
 		std::vector<std::size_t>                                     InsertedFolders;
 		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
 		std::vector<files_tree_entry>                                Entries;
@@ -209,6 +224,9 @@ namespace bpr::qt {
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
 		/// \brief [[BPR-0972]]. Takes the overview facts of these files only.
 		void apply_overview_rows(std::span<const application::overview_file_row> aRows);
+		/// \brief [[BPR-0972]]. Removes and inserts single files in place.
+		void apply_delta(std::span<const core::workbench_file_id> aRemoved,
+						 std::span<const workbench_drawer_row>    aInserted);
 		void adopt_appearance(const appearance_profile& aProfile);
 		void set_order(files_order aOrder);
 		void set_filter(const QString& aFilter);

@@ -195,6 +195,153 @@ namespace bpr::qt {
 		}
 	}
 
+	void files_tree_model::apply_delta(const std::span<const core::workbench_file_id> aRemoved,
+									   const std::span<const workbench_drawer_row>    aInserted)
+	{
+		auto whole = false;
+		for (const auto& file : aRemoved) {
+			for (const auto& [identity, position] : std::ranges::equal_range(EntryIndex, file, { }, &std::pair<core::workbench_file_id, std::size_t>::first)) {
+				if (Entries[position].Withheld) {
+					continue;
+				}
+				Entries[position].Withheld = true;
+				const auto shown           = std::ranges::equal_range(FileIndex, file, { }, &std::pair<core::workbench_file_id, std::size_t>::first);
+				auto       nodes           = std::vector<std::size_t>{ };
+				for (const auto& [shownFile, node] : shown) {
+					nodes.push_back(node);
+				}
+				for (const auto node : nodes) {
+					whole = whole || !remove_file_node(node);
+				}
+			}
+		}
+		for (const auto& row : aInserted) {
+			if (!row.File.has_value()) {
+				continue;
+			}
+			const auto known = std::ranges::equal_range(EntryIndex, *row.File, { }, &std::pair<core::workbench_file_id, std::size_t>::first);
+			auto       entry = std::size_t{ 0U };
+			if (!known.empty()) {
+				entry = known.front().second;
+				if (!Entries[entry].Withheld) {
+					continue;
+				}
+				Entries[entry].Withheld = false;
+				Entries[entry].Path     = row.Title;
+			} else {
+				Entries.push_back(files_tree_entry{ .Path = row.Title, .File = *row.File });
+				entry = Entries.size() - 1U;
+				EntryIndex.insert(std::ranges::upper_bound(EntryIndex, std::pair{ *row.File, entry }), std::pair{ *row.File, entry });
+			}
+			if (resident_filter_matches(Entries[entry].Path, Filter)) {
+				whole = whole || !insert_file_node(entry);
+			}
+		}
+		if (whole) {
+			// Folders appear, vanish or compact: the complete list decides.
+			rebuild();
+		}
+	}
+
+	auto files_tree_model::remove_file_node(const std::size_t aNode) -> bool
+	{
+		const auto parent = Nodes[aNode].Parent;
+		if (Order == files_order::tree && parent != root_node) {
+			// A folder left empty disappears, and one left holding a single
+			// folder compacts with it: both change folders, so the complete
+			// list decides.
+			const auto& siblings = Nodes[parent].Children;
+			if (siblings.size() < 2U) {
+				return false;
+			}
+			if (siblings.size() == 2U && Nodes[siblings.front() == aNode ? siblings.back() : siblings.front()].Folder) {
+				return false;
+			}
+		}
+		const auto row  = Nodes[aNode].Row;
+		const auto file = std::pair{ Entries[*Nodes[aNode].Entry].File, aNode };
+		beginRemoveRows(index_of_node(parent), row, row);
+		auto& siblings = Nodes[parent].Children;
+		siblings.erase(siblings.begin() + row);
+		renumber(parent, static_cast<std::size_t>(row));
+		if (const auto at = std::ranges::lower_bound(FileIndex, file); at != FileIndex.end() && *at == file) {
+			FileIndex.erase(at);
+		}
+		release(aNode);
+		endRemoveRows();
+		++WorkStatistics.RowsRemoved;
+		count_ancestors(parent, false);
+		return true;
+	}
+
+	auto files_tree_model::insert_file_node(const std::size_t aEntry) -> bool
+	{
+		const auto& path   = Entries[aEntry].Path;
+		auto        parent = root_node;
+		auto        label  = path;
+		if (Order == files_order::tree) {
+			// Only a folder row that ends exactly at the file's folder can take
+			// it; a new or compacted folder is the complete list's to decide.
+			const auto slash = path.lastIndexOf(QLatin1Char{ '/' });
+			if (slash >= 0) {
+				const auto folder = FolderIndex.constFind(path.left(slash));
+				if (folder == FolderIndex.constEnd()) {
+					return false;
+				}
+				parent = *folder;
+				label  = path.mid(slash + 1);
+			}
+		}
+		const auto changedFirst = Order == files_order::changed_first;
+		const auto changed      = Entries[aEntry].Overview.has_value() && changed_since_review(*Entries[aEntry].Overview);
+		const auto before       = [&](const std::size_t aSibling) {
+			const auto& sibling = Nodes[aSibling];
+			if (Order == files_order::tree && sibling.Folder) {
+				return true;
+			}
+			if (changedFirst) {
+				const auto siblingChanged = sibling.Entry && Entries[*sibling.Entry].Overview && changed_since_review(*Entries[*sibling.Entry].Overview);
+				if (siblingChanged != changed) {
+					return siblingChanged;
+				}
+			}
+			return sibling.Label.compare(label, Qt::CaseInsensitive) < 0;
+		};
+		const auto& siblings = Nodes[parent].Children;
+		const auto  position = static_cast<std::size_t>(std::distance(siblings.begin(), std::ranges::partition_point(siblings, before)));
+		beginInsertRows(index_of_node(parent), static_cast<int>(position), static_cast<int>(position));
+		auto node = std::size_t{ 0U };
+		if (FreeNodes.empty()) {
+			Nodes.emplace_back();
+			node = Nodes.size() - 1U;
+		} else {
+			node = FreeNodes.back();
+			FreeNodes.pop_back();
+		}
+		Nodes[node] = files_tree_node{ .Label = label, .Path = path, .Entry = aEntry, .Parent = parent };
+		Nodes[parent].Children.insert(Nodes[parent].Children.begin() + static_cast<std::ptrdiff_t>(position), node);
+		renumber(parent, position);
+		const auto file = std::pair{ Entries[aEntry].File, node };
+		FileIndex.insert(std::ranges::upper_bound(FileIndex, file), file);
+		endInsertRows();
+		++WorkStatistics.RowsInserted;
+		count_ancestors(parent, true);
+		return true;
+	}
+
+	void files_tree_model::count_ancestors(const std::size_t aNode, const bool aAdded)
+	{
+		for (auto ancestor = aNode;; ancestor = Nodes[ancestor].Parent) {
+			Nodes[ancestor].FileCount = aAdded ? Nodes[ancestor].FileCount + 1U : Nodes[ancestor].FileCount - 1U;
+			if (ancestor == root_node) {
+				break;
+			}
+			const auto index = index_of_node(ancestor);
+			emit       dataChanged(index, index);
+			++WorkStatistics.ChangedRows;
+		}
+	}
+
 	void files_tree_model::set_order(const files_order aOrder)
 	{
 		if (Order == aOrder) {
@@ -233,7 +380,7 @@ namespace bpr::qt {
 		// which carries the file name; a shown file keeps its folders below.
 		auto shown = std::vector<std::size_t>{ };
 		for (std::size_t index = 0U; index < Entries.size(); ++index) {
-			if (resident_filter_matches(Entries[index].Path, Filter)) {
+			if (!Entries[index].Withheld && resident_filter_matches(Entries[index].Path, Filter)) {
 				shown.push_back(index);
 			}
 		}
@@ -654,9 +801,12 @@ namespace bpr::qt {
 				Nodes[parent.Children[row]].Row = static_cast<int>(row);
 			}
 		}
+		FolderIndex.clear();
 		for (std::size_t node = 1U; node < Nodes.size(); ++node) {
 			if (Nodes[node].Entry) {
 				FileIndex.emplace_back(Entries[*Nodes[node].Entry].File, node);
+			} else if (Nodes[node].Folder && !Nodes[node].Label.isEmpty()) {
+				FolderIndex.insert(Nodes[node].Path, node);
 			}
 		}
 		std::ranges::sort(FileIndex);
@@ -936,6 +1086,15 @@ namespace bpr::qt {
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply_overview_rows(aRows);
 		expand_inserted();
+	}
+
+	void files_tree_view::apply_delta(const std::span<const core::workbench_file_id> aRemoved,
+									  const std::span<const workbench_drawer_row>    aInserted)
+	{
+		const auto applying = QScopedValueRollback{ Applying, true };
+		Model->apply_delta(aRemoved, aInserted);
+		expand_inserted();
+		select_file(SelectedFile);
 	}
 
 	void files_tree_view::expand_inserted()

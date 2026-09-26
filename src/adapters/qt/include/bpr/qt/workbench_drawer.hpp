@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -86,6 +87,11 @@ namespace bpr::qt {
 
 		/// \brief Reconciles the retained rows with the supplied presentation order.
 		void apply(const std::vector<workbench_drawer_row>& aRows);
+		/// \brief [[BPR-0972]]. Removes these files' rows and inserts rows at
+		/// their positions in the new order, ascending, without reconciling
+		/// the rest.
+		void apply_delta(std::span<const core::workbench_file_id>                      aRemoved,
+						 std::span<const std::pair<std::size_t, workbench_drawer_row>> aInserted);
 
 		[[nodiscard]] auto index_for_identity(const QString& aIdentity) const
 			-> QModelIndex;

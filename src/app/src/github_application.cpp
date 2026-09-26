@@ -8509,7 +8509,7 @@ namespace bpr::app {
 			if (!profile || profile->authentication_transport() != application::github_authentication_transport::github_cli) {
 				return profile != nullptr;
 			}
-			const auto exact_current = [this, &aTarget, &aActor] {
+			const auto exactCurrent = [this, &aTarget, &aActor] {
 				if (!Host || !WindowRead || !Host->accepted_session()
 					|| !WindowRead->accepted_snapshot()) {
 					return false;
@@ -8531,7 +8531,7 @@ namespace bpr::app {
 					&& aTarget.Number == snapshot.PullRequest.Number
 					&& aTarget.Hostname.value() == selected->hostname();
 			};
-			if (!exact_current()) {
+			if (!exactCurrent()) {
 				return false;
 			}
 			// [[BPR-0797]]. Asked at run time, and compiled into both graphs,
@@ -8567,7 +8567,7 @@ namespace bpr::app {
 						.arg(aTarget.Number.value())
 						.arg(QString::fromStdString(aActor.Login)),
 					QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-				return consent == QMessageBox::Yes && exact_current();
+				return consent == QMessageBox::Yes && exactCurrent();
 			}
 #endif
 			// Only the macOS prompt above reads the operation; every other graph
@@ -9492,9 +9492,11 @@ namespace bpr::app {
 				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
 				overviewPublished = ReviewLedgerHost->refresh_receipt().has_value();
 			}
-			if (aChanges.Receipts && WorkbenchHost) {
+			if (aChanges.Receipts && !own && WorkbenchHost) {
 				// Another file may have re-entered the actionable order while
 				// this view was showing different or unavailable material.
+				// [[BPR-0972]]. This window's own commit already re-observed the
+				// order when it changed actionability.
 				WorkbenchHost->refresh_actionability();
 			}
 			if (aChanges.Conversations && !own) {
@@ -10063,19 +10065,20 @@ namespace bpr::app {
 			auto authority = std::optional<
 				application::workbench_pull_request_authority>{ };
 			auto actionabilityChanged = false;
+			auto nowActionable        = true;
 			{
-				const auto lock          = std::scoped_lock{ ReviewLedgerStateMutex };
-				const auto nowActionable = core::actionable(core::reason_for(
+				const auto lock      = std::scoped_lock{ ReviewLedgerStateMutex };
+				nowActionable        = core::actionable(core::reason_for(
 					core::actionability_input{ .Receipt = aProjection.Receipt }));
-				actionabilityChanged     = ReviewLedgerReceipt.has_value()
+				actionabilityChanged = ReviewLedgerReceipt.has_value()
 					? ReviewLedgerReceipt->File != aProjection.Receipt.File
 						|| core::actionable(core::reason_for(core::actionability_input{
 							   .Receipt = *ReviewLedgerReceipt,
 						   }))
 							!= nowActionable
 					: !nowActionable;
-				ReviewLedgerReceipt      = aProjection.Receipt;
-				authority                = ReviewLedgerAuthority;
+				ReviewLedgerReceipt  = aProjection.Receipt;
+				authority            = ReviewLedgerAuthority;
 			}
 			if (Window != nullptr) {
 				Window->publish(application::project_file_receipt_actions(
@@ -10092,7 +10095,9 @@ namespace bpr::app {
 			}
 			if (WorkbenchHost != nullptr && authority.has_value()
 				&& actionabilityChanged) {
-				WorkbenchHost->refresh_actionability();
+				// [[BPR-0972]]. The retained receipt names one file; the host
+				// moves that file and restores any it withheld, in place.
+				WorkbenchHost->retain_actionability(*authority, aProjection.Receipt.File, nowActionable);
 			}
 		}
 

@@ -10,6 +10,7 @@
 #include <QPersistentModelIndex>
 #include <QStyleOptionViewItem>
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -484,6 +485,75 @@ namespace {
 		}
 	}
 
+	void expect_same_tree(const qt::files_tree_model& aActual, const qt::files_tree_model& aExpected,
+						  const QModelIndex& aActualParent = { }, const QModelIndex& aExpectedParent = { })
+	{
+		expect(aActual.rowCount(aActualParent) == aExpected.rowCount(aExpectedParent), "delta and full tree have identical children");
+		for (int row = 0; row < aActual.rowCount(aActualParent); ++row) {
+			const auto actual   = aActual.index(row, 0, aActualParent);
+			const auto expected = aExpected.index(row, 0, aExpectedParent);
+			for (int role = qt::files_tree_model::path_role; role <= qt::files_tree_model::thread_count_role; ++role) {
+				expect(actual.data(role) == expected.data(role), "delta and full tree expose identical file facts");
+			}
+			expect(actual.data() == expected.data() && aActual.file_at(actual) == aExpected.file_at(expected), "delta preserves labels and file identity");
+			expect_same_tree(aActual, aExpected, actual, expected);
+		}
+	}
+
+	void test_file_deltas_equal_complete_projection()
+	{
+		for (const auto order : { qt::files_order::tree, qt::files_order::flat, qt::files_order::changed_first }) {
+			for (const auto& filter : { QString{ }, QStringLiteral("cpp") }) {
+				auto                       rows  = std::vector{ file("src/a.cpp"), file("src/b.cpp"), file("src/sub/c.cpp"), file("docs/deep/readme.md"), file("root.cpp") };
+				auto                       facts = std::vector{ overview("src/a.cpp", 2U, 1U, application::overview_change_since_review::changed, core::file_read_state::read, 0U) };
+				qt::workbench_drawer_model drawer;
+				qt::files_tree_model       tree;
+				drawer.apply(rows);
+				tree.apply(rows);
+				tree.apply_overview(facts);
+				tree.set_order(order);
+				tree.set_filter(filter);
+				auto resets = 0;
+				QObject::connect(&tree, &QAbstractItemModel::modelReset, &tree, [&] { ++resets; });
+				QObject::connect(&drawer, &QAbstractItemModel::modelReset, &drawer, [&] { ++resets; });
+				const auto check = [&] {
+					qt::files_tree_model fresh;
+					fresh.apply(rows);
+					fresh.apply_overview(facts);
+					fresh.set_order(order);
+					fresh.set_filter(filter);
+					expect_same_tree(tree, fresh);
+					expect(drawer.rowCount() == static_cast<int>(rows.size()), "drawer delta preserves row count");
+					for (std::size_t row = 0U; row < rows.size(); ++row) {
+						expect(drawer.index_for_file(*rows[row].File).row() == static_cast<int>(row), "drawer delta preserves exact order");
+						expect(drawer.index(static_cast<int>(row), 0).data() == rows[row].Title, "drawer delta preserves row text");
+					}
+					expect(resets == 0, "deltas never reset either file model");
+				};
+				const auto remove = [&](std::size_t aRow) {
+					const auto id = *rows[aRow].File;
+					rows.erase(rows.begin() + static_cast<std::ptrdiff_t>(aRow));
+					drawer.apply_delta(std::array{ id }, { });
+					tree.apply_delta(std::array{ id }, { });
+					check();
+				};
+				remove(0U);
+				remove(0U); // Leaves a nesting-only folder to compact.
+				remove(1U); // Removes a whole compacted branch.
+				const auto insert = [&](const std::size_t aAt, const qt::workbench_drawer_row& aRow) {
+					rows.insert(rows.begin() + static_cast<std::ptrdiff_t>(aAt), aRow);
+					drawer.apply_delta({ }, std::array{ std::pair{ aAt, aRow } });
+					tree.apply_delta({ }, std::array{ aRow });
+					check();
+				};
+				insert(0U, file("src/a.cpp")); // Restores retained overview facts.
+				insert(1U, file("src/b.cpp"));
+				insert(2U, file("new/branch/file.cpp"));
+				insert(rows.size(), file("docs/deep/readme.md"));
+			}
+		}
+	}
+
 	void test_receipt_updates_preserve_tree_indexes()
 	{
 		for (const auto order : { qt::files_order::tree, qt::files_order::flat, qt::files_order::changed_first }) {
@@ -519,6 +589,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_file_deltas_equal_complete_projection();
 	test_file_lookup_reuses_indexes();
 	test_receipt_updates_preserve_tree_indexes();
 	test_drawer_reconciliation_is_linear_in_rows();

@@ -146,6 +146,52 @@ namespace bpr::qt {
 		rebuild_file_index();
 	}
 
+	void workbench_drawer_model::apply_delta(
+		const std::span<const core::workbench_file_id>                      aRemoved,
+		const std::span<const std::pair<std::size_t, workbench_drawer_row>> aInserted)
+	{
+		for (const auto& file : aRemoved) {
+			const auto found = index_for_file(file);
+			if (!found.isValid()) {
+				continue;
+			}
+			const auto row = static_cast<std::size_t>(found.row());
+			const auto was = FileIndexDirty;
+			remove_at(row);
+			if (!was) {
+				// The index follows the removal instead of being rebuilt.
+				FileIndexDirty   = false;
+				const auto entry = std::pair{ file, static_cast<int>(row) };
+				if (const auto at = std::ranges::lower_bound(FileIndex, entry); at != FileIndex.end() && *at == entry) {
+					FileIndex.erase(at);
+				}
+				for (auto& indexed : FileIndex) {
+					indexed.second -= indexed.second > static_cast<int>(row) ? 1 : 0;
+				}
+			}
+		}
+		for (const auto& [position, row] : aInserted) {
+			if (Present.contains(row.Identity)) {
+				continue;
+			}
+			const auto target = std::min(position, Rows.size());
+			const auto was    = FileIndexDirty;
+			beginInsertRows({ }, static_cast<int>(target), static_cast<int>(target));
+			Present.insert(row.Identity);
+			Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target), row);
+			endInsertRows();
+			++Statistics.RowsInserted;
+			FileIndexDirty = was || !row.File.has_value();
+			if (!FileIndexDirty) {
+				for (auto& indexed : FileIndex) {
+					indexed.second += indexed.second >= static_cast<int>(target) ? 1 : 0;
+				}
+				const auto entry = std::pair{ *row.File, static_cast<int>(target) };
+				FileIndex.insert(std::ranges::upper_bound(FileIndex, entry), entry);
+			}
+		}
+	}
+
 	auto workbench_drawer_model::index_for_identity(const QString& aIdentity) const
 		-> QModelIndex
 	{

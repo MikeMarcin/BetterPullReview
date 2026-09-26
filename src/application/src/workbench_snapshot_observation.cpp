@@ -181,15 +181,19 @@ namespace bpr::application {
 			}
 			const auto& record   = (*files)[position];
 			const auto  identity = identities[position];
-			const auto  file     = observed_file(record, identity);
+			auto        file     = observed_file(record, identity);
 			if (!file.has_value()) {
 				return answer(aRequest, workbench_observation_status::unavailable);
 			}
+			// [[BPR-0972]]. Numbered by catalogue position, and withheld files
+			// named, so the host can restore one in place later.
+			file->Ordinal = position;
 			if (Actionability) {
 				const auto facts = Actionability(aRequest.Authority, identity);
 				if (facts.has_value() && facts->Receipt.File == identity
 					&& facts->Receipt.Material.valid()
 					&& !core::actionable(core::reason_for(*facts))) {
+					result.Withheld.push_back(std::move(*file));
 					continue;
 				}
 			}

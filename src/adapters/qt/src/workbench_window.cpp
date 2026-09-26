@@ -4278,7 +4278,7 @@ namespace bpr::qt {
 		if (refreshGap) {
 			RefreshConversationAnchor  = previousAnchor;
 			RefreshConversationContext = aProjection.Context;
-		} else if (aProjection.Selection.has_value() || aProjection.Files.has_value() || (RefreshConversationContext.has_value() && aProjection.Context.Session != RefreshConversationContext->Session)) {
+		} else if (aProjection.Selection.has_value() || aProjection.Files.has_value() || aProjection.FilesDelta.has_value() || (RefreshConversationContext.has_value() && aProjection.Context.Session != RefreshConversationContext->Session)) {
 			RefreshConversationAnchor.reset();
 			RefreshConversationContext.reset();
 		}
@@ -4291,6 +4291,9 @@ namespace bpr::qt {
 		}
 		if (aProjection.Files) {
 			apply_file_rows(*aProjection.Files);
+		}
+		if (aProjection.FilesDelta) {
+			apply_file_delta(*aProjection.FilesDelta);
 		}
 		if (aProjection.Selection) {
 			Cursor = aProjection.Selection->Cursor;
@@ -4370,6 +4373,50 @@ namespace bpr::qt {
 		return LastRefusal;
 	}
 
+	namespace {
+		/// \brief The drawer's row for one projected file.
+		[[nodiscard]] auto drawer_row_for(const application::workbench_file_projection& aFile) -> workbench_drawer_row
+		{
+			auto identity = QString{ };
+			identity.reserve(
+				static_cast<qsizetype>(aFile.File.bytes().size()) * qsizetype{ 2 });
+			for (const auto byte : aFile.File.bytes()) {
+				identity.append(QString::number(byte, 16).rightJustified(2, QLatin1Char{ '0' }));
+			}
+			const auto path = QString::fromUtf8(aFile.Path.data(), static_cast<qsizetype>(aFile.Path.size()));
+			return workbench_drawer_row{
+				.Identity = std::move(identity),
+				.Title    = path,
+				.Detail   = path,
+				.File     = aFile.File,
+			};
+		}
+	} // namespace
+
+	void workbench_window::apply_file_delta(const application::workbench_files_delta& aDelta)
+	{
+		// [[BPR-0972]]. The drawer list and the tree each take the few moved
+		// files; neither receives the order again.
+		auto inserted = std::vector<std::pair<std::size_t, workbench_drawer_row>>{ };
+		auto rows     = std::vector<workbench_drawer_row>{ };
+		inserted.reserve(aDelta.Inserted.size());
+		rows.reserve(aDelta.Inserted.size());
+		for (const auto& [position, file] : aDelta.Inserted) {
+			inserted.emplace_back(position, drawer_row_for(file));
+			rows.push_back(inserted.back().second);
+		}
+		ApplyingFileSelection = true;
+		Drawers[0].Panel->contents()->apply_delta(aDelta.Removed, inserted);
+		if (FilesTree != nullptr) {
+			FilesTree->apply_delta(aDelta.Removed, rows);
+			refresh_filter_notices();
+		}
+		FileRowsPresent       = Drawers[0].Panel->contents()->rowCount() > 0;
+		ApplyingFileSelection = false;
+		++Statistics.FileRowUpdates;
+		apply_file_selection();
+	}
+
 	void workbench_window::apply_file_rows(
 		const std::vector<application::workbench_file_projection>& aFiles)
 	{
@@ -4377,19 +4424,7 @@ namespace bpr::qt {
 		auto rows              = std::vector<workbench_drawer_row>{ };
 		rows.reserve(aFiles.size());
 		for (const auto& file : aFiles) {
-			auto identity = QString{ };
-			identity.reserve(
-				static_cast<qsizetype>(file.File.bytes().size()) * qsizetype{ 2 });
-			for (const auto byte : file.File.bytes()) {
-				identity.append(QString::number(byte, 16).rightJustified(2, QLatin1Char{ '0' }));
-			}
-			const auto path = QString::fromUtf8(file.Path.data(), static_cast<qsizetype>(file.Path.size()));
-			rows.push_back(workbench_drawer_row{
-				.Identity = std::move(identity),
-				.Title    = path,
-				.Detail   = path,
-				.File     = file.File,
-			});
+			rows.push_back(drawer_row_for(file));
 		}
 		ApplyingFileSelection = true;
 		Drawers[0].Panel->contents()->apply(rows);

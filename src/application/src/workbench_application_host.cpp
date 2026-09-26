@@ -6,9 +6,12 @@
 #include <cstdint>
 #include <deque>
 #include <expected>
+#include <functional>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <stop_token>
@@ -75,6 +78,13 @@ namespace bpr::application {
 		{
 		};
 
+		struct deferred_workbench_actionability_retain
+		{
+			workbench_pull_request_authority Authority;
+			core::workbench_file_id          File;
+			bool                             Actionable = true;
+		};
+
 		struct deferred_workbench_change_navigation
 		{
 			workbench_selected_diff_request              Request;
@@ -121,6 +131,7 @@ namespace bpr::application {
 														deferred_workbench_invalidate,
 														deferred_workbench_selected_diff_refresh,
 														deferred_workbench_actionability_refresh,
+														deferred_workbench_actionability_retain,
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
@@ -360,6 +371,10 @@ namespace bpr::application {
 											 ingress_type,
 											 deferred_workbench_actionability_refresh>) {
 						refresh_actionability_now();
+					} else if constexpr (std::is_same_v<
+											 ingress_type,
+											 deferred_workbench_actionability_retain>) {
+						retain_actionability_now(aTyped.Authority, aTyped.File, aTyped.Actionable);
 					} else if constexpr (std::is_same_v<
 											 ingress_type,
 											 deferred_workbench_change_navigation>) {
@@ -618,6 +633,30 @@ namespace bpr::application {
 			}
 			++WorkStatistics.FileLookupComparisons;
 			return found->first == aFile ? std::optional{ found->second } : std::nullopt;
+		}
+
+		/// \brief Enters a file inserted at an order position into the index.
+		/// \details Later positions move up by one; no identity is compared
+		/// beyond the binary search for the new entry.
+		void index_inserted(const core::workbench_file_id aFile, const std::size_t aPosition)
+		{
+			for (auto& entry : FileIndex) {
+				entry.second += entry.second >= aPosition ? 1U : 0U;
+			}
+			const auto at = std::ranges::lower_bound(FileIndex, std::pair{ aFile, aPosition });
+			FileIndex.insert(at, std::pair{ aFile, aPosition });
+		}
+
+		/// \brief Removes a file erased from an order position from the index.
+		void index_erased(const core::workbench_file_id aFile, const std::size_t aPosition)
+		{
+			if (const auto at = std::ranges::lower_bound(FileIndex, std::pair{ aFile, aPosition });
+				at != FileIndex.end() && *at == std::pair{ aFile, aPosition }) {
+				FileIndex.erase(at);
+			}
+			for (auto& entry : FileIndex) {
+				entry.second -= entry.second > aPosition ? 1U : 0U;
+			}
 		}
 
 		void rebuild_file_index()
@@ -920,6 +959,9 @@ namespace bpr::application {
 			Actionable.clear();
 			Files.clear();
 			FileIndex.clear();
+			Withheld.clear();
+			Numbered = false;
+			PendingFilesDelta.reset();
 			FilesDirty = true;
 			Selected.reset();
 			SelectedFile.reset();
@@ -944,9 +986,95 @@ namespace bpr::application {
 			if (Closing || !Authority.has_value()) {
 				return;
 			}
+			++WorkStatistics.ActionabilityObservations;
 			retire(workbench_request_domain::observation,
 				   workbench_terminal_rejection::superseded);
 			submit_observation(*Authority);
+		}
+
+		/// \brief Applies the retained receipt's actionability to the order in place.
+		///
+		/// \details [[BPR-0972]]. The port's order is its catalogue less the
+		/// withheld files, and only the retained file is ever withheld. So the
+		/// new order restores every withheld file but `aFile`, and withholds
+		/// `aFile` when it is not actionable: exactly what observing again would
+		/// answer. It observes again instead when an observation is in flight,
+		/// when a file to restore was never named, or when the catalogue is not
+		/// numbered.
+		void retain_actionability_now(
+			const workbench_pull_request_authority& aAuthority,
+			const core::workbench_file_id           aFile,
+			const bool                              aActionable)
+		{
+			if (Closing || !Authority.has_value() || *Authority != aAuthority) {
+				return;
+			}
+			const auto observing = std::ranges::any_of(Outstanding, [](const outstanding_request& aRecord) {
+				return aRecord.Domain == workbench_request_domain::observation
+					&& aRecord.Retirement == workbench_terminal_rejection::none;
+			});
+			if (observing || !Numbered) {
+				refresh_actionability_now();
+				return;
+			}
+			auto delta = workbench_files_delta{ };
+			for (auto withheld = Withheld.begin(); withheld != Withheld.end();) {
+				if (withheld->first == aFile && !aActionable) {
+					++withheld;
+					continue;
+				}
+				const auto position = std::ranges::lower_bound(Files, withheld->second.Ordinal, { }, &workbench_file_observation_entry::Ordinal);
+				const auto at       = static_cast<std::size_t>(std::distance(Files.begin(), position));
+				Files.insert(position, std::move(withheld->second));
+				Actionable.insert(Actionable.begin() + static_cast<std::ptrdiff_t>(at), withheld->first);
+				index_inserted(withheld->first, at);
+				for (auto& inserted : delta.Inserted) {
+					inserted.first += inserted.first >= at ? 1U : 0U;
+				}
+				delta.Inserted.emplace_back(at, workbench_file_projection{ .File = Files[at].File, .Path = Files[at].PresentationPath });
+				withheld = Withheld.erase(withheld);
+			}
+			if (!aActionable) {
+				if (const auto position = file_position(aFile)) {
+					Withheld.emplace(aFile, std::move(Files[*position]));
+					Files.erase(Files.begin() + static_cast<std::ptrdiff_t>(*position));
+					Actionable.erase(Actionable.begin() + static_cast<std::ptrdiff_t>(*position));
+					index_erased(aFile, *position);
+					std::erase_if(delta.Inserted, [&aFile](const auto& aInserted) { return aInserted.second.File == aFile; });
+					for (auto& inserted : delta.Inserted) {
+						inserted.first -= inserted.first > *position ? 1U : 0U;
+					}
+					delta.Removed.push_back(aFile);
+				}
+			}
+			if (delta.Removed.empty() && delta.Inserted.empty()) {
+				return;
+			}
+			std::ranges::sort(delta.Inserted, { }, &std::pair<std::size_t, workbench_file_projection>::first);
+			++WorkStatistics.TargetedActionabilityUpdates;
+			WorkStatistics.TargetedActionabilityFiles += delta.Removed.size() + delta.Inserted.size();
+			apply_published_delta(delta);
+			PendingFilesDelta = std::move(delta);
+			if (Selected.has_value() && file_position(*Selected).has_value()) {
+				SelectedFile = Files[*file_position(*Selected)];
+			}
+			observe_cursor();
+			publish_changes(local_context());
+		}
+
+		/// \brief Keeps the last published order equal to what a consumer holds
+		/// after applying a delta.
+		void apply_published_delta(const workbench_files_delta& aDelta)
+		{
+			if (!PublishedFiles.has_value()) {
+				return;
+			}
+			std::erase_if(*PublishedFiles, [&aDelta](const workbench_file_projection& aFile) {
+				return std::ranges::find(aDelta.Removed, aFile.File) != aDelta.Removed.end();
+			});
+			for (const auto& [position, file] : aDelta.Inserted) {
+				PublishedFiles->insert(PublishedFiles->begin() + static_cast<std::ptrdiff_t>(std::min(position, PublishedFiles->size())), file);
+			}
 		}
 
 		void observe_change_navigation_now(
@@ -992,6 +1120,9 @@ namespace bpr::application {
 			Actionable.clear();
 			Files.clear();
 			FileIndex.clear();
+			Withheld.clear();
+			Numbered = false;
+			PendingFilesDelta.reset();
 			FilesDirty = true;
 			Selected.reset();
 			SelectedFile.reset();
@@ -1323,13 +1454,22 @@ namespace bpr::application {
 								failure_for_status(aObservation.Status));
 				return;
 			}
-			if (aObservation.Actionable.size() > Limits.ActionableFiles) {
+			if (aObservation.Actionable.size() > Limits.ActionableFiles
+				|| aObservation.Withheld.size() > Limits.ActionableFiles - aObservation.Actionable.size()) {
 				publish_failure(aObservation.Context,
 								workbench_host_failure::observation_limit);
 				return;
 			}
 			WorkStatistics.AcceptedObservationRows += aObservation.Actionable.size();
 			Files = std::move(aObservation.Actionable);
+			Withheld.clear();
+			for (auto& withheld : aObservation.Withheld) {
+				const auto file = withheld.File;
+				Withheld.emplace(file, std::move(withheld));
+			}
+			// [[BPR-0972]]. A restored file is placed by catalogue position, so
+			// the order must be strictly numbered for that to be exact.
+			Numbered = numbered_catalogue();
 			rebuild_file_index();
 			FilesDirty = true;
 			if (Selected.has_value()) {
@@ -1351,6 +1491,20 @@ namespace bpr::application {
 			observe_cursor();
 			apply_restored_drawers();
 			publish_changes(aObservation.Context);
+		}
+
+		[[nodiscard]] auto numbered_catalogue() const -> bool
+		{
+			if (std::ranges::adjacent_find(Files, std::greater_equal<>{ }, &workbench_file_observation_entry::Ordinal) != Files.end()) {
+				return false;
+			}
+			auto       ordinals   = std::set<std::size_t>{ };
+			auto       identities = std::set<core::workbench_file_id>{ };
+			const auto accept     = [&](const workbench_file_observation_entry& aEntry) {
+				return aEntry.Ordinal.has_value() && ordinals.insert(*aEntry.Ordinal).second && identities.insert(aEntry.File).second;
+			};
+			return std::ranges::all_of(Files, accept)
+				&& std::ranges::all_of(Withheld, [&](const auto& aEntry) { return accept(aEntry.second); });
 		}
 
 		void finish_selected_diff(workbench_selected_diff_observation aObservation)
@@ -1463,7 +1617,8 @@ namespace bpr::application {
 					   aObservation.Actionable,
 					   [](const workbench_file_observation_entry& aFile) {
 						   return valid(aFile);
-					   });
+					   })
+				&& std::ranges::all_of(aObservation.Withheld, [](const workbench_file_observation_entry& aFile) { return valid(aFile); });
 		}
 
 		void finish_settings_load(
@@ -1664,6 +1819,10 @@ namespace bpr::application {
 					&& PublishedHome != std::optional{ current_home() })) {
 				projection.HomeView = current_home();
 			}
+			if (PendingFilesDelta.has_value() && !FilesDirty) {
+				projection.FilesDelta = std::exchange(PendingFilesDelta, std::nullopt);
+			}
+			PendingFilesDelta.reset();
 			if (FilesDirty) {
 				auto files = std::vector<workbench_file_projection>{ };
 				if (files.capacity() < Files.size()) {
@@ -1748,17 +1907,22 @@ namespace bpr::application {
 		workbench_host_limits                        Limits;
 		std::shared_ptr<completion_gate>             Gate;
 
-		mutable workbench_work_statistics                            WorkStatistics;
-		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
-		bool                                                         FilesDirty = true;
-		std::vector<core::workbench_file_id>                         Actionable;
-		std::vector<workbench_file_observation_entry>                Files;
-		std::optional<core::workbench_file_id>                       Selected;
-		std::optional<workbench_file_observation_entry>              SelectedFile;
-		std::optional<workbench_pull_request_authority>              Authority;
-		std::optional<workbench_selected_diff_request>               AcceptedSelectedDiff;
-		workbench_layout_settings                                    Layout;
-		std::optional<workbench_layout_settings>                     PendingLayout;
+		mutable workbench_work_statistics WorkStatistics;
+		/// [[BPR-0972]]. Catalogue files withheld from the order, by file, and
+		/// whether the order's catalogue positions are strictly increasing.
+		std::map<core::workbench_file_id, workbench_file_observation_entry> Withheld;
+		bool                                                                Numbered = false;
+		std::optional<workbench_files_delta>                                PendingFilesDelta;
+		std::vector<std::pair<core::workbench_file_id, std::size_t>>        FileIndex;
+		bool                                                                FilesDirty = true;
+		std::vector<core::workbench_file_id>                                Actionable;
+		std::vector<workbench_file_observation_entry>                       Files;
+		std::optional<core::workbench_file_id>                              Selected;
+		std::optional<workbench_file_observation_entry>                     SelectedFile;
+		std::optional<workbench_pull_request_authority>                     Authority;
+		std::optional<workbench_selected_diff_request>                      AcceptedSelectedDiff;
+		workbench_layout_settings                                           Layout;
+		std::optional<workbench_layout_settings>                            PendingLayout;
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state> HeldHome;
@@ -1858,6 +2022,18 @@ namespace bpr::application {
 	void workbench_application_host::refresh_actionability()
 	{
 		Implementation->enqueue(deferred_workbench_actionability_refresh{ });
+	}
+
+	void workbench_application_host::retain_actionability(
+		workbench_pull_request_authority aAuthority,
+		const core::workbench_file_id    aFile,
+		const bool                       aActionable)
+	{
+		Implementation->enqueue(deferred_workbench_actionability_retain{
+			.Authority  = std::move(aAuthority),
+			.File       = aFile,
+			.Actionable = aActionable,
+		});
 	}
 
 	void workbench_application_host::observe_change_navigation(

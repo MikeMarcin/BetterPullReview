@@ -195,6 +195,24 @@ try {
 			settle([&] { return access::scaling_evidence(*owner); });
 			report("seen-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
 			expect(tree->work_statistics().ModelResets == treeBefore.ModelResets, "one receipt preserves Files model identity");
+			before                      = access::scaling_evidence(*owner);
+			treeBefore                  = tree->work_statistics();
+			const auto selectedMaterial = surface->current_result();
+			expect(window->read_action()->isEnabled(), "Mark read enabled for exact selected material");
+			window->read_action()->trigger();
+			wait_for([&] { return access::scaling_evidence(*owner).Ledger.PersistenceRequests > before.Ledger.PersistenceRequests && quiet(); }, "Mark read durably accepted");
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto readAfter = access::scaling_evidence(*owner);
+			report("mark-file-read", before, readAfter, treeBefore, tree->work_statistics());
+			expect(readAfter.Workbench.TargetedActionabilityUpdates == before.Workbench.TargetedActionabilityUpdates + 1U
+					   && readAfter.Workbench.TargetedActionabilityFiles == before.Workbench.TargetedActionabilityFiles + 1U
+					   && readAfter.Workbench.AcceptedObservationRows == before.Workbench.AcceptedObservationRows
+					   && readAfter.Workbench.FileProjectionRows == before.Workbench.FileProjectionRows,
+				   "Mark read publishes one file delta without catalogue observation");
+			expect(!files->contents()->index_for_file(core::file_identity_of("src/file_0033.cpp")).isValid()
+					   && surface->current_result() == selectedMaterial,
+				   "read file leaves actionable order while exact comparison stays readable");
+			expect(tree->work_statistics().ModelResets == treeBefore.ModelResets, "Mark read preserves model identity");
 			auto* cards = window->conversation_panel()->cards();
 			wait_for([&] { return !cards->cards().empty(); }, "selected file conversation cards");
 			auto button = std::optional<QRect>{ };

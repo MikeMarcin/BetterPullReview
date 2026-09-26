@@ -22,6 +22,11 @@ namespace bpr::application {
 		std::uint64_t FileProjectionRows            = 0U;
 		std::uint64_t FileProjectionCapacityGrowths = 0U;
 		std::uint64_t AcceptedObservationRows       = 0U;
+		/// [[BPR-0972]]. Retained-receipt changes applied to the order in place,
+		/// the files they moved, and those that had to observe again instead.
+		std::uint64_t TargetedActionabilityUpdates = 0U;
+		std::uint64_t TargetedActionabilityFiles   = 0U;
+		std::uint64_t ActionabilityObservations    = 0U;
 	};
 
 	/// \brief Provides the workbench application host contract.
@@ -75,6 +80,13 @@ namespace bpr::application {
 		// Reobserves receipt-derived actionability without replacing the accepted
 		// authority or detaching its retained selected diff.
 		void refresh_actionability();
+		// [[BPR-0972]]. The retained receipt now names `aFile`, actionable or
+		// not; every other file is conservatively actionable. Applied to the
+		// order in place and published as a file delta when the host holds every
+		// file the change needs; otherwise reobserves, as refresh_actionability.
+		void retain_actionability(workbench_pull_request_authority aAuthority,
+								  core::workbench_file_id          aFile,
+								  bool                             aActionable);
 		// Supplies the bounded change cursor observed for one exact accepted diff.
 		// Stale or superseded selected-diff identities are ignored.
 		void observe_change_navigation(

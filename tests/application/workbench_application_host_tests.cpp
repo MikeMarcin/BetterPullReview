@@ -1970,6 +1970,133 @@ namespace {
 				   && closing.Projections.Failed.empty(),
 			   "the held fold is merged into its record as the window closes");
 	}
+	/// \brief A catalogue port that withholds only the retained file, as the
+	/// composed snapshot port does, and names and numbers what it withholds.
+	class catalogue_observations final : public application::workbench_observation_port
+	{
+	public:
+		[[nodiscard]] static auto numbered(const std::size_t aIndex) -> core::workbench_file_id
+		{
+			std::array<std::uint8_t, 32U> bytes{ };
+			bytes[0] = static_cast<std::uint8_t>(aIndex & 0xFFU);
+			bytes[1] = static_cast<std::uint8_t>((aIndex >> 8U) & 0xFFU);
+			bytes[2] = 0xA5U;
+			return core::workbench_file_id{ bytes };
+		}
+
+		[[nodiscard]] auto assemble(
+			const application::workbench_observation_request& aRequest,
+			const std::stop_token                             aStop)
+			-> application::workbench_file_observation override
+		{
+			static_cast<void>(aStop);
+			++Observations;
+			auto observation = application::workbench_file_observation{
+				.Context   = aRequest.Context,
+				.Authority = aRequest.Authority,
+				.Status    = application::workbench_observation_status::available,
+			};
+			for (std::size_t index = 0U; index < Count; ++index) {
+				const auto path  = "src/file" + std::to_string(index) + ".cpp";
+				auto       entry = application::workbench_file_observation_entry{
+					.File             = numbered(index),
+					.PresentationPath = path,
+					.CurrentPath      = std::filesystem::path{ path },
+					.Change           = application::workbench_file_change_kind::modified,
+					.ContentKind      = application::workbench_file_content_kind::text,
+					.Ordinal          = index,
+				};
+				if (Retained.has_value() && Retained->first == entry.File && !Retained->second) {
+					observation.Withheld.push_back(std::move(entry));
+				} else {
+					observation.Actionable.push_back(std::move(entry));
+				}
+			}
+			return observation;
+		}
+
+		std::size_t                                             Count = 0U;
+		std::optional<std::pair<core::workbench_file_id, bool>> Retained;
+		std::size_t                                             Observations = 0U;
+	};
+
+	// [[BPR-0972]]. The retained receipt moving one file is applied to the
+	// order in place: no observation, a file delta naming only the moved
+	// files, and exactly the order a complete observation answers.
+	void test_retained_actionability_moves_files_in_place()
+	{
+		for (const auto count : { std::size_t{ 32U }, std::size_t{ 4096U } }) {
+			auto catalogue         = catalogue_observations{ };
+			catalogue.Count        = count;
+			auto       settings    = fake_settings{ };
+			auto       projections = recording_projections{ };
+			auto       effects     = application::manual_executor{ };
+			auto       lane        = replaying_lane{ };
+			auto       host        = application::workbench_application_host{ { }, catalogue, settings, effects, lane, projections, core::application_session_id{ 7U } };
+			const auto settle      = [&] {
+				while (effects.pending() != 0U || lane.pending() != 0U) {
+					effects.drain();
+					lane.drain();
+				}
+			};
+			host.observe(authority());
+			settle();
+			const auto complete = [&] {
+				auto request = application::workbench_observation_request{ .Authority = authority(), .MaximumFiles = count };
+				auto ids     = std::vector<core::workbench_file_id>{ };
+				for (const auto& entry : catalogue.assemble(request, { }).Actionable) {
+					ids.push_back(entry.File);
+				}
+				--catalogue.Observations;
+				return ids;
+			};
+			const auto first    = catalogue_observations::numbered(5U);
+			const auto second   = catalogue_observations::numbered(count - 2U);
+			const auto observed = catalogue.Observations;
+			const auto before   = host.work_statistics();
+			const auto step     = [&](const core::workbench_file_id aFile, const bool aActionable) {
+				catalogue.Retained = std::pair{ aFile, aActionable };
+				host.retain_actionability(authority(), aFile, aActionable);
+				settle();
+				const auto actionable = host.actionable();
+				expect(std::vector<core::workbench_file_id>{ actionable.begin(), actionable.end() } == complete(),
+					   "the order in place equals a complete observation");
+				return projections.Published.back();
+			};
+			const auto withheld = step(first, false);
+			expect(withheld.FilesDelta.has_value() && withheld.FilesDelta->Removed == std::vector{ first }
+					   && withheld.FilesDelta->Inserted.empty() && !withheld.Files.has_value(),
+				   "a read retained file leaves as a one-file delta");
+			const auto restored = step(second, true);
+			expect(restored.FilesDelta.has_value() && restored.FilesDelta->Removed.empty()
+					   && restored.FilesDelta->Inserted.size() == 1U && restored.FilesDelta->Inserted.front().first == 5U
+					   && restored.FilesDelta->Inserted.front().second.File == first,
+				   "a newly retained actionable file restores the withheld one at its place");
+			const auto read = step(second, false);
+			expect(read.FilesDelta.has_value() && read.FilesDelta->Removed == std::vector{ second },
+				   "the next read file leaves in turn");
+			const auto after = host.work_statistics();
+			std::cout << "workbench-actionability files=" << count << " targeted_updates=" << after.TargetedActionabilityUpdates - before.TargetedActionabilityUpdates
+					  << " moved_files=" << after.TargetedActionabilityFiles - before.TargetedActionabilityFiles
+					  << " observations=" << catalogue.Observations - observed
+					  << " accepted_rows=" << after.AcceptedObservationRows - before.AcceptedObservationRows
+					  << " projected_rows=" << after.FileProjectionRows - before.FileProjectionRows << '\n';
+			expect(catalogue.Observations == observed && after.AcceptedObservationRows == before.AcceptedObservationRows
+					   && after.FileProjectionRows == before.FileProjectionRows && after.TargetedActionabilityFiles - before.TargetedActionabilityFiles == 3U,
+				   "three moved files cost no observation and no complete file projection");
+			const auto published = projections.Published.size();
+			host.refresh_actionability();
+			settle();
+			const auto actionable = host.actionable();
+			expect(std::vector<core::workbench_file_id>{ actionable.begin(), actionable.end() } == complete()
+					   && std::ranges::none_of(projections.Published.begin() + static_cast<std::ptrdiff_t>(published), projections.Published.end(),
+											   [](const application::workbench_projection& aProjection) { return aProjection.Files.has_value() || aProjection.FilesDelta.has_value(); }),
+				   "observing again answers the same order and republishes no files");
+			host.shutdown();
+			settle();
+		}
+	}
+
 	void test_routine_selection_visits_only_the_retained_index()
 	{
 		for (const auto count : { 32U, 4096U }) {
@@ -2011,6 +2138,7 @@ namespace {
 auto main() -> int
 {
 	test_routine_selection_visits_only_the_retained_index();
+	test_retained_actionability_moves_files_in_place();
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
 	test_geometry_load_observation_and_orderly_drain();

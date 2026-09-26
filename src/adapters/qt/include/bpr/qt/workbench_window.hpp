@@ -1228,6 +1228,7 @@ namespace bpr::qt {
 		void               announce_update();
 		void               apply_file_rows(
 			const std::vector<application::workbench_file_projection>& aFiles);
+		void               apply_file_delta(const application::workbench_files_delta& aDelta);
 		[[nodiscard]] auto conversation_anchor_file() const -> std::optional<core::file_identity>;
 		void               apply_file_selection();
 		void               dispatch_file_selection(const QModelIndex& aIndex);
