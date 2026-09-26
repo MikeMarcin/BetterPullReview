@@ -3215,6 +3215,7 @@ namespace {
 				if (mode == 6U) {
 					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochPackFailure == application::git_pack_stream_failure::input_limit; }), "protocol acquisition retains exact pack failure");
 				}
+				expect(!log->Events.empty() && std::ranges::all_of(log->Events, [](const auto& aEvent) { return aEvent.WindowSession == 91U; }), "every preparation stage retains the accepted window session, including failures before request allocation");
 				expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) { return aEvent.Operation == application::diagnostic_operation::epoch && aEvent.Outcome == application::diagnostic_outcome::failed && aEvent.EpochStage == expectedStage && aEvent.EpochFailure == expectedFailure && aEvent.Summary.text().empty(); }), "exact typed stage failure is recorded without raw details");
 			}
 		}
@@ -3224,6 +3225,7 @@ namespace {
 			fixture value{ { }, log };
 			establish_ready_comparison(value);
 			expect(std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 1, "each log status preserves the one durable catalog commit");
+			expect(!log->Events.empty() && std::ranges::all_of(log->Events, [](const auto& aEvent) { return aEvent.WindowSession == 91U; }), "successful catalog and revision preparation retain the window session");
 			expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.Outcome == application::diagnostic_outcome::succeeded; }), "successful preparation still yields exact comparison and stage evidence");
 			value.Host->shutdown();
 			drain(value);

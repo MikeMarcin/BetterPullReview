@@ -13,6 +13,7 @@
 #include <QThread>
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -23,6 +24,34 @@
 #include <utility>
 namespace {
 	using bpr::tests::expect;
+	[[nodiscard]] auto window_session(std::string_view aRecord) -> std::uint64_t
+	{
+		constexpr std::string_view field    = " window_session=";
+		const auto                 position = aRecord.find(field);
+		expect(position != std::string_view::npos, "diagnostic record has a window session");
+		const auto    value   = aRecord.substr(position + field.size());
+		std::uint64_t session = 0U;
+		const auto    parsed  = std::from_chars(value.data(), value.data() + value.size(), session);
+		expect(parsed.ec == std::errc{ } && session != 0U
+				   && (parsed.ptr == value.data() + value.size() || *parsed.ptr == ' '),
+			   "diagnostic session is a nonzero numeric identity");
+		return session;
+	}
+
+	void expect_epoch_session(const std::string& aText)
+	{
+		const auto accepted = aText.find("op=github.pull_request outcome=succeeded");
+		expect(accepted != std::string::npos, "a successful PR read precedes epoch preparation");
+		const auto  session = window_session(std::string_view{ aText }.substr(accepted, aText.find('\n', accepted) - accepted));
+		std::size_t count   = 0U;
+		for (auto position = aText.find("op=epoch "); position != std::string::npos; position = aText.find("op=epoch ", position + 1U)) {
+			const auto record = std::string_view{ aText }.substr(position, aText.find('\n', position) - position);
+			expect(window_session(record) == session, "every composed epoch diagnostic belongs to the accepted PR window");
+			++count;
+		}
+		expect(count != 0U, "the composed cache refusal emits epoch diagnostics");
+	}
+
 	void wait_for(const std::function<bool()>& aCondition)
 	{
 		QElapsedTimer elapsed;
@@ -112,6 +141,7 @@ try {
 		   "one accepted load has one succeeded entry");
 	expect(text.find("access_token") == std::string::npos && text.find("refresh_token") == std::string::npos, "authentication bodies absent");
 	expect(text.find(root.string()) == std::string::npos && text.find("octo-org") == std::string::npos && text.find("synthetic unsafe cache target") == std::string::npos, "epoch logs exclude path and repository data");
+	expect_epoch_session(text);
 	// [[BPR-0891]]. The native spelling above is not the only one a log could
 	// use: a Windows path can also be written with forward slashes or in
 	// another case. The root's random leaf is unique to this run, so finding it

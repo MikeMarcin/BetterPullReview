@@ -250,7 +250,8 @@ namespace bpr::application {
 		struct epoch_diagnostics
 		{
 			std::shared_ptr<diagnostic_log_port> Log;
-			std::uint64_t                        Request = 0U;
+			std::uint64_t                        Request       = 0U;
+			std::uint64_t                        WindowSession = 0U;
 
 			void record(diagnostic_epoch_stage aStage, diagnostic_outcome aOutcome,
 						diagnostic_epoch_failure               aFailure = { },
@@ -260,6 +261,7 @@ namespace bpr::application {
 					static_cast<void>(Log->record({ .Operation        = diagnostic_operation::epoch,
 													.Outcome          = aOutcome,
 													.Request          = Request,
+													.WindowSession    = WindowSession,
 													.EpochStage       = aStage,
 													.EpochFailure     = std::move(aFailure),
 													.EpochPackFailure = aPack }));
@@ -4955,7 +4957,7 @@ namespace bpr::application {
 				 entropy,
 				 clock,
 				 token,
-				 cleanup, diagnostics = epoch_diagnostics{ DiagnosticLog }](
+				 cleanup, diagnostics = epoch_diagnostics{ DiagnosticLog, 0U, offered->ApplicationSession.value() }](
 					const std::stop_token aStop) mutable -> worker_completion {
 					struct lease_guard final
 					{
@@ -5411,7 +5413,7 @@ namespace bpr::application {
 			}
 			auto actor = context->Actor;
 			submit_effect(
-				[context, aRequest, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value() }](const std::stop_token aStop)
+				[context, aRequest, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](const std::stop_token aStop)
 					-> worker_completion {
 					const auto snapshot = diagnostics.perform(
 						diagnostic_epoch_stage::catalog_prepare,
@@ -5483,7 +5485,7 @@ namespace bpr::application {
 			auto* const clock   = &Clock;
 			auto        actor   = context->Actor;
 			submit_effect(
-				[context, aRequest, caches, entropy, clock, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value() }](
+				[context, aRequest, caches, entropy, clock, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](
 					const std::stop_token aStop) -> worker_completion {
 					const auto cancelled = [aRequest]() -> worker_completion {
 						return [aRequest](implementation& aHost) {
