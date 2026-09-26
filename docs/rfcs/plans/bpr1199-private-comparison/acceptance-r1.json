@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pending",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Existing records reach protocol_acquire/transport/unavailable but epoch window_session=0 prevents an explicit PR join; acquisition step absent. Correlation and fixed-step diagnostic candidate verified. Fresh owner observation remains required; no underlying cause claimed.",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pending",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "No actual private rendering repair or legitimate limiting class established. Diagnostic changes preserve existing policy and UI. Pending owner evidence before an appropriate repair can be chosen.",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pending",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Fail-before/pass-after composed logging and synthetic CLI tests prove the diagnostic defects only. The original private failing class is not established, so its composed repair course remains pending.",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pending",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "One ready protected owner question in attended session 2c2e72e3af2e2fd7fa1a566ec49bc5ca, candidate BPR-1199-private-comparison-v001, cursor4. No owner verdict received.",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"
+      }
+    }
+  ]
+}
