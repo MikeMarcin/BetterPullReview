@@ -1,0 +1,502 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "head": "3759b0d8",
+  "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a",
+  "sequence_after_preparation": 34,
+  "state": "/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001/session.json (external --state; not committed)",
+  "runtime": "/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime (candidate build, probes and logs; not committed)",
+  "scope": "A fresh session with its own --state holding every pending explicit human question that can be judged on this Mac: the 14 unanswered RFC-BPR-0052 m2 questions carried verbatim from session 60bd1ed56e768d60a40b104920641436 (identical fingerprints), and one new question each for BPR-0966, BPR-0295 and BPR-0641. No already answered item is on the page.",
+  "older_sessions": {
+    "cbd48b91000b00f1e72e1ad62c7c384c": "Checkout default state (.mask/attended-review/session.json), sequence 610, untouched. Its verdicts stay durable there. Its one unanswered item, BPR-0653-windows-capture-v001, is Windows-only and was superseded for 150% by session df5859c7.",
+    "60bd1ed56e768d60a40b104920641436": "RFC-0052 m2 session, external state /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/attended-review, cursor 42, 14 unanswered. Untouched: its Codex-owned server (port 63317, PID 97732) and hand-back waiter (PID 97747) still run. Its 14 candidates are carried here with identical fingerprints and shared static claims, so a verdict given here can be imported there by changing only the session field.",
+    "fc60f0ba": "BPR-0768 d14 session; one waiting item for a card that is Done. Untouched."
+  },
+  "owner_rules_applied": [
+    "A session is scoped to the current questions only: new --state directory, nothing already answered.",
+    "Every new multiple-choice question ends with 'Other: my answer is in the note'; the carried RFC-0052 items keep their own 'Other — write in the note' so their fingerprints stay identical.",
+    "One question per criterion; every on-disk command names absolute paths."
+  ],
+  "page": {
+    "path": "offline-package/index.html",
+    "digest": "sha256:0d42ff434efe3ec63eae6f7980213ba9741847c5367a63ba9af317d1f29d1603",
+    "note": "The review.html asset with the status --full snapshot at sequence 34: exactly the 17 candidates below."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0295-ac1-provenance-v001",
+      "card": "docs/issues/50-blocked/BPR-0295-anchor-rfc-0019-verification.md",
+      "closeout": null,
+      "question": "RFC-BPR-0019 AC1 (row 1 of BPR-0295) asks for a complete ownership, license and tool-provenance record for the Dif source art. Do you accept the recorded unknowns by a scoped amendment, or will you supply the missing facts?",
+      "answer": [
+        "Amend AC1 for this exact v008 asset set: accept the recorded unknowns as disclosed gaps",
+        "I will supply the missing facts: they are in the note",
+        "Other: my answer is in the note"
+      ],
+      "revision": "3759b0d8: provenance.json f77354d6…6f1c, sprite manifest c9f3f38e…f40d, v008 verdict 57a2a6d8…e116",
+      "fingerprint": "a10c0106b0c2f555c9d48b52ae37aa1c9ea77203dd4708796aaa048a0b33ff8d",
+      "phase": "ready",
+      "protected": true,
+      "resources": [],
+      "resource_versions": {},
+      "launch": null,
+      "readiness_evidence": "Entry point: python3 scripts/dif_assets.py validate --assets src/adapters/qt/assets/dif on a git-archive export of 3759b0d8. Terminal result: DIF_ASSETS_VALID, exit 0, 45 s; log /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/bpr0295-validate.log. provenance.json f77354d6...6f1c, dif-sprite-manifest.json c9f3f38e...f40d and the v008 human verdict 57a2a6d8...e116 match the values in docs/verification/RFC-BPR-0019.md (ordinary closeout audit, 2026-09-25). No working-tree change under those paths in the checkout."
+    },
+    {
+      "id": "BPR-0641-private-pr-smoke-v001",
+      "card": "docs/issues/40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md",
+      "closeout": null,
+      "question": "BPR-0641 AC4: signed in as MikeMarcin in this exact tests-disabled Mac build, does EpicGames/UnrealEngine#14366 open read-only and show its files and a diff?",
+      "answer": [
+        "Accept",
+        "Reject (note)"
+      ],
+      "revision": "3759b0d8 app-release, executable 5b398420…e1ed (ad-hoc signed)",
+      "fingerprint": "2ef08a50eb320f3197cc90193f1e6051a703e6c353a28afb8ee64a326f00a272",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/candidates/bpr0641-3759b0d8/src/build/app-release/src/app/BetterPullReview.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/candidates/bpr0641-3759b0d8/src/build/app-release/src/app/BetterPullReview.app": "3759b0d8caf5f1732c8bf807be427525f3f9a89a:5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the tests-disabled candidate on your normal profile (quit other BetterPullReview windows first)",
+        "command": "/usr/bin/open -n /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/candidates/bpr0641-3759b0d8/src/build/app-release/src/app/BetterPullReview.app"
+      },
+      "readiness_evidence": "Entry point: cmake --preset app-release, then cmake --build --preset app-release, on a git-archive export of 3759b0d8 with the checkout's dependency cache (BPR_DEPENDENCY_OFFLINE=ON). Terminal result: 389/389 steps, exit 0; the only two warnings are in third-party libarchive; codesign --verify --deep --strict: valid on disk, satisfies its Designated Requirement (ad-hoc, com.gamecoretech.betterpullreview); executable SHA-256 5b398420...e1ed; logs /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/candidates/bpr0641-3759b0d8/configure.log and build.log. Launch probe: the executable with HOME and CFFIXED_USER_HOME in a scratch directory and network denied, 15 s: window 'BetterPullReview — Default profile' 1280x820 on screen, Home signed out with Sign in and Use GitHub CLI; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/bpr0641-launch-window.png. Its stderr line 'profile-activation-endpoint-unavailable endpoint-path-too-long' comes from the long scratch home path. The real profile directory's modification time was unchanged. Not done by the preparer: sign-in and opening #14366; no live account was used."
+    },
+    {
+      "id": "BPR-0966-compose-dif-v001",
+      "card": "docs/issues/50-blocked/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+      "closeout": null,
+      "question": "BPR-0966 AC1: while a workshop proposal is shown and accepted on the Compose review page, which surface owns the single Dif widget, and do the ready and acknowledge cues stay required there?",
+      "answer": [
+        "A visible workshop slot on Compose: Dif moves there and plays ready and acknowledge",
+        "The bottom-left corner, decided together with BPR-0800: Dif rests there on Compose and plays the cues there",
+        "No Dif on Compose: amend RFC-BPR-0031 B7 so ready and acknowledge are not required on that page",
+        "Other: my answer is in the note"
+      ],
+      "revision": "12ea8646 (src and tests identical to main faf53c8f); course exe 86de5254…85be, canary 109315a6…cc",
+      "fingerprint": "e331d3f8ccd44716d1963d48b40cc2b67bd952482db1cff46a1396a564fd6688",
+      "phase": "ready",
+      "protected": true,
+      "resources": [],
+      "resource_versions": {},
+      "launch": null,
+      "readiness_evidence": "Entry point: ctest --test-dir /Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/dev --output-on-failure --no-tests=error -j 1 -R '^application_agent_finding_dif_context_contract$' at candidate 12ea8646, course executable 86de5254...85be and canary 109315a6...cc verified by SHA-256. Terminal result: Failed exactly as recorded on the card, 19.09 s: failed=dif-comment-ready-after-conversion dif-acknowledge-after-acceptance; visibility proposal-editor=1 proposal-ai-slot=0 proposal-dif=0 accepted-editor=1 accepted-ai-slot=0 accepted-dif=0 painted-consider=1 painted-ready=0 painted-acknowledge=0. Log: /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/bpr0966-dif-course.log. src/ and tests/ at 12ea8646 equal main's integration faf53c8f; HEAD 3759b0d8 still calls open_review_composition(true) before presenting Dif (src/app/src/github_application.cpp:11658). Not re-run at HEAD."
+    },
+    {
+      "id": "BPR-1129-bar",
+      "card": "docs/issues/60-done/BPR-1129-the-title-row-and-the-review-bar-replace-the-composition-entry-row.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Does the review bar match the chosen design at 1280×852 and the macOS width floor?",
+      "answer": [
+        "Keep this review bar",
+        "Revise the review bar; describe the change",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "e0e33b9b3abc28cf1132d9394a10da705bf96f79941d5a19708fc5899b942b0b",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1129-bar --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1129-kept",
+      "card": "docs/issues/60-done/BPR-1129-the-title-row-and-the-review-bar-replace-the-composition-entry-row.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Is Compose review’s amber kept-draft mark visible and clear enough?",
+      "answer": [
+        "The mark is clear enough",
+        "Change the kept-draft mark",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "54841032f592e546a0d7b31efe99447bf86a355cdbaab83fcec76b99ce12bce7",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1129-kept --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1129-title",
+      "card": "docs/issues/60-done/BPR-1129-the-title-row-and-the-review-bar-replace-the-composition-entry-row.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Does the title row at 1280×852 match the chosen design?",
+      "answer": [
+        "Keep this title row",
+        "Revise the title row; describe the change",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "8aa583e47c00e4a5594da7ceba1970e86475d831cc0b78bd4fa25f4e681dfd3e",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1129-title --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1130-fold",
+      "card": "docs/issues/60-done/BPR-1130-the-updates-line-folds-and-loses-its-permanent-caption.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Does the Updates disclosure read as chosen, with the 34-pixel timeline appearing below an unmoved bar?",
+      "answer": [
+        "Keep this fold and disclosure",
+        "Revise the fold or disclosure",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "b786615cf7411daae019d943cabe8d50cab5cab64c26a7c3bc07d200c0340648",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1130-fold --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1130-history",
+      "card": "docs/issues/60-done/BPR-1130-the-updates-line-folds-and-loses-its-permanent-caption.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Is the ring with an exclamation point clear enough to mean history is incomplete?",
+      "answer": [
+        "The history mark is clear enough",
+        "Change the incomplete-history mark",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "0d4ec8f7eb115900af0866ab48f4628c7a4b5b983131142ef3881fe2d7101759",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1130-history --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1130-pair-ready",
+      "card": "docs/issues/60-done/BPR-1130-the-updates-line-folds-and-loses-its-permanent-caption.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Is keeping the pair-ready sentence in the comparison menu tooltip acceptable?",
+      "answer": [
+        "Keep pair-ready words in the tooltip",
+        "Put the pair-ready words back on the bar",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "70f4df6460a2255e0c86c930038b1700806ca0c56210d236a8f103cc849e68e5",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1130-pair-ready --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1130-readiness",
+      "card": "docs/issues/60-done/BPR-1130-the-updates-line-folds-and-loses-its-permanent-caption.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Before BPR-0795’s readiness row changes, choose where loading/readiness words should appear.",
+      "answer": [
+        "Move to the track when open and summary when folded",
+        "Keep the existing readiness row",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "a27f0ba0653a1780a0ceef4bfcec34234dbd9b480bcc091ea4cac939139cd25c",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1130-readiness --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1132-later",
+      "card": "docs/issues/60-done/BPR-1132-the-document-tab-strip-in-the-comparisons-header.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Should later threads stay listed but unplaced under the older-pair notice, or stay hidden until Show them?",
+      "answer": [
+        "Keep later threads listed but unplaced",
+        "Hide later threads until Show them",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "5da011dc5169769f10399e9dc0cd3b214f57845ed79e414938a955473dcae364",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1132-later --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1132-plus",
+      "card": "docs/issues/60-done/BPR-1132-the-document-tab-strip-in-the-comparisons-header.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Should the plus at the strip’s end duplicate the active tab’s exact view?",
+      "answer": [
+        "Plus should duplicate the active view",
+        "Plus should offer a file chooser",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "9a4b903f8f60166a4fdf9136b7a9778ed19030433b0e903268ad7276da39f787",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1132-plus --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1133-arrow",
+      "card": "docs/issues/60-done/BPR-1133-comment-and-reply-where-the-line-and-the-thread-are.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Until RFC-BPR-0048, is an arrow menu with only the target-named plain comment acceptable?",
+      "answer": [
+        "Keep the current arrow and menu",
+        "Revise the interim arrow/menu",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "a7a67cb508a8a4dbaff5678b174efd78215f864f0b5d8cdcf5f2fb9af4f3ee50",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1133-arrow --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1133-card-reply",
+      "card": "docs/issues/60-done/BPR-1133-comment-and-reply-where-the-line-and-the-thread-are.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Is the thread card beside the code with Reply the card you chose?",
+      "answer": [
+        "Keep Reply on these cards",
+        "Revise the card or Reply action",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "bc1d20ea1af51ca476720c831608aa8a0b5f18e7d208ee4c066d34dde47573d0",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1133-card-reply --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1133-default-reply",
+      "card": "docs/issues/60-done/BPR-1133-comment-and-reply-where-the-line-and-the-thread-are.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Is replying to the selected thread the right default for Comment on a line that has a thread?",
+      "answer": [
+        "Reply is the right default",
+        "Comment should start a separate comment",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "06bc8fc7a7ea310da318c3609ede57c665400dd476dda97fd8f3d343702ba57d",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1133-default-reply --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1134-tray",
+      "card": "docs/issues/60-done/BPR-1134-the-right-trays-tabs.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "Do Comments with its count and then Findings read as the drawer header chosen in round v8?",
+      "answer": [
+        "Keep this tray header",
+        "Revise the tray header",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "09bc4a357a8f6a3794e78b5f8e2daa05e9462e7fba92de598a0b0c5c3070c3bc",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1134-tray --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    },
+    {
+      "id": "BPR-1134-voiceover",
+      "card": "docs/issues/60-done/BPR-1134-the-right-trays-tabs.md",
+      "closeout": "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+      "question": "With VoiceOver on macOS, does the tray announce “Comments, N threads with new comments” and does Right Arrow reach Findings?",
+      "answer": [
+        "Yes, the announcement and Right Arrow both work",
+        "The native check needs a correction",
+        "Other — write in the note"
+      ],
+      "revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:binary-sha256:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "fingerprint": "efefa2bb3900ff5d49db06d910372efdb7f57fe191705f2dce9b447d22d26ae1",
+      "phase": "ready",
+      "protected": true,
+      "resources": [
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef:a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos": "2d28d65da9eb94104fefecd3d5ffb120023188ef11513d0024c837664fe0228a"
+      },
+      "launch": {
+        "label": "Launch the isolated macOS fixture for this question",
+        "command": "/usr/bin/env QT_QPA_PLATFORM=cocoa /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/fixture-data/BPR-1134-voiceover --epoch-fixture-phase single --attended-launch"
+      },
+      "readiness_evidence": "Carried unchanged from session 60bd1ed56e768d60a40b104920641436, where it was unanswered at cursor 42; the fingerprint is identical. Checked 2026-09-26 ~04:22Z: executable SHA-256 a2e5128a...8a83 matches; Qt 6.11.2 digest 2d28d65d...228a matches; all 55 files under the six protected tests/fixtures paths match review-dependencies.json; the per-question fixture roots exist and are empty. Launch probe (this launch command with a scratch root, network denied): window 'BetterPullReview — Default profile' 1280x820 on screen showing Home signed out; exited on SIGTERM; capture /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-launch-window.png. Public path (same binary, --github-fixture uiforetw-74, scratch root, offscreen, --automated-run-budget-ms 90000): PUBLIC_PATH_OK, GITHUB_FIXTURE_OK:uiforetw-74, RENDER_OK, REVIEW_LEDGER_OK in 13 s; the render shows pull request 74 in the workbench (/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest-render.png, output /Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001-runtime/probes/rfc0052-selftest.out). An earlier run at the default 8 s budget printed PUBLIC_PATH_FAILED with RUN_BUDGET_EXPIRED at stage 2 after 'Pull request ready.'. Limit: main has 27 product commits since ba9d2723, touching 12 Qt adapter files including workbench_window.cpp, document_tab_strip.cpp and conversation_cards_view.cpp; this verdict binds only to the frozen build."
+    }
+  ],
+  "not_asked": {
+    "BPR-0153": "Mac-eligible but unready: the owner has not named the unfamiliar collaborator, the concrete defect or a disposable pull request, and no publication or contact with another person is authorized.",
+    "BPR-0653": "AC2 and AC4 owe the 100% capture on the Windows station; Windows-only. AC3 is automated.",
+    "BPR-0974": "platforms: win.",
+    "BPR-1033": "platforms: win.",
+    "BPR-0972": "No explicit human criterion; AC1 to AC3 are engineering evidence. Its uncommitted working-tree changes were left alone.",
+    "BPR-1121": "application_profile_empty_desktop_native_menu_bar needs an Aqua session to run; that is an automated row, not a human judgment.",
+    "BPR-1128, BPR-1139": "No human criterion.",
+    "BPR-0958": "Needs a clean macOS account with a default Keychain; the environment is absent.",
+    "BPR-0959": "Needs a native Intel Mac; this host is Apple Silicon.",
+    "BPR-0911": "Needs explicitly authorized live private-release and vault evidence, not an attended question.",
+    "BPR-0962": "Release-security inputs and an independent security owner, not an attended question.",
+    "BPR-0735": "The owner declined the editor observation; not repeated by default.",
+    "BPR-0960, BPR-0961, BPR-1122": "Windows or Linux.",
+    "BPR-0143, BPR-0144, BPR-0169": "Parked awaiting-live-github, a service wait.",
+    "BPR-0720, BPR-0738": "Accepted; parked only on immutable-review-link."
+  }
+}
