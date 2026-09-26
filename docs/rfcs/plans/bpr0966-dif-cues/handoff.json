@@ -1,99 +1,151 @@
 {
   "schema": "bpr.rfc_engineering_handoff",
   "schema_version": 1,
-  "assignment": "Only BPR-0966 isolated Mac follow-up: reconcile workshop cues against RFC0031/0037 and BPR0800; correct safely resolvable defects, preserve identity and zero publication; record any owner amendment needed. Windows explicitly deferred. No primary/frozen-app/other-agent writes.",
-  "child": "/root/bpr0966_dif_cues",
-  "mandate_revision": "r4-with-unattended-mac-20260925-r1",
-  "mandate_note": "Existing r4 follow-up plus coordinator unattended Mac assignment of 2026-09-25; r1 identifies this local execution segment, not a new product-owner amendment.",
-  "run_id": "bpr0966-mac-20260925",
-  "segment_id": "isolated-diagnosis-r1",
+  "assignment": "BPR-0966 full continuation: implement approved Compose workshop slot (AC2), exact-candidate verification (AC3), then park one scoped attended look. Sole assigned worktree; no main edits, push, live account/mutation or release.",
+  "child": "/root/bpr0966_compose",
+  "mandate_revision": "r4-with-owner-compose-20260925-r2",
+  "run_id": "bpr0966-compose-20260926",
+  "segment_id": "approved-slot-r2",
   "effective_route": "rfc-implementer | gpt-6-astra | xhigh",
   "source_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
   "tracker_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
   "runtime_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build",
-  "branch": "codex/bpr0966-dif-cues",
-  "entry_revision": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
-  "product_revision": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
-  "test_candidate_revision": "12ea8646b9175a32abfa396eb502a2c09007c088",
-  "documentation_candidate_revision": "512d147ee39a3ee847ed3fbb88d6ca0d85d0cc36",
+  "branch": "codex/bpr0966-compose-takeover",
+  "entry_revision": "fdeea1ac",
+  "product_revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+  "test_candidate_revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+  "claim_commit": "aacead372a65fbd207203eae903f4e842d9586f3",
+  "park_commit": "a5b7c9bafcc384f6580cf0014fb25af518e5f7dc",
+  "historical_handoff": "The preceding diagnosis handoff remains in Git history and its evidence.md; old branch codex/bpr0966-dif-cues remains preserved. Owner decision dba44cfd answered its prior placement blocker.",
   "milestone": "workshop-cue-reconciliation",
   "result": {
-    "disposition": "blocked",
+    "disposition": "human-pending",
     "card": "BPR-0966",
-    "status": "Blocked",
-    "blocked_by": "owner-dif-workshop-placement",
-    "AC1": "pending owner decision",
-    "AC2": "partial: expose sprite and observe paints; two workshop failures retained",
-    "AC3": "four focused Mac checks pass; Dif fails the two original workshop assertions; Windows deferred"
+    "status": "Parked",
+    "parked_on": "human-review",
+    "AC1": "pass: recorded owner slot choice and prime-slot reconciliation",
+    "AC2": "pass: bounded product correction verified",
+    "AC3": "macOS fixture behavior passes; one visual judgment pending; Windows deferred"
   },
-  "checkpoint": "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-current.json",
-  "checkpoint_reconciliation": {
-    "entry_requirement_fingerprint": "sha256:3b820d68d9f76e7199f57f7796076e379f5ec11de019bd8af9f892107b1e1bdd",
-    "current_requirement_fingerprint": "sha256:f9bdb3250651b64f0ca152020331e2af922db0a3e2edafb52eb81d6c8276d538",
-    "detail": "Refreshed after guarded claim/block move and appended evidence. Original acceptance and authored exits are unchanged."
-  },
+  "checkpoint": "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-current.json",
   "changed_paths": [
-    "docs/issues/50-blocked/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
-    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-entry.json",
-    "docs/rfcs/plans/bpr0966-dif-cues/evidence.md",
-    "docs/rfcs/plans/bpr0966-dif-cues/execution-selection.json",
+    "docs/issues/40-parked/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+    "docs/rfcs/plans/bpr0966-dif-cues/acceptance-compose.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-current.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-compose-entry.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md",
+    "docs/rfcs/plans/bpr0966-dif-cues/compose-plan-amendment.json",
     "docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json",
-    "docs/rfcs/plans/bpr0966-dif-cues/source.json",
+    "docs/ux/ai-experience.md",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "tests/adapters_qt/workbench_window_tests.cpp",
     "tests/end_to_end/agent_finding_composition_public_path.cpp",
-    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-current.json",
     "docs/rfcs/plans/bpr0966-dif-cues/handoff.json"
   ],
   "verification": {
-    "evidence": "docs/rfcs/plans/bpr0966-dif-cues/evidence.md",
-    "baseline": "Dif fail, 20.72 s, ready and acknowledge only; original 1:1:1:0:0:1:0.",
-    "failing_before": "Paint observer without viewport exposure misses consider too (17.82 s). Probe measures empty visible region; exposing existing viewport yields nonempty region and a consider paint.",
-    "candidate": "Exact 12ea8646: qt_dif_runtime, qt_review_draft_editor, finding_composition, workshop_press pass; dif_context fails ready and acknowledge only. 4/5, 45.71 s. New draft identity/one-intent/single-sprite checks pass, zero publication.",
-    "documentation": "Gate passes with installed skill scripts on PYTHONPATH; regression suite 64/64 passes.",
-    "board": "Scoped validate passes, 1182 cards, zero errors.",
-    "format": "clang-format --dry-run --Werror on touched C++, git diff --check pass.",
-    "limits": "Mac offscreen fixture evidence only. No new native/human verdict; Windows deferred; no paid model/live PR."
+    "evidence": "docs/rfcs/plans/bpr0966-dif-cues/compose-evidence.md",
+    "baseline": "Dif failed only ready/acknowledge in 20.57 seconds.",
+    "candidate": "Six focused checks pass on 388f814c; actual ready/ack paints, visible button after bottom scroll, exact draft/one intent/one sprite/zero publication.",
+    "architecture": "Branch gate fails unchanged MCP Windows ownership and baseline archive reproduces. Coordinator reports main repairs ca23a9fe/ecf93cfd; root merged-candidate architecture check remains due.",
+    "documentation": "Gate and 64/64 regression tests pass; scoped board valid with 1198 cards.",
+    "format": "Touched C++ clang-format and git diff check pass.",
+    "limits": "Offscreen macOS arm64 Debug Qt 6.11.2 fixtures only; no new human/native Windows/Linux or release claim."
   },
-  "candidate_artifacts": [
-    {
-      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_composition_public_path",
-      "sha256": "86de5254fc1a2859fba471bae1ef132def5d12a8d4420a0bc7518bc75f7b85be"
+  "candidate_artifacts": {
+    "finding-course": {
+      "path": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-v001/finding-course",
+      "sha256": "60ad221adab5b13736477731d3b99c0489743c424630a7b824fcc3a52ebd84e7"
     },
-    {
-      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_canary",
+    "canary": {
+      "path": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-v001/canary",
       "sha256": "109315a6ee7d4f519e3b49b33577d62b6794be4d7a796b59869b07c46df24ccc"
+    },
+    "proposal.png": {
+      "path": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-v001/proposal.png",
+      "sha256": "10ebc68a8f1a37b25c62b4a535090f2b5980d8c1a5f757d0be229f74a7b4a04b"
+    },
+    "accepted.png": {
+      "path": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-v001/accepted.png",
+      "sha256": "61cf2d0938db5f47f2283f4688428994cd8e9cec62f42c03fced818d0c424bf3"
     }
-  ],
+  },
   "review_handoff": {
-    "state": "owner-contract-decision-required",
-    "url": null,
-    "session": null,
-    "event_cursor": null,
-    "question": "While a workshop proposal is displayed and accepted on Compose, should the single Dif widget use a workshop slot, the corner coordinated with BPR-0800, or remain absent with an explicit B7 amendment? Establish whether both workshop cues remain required there.",
-    "reason": "No resolved visual implementation is ready for attended acceptance; neither deleting existing assertions nor inventing placement is authorized."
+    "state": "ready-human-pending",
+    "session": "54fd75833481882c3bb47745f8e30b75",
+    "event_cursor": 3,
+    "candidate": "BPR-0966-compose-slot-v002",
+    "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+    "server_exec_session": 46244,
+    "server_pid": 41253,
+    "private_runtime_handoff": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-handoff.json",
+    "manifest": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review-manifest.json",
+    "offline_html": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build/bpr0966-compose-review.html",
+    "url_note": "Full loopback URL is in the private runtime handoff and final coordinator report; its bearer token is not committed.",
+    "protection": "Only frozen build/bpr0966-compose-review-v001 copies and their artifact resource; main and m2b source remain integrable.",
+    "pending_decisions": [
+      "One Accept/Reject judgment of the Compose workshop placement; no decision is supplied."
+    ],
+    "watch_argv": [
+      "python3",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+      "--repo-root",
+      "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
+      "wait",
+      "--after",
+      "3",
+      "--kind",
+      "handed-back"
+    ],
+    "watch_owner": "Coordinator must arm handed-back watch before yielding; this leaf does not interpret later review events."
   },
   "ownership": {
     "repository_writer": "released on return",
-    "active_commands": [],
-    "review_server": null,
     "descendants": [],
+    "active_commands": [
+      "Only the explicitly handed-off attended-review server, exec 46244, PID 41253."
+    ],
     "primary_checkout": "untouched",
-    "rfc0052_frozen_app": "untouched",
+    "other_worktrees": "untouched",
     "publication": "none",
-    "protected_candidates": "Existing primary/frozen review resources and historical packets untouched."
+    "protected_candidates": "Only own frozen review copy; historical packets untouched."
   },
   "commands": {
     "finished_exec_sessions": [
-      63474,
-      99258,
-      41644,
-      1321,
-      99589,
-      5945,
-      15877,
-      76439
+      52376,
+      46758,
+      77016,
+      58707,
+      73722,
+      75200,
+      63062,
+      59863,
+      13949,
+      27556,
+      27804
     ],
-    "process_audit": "No worktree-bound process except the audit shell/rg; all build and CTest commands exited.",
-    "runtime_evidence": "Ignored build/bpr0966-*.log; own build retained for reproduction. Disposable source probes removed."
+    "initial_baseline_build": "PID 61367 finished before queued baseline CTest; no remaining task build/test process.",
+    "review_server": {
+      "exec_session": 46244,
+      "pid": 41253,
+      "http_status": 200
+    },
+    "runtime_evidence": "Ignored build/bpr0966-compose-*.log and frozen review folder retained; disposable baseline archive removed."
   },
-  "continuation": "Coordinator may integrate the partial test/evidence slice. Keep BPR-0966 Blocked until the owner selects the workshop placement/contract and any BPR0800 amendment. Resume bounded implementation then direct public-path verification; do not claim Windows or historical acceptance was supplied."
+  "continuation": "Coordinator integrates this final handoff commit, completes the repaired architecture/slot checks on main, preserves fixed Compose prime placement when BPR1209 lands, and arms the review hand-back watch. Fresh implementer consumes any later verdict. Keep visual acceptance and Windows/native limits explicit; do not mark Done from this return.",
+  "uncertainties": [
+    "New slot visual judgment pending.",
+    "Windows consider-cue run remains deferred and no Linux/native release qualification supplied.",
+    "Existing stale conflict-status text in fixture capture reported to coordinator/m2b owner, not changed here."
+  ],
+  "integration": {
+    "owner": "coordinator",
+    "reported_main_commits": [
+      "2d970569",
+      "6729ad21",
+      "30df6679"
+    ],
+    "status": "Implementation, claim and park records landed; this handoff commit and repaired architecture/slot integration checks remain coordinator-owned."
+  }
 }

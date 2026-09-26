@@ -64,6 +64,9 @@ live account, paid model or remote mutation evidence is claimed.
   reproduces that exact failure at verifier lines 1656/1756. Neither file
   changed here. The 7-check aggregate is therefore 6 pass / 1 baseline fail,
   56.70 seconds, not an all-green architecture claim.
+  The coordinator subsequently reports the repair landed on main as
+  `ca23a9fe`/`ecf93cfd`; root integration must run `architecture_boundaries`
+  against the merged candidate. This branch does not import that unrelated fix.
 - Scoped `clang-format --dry-run --Werror` and `git diff --check` pass.
   Self-review covered widget reparenting, callbacks, exact action eligibility,
   focus/Escape, scroll exposure, preference independence and retained cue guards.
