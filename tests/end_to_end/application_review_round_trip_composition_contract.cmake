@@ -65,6 +65,13 @@ endfunction()
 # a per-snapshot cache and adds a tests-only composed menu assertion. No
 # publication, authority, provider or storage path changes; mutation pin
 # unchanged. Source review is recorded on BPR-1208.
+# Combined main reseal: fe8a6937..8f36d1cb; pinned-scope product commits
+# 9a22bbfe, 3fa6d614, 48543054 and 6fe51128, plus the formatting-only
+# alignment in this reseal. The baseline matches BPR-0972 source 149704df.
+# Reviewed Notes/defect snapshot cache invalidation, exact draft promotion,
+# unchanged whole-review admission and retained FilesDelta/queue/epoch paths.
+# Full review and 33-commit mapping: docs/verification/combined-main-integration-
+# 2026-09-26.md and .json; owning card BPR-1202. Mutation pin unchanged.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -351,7 +358,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"08bb28a3ed661125fbfd01222b530e3e463b833b818949e970470b6b67cd3b95"
+		"0e4c85336be0478ef95f35f06b62555e2d68b2fde0dfd34d809cb22dbf0cd108"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -502,7 +509,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "bb2924c4d4c05fb6e0b498ac15db1068c3d622fd76af5216ab1b6b7c7a23ff50"
+        "7ef93d74ebe71c2bf8cb058188a2ddd922b7ccf7e77f211b73251e8faa494d68"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

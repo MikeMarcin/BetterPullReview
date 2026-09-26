@@ -75,3 +75,11 @@ mutation digest stays `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf0
 This intentional reseal records the source review, not an acceptance waiver.
 
 Owner look AC3 and all originating native/station obligations remain pending.
+
+## Combined main integration review — 2026-09-26
+
+The [combined-source review](../../verification/combined-main-integration-2026-09-26.md)
+reseals actual main after all 33 m2b commits and the already-integrated BPR-0972
+changes. It names every changed production-manifest commit, preserves the
+mutation pin and records the integration mapping. This engineering self-review
+does not replace AC3's frozen-candidate owner judgment or station evidence.

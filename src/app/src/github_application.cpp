@@ -11260,7 +11260,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Window == nullptr || Window->agent_panel() == nullptr) {
 				return;
 			}
-			auto notes = std::vector<application::local_note_id>{ };
+			auto notes      = std::vector<application::local_note_id>{ };
 			auto projection = qt::private_notes_projection{ .Scope = PrivateNoteScope };
 			if (const auto attachment = current_note_attachment()) {
 				projection.CurrentFile = qt::private_note_target{ attachment->File, attachment->Comparison };

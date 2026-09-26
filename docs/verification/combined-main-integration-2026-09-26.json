@@ -1,0 +1,258 @@
+{
+  "schema": "bpr.combined-main-integration.v1",
+  "assignment": "/root/combined_main_integration",
+  "run_id": "rfc0052-20260925",
+  "segment_id": "combined-main-integration-20260926",
+  "mandate_revision": "owner-20260926-unattended-worktrees",
+  "repository": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "main_baseline": "fe8a6937ddf47547e8ea6d21182da9218e0bff09",
+  "source_m2b": "515cdb55e3923e50686b79d4c42ed49c38923d65",
+  "landed_head": "8f36d1cb96b809dc6604af3b2f35af875dcb5054",
+  "mapping": [
+    {
+      "source": "37ca4c8b02150a798cfc94ab4cec784e13e98481",
+      "main": "1d7552179d9f97917c3c838dd1d263754c8c490c",
+      "subject": "Claim BPR-1201"
+    },
+    {
+      "source": "21f3c14781a743dbc9162545444c00c95c7e28bc",
+      "main": "0ecafaf753d479f480f6fe426ca21fed14d1de3a",
+      "subject": "Place review readiness in the Updates track and folded summary"
+    },
+    {
+      "source": "8227a1fa61837463f41461481c88f38fb3a11d2e",
+      "main": "a00d0574c4f041e27ef60f886b54d83863adca26",
+      "subject": "Finish BPR-1201"
+    },
+    {
+      "source": "ec82a81ce65bffe533cb28cf521370a56e89c2e7",
+      "main": "1e730a7a74ac1fba7c63860d562b955575c5a513",
+      "subject": "Claim BPR-1202"
+    },
+    {
+      "source": "3161f459eca6dbba8ddb0e9a49e37b15cb145757",
+      "main": "9a22bbfeefd670b6a77e143fc21e0ef30acbfd38",
+      "subject": "Put file navigation before change navigation"
+    },
+    {
+      "source": "ec598284907bcc7351bb1f37501617d6205a2f35",
+      "main": "e9d9a1a04bac62fb7bfe34b99807e8c02b3d9677",
+      "subject": "Finish BPR-1202"
+    },
+    {
+      "source": "cca6f2a1df88a09de2406ddafb3a3bf62cf24727",
+      "main": "f06aef7d778ebd9450530012b36afd981548178b",
+      "subject": "Claim BPR-1203"
+    },
+    {
+      "source": "30748ed64c7bf55f901085ec458891591c1d85ac",
+      "main": "3fa6d6149719007630d08d340ef318e0e1abb4cd",
+      "subject": "Explain whole-review composition and unavailable states"
+    },
+    {
+      "source": "70f66d4cddd467e53f1e6b2d8c741d7dec75aa41",
+      "main": "84e6decc97c503bf4adf7b12902b0412054e70ea",
+      "subject": "Finish BPR-1203"
+    },
+    {
+      "source": "5b66df214da144c70f6d80306c447a056fb3c9fe",
+      "main": "589652c82470393c71b09ce3713c04edda5de192",
+      "subject": "Claim BPR-1205"
+    },
+    {
+      "source": "444b218eb606390a9c59ce862613808f9532f194",
+      "main": "2242dac2795c3492334c47c7e28a5c44915dfe36",
+      "subject": "Hide later threads on older comparison tabs"
+    },
+    {
+      "source": "d40f51b8b45906768a9959abb5ea98564c62bc17",
+      "main": "0e344558691a2afbf3794c6d299f8ea7fb1d1930",
+      "subject": "Finish BPR-1205"
+    },
+    {
+      "source": "9357d81b292afa08165739bd7e077455532da526",
+      "main": "9d83c1059cda78e3a4285f8a856bef1c382223f8",
+      "subject": "Claim BPR-1206"
+    },
+    {
+      "source": "f080d9c471feb3b69f8d571b27ba6235c15ca240",
+      "main": "44168b127bf06dcc78344772c80b906ce026f52f",
+      "subject": "Make document tabs fill shrink and scroll with active duplicate focus"
+    },
+    {
+      "source": "4f2320326a710bae79cdebc91a24e70726cc1afa",
+      "main": "6aa5020365dccbf9bb24a60e2e0c0d04239779c8",
+      "subject": "Finish BPR-1206"
+    },
+    {
+      "source": "1a159a19c8af61aababb40aa31081f55cd681400",
+      "main": "fd0e0b486663b8cc666301925f4b5842826da1be",
+      "subject": "Claim BPR-1207"
+    },
+    {
+      "source": "356bbdb22624beabe7b8f611e6c54c8d9abdad3f",
+      "main": "fa194e6bc1fdfa8d2047505a382804e4974ca01a",
+      "subject": "Open Comment only for its usable target draft and hide empty editor panels"
+    },
+    {
+      "source": "001bb1bab1933e1ad0a223789c11a1eaa5777726",
+      "main": "d7cf03605b120ac164e96f3808dca3bdfc97a499",
+      "subject": "Finish BPR-1207"
+    },
+    {
+      "source": "9d3838138d7f4e39c8dc8b4032c4cfe2c3ba42db",
+      "main": "b29fb6b79bcbad59d6576b00b724e90b1f9ca883",
+      "subject": "Claim BPR-1208"
+    },
+    {
+      "source": "44bd1266e085ec0047d8ce08fa898a4e04673aa8",
+      "main": "48543054e5643e36d2e88e171cf073a84537e073",
+      "subject": "Place defect controls on exact thread cards and Comments navigation"
+    },
+    {
+      "source": "379cbf000179a09abed5b0d9298aa3c396d39e43",
+      "main": "3f1fe8a60ba452e2b85df80638f22ee6933852f9",
+      "subject": "Finish BPR-1208"
+    },
+    {
+      "source": "e75e9b4d9b4811faab013ae559f8f89fb3f79b3b",
+      "main": "08b25d24f46fa61afc9d9fc96ccb018ba9a032b1",
+      "subject": "Claim BPR-1209"
+    },
+    {
+      "source": "8206236fb113b871e74f042fe49b8991a1c10027",
+      "main": "8658d1cc752ea4d730a27be449fe130011ab1220",
+      "subject": "Rest Dif in the status corner except at approved prime spots"
+    },
+    {
+      "source": "63ef8e56b5d42c08dd547b13948e531f254e833b",
+      "main": "e7e7155ffb902863409fc10286fddb5bc085d27f",
+      "subject": "Finish BPR-1209"
+    },
+    {
+      "source": "6768677ee65b028dc659cfd5ee67e61e904b5b14",
+      "main": "ad98b655188d247ea082f5774ca277e94eb31b05",
+      "subject": "Claim BPR-1210"
+    },
+    {
+      "source": "5f7bf9d1277424417b62fc4512db2a09f57b6f01",
+      "main": "6fe5112839a37a6a7bbda9d07140983a833804e6",
+      "subject": "Add private note editing and single-item draft promotion"
+    },
+    {
+      "source": "0375b536a8dfad937ed8935d43ca47e86504b7d3",
+      "main": "a8e11674aa2bacbc49a35d990f6c51557db1764b",
+      "subject": "Finish BPR-1210"
+    },
+    {
+      "source": "fae670dc06e8494837d54616261c1def53875513",
+      "main": "104fa74dcaa8f8fad6b82ac53346b9d3b028490a",
+      "subject": "fix(qt): preserve the start of folded readiness text"
+    },
+    {
+      "source": "c7e6d36609e1eca65a5f082b497a45887fa7c634",
+      "main": "ada68123661b7418e984bb81121145691ff9f7e9",
+      "subject": "Finish BPR-1201"
+    },
+    {
+      "source": "fb73c462d028fd368d664231ba2705d0e8d0c592",
+      "main": "5d4a07fc418ee11015ec15186803547db92dffa2",
+      "subject": "feat(qt): name the private review space Notes"
+    },
+    {
+      "source": "934f856157fad2285cacff640bab1e9a08494d34",
+      "main": "7632fca675837a284285d9552189c7233559594b",
+      "subject": "Finish BPR-1210"
+    },
+    {
+      "source": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+      "main": "3d37ec1e5765a5edba339ef9ce1f656c29626659",
+      "subject": "docs(rfc0052): bind the verified m2b review frontier"
+    },
+    {
+      "source": "515cdb55e3923e50686b79d4c42ed49c38923d65",
+      "main": "8f36d1cb96b809dc6604af3b2f35af875dcb5054",
+      "subject": "docs(rfc0052): hand off the frozen m2b owner review"
+    }
+  ],
+  "skipped_already_canonical": [
+    "8adc8e66",
+    "6750a9cd",
+    "87e74f77",
+    "394be4c5",
+    "b176f921",
+    "413eabf3"
+  ],
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-1204-the-trays-findings-tab-does-not-say-what-it-holds.md",
+    "docs/issues/20-ready/BPR-1201-readiness-words-take-the-updates-track-when-open-and-the-review-bars-summary-when-folded.md",
+    "docs/issues/20-ready/BPR-1207-comment-opens-a-page-that-looks-broken-and-leaves-no-way-to-comment.md",
+    "docs/issues/20-ready/BPR-1208-a-threads-defect-controls-sit-on-the-thread-not-in-the-trays-second-tab.md",
+    "docs/issues/20-ready/BPR-1210-private-notes-are-written-in-the-notes-tab-and-promoted-to-drafts-in-comments.md",
+    "docs/issues/40-parked/BPR-1201-readiness-words-take-the-updates-track-when-open-and-the-review-bars-summary-when-folded.md",
+    "docs/issues/40-parked/BPR-1202-the-review-bar-puts-file-navigation-before-change-navigation.md",
+    "docs/issues/40-parked/BPR-1203-compose-review-opens-a-page-that-does-not-say-what-is-happening-or-what-to-do.md",
+    "docs/issues/40-parked/BPR-1206-the-tab-strips-plus-activates-the-new-tab-and-tabs-fill-shrink-then-scroll.md",
+    "docs/issues/40-parked/BPR-1207-comment-opens-a-page-that-looks-broken-and-leaves-no-way-to-comment.md",
+    "docs/issues/40-parked/BPR-1208-a-threads-defect-controls-sit-on-the-thread-not-in-the-trays-second-tab.md",
+    "docs/issues/40-parked/BPR-1209-dif-leaves-the-right-drawer-and-rests-in-the-status-bars-corner.md",
+    "docs/issues/40-parked/BPR-1210-private-notes-are-written-in-the-notes-tab-and-promoted-to-drafts-in-comments.md",
+    "docs/issues/60-done/BPR-1205-a-tab-over-an-older-pair-hides-later-threads-until-show-them.md",
+    "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2b-2026-09-26.md",
+    "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m2b-checkpoint.json",
+    "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m2b-handoff-checkpoint.json",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/CMakeLists.txt",
+    "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+    "src/adapters/qt/include/bpr/qt/document_tab_strip.hpp",
+    "src/adapters/qt/include/bpr/qt/epoch_comparison_control.hpp",
+    "src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp",
+    "src/adapters/qt/include/bpr/qt/private_notes_panel.hpp",
+    "src/adapters/qt/include/bpr/qt/review_draft_editor.hpp",
+    "src/adapters/qt/include/bpr/qt/review_submission_editor.hpp",
+    "src/adapters/qt/include/bpr/qt/side_chat_panel.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/agent_launch_panel.cpp",
+    "src/adapters/qt/src/conversation_cards_view.cpp",
+    "src/adapters/qt/src/defect_card_view.cpp",
+    "src/adapters/qt/src/document_tab_strip.cpp",
+    "src/adapters/qt/src/epoch_comparison_control.cpp",
+    "src/adapters/qt/src/github_conversation_panel.cpp",
+    "src/adapters/qt/src/private_notes_panel.cpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/adapters/qt/src/review_submission_editor.cpp",
+    "src/adapters/qt/src/side_chat_panel.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/review_submission_workflow.cpp",
+    "src/app/src/review_submission_workflow.hpp",
+    "src/application/include/bpr/application/agent_chat_session_host.hpp",
+    "src/application/src/agent_chat_session_host.cpp",
+    "src/core/include/bpr/core/revisioned_review_draft.hpp",
+    "src/core/src/revisioned_review_draft.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/adapters_qt/conversation_cards_view_tests.cpp",
+    "tests/adapters_qt/epoch_comparison_control_tests.cpp",
+    "tests/adapters_qt/github_conversation_panel_tests.cpp",
+    "tests/adapters_qt/private_notes_panel_tests.cpp",
+    "tests/adapters_qt/review_draft_editor_tests.cpp",
+    "tests/adapters_qt/review_submission_editor_tests.cpp",
+    "tests/adapters_qt/side_chat_panel_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/application/CMakeLists.txt",
+    "tests/application/agent_chat_reply_tests.cpp",
+    "tests/core/revisioned_review_draft_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/agent_chat_composition_public_path.cpp",
+    "tests/end_to_end/agent_finding_composition_public_path.cpp",
+    "tests/end_to_end/agent_invocation_composition_public_path.cpp",
+    "tests/end_to_end/application_defect_composition_contract.cmake",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/end_to_end/application_uiforetw_selected_diff_contract.cmake",
+    "tests/end_to_end/review_submission_composition_public_path.cpp",
+    "tests/end_to_end/setup_destination_public_path_tests.cpp"
+  ],
+  "verification": "pending focused main integration"
+}
