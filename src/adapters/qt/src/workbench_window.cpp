@@ -5201,6 +5201,18 @@ namespace bpr::qt {
 		ConversationReadDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::update_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		const auto previous = ConversationPanel->cards()->set_thread_read_state(aThread, aUnreadPosts);
+		if (ConversationPanel->thread_map() != nullptr) {
+			ConversationPanel->thread_map()->replace_unread(previous, aUnreadPosts);
+		}
+		apply_thread_marks();
+	}
+
 	void workbench_window::present_read_state(std::vector<thread_read_state> aState)
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
@@ -5489,7 +5501,7 @@ namespace bpr::qt {
 			|| ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
 		// [[BPR-1134]]. The Comments tab carries the same count.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
@@ -5665,7 +5677,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		if (unread.empty()) {
 			return;
 		}

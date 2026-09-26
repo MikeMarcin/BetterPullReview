@@ -174,11 +174,7 @@ namespace bpr::qt {
 				return !roots.contains(aId) && !(aId.empty() && Draft.has_value());
 			});
 			Retained = aConversations;
-			RetainedFiles.clear();
-			RetainedFiles.reserve(Retained.size());
-			for (const auto& node : Retained) {
-				RetainedFiles.push_back(core::file_identity_of(node.Path));
-			}
+			index_retained();
 		}
 		AnchorFile = std::move(aFile);
 		relayout();
@@ -188,12 +184,53 @@ namespace bpr::qt {
 	{
 		clear_measurements();
 		Retained.clear();
-		RetainedFiles.clear();
+		index_retained();
 		Draft.reset();
 		Current.clear();
 		ReadState.clear();
+		ReadStateByThread.clear();
 		ReadStateKnown = false;
+		UnreadThreads.reset();
 		relayout();
+	}
+
+	void conversation_cards_view::index_retained()
+	{
+		UnreadThreads.reset();
+		RetainedFiles.clear();
+		RetainedById.clear();
+		RetainedRoot.clear();
+		RetainedDepth.clear();
+		RetainedByFile.clear();
+		RetainedFiles.reserve(Retained.size());
+		RetainedById.reserve(Retained.size());
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
+			// The first node with an identity answers for it.
+			RetainedById.emplace(Retained[index].Id, index);
+		}
+		// A root is the topmost retained ancestor: a parent that is not
+		// retained makes its child a root, and the walk is bounded by the
+		// node count so no cycle can spin.
+		RetainedRoot.reserve(Retained.size());
+		RetainedDepth.reserve(Retained.size());
+		RetainedByFile.reserve(Retained.size());
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			auto current = index;
+			auto depth   = std::size_t{ 0U };
+			while (Retained[current].ParentId.has_value() && depth < RetainedById.size()) {
+				const auto parent = RetainedById.find(*Retained[current].ParentId);
+				if (parent == RetainedById.end()) {
+					break;
+				}
+				current = parent->second;
+				++depth;
+			}
+			RetainedRoot.push_back(current);
+			RetainedDepth.push_back(depth);
+			RetainedByFile.emplace_back(RetainedFiles[current], index);
+		}
+		std::ranges::sort(RetainedByFile);
 	}
 
 	void conversation_cards_view::set_scope(const cards_scope aScope)
@@ -372,28 +409,64 @@ namespace bpr::qt {
 		}
 		ReadState      = std::move(aState);
 		ReadStateKnown = true;
+		ReadStateByThread.clear();
+		ReadStateByThread.reserve(ReadState.size());
+		for (std::size_t index = 0U; index < ReadState.size(); ++index) {
+			// The first state recorded for a thread answers for it.
+			ReadStateByThread.emplace(ReadState[index].Thread, index);
+		}
+		UnreadThreads.reset();
 		relayout();
 	}
 
-	auto conversation_cards_view::unread_threads_in_file_order() const -> std::vector<std::string>
+	auto conversation_cards_view::set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
+		-> std::vector<std::string>
 	{
+		auto previous = std::vector<std::string>{ };
+		if (const auto found = ReadStateByThread.find(aThread); found != ReadStateByThread.end()) {
+			previous = ReadState[found->second].UnreadPosts;
+			if (ReadStateKnown && previous == aUnreadPosts) {
+				return previous;
+			}
+			ReadState[found->second].UnreadPosts = std::move(aUnreadPosts);
+		} else {
+			if (ReadStateKnown && aUnreadPosts.empty()) {
+				return previous;
+			}
+			ReadState.push_back(thread_read_state{ .Thread = aThread, .UnreadPosts = std::move(aUnreadPosts) });
+			ReadStateByThread.emplace(aThread, ReadState.size() - 1U);
+		}
+		ReadStateKnown     = true;
+		const auto& now    = ReadState[ReadStateByThread.at(aThread)].UnreadPosts;
+		const auto  wasNew = !previous.empty();
+		if (UnreadThreads.has_value() && wasNew && now.empty()) {
+			std::erase(*UnreadThreads, aThread);
+		} else if (wasNew != !now.empty()) {
+			// A thread becoming unread takes its place in file order when the
+			// list is next asked for.
+			UnreadThreads.reset();
+		}
+		if (std::ranges::any_of(Cards, [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
+			relayout();
+		}
+		return previous;
+	}
+
+	auto conversation_cards_view::unread_threads_in_file_order() const -> const std::vector<std::string>&
+	{
+		if (UnreadThreads.has_value()) {
+			return *UnreadThreads;
+		}
 		// Every thread of the pull request, whatever the scope shows, so the
 		// strip's next new comment walks the whole review in file order.
-		// [[BPR-0972]]. The first state recorded for a thread answers for it,
-		// found by hash rather than a walk of every state per thread.
-		auto unreadByThread = std::unordered_map<std::string_view, bool>{ };
-		unreadByThread.reserve(ReadState.size());
-		for (const auto& state : ReadState) {
-			unreadByThread.emplace(state.Thread, !state.UnreadPosts.empty());
-		}
 		auto threads = std::vector<const application::github_conversation_projection*>{ };
 		for (const auto& node : Retained) {
 			if (node.Kind != application::github_conversation_kind::review_thread
 				|| node.ParentId.has_value()) {
 				continue;
 			}
-			const auto state = unreadByThread.find(node.Id);
-			if (state != unreadByThread.end() && state->second) {
+			const auto state = ReadStateByThread.find(node.Id);
+			if (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {
 				threads.push_back(&node);
 			}
 		}
@@ -402,10 +475,12 @@ namespace bpr::qt {
 			< std::pair{ aRight->Path, aRight->Line.value_or(0U) };
 		});
 		auto ids = std::vector<std::string>{ };
+		ids.reserve(threads.size());
 		for (const auto* thread : threads) {
 			ids.push_back(thread->Id);
 		}
-		return ids;
+		UnreadThreads = std::move(ids);
+		return *UnreadThreads;
 	}
 
 	auto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const
@@ -466,6 +541,11 @@ namespace bpr::qt {
 	auto conversation_cards_view::current_thread() const noexcept -> const std::string&
 	{
 		return Current;
+	}
+
+	auto conversation_cards_view::layout_nodes_visited() const noexcept -> std::uint64_t
+	{
+		return LayoutNodesVisited;
 	}
 
 	auto conversation_cards_view::layouts() const noexcept -> std::uint64_t
@@ -690,35 +770,27 @@ namespace bpr::qt {
 	{
 		++Layouts;
 		Cards.clear();
+		// [[BPR-0972]]. Scoped to one file, only that file's conversations are
+		// visited: the per-forest index names them, in retained order.
+		auto candidates = std::vector<std::size_t>{ };
+		if (Scope == cards_scope::this_file && AnchorFile.has_value()) {
+			for (const auto& [file, index] : std::ranges::equal_range(RetainedByFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {
+				candidates.push_back(index);
+			}
+		} else {
+			candidates.resize(Retained.size());
+			for (std::size_t index = 0U; index < Retained.size(); ++index) {
+				candidates[index] = index;
+			}
+		}
+		LayoutNodesVisited += candidates.size();
 		// Compact navigation admits every top-level conversation kind;
 		// the legacy full-card mode admits only anchored review threads.
-		// Keyed by views of the retained identities, which outlive this call.
-		auto byId = std::unordered_map<std::string_view, const application::github_conversation_projection*>{ };
-		byId.reserve(Retained.size());
-		for (const auto& node : Retained) {
-			byId.emplace(node.Id, &node);
-		}
-		auto rootOf = [&byId](const application::github_conversation_projection& aNode)
-			-> std::pair<const application::github_conversation_projection*, std::size_t> {
-			const auto* current = &aNode;
-			auto        depth   = std::size_t{ 0U };
-			auto        seen    = std::size_t{ 0U };
-			while (current->ParentId.has_value() && seen < byId.size()) {
-				const auto parent = byId.find(*current->ParentId);
-				if (parent == byId.end()) {
-					return { current, depth };
-				}
-				current = parent->second;
-				++depth;
-				++seen;
-			}
-			return { current, depth };
-		};
 		auto cardsById = std::unordered_map<std::string_view, std::size_t>{ };
-		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+		for (const auto index : candidates) {
 			const auto& node = Retained[index];
 			if ((!Compact && node.Kind != application::github_conversation_kind::review_thread)
-				|| (node.ParentId.has_value() && (!Compact || byId.contains(*node.ParentId)))) {
+				|| (node.ParentId.has_value() && (!Compact || RetainedById.contains(*node.ParentId)))) {
 				continue;
 			}
 			if (Scope == cards_scope::this_file && AnchorFile.has_value()
@@ -743,39 +815,32 @@ namespace bpr::qt {
 			cardsById.emplace(node.Id, Cards.size());
 			Cards.push_back(std::move(card));
 		}
-		// The first state recorded for a thread answers for it, as a search
-		// from the front would.
-		auto readStateByThread = std::unordered_map<std::string_view, const thread_read_state*>{ };
-		readStateByThread.reserve(ReadState.size());
-		for (const auto& state : ReadState) {
-			readStateByThread.emplace(state.Thread, &state);
-		}
-		// [[BPR-0972]]. The unread posts of every recorded state, so a post
-		// is judged by hash rather than a walk of its thread's unread list.
+		// The unread posts of the shown threads' first recorded states, so a
+		// post is judged by hash rather than a walk of its thread's list.
 		auto unreadPosts = std::unordered_map<std::string_view, std::set<std::string_view>>{ };
-		unreadPosts.reserve(readStateByThread.size());
-		for (const auto& [thread, state] : readStateByThread) {
-			auto& posts = unreadPosts[thread];
-			for (const auto& post : state->UnreadPosts) {
-				posts.insert(post);
+		for (const auto& card : Cards) {
+			if (const auto state = ReadStateByThread.find(card.Id); state != ReadStateByThread.end()) {
+				auto& posts = unreadPosts[card.Id];
+				for (const auto& post : ReadState[state->second].UnreadPosts) {
+					posts.insert(post);
+				}
 			}
 		}
-		for (const auto& node : Retained) {
+		for (const auto index : candidates) {
+			const auto& node = Retained[index];
 			if (node.Kind == application::github_conversation_kind::review_thread
 				|| (!Compact && !node.ParentId.has_value()) || node.Deleted) {
 				continue;
 			}
-			const auto [root, depth] = rootOf(node);
-			if (root == nullptr) {
-				continue;
-			}
-			const auto card = cardsById.find(root->Id);
+			const auto& root  = Retained[RetainedRoot[index]];
+			const auto  depth = RetainedDepth[index];
+			const auto  card  = cardsById.find(root.Id);
 			if (card == cardsById.end()) {
 				continue;
 			}
 			const auto author = text(node.AuthorLogin);
 			auto&      target = Cards[card->second];
-			const auto state  = unreadPosts.find(root->Id);
+			const auto state  = unreadPosts.find(root.Id);
 			const auto unread = state != unreadPosts.end() && state->second.contains(node.Id);
 			if (unread) {
 				if (target.Posts.empty()) {
@@ -787,9 +852,9 @@ namespace bpr::qt {
 			// "author", anyone else "reviewer" (the projection carries no
 			// finer role); a reply to a reply names whom it answers.
 			auto replyingTo = QString{ };
-			if (Feed && node.ParentId.has_value() && *node.ParentId != root->Id) {
-				if (const auto parent = byId.find(*node.ParentId); parent != byId.end()) {
-					replyingTo = text(parent->second->AuthorLogin);
+			if (Feed && node.ParentId.has_value() && *node.ParentId != root.Id) {
+				if (const auto parent = RetainedById.find(*node.ParentId); parent != RetainedById.end()) {
+					replyingTo = text(Retained[parent->second].AuthorLogin);
 				}
 			}
 			target.Posts.push_back(card_post{

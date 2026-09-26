@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 
@@ -799,6 +800,9 @@ namespace bpr::qt {
 
 	void github_thread_map::set_unread(std::vector<std::string> aIdentities)
 	{
+		// [[BPR-0972]]. Kept sorted: painting asks for every node, and each
+		// is answered by binary search instead of a walk of every unread post.
+		std::ranges::sort(aIdentities);
 		if (Unread == aIdentities) {
 			return;
 		}
@@ -806,9 +810,25 @@ namespace bpr::qt {
 		viewport()->update();
 	}
 
+	void github_thread_map::replace_unread(const std::vector<std::string>& aBefore, const std::vector<std::string>& aAfter)
+	{
+		if (aBefore == aAfter) {
+			return;
+		}
+		for (const auto& post : aBefore) {
+			if (const auto found = std::ranges::lower_bound(Unread, post); found != Unread.end() && *found == post) {
+				Unread.erase(found);
+			}
+		}
+		for (const auto& post : aAfter) {
+			Unread.insert(std::ranges::upper_bound(Unread, post), post);
+		}
+		viewport()->update();
+	}
+
 	auto github_thread_map::unread(const std::string_view aIdentity) const noexcept -> bool
 	{
-		return std::ranges::find(Unread, aIdentity) != Unread.end();
+		return std::ranges::binary_search(Unread, aIdentity, std::less<>{ });
 	}
 
 	void github_thread_map::set_unread_colour(const QColor& aColour)

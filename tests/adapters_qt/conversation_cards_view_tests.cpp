@@ -828,9 +828,56 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	// [[BPR-0972]]. One thread's read state reaches the cards as that thread
+	// alone: a thread whose card is not shown lays nothing out, a shown one
+	// lays out its file's cards, and both agree with the complete state.
+	void test_one_thread_read_state_matches_the_complete_state()
+	{
+		for (const auto threads : { 32U, 4096U }) {
+			auto conversations = std::vector<conversation>{ };
+			auto state         = std::vector<qt::thread_read_state>{ };
+			for (unsigned index = 0; index < threads; ++index) {
+				const auto id = "t" + std::to_string(index);
+				conversations.push_back(thread(id, "src/file" + std::to_string(index % (threads / 4U)) + ".cpp", index + 1U));
+				conversations.push_back(reply(id + "-c", id, "someone", "a remark"));
+				state.push_back(qt::thread_read_state{ .Thread = id, .UnreadPosts = { id + "-c" } });
+			}
+			qt::conversation_cards_view view;
+			view.resize(360, 900);
+			view.adopt(conversations, core::file_identity_of("src/file0.cpp"));
+			view.set_read_state(state);
+			static_cast<void>(view.unread_threads_in_file_order());
+			const auto layouts = view.layouts();
+			const auto visited = view.layout_nodes_visited();
+			// A thread in another file: read, with nothing shown to lay out.
+			const auto hidden = view.set_thread_read_state("t1", { });
+			expect(hidden == std::vector<std::string>{ "t1-c" } && view.layouts() == layouts,
+				   "a hidden thread's read state lays nothing out and returns its previous posts");
+			// A thread of the shown file: read, and only that file laid out.
+			static_cast<void>(view.set_thread_read_state("t0", { }));
+			std::cout << "cards-read-one threads=" << threads << " layouts=" << view.layouts() - layouts
+					  << " nodes_visited=" << view.layout_nodes_visited() - visited << '\n';
+			expect(view.layouts() == layouts + 1U && view.layout_nodes_visited() - visited == 8U,
+				   "a shown thread's read state lays out its own file's conversations only");
+			state[0].UnreadPosts.clear();
+			state[1].UnreadPosts.clear();
+			auto complete = qt::conversation_cards_view{ };
+			complete.resize(360, 900);
+			complete.adopt(conversations, core::file_identity_of("src/file0.cpp"));
+			complete.set_read_state(state);
+			expect(view.unread_threads_in_file_order() == complete.unread_threads_in_file_order()
+					   && view.unread_post_count() == complete.unread_post_count()
+					   && view.unread_marked_lines(core::diff_side::right) == complete.unread_marked_lines(core::diff_side::right),
+				   "one thread at a time agrees with the complete read state");
+		}
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_one_thread_read_state_matches_the_complete_state();
 	test_branching_conversation_reads_as_one_card_in_order();
 	test_read_state_marks_unread_posts_and_offers_mark_read();
 	test_the_feed_heads_posts_excerpts_code_and_filters();

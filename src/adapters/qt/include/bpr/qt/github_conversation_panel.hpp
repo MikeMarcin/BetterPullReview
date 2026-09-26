@@ -12,6 +12,8 @@
 
 #include <QWidget>
 
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 class QAction;
@@ -250,6 +252,22 @@ namespace bpr::qt {
 		/// thousand-thread review hashed every path on every anchor change.
 		std::vector<core::file_identity>                         RetainedFiles;
 		std::vector<application::github_conversation_projection> Shown;
+		/// [[BPR-0972]]. Per adopted forest: every node that has a root, by its
+		/// root's file, so anchoring to a file visits that file's nodes only.
+		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByRootFile;
+		std::vector<std::optional<std::size_t>>                  RetainedRoot;
+		/// [[BPR-0972]]. The retained forest with the current endpoint
+		/// placement, handed to the cards only when either changes.
+		std::vector<application::github_conversation_projection> PlacedRetained;
+		bool                                                     PlacedStale            = true;
+		std::uint64_t                                            ProjectionNodesVisited = 0U;
+
+		void               index_retained();
+		[[nodiscard]] auto anchored() -> std::vector<application::github_conversation_projection>;
+
+	public:
+		/// \brief [[BPR-0972]]. Retained nodes visited while re-filtering.
+		[[nodiscard]] auto projection_nodes_visited() const noexcept -> std::uint64_t;
 	};
 } // namespace bpr::qt
 

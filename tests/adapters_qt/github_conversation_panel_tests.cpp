@@ -805,11 +805,43 @@ namespace {
 			   "incremental insertion preserves selected detail without measuring the new hidden root or resetting the model");
 	}
 
+	// [[BPR-0972]]. Choosing a file re-filters the retained forest by the
+	// file's own conversations: the panel and its cards visit that file's
+	// nodes, not the whole review, and hand the cards no new forest.
+	void test_choosing_a_file_visits_only_its_conversations()
+	{
+		for (const auto threads : { 32U, 4096U }) {
+			auto conversations = std::vector<conversation>{ };
+			for (unsigned thread = 0; thread < threads; ++thread) {
+				const auto id = "t" + std::to_string(thread);
+				conversations.push_back(root(id, "src/file" + std::to_string(thread % (threads / 4U)) + ".cpp"));
+				conversations.push_back(reply(id + "-reply", id));
+			}
+			qt::github_conversation_panel panel;
+			panel.adopt(conversations, QStringLiteral("available"));
+			panel.set_anchor_file(core::file_identity_of("src/file0.cpp"));
+			const auto nodes   = panel.projection_nodes_visited();
+			const auto cards   = panel.cards()->layout_nodes_visited();
+			const auto layouts = panel.cards()->layouts();
+			panel.set_anchor_file(core::file_identity_of("src/file1.cpp"));
+			const auto panelVisits = panel.projection_nodes_visited() - nodes;
+			const auto cardVisits  = panel.cards()->layout_nodes_visited() - cards;
+			std::cout << "conversation-select threads=" << threads << " panel_nodes_visited=" << panelVisits
+					  << " card_nodes_visited=" << cardVisits << " layouts=" << panel.cards()->layouts() - layouts << '\n';
+			expect(panelVisits == 8U && cardVisits == 8U && panel.cards()->layouts() == layouts + 1U,
+				   "choosing a file visits its four threads and their replies once each");
+			const auto kept = shown(panel);
+			expect(kept.size() == 8U && contains(kept, "t1") && contains(kept, "t1-reply") && !contains(kept, "t0"),
+				   "the chosen file's conversations, and only those, are shown");
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_choosing_a_file_visits_only_its_conversations();
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
 	test_initial_detail_measures_only_selected_thread();

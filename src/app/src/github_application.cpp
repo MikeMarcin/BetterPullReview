@@ -6534,6 +6534,7 @@ namespace bpr::app {
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
+					if (aUpdate.Transition.AcceptedSnapshot.has_value()) { ReadStateCache.reset(); }
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
@@ -8164,8 +8165,12 @@ namespace bpr::app {
 			if (Host == nullptr || !WindowRead->accepted_snapshot().has_value()) {
 				return nullptr;
 			}
-			const auto&                                     threads = WindowRead->accepted_snapshot()->ReviewThreads;
-			const application::github_review_thread_record* result  = nullptr;
+			const auto& threads = WindowRead->accepted_snapshot()->ReviewThreads;
+			// [[BPR-0972]]. The read-state cache names each thread once.
+			if (const auto cached = cached_thread(aIdentity)) {
+				return &threads[*cached];
+			}
+			const application::github_review_thread_record* result = nullptr;
 			for (const auto& thread : threads) {
 				const auto identity = thread_identity(thread);
 				if (identity != aIdentity) {
@@ -9393,6 +9398,7 @@ namespace bpr::app {
 
 		void retire_review_ledger()
 		{
+			ReadStateCache.reset();
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
 			DurableDefects.clear();
@@ -9680,6 +9686,7 @@ namespace bpr::app {
 			}
 			const auto state = ReviewLedgerHost->observe_conversations(threads);
 			if (!state.has_value()) {
+				ReadStateCache.reset();
 				return std::nullopt;
 			}
 			// [[BPR-0972]]. Each unread conversation finds its threads, and each
@@ -9693,6 +9700,10 @@ namespace bpr::app {
 			std::ranges::sort(conversations);
 			auto  observed  = observed_read_state{ };
 			auto& presented = observed.Presented;
+			auto  cache     = read_state_cache{
+				.ThreadCount = snapshot->ReviewThreads.size(),
+				.Counted     = std::vector<std::uint32_t>(threads.size(), 0U),
+			};
 			for (const auto& projection : state->Threads) {
 				const auto matching = std::ranges::equal_range(conversations, projection.Conversation, { }, &std::pair<core::review_conversation_id, std::size_t>::first);
 				for (const auto& [conversation, index] : matching) {
@@ -9702,11 +9713,85 @@ namespace bpr::app {
 					// I never read has no cursor to be newer than.
 					if (projection.SeenBefore) {
 						observed.UnreadPosts += static_cast<std::uint32_t>(entry.UnreadPosts.size());
+						cache.Counted[index] += static_cast<std::uint32_t>(entry.UnreadPosts.size());
 					}
 					presented.push_back(std::move(entry));
 				}
 			}
+			// A conversation shared by two threads is joined as a cross product
+			// above; a single thread's change cannot be told apart from it, so
+			// such a review keeps the complete observation.
+			cache.Unique = std::ranges::adjacent_find(conversations, { }, &std::pair<core::review_conversation_id, std::size_t>::first) == conversations.end();
+			for (std::size_t index = 0U; index < names.size(); ++index) {
+				cache.ByIdentity.emplace_back(names[index].first, index);
+			}
+			std::ranges::sort(cache.ByIdentity);
+			cache.UnreadPosts = observed.UnreadPosts;
+			cache.Threads     = std::move(threads);
+			cache.Names       = std::move(names);
+			ReadStateCache    = std::move(cache);
 			return observed;
+		}
+
+		/// \brief [[BPR-0972]]. The snapshot's thread observations and read
+		/// state, as the last complete observation left them. A newly accepted
+		/// snapshot or a retired ledger drops it.
+		struct read_state_cache
+		{
+			std::size_t                                                   ThreadCount = 0U;
+			std::vector<std::uint32_t>                                    Counted;
+			std::vector<application::conversation_thread_observation>     Threads;
+			std::vector<std::pair<std::string, std::vector<std::string>>> Names;
+			std::vector<std::pair<std::string, std::size_t>>              ByIdentity;
+			std::uint32_t                                                 UnreadPosts = 0U;
+			bool                                                          Unique      = false;
+		};
+		std::optional<read_state_cache> ReadStateCache;
+		std::uint64_t                   ReadStateUpdates = 0U;
+
+		/// \brief The cached thread index for an identity, if the cache still
+		/// describes the accepted snapshot and names exactly one thread.
+		[[nodiscard]] auto cached_thread(const std::string_view aIdentity) const -> std::optional<std::size_t>
+		{
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (!ReadStateCache.has_value() || !snapshot.has_value()
+				|| ReadStateCache->ThreadCount != snapshot->ReviewThreads.size()) {
+				return std::nullopt;
+			}
+			const auto& byIdentity = ReadStateCache->ByIdentity;
+			const auto  found      = std::ranges::equal_range(byIdentity, aIdentity, std::less<>{ }, &std::pair<std::string, std::size_t>::first);
+			return found.size() == 1U ? std::optional{ found.front().second } : std::nullopt;
+		}
+
+		/// \brief Observes one thread's read state again and publishes that
+		/// thread alone.
+		/// \returns The pull request's unseen count, or nothing when the whole
+		/// observation must be made again.
+		auto publish_thread_read_state(const std::size_t aThread) -> std::optional<std::uint32_t>
+		{
+			if (!ReadStateCache.has_value() || !ReadStateCache->Unique || Window == nullptr) {
+				return std::nullopt;
+			}
+			auto&      cache = *ReadStateCache;
+			const auto state = ReviewLedgerHost->observe_conversations(std::span{ &cache.Threads[aThread], 1U });
+			if (!state.has_value()) {
+				ReadStateCache.reset();
+				return std::nullopt;
+			}
+			++ConversationThreadsVisited;
+			ConversationPostsVisited += cache.Threads[aThread].Posts.size();
+			auto unread  = std::vector<std::string>{ };
+			auto counted = std::uint32_t{ 0U };
+			if (!state->Threads.empty()) {
+				const auto& projection = state->Threads.front();
+				append_unread_names(cache.Threads[aThread], cache.Names[aThread].second, projection.UnreadPosts, unread);
+				counted = projection.SeenBefore ? static_cast<std::uint32_t>(unread.size()) : 0U;
+			}
+			cache.UnreadPosts      = cache.UnreadPosts - cache.Counted[aThread] + counted;
+			cache.Counted[aThread] = counted;
+			++ReadStateUpdates;
+			Window->update_read_state(cache.Names[aThread].first, std::move(unread));
+			return cache.UnreadPosts;
 		}
 
 		/// \brief Appends the presentation names of a thread's unread posts.
@@ -9780,7 +9865,12 @@ namespace bpr::app {
 				.LatestEdit    = latest->Edit,
 			});
 			if (marked.has_value()) {
-				if (const auto unseen = publish_read_state()) {
+				const auto cached = cached_thread(aThread);
+				auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+				if (!unseen.has_value()) {
+					unseen = publish_read_state();
+				}
+				if (unseen.has_value()) {
 					refresh_queue_unseen(*unseen);
 				}
 			}

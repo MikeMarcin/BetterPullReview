@@ -169,7 +169,9 @@ namespace bpr::qt {
 
 		void set_selection_sink(thread_map_selection_sink aSink);
 		/// \brief Fills the nodes the ledger says are unread ([[BPR-0649]]).
-		void               set_unread(std::vector<std::string> aIdentities);
+		void set_unread(std::vector<std::string> aIdentities);
+		/// \brief [[BPR-0972]]. Replaces one thread's unread posts in place.
+		void               replace_unread(const std::vector<std::string>& aBefore, const std::vector<std::string>& aAfter);
 		[[nodiscard]] auto unread(std::string_view aIdentity) const noexcept -> bool;
 		void               set_unread_colour(const QColor& aColour);
 		[[nodiscard]] auto hit_test(QPointF aPosition) const noexcept
@@ -231,13 +233,14 @@ namespace bpr::qt {
 		std::vector<thread_map_edge>                             Edges;
 		std::vector<application::github_conversation_projection> Retained;
 		std::string                                              FocusIdentity;
-		std::vector<std::string>                                 Unread;
-		QColor                                                   UnreadColour{ 0x09, 0x69, 0xDA };
-		std::size_t                                              CommentCount = 0U;
-		std::size_t                                              ReplyDepth   = 0U;
-		QSize                                                    Content;
-		thread_map_selection_sink                                SelectionSink;
-		thread_map_statistics                                    Statistics;
+		/// Sorted, so each painted node is a binary search ([[BPR-0972]]).
+		std::vector<std::string>  Unread;
+		QColor                    UnreadColour{ 0x09, 0x69, 0xDA };
+		std::size_t               CommentCount = 0U;
+		std::size_t               ReplyDepth   = 0U;
+		QSize                     Content;
+		thread_map_selection_sink SelectionSink;
+		thread_map_statistics     Statistics;
 	};
 } // namespace bpr::qt
 

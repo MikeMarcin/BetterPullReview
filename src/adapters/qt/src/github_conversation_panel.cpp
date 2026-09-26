@@ -144,6 +144,28 @@ namespace bpr::qt {
 			return aConversations;
 		}
 
+		/// \brief Whether a root is anchored at exactly this line of the current comparison.
+		[[nodiscard]] auto anchored_to_line(
+			const application::github_conversation_projection& aNode,
+			const core::source_line_ref&                       aLine,
+			const bool                                         aLeftHasCurrentDiffRevision,
+			const bool                                         aRightHasCurrentDiffRevision) -> bool
+		{
+			if (aNode.AnchorAvailability
+					!= application::github_conversation_anchor_availability::current
+				|| !aNode.Line.has_value() || *aNode.Line == 0U
+				|| !endpoint_is_current(
+					aNode,
+					aLeftHasCurrentDiffRevision,
+					aRightHasCurrentDiffRevision)) {
+				return false;
+			}
+			const auto side = github_conversation_source_side(
+				static_cast<int>(*aNode.DiffSide));
+			return side.has_value() && *side == aLine.Side
+				&& *aNode.Line - 1U == aLine.Line;
+		}
+
 		/// \brief Keeps the threads whose root is anchored in one file.
 		///
 		/// \details A reply carries no anchor — only a thread's root names a
@@ -182,22 +204,8 @@ namespace bpr::qt {
 						&& (node.Path.empty() || aFiles[aNodeIndex] != *aFile)) {
 						return false;
 					}
-					if (!aLine.has_value()) {
-						return true;
-					}
-					if (node.AnchorAvailability
-							!= application::github_conversation_anchor_availability::current
-						|| !node.Line.has_value() || *node.Line == 0U
-						|| !endpoint_is_current(
-							node,
-							aLeftHasCurrentDiffRevision,
-							aRightHasCurrentDiffRevision)) {
-						return false;
-					}
-					const auto side = github_conversation_source_side(
-						static_cast<int>(*node.DiffSide));
-					return side.has_value() && *side == aLine->Side
-						&& *node.Line - 1U == aLine->Line;
+					return !aLine.has_value()
+						|| anchored_to_line(node, *aLine, aLeftHasCurrentDiffRevision, aRightHasCurrentDiffRevision);
 				};
 				// Bounded by the node count, so a projection that somehow
 				// contained a cycle cannot spin here.
@@ -640,12 +648,69 @@ namespace bpr::qt {
 		}
 		DiscussFile = DiscussFileChoice->currentText().isEmpty() ? std::nullopt
 																 : std::optional{ core::file_identity_of(DiscussFileChoice->currentText().toStdString()) };
-		RetainedFiles.clear();
-		RetainedFiles.reserve(Retained.size());
-		for (const auto& node : Retained) {
-			RetainedFiles.push_back(core::file_identity_of(node.Path));
-		}
+		index_retained();
 		refresh_projection();
+	}
+
+	void github_conversation_panel::index_retained()
+	{
+		PlacedStale = true;
+		RetainedFiles.clear();
+		RetainedRoot.clear();
+		RetainedByRootFile.clear();
+		RetainedFiles.reserve(Retained.size());
+		auto byId = std::unordered_map<std::string_view, std::size_t>{ };
+		byId.reserve(Retained.size());
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
+			byId.emplace(Retained[index].Id, index);
+		}
+		// Membership is decided at the root, as `anchored_to` decides it: a
+		// parent that is not retained makes its child a root, and a chain
+		// longer than the forest is a cycle with no root.
+		RetainedRoot.reserve(Retained.size());
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			auto root = std::optional<std::size_t>{ };
+			auto node = index;
+			for (auto step = std::size_t{ 0U }; step <= Retained.size(); ++step) {
+				const auto& current = Retained[node];
+				const auto  parent  = current.ParentId.has_value() ? byId.find(*current.ParentId) : byId.end();
+				if (parent == byId.end()) {
+					root = node;
+					break;
+				}
+				node = parent->second;
+			}
+			RetainedRoot.push_back(root);
+			if (root.has_value() && !Retained[*root].Path.empty()) {
+				RetainedByRootFile.emplace_back(RetainedFiles[*root], index);
+			}
+		}
+		std::ranges::sort(RetainedByRootFile);
+	}
+
+	auto github_conversation_panel::anchored() -> std::vector<application::github_conversation_projection>
+	{
+		if (!AnchorFile.has_value()) {
+			// A line without a file is judged node by node, as before.
+			ProjectionNodesVisited += Retained.size();
+			return anchored_to(Retained, RetainedFiles, AnchorFile, AnchorLine, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
+		}
+		auto kept = std::vector<application::github_conversation_projection>{ };
+		for (const auto& [file, index] : std::ranges::equal_range(RetainedByRootFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {
+			++ProjectionNodesVisited;
+			const auto root = *RetainedRoot[index];
+			if (AnchorLine.has_value() && !anchored_to_line(Retained[root], *AnchorLine, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision)) {
+				continue;
+			}
+			kept.push_back(Retained[index]);
+		}
+		return kept;
+	}
+
+	auto github_conversation_panel::projection_nodes_visited() const noexcept -> std::uint64_t
+	{
+		return ProjectionNodesVisited;
 	}
 
 	void github_conversation_panel::refresh_body(const bool aAdmitted)
@@ -690,19 +755,21 @@ namespace bpr::qt {
 		const auto readingPost   = Model->id_for_index(readingIndex);
 		const auto postOffset    = -View->visualRect(readingIndex).top();
 		auto       shown         = !Discuss && (AnchorFile.has_value() || AnchorLine.has_value())
-			? anchored_to(
-				  Retained,
-				  RetainedFiles,
-				  AnchorFile,
-				  AnchorLine,
-				  LeftHasCurrentDiffRevision,
-				  RightHasCurrentDiffRevision)
+			? anchored()
 			: Retained;
 		shown                    = with_endpoint_placement(
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
 			RightHasCurrentDiffRevision);
-		Cards->adopt(with_endpoint_placement(Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision), Discuss ? DiscussFile : AnchorFile);
+		// [[BPR-0972]]. The cards take the whole placed forest only when it
+		// changed; a new anchor alone is a new anchor file.
+		if (PlacedStale) {
+			PlacedRetained = with_endpoint_placement(Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
+			PlacedStale    = false;
+			Cards->adopt(PlacedRetained, Discuss ? DiscussFile : AnchorFile);
+		} else {
+			Cards->set_anchor_file(Discuss ? DiscussFile : AnchorFile);
+		}
 		if (Shown == shown) {
 			show_loaded_page();
 			synchronize_map_focus();
@@ -766,7 +833,7 @@ namespace bpr::qt {
 		FilterUnresolved->setChecked(false);
 		(Discuss ? ScopeWholePr : ScopeThisFile)->setChecked(true);
 		Retained.clear();
-		RetainedFiles.clear();
+		index_retained();
 		Shown.clear();
 		ShownPositions.clear();
 		DetailDirty = true;
@@ -939,6 +1006,7 @@ namespace bpr::qt {
 		}
 		LeftHasCurrentDiffRevision  = aLeftHasCurrentDiffRevision;
 		RightHasCurrentDiffRevision = aRightHasCurrentDiffRevision;
+		PlacedStale                 = true;
 		refresh_projection();
 	}
 

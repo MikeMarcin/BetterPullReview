@@ -18,7 +18,10 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 class QKeyEvent;
@@ -197,12 +200,20 @@ namespace bpr::qt {
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
 		/// plainly: the cards do not guess what is unread.
 		void set_read_state(std::vector<thread_read_state> aState);
+		/// \brief [[BPR-0972]]. Adopts one thread's unread posts; empty means read.
+		/// \returns The thread's previous unread posts.
+		/// \details Lays out again only when that thread's card is shown.
+		auto set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
+			-> std::vector<std::string>;
 		/// \brief [[BPR-0657]]. Offers Resolve and Unresolve on the threads when the
 		/// provider and the server both resolve threads.
 		void               set_resolution_offered(bool aOffered);
 		[[nodiscard]] auto resolution_offered() const noexcept -> bool;
 		/// \brief The unread threads of the whole pull request, in file order.
-		[[nodiscard]] auto unread_threads_in_file_order() const -> std::vector<std::string>;
+		///
+		/// \details [[BPR-0972]]. Decided once per adopted forest or read
+		/// state and retained, so a scroll frame that asks again walks nothing.
+		[[nodiscard]] auto unread_threads_in_file_order() const -> const std::vector<std::string>&;
 		/// \brief The zero-based lines of the cards whose first post is unread.
 		[[nodiscard]] auto unread_marked_lines(core::diff_side aSide) const -> std::vector<std::uint32_t>;
 		[[nodiscard]] auto unread_post_count() const noexcept -> std::size_t;
@@ -216,6 +227,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto cards() const noexcept -> const std::vector<thread_card>&;
 		[[nodiscard]] auto current_thread() const noexcept -> const std::string&;
 		[[nodiscard]] auto layouts() const noexcept -> std::uint64_t;
+		/// \brief [[BPR-0972]]. Retained conversation nodes visited by layouts.
+		[[nodiscard]] auto layout_nodes_visited() const noexcept -> std::uint64_t;
 		/// \brief Number of card text measurements, excluding retained-cache hits.
 		[[nodiscard]] auto measurements() const noexcept -> std::uint64_t;
 		/// \brief The card under a viewport point, and the action if any.
@@ -269,35 +282,49 @@ namespace bpr::qt {
 		void               choose(std::size_t aCard, bool aOpenDetail);
 		void               place_cards(bool aForce);
 
+		/// \brief Derives the per-forest indices a layout reads.
+		void index_retained();
+
 		std::vector<application::github_conversation_projection> Retained;
 		/// The file identity of each retained node's path, index for index,
 		/// derived once per adopted forest rather than once per relayout.
-		std::vector<core::file_identity>            RetainedFiles;
-		std::vector<thread_card>                    Cards;
-		std::optional<core::file_identity>          AnchorFile;
-		std::optional<core::review_comment_draft>   Draft;
-		std::optional<core::file_comparison_digest> CurrentComparison;
-		card_line_locator                           Locator;
-		card_thread_dispatch                        ThreadDispatch;
-		card_action_dispatch                        ActionDispatch;
-		QString                                     Viewer;
-		std::string                                 Current;
-		std::vector<thread_read_state>              ReadState;
-		bool                                        ReadStateKnown    = false;
-		bool                                        Feed              = false;
-		bool                                        Compact           = false;
-		bool                                        ResolutionOffered = false;
-		discuss_filters                             Filters;
-		QString                                     PullRequestAuthor;
-		card_excerpt_locator                        ExcerptLocator;
-		std::function<void()>                       LayoutObserver;
-		QColor                                      CodeBackground{ 0xF6, 0xF8, 0xFA };
-		QColor                                      CodeInk{ 0x1F, 0x23, 0x28 };
-		cards_scope                                 Scope = cards_scope::this_file;
-		QColor                                      Accent{ 0x09, 0x69, 0xDA };
-		QColor                                      Marker{ 0xD2, 0x99, 0x22 };
-		int                                         ContentHeight = 0;
-		std::uint64_t                               Layouts       = 0U;
+		std::vector<core::file_identity> RetainedFiles;
+		/// [[BPR-0972]]. Per adopted forest: the first node for each identity,
+		/// each node's root and depth, and every node by its root's file, so a
+		/// layout scoped to one file visits that file's conversations only.
+		std::unordered_map<std::string_view, std::size_t>        RetainedById;
+		std::vector<std::size_t>                                 RetainedRoot;
+		std::vector<std::size_t>                                 RetainedDepth;
+		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByFile;
+		/// [[BPR-0972]]. The first read state of each thread.
+		std::unordered_map<std::string, std::size_t>    ReadStateByThread;
+		mutable std::optional<std::vector<std::string>> UnreadThreads;
+		std::uint64_t                                   LayoutNodesVisited = 0U;
+		std::vector<thread_card>                        Cards;
+		std::optional<core::file_identity>              AnchorFile;
+		std::optional<core::review_comment_draft>       Draft;
+		std::optional<core::file_comparison_digest>     CurrentComparison;
+		card_line_locator                               Locator;
+		card_thread_dispatch                            ThreadDispatch;
+		card_action_dispatch                            ActionDispatch;
+		QString                                         Viewer;
+		std::string                                     Current;
+		std::vector<thread_read_state>                  ReadState;
+		bool                                            ReadStateKnown    = false;
+		bool                                            Feed              = false;
+		bool                                            Compact           = false;
+		bool                                            ResolutionOffered = false;
+		discuss_filters                                 Filters;
+		QString                                         PullRequestAuthor;
+		card_excerpt_locator                            ExcerptLocator;
+		std::function<void()>                           LayoutObserver;
+		QColor                                          CodeBackground{ 0xF6, 0xF8, 0xFA };
+		QColor                                          CodeInk{ 0x1F, 0x23, 0x28 };
+		cards_scope                                     Scope = cards_scope::this_file;
+		QColor                                          Accent{ 0x09, 0x69, 0xDA };
+		QColor                                          Marker{ 0xD2, 0x99, 0x22 };
+		int                                             ContentHeight = 0;
+		std::uint64_t                                   Layouts       = 0U;
 		// Bounded by two widths of the current retained forest plus its one
 		// draft. Content, authority and presentation invalidations discard
 		// these rectangles.
