@@ -704,9 +704,6 @@ namespace bpr::qt {
 		if (!AnchorFile.has_value()) {
 			// A line without a file is judged node by node, as before.
 			ProjectionNodesVisited += Retained.size();
-			if (!LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision && !AnchorLine) {
-				return EarlierRetained;
-			}
 			return anchored_to(Retained, RetainedFiles, AnchorFile, AnchorLine, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
 		}
 		auto kept = std::vector<application::github_conversation_projection>{ };
@@ -774,7 +771,7 @@ namespace bpr::qt {
 		const auto postOffset    = -View->visualRect(readingIndex).top();
 		auto       shown         = !Discuss && (AnchorFile.has_value() || AnchorLine.has_value())
 			? anchored()
-			: (!Discuss && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained);
+			: Retained;
 		shown                    = with_endpoint_placement(
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
@@ -782,7 +779,7 @@ namespace bpr::qt {
 		// [[BPR-0972]]. The cards take the whole placed forest only when it
 		// changed; a new anchor alone is a new anchor file.
 		if (PlacedStale) {
-			PlacedRetained = with_endpoint_placement(!Discuss && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
+			PlacedRetained = with_endpoint_placement(!Discuss && AnchorFile && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
 			PlacedStale    = false;
 			Cards->adopt(PlacedRetained, Discuss ? DiscussFile : AnchorFile);
 		} else {
@@ -1002,7 +999,10 @@ namespace bpr::qt {
 		if (AnchorFile == aFile) {
 			return;
 		}
-		AnchorFile = std::move(aFile);
+		// An absent file is the review-wide projection, not an older pair.
+		// Changing between files keeps the retained placed forest reusable.
+		PlacedStale = PlacedStale || AnchorFile.has_value() != aFile.has_value();
+		AnchorFile  = std::move(aFile);
 		refresh_projection();
 	}
 

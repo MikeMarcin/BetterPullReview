@@ -521,7 +521,7 @@ namespace bpr::qt {
 		/// in the title row ([[BPR-1129]]).
 		[[nodiscard]] auto next_new_comment_action() const noexcept -> QAction*;
 		/// \brief Adopts the complete bounded local defect queue.
-		void present_defects(std::vector<core::defect_history> aDefects);
+		void present_defects(std::vector<core::defect_history> aDefects, std::map<core::defect_id, std::string> aThreads = { });
 		void clear_defects();
 
 		/// \brief The title row: the window, the pull request and the modality.
@@ -1237,6 +1237,9 @@ namespace bpr::qt {
 		void               classify_selected_conversation();
 		void               navigate_defect(int aDirection);
 		void               update_defect_surface();
+		void               update_defect_badges();
+		void               append_thread_defect_menu(QMenu& aMenu, const std::string& aThread);
+		void               show_defect_dialog(core::defect_id aDefect);
 		[[nodiscard]] auto selected_conversation_classification() const
 			-> std::optional<workbench_defect_classification>;
 		/// \brief The current conversation if the reviewer chose it, else none.
@@ -1483,23 +1486,28 @@ namespace bpr::qt {
 		bool                       OpenOnOverview    = false;
 		github_conversation_panel* ConversationPanel = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                              ApplyingConversationAnchor       = false;
-		bool                              LeftConversationEndpointCurrent  = false;
-		bool                              RightConversationEndpointCurrent = false;
-		agent_launch_panel*               AgentPanel                       = nullptr;
-		side_chat_panel*                  SideChat                         = nullptr;
-		finding_queue_view*               FindingQueue                     = nullptr;
-		review_draft_editor*              ReviewEditor                     = nullptr;
-		defect_card_view*                 DefectCard                       = nullptr;
-		QLabel*                           DefectCountLabel                 = nullptr;
-		QAction*                          ClassifyDefect                   = nullptr;
-		QAction*                          PreviousDefect                   = nullptr;
-		QAction*                          NextDefect                       = nullptr;
-		std::vector<core::defect_history> Defects;
-		std::optional<std::size_t>        ShownDefectIndex;
-		review_landing_model*             QueueLanding     = nullptr;
-		review_landing_filter_model*      QueueFilterModel = nullptr;
-		qt::home_list*                    HomeList         = nullptr;
+		bool                                   ApplyingConversationAnchor       = false;
+		bool                                   LeftConversationEndpointCurrent  = false;
+		bool                                   RightConversationEndpointCurrent = false;
+		agent_launch_panel*                    AgentPanel                       = nullptr;
+		side_chat_panel*                       SideChat                         = nullptr;
+		finding_queue_view*                    FindingQueue                     = nullptr;
+		review_draft_editor*                   ReviewEditor                     = nullptr;
+		defect_card_view*                      DefectCard                       = nullptr;
+		QLabel*                                DefectCountLabel                 = nullptr;
+		QAction*                               ClassifyDefect                   = nullptr;
+		QAction*                               PreviousDefect                   = nullptr;
+		QAction*                               NextDefect                       = nullptr;
+		std::vector<core::defect_history>      Defects;
+		std::map<core::defect_id, std::string> DefectThreads;
+		std::optional<std::string>             PendingDefectDialog;
+		QDialog*                               DefectDialog         = nullptr;
+		QToolButton*                           PreviousDefectButton = nullptr;
+		QToolButton*                           NextDefectButton     = nullptr;
+		std::optional<std::size_t>             ShownDefectIndex;
+		review_landing_model*                  QueueLanding     = nullptr;
+		review_landing_filter_model*           QueueFilterModel = nullptr;
+		qt::home_list*                         HomeList         = nullptr;
 		// [[BPR-0783]]. This window's Home view and the strip controls over it.
 		application::home_view_state                      HomeView;
 		std::function<void(application::home_view_state)> HomeViewDispatch;

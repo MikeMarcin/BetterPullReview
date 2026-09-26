@@ -55,6 +55,11 @@ endfunction()
 # The full review is recorded on BPR-0972; authority/lifetime and durable-before-
 # publication guards remain. Mutation-branch digest is unchanged. No other
 # production app manifest source changed in the reviewed range.
+# BPR-1208 reseal: no intervening application change after30748ed6. The
+# current slice joins durable defects to exact accepted thread identities with
+# a per-snapshot cache and adds a tests-only composed menu assertion. No
+# publication, authority, provider or storage path changes; mutation pin
+# unchanged. Source review is recorded on BPR-1208.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in

@@ -491,6 +491,7 @@ namespace {
 		reply.Id                                 = "later-reply";
 		reply.ParentId                           = "later";
 		panel.adopt({ later, reply, historical }, QStringLiteral("Three posts"));
+		expect(panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 2U, "without a selected file the review-wide projection retains every thread");
 		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
 		panel.set_current_endpoint_placement(false, false);
 		const auto excludesLater = [&] { return !panel.model()->index_for_id("later").isValid() && !panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 1U; };
@@ -499,6 +500,10 @@ namespace {
 		panel.set_current_endpoint_placement(false, true);
 		expect(!excludesLater(), "negative control: the current-head forest fails the older-pair exclusion predicate");
 		panel.set_current_endpoint_placement(false, false);
+		panel.set_anchor_file(std::nullopt);
+		expect(panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 2U, "leaving the file restores the review-wide forest without claiming either endpoint is current");
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		expect(excludesLater(), "returning to the older file restores its exclusion");
 		panel.set_discuss(true);
 		expect(panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 2U, "Show them's Discuss route restores the complete forest");
 	}

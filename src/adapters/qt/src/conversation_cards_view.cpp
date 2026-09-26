@@ -1,8 +1,10 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 
+#include <QContextMenuEvent>
 #include <QFont>
 #include <QFontMetrics>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -10,6 +12,7 @@
 #include <QPen>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QToolButton>
 
 #include <algorithm>
 #include <cstddef>
@@ -94,6 +97,8 @@ namespace bpr::qt {
 				return QStringLiteral("Resolve");
 			case card_action::unresolve:
 				return QStringLiteral("Unresolve");
+			case card_action::defect:
+				return QStringLiteral("Defect actions");
 			case card_action::delete_draft:
 				break;
 			}
@@ -137,15 +142,115 @@ namespace bpr::qt {
 		setAccessibleName(QStringLiteral("Comment cards"));
 		setAccessibleDescription(QStringLiteral(
 			"This file's threads as cards at their lines; Up and Down move "
-			"between them, Return reveals the line"));
+			"between them, Return reveals the line; Shift+F10 opens its thread actions"));
 		setFocusPolicy(Qt::StrongFocus);
 		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		viewport()->setAutoFillBackground(true);
 		viewport()->setBackgroundRole(QPalette::Window);
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
+			sync_badge_buttons();
 			viewport()->update();
 		});
+	}
+
+	void conversation_cards_view::set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder)
+	{
+		ContextMenuBuilder = std::move(aBuilder);
+	}
+
+	void conversation_cards_view::set_defect_badges(defect_badges aBadges)
+	{
+		if (DefectBadges == aBadges) {
+			return;
+		}
+		DefectBadges = std::move(aBadges);
+		relayout();
+	}
+
+	auto conversation_cards_view::thread_menu(const std::string& aIdentity) -> QMenu*
+	{
+		const auto at = std::ranges::find(Cards, aIdentity, &thread_card::Id);
+		if (at == Cards.end() || at->Draft) {
+			return nullptr;
+		}
+		const auto card = *at; // Selection can rebuild Cards; keep this exact identity.
+		choose(static_cast<std::size_t>(std::distance(Cards.begin(), at)), false);
+		auto* menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("threadContextMenu"));
+		menu->setToolTipsVisible(true);
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		const auto add = [this, menu, identity = card.Id](card_action kind, bool enabled, const QString& reason) {
+			auto* action = menu->addAction(action_text(kind));
+			action->setEnabled(enabled && static_cast<bool>(ActionDispatch));
+			action->setToolTip(enabled ? action->text() : reason);
+			connect(action, &QAction::triggered, menu, [this, identity, kind] { if (ActionDispatch) { ActionDispatch(kind, identity); } });
+		};
+		add(card_action::reply, has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
+		add(card_action::mark_read, card.UnreadCount > 0U, tr("This thread has no unread posts."));
+		add(card.Resolved ? card_action::unresolve : card_action::resolve, ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Thread resolution is not available for this conversation."));
+		add(card_action::open_in_code, has_code_anchor(card), tr("This thread's code anchor is unavailable."));
+		if (ContextMenuBuilder) {
+			menu->addSeparator();
+			ContextMenuBuilder(*menu, card.Id);
+		}
+		return menu;
+	}
+
+	void conversation_cards_view::show_thread_menu(const std::string& aIdentity, QPoint aGlobalPosition)
+	{
+		if (auto* menu = thread_menu(aIdentity)) {
+			menu->popup(aGlobalPosition.isNull() ? viewport()->mapToGlobal(viewport()->rect().center()) : aGlobalPosition);
+		}
+	}
+
+	void conversation_cards_view::contextMenuEvent(QContextMenuEvent* aEvent)
+	{
+		if (aEvent->reason() == QContextMenuEvent::Keyboard) {
+			show_thread_menu(Current);
+		} else if (const auto hit = hit_test(aEvent->pos())) {
+			const auto identity = Cards[hit->first].Id;
+			show_thread_menu(identity, aEvent->globalPos());
+		}
+		aEvent->accept();
+	}
+
+	void conversation_cards_view::sync_badge_buttons()
+	{
+		auto used = std::size_t{ 0 };
+		for (const auto& card : Cards) {
+			if (card.DefectBadge.isEmpty()) {
+				continue;
+			}
+			const auto badge = std::ranges::find(card.Actions, card_action::defect, &std::pair<card_action, QRect>::first);
+			if (badge == card.Actions.end()) {
+				continue;
+			}
+			const auto rect = badge->second.translated(0, -verticalScrollBar()->value());
+			if (!rect.intersects(viewport()->rect())) {
+				continue;
+			}
+			if (used == BadgeButtons.size()) {
+				auto* button = new QToolButton{ viewport() };
+				button->setObjectName(QStringLiteral("threadDefectBadge"));
+				button->setFocusPolicy(Qt::StrongFocus);
+				connect(button, &QToolButton::clicked, this, [this, button] {
+					show_thread_menu(button->property("threadIdentity").toString().toStdString(), button->mapToGlobal(QPoint{ 0, button->height() }));
+				});
+				BadgeButtons.push_back(button);
+			}
+			auto* button = BadgeButtons[used++];
+			button->setProperty("threadIdentity", QString::fromStdString(card.Id));
+			button->setText(button->fontMetrics().elidedText(card.DefectBadge, Qt::ElideRight, std::max(1, rect.width() - 18)));
+			button->setAccessibleName(card.DefectBadge);
+			button->setAccessibleDescription(card.DefectDescription);
+			button->setToolTip(card.DefectDescription);
+			button->setGeometry(rect);
+			button->show();
+		}
+		for (; used < BadgeButtons.size(); ++used) {
+			BadgeButtons[used]->hide();
+		}
 	}
 
 	void conversation_cards_view::adopt(
@@ -665,6 +770,10 @@ namespace bpr::qt {
 			actionX += width + 12;
 		}
 		y += action_height + card_padding;
+		if (!aCard.DefectBadge.isEmpty()) {
+			aCard.Actions.emplace_back(card_action::defect, QRect{ card_padding, y, aWidth - 2 * card_padding, 28 });
+			y += 28 + card_padding;
+		}
 		aCard.Rect.setHeight(y);
 	}
 
@@ -713,7 +822,7 @@ namespace bpr::qt {
 		}
 		const auto cached = Measurements.Cards.find(aCard.Id);
 		const auto header = aCard.Resolved || aCard.Outdated || aCard.Draft;
-		const auto label  = Compact ? compact_label(aCard) : QString{ };
+		const auto label  = (Compact ? compact_label(aCard) : QString{ }) + QChar{ 0x1f } + aCard.DefectBadge;
 		if (cached != Measurements.Cards.end() && cached->second.Excerpt == aCard.Excerpt
 			&& cached->second.Label == label
 			&& cached->second.AnchorAvailable == has_code_anchor(aCard)
@@ -797,8 +906,12 @@ namespace bpr::qt {
 				&& RetainedFiles[index] != *AnchorFile) {
 				continue;
 			}
-			auto card              = thread_card{ };
-			card.Id                = node.Id;
+			auto card = thread_card{ };
+			card.Id   = node.Id;
+			if (const auto badge = DefectBadges.find(card.Id); badge != DefectBadges.end()) {
+				card.DefectBadge       = badge->second.first;
+				card.DefectDescription = badge->second.second;
+			}
 			card.Kind              = node.Kind == application::github_conversation_kind::review_thread
 				? QStringLiteral("Inline thread")
 				: node.Kind == application::github_conversation_kind::review
@@ -921,8 +1034,8 @@ namespace bpr::qt {
 			LayoutObserver();
 		}
 		setAccessibleDescription((Compact
-									  ? QStringLiteral("%1 conversations, %2 posts, %3 unread; Up and Down move between conversations, Return opens the selected detail")
-									  : QStringLiteral("%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line"))
+									  ? QStringLiteral("%1 conversations, %2 posts, %3 unread; Up and Down move between conversations, Return opens the selected detail; Shift+F10 opens its thread actions")
+									  : QStringLiteral("%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line; Shift+F10 opens its thread actions"))
 									 .arg(thread_count())
 									 .arg(post_count())
 									 .arg(unread_post_count()));
@@ -1018,6 +1131,7 @@ namespace bpr::qt {
 		ContentHeight = bottom + card_margin;
 		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
 		verticalScrollBar()->setPageStep(viewport()->height());
+		sync_badge_buttons();
 		viewport()->update();
 	}
 
@@ -1068,7 +1182,9 @@ namespace bpr::qt {
 				painter.setFont(small);
 				painter.setPen(Accent);
 				for (const auto& [action, rect] : card.Actions) {
-					painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+					if (action != card_action::defect) {
+						painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+					}
 				}
 				continue;
 			}
@@ -1156,7 +1272,9 @@ namespace bpr::qt {
 			painter.setFont(small);
 			for (const auto& [action, rect] : card.Actions) {
 				painter.setPen(Accent);
-				painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+				if (action != card_action::defect) {
+					painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+				}
 			}
 		}
 		if (Cards.empty()) {
@@ -1235,6 +1353,11 @@ namespace bpr::qt {
 
 	void conversation_cards_view::keyPressEvent(QKeyEvent* const aEvent)
 	{
+		if (aEvent->key() == Qt::Key_Menu || (aEvent->key() == Qt::Key_F10 && aEvent->modifiers().testFlag(Qt::ShiftModifier))) {
+			show_thread_menu(Current);
+			aEvent->accept();
+			return;
+		}
 		auto threads = std::vector<std::size_t>{ };
 		for (std::size_t index = 0U; index < Cards.size(); ++index) {
 			if (!Cards[index].Draft) {

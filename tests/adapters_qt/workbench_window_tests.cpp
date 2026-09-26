@@ -7342,7 +7342,7 @@ namespace {
 				   && window.next_new_comment_button()->isVisible() && below(window.next_new_comment_button())
 				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
-				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
+				   && !window.finding_queue()->isVisible() && window.defect_count_label()->isVisible(),
 			   "the Comments tab shows the conversation and Next new beneath the tabs, and nothing of Findings");
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
@@ -7355,9 +7355,10 @@ namespace {
 		};
 		save(QStringLiteral("tray-comments"));
 		expect(comments->isAncestorOf(window.conversation_panel()) && findings->isAncestorOf(window.finding_queue())
-				   && findings->isAncestorOf(window.side_chat()) && findings->isAncestorOf(window.defect_card())
+				   && findings->isAncestorOf(window.side_chat()) && !findings->isAncestorOf(window.defect_card())
+				   && comments->isAncestorOf(window.defect_count_label())
 				   && findings->isAncestorOf(window.agent_panel()) && findings->isAncestorOf(window.dif_ai_slot()),
-			   "the AI tools, the finding queue and the defect controls are the Findings tab's, no longer stacked under the threads");
+			   "the private tools stay in Findings while thread defect controls are outside it");
 
 		auto* const view = window.conversation_view();
 		view->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:b"));
@@ -7366,7 +7367,7 @@ namespace {
 		tabs->setCurrentIndex(1);
 		process_events();
 		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
-				   && window.finding_queue()->isVisible() && window.defect_count_label()->isVisible() && below(window.agent_panel())
+				   && window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible() && below(window.agent_panel())
 				   && !window.conversation_panel()->isVisible(),
 			   "the Findings tab shows only its own tools, beneath the tabs, and checks the AI tools action");
 		save(QStringLiteral("tray-findings"));
@@ -7531,7 +7532,7 @@ namespace {
 		for (auto line = 0U; line < 30U; ++line) {
 			text += "line " + std::to_string(line) + '\n';
 		}
-		const auto diff = computed_comparison(text, text);
+		const auto diff = computed_comparison(text, text, 0U, core::file_identity_of("review.cpp"));
 		static_cast<void>(publish_fixture(window, diff));
 		window.set_conversation_endpoint_placement(false, true);
 		window.set_defect_dispatch(
@@ -7637,6 +7638,95 @@ namespace {
 			window.defect_card()->shown_defect()->State
 				== core::defect_state::needs_verification,
 			"the window does not verify before a new accepted projection");
+	}
+
+	void test_thread_defect_menus_badges_and_navigation()
+	{
+		qt::workbench_window window;
+		window.resize(1280, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		const auto diff = computed_comparison(text, text, 0U, core::file_identity_of("src/file.cpp"));
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(false, true);
+		auto forest = std::vector<application::github_conversation_projection>{ };
+		for (auto index = 1U; index <= 3U; ++index) {
+			forest.push_back({ .Id = "review-thread:" + std::to_string(index), .Kind = application::github_conversation_kind::review_thread, .Path = "src/file.cpp", .Line = index * 5U, .DiffSide = application::github_conversation_diff_side::right, .AnchorAvailability = application::github_conversation_anchor_availability::current });
+		}
+		window.conversation_panel()->adopt(forest, QStringLiteral("three threads"));
+		std::vector<core::defect_command>                commands;
+		std::vector<qt::workbench_defect_classification> classifications;
+		window.set_defect_dispatch([&](auto command) { commands.push_back(command); });
+		window.set_defect_classification_dispatch([&](auto command) { classifications.push_back(command); });
+		auto first                = core::defect_history{ .Defect = { .Id = core::defect_id{ 1U }, .Anchor = { .Comparison = diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 4U } } };
+		first.OriginalAnchor      = first.Defect.Anchor;
+		auto second               = first;
+		second.Defect.Id          = core::defect_id{ 2U };
+		second.Defect.Anchor.Line = 9U;
+		second.OriginalAnchor     = second.Defect.Anchor;
+		second.Defect.State       = core::defect_state::needs_verification;
+		window.present_defects({ first, second }, { { core::defect_id{ 1U }, "review-thread:1" }, { core::defect_id{ 2U }, "review-thread:2" } });
+		process_events();
+		auto*      cards       = window.conversation_panel()->cards();
+		auto*      findings    = window.findings_tab_scroll();
+		const auto privateOnly = [&] {
+			if (findings->isAncestorOf(window.defect_card()) || findings->isAncestorOf(window.defect_count_label())) {
+				return false;
+			}
+			for (auto* button : findings->findChildren<QToolButton*>()) {
+				if (button->defaultAction() == window.classify_defect_action() || button->defaultAction() == window.previous_defect_action() || button->defaultAction() == window.next_defect_action()) {
+					return false;
+				}
+			}
+			return true;
+		};
+		expect(privateOnly(), "the private tab has no thread defect controls");
+		auto* wrong = new QToolButton{ findings->widget() };
+		wrong->setDefaultAction(window.classify_defect_action());
+		expect(!privateOnly(), "negative control detects a thread control returned to the private tab");
+		delete wrong;
+		auto* menu   = cards->thread_menu("review-thread:1");
+		auto* verify = menu->findChild<QAction*>(QStringLiteral("defectVerify"));
+		expect(verify && !verify->isEnabled() && !verify->toolTip().isEmpty(), "an open defect refuses Verify with an explanation");
+		delete menu;
+		menu   = cards->thread_menu("review-thread:2");
+		verify = menu->findChild<QAction*>(QStringLiteral("defectVerify"));
+		expect(verify && verify->isEnabled(), "the defect needing verification offers its existing verdict");
+		window.next_defect_action()->trigger();
+		window.previous_defect_action()->trigger();
+		expect(cards->current_thread() == "review-thread:1", "a later navigation really changes the selected defect thread");
+		verify->trigger();
+		expect(commands.size() == 1U && commands.front().Id == core::defect_id{ 2U } && commands.front().Kind == core::defect_command_kind::verify,
+			   "a menu keeps its exact defect identity across a later selection change");
+		delete menu;
+		menu           = cards->thread_menu("review-thread:3");
+		auto* classify = menu->findChild<QAction*>(QStringLiteral("threadClassifyDefect"));
+		expect(classify && classify->isEnabled(), "the unclassified current thread offers local classification");
+		classify->trigger();
+		expect(classifications.size() == 1U && classifications.front().Conversation == "review-thread:3" && classifications.front().Anchor.Line == 14U,
+			   "classification carries the exact menu thread and semantic line");
+		delete menu;
+		window.next_defect_action()->trigger();
+		expect(cards->current_thread() == "review-thread:2" && window.defect_count_label()->text().contains(QStringLiteral("2/2")), "defect navigation selects its thread and exact queue position");
+		expect(window.comments_tab_scroll()->isAncestorOf(window.defect_count_label()) && window.focus_order().contains(window.findChild<QToolButton*>(QStringLiteral("nextDefectButton"))), "defect position and keyboard navigation belong to Comments");
+		menu = cards->thread_menu("review-thread:1");
+		menu->findChild<QAction*>(QStringLiteral("threadReclassifyDefect"))->trigger();
+		process_events();
+		expect(window.defect_card()->severity_selector()->isVisible() && window.defect_card()->category_selector()->isVisible(), "Reclassify opens the existing severity and category controls");
+		window.findChild<QDialog*>(QStringLiteral("threadDefectDialog"))->hide();
+		delete menu;
+		process_events();
+		save_render(window, QStringLiteral("thread-defect-controls"));
+		cards->verticalScrollBar()->setValue(cards->verticalScrollBar()->maximum());
+		process_events();
+		save_render(window, QStringLiteral("thread-defect-and-unclassified"));
+		window.hide();
 	}
 
 	void test_queue_rule_gestures_wait_for_the_accepted_projection()
@@ -10584,6 +10674,7 @@ auto main(int argc, char** argv) -> int
 		test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 		test_a_reply_waits_for_its_threads_own_comparison();
 		test_defect_queue_navigation_and_semantic_dispatch();
+		test_thread_defect_menus_badges_and_navigation();
 		std::cout << "workbench-conversation-reveal:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -10657,6 +10748,7 @@ auto main(int argc, char** argv) -> int
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();
 	test_defect_queue_navigation_and_semantic_dispatch();
+	test_thread_defect_menus_badges_and_navigation();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_saved_repository_gestures_round_trip_through_the_dispatch();

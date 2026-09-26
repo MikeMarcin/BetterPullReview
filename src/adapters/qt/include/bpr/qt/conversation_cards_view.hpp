@@ -24,6 +24,9 @@
 #include <utility>
 #include <vector>
 
+class QContextMenuEvent;
+class QMenu;
+class QToolButton;
 class QKeyEvent;
 class QMouseEvent;
 class QPaintEvent;
@@ -54,6 +57,7 @@ namespace bpr::qt {
 		/// Resolve or reopen this thread through the mutation port ([[BPR-0657]]).
 		resolve,
 		unresolve,
+		defect,
 	};
 
 	/// \brief Discuss's filters over the feed ([[BPR-0649]]).
@@ -104,6 +108,8 @@ namespace bpr::qt {
 		/// The thread root's identity; empty for the draft card.
 		std::string                    Id;
 		QString                        Kind;
+		QString                        DefectBadge;
+		QString                        DefectDescription;
 		QString                        Path;
 		std::optional<core::diff_side> Side;
 		/// The one-based line the thread sits on, when it has one.
@@ -178,6 +184,11 @@ namespace bpr::qt {
 		void set_viewer_login(const QString& aLogin);
 		void set_thread_dispatch(card_thread_dispatch aDispatch);
 		void set_action_dispatch(card_action_dispatch aDispatch);
+		using defect_badges = std::map<std::string, std::pair<QString, QString>>;
+		void               set_defect_badges(defect_badges aBadges);
+		void               set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
+		[[nodiscard]] auto thread_menu(const std::string& aIdentity) -> QMenu*;
+		void               show_thread_menu(const std::string& aIdentity, QPoint aGlobalPosition = { });
 		/// \brief Discuss's feed ([[BPR-0649]]): every thread as a card in
 		/// file order with its code excerpt, each post headed by author,
 		/// role and "replying to", and Reply, Mark read and Open in code.
@@ -245,8 +256,10 @@ namespace bpr::qt {
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
+		void contextMenuEvent(QContextMenuEvent* aEvent) override;
 
 	private:
+		void sync_badge_buttons();
 		struct measured_card
 		{
 			QString                                    Label;
@@ -307,6 +320,9 @@ namespace bpr::qt {
 		card_line_locator                               Locator;
 		card_thread_dispatch                            ThreadDispatch;
 		card_action_dispatch                            ActionDispatch;
+		defect_badges                                   DefectBadges;
+		std::function<void(QMenu&, const std::string&)> ContextMenuBuilder;
+		std::vector<QToolButton*>                       BadgeButtons;
 		QString                                         Viewer;
 		std::string                                     Current;
 		std::vector<thread_read_state>                  ReadState;

@@ -99,3 +99,73 @@ controls without changing their semantics. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 [[BPR-1135]].
+
+## Engineering source review — 2026-09-26
+
+The candidate follows the delegated context-menu, badge and Comments-navigation
+decision. The existing defect-card actions supply the verdict commands in a
+thread-bound menu; they retain the captured defect identity when selection
+changes. The existing severity/category editor opens in a local modal dialog.
+Only visible cards receive native accessible badge buttons. An unclassified
+thread has no badge. Existing conversation indexes and measurement caches remain.
+
+The pinned application scope has no intervening commit after `30748ed6`. This
+slice adds a per-accepted-snapshot join from both halves of the durable defect
+identity to the exact thread. Ordinary defect projections visit retained defect
+records; snapshot/ledger retirement invalidates the join. Ambiguous identities
+receive no thread binding. It changes no core defect command, effect ownership,
+provider admission, publication or ledger capability. Its tests-only composition
+probe checks the accepted thread menu and badge and excludes the private tab.
+The full-application and manifest pins are resealed with this recorded review;
+the production mutation-branch pin is unchanged.
+
+Native VoiceOver and owner placement judgments remain pending.
+
+The first combined run found two corrected presentation defects: the new
+navigation buttons lacked accessible descriptions, and BPR-1205's earlier-pair
+filter also hid current threads from the unselected review-wide projection.
+The latter stalled both composed courses before their first file selection.
+The correction filters a selected file only, retains the complete unselected
+forest, and invalidates the placed forest only when file presence changes,
+so ordinary file-to-file projection retains BPR-0972's cache. A focused
+transition test covers unselected → older file → unselected → older file →
+Discuss. The old classification unit fixture now names its actual review.cpp
+file; a thread from another file must not classify against the displayed file.
+The first composed course exhausted its 40-second bound; the second was stopped
+after showing the same initial stall to release the shared Qt slot. Neither is
+claimed as passing. Existing core defect workflow and host correlation checks
+pass 2/2 after building their previously absent test binaries.
+
+The corrected initial course reaches `DEFECT_THREAD_CONTROLS_OK`. Its later
+reversed-pair wait still expected selectable current threads, contradicting
+BPR-1205's owner amendment. That test-only gate now requires those identities
+while the current pair is used, then asserts their absence on the older pair
+alongside the unchanged no-anchor/no-classification, durable correlation,
+refused-persistence, explicit verification, reclassification and restart checks.
+No product admission or original semantic expectation is relaxed. This
+tests-only update is included in the application pin review above.
+
+The same tests-only probe now enters Review through the shared public modality
+step and opens Comments through its existing action before selecting a file.
+The composed badge check requires actual visible cards, rather than inspecting
+a retained but hidden Overview widget. This is included in the pinned source
+review; the production mutation branch remains unchanged.
+
+Final engineering checks pass: core/host 2/2, conversation panel/focus/reveal
+3/3, the four-process GitHub/GHES defect composition (54.98 seconds), and
+window/focus scales plus review-round-trip source pin 6/6 (79.04 seconds).
+Logs are under `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1208-*`.
+The top-card renders at 100/125/200 were inspected. The new bottom-card
+capture covers a classified and an unclassified thread together; its first
+three selector runs all used 100 percent because CTest overrides the caller's
+scale variable. The 125/200 bottom captures remain to be rerun with explicit
+isolated commands, rather than mislabelled as scale evidence. The screenshot
+change is test-only. Native VoiceOver and the separate owner judgment remain
+pending regardless of those captures.
+
+The corrected direct network-isolated selector runs set and assert 1.25 and
+2.0 explicitly; both passed (`1208-correct-scale-{125,200}.log`). Their
+1600×1125 and 2560×1800 captures were inspected: the classified badge and
+unclassified card, along with the Comments navigation, are readable at each
+scale. This completes the automated/rendered part of AC6; VoiceOver remains
+pending.

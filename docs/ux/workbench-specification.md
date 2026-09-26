@@ -892,8 +892,13 @@ Comments tab holds the conversation exactly as described below, with its scope
 and filters, and Next new comment beneath the tabs; the tab carries the count
 of threads with new comments as an accent pill and says it to accessibility
 ("Comments, 2 threads with new comments"). The Findings tab holds the private
-AI tools, the side chat, the finding queue and the defect controls, which no
-longer stack under the threads. Choosing Findings is RFC-BPR-0031's explicit
+AI tools, the side chat and the finding queue. [[BPR-1208]] puts thread
+defects on their own cards: right-click, the context-menu key or Shift+F10
+opens the thread's actions. A classified thread also has a text badge with its
+state, severity and category; its tooltip and accessible description explain
+the state and retained context. Reclassify opens the existing severity and
+category controls. Previous defect, Next defect and Defects N/M sit beside
+Next new comment under Comments. The private tab contains none of them. Choosing Findings is RFC-BPR-0031's explicit
 move into the AI tools: it permits the decorative Dif slot at the tab's top
 right, dispatches no agent or review action, and never opens a collapsed
 drawer. Each tab scrolls on its own, so switching tabs keeps each one's scroll

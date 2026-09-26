@@ -110,6 +110,12 @@ function(bpr_run_defect_probe fixture fixture_label root course epoch_phase expe
             )
         endif()
     endforeach()
+    if(course STREQUAL "seed")
+        string(FIND "${probe_output}" "DEFECT_THREAD_CONTROLS_OK" thread_controls)
+        if(thread_controls EQUAL -1)
+            message(FATAL_ERROR "defect seed omitted composed thread controls")
+        endif()
+    endif()
 endfunction()
 
 # [[BPR-0875]]. The data root gains an owned parent: the build directory it was

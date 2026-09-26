@@ -1407,6 +1407,9 @@ namespace bpr::qt {
 				// given up by any later card gesture.
 				DeferredReply.reset();
 				switch (aAction) {
+				case card_action::defect:
+					ConversationPanel->cards()->show_thread_menu(aIdentity);
+					break;
 				case card_action::publish_draft:
 					if (ReviewEditor != nullptr) {
 						ReviewEditor->publish_action()->trigger();
@@ -1562,16 +1565,29 @@ namespace bpr::qt {
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
 		ReviewEditor->set_presentation_observer([this] { update_comment_target(); });
-		DefectCard = new defect_card_view{
+		DefectDialog = new QDialog{ this };
+		DefectDialog->setObjectName(QStringLiteral("threadDefectDialog"));
+		DefectDialog->setWindowTitle(tr("Thread defect"));
+		DefectDialog->setWindowModality(Qt::WindowModal);
+		auto* defectLayout = new QVBoxLayout{ DefectDialog };
+		DefectCard         = new defect_card_view{
 			[this](core::defect_command aCommand) {
 				++Statistics.DefectIntents;
 				if (DefectDispatch) {
 					DefectDispatch(std::move(aCommand));
 				}
 			},
-			Drawers[1].Panel,
+			DefectDialog,
 		};
 		DefectCard->setObjectName(QStringLiteral("workbenchDefectCard"));
+		defectLayout->addWidget(DefectCard);
+		auto* applyClassification = new QToolButton{ DefectDialog };
+		applyClassification->setDefaultAction(DefectCard->reclassify_action());
+		defectLayout->addWidget(applyClassification);
+		auto* defectClose = new QDialogButtonBox{ QDialogButtonBox::Close, DefectDialog };
+		connect(defectClose, &QDialogButtonBox::rejected, DefectDialog, &QDialog::hide);
+		defectLayout->addWidget(defectClose);
+		ConversationPanel->cards()->set_context_menu_builder([this](QMenu& menu, const std::string& thread) { append_thread_defect_menu(menu, thread); });
 		ClassifyDefect = new QAction{
 			tr("Classify selected conversation as defect"), this
 		};
@@ -1610,6 +1626,24 @@ namespace bpr::qt {
 		NextNewCommentButton->setAccessibleDescription(QStringLiteral(
 			"Reveal the next thread with a post newer than what you have read"));
 		commentsTools->addWidget(NextNewCommentButton);
+		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), commentsContents };
+		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
+		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
+		commentsTools->addWidget(DefectCountLabel);
+		PreviousDefectButton = new QToolButton{ commentsContents };
+		NextDefectButton     = new QToolButton{ commentsContents };
+		PreviousDefect->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+		NextDefect->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+		for (const auto& entry : { std::pair{ PreviousDefectButton, PreviousDefect }, std::pair{ NextDefectButton, NextDefect } }) {
+			entry.first->setObjectName(entry.second->objectName() + QStringLiteral("Button"));
+			entry.first->setDefaultAction(entry.second);
+			entry.first->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			entry.first->setAccessibleName(entry.second->text());
+			entry.first->setAccessibleDescription(tr("Select the %1 thread in Comments").arg(entry.second == PreviousDefect ? tr("previous defect") : tr("next defect")));
+			entry.first->setToolTip(entry.second->text());
+			entry.first->setFocusPolicy(Qt::StrongFocus);
+			commentsTools->addWidget(entry.first);
+		}
 		commentsLayout->addLayout(commentsTools);
 		// [[BPR-1132]]. A tab over an older pair places only its own
 		// revisions' threads; this says how many of the file's are on later
@@ -1639,8 +1673,8 @@ namespace bpr::qt {
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
 		commentsLayout->addWidget(conversationHost, 1);
-		// The Findings tab: the AI tools, the finding queue and the defect
-		// controls, which used to stack under the threads in one column.
+		// The private tab holds AI tools and findings; thread controls belong
+		// to the thread menus and Comments navigation.
 		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
 		conversationContents->setObjectName(QStringLiteral("workbenchFindingsTab"));
 		auto* const findingsLayout = new QVBoxLayout{ conversationContents };
@@ -1752,49 +1786,6 @@ namespace bpr::qt {
 			findingActions->addWidget(button);
 		}
 		findingsLayout->addLayout(findingActions);
-		// BPR-0520. Stacked, for the reason BPR-0506 stacked the finding
-		// actions, and now on a measurement rather than on a suspicion. At the
-		// drawer's default width the column's visible region was 522 px wide
-		// while these two rows asked for 621, and the drawer scrolls down but
-		// never sideways. *Next defect* began 17 px past the right edge and so
-		// was not offscreen but absent; *Previous defect* lost its last
-		// pixels; and one row below, *Apply local classification* lost two
-		// thirds of itself. A column cannot clip: each button is as wide as
-		// its own label, and the drawer already scrolls down.
-		//
-		// The count label keeps its place between the classify action and the
-		// pair that walks the queue, and loses only the horizontal stretch
-		// that used to push that pair to the far edge - a column has nothing
-		// to push against.
-		auto* const defectNavigation = new QVBoxLayout{ };
-		auto* const classifyButton   = new QToolButton{ conversationContents };
-		classifyButton->setDefaultAction(ClassifyDefect);
-		defectNavigation->addWidget(classifyButton);
-		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), conversationContents };
-		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
-		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
-		defectNavigation->addWidget(DefectCountLabel);
-		for (auto* const action : { PreviousDefect, NextDefect }) {
-			auto* const button = new QToolButton{ conversationContents };
-			button->setDefaultAction(action);
-			defectNavigation->addWidget(button);
-		}
-		findingsLayout->addLayout(defectNavigation);
-		findingsLayout->addWidget(DefectCard);
-		// BPR-0520, the second half of the same measurement. The five verdicts
-		// RFC-BPR-0009 and RFC-BPR-0010 give a defect are the same five, in the
-		// same order, under the same labels and object names, each emitting the
-		// single intent it emitted before. This is where they are drawn, not
-		// what they are.
-		auto* const defectActions = new QVBoxLayout{ };
-		for (auto* const action : { DefectCard->verify_action(),
-									DefectCard->reopen_action(), DefectCard->withdraw_action(),
-									DefectCard->accept_as_is_action(), DefectCard->reclassify_action() }) {
-			auto* const button = new QToolButton{ conversationContents };
-			button->setDefaultAction(action);
-			defectActions->addWidget(button);
-		}
-		findingsLayout->addLayout(defectActions);
 		// Each tab's column scrolls on its own, so switching tabs keeps each
 		// one's scroll position. A column holds more than a short drawer can
 		// show at once, and a column that simply squeezed would show each panel
@@ -4637,8 +4628,9 @@ namespace bpr::qt {
 	}
 
 	void workbench_window::present_defects(
-		std::vector<core::defect_history> aDefects)
+		std::vector<core::defect_history> aDefects, std::map<core::defect_id, std::string> aThreads)
 	{
+		DefectThreads = std::move(aThreads);
 		std::ranges::sort(aDefects, { }, [](const core::defect_history& aDefect) {
 			return aDefect.Defect.Id.value();
 		});
@@ -4662,14 +4654,19 @@ namespace bpr::qt {
 			ShownDefectIndex = 0U;
 		}
 		++Statistics.DefectUpdates;
+		update_defect_badges();
 		update_defect_surface();
 	}
 
 	void workbench_window::clear_defects()
 	{
 		Defects.clear();
+		DefectThreads.clear();
+		PendingDefectDialog.reset();
+		DefectDialog->hide();
 		ShownDefectIndex.reset();
 		++Statistics.DefectUpdates;
+		update_defect_badges();
 		update_defect_surface();
 	}
 
@@ -4699,6 +4696,20 @@ namespace bpr::qt {
 		ShownDefectIndex = static_cast<std::size_t>(next);
 		++Statistics.DefectNavigation;
 		update_defect_surface();
+		if (const auto thread = DefectThreads.find(Defects[*ShownDefectIndex].Defect.Id); thread != DefectThreads.end()) {
+			const auto identity = thread->second;
+			ConversationPanel->set_anchor_line(std::nullopt);
+			ConversationPanel->set_anchor_file(std::nullopt);
+			auto index = ConversationPanel->model()->index_for_id(identity);
+			if (!index.isValid()) {
+				choose_modality(review_modality::discuss);
+				index = ConversationPanel->model()->index_for_id(identity);
+			}
+			if (index.isValid()) {
+				ConversationPanel->choose(index);
+			}
+			ConversationPanel->cards()->set_current_thread(identity);
+		}
 	}
 
 	auto workbench_window::chosen_conversation() const -> QModelIndex
@@ -4772,6 +4783,84 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::update_defect_badges()
+	{
+		auto badges = conversation_cards_view::defect_badges{ };
+		for (const auto& history : Defects) {
+			const auto thread = DefectThreads.find(history.Defect.Id);
+			if (thread == DefectThreads.end()) {
+				continue;
+			}
+			const auto label   = tr("%1 %2 · %3").arg(badge_for(history.Defect.State), QString::fromUtf8(core::name(history.Defect.Severity)), QString::fromUtf8(core::name(history.Defect.Category)));
+			const auto context = core::context_available(history) ? tr("Shared context available at the retained semantic anchor.") : tr("Shared context unavailable; the original semantic anchor is retained.");
+			badges.emplace(thread->second, std::pair{ label, explanation_for(history.Defect.State) + QLatin1Char{ ' ' } + context });
+		}
+		ConversationPanel->cards()->set_defect_badges(std::move(badges));
+	}
+
+	void workbench_window::show_defect_dialog(core::defect_id aDefect)
+	{
+		const auto at = std::ranges::find(Defects, aDefect, [](const auto& history) { return history.Defect.Id; });
+		if (at == Defects.end()) {
+			return;
+		}
+		ShownDefectIndex = static_cast<std::size_t>(std::distance(Defects.begin(), at));
+		update_defect_surface();
+		DefectDialog->show();
+		DefectDialog->raise();
+		DefectCard->severity_selector()->setFocus(Qt::OtherFocusReason);
+	}
+
+	void workbench_window::append_thread_defect_menu(QMenu& aMenu, const std::string& aThread)
+	{
+		auto selected = ConversationPanel->model()->index_for_id(aThread);
+		if (!selected.isValid()) {
+			ConversationPanel->set_anchor_line(std::nullopt);
+			ConversationPanel->set_anchor_file(std::nullopt);
+			selected = ConversationPanel->model()->index_for_id(aThread);
+		}
+		if (selected.isValid()) {
+			ConversationPanel->choose(selected);
+		}
+		const auto binding = std::ranges::find_if(DefectThreads, [&aThread](const auto& entry) { return entry.second == aThread; });
+		const auto history = binding == DefectThreads.end() ? Defects.end() : std::ranges::find(Defects, binding->first, [](const auto& entry) { return entry.Defect.Id; });
+		if (history == Defects.end()) {
+			auto* action = aMenu.addAction(tr("Classify as defect…"));
+			action->setObjectName(QStringLiteral("threadClassifyDefect"));
+			const auto classification = selected_conversation_classification();
+			const auto offered        = classification && classification->Conversation == aThread && static_cast<bool>(DefectClassificationDispatch);
+			action->setEnabled(offered);
+			action->setToolTip(offered ? tr("Classify this thread locally, then choose its severity and category.") : tr("Open this thread's current code comparison before classifying it."));
+			connect(action, &QAction::triggered, &aMenu, [this, classification, aThread] {
+				if (classification && DefectClassificationDispatch) {
+					PendingDefectDialog = aThread;
+					++Statistics.DefectClassifications;
+					DefectClassificationDispatch(*classification);
+				}
+			});
+			return;
+		}
+		// The menu owns an exact history snapshot. A later selection cannot
+		// retarget an action already offered for this thread.
+		auto* snapshot = new defect_card_view{ [this](core::defect_command command) {
+												  ++Statistics.DefectIntents;
+												  if (DefectDispatch) {
+													  DefectDispatch(std::move(command));
+												  }
+											  },
+											   &aMenu };
+		snapshot->present(*history);
+		snapshot->hide();
+		for (auto* action : { snapshot->verify_action(), snapshot->reopen_action(), snapshot->withdraw_action(), snapshot->accept_as_is_action() }) {
+			aMenu.addAction(action);
+		}
+		auto* reclassify = aMenu.addAction(tr("Reclassify…"));
+		reclassify->setObjectName(QStringLiteral("threadReclassifyDefect"));
+		reclassify->setEnabled(snapshot->reclassify_action()->isEnabled());
+		reclassify->setToolTip(snapshot->reclassify_action()->toolTip());
+		connect(reclassify, &QAction::triggered, &aMenu, [this, id = history->Defect.Id] { show_defect_dialog(id); });
+	}
+
 	void workbench_window::update_defect_surface()
 	{
 		ClassifyDefect->setEnabled(
@@ -4795,6 +4884,14 @@ namespace bpr::qt {
 			return;
 		}
 		DefectCard->setVisible(true);
+		if (PendingDefectDialog) {
+			const auto thread = std::ranges::find_if(DefectThreads, [this](const auto& entry) { return entry.second == *PendingDefectDialog; });
+			if (thread != DefectThreads.end()) {
+				const auto id = thread->first;
+				PendingDefectDialog.reset();
+				show_defect_dialog(id);
+			}
+		}
 	}
 
 	auto workbench_window::selected_conversation_classification() const
@@ -4815,6 +4912,10 @@ namespace bpr::qt {
 					.toInt()
 				!= static_cast<int>(
 					application::github_conversation_anchor_availability::current)) {
+			return std::nullopt;
+		}
+		const auto context = ComparisonSurface->current_context();
+		if (!context || context->Key.File != core::file_identity_of(current.data(github_conversation_model::path_role).toString().toStdString())) {
 			return std::nullopt;
 		}
 		bool       validLine = false;
@@ -8784,13 +8885,11 @@ namespace bpr::qt {
 		// conversation; the Findings tab's stops follow.
 		append(TrayTabs);
 		append(NextNewCommentButton);
+		append(PreviousDefectButton);
+		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
-		}
-		if (DefectCard != nullptr) {
-			append(DefectCard->severity_selector());
-			append(DefectCard->category_selector());
 		}
 		append(StatusLabel);
 		return order;

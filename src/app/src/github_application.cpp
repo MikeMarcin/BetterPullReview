@@ -52,7 +52,6 @@
 	#include <QMenuBar>
 	#include <QStatusBar>
 	#include <glaze/json.hpp>
-	#include <map>
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -136,6 +135,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainterPathStroker>
@@ -178,6 +178,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -6538,7 +6539,7 @@ namespace bpr::app {
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
-					if (aUpdate.Transition.AcceptedSnapshot.has_value()) { ReadStateCache.reset(); }
+					if (aUpdate.Transition.AcceptedSnapshot.has_value()) { ReadStateCache.reset(); DefectThreadNames.reset(); }
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
@@ -8198,7 +8199,29 @@ namespace bpr::app {
 			for (const auto& defect : DurableDefects) {
 				histories.push_back(defect.History);
 			}
-			Window->present_defects(std::move(histories));
+			auto threads = std::map<core::defect_id, std::string>{ };
+			// Retain the identity join per accepted immutable snapshot. Ordinary
+			// defect updates visit only the retained defect records.
+			if (!DefectThreadNames && WindowRead->accepted_snapshot()) {
+				DefectThreadNames.emplace();
+				for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
+					++ConversationThreadsVisited;
+					const auto identity          = thread_identity(thread);
+					const auto [entry, inserted] = DefectThreadNames->emplace(defect_identity(identity), identity);
+					if (!inserted) {
+						entry->second.clear();
+					} // Ambiguous identities have no thread-specific controls.
+				}
+			}
+			if (DefectThreadNames) {
+				for (const auto& defect : DurableDefects) {
+					const auto at = DefectThreadNames->find({ defect.Conversation.value(), defect.History.Defect.Id.value() });
+					if (at != DefectThreadNames->end() && !at->second.empty()) {
+						threads.emplace(defect.History.Defect.Id, at->second);
+					}
+				}
+			}
+			Window->present_defects(std::move(histories), std::move(threads));
 		}
 
 		[[nodiscard]] auto persist_correlated_defect(
@@ -9406,6 +9429,7 @@ namespace bpr::app {
 		void retire_review_ledger()
 		{
 			ReadStateCache.reset();
+			DefectThreadNames.reset();
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
 			DurableDefects.clear();
@@ -9698,6 +9722,7 @@ namespace bpr::app {
 			const auto state = ReviewLedgerHost->observe_conversations(threads);
 			if (!state.has_value()) {
 				ReadStateCache.reset();
+				DefectThreadNames.reset();
 				return std::nullopt;
 			}
 			// [[BPR-0972]]. Each unread conversation finds its threads, and each
@@ -9757,8 +9782,9 @@ namespace bpr::app {
 			std::uint32_t                                                 UnreadPosts = 0U;
 			bool                                                          Unique      = false;
 		};
-		std::optional<read_state_cache> ReadStateCache;
-		std::uint64_t                   ReadStateUpdates = 0U;
+		std::optional<read_state_cache>                             ReadStateCache;
+		std::optional<std::map<local_defect_identity, std::string>> DefectThreadNames;
+		std::uint64_t                                               ReadStateUpdates = 0U;
 
 		/// \brief The cached thread index for an identity, if the cache still
 		/// describes the accepted snapshot and names exactly one thread.
@@ -9787,6 +9813,7 @@ namespace bpr::app {
 			const auto state = ReviewLedgerHost->observe_conversations(std::span{ &cache.Threads[aThread], 1U });
 			if (!state.has_value()) {
 				ReadStateCache.reset();
+				DefectThreadNames.reset();
 				return std::nullopt;
 			}
 			++ConversationThreadsVisited;
@@ -13622,6 +13649,9 @@ namespace bpr::app {
 			phase Phase = phase::awaiting_ready;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait   Wait;
+			detail::course_modality_step Modality{ .Modality = qt::review_modality::review, .Needs = {.Comparison  = true,
+																									  .FilesDrawer = true } };
+			bool                         CommentsRequested = false;
 			core::file_comparison_digest BeforeComparison;
 			int                          ReverseLeftRow              = -1;
 			int                          ReverseRightRow             = -1;
@@ -21861,13 +21891,30 @@ namespace bpr::app {
 						<< " defect_card=" << present(implementation->Window != nullptr && implementation->Window->defect_card() != nullptr);
 			});
 		}
-		auto* const window               = implementation->Window.get();
-		const auto  firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
-		const auto  secondIdentity       = std::string{ "review-thread:PRRT_fixture_3" };
-		const auto  fileIdentity         = std::string{ "review-thread:PRRT_fixture_file" };
-		const auto  firstDefectIdentity  = defect_identity(firstIdentity);
-		const auto  secondDefectIdentity = defect_identity(secondIdentity);
-		const auto  findDefect           = [implementation](const local_defect_identity aIdentity)
+		const auto modality = enter_course_modality(aApplication, probe.Modality);
+		if (modality == detail::course_modality_result::pending) {
+			return result::pending;
+		}
+		if (modality == detail::course_modality_result::failed) {
+			return fail();
+		}
+		auto* const window = implementation->Window.get();
+		if (!probe.CommentsRequested) {
+			probe.CommentsRequested = true;
+			if (window->conversations_drawer()->state() != core::workbench_drawer_state::expanded) {
+				window->conversations_drawer_toggle_action()->trigger();
+				return result::pending;
+			}
+		}
+		if (probe.Phase == state_type::phase::awaiting_ready && !window->conversation_panel()->isVisible()) {
+			return wait("DEFECT_COMMENTS_STALLED", [&](QTextStream& stream) { stream << course_modality_facts(aApplication); });
+		}
+		const auto firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
+		const auto secondIdentity       = std::string{ "review-thread:PRRT_fixture_3" };
+		const auto fileIdentity         = std::string{ "review-thread:PRRT_fixture_file" };
+		const auto firstDefectIdentity  = defect_identity(firstIdentity);
+		const auto secondDefectIdentity = defect_identity(secondIdentity);
+		const auto findDefect           = [implementation](const local_defect_identity aIdentity)
 			-> const application::durable_defect_record* {
 			const auto found = std::ranges::find_if(
 				implementation->DurableDefects,
@@ -21979,9 +22026,10 @@ namespace bpr::app {
 
 		auto* const model = window->conversation_model();
 		auto* const view  = window->conversation_view();
-		if (!model->index_for_id(firstIdentity).isValid()
-			|| !model->index_for_id(secondIdentity).isValid()
-			|| !model->index_for_id(fileIdentity).isValid()) {
+		if ((probe.Phase == state_type::phase::awaiting_ready || probe.Phase == state_type::phase::awaiting_diff)
+			&& (!model->index_for_id(firstIdentity).isValid()
+				|| !model->index_for_id(secondIdentity).isValid()
+				|| !model->index_for_id(fileIdentity).isValid())) {
 			// The three fixture conversations reach the conversation model.
 			return wait("DEFECT_CONVERSATIONS_STALLED", [&](QTextStream& aStream) {
 				aStream << "phase=" << phaseName(probe.Phase)
@@ -22081,6 +22129,18 @@ namespace bpr::app {
 				|| !probe.Evidence.VisibleProjection) {
 				return fail();
 			}
+			// [[BPR-1208]]. The same accepted defect is reachable on its own
+			// thread, while the private tab contains no thread controls.
+			auto        menu   = std::unique_ptr<QMenu>{ window->conversation_panel()->cards()->thread_menu(secondIdentity) };
+			const auto& cards  = window->conversation_panel()->cards()->cards();
+			const auto  card   = std::ranges::find(cards, secondIdentity, &qt::thread_card::Id);
+			auto*       verify = menu ? menu->findChild<QAction*>(QStringLiteral("defectVerify")) : nullptr;
+			if (!verify || !verify->isEnabled() || card == cards.end() || card->DefectBadge.isEmpty() || !window->conversation_panel()->cards()->isVisible()
+				|| !window->comments_tab_scroll()->isAncestorOf(window->defect_count_label())
+				|| window->findings_tab_scroll()->isAncestorOf(window->defect_card())) {
+				return fail();
+			}
+			QTextStream{ stdout } << "DEFECT_THREAD_CONTROLS_OK\n";
 			probe.BeforeComparison = core::comparison_digest(
 				implementation->SelectedDiffPublication->Key);
 			auto* const control  = window->epoch_selectors();
@@ -22162,7 +22222,10 @@ namespace bpr::app {
 					implementation->SelectedDiffPublication->Key)) {
 			return wait("DEFECT_EPOCH_CHANGE_STALLED", epochChangeFacts);
 		}
-		if (!selectConversation(firstIdentity)) {
+		// BPR-1205 deliberately hides later threads on this older pair. The
+		// same refusal is stronger here: there is no selectable wrong-revision
+		// thread, no code anchor, and no classification command to dispatch.
+		if (model->index_for_id(firstIdentity).isValid() || model->index_for_id(secondIdentity).isValid()) {
 			return fail();
 		}
 		const auto defectCountBeforeRefusal = implementation->DurableDefects.size();

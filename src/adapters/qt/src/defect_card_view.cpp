@@ -306,5 +306,8 @@ namespace bpr::qt {
 		Severity->setEnabled(!settled);
 		Category->setEnabled(!settled);
 		Reclassify->setEnabled(!settled);
+		for (auto* action : { Verify, Reopen, Withdraw, AcceptAsIs, Reclassify }) {
+			action->setToolTip(action->isEnabled() ? action->text() : tr("Unavailable for a defect in state %1. %2").arg(badge_for(state), explanation_for(state)));
+		}
 	}
 } // namespace bpr::qt

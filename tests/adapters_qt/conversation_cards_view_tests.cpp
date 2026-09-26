@@ -2,10 +2,16 @@
 
 #include "bpr/core/diff_model.hpp"
 
+#include <QAccessible>
+#include <QAction>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QFile>
+#include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QToolButton>
 
 #include <glaze/json.hpp>
 
@@ -875,11 +881,63 @@ namespace {
 				   "one thread at a time agrees with the complete read state");
 		}
 	}
+	void test_thread_menus_and_native_defect_badges()
+	{
+		qt::conversation_cards_view view;
+		view.resize(430, 420);
+		view.show();
+		view.set_action_dispatch([](auto, const auto&) { });
+		view.set_context_menu_builder([](QMenu& menu, const std::string&) { menu.addAction(QStringLiteral("Classify as defect…")); });
+		view.adopt({ thread("a", "src/a.cpp", 10), reply("a-1", "a", "reviewer", "One thread"), thread("b", "src/a.cpp", 20) });
+		view.set_defect_badges({ { "a", { QStringLiteral("[open] minor · correctness"), QStringLiteral("Nobody has addressed this yet. Shared context available.") } } });
+		QApplication::processEvents();
+		const auto buttons = view.findChildren<QToolButton*>(QStringLiteral("threadDefectBadge"));
+		expect(buttons.size() == 1U && buttons.front()->isVisible() && buttons.front()->property("threadIdentity") == QStringLiteral("a"), "only the classified visible thread has a native badge button");
+		auto* accessible = QAccessible::queryAccessibleInterface(buttons.front());
+		expect(accessible && accessible->role() == QAccessible::Button
+				   && accessible->text(QAccessible::Name).contains(QStringLiteral("correctness"))
+				   && accessible->text(QAccessible::Description).contains(QStringLiteral("Shared context")),
+			   "badge accessibility carries the classification and explained context");
+		for (const auto& identity : { std::string{ "a" }, std::string{ "b" } }) {
+			auto* menu = view.thread_menu(identity);
+			expect(menu && menu->actions().size() == 6 && menu->actions().front()->text() == QStringLiteral("Reply")
+					   && menu->actions().back()->text() == QStringLiteral("Classify as defect…"),
+				   "every thread offers existing actions and the host-supplied defect actions");
+			expect(!menu->actions()[1]->isEnabled() && !menu->actions()[1]->toolTip().isEmpty(), "unavailable existing actions explain their refusal");
+			delete menu;
+		}
+		view.set_current_thread("a");
+		for (const auto key : { Qt::Key_Menu, Qt::Key_F10 }) {
+			QKeyEvent event{ QEvent::KeyPress, key, key == Qt::Key_F10 ? Qt::ShiftModifier : Qt::NoModifier };
+			QApplication::sendEvent(&view, &event);
+			QApplication::processEvents();
+			auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+			expect(menu && menu->isVisible(), "context-menu key and Shift+F10 open the selected thread actions");
+			menu->close();
+			QApplication::processEvents();
+		}
+		const auto        point = view.cards().front().Rect.center();
+		QContextMenuEvent rightClick{ QContextMenuEvent::Mouse, point, view.viewport()->mapToGlobal(point) };
+		QApplication::sendEvent(view.viewport(), &rightClick);
+		QApplication::processEvents();
+		auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		expect(menu && menu->isVisible(), "right-click opens the same thread menu");
+		menu->close();
+		QApplication::processEvents();
+		const auto measured = view.measurements();
+		view.set_defect_badges({ { "a", { QStringLiteral("[open] minor · correctness"), QStringLiteral("Nobody has addressed this yet. Shared context available.") } } });
+		expect(view.measurements() == measured, "unchanged badges reuse retained measurements");
+		view.set_defect_badges({ });
+		QApplication::processEvents();
+		expect(buttons.front()->isHidden(), "withdrawn badge projection leaves no stale native action");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_thread_menus_and_native_defect_badges();
 	test_one_thread_read_state_matches_the_complete_state();
 	test_branching_conversation_reads_as_one_card_in_order();
 	test_read_state_marks_unread_posts_and_offers_mark_read();
