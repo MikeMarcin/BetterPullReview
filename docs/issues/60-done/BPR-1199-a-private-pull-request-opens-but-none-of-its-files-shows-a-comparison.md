@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1199"
 title: "A private pull request opens, but none of its files shows a comparison"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"origin":"owner accept with note on attended candidate BPR-0641-private-pr-smoke-v001, session 06ad5734ed9f7c2fd6d0a62c8328fa0a, decision cbba6fac-e7dc-4b39-a7aa-1dbd0f7e1571, 2026-09-25","observed_revision":"3759b0d8caf5f1732c8bf807be427525f3f9a89a","observed_executable_sha256":"5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed","related_rfcs":["RFC-BPR-0037","RFC-BPR-0029","RFC-BPR-0015"],"related_cards":["BPR-0641","BPR-0922","BPR-0668","BPR-0642","BPR-0643"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"bpr1199-private-comparison","path":"docs/rfcs/plans/bpr1199-private-comparison/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Owner run: successful PR request1 and epoch request1 share window43; protocol_acquire/transport/response_limit/clone. Only fixed codes and numeric IDs retained; exact sub-limit remains unknown."}},{"criterion":"AC2","outcome":"pending","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Small-PR/large-repository synthetic failure is repaired and exact base/head render through real CLI/Git/cache composition. Actual private target remains unobserved on v002; no claim that every legitimate size limit has been eliminated."}},{"criterion":"AC3","outcome":"pass","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Actual composed baseline reproduces the owner diagnostic class with a deterministic 34 MiB unrelated ancestor; repaired Read renders full expected base/head over the same failed store. Host/transport/workbench/logging/architecture6/6 and fixture7/7 pass."}},{"criterion":"AC4","outcome":"pending","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"v001 exact final Reject consumed. Repaired v002 is prepared as one AC4 Accept/Reject candidate in session2c2e72e3af2e2fd7fa1a566ec49bc5ca; no revised owner verdict yet."}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Owner run: successful PR request1 and epoch request1 share window43; protocol_acquire/transport/response_limit/clone. Only fixed codes and numeric IDs retained; exact sub-limit remains unknown."}},{"criterion":"AC2","outcome":"pass","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r3.md","detail":"Exact v002 Accept answers whether the selected private file shows base/head; same-candidate allowlisted capture records successful acquisition and revision preparation. Reused r2 composed course recovers the same failed durable store. No remaining legitimate-limit refusal was observed on the accepted target; no universal limit/recovery or in-process Refresh claim."}},{"criterion":"AC3","outcome":"pass","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Actual composed baseline reproduces the owner diagnostic class with a deterministic 34 MiB unrelated ancestor; repaired Read renders full expected base/head over the same failed store. Host/transport/workbench/logging/architecture6/6 and fixture7/7 pass."}},{"criterion":"AC4","outcome":"pass","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r3.md","detail":"Human Accept 9ad49b46-a10f-4ed3-b84e-a302a9d15fc1 at 2026-09-26T19:21:47.498665+00:00 in session 2c2e72e3af2e2fd7fa1a566ec49bc5ca; exact source f90cda1b, executable SHA-256 2db146a6f3d01ed0830b56996392fcc5b851ccce127dc642d49441f971cbefae, fingerprint af4b9daf518dda96d1e4d62c4080c6d53f6dd7481bf88fc3555482ebe41c935a. v001 Reject retained."}}]
 ---
 
 # BPR-1199: A private pull request opens, but none of its files shows a comparison
@@ -91,3 +90,25 @@ failed course's persisted state. AC1 and AC3 pass; actual private rendering and
 AC4 remain pending the repaired v002 observation. The owner is not asked to
 reconfirm the known v001 failure. The unrelated Overview folder clarification
 is assigned to a separate follow-up by the coordinator.
+
+### Exact owner acceptance, round r3
+
+The owner accepted `BPR-1199-private-comparison-v002` at source
+`f90cda1bb6ae175806fac7e05fb1836f10d4439b`, decision
+`9ad49b46-a10f-4ed3-b84e-a302a9d15fc1` in the same attended session, hand-back
+cursor 13. The precise question asks whether a selected file on the repaired
+private PR displays its base and head diff. The fixed-code launcher capture
+corroborates successful acquisition and revision preparation; the explicit
+Accept supplies the rendered observation.
+
+[Round-r3 evidence](../../rfcs/plans/bpr1199-private-comparison/evidence-r3.md)
+reconciles each original criterion. AC1 and AC3 reuse their unchanged r2
+passes; AC2 now has supported private rendering plus the existing safe
+same-store recovery course, and AC4 has the exact owner verdict. No remaining
+legitimate-limit refusal was observed on this target; general limit wording,
+universal repository support and in-process Refresh recovery are not claimed.
+All four criteria pass. The old Reject, frozen candidates and earlier pending
+records remain historical; no private content or RFC status is changed.
+
+The consumed review server is stopped and only v002's protection released,
+ending at cursor 15 with no pending decision or task-owned command.

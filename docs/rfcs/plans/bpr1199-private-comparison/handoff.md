@@ -1,126 +1,104 @@
 # BPR-1199 current handoff
 
-Assignment `bpr1199-comparison`, mandate r2, segment `owner-repair`, milestone
-`private-comparison`. The bounded repair and unattended verification are
-complete. The original issue remains **human-pending**: AC1 and AC3 pass;
-AC2 actual private rendering and AC4 exact-candidate owner judgment are pending.
-See [evidence-r2.md](evidence-r2.md) and [acceptance-r2.json](acceptance-r2.json).
+Assignment `bpr1199-comparison`, mandate r3, segment `owner-acceptance`, milestone
+`private-comparison`. All original AC1–AC4 and all four unchanged plan exits
+are satisfied for the exact repaired candidate. See [evidence-r3.md](evidence-r3.md),
+[acceptance-r3.json](acceptance-r3.json), and [binding-r3.json](binding-r3.json).
+This round changes only acceptance and continuation documentation.
 
-## Source and acceptance frontier
+## Source and integration
 
 Worktree `/Users/jaeger/.codex/worktrees/bpr1199-comparison/BetterPullReview`,
-branch `codex/bpr1199-comparison`. The intake source was `db8a8408`.
-Integration order for this round is reopen `a46f932a`, claim `2b74a773`,
-product `f90cda1bb6ae175806fac7e05fb1836f10d4439b`, then this acceptance/handoff
-commit. Skip allocation-only cherry-picks `36575a4a` and `4a54b8b7`: their
-counter/receipt changes already exist on main.
-
-The exact v001 final Reject was consumed. The owner's successful PR request
-and failing epoch request share window session 43. Fixed codes establish
-`protocol_acquire / transport / response_limit / clone`. The exact exhausted
-sub-limit and private bytes remain unknown. No private material is committed.
-
-The old classifier chose complete repository closure from small PR counts,
-which do not bound repository history. Every valid accepted shape now permits
-selected-object loading; invalid or missing shape facts retain the fallback.
-The exact lease must separately support sparse loading. Existing native and
-non-sparse leases retain complete acquisition and explicit missing-blob
-behavior. Current, historical and recovery consumers still require exact
-lease, tree, blob and residency evidence. Existing transport bounds and tool
-admission are unchanged.
-
-Product paths are the epoch handoff header, window read host and epoch host;
-tests are their two application suites and the CLI fixture/course tests.
-The product contract records the shape/capability distinction. Mandate and
-binding r2 preserve the original acceptance obligations. The unrelated
-Overview folder clarification is owned by the coordinator's separate work.
-
-## Verification
-
-A deterministic synthetic small PR has an unrelated 34 MiB ancestor. The
-production composition with the original classifier reproduces the observed
-clone response-limit class. The repaired composition reopens the same failed
-persisted course and visibly renders Read. Both complete base/head pane texts
-match the fixture Git blobs apart from presentation trailing whitespace.
-The final full-window capture was inspected, with Read selected.
-
-Focused epoch/window/transport tests pass 3/3; workbench/logging/architecture
-pass 3/3; read fixtures pass 7/7; publish fixture compatibility passes 6/6;
-documentation tests pass 64/64. Documentation, changed-path formatting and
-four changed C++ translation units' tidy checks pass. Builds used parallelism
-two; offscreen Qt ran serially. No private-live, native-platform, independent
-or tests-disabled release qualification is inferred.
-
-Commands and full sanitized evidence live outside Git at
-`/Users/jaeger/.codex/tmp/bpr1199-r2-hpt7dqm5`. In particular:
-`red-unit.log`, `focused-core-host.log`, `focused-composition.log`,
-`fixture-tests-final.log`, `publish-fixture-tests.log`, `red-public-final.log`,
-`green-public-final.log`, and `baseline-course/window.png`. The disposable
-public probe uses actual application composition, a closed synthetic gh
-executable, real local Git/cache, and public Home/Open PR/Read/file gestures.
-It introduces no product hook. No remote service or private target was used.
-
-## Review handoff
-
-Companion session `2c2e72e3af2e2fd7fa1a566ec49bc5ca`, event cursor **11**.
-Candidate `BPR-1199-private-comparison-v002`, ready and protected, no verdict
-at handoff. Fingerprint
-`af4b9daf518dda96d1e4d62c4080c6d53f6dd7481bf88fc3555482ebe41c935a`.
-Source `f90cda1bb6ae175806fac7e05fb1836f10d4439b`; frozen Debug/tests-enabled
-executable SHA-256
+branch `codex/bpr1199-comparison`; round-r3 intake `3fed9fe4`.
+Reviewed product source `f90cda1bb6ae175806fac7e05fb1836f10d4439b`, frozen
+Debug/tests-enabled executable SHA-256
 `2db146a6f3d01ed0830b56996392fcc5b851ccce127dc642d49441f971cbefae`.
-Later tracker commits do not rebuild this candidate.
+All seven frozen inventory hashes and all seven protected source/test paths
+match at intake. No product, test, build, trust or transport-bound change was
+made in this round.
 
-The sole pending question is AC4: after reopening the owner-named PR read-only
-on this repaired candidate, does a selected file show its base and head diff?
-Accept or Reject records that judgment; the note can explain a rejection.
-The owner must quit the previous app before running the absolute launcher,
-then quit the new app to write its bounded allowlisted diagnostic capture.
-The launcher canary self-test passed; the task has not launched the private
-course. The old owner-started app was untouched.
+The coordinator already landed r2's repair as `0bfcbaa9` and parked evidence
+as `50e729af`; `7b69e944` adds passing main integration evidence. Cherry-pick
+only the new guarded r3 finish commit after `3fed9fe4`; its exact hash is in
+the returned report and external completion checkpoint. Do not replay r1/r2
+or allocation-only commits. `BPR-1214` and its paired receipts are already
+current. Main edits, pushes and release work remain outside this leaf's scope.
 
-External session state:
+Changed paths in this round are this handoff, new mandate/binding/evidence/
+acceptance r3 files in this directory, and BPR-1199's guarded move from
+`docs/issues/40-parked/` to `docs/issues/60-done/`. The coordinator's main-only
+addition to `evidence-r2.md` remains untouched.
+
+## Acceptance and reused verification
+
+The final v002 Accept answers the one exact question about selected private
+base/head rendering. The owner launcher additionally captured successful PR
+request 1 and epoch request 1 in window session 43, including protocol
+acquisition and revision preparation: exit 0, 17 fixed-code/numeric records,
+zero omissions. The observation is corroboration; the explicit owner verdict
+is the rendering evidence. AC1's established failure boundary and AC3's
+fail-before/pass-after safe composition evidence are unchanged.
+
+AC2 is satisfied by the supported private comparison. The original unnecessary
+complete-clone path was repaired; no remaining legitimate-limit refusal was
+observed on the accepted target. The safe composed course had already reopened
+the same failed durable store and displayed both complete expected base/head
+texts. There is no claim that every repository fits existing bounds, every
+possible refusal has new wording, or in-process Refresh recovery was observed.
+No exact original exhausted sub-limit or private repository bytes are claimed.
+
+Reused r2 checks: affected host/transport/workbench/logging/architecture 6/6,
+read fixtures 7/7, publication compatibility 6/6, documentation tests 64/64,
+format and four changed translation units' tidy. The coordinator's main
+integration passed epoch/window tests 2/2 plus the documentation gate. This
+verdict-only round runs no product build, test or native course. Its fresh
+scope is frozen identity/path verification, scoped board validation, milestone
+consistency, documentation after the closeout, and whitespace checks. The
+external r3 completion checkpoint records the final commands and outcomes.
+
+Earlier synthetic logs/captures remain outside Git at
+`/Users/jaeger/.codex/tmp/bpr1199-r2-hpt7dqm5`; both prior evidence files remain
+historical. No source, path, author, title, body or image from the private PR is
+added to Git. No RFC status or unrelated card is changed.
+
+## Consumed review
+
+Session `2c2e72e3af2e2fd7fa1a566ec49bc5ca`;
+candidate `BPR-1199-private-comparison-v002`;
+fingerprint `af4b9daf518dda96d1e4d62c4080c6d53f6dd7481bf88fc3555482ebe41c935a`.
+Accept `9ad49b46-a10f-4ed3-b84e-a302a9d15fc1` was saved at
+`2026-09-26T19:21:47.498665+00:00`; hand-back at
+`2026-09-26T19:21:58.951824+00:00` was cursor 13. Empty note, no attachments.
+The new bounded intake observation is cursor 14. The consumed v002 protection
+was released at cursor **15**. The v001 Reject is preserved.
+
+The review server's `stop` returned `stopped: true`, and companion status now
+has no host. Former unified exec `18460`, PID `89462`, no longer has a command
+handle in either leaf or coordinator. The coordinator's watch `22682` was
+already consumed. There are no pending decisions, server URL or review watch.
+No owner application was stopped.
+
+External state remains at
 `/Users/jaeger/.mask/attended-review/bpr1199-comparison-v001`.
-Frozen v002 runtime, app, seven-file inventory, identity, launcher and offline
-HTML:
-`/Users/jaeger/.mask/attended-review/bpr1199-comparison-v002-runtime`.
-Absolute launcher:
+Both frozen runtimes and decisions are retained. The v002 runtime at
+`/Users/jaeger/.mask/attended-review/bpr1199-comparison-v002-runtime` also
+retains the allowlisted `observations.json`, r3 completion observation and
+checkpoint-check receipts. The accepted capture's SHA-256 is
+`23384a713c4625d957664897799097eb4601c60f5e808bf6e601dc069059ff36`.
+Do not print full companion responses: even mutation commands can return
+historical private attachments; capture subprocess stdout and emit only
+allowlisted metadata.
 
-```sh
-/opt/homebrew/bin/python3 /Users/jaeger/.mask/attended-review/bpr1199-comparison-v002-runtime/run.py
-```
+## Ownership and continuation
 
-The full loopback URL is delivered to the coordinator; its bearer token is
-intentionally absent from Git. The continuing server is unified exec session
-`18460`, PID `89462`, port `63735`. The coordinator owns its watch and the next
-engineering round's decision interpretation:
+This nondelegating leaf owns only the isolated BPR-1199 documentation round.
+All commands are finished before return; no source writer, build, test, probe,
+review host, or watch remains task-owned. Both consumed candidates are
+unprotected; their frozen files remain available for provenance. Sibling
+BPR-0972 and m2b writers own their disjoint worktrees and unresolved work.
 
-```sh
-/opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/.codex/worktrees/bpr1199-comparison/BetterPullReview --state /Users/jaeger/.mask/attended-review/bpr1199-comparison-v001 wait --after 11 --kind handed-back --timeout 86400
-```
-
-Capture status as subprocess JSON and print only stripped metadata; decisions
-can contain large private image attachments. Inspect only the allowlisted
-runtime observations after an owner run. An accepted AC4 does not automatically
-close AC2: reconcile the exact render and any remaining refusal/recovery
-obligations before recording completion.
-
-## Ownership and next action
-
-All task-owned builds, tests, probes, format, tidy and mutation commands are
-finished. No source writer or task-owned app remains; only the handed-off
-review server continues. The serial Qt slot has been released to the sibling
-owners. The consumed v001 server is stopped and its candidate alone released;
-v001's frozen app and immutable decision are preserved.
-
-The new candidate protects seven narrow source/test paths in this worktree
-and its separately frozen app. Main integration may cherry-pick the verified
-source without altering that frozen review resource. Query attended conflicts
-before changing protected worktree paths or app; release or revise only the
-relevant candidate if needed. No main edits, pushes, releases, remote mutations,
-private repository access or unrelated source changes were performed.
-
-Preserve this worktree and both review runtimes until the owner observation
-is consumed. The next meaningful action is the exact repaired private read-only
-observation. Pending acceptance remains attached to the original issue rather
-than being replaced with synthetic-only success.
+Next action: the coordinator integrates the new r3 finish commit into main,
+checks the resulting scoped board state, and chooses the next authorized
+milestone in a fresh implementer. No BPR-1199 acceptance obligation remains.
+Broader native, independent and release qualification is neither supplied nor
+required by this standalone correction.

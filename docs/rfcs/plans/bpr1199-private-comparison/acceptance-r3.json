@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "Owner run: successful PR request1 and epoch request1 share window43; protocol_acquire/transport/response_limit/clone. Only fixed codes and numeric IDs retained; exact sub-limit remains unknown."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r3.md",
+        "detail": "Exact v002 Accept answers whether the selected private file shows base/head; same-candidate allowlisted capture records successful acquisition and revision preparation. Reused r2 composed course recovers the same failed durable store. No remaining legitimate-limit refusal was observed on the accepted target; no universal limit/recovery or in-process Refresh claim."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "Actual composed baseline reproduces the owner diagnostic class with a deterministic 34 MiB unrelated ancestor; repaired Read renders full expected base/head over the same failed store. Host/transport/workbench/logging/architecture6/6 and fixture7/7 pass."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r3.md",
+        "detail": "Human Accept 9ad49b46-a10f-4ed3-b84e-a302a9d15fc1 at 2026-09-26T19:21:47.498665+00:00 in session 2c2e72e3af2e2fd7fa1a566ec49bc5ca; exact source f90cda1b, executable SHA-256 2db146a6f3d01ed0830b56996392fcc5b851ccce127dc642d49441f971cbefae, fingerprint af4b9daf518dda96d1e4d62c4080c6d53f6dd7481bf88fc3555482ebe41c935a. v001 Reject retained."
+      }
+    }
+  ]
+}
