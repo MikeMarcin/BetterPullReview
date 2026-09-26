@@ -98,3 +98,14 @@ bounded part of the default log, refuses rotation/replacement, and saves only
 allowlisted fields to runtime `observations.json`. It never copies raw logs.
 One AC4 Accept/Reject question asks whether the selected file shows base and
 head. No separate acceptance is inferred from the wrapper's exit status.
+
+## Main integration — 2026-09-26
+
+The diagnostic slice landed on main at `8907ad7e`, including correlation
+`a1941a80` and acquisition-step logging `59b72142`. All four affected dev
+executables built at parallelism 2. Epoch-host, composed application logging
+and Quill checks passed 3/3 in 8.12 seconds; the local-only
+`gh_cli_git_smart_transport` fixture passed 1/1 in 12.24 seconds. The
+documentation gate passed. These macOS arm64 results verify the diagnostic
+path; original private-comparison acceptance remains pending. The frozen
+review source and executable are unchanged by landing.
