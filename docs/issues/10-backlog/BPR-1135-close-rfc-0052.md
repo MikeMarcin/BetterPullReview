@@ -49,9 +49,81 @@ and attended claims to actual evidence. Run the documentation gate, then
 reconcile the RFC's index status only when canonical order and its
 dependencies allow.
 
+## m2 exit acceptance — macOS engineering, 2026-09-26
+
+**m2 is accepted for its macOS engineering boundary; m2b is the next eligible
+milestone.** This is the current continuation and supersedes the earlier
+statements below that m2's exits still await judgment. Assignment
+`rfc0052-20260925 / m2-exit-acceptance-20260926`, mandate
+`owner-20260926-unattended-worktrees`, runs in
+`/Users/jaeger/.codex/worktrees/rfc0052-owner-followups/BetterPullReview`, branch
+`codex/rfc0052-owner-followups`, from `fdeea1ac`. The coordinator confirmed this
+bounded reconciliation and the fresh-implementer boundary before m2b.
+
+The acceptance judges the original m2 exits against product
+`0994aa0ee80e542e980c5b5b8682e1aac0161ec0`, frozen review source
+`ba9d272339ad235f1d99688c5c1af198b0c9c7ef`, executable SHA-256
+`a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83`, and the
+fourteen final owner verdicts in `06ad5734`, handed back at sequence 54. It
+does not requalify later product changes. The current
+[binding](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m2-exit-checkpoint.json),
+[observation](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m2-exit-observation.json)
+and [handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2-2026-09-26.md)
+retain the exact assignment, six judgments, source candidates and next action.
+
+The plan's m2 boundary explicitly says station runs and attended acceptance
+stay pending until supplied. The owner deferred Windows/Linux execution;
+those obligations remain on this closeout, as they did when m1 admitted m2.
+This accepts the available-target engineering boundary, without accepting
+the missing platform evidence or the full RFC. The three m2 cards remain Done
+on macOS; this card remains Backlog and the RFC remains Proposed. The plan,
+the original exits, and all eleven RFC criteria are unchanged.
+
+| Original m2 exit | Evidence and judgment |
+|---|---|
+| 1. Readiness answer before changing the row; per-window, explicit fold | **Pass on macOS.** Owner decision `5b349ec3` supplies the prerequisite answer: track when open, summary when folded. BPR-1130's core/host/store and window courses prove the explicit fold, default, restoration and fixed bar. Owner `74ee4e1c` accepts the fold. The existing readiness row is preserved until BPR-1201 implements the answer; RFC AC-01 remains incomplete. |
+| 2. Caption removed; history tooltip and mark in every modality | **Pass on macOS.** BPR-1130's epoch/window courses at 100/125/200 percent cover the caption, statement and incomplete/ambiguous-history marks. Owner `2edcf8e2` accepts the mark and `ccba3a15` accepts pair-ready words in the tooltip. |
+| 3. Tab strip, pairs, floor count, menu, file gestures and unique keys | **Pass on macOS for the original strip.** E1's three tab scales, Files course, and the retained focus/shortcut courses prove these original behaviors. Owner `c1a81e29` accepts duplication and amends activation and sizing; BPR-1206 implements that amendment, replacing the original floor count with scrolling. |
+| 4. Tab/window comparisons, exact placement and later-thread routes, no off-head comment, restart | **Pass on macOS.** E1's tab course covers all three Show them routes and off-head Comment refusal; the 94.10-second public restart course preserves exact pairs and reading positions through duplicate, close, restart, Resume and reopen. The original exit requires later threads to be unplaced, counted and reachable; owner `2c856168` additionally chooses hiding them until Show them, carried by BPR-1205. |
+| 5. Comment on a current line, selected-thread Reply, own-card Reply, explicit Publish | **Pass on macOS for the defined target paths.** BPR-1133's three-scale window course names and dispatches line 10 and thread 22, replies to another visible card's own thread and records zero publish commands. Its threaded-reply and publication-composition courses pass. Owner `1a095bfe`, `b3d1d32d` and `37c42e44` accept the default, menu and card Reply. The no-target editor defect and the owner's actual selected-line state remain unresolved on BPR-1207; see the distinction below. |
+| 6. Measured open/folded floors, width/focus/accessibility/scale checks, documentation | **Pass for the macOS boundary.** E4's four appearance captures measure 872 folded / 838 open at 1280×1000 and the 28-pixel strip; E1 and retained title/focus/epoch courses cover 100/125/200 percent and the 900-pixel Mac floor. The documentation gate passes for this reconciliation. Windows/Linux measurements and native checks are carried below, not marked passed. |
+
+**Comment's known defect is retained.** BPR-1207's screenshot transcription
+names the editor's `selection_cleared` message, "Select a current-head diff
+line to compose a review comment." Source inspection confirms that branch and
+the existing action's unconditional opening when no target is selected. The
+window course establishes the original selected-line and selected-thread
+dispatch; it does not establish that the owner's exact fixture state had a
+usable editor. No such reproduction is claimed here. BPR-1207 AC1 must still
+exercise that fixture both without a selected change and with a current-head
+line selected, then pin the usable editor and unavailable-action behavior in
+the composed course. The owner's approved m2b places that investigation and
+correction before closeout. Likewise BPR-1203 must diagnose the frozen
+Compose review authority message; it is not treated as accepted.
+
+**Required debt stays open.** Windows native appearance and Narrator;
+Windows/Linux station courses; Linux measured heights (876/842 remain derived);
+Windows's 902-pixel width sweep and measured 884/850 budget; applicable native
+key delivery; all ten m2b cards and their separate owner questions. The Windows
+850 open budget is unchanged. The existing macOS VoiceOver/Right Arrow verdict
+`6ee64abe` is accepted only for the old tray candidate; Notes needs its new
+listen. No release, live-provider or all-platform claim follows.
+
+**Review state and next action.** Per the user's latest state relayed by the
+coordinator, session `06ad5734` was consumed and closed, its server stopped and
+its runtime directory deleted; `60bd1ed5` received the fourteen matching
+imported verdicts and released its claims. The old m2 handoff's server and
+waiter are stopped. Availability of the historical m2 evidence files is not
+rechecked in this round. Do not
+reopen either session or ask their answered questions again. The coordinator
+lands this documentation checkpoint and dispatches a fresh m2b implementer:
+BPR-1201 to BPR-1203 and BPR-1205 to BPR-1210, then BPR-1204 after its three
+prerequisites. The m2b owner questions remain pending until reviewed on the
+new candidate. m3 cannot begin before m2b's accepted exit.
+
 ## Owner direction on the second tray tab — 2026-09-25
 
-This is the current frontier. The verdict section below and the reconciliation
+This is the retained design direction. The verdict section below and the reconciliation
 after it are the earlier record, and the sentence there that has
 [[BPR-1204]]'s name waiting on a purpose discussion is superseded.
 
@@ -114,14 +186,14 @@ structurally valid, with m1, m2, m2b and m3. `inspect --milestone
 m2b-owner-verdict-follow-ups` lists all ten cards. BPR-1204's only unresolved
 prerequisites are BPR-1208 to BPR-1210.
 
-**Next.** m2's exits are still to be judged and accepted before the plan admits
-m2b. In m2b, BPR-1208, BPR-1209 and BPR-1210 are Ready and independent of one
+**Next at that checkpoint.** m2's exits still awaited judgment; the 2026-09-26
+acceptance above now admits m2b. In m2b, BPR-1208, BPR-1209 and BPR-1210 are Ready and independent of one
 another. BPR-1204 follows them, and it asks the owner one question about the
 built Notes tab, not about its name.
 
 ## Owner verdicts on the m2 questions — 2026-09-25 (attended session 06ad5734)
 
-This is the current frontier; the reconciliation below is the earlier record.
+These are the retained owner verdicts; the reconciliation below is the earlier record.
 
 A fresh session, `06ad5734ed9f7c2fd6d0a62c8328fa0a` (packet
 [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md)),

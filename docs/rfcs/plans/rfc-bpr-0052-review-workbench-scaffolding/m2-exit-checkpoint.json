@@ -1,0 +1,104 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0052-20260925",
+  "segment_id": "m2-exit-acceptance-20260926",
+  "mandate_revision": "owner-20260926-unattended-worktrees",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0052",
+  "binding": {
+    "plan_id": "rfc-bpr-0052-review-workbench-scaffolding",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json",
+    "milestone_id": "m2-fold-tab-strip-comment-reply",
+    "definition_fingerprint": "sha256:865f64ba6552318bf2b528b7ef1e829e6dd4f942ff606c078e0d33b0cba966c0",
+    "obligations": [
+      {
+        "id": "BPR-1130:*",
+        "source": "BPR-1130",
+        "selector": null,
+        "source_fingerprint": "sha256:fc13d80b3647dcd8b8595a20e7ace055d5be7f350ccd5b2ea19ac3c90210e817"
+      },
+      {
+        "id": "BPR-1132:*",
+        "source": "BPR-1132",
+        "selector": null,
+        "source_fingerprint": "sha256:9a0f667ff7b11dc05cdeb4b04a5021fb71b20aa724359f6699289c0c64b46fbe"
+      },
+      {
+        "id": "BPR-1133:*",
+        "source": "BPR-1133",
+        "selector": null,
+        "source_fingerprint": "sha256:b722fec929a3cd381234fd0edb53e8ef1fea29c702aea031fcb308ee7effa4b2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:aa00c111b1d347d69bc128fd303b6a2c85d93303cb8f959c2d17d9005d96c2e0",
+    "exit_criteria": [
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:1",
+        "text": "The owner's answer on where the readiness words go is recorded before BPR-0795's row changes; the Updates line folds from the review bar's disclosure and by keyboard without moving the bar, a new window starts folded, each window restores its own choice, and nothing folds or opens on its own."
+      },
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:2",
+        "text": "The Updates line carries no permanent caption; its tooltip carries the history statement and a mark shows whenever history is incomplete or ambiguous, in every modality."
+      },
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:3",
+        "text": "The comparison's header is the tab strip: names elide from the left, a tab with its own pair shows it, the width floor shows the active tab and a count, the tab menu offers Duplicate, Close, Close others, returning to the window's comparison and making the tab's pair the window's; Cmd-click (Ctrl-click) and Open in New Tab open tabs, and Ctrl+Tab, Ctrl+Shift+Tab and Cmd-W (Ctrl+W) are bound uniquely."
+      },
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:4",
+        "text": "The Updates line shows the active tab's pair and Overview and Discuss the window's; a tab over an older pair places only its own revisions' threads, says how many are on later updates and routes to them, and offers no new comment off the current head; the composed course opens a file in a new tab, compares two pairs of one file side by side, closes, restarts and returns."
+      },
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:5",
+        "text": "Comment starts a comment on the current line or a reply to the selected thread and its menu names the target; thread cards beside the code offer Reply through the Discuss path; nothing publishes without the existing explicit Publish."
+      },
+      {
+        "id": "m2-fold-tab-strip-comment-reply:exit:6",
+        "text": "The height floors are re-taken with the Updates line open and folded and the tab strip in place, the width floors are swept again, focus, accessibility-name and 100 to 200 percent scale checks pass at narrow and wide windows, and the documentation gate passes."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:ca9c61e01ac9734a0cb6c8a348fbfb9c935f922761a5ecdbdc072d5457add341",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-title-row-bar-tab-model-tray",
+    "m2-fold-tab-strip-comment-reply",
+    "m2b-owner-verdict-follow-ups",
+    "m3-verify-and-close"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/rfc0052-owner-followups/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/rfc0052-owner-followups/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/rfc0052-owner-followups",
+    "source_revision": "fdeea1ac0313167f0706b12b0ec9d8bd0798a36b",
+    "workflow_branch": "codex/rfc0052-owner-followups",
+    "workflow_revision": "fdeea1ac0313167f0706b12b0ec9d8bd0798a36b"
+  }
+}
