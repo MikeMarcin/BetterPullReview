@@ -8591,13 +8591,16 @@ namespace bpr::app {
 			}
 #if defined(BPR_BUILD_TESTING)
 			if (!Fixture) {
-				ReviewSubmission->invalidate();
+				ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
 				return;
 			}
 #endif
 			auto selection = select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot());
 			if (!selection) {
-				ReviewSubmission->invalidate();
+				const auto closed = WindowRead->accepted_snapshot()->PullRequest.State != application::github_pull_request_state::open;
+				ReviewSubmission->invalidate(closed
+												 ? QStringLiteral("This pull request is closed. You can read its review, but cannot submit a new review. Open an active pull request to compose a review.")
+												 : QStringLiteral("The current account or pull request revision is not ready for review submission. Refresh this pull request and wait for it to finish loading."));
 				return;
 			}
 			auto binding       = application::review_submission_live_binding{ selection->Target, selection->ActingIdentity };
@@ -8615,7 +8618,7 @@ namespace bpr::app {
 #else
 			auto acceptedLease = WindowRead->mutation_transport();
 			if (!acceptedLease) {
-				ReviewSubmission->invalidate();
+				ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
 				return;
 			}
 			auto factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {

@@ -57,3 +57,41 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]]. RFC-BPR-0037's draft and publication semantics are unchanged.
+
+## Engineering evidence — 2026-09-26
+
+The recorded uiforetw-74 fixture is closed. Source tracing establishes the
+old `select_observed_review_mutation` refusal followed by generic
+`compose_review_submission` invalidation. The real composed course opens
+that fixture through ordinary controls and now observes the closed-PR reason,
+no draft, no empty fields, and zero additional submissions. This establishes
+a real deterministic path; it does not invent an authority race or assert
+the owner's exact earlier clicks.
+
+Decision: put purpose, draft state and next step before the inputs so the
+page explains itself even when admission yields no draft. Existing publication
+admission and commands remain unchanged. Empty target/body fields are hidden
+without a draft; every disabled action has an explanatory tooltip.
+
+Editor courses pass at 100/125/200 and composed courses at 100/125/200
+(6/6 total), including signed-out, kept, submitted, unknown, changed-account,
+changed-head and closed states. Refused and historical drafts retain their
+identity and text. First reconfiguration omitted the cache arguments and
+failed; corrected offline configuration and scale runs pass.
+
+Composition pin review covers `3161f459..BPR-1203 candidate`: adopted
+BPR-0966 only touches Qt and its tests; the pinned app scope changes only
+wording on existing refusal branches and the workflow's optional display
+reason. No selection, grant, write, effect, recovery or persistence policy
+changes. Full digest `82e441d8116f42165092faa28a4e802c2630d8e2870cec25ef87813d8468731b`;
+production manifest `c48ab7adf9e9d9c978992e7ff3fe385fbf070e9edea017fbda8a4b59a9da18d8`;
+production mutation digest unchanged. AC3 and AC4 remain separate pending
+owner judgments; neither the page nor kept mark is accepted by this evidence.
+
+Frozen native observation: launched exact m2 executable `a2e5128a...8a83`
+with the uiforetw-74 fixture and a fresh private root; entered
+`google/UIforETW#74` in Home, then Compose review. The native screenshot
+reproduces the empty target and generic authority-changed sentence exactly.
+No publish control was used. Sandboxed GUI attempts could not register an AX
+application; the successful native launch used the fixture-only automated
+boundary. Its process is task-owned and will be stopped before handoff.

@@ -24,8 +24,18 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("wholeReviewEditor"));
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
-		auto* title = new QLabel{ tr("Review pull request"), this };
+		auto* title = new QLabel{ tr("Compose review"), this };
 		layout->addWidget(title);
+		auto* purpose = new QLabel{ tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review."), this };
+		purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
+		purpose->setWordWrap(true);
+		purpose->setMinimumWidth(0);
+		purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		layout->addWidget(purpose);
+		DraftState = new QLabel{ this };
+		DraftState->setObjectName(QStringLiteral("wholeReviewDraftState"));
+		DraftState->setWordWrap(true);
+		layout->addWidget(DraftState);
 		Target = new QTextEdit{ this };
 		Target->setObjectName(QStringLiteral("wholeReviewTarget"));
 		Target->setReadOnly(true);
@@ -81,7 +91,8 @@ namespace bpr::qt {
 		Status->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Status->setMinimumWidth(0);
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		layout->addWidget(Status);
+		layout->insertWidget(3, Status);
+		layout->addStretch();
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] { emit_command(core::review_submission_command_kind::edit); });
 		connect(Disposition, &QComboBox::currentIndexChanged, this, [this] { emit_command(core::review_submission_command_kind::choose_disposition); });
 		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
@@ -89,7 +100,7 @@ namespace bpr::qt {
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
 		connect(NewReview, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::new_review); });
 		setFocusProxy(Body);
-		present({ .Status = tr("Open a pull request to write a review.") });
+		present({ .Status = tr("Sign in and open an active pull request to write a review. Back returns to the pull request.") });
 	}
 	void review_submission_editor::present(const review_submission_editor_projection& aProjection)
 	{
@@ -106,6 +117,29 @@ namespace bpr::qt {
 		if (Target->toPlainText() != aProjection.TargetDescription) {
 			Target->setPlainText(aProjection.TargetDescription);
 		}
+		Target->setVisible(!aProjection.TargetDescription.isEmpty());
+		Body->setVisible(Draft.has_value());
+		Disposition->setVisible(Draft.has_value());
+		QString state;
+		if (!Draft) {
+			state = tr("No review draft is available.");
+		} else {
+			switch (Draft->State) {
+			case core::review_submission_state::drafting:
+				state = core::kept(*Draft) ? tr("Your review draft is kept. It has not been published.") : tr("Start a review draft. Write your summary below.");
+				break;
+			case core::review_submission_state::submitting:
+				state = tr("Submission is in progress or awaiting confirmation. Check status before trying again.");
+				break;
+			case core::review_submission_state::submitted:
+				state = tr("This review was submitted. Choose New review to write another.");
+				break;
+			case core::review_submission_state::discarded:
+				state = tr("This draft was discarded. Choose New review to start again.");
+				break;
+			}
+		}
+		DraftState->setText(state);
 		Status->setText(aProjection.Status);
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
 		Body->setReadOnly(!connected || !aProjection.Controls.Edit);
@@ -114,6 +148,15 @@ namespace bpr::qt {
 		Discard->setEnabled(connected && aProjection.Controls.Discard);
 		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
 		NewReview->setEnabled(connected && aProjection.Controls.NewReview);
+		const auto unavailable = !Draft || !aProjection.Controls.Edit
+			? aProjection.Status
+			: tr("Write a nonblank summary for Comment or Request changes; Approve may have an empty summary.");
+		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
+		Disposition->setToolTip(Disposition->isEnabled() ? tr("Choose the review you want to submit.") : aProjection.Status);
+		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.") : unavailable);
+		Discard->setToolTip(Discard->isEnabled() ? tr("Discard this unpublished review draft.") : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
+		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
+		NewReview->setToolTip(NewReview->isEnabled() ? tr("Start a new draft for the current pull request revision.") : tr("Finish or discard the current draft before starting another. %1").arg(aProjection.Status));
 		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + Disposition->currentText() + QStringLiteral(". ") + aProjection.Status;
 		if (announcement != LastAnnouncement) {
 			LastAnnouncement = announcement;

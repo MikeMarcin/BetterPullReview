@@ -16,7 +16,7 @@ namespace bpr::app {
 		using write_confirmation = std::function<bool(const application::review_submission_live_binding&, core::review_disposition)>;
 		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, write_confirmation = { });
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory);
-		void               invalidate();
+		void               invalidate(QString aReason = { });
 		void               invalidate(const application::pull_request_authority_invalidation&);
 		void               dispatch(qt::review_submission_editor_intent);
 		void               shutdown();

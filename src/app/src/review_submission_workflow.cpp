@@ -97,11 +97,13 @@ namespace bpr::app {
 		}
 	}
 
-	void review_submission_workflow::invalidate()
+	void review_submission_workflow::invalidate(QString aReason)
 	{
 		Next.reset();
 		retire();
-		Status = QStringLiteral("Review authority changed. Open or refresh the pull request to continue.");
+		Status = aReason.isEmpty()
+			? QStringLiteral("Review authority changed. Sign in and reopen this pull request to continue. Any existing draft is retained read-only until its original account and revision are available.")
+			: std::move(aReason);
 		present();
 	}
 

@@ -61,6 +61,7 @@ namespace bpr::qt {
 		QComboBox*                                   Disposition = nullptr;
 		QTextEdit*                                   Target      = nullptr;
 		QLabel*                                      Status      = nullptr;
+		QLabel*                                      DraftState  = nullptr;
 		QAction*                                     Submit      = nullptr;
 		QAction*                                     Discard     = nullptr;
 		QAction*                                     Reconcile   = nullptr;

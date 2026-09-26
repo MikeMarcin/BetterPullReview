@@ -32,8 +32,17 @@ auto main(int argc, char** argv) -> int
 																								 .ActingAccount = core::github_account_id{ 4U },
 																								 .Body          = "Literal <summary>" };
 	auto                                             projection = qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.com · owner/repository#17\nHead: abcdef0123456789abcdef0123456789abcdef01\nSubmitting as reviewer (account 4)"), .Status = QStringLiteral("Ready <literal>") };
+	editor.resize(300, 650);
+	editor.show();
+	QApplication::processEvents();
+	expect(editor.target_editor()->isHidden() && editor.body_editor()->isHidden(), "no-draft page hides empty identity and input panels");
+	expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewPurpose"))->text().contains(QStringLiteral("Nothing is published")), "page purpose and publication gesture explained");
+	for (auto* action : { editor.submit_action(), editor.discard_action(), editor.reconcile_action(), editor.new_review_action() }) {
+		expect(!action->isEnabled() && !action->toolTip().isEmpty(), "unavailable no-draft action explains why");
+	}
 	editor.present(projection);
-	editor.resize(300, 550);
+	expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewDraftState"))->text().contains(QStringLiteral("kept")), "kept draft identified explicitly");
+	editor.resize(300, 700);
 	editor.show();
 	QApplication::processEvents();
 	expect(intents.empty(), "projection emits no gesture");

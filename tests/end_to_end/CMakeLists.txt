@@ -2706,6 +2706,19 @@ bpr_add_network_isolated_test(NAME application_review_submission_composition_pub
 set_tests_properties(application_review_submission_composition_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
+foreach(scale IN ITEMS 125 200)
+    if(scale EQUAL 125)
+        set(scale_factor "1.25")
+    else()
+        set(scale_factor "2")
+    endif()
+    bpr_add_network_isolated_test(NAME application_review_submission_composition_scale_${scale}
+        WINDOWS_UNCONTAINED
+        COMMAND test_better_pull_review_review_submission_composition_public_path "${CMAKE_CURRENT_BINARY_DIR}/review-submission-composition-${scale}.png")
+    set_tests_properties(application_review_submission_composition_scale_${scale} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${scale_factor}"
+        TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
+endforeach()
 
 bpr_add_executable(
     test_setup_destination_public_path

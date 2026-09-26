@@ -84,10 +84,10 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single) {
+	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
-		auto                                     startup         = access::start(app::detail::github_public_path_fixture::github_com,
+		auto                                     startup         = access::start(aFixture,
 																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server },
 																				 [&](auto aResult) {
 										 startupTerminal = true;
@@ -101,6 +101,12 @@ auto main(int argc, char** argv) -> int
 	};
 	auto application = make();
 	try {
+		application->show();
+		application->window().open_review_composition();
+		QApplication::processEvents();
+		auto& initial = *application->window().review_submission_editor_view();
+		expect(!initial.shown_draft() && initial.target_editor()->isHidden() && initial.body_editor()->isHidden(), "signed-out no-draft composition explains itself without empty inputs");
+		expect(initial.status_label()->text().contains(QStringLiteral("Sign in")) && !initial.submit_action()->toolTip().isEmpty(), "signed-out next step and disabled reason");
 		open(*application);
 		auto& window = application->window();
 		auto& editor = *window.review_submission_editor_view();
@@ -117,6 +123,7 @@ auto main(int argc, char** argv) -> int
 			editor.body_editor()->setPlainText(body);
 			expect(editor.submit_action()->isEnabled(), "ready disposition enables submit");
 			const auto draft = *editor.shown_draft();
+			expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewDraftState"))->text().contains(QStringLiteral("kept")), "composed kept draft state is explained");
 			if (disposition == core::review_disposition::comment) {
 				auto* files = window.files_drawer()->contents_view();
 				wait([&] { return files->model()->rowCount() > 0; }, "normal file row available");
@@ -249,6 +256,27 @@ auto main(int argc, char** argv) -> int
 		{
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->Submissions == 6U, "changed-head refusal issued no submission");
+		}
+		shutdown(*application);
+		application.reset();
+		application        = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::uiforetw_74);
+		auto& closedWindow = application->window();
+		application->show();
+		closedWindow.github_connect_action()->trigger();
+		wait([&] { return closedWindow.github_status_text() == "GitHub account connected."; }, "closed fixture connected");
+		closedWindow.home_open_bar()->setText(QStringLiteral("google/UIforETW#74"));
+		closedWindow.home_open_action()->trigger();
+		auto& closed = *closedWindow.review_submission_editor_view();
+		wait([&] { return closed.status_label()->text().contains(QStringLiteral("pull request is closed")); }, "ordinary closed fixture open explains the refused review admission");
+		closedWindow.open_review_composition();
+		QApplication::processEvents();
+		expect(!closed.shown_draft() && closed.target_editor()->isHidden() && closed.body_editor()->isHidden() && !closed.submit_action()->isEnabled(), "closed PR has no unexplained empty fields or invented draft");
+		if (argc == 2) {
+			expect(closedWindow.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-closed.png")), "closed-state render");
+		}
+		{
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->Submissions == 6U, "explanation and closed review perform zero additional publications");
 		}
 		shutdown(*application);
 		std::cout << "review-submission-composition:pass\n";
