@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1209"
 title: "Dif leaves the right drawer and rests in the status bar's corner unless a screen gives him a prime spot"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1134"]
 priority: "P2"
