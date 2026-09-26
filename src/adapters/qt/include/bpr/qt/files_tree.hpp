@@ -117,6 +117,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto work_statistics() const noexcept -> files_tree_work_statistics;
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
+		/// \brief [[BPR-0972]]. Takes the overview facts of these files only.
+		void               apply_overview_rows(std::span<const application::overview_file_row> aRows);
 		void               set_order(files_order aOrder);
 		[[nodiscard]] auto order() const noexcept -> files_order;
 		void               set_filter(const QString& aFilter);
@@ -154,8 +156,10 @@ namespace bpr::qt {
 		void               rebuild_file_index();
 		[[nodiscard]] auto node_index(const QModelIndex& aIndex) const -> std::size_t;
 
-		mutable files_tree_work_statistics                           WorkStatistics;
-		std::vector<std::size_t>                                     FreeNodes;
+		mutable files_tree_work_statistics WorkStatistics;
+		std::vector<std::size_t>           FreeNodes;
+		/// [[BPR-0972]]. Every entry by file, shown or filtered away.
+		std::vector<std::pair<core::workbench_file_id, std::size_t>> EntryIndex;
 		std::vector<std::size_t>                                     InsertedFolders;
 		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
 		std::vector<files_tree_entry>                                Entries;
@@ -203,9 +207,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
-		void               adopt_appearance(const appearance_profile& aProfile);
-		void               set_order(files_order aOrder);
-		void               set_filter(const QString& aFilter);
+		/// \brief [[BPR-0972]]. Takes the overview facts of these files only.
+		void apply_overview_rows(std::span<const application::overview_file_row> aRows);
+		void adopt_appearance(const appearance_profile& aProfile);
+		void set_order(files_order aOrder);
+		void set_filter(const QString& aFilter);
 		/// \brief Makes the file's row current without reporting it.
 		void select_file(const std::optional<core::workbench_file_id>& aFile);
 

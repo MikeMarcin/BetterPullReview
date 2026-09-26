@@ -114,6 +114,12 @@ namespace bpr::qt {
 			entries.push_back(std::move(entry));
 		}
 		auto previous = std::exchange(Entries, std::move(entries));
+		EntryIndex.clear();
+		EntryIndex.reserve(Entries.size());
+		for (std::size_t position = 0U; position < Entries.size(); ++position) {
+			EntryIndex.emplace_back(Entries[position].File, position);
+		}
+		std::ranges::sort(EntryIndex);
 		rebuild(previous);
 	}
 
@@ -152,6 +158,37 @@ namespace bpr::qt {
 		for (const auto file : changed) {
 			const auto index = index_for_file(file);
 			if (index.isValid()) {
+				emit dataChanged(index, index);
+				++WorkStatistics.ChangedRows;
+			}
+		}
+	}
+
+	void files_tree_model::apply_overview_rows(const std::span<const application::overview_file_row> aRows)
+	{
+		auto changed      = std::vector<core::workbench_file_id>{ };
+		auto orderChanged = false;
+		for (const auto& row : aRows) {
+			const auto file = core::file_identity_of(row.Path);
+			// Every entry of the file takes the row, shown or filtered away,
+			// as the complete join by path does.
+			for (const auto& [identity, position] : std::ranges::equal_range(EntryIndex, file, { }, &std::pair<core::workbench_file_id, std::size_t>::first)) {
+				++WorkStatistics.OverviewRowsVisited;
+				auto& entry = Entries[position];
+				if (entry.Overview == std::optional{ row }) {
+					continue;
+				}
+				const auto wasChanged = entry.Overview && changed_since_review(*entry.Overview);
+				orderChanged          = orderChanged || wasChanged != changed_since_review(row);
+				entry.Overview        = row;
+				changed.push_back(identity);
+			}
+		}
+		if (Order == files_order::changed_first && orderChanged) {
+			rebuild();
+		}
+		for (const auto& file : changed) {
+			if (const auto index = index_for_file(file); index.isValid()) {
 				emit dataChanged(index, index);
 				++WorkStatistics.ChangedRows;
 			}
@@ -891,6 +928,13 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply_overview(aFiles);
+		expand_inserted();
+	}
+
+	void files_tree_view::apply_overview_rows(const std::span<const application::overview_file_row> aRows)
+	{
+		const auto applying = QScopedValueRollback{ Applying, true };
+		Model->apply_overview_rows(aRows);
 		expand_inserted();
 	}
 

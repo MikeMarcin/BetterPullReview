@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 class QHBoxLayout;
@@ -84,6 +85,8 @@ namespace bpr::qt {
 		explicit overview_file_model(QObject* aParent = nullptr);
 
 		void apply(const std::vector<application::overview_file_row>& aRows);
+		/// \brief [[BPR-0972]]. Updates the rows of these files in place.
+		void update_rows(std::span<const application::overview_file_row> aRows);
 
 		[[nodiscard]] auto index(int aRow, int aColumn, const QModelIndex& aParent = { }) const
 			-> QModelIndex override;
@@ -198,6 +201,8 @@ namespace bpr::qt {
 		explicit pull_request_overview_page(QWidget* aParent = nullptr);
 
 		void present(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-0972]]. Takes receipt changes to the presented overview.
+		void apply_receipts(const application::overview_receipt_update& aUpdate);
 		/// \brief Clears text and local reading state on the owner's exact authority invalidation.
 		void clear();
 		/// \brief Presents a pending overview without manufacturing accepted rows.
@@ -240,6 +245,8 @@ namespace bpr::qt {
 		void set_description_expanded(bool aExpanded);
 		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
+		void present_files_heading(const application::pull_request_overview_projection& aProjection);
+		void present_entry(const application::pull_request_overview_projection& aProjection);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 
 		std::optional<application::pull_request_overview_projection> Projection;

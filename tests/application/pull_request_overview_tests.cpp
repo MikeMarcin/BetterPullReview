@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -395,10 +396,58 @@ namespace {
 		ledger.clear();
 		expect(ledger.rows().empty(), "clear empties the ledger");
 	}
+	// [[BPR-0972]]. Receipt changes applied one file at a time decide exactly
+	// what projecting the whole overview again decides, touch only their own
+	// rows, and refuse a file the projection does not hold.
+	void test_receipt_updates_match_a_complete_projection()
+	{
+		for (const auto withLastReview : { false, true }) {
+			for (const auto count : { 32U, 4096U }) {
+				auto review = snapshot();
+				review.Files.clear();
+				for (unsigned index = 0; index < count; ++index) {
+					review.Files.push_back(application::github_file_record{
+						.Path      = "src/part" + std::to_string(index % 7U) + "/file" + std::to_string(index) + ".cpp",
+						.Change    = application::github_file_change::modified,
+						.Additions = index,
+					});
+				}
+				auto context = application::overview_context{ };
+				if (withLastReview) {
+					context.Private = application::private_ledger_observation{ .LastReviewedHead = commit('b') };
+					context.Head    = commit('b');
+				}
+				auto projection = application::project_pull_request_overview(review, context);
+				auto index      = application::overview_receipt_index{ };
+				index.adopt(projection, withLastReview, false);
+				const auto steps = std::vector<std::pair<unsigned, core::file_read_state>>{
+					{ 3U, core::file_read_state::read },
+					{ count - 1U, core::file_read_state::unread },
+					{ 0U, core::file_read_state::read },
+					{ 3U, core::file_read_state::unread },
+					{ count / 2U, core::file_read_state::read },
+				};
+				for (const auto& [position, read] : steps) {
+					const auto changed = receipt(review.Files[position].Path, read);
+					std::erase_if(context.Receipts, [&changed](const core::file_receipt& aReceipt) { return aReceipt.File == changed.File; });
+					context.Receipts.push_back(changed);
+					const auto update = index.apply(projection, std::vector{ changed });
+					expect(update.has_value() && update->Rows.size() <= 1U, "one receipt changes at most its own row");
+					expect(projection == application::project_pull_request_overview(review, context),
+						   "an applied receipt decides what a complete projection decides");
+				}
+				std::cout << "overview-receipt-update files=" << count << " last_review=" << withLastReview << " steps=" << steps.size() << " rows_per_step<=1\n";
+				expect(!index.apply(projection, std::vector{ receipt("elsewhere/unknown.cpp", core::file_read_state::read) }).has_value(),
+					   "a file outside the projection refuses the update");
+			}
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_receipt_updates_match_a_complete_projection();
 	test_first_visit_starts_at_the_first_file();
 	test_continue_lands_on_the_first_changed_then_unread_file();
 	test_comment_groups_stand_in_for_threads_when_signed_out();

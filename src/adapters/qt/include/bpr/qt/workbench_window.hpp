@@ -53,6 +53,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 class QAction;
@@ -365,6 +366,12 @@ namespace bpr::qt {
 		/// modalities keep the comparison. Start enters Review, Continue follows
 		/// its preference, and file rows enter Read at the core-selected file.
 		void publish(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-0972]]. Adopts receipt changes to the presented overview.
+		///
+		/// \details Only the changed file rows, the progress and the one action
+		/// move; the page's table and the drawer tree signal those rows alone.
+		/// Without a presented overview there is nothing to change.
+		void publish(const application::overview_receipt_update& aUpdate);
 		/// \brief [[BPR-0733]]. Adopts the window's recently viewed pull requests.
 		///
 		/// \details Home lists them between the open bar and the review queue,
@@ -1433,16 +1440,18 @@ namespace bpr::qt {
 		diff_workbench*                                              ComparisonSurface = nullptr;
 		pull_request_overview_page*                                  OverviewPage      = nullptr;
 		std::optional<application::pull_request_overview_projection> PresentedOverview;
-		bool                                                         OverviewFileFactsDirty = true;
-		QStackedWidget*                                              CentreStack            = nullptr;
-		QWidget*                                                     ComparisonPage         = nullptr;
-		QWidget*                                                     DiscussPage            = nullptr;
-		QVBoxLayout*                                                 ConversationLayout     = nullptr;
-		QScrollArea*                                                 ComposeReviewPage      = nullptr;
-		QScrollArea*                                                 ComposeInlinePage      = nullptr;
-		QWidget*                                                     CompositionPage        = nullptr;
-		QPointer<QWidget>                                            CompositionReturnFocus;
-		QPointer<QWidget>                                            DiscussReturnFocus;
+		/// [[BPR-0972]]. The presented overview's first row for each path.
+		std::unordered_map<std::string, std::size_t> PresentedOverviewRows;
+		bool                                         OverviewFileFactsDirty = true;
+		QStackedWidget*                              CentreStack            = nullptr;
+		QWidget*                                     ComparisonPage         = nullptr;
+		QWidget*                                     DiscussPage            = nullptr;
+		QVBoxLayout*                                 ConversationLayout     = nullptr;
+		QScrollArea*                                 ComposeReviewPage      = nullptr;
+		QScrollArea*                                 ComposeInlinePage      = nullptr;
+		QWidget*                                     CompositionPage        = nullptr;
+		QPointer<QWidget>                            CompositionReturnFocus;
+		QPointer<QWidget>                            DiscussReturnFocus;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 

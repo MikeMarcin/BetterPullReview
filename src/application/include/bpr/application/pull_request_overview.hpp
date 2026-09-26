@@ -10,7 +10,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
+#include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -205,6 +208,57 @@ namespace bpr::application {
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
 		-> pull_request_overview_projection;
+
+	/// \brief What one or more durable receipt changes did to a published overview.
+	///
+	/// \details [[BPR-0972]]. The changed rows carry their new read state; the
+	/// progress and the one action are the overview's new values. Nothing else
+	/// in the overview is a function of receipts.
+	struct overview_receipt_update
+	{
+		std::vector<overview_file_row> Rows;
+		overview_review_progress       Progress;
+		overview_entry_kind            Entry = overview_entry_kind::start_review;
+		std::optional<std::string>     EntryPath;
+
+		auto operator<=>(const overview_receipt_update&) const = default;
+	};
+
+	/// \brief Applies receipt changes to a published overview one file at a time.
+	///
+	/// \details [[BPR-0972]]. `adopt` indexes a complete projection once, in
+	/// O(N log N). `apply` then answers each changed receipt with a binary
+	/// search and keeps the unread rows ordered, so the first unread file is
+	/// known without walking the files. It decides exactly what
+	/// `project_pull_request_overview` decides for the same inputs; a file it
+	/// was not given refuses the update, and the caller projects again.
+	class overview_receipt_index final
+	{
+	public:
+		/// \brief Indexes a projection built with `aReceipts` and a known or
+		/// absent last-reviewed head.
+		void adopt(const pull_request_overview_projection& aProjection,
+				   bool                                    aLastReviewedKnown,
+				   bool                                    aAnyReceipt);
+
+		/// \brief Forgets the adopted projection.
+		void clear() noexcept;
+
+		/// \brief Applies durable receipts to the adopted projection.
+		/// \returns The changed rows and new summary, or nothing when a receipt
+		/// names a file the projection does not hold.
+		[[nodiscard]] auto apply(pull_request_overview_projection&   aProjection,
+								 std::span<const core::file_receipt> aReceipts)
+			-> std::optional<overview_receipt_update>;
+
+	private:
+		std::vector<std::pair<core::file_identity, std::size_t>> Rows;
+		std::set<std::size_t>                                    Unread;
+		std::optional<std::size_t>                               FirstChanged;
+		bool                                                     Adopted           = false;
+		bool                                                     LastReviewedKnown = false;
+		bool                                                     AnyReceipt        = false;
+	};
 
 	/// \brief Retains the update rows the epoch host publishes.
 	///

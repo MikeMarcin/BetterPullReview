@@ -876,6 +876,8 @@ namespace bpr::app::detail {
 		std::uint64_t                              OverviewReceiptVisits      = 0U;
 		std::uint64_t                              ConversationThreadsVisited = 0U;
 		std::uint64_t                              ConversationPostsVisited   = 0U;
+		std::uint64_t                              OverviewReceiptUpdates     = 0U;
+		std::uint64_t                              OverviewReceiptRows        = 0U;
 	};
 
 	/// \brief Samples comparison ownership without driving any host.

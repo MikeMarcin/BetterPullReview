@@ -5028,6 +5028,29 @@ namespace bpr::qt {
 			aSession, aOffer, DifCueClock->elapsed()));
 	}
 
+	void workbench_window::publish(const application::overview_receipt_update& aUpdate)
+	{
+		if (OverviewPage == nullptr || !PresentedOverview.has_value()) {
+			return;
+		}
+		// The retained overview takes the same rows, so an identical complete
+		// publication afterwards is still recognised as unchanged.
+		for (const auto& row : aUpdate.Rows) {
+			if (const auto found = PresentedOverviewRows.find(row.Path); found != PresentedOverviewRows.end()) {
+				PresentedOverview->Files[found->second] = row;
+			}
+		}
+		PresentedOverview->Progress  = aUpdate.Progress;
+		PresentedOverview->Entry     = aUpdate.Entry;
+		PresentedOverview->EntryPath = aUpdate.EntryPath;
+		OverviewPage->apply_receipts(aUpdate);
+		if (FilesTree != nullptr && !aUpdate.Rows.empty()) {
+			ApplyingFileSelection = true;
+			FilesTree->apply_overview_rows(aUpdate.Rows);
+			ApplyingFileSelection = false;
+		}
+	}
+
 	void workbench_window::publish(
 		const application::pull_request_overview_projection& aProjection)
 	{
@@ -5038,6 +5061,11 @@ namespace bpr::qt {
 		if (!unchanged) {
 			OverviewPage->present(aProjection);
 			PresentedOverview = aProjection;
+			PresentedOverviewRows.clear();
+			PresentedOverviewRows.reserve(aProjection.Files.size());
+			for (std::size_t row = 0U; row < aProjection.Files.size(); ++row) {
+				PresentedOverviewRows.emplace(aProjection.Files[row].Path, row);
+			}
 		}
 		if (FilesTree != nullptr && (!unchanged || OverviewFileFactsDirty)) {
 			// [[BPR-0658]]. The tree draws the overview's per-file facts.
@@ -5072,6 +5100,7 @@ namespace bpr::qt {
 	void workbench_window::clear_overview()
 	{
 		PresentedOverview.reset();
+		PresentedOverviewRows.clear();
 		OverviewFileFactsDirty = true;
 		if (OverviewPage == nullptr) {
 			return;

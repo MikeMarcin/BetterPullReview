@@ -719,6 +719,15 @@ namespace bpr::qt {
 		rebuild_lookup(aRows);
 	}
 
+	void overview_file_model::update_rows(const std::span<const application::overview_file_row> aRows)
+	{
+		for (const auto& row : aRows) {
+			if (auto* const file = FileNodes.value(text(row.Path), nullptr)) {
+				update_file(*file, row);
+			}
+		}
+	}
+
 	auto overview_file_model::node_at(const QModelIndex& aIndex) const -> const node*
 	{
 		return aIndex.isValid() && aIndex.model() == this
@@ -1483,17 +1492,8 @@ namespace bpr::qt {
 			QAccessible::updateAccessibility(&event);
 		}
 
-		const auto& since   = aProjection.SinceLastReview;
-		const auto  notRead = aProjection.Progress.FilesTotal - std::min(aProjection.Progress.FilesRead, aProjection.Progress.FilesTotal);
-		auto        heading = QStringLiteral("Files: %1 in this pull request").arg(count_text(aProjection.Progress.FilesTotal));
-		if (since.Known && since.FilesChanged.has_value()) {
-			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
-		} else if (since.Known) {
-			heading += QStringLiteral(", changes since my last review not yet resolved");
-		}
-		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
-		FilesHeading->setText(heading);
-		FilesHeading->setToolTip({ });
+		const auto& since = aProjection.SinceLastReview;
+		present_files_heading(aProjection);
 		Model->apply(aProjection.Files);
 
 		rebuild_participants(aProjection.Participants);
@@ -1533,6 +1533,26 @@ namespace bpr::qt {
 					  : QStringLiteral("not available"),
 				  false);
 
+		present_entry(aProjection);
+	}
+
+	void pull_request_overview_page::present_files_heading(const application::pull_request_overview_projection& aProjection)
+	{
+		const auto& since   = aProjection.SinceLastReview;
+		const auto  notRead = aProjection.Progress.FilesTotal - std::min(aProjection.Progress.FilesRead, aProjection.Progress.FilesTotal);
+		auto        heading = QStringLiteral("Files: %1 in this pull request").arg(count_text(aProjection.Progress.FilesTotal));
+		if (since.Known && since.FilesChanged.has_value()) {
+			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
+		} else if (since.Known) {
+			heading += QStringLiteral(", changes since my last review not yet resolved");
+		}
+		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
+		FilesHeading->setText(heading);
+		FilesHeading->setToolTip({ });
+	}
+
+	void pull_request_overview_page::present_entry(const application::pull_request_overview_projection& aProjection)
+	{
 		const auto start = aProjection.Entry == application::overview_entry_kind::start_review;
 		Entry->setText(start ? QStringLiteral("Start review") : QStringLiteral("Continue review"));
 		Entry->setAccessibleName(Entry->text());
@@ -1545,6 +1565,24 @@ namespace bpr::qt {
 		Entry->setToolTip(entryDescription);
 		Entry->setAccessibleDescription(Entry->toolTip());
 		Entry->setEnabled(aProjection.EntryPath.has_value());
+	}
+
+	void pull_request_overview_page::apply_receipts(const application::overview_receipt_update& aUpdate)
+	{
+		if (!Projection.has_value()) {
+			return;
+		}
+		// The page keeps the progress and the action it dispatches; its rows
+		// live in the model, which updates only the changed files.
+		Projection->Progress  = aUpdate.Progress;
+		Projection->Entry     = aUpdate.Entry;
+		Projection->EntryPath = aUpdate.EntryPath;
+		Model->update_rows(aUpdate.Rows);
+		present_files_heading(*Projection);
+		set_value(overview_value::files_read,
+				  QStringLiteral("%1 of %2").arg(count_text(Projection->Progress.FilesRead), count_text(Projection->Progress.FilesTotal)),
+				  false);
+		present_entry(*Projection);
 	}
 
 	void pull_request_overview_page::clear()

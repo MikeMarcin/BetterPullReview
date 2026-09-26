@@ -9077,6 +9077,54 @@ namespace {
 		expect(pageBuilds > beforeAuthority, "authority clear does not suppress the next PR's identical visible overview");
 	}
 
+	// [[BPR-0972]]. A receipt change reaches the presented overview as its
+	// changed rows: one data change on the page table and one on the drawer
+	// tree, no structural signal, and the complete overview it amounts to is
+	// then recognised as already presented.
+	void test_receipt_update_moves_only_its_rows()
+	{
+		qt::workbench_window window;
+		auto                 overview = application::pull_request_overview_projection{ .Title = "Overview" };
+		for (auto index = 0; index < 515; ++index) {
+			const auto name = "file-" + std::to_string(index) + ".cpp";
+			overview.Files.push_back(application::overview_file_row{ .Path = "src/" + name, .Folder = "src", .Name = name });
+		}
+		overview.Progress.FilesTotal = overview.Files.size();
+		overview.EntryPath           = overview.Files.front().Path;
+		window.publish(overview);
+		auto*      pageModel     = window.overview_page()->file_model();
+		auto*      treeModel     = window.files_tree()->tree_model();
+		auto       structural    = 0;
+		auto       pageChanges   = 0;
+		auto       treeChanges   = 0;
+		const auto countStructal = [&structural] { ++structural; };
+		for (auto* const model : { static_cast<QAbstractItemModel*>(pageModel), static_cast<QAbstractItemModel*>(treeModel) }) {
+			QObject::connect(model, &QAbstractItemModel::modelReset, countStructal);
+			QObject::connect(model, &QAbstractItemModel::rowsInserted, countStructal);
+			QObject::connect(model, &QAbstractItemModel::rowsRemoved, countStructal);
+			QObject::connect(model, &QAbstractItemModel::rowsMoved, countStructal);
+			QObject::connect(model, &QAbstractItemModel::layoutChanged, countStructal);
+		}
+		QObject::connect(pageModel, &QAbstractItemModel::dataChanged, [&pageChanges] { ++pageChanges; });
+		QObject::connect(treeModel, &QAbstractItemModel::dataChanged, [&treeChanges] { ++treeChanges; });
+		auto changed               = overview;
+		changed.Files[7].Read      = core::file_read_state::read;
+		changed.Progress.FilesRead = 1U;
+		changed.Entry              = application::overview_entry_kind::continue_review;
+		changed.EntryPath          = changed.Files.front().Path;
+		const auto update          = application::overview_receipt_update{ .Rows = { changed.Files[7] }, .Progress = changed.Progress, .Entry = changed.Entry, .EntryPath = changed.EntryPath };
+		window.publish(update);
+		const auto file = core::file_identity_of(changed.Files[7].Path);
+		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "one receipt signals one page row and one tree row");
+		expect(treeModel->index_for_file(file).data(qt::files_tree_model::read_role).toInt() == static_cast<int>(core::file_read_state::read),
+			   "the drawer tree presents the committed read state");
+		expect(window.overview_page()->entry_button()->text() == QStringLiteral("Continue review")
+				   && window.overview_page()->files_heading()->text().contains(QStringLiteral("514 not read")),
+			   "the progress and the one action follow the receipt");
+		window.publish(changed);
+		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "the equivalent complete overview is already presented");
+	}
+
 	void test_overview_entry_preserves_start_and_continue_semantics()
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
@@ -10381,6 +10429,7 @@ auto main(int argc, char** argv) -> int
 		test_overview_refuses_a_hand_opened_drawer_and_says_so();
 		test_overview_entry_preserves_start_and_continue_semantics();
 		test_identical_overview_skips_rebuild_but_restores_cleared_files();
+		test_receipt_update_moves_only_its_rows();
 		std::cout << "workbench-overview:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -10471,6 +10520,7 @@ auto main(int argc, char** argv) -> int
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_entry_preserves_start_and_continue_semantics();
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();
+	test_receipt_update_moves_only_its_rows();
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";

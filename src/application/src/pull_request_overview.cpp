@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <optional>
 #include <ranges>
+#include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -224,13 +226,23 @@ namespace bpr::application {
 				if (!thread.Resolved && !viewer.empty() && rootLogin == viewer) {
 					++since.MyUnresolvedThreads;
 				}
+				// [[BPR-0972]]. A reply finds its parent by binary search over
+				// the thread's comments; the first comment with an id answers,
+				// as a search from the front did.
+				auto byComment = std::vector<std::pair<github_comment_id, std::size_t>>{ };
+				byComment.reserve(thread.Comments.size());
+				for (std::size_t index = 0U; index < thread.Comments.size(); ++index) {
+					byComment.emplace_back(thread.Comments[index].Comment, index);
+				}
+				std::ranges::sort(byComment);
 				for (const auto& comment : thread.Comments) {
 					const auto login = login_of(comment.Author);
 					roster.place(login, overview_participant_role::observer, overview_signoff::commented);
 					if (comment.ReplyTo.has_value() && !viewer.empty() && login != viewer) {
-						const auto parent = std::ranges::find(
-							thread.Comments, *comment.ReplyTo, &github_review_comment_record::Comment);
-						if (parent != thread.Comments.end() && login_of(parent->Author) == viewer) {
+						const auto parent = std::ranges::lower_bound(
+							byComment, *comment.ReplyTo, { }, &std::pair<github_comment_id, std::size_t>::first);
+						if (parent != byComment.end() && parent->first == *comment.ReplyTo
+							&& login_of(thread.Comments[parent->second].Author) == viewer) {
 							++since.RepliesToMe;
 						}
 					}
@@ -292,7 +304,24 @@ namespace bpr::application {
 			}
 		}
 
-		// The files.
+		// The files. [[BPR-0972]]. Receipts and notes are ordered by file once,
+		// so each file's are a binary search; the first for a file answers,
+		// as a search from the front did.
+		auto receipts = std::vector<const core::file_receipt*>{ };
+		receipts.reserve(aContext.Receipts.size());
+		for (const auto& receipt : aContext.Receipts) {
+			receipts.push_back(&receipt);
+		}
+		std::ranges::stable_sort(receipts, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
+		auto notes = std::vector<const local_note_record*>{ };
+		if (aContext.Private.has_value()) {
+			for (const auto& note : aContext.Private->Notes) {
+				if (note.Note.File.has_value()) {
+					notes.push_back(&note);
+				}
+			}
+			std::ranges::stable_sort(notes, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
+		}
 		projection.Files.reserve(aSnapshot.Files.size());
 		for (const auto& file : aSnapshot.Files) {
 			auto row                       = overview_file_row{ };
@@ -313,10 +342,10 @@ namespace bpr::application {
 				++*since.FilesChanged;
 			}
 			const auto identity = core::file_identity_of(file.Path);
-			const auto receipt  = std::ranges::find(aContext.Receipts, identity, &core::file_receipt::File);
-			if (receipt != aContext.Receipts.end()) {
-				row.Read = receipt->Read;
-				if (receipt->Read == core::file_read_state::read) {
+			const auto receipt  = std::ranges::lower_bound(receipts, identity, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
+			if (receipt != receipts.end() && (*receipt)->File == identity) {
+				row.Read = (*receipt)->Read;
+				if ((*receipt)->Read == core::file_read_state::read) {
 					++projection.Progress.FilesRead;
 				}
 			}
@@ -325,14 +354,9 @@ namespace bpr::application {
 				row.ThreadCount           = facts->second.Threads;
 				row.UnresolvedThreadCount = facts->second.Unresolved;
 			}
-			if (aContext.Private.has_value()) {
-				const auto note = std::ranges::find_if(
-					aContext.Private->Notes, [&identity](const local_note_record& aNote) {
-						return aNote.Note.File.has_value() && *aNote.Note.File == identity;
-					});
-				if (note != aContext.Private->Notes.end()) {
-					row.Note = note->Note.Text;
-				}
+			const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
+			if (note != notes.end() && *(*note)->Note.File == identity) {
+				row.Note = (*note)->Note.Text;
 			}
 			projection.Files.push_back(std::move(row));
 		}
@@ -365,6 +389,97 @@ namespace bpr::application {
 			projection.EntryPath = projection.Files.front().Path;
 		}
 		return projection;
+	}
+
+	void overview_receipt_index::adopt(
+		const pull_request_overview_projection& aProjection,
+		const bool                              aLastReviewedKnown,
+		const bool                              aAnyReceipt)
+	{
+		Rows.clear();
+		Unread.clear();
+		FirstChanged.reset();
+		Rows.reserve(aProjection.Files.size());
+		for (std::size_t row = 0U; row < aProjection.Files.size(); ++row) {
+			const auto& file = aProjection.Files[row];
+			Rows.emplace_back(core::file_identity_of(file.Path), row);
+			if (!file.Read.has_value() || *file.Read != core::file_read_state::read) {
+				Unread.insert(row);
+			}
+			if (!FirstChanged.has_value()
+				&& (file.Changed == overview_change_since_review::changed
+					|| file.Changed == overview_change_since_review::added)) {
+				FirstChanged = row;
+			}
+		}
+		// The first row for a file answers for it, as the projection's own
+		// search did.
+		std::ranges::stable_sort(Rows, { }, &std::pair<core::file_identity, std::size_t>::first);
+		LastReviewedKnown = aLastReviewedKnown;
+		AnyReceipt        = aAnyReceipt;
+		Adopted           = true;
+	}
+
+	void overview_receipt_index::clear() noexcept
+	{
+		Rows.clear();
+		Unread.clear();
+		FirstChanged.reset();
+		Adopted = false;
+	}
+
+	auto overview_receipt_index::apply(
+		pull_request_overview_projection&         aProjection,
+		const std::span<const core::file_receipt> aReceipts)
+		-> std::optional<overview_receipt_update>
+	{
+		if (!Adopted) {
+			return std::nullopt;
+		}
+		for (const auto& receipt : aReceipts) {
+			if (!std::ranges::binary_search(Rows, receipt.File, { }, &std::pair<core::file_identity, std::size_t>::first)) {
+				return std::nullopt;
+			}
+		}
+		auto update = overview_receipt_update{ };
+		for (const auto& receipt : aReceipts) {
+			// Every row of the file takes the receipt, as the projection gives
+			// each row its file's receipt.
+			AnyReceipt = true;
+			for (const auto& [file, index] : std::ranges::equal_range(Rows, receipt.File, { }, &std::pair<core::file_identity, std::size_t>::first)) {
+				auto&      row     = aProjection.Files[index];
+				const auto wasRead = row.Read == std::optional{ core::file_read_state::read };
+				const auto isRead  = receipt.Read == core::file_read_state::read;
+				if (row.Read == std::optional{ receipt.Read }) {
+					continue;
+				}
+				row.Read = receipt.Read;
+				if (isRead && !wasRead) {
+					++aProjection.Progress.FilesRead;
+					Unread.erase(index);
+				} else if (wasRead && !isRead) {
+					--aProjection.Progress.FilesRead;
+					Unread.insert(index);
+				}
+				update.Rows.push_back(row);
+			}
+		}
+		// The one action, decided as the projection decides it.
+		const auto firstVisit = !LastReviewedKnown && !AnyReceipt;
+		aProjection.Entry     = firstVisit ? overview_entry_kind::start_review : overview_entry_kind::continue_review;
+		if (!firstVisit && FirstChanged.has_value()) {
+			aProjection.EntryPath = aProjection.Files[*FirstChanged].Path;
+		} else if (!firstVisit && !Unread.empty()) {
+			aProjection.EntryPath = aProjection.Files[*Unread.begin()].Path;
+		} else if (!aProjection.Files.empty()) {
+			aProjection.EntryPath = aProjection.Files.front().Path;
+		} else {
+			aProjection.EntryPath.reset();
+		}
+		update.Progress  = aProjection.Progress;
+		update.Entry     = aProjection.Entry;
+		update.EntryPath = aProjection.EntryPath;
+		return update;
 	}
 
 	void epoch_row_ledger::apply(const epoch_catalog_projection& aProjection)

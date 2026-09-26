@@ -7,11 +7,13 @@
 #include <array>
 #include <compare>
 #include <cstdint>
+#include <deque>
 #include <expected>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -247,6 +249,15 @@ namespace bpr::application {
 		/// rereading while it is unchanged: nothing it could see has moved.
 		[[nodiscard]] auto durable_receipt_revision() const noexcept -> std::uint64_t;
 
+		/// \brief Names the files whose durable receipts moved after a revision.
+		///
+		/// \details [[BPR-0972]]. Answers from a bounded record of the most
+		/// recent changes. Nothing is answered when that record no longer
+		/// reaches back to `aRevision`, or a change named no file; the reader
+		/// then rereads everything it shows.
+		[[nodiscard]] auto durable_changes_since(std::uint64_t aRevision) const
+			-> std::optional<std::vector<core::file_identity>>;
+
 		/// \brief Decides the read state of the observed conversations.
 		///
 		/// \details [[BPR-0656]]. Loads the review's conversation receipts
@@ -277,11 +288,16 @@ namespace bpr::application {
 		void remember_durable_locked(const core::file_identity&               aFile,
 									 const std::optional<core::file_receipt>& aReceipt,
 									 bool                                     aCommitted);
+		void record_durable_change_locked(const core::file_identity& aFile);
 
 		core::file_receipt Retained;
 		/// [[BPR-0972]]. The durable receipts read or written through this host.
 		std::map<core::file_identity, std::optional<core::file_receipt>> DurableReceipts;
 		std::uint64_t                                                    DurableRevision = 0U;
+		/// [[BPR-0972]]. The files each recent revision moved, oldest first,
+		/// and the revision before which the record no longer answers.
+		std::deque<std::pair<std::uint64_t, core::file_identity>> DurableChanges;
+		std::uint64_t                                             DurableChangesFloor = 0U;
 		/// Sorted by conversation, so each thread's receipt is a binary search.
 		std::optional<std::vector<core::conversation_receipt>> ConversationReceipts;
 		review_ledger_host_statistics                          Statistics;

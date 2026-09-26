@@ -57,7 +57,8 @@ namespace {
 		const auto signature = [&] {
 			const auto sample = aSample();
 			return std::tuple{ sample.OverviewBuilds, sample.OverviewReceiptVisits, sample.ConversationThreadsVisited, sample.Ledger.ReceiptLoads,
-							   sample.Ledger.ReceiptCacheHits, sample.Ledger.Publications, sample.Workbench.AcceptedObservationRows, sample.Workbench.FileProjectionRows };
+							   sample.Ledger.ReceiptCacheHits, sample.Ledger.Publications, sample.Workbench.AcceptedObservationRows, sample.Workbench.FileProjectionRows,
+							   sample.OverviewReceiptUpdates };
 		};
 		auto          last   = signature();
 		auto          stable = 0;
@@ -83,6 +84,8 @@ namespace {
 				  << " accepted_observation_rows=" << aAfter.Workbench.AcceptedObservationRows - aBefore.Workbench.AcceptedObservationRows
 				  << " overview_builds=" << aAfter.OverviewBuilds - aBefore.OverviewBuilds
 				  << " overview_receipt_visits=" << aAfter.OverviewReceiptVisits - aBefore.OverviewReceiptVisits
+				  << " overview_receipt_updates=" << aAfter.OverviewReceiptUpdates - aBefore.OverviewReceiptUpdates
+				  << " overview_receipt_rows=" << aAfter.OverviewReceiptRows - aBefore.OverviewReceiptRows
 				  << " receipt_loads=" << aAfter.Ledger.ReceiptLoads - aBefore.Ledger.ReceiptLoads
 				  << " receipt_cache_hits=" << aAfter.Ledger.ReceiptCacheHits - aBefore.Ledger.ReceiptCacheHits
 				  << " persistence_requests=" << aAfter.Ledger.PersistenceRequests - aBefore.Ledger.PersistenceRequests

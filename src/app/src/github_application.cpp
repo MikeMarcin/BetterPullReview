@@ -9394,6 +9394,7 @@ namespace bpr::app {
 		void retire_review_ledger()
 		{
 			OverviewReceiptRevision.reset();
+			OverviewReceipts.clear();
 			DurableDefects.clear();
 			ReviewLedgerHost.reset();
 			ReviewLedger.reset();
@@ -9503,12 +9504,12 @@ namespace bpr::app {
 				}
 				refresh_agent_private_context_choices();
 			}
-			// Conversation read state is not an overview input; receipts are
-			// reread only when the durable revision moved past the last read.
-			const auto receiptsMoved = aChanges.Receipts
-				&& OverviewReceiptRevision != std::optional{ ReviewLedgerHost->durable_receipt_revision() };
-			if (!overviewPublished && (aChanges.PrivateRecords || receiptsMoved)) {
+			// Conversation read state is not an overview input; changed
+			// receipts move only their own rows.
+			if (!overviewPublished && aChanges.PrivateRecords) {
 				publish_overview();
+			} else if (!overviewPublished && aChanges.Receipts) {
+				refresh_overview_receipts();
 			}
 		}
 
@@ -9630,6 +9631,16 @@ namespace bpr::app {
 		/// against. A selection no longer rebuilds the overview, so a moved
 		/// head republishes it on its own.
 		std::optional<core::git_commit_oid> OverviewHead;
+		/// [[BPR-0972]]. The changed-since-review set was refused or answered
+		/// stale and must be asked for again. Every overview publication used
+		/// to ask again; now the next epoch update or receipt change does.
+		bool OverviewChangedPathsPending = false;
+		/// [[BPR-0972]]. The overview as last published, and its receipt index,
+		/// so a receipt change moves only its own rows.
+		std::optional<application::pull_request_overview_projection> PublishedOverview;
+		application::overview_receipt_index                          OverviewReceipts;
+		std::uint64_t                                                OverviewReceiptUpdates = 0U;
+		std::uint64_t                                                OverviewReceiptRows    = 0U;
 
 		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
 		{
@@ -9780,16 +9791,20 @@ namespace bpr::app {
 			if (Closing || Window == nullptr || Host == nullptr) {
 				return;
 			}
-			OverviewHead         = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
+			OverviewHead                = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
-			const auto& snapshot = WindowRead->accepted_snapshot();
+			OverviewChangedPathsPending = false;
+			const auto& snapshot        = WindowRead->accepted_snapshot();
 			if (!snapshot.has_value()) {
+				PublishedOverview.reset();
+				OverviewReceipts.clear();
 				Window->clear_overview();
 				return;
 			}
 			++OverviewBuilds;
 			OverviewReceiptRevision.reset();
+			OverviewReceipts.clear();
 			auto context = application::overview_context{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
@@ -9830,7 +9845,65 @@ namespace bpr::app {
 				context.ChangedSinceReviewPaths = changed_since_review(
 					*context.Private->LastReviewedHead, *context.Head, std::move(paths));
 			}
-			Window->publish(application::project_pull_request_overview(*snapshot, context));
+			PublishedOverview = application::project_pull_request_overview(*snapshot, context);
+			if (OverviewReceiptRevision.has_value()) {
+				OverviewReceipts.adopt(*PublishedOverview,
+									   context.Private.has_value() && context.Private->LastReviewedHead.has_value(),
+									   !context.Receipts.empty());
+			}
+			Window->publish(*PublishedOverview);
+		}
+
+		/// \brief Brings the published overview up to the ledger's durable receipts.
+		///
+		/// \details [[BPR-0972]]. When the ledger names the few files that moved
+		/// since the overview last read it, only their rows, the progress and
+		/// the one action are updated and published. Anything it cannot name,
+		/// or a receipt that vanished, is answered by projecting again.
+		void refresh_overview_receipts()
+		{
+			if (Closing || Window == nullptr || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto revision = ReviewLedgerHost->durable_receipt_revision();
+			if (OverviewReceiptRevision == std::optional{ revision }) {
+				return;
+			}
+			constexpr auto largest = std::size_t{ 64U };
+			const auto     changed = OverviewReceiptRevision.has_value() && PublishedOverview.has_value()
+				? ReviewLedgerHost->durable_changes_since(*OverviewReceiptRevision)
+				: std::nullopt;
+			if (!changed.has_value() || changed->size() > largest) {
+				publish_overview();
+				return;
+			}
+			auto receipts = std::vector<core::file_receipt>{ };
+			receipts.reserve(changed->size());
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable) {
+					return;
+				}
+				for (const auto& file : *changed) {
+					const auto loaded = ReviewLedgerHost->load_receipt(file);
+					if (!loaded.has_value() || !loaded->has_value()) {
+						receipts.clear();
+						break;
+					}
+					receipts.push_back(**loaded);
+				}
+			}
+			const auto update = receipts.size() == changed->size()
+				? OverviewReceipts.apply(*PublishedOverview, receipts)
+				: std::nullopt;
+			if (!update.has_value()) {
+				publish_overview();
+				return;
+			}
+			OverviewReceiptRevision = revision;
+			++OverviewReceiptUpdates;
+			OverviewReceiptRows += update->Rows.size();
+			Window->publish(*update);
 		}
 
 		// [[BPR-0654]]. Answers from the kept resolution when its inputs are
@@ -9874,6 +9947,7 @@ namespace bpr::app {
 					}
 					if (aObservation.Status == application::changed_paths_status::stale) {
 						ChangedSinceReview.reset();
+						OverviewChangedPathsPending = true;
 						return;
 					}
 					if (aObservation.Status != application::changed_paths_status::resolved) {
@@ -9889,6 +9963,7 @@ namespace bpr::app {
 				});
 			if (!admitted) {
 				ChangedSinceReview.reset();
+				OverviewChangedPathsPending = true;
 			}
 			return std::nullopt;
 		}
@@ -9917,10 +9992,12 @@ namespace bpr::app {
 					aProjection.Receipt));
 				// [[BPR-0972]]. The overview shows durable receipts only. A
 				// selection's in-memory receipt, or a reload that found nothing
-				// new, leaves them as the last overview read them.
-				if (ReviewLedgerHost == nullptr
-					|| OverviewReceiptRevision != std::optional{ ReviewLedgerHost->durable_receipt_revision() }) {
+				// new, leaves them as the last overview read them; a commit moves
+				// only its own rows.
+				if (ReviewLedgerHost == nullptr || OverviewChangedPathsPending) {
 					publish_overview();
+				} else {
+					refresh_overview_receipts();
 				}
 			}
 			if (WorkbenchHost != nullptr && authority.has_value()
@@ -12135,7 +12212,7 @@ namespace bpr::app {
 			const auto acceptedHead = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
-			if (aUpdate.Catalog.has_value() || acceptedHead != OverviewHead) {
+			if (aUpdate.Catalog.has_value() || acceptedHead != OverviewHead || OverviewChangedPathsPending) {
 				publish_overview();
 			}
 			refresh_agent_authority();
@@ -15003,6 +15080,8 @@ namespace bpr::app {
 			.OverviewReceiptVisits      = owner.OverviewReceiptVisits,
 			.ConversationThreadsVisited = owner.ConversationThreadsVisited,
 			.ConversationPostsVisited   = owner.ConversationPostsVisited,
+			.OverviewReceiptUpdates     = owner.OverviewReceiptUpdates,
+			.OverviewReceiptRows        = owner.OverviewReceiptRows,
 		};
 	}
 

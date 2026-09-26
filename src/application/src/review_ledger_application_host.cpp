@@ -300,10 +300,11 @@ namespace bpr::application {
 		if (aFiles.empty()) {
 			return;
 		}
+		++DurableRevision;
 		for (const auto& file : aFiles) {
 			Statistics.ReceiptInvalidations += DurableReceipts.erase(file);
+			record_durable_change_locked(file);
 		}
-		++DurableRevision;
 	}
 
 	void review_ledger_application_host::invalidate_all_receipts()
@@ -312,12 +313,42 @@ namespace bpr::application {
 		Statistics.ReceiptInvalidations += DurableReceipts.size();
 		DurableReceipts.clear();
 		++DurableRevision;
+		DurableChanges.clear();
+		DurableChangesFloor = DurableRevision;
 	}
 
 	auto review_ledger_application_host::durable_receipt_revision() const noexcept -> std::uint64_t
 	{
 		const auto lock = std::scoped_lock{ Mutex };
 		return DurableRevision;
+	}
+
+	auto review_ledger_application_host::durable_changes_since(const std::uint64_t aRevision) const
+		-> std::optional<std::vector<core::file_identity>>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		if (aRevision < DurableChangesFloor || aRevision > DurableRevision) {
+			return std::nullopt;
+		}
+		auto files = std::vector<core::file_identity>{ };
+		for (auto change = DurableChanges.rbegin(); change != DurableChanges.rend() && change->first > aRevision; ++change) {
+			files.push_back(change->second);
+		}
+		std::ranges::sort(files);
+		files.erase(std::ranges::unique(files).begin(), files.end());
+		return files;
+	}
+
+	void review_ledger_application_host::record_durable_change_locked(const core::file_identity& aFile)
+	{
+		// A bounded record: the oldest change leaving it raises the floor, so a
+		// reader that last looked before it is told to reread everything.
+		constexpr auto recorded = std::size_t{ 256U };
+		if (DurableChanges.size() == recorded) {
+			DurableChangesFloor = DurableChanges.front().first;
+			DurableChanges.pop_front();
+		}
+		DurableChanges.emplace_back(DurableRevision, aFile);
 	}
 
 	void review_ledger_application_host::remember_durable_locked(
@@ -329,8 +360,10 @@ namespace bpr::application {
 		if (!inserted && retained->second != aReceipt) {
 			retained->second = aReceipt;
 			++DurableRevision;
+			record_durable_change_locked(aFile);
 		} else if (aCommitted) {
 			++DurableRevision;
+			record_durable_change_locked(aFile);
 		}
 	}
 
