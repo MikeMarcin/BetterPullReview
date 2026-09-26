@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1208"
 title: "A thread's defect controls sit on the thread, not in the tray's second tab"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133","BPR-1134"]
 priority: "P2"
