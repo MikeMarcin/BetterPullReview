@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0968"
 title: "Verify rendered primary and secondary rate-limit recovery"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
