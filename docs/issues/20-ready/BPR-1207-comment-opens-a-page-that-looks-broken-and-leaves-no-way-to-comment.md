@@ -8,7 +8,7 @@ depends_on: ["BPR-1133"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin": "owner note on attended candidate BPR-1133-arrow, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1133-arrow", "decision": "b3d1d32d-02c6-4951-98bf-d5ecd4d36d0f", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-08"], "related_cards": ["BPR-1133", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json"}
+metadata: {"origin": "owner note on attended candidate BPR-1133-arrow, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1133-arrow", "decision": "b3d1d32d-02c6-4951-98bf-d5ecd4d36d0f", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-08"], "related_cards": ["BPR-1133", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
 ---
 
 # BPR-1207: Comment opens a page that looks broken and leaves no way to comment

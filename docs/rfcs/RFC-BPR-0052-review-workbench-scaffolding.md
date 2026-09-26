@@ -79,6 +79,15 @@ Comment opened a page with no way to comment ([[BPR-1207]]). Windows's native
 look and Narrator, and the Windows and Linux station runs, remain owed.
 [[BPR-1135]] records each decision.
 
+**Owner amendment of the milestone plan, 2026-09-25.** In chat, relayed by
+the coordinator, the owner approved placing [[BPR-1201]] to [[BPR-1207]]
+before the closeout. The [milestone
+plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md) now has
+a milestone between m2 and m3, `m2b-owner-verdict-follow-ups`, which holds
+those seven slices, and m3 waits for it. The plan's scope grows by those
+seven cards. The outcomes and exits of m1, m2 and m3 are unchanged, and so
+are the criteria.
+
 ## Problem and outcome
 
 The owner, on round v2: the title bar is "too busy … it's getting distracting

@@ -98,15 +98,49 @@ the Windows native look and Narrator, the Windows and Linux station courses,
 Linux's measured floors, and Windows's 902-pixel sweep and 850 open budget.
 m3 is not eligible.
 
-The milestone plan names only BPR-1129 to BPR-1135. Placing BPR-1201 to 1207
-before m3 changes its scope, so it needs a plan amendment under the
-coordinator's mandate, as BPR-1197 was added. This round did not amend the plan.
+**The plan amendment, approved by the owner (2026-09-25).** The milestone plan
+named only BPR-1129 to BPR-1135. In chat, relayed by the coordinator, the
+owner approved amending it so that BPR-1201 to BPR-1207 come before m3. The
+[plan](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md)
+now has `m2b-owner-verdict-follow-ups` between m2 and m3. It holds the seven
+cards, with one exit for each card and one shared verification exit, and m3
+depends on it. Each of the seven cards links the plan in its metadata. The
+definitions and exits of m1, m2 and m3 are unchanged, except that m3 now also
+waits for m2b. The installed `milestone_plan.py check-amendment` refuses the
+change (`amendment cannot change plan identity or authorized scope`) because
+it admits only refinements that keep the scope. The owner's approval is what
+authorizes the wider scope. `milestone_plan.py check --target RFC-BPR-0052`
+then reports the amended plan found, structurally valid and fully linked, with
+milestones m1, m2, m2b and m3. [[BPR-1197]] is Done and listed in this card's
+dependencies, but it is still outside the plan; the owner's approval did not
+name it.
 
-The older session `60bd1ed5` still lists these fourteen as unanswered at
-cursor 42. It belongs to the Codex coordinator, which also owns its server and
-hand-back watch, and it was not written to. Because the fingerprints are
-identical, its owner can import these verdicts by changing only the `session`
-field, or release it.
+**Session `60bd1ed5` imported and released (2026-09-25).** Its recorded host
+(port 63317, PID 97732), its later server (port 49975, PID 25339) and its
+hand-back waiter (PID 97747) were no longer running, and nothing listened on
+either port. The fourteen current decisions in the table above were exported
+from `06ad5734` in the page's export shape, with only the `session` field
+changed, and taken in through the skill's intake:
+
+```sh
+python3 .agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/attended-review import --file <export>
+python3 .agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/attended-review resume-development --all
+```
+
+All fourteen fingerprints matched, and all fourteen were accepted (sequence 42
+to 56). Each imported decision equals its original except for `saved_at`.
+The superseded decisions `8b8b310b` and `f9bfb3f9` are not part of an export,
+so they stay only in `06ad5734`. The other three `06ad5734` candidates
+(BPR-0295, BPR-0641 and BPR-0966) do not exist in `60bd1ed5` and were skipped.
+`resume-development --all` then released the session's 28 claims on the
+frozen app and Qt (sequence 57), and the registry holds none for it. Its
+server was not started. Its state stays at
+`/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/attended-review/`,
+uncommitted, with a stale host entry that `serve` would replace.
+
+**Next.** m2's owner exit is now answered, so the next engineering round can
+judge m2's exits and record its acceptance. The plan then admits m2b, whose
+cards are Ready. m3 stays ineligible until m2 and m2b are accepted.
 
 ## Current reconciliation — partial, 2026-09-25
 

@@ -45,13 +45,34 @@ The slices that build on the review bar and the tab model land: the Updates line
 
 **Boundary:** BPR-1130, BPR-1132 and BPR-1133 only. Conventional Comments labels (RFC-BPR-0048) and the Tour tab (RFC-BPR-0039) are not invented here. Station runs and attended acceptance stay pending until supplied.
 
+## m2b-owner-verdict-follow-ups
+
+The seven slices that the owner's 2026-09-25 verdicts on the built m2 chrome call for land before closeout. The readiness words move into the Updates track or the review bar's summary. The bar puts file before change. Compose review and Comment explain themselves and never open an unusable page. The second tray tab says what it holds. A tab over an older pair hides later threads until Show them. The plus activates its tab, and tabs fill the strip, shrink and then scroll.
+
+**Work:** `BPR-1201`, `BPR-1202`, `BPR-1203`, `BPR-1204`, `BPR-1205`, `BPR-1206`, `BPR-1207`
+
+**Prerequisites:** m2-fold-tab-strip-comment-reply
+
+**Completion:**
+
+- While a pull request loads or its comparisons are unavailable, the readiness words appear in the Updates line's track when it is open and in the review bar's summary when it is folded, in every modality. BPR-0795's readiness row is gone, the window course no longer allows reviewReadiness between the title row, the review bar and the open timeline, and the height floors hold open and folded, loading and loaded.
+- The review bar reads file navigation before change navigation, as AC-03 is amended, at every scale and at the width floor, and the focus order follows the visual order. The window rows and the UIforETW capture's 14-action order in all four appearance profiles assert it, and any composition pin the change touches is resealed with its recorded review.
+- Why the frozen candidate's Compose review showed the invalidated-authority state is established. In every state it can be in, the Compose review page says what it is, what state the draft is in and what to do next, and every unavailable action says why.
+- The owner's purpose discussion settles what the second tray tab holds and what it is called, and the chosen header is built. If the name changes, AC-09 and its design text are amended, and the window, focus-order, accessibility and composed courses that name Findings follow it with a negative control.
+- On a tab over an older pair the Comments tray lists only the threads of the tab's revisions, its notice names how many are on later updates, and Show them reaches them. A current-head tab shows every thread and no notice.
+- The plus duplicates the active tab's exact view and makes the copy the active tab with focus in it. Tabs share the strip equally, fill it, shrink to a minimum width and then scroll, by one rule at every width including the floor, keeping the active tab in view and the plus reachable, as decided on BPR-1206 under the owner's delegation.
+- Comment never opens an unusable page. Without a current-head line it is unavailable and says why, or it takes a defined line, and the inline page never shows empty panels or actions that cannot act.
+- Each slice's focused Qt and composed courses pass with negative controls on the exact candidate, renders at 100, 125 and 200 percent are inspected where the chrome changes, and the documentation gate passes. Each card's owner question on macOS is asked on its own and stays pending until supplied.
+
+**Boundary:** BPR-1201 to BPR-1207 only, placed before m3 by the owner's approval of 2026-09-25. The m2 cards stay Done, and their verdicts stay bound to the frozen m2 app. BPR-1204's tab name waits on the owner's purpose discussion; an implementer does not choose it. Windows and Linux station runs and each card's owner look stay pending until supplied. Nothing here changes publication, authority, provider, Git or storage capability.
+
 ## m3-verify-and-close
 
 RFC-BPR-0052 is reconciled against its linked cards, direct evidence, the Windows and Linux station runs and the owner's attended look at the built chrome on macOS and Windows.
 
 **Work:** `BPR-1135`
 
-**Prerequisites:** m2-fold-tab-strip-comment-reply
+**Prerequisites:** m2-fold-tab-strip-comment-reply, m2b-owner-verdict-follow-ups
 
 **Completion:**
 
