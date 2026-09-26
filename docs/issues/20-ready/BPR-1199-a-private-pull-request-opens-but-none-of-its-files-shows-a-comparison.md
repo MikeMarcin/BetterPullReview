@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1199"
 title: "A private pull request opens, but none of its files shows a comparison"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"origin":"owner accept with note on attended candidate BPR-0641-private-pr-smoke-v001, session 06ad5734ed9f7c2fd6d0a62c8328fa0a, decision cbba6fac-e7dc-4b39-a7aa-1dbd0f7e1571, 2026-09-25","observed_revision":"3759b0d8caf5f1732c8bf807be427525f3f9a89a","observed_executable_sha256":"5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed","related_rfcs":["RFC-BPR-0037","RFC-BPR-0029","RFC-BPR-0015"],"related_cards":["BPR-0641","BPR-0922","BPR-0668","BPR-0642","BPR-0643"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"bpr1199-private-comparison","path":"docs/rfcs/plans/bpr1199-private-comparison/milestone-plan.json"}}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC1","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"Existing records reach protocol_acquire/transport/unavailable but epoch window_session=0 prevents an explicit PR join; acquisition step absent. Correlation and fixed-step diagnostic candidate verified. Fresh owner observation remains required; no underlying cause claimed.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC2","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"No actual private rendering repair or legitimate limiting class established. Diagnostic changes preserve existing policy and UI. Pending owner evidence before an appropriate repair can be chosen.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC3","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"Fail-before/pass-after composed logging and synthetic CLI tests prove the diagnostic defects only. The original private failing class is not established, so its composed repair course remains pending.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC4","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"One ready protected owner question in attended session 2c2e72e3af2e2fd7fa1a566ec49bc5ca, candidate BPR-1199-private-comparison-v001, cursor4. No owner verdict received.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}}]
 ---
 
