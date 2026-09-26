@@ -25,3 +25,28 @@ BPR-0967 owns hardware latency/memory budgets; RFC0052 session
 `60bd1ed56e768d60a40b104920641436`, attended session
 `06ad5734ed9f7c2fd6d0a62c8328fa0a` and any loopback server or waiter on port
 63317 are protected from stop or change actions.
+
+## Amendment a2 — 2026-09-26, Codex takeover in an isolated worktree
+
+The user directs “take over the work, the previous task is no more”, then
+“continue”, and authorizes concurrent disjoint milestone worktrees with sequential
+landing on main. Assignment `/root/bpr0972_takeover` now owns the entire
+`application-wide-scaling` milestone as a non-delegating Codex implementer.
+Segment `codex-takeover-worktree`, mandate revision
+`r4-standalone-full-card-20260925-a2-codex-worktree`, uses source/tracker
+`/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview`, branch
+`codex/bpr0972-takeover`, starting at `fdeea1ac0313167f0706b12b0ec9d8bd0798a36b`
+with the previous owner's 12-file uncommitted actionability patch transferred
+exactly. The immutable baseline remains
+`a2fded0cd482aaaaaee0399764b60145cd4938ac`. All previous commands exited; the
+previous writer is released. The coordinator owns main and sequential landing.
+
+The user reports review sessions `06ad5734ed9f7c2fd6d0a62c8328fa0a` and
+`60bd1ed56e768d60a40b104920641436` consumed and closed, releasing their previous
+protection. This segment starts no attended review. AC1–AC3 and all unfinished
+obligations remain. Safe local fixtures only; no live account, private target,
+remote mutation, release, push or delegation. Windows/Linux native verification
+is deferred, and BPR-0967 retains hardware latency/memory budgets. MASK
+`state.drift` remains unresolved and `host_load` stays `not_verified`; the route
+banner is not proof of observed native serving. Other worktrees remain owned by
+their respective implementers.
