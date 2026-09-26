@@ -153,6 +153,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto empty_surface_at(QPoint aPoint) const -> bool;
 
 	protected:
+		bool event(QEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
 		void actionEvent(QActionEvent* aEvent) override;
 		/// \brief Empty strip space drags the window, as a title bar would.

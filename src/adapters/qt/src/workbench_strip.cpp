@@ -559,6 +559,17 @@ namespace bpr::qt {
 		}
 	}
 
+	bool workbench_strip::event(QEvent* const aEvent)
+	{
+		const auto handled = QToolBar::event(aEvent);
+		// Label and comparison text can move child controls without resizing
+		// the toolbar. Repaint the rails after that layout has been serviced.
+		if (aEvent->type() == QEvent::LayoutRequest) {
+			update();
+		}
+		return handled;
+	}
+
 	void workbench_strip::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);

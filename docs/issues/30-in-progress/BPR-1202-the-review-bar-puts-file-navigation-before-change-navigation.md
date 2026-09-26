@@ -132,3 +132,14 @@ production manifest:
 mutation digest remains
 `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
 AC3 remains a new pending owner judgment; the original rejection is retained.
+
+## Native repaint correction
+
+During authenticated fixture preparation, the native backing store retained
+old rail positions when asynchronous comparison text moved child controls
+without resizing the toolbar. A forced offscreen grab had hidden this defect.
+The toolbar now requests repaint after servicing LayoutRequest. Three affected
+window scale courses pass (66.25 seconds); a native run of the rebuilt bundle
+shows both rails spanning their labels and arrow pairs during loading and after
+the comparison label contracts. Existing action ordering and mutation pins stay
+unchanged. Human AC3 remains pending on the successor.
