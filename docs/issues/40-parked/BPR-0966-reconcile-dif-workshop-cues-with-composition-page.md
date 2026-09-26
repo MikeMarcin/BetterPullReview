@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0966"
 title: "Reconcile Dif workshop cues with the dedicated composition page"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Owner decision dba44cfd from session06ad5734 selects visible Compose workshop slot; BPR1209 prime-slot reconciliation retained. No historical acceptance rewritten."}},{"criterion":"AC2","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"command","detail":"Baseline fails ready/acknowledge only. Candidate actual composed proposal and visible Accept button paint ready/acknowledge; exact session/action/draft router unchanged, one sprite, one acceptance intent and all publication counters zero. See compose-evidence.md."}},{"criterion":"AC3","outcome":"pending","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"artifact","detail":"Six focused macOS offscreen behavior checks pass. New slot visual judgment awaits BPR-0966-compose-slot-v002 in session54fd75833481882c3bb47745f8e30b75. Windows consider-cue/native follow-up explicitly deferred; no Linux or installed-release claim. Architecture boundary failure independently reproduces on baseline; see compose-evidence.md."}}]
 ---
 
 # Reconcile Dif workshop cues with the dedicated composition page
@@ -201,3 +203,30 @@ that delegation, with the full rationale on BPR-1209:
   updates it. Under BPR-1209, the consider observation that this card's Mac
   follow-up takes through the tray tab's slot moves to the corner. This
   card's ready and acknowledge assertions on Compose stay as they are.
+
+## Approved Compose implementation — 2026-09-26
+
+Candidate `388f814c7be796b91c4dd6779422be3d4321e4f3`, under coordinator
+continuation `r4-with-owner-compose-20260925-r2`, builds the selected slot.
+The fixed Comment workshop header presents the existing Accept/Reject revision
+actions and the workbench's one 64-pixel Dif. It stays exposed when the editor
+scrolls; the semantic controls remain when art is hidden. The same exact-draft
+eligibility gates the illustration, and the existing router remains unchanged.
+
+The baseline reproduced the original two failures. Six focused checks now
+pass on this exact candidate, including actual ready/acknowledge Paint events,
+clicking the visible Accept button after scrolling, exact draft identity,
+one emitted acceptance intent, neutral navigation return and zero publication.
+The separate architecture gate fails on unchanged MCP Windows containment
+ownership and reproduces on the entry baseline; it is not claimed passing.
+See [the Compose evidence](../../rfcs/plans/bpr0966-dif-cues/compose-evidence.md)
+for commands, hashes, the isolated baseline reproduction and limitations.
+
+AC1 remains satisfied by the owner's recorded decision. AC2's bounded product
+correction is verified. AC3 has passing macOS fixture evidence and **one
+pending attended visual judgment** of this slot. Park on `human-review` for
+that question. Windows remains deferred, with its consider-cue obligation
+preserved above; no Windows/Linux native or installed-release result is claimed.
+The separate BPR-1209 owner received the slot API and will preserve this prime
+placement when the default corner lands. Whichever lands second updates the
+shared Dif course's initial placement.

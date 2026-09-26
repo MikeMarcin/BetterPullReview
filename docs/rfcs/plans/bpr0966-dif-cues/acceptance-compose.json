@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner decision dba44cfd from session06ad5734 selects visible Compose workshop slot; BPR1209 prime-slot reconciliation retained. No historical acceptance rewritten."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Baseline fails ready/acknowledge only. Candidate actual composed proposal and visible Accept button paint ready/acknowledge; exact session/action/draft router unchanged, one sprite, one acceptance intent and all publication counters zero. See compose-evidence.md."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pending",
+      "revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Six focused macOS offscreen behavior checks pass. New slot visual judgment awaits BPR-0966-compose-slot-v002 in session54fd75833481882c3bb47745f8e30b75. Windows consider-cue/native follow-up explicitly deferred; no Linux or installed-release claim. Architecture boundary failure independently reproduces on baseline; see compose-evidence.md."
+      }
+    }
+  ]
+}
