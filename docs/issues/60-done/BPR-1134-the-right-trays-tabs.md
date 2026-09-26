@@ -146,3 +146,21 @@ Each ask is one question about one criterion.
 2. **Keyboard and accessibility reach every tab.** With VoiceOver on macOS (or
    Narrator on Windows), Tab to the tray's tabs: does it announce "Comments, N
    threads with new comments", and does Right Arrow reach "Findings"?
+
+## Owner verdicts — 2026-09-25 (attended session 06ad5734, macOS)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, hand-back at sequence 54. The
+questions were carried verbatim, with identical fingerprints, from session
+`60bd1ed5`, which still lists them unanswered. They bind the frozen m2 app:
+source `ba9d2723`, executable `a2e5128a…8a83`. Every decision is `actor:
+human`, and its fingerprint equals the prepared one. This card's acceptance
+above is unchanged; the work the verdicts ask for is on new cards.
+
+| Ask | Candidate, decision | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| 1. The tray header | `BPR-1134-tray`, `6c6d2c52`, seq 52 | **reject**: "I have no idea what the hell findings is supposed to be." | Header not accepted; [[BPR-1204]] |
+| 2. Keyboard and VoiceOver | `BPR-1134-voiceover`, `6ee64abe`, seq 53 | "Yes, the announcement and Right Arrow both work" | macOS VoiceOver accepted (native listen by the owner) |
+
+Narrator on Windows is still owed. If [[BPR-1204]] renames the second tab, the
+VoiceOver listen is repeated for the new name only.

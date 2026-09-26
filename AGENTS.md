@@ -47,6 +47,10 @@ network, or process effects.
   checkout, so its relative `tee` opened nothing and the log was lost.
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
+- Ask a keep-or-change judgment as Accept or Reject, with the change in the
+  note. Keep option lists for a choice between named alternatives. The owner
+  asked for this on 2026-09-25, when most of fourteen RFC-BPR-0052 questions
+  came as "Keep / Revise / Other" lists (session 06ad5734).
 - Commit each completed issue slice intentionally.
 - For release work, use the existing `publish-release` skill and package paths.
   Bind the separate versioned corresponding-source asset as well as the binary,

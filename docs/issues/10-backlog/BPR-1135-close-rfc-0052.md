@@ -4,7 +4,7 @@ id: "BPR-1135"
 title: "Verify and close RFC-BPR-0052"
 status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
-depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197"]
+depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197","BPR-1201","BPR-1202","BPR-1203","BPR-1204","BPR-1205","BPR-1206","BPR-1207"]
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
@@ -21,22 +21,22 @@ attended look at the built chrome on macOS and Windows.
 
 RFC base: `0453103ddd11337ee8b3adf5053b25149104acd8`.
 Requested RFC set: RFC-BPR-0052; workstream position: 1 of 1.
-Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135, BPR-1197. Add subsequently allocated required slices to
+Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135, BPR-1197, and from the owner's 2026-09-25 verdicts BPR-1201 to BPR-1207. Add subsequently allocated required slices to
 this list and dependencies before closeout. Registration is not implementation.
 
 ## Closeout checklist
 
 | Criterion | Direct check / evidence | Result at the reconciliation | Producing commit |
 |---|---|---|---|
-| AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice. | E0/E1: `qt_workbench_window_scale_{100,125,200}` (BPR-0940 arrangement and fold), `core_workbench_interaction`, `application_workbench_host`, `sqlite_workbench_settings_storage`; E4 geometry. | Partial on macOS: loaded arrangement, tab header and per-window fold verified. **Unsatisfied during loading:** BPR-0795 readiness row remains above the comparison pending `BPR-1130-readiness`; the test explicitly permits it. Owner/native/station acceptance pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
-| AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor. | E0: `qt_workbench_title_row_scale_{100,125,200}`, `qt_workbench_window_scale_{100,125,200}`; exact title controls and 1920-to-900 width sweep. | Mac automated checks pass. Owner title-row judgment, Windows 902-width sweep and native controls, and Linux station evidence remain pending. | `96a86433`; retained through `0994aa0e` |
-| AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu. | E0/E1: window scales, `qt_epoch_comparison_scale_{100,125,200}`, `core_review_submission`; E4 exact 14-action review-bar order and full-width open timeline. | Mac automated checks pass, including active-file progress, kept-draft mark and Review details. Owner review-bar/kept-mark judgments and station evidence remain pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
-| AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires. | E0/E1: epoch/window scales assert no caption, history tooltip/description and incomplete/ambiguous-history marks in every modality. | Mac automated checks pass. Owner history-mark and pair-ready-tooltip judgments and station evidence remain pending. | `fb4b8364`; retained through `0994aa0e` |
-| AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart. | E0: core/host/restoration/store tab suites; E1: tab scales, Files tree and `application_document_tabs_restoration_public_path`; E2: full profile-window restoration. | Mac automated checks pass: exact pairs/positions, background file open, duplicate, neighbour close, restart, Resume and explicit reopen. Owner plus-button choice and native/station acceptance remain pending. | `e94e67f1`, `0994aa0e` |
+| AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice. | E0/E1: `qt_workbench_window_scale_{100,125,200}` (BPR-0940 arrangement and fold), `core_workbench_interaction`, `application_workbench_host`, `sqlite_workbench_settings_storage`; E4 geometry. | Partial on macOS: loaded arrangement, tab header and per-window fold verified; the owner accepted the fold (2026-09-25). **Unsatisfied during loading:** BPR-0795's readiness row still sits above the comparison and the test permits it. The owner answered `BPR-1130-readiness` (track when open, summary when folded); BPR-1201 builds it. Windows look and station acceptance pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
+| AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor. | E0: `qt_workbench_title_row_scale_{100,125,200}`, `qt_workbench_window_scale_{100,125,200}`; exact title controls and 1920-to-900 width sweep. | Mac automated checks pass; the owner accepted the title row on macOS (2026-09-25). Windows 902-width sweep and native controls, and Linux station evidence remain pending. | `96a86433`; retained through `0994aa0e` |
+| AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next file with the position, previous and next change with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu. | E0/E1: window scales, `qt_epoch_comparison_scale_{100,125,200}`, `core_review_submission`; E4 exact 14-action review-bar order and full-width open timeline. | Mac automated checks pass for the order as built (change before file), active-file progress, kept-draft mark and Review details. The owner amended AC-03 to file before change (2026-09-25; BPR-1202) and rejected the kept-draft mark, whose Compose review page explained nothing (BPR-1203). Station evidence pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
+| AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires. | E0/E1: epoch/window scales assert no caption, history tooltip/description and incomplete/ambiguous-history marks in every modality. | Mac automated checks pass; the owner accepted the history mark and the pair-ready tooltip on macOS (2026-09-25). Station evidence remains pending. | `fb4b8364`; retained through `0994aa0e` |
+| AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart. | E0: core/host/restoration/store tab suites; E1: tab scales, Files tree and `application_document_tabs_restoration_public_path`; E2: full profile-window restoration. | Mac automated checks pass: exact pairs/positions, background file open, duplicate, neighbour close, restart, Resume and explicit reopen. The owner accepted the plus duplicating the view and amended the strip: the plus activates its tab, and tabs fill, shrink to a minimum, then scroll (BPR-1206). Native/station acceptance remains pending. | `e94e67f1`, `0994aa0e` |
 | AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted. | E0: `core_document_tabs`, `application_document_tab_host`; E1: exact two-pair tab/restart course, tab scales and single-request workbench composition. | Mac automated checks pass: window versus tab pair, menu actions, modality return, exact reading and stale rejection. Required station/attended acceptance remains pending. | `e94e67f1`, `0994aa0e` |
-| AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head. | E1: `qt_document_tabs_scale_{100,125,200}` tests exact revision placement, later-thread count, three Show them routes and disabled Comment off current head. | Mac automated checks pass. Later threads remain listed but unplaced; owner listed-versus-hidden decision and native/station acceptance remain pending. | `0994aa0e` |
-| AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss. | E0/E1: window scales and conversation cards; E2: `application_threaded_reply_contract` and `application_review_submission_composition_public_path`; E5 combined mutation composition. | Mac automated checks pass: named line/reply target, own-thread Reply and no automatic Publish. Three owner Comment/Reply choices and native/station acceptance pending. RFC-0048 labels remain future conditional scope. | `7c99a1eb`, `0994aa0e`; later diagnostics `9734f0cb`, `12830eff` |
-| AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. | E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal. | Mac automated checks pass. Owner tray-header judgment, native VoiceOver/Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted. | `2770ebb1`; retained through `0994aa0e` |
+| AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head. | E1: `qt_document_tabs_scale_{100,125,200}` tests exact revision placement, later-thread count, three Show them routes and disabled Comment off current head. | Mac automated checks pass. Later threads remain listed but unplaced; the owner chose hidden until Show them (2026-09-25; BPR-1205). Native/station acceptance remains pending. | `0994aa0e` |
+| AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss. | E0/E1: window scales and conversation cards; E2: `application_threaded_reply_contract` and `application_review_submission_composition_public_path`; E5 combined mutation composition. | Mac automated checks pass: named line/reply target, own-thread Reply and no automatic Publish. The owner accepted Reply as the default, the interim arrow and menu, and Reply beside the code (2026-09-25), and found Comment opening a page with no way to comment (BPR-1207). Native/station acceptance pending. RFC-0048 labels remain future conditional scope. | `7c99a1eb`, `0994aa0e`; later diagnostics `9734f0cb`, `12830eff` |
+| AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. | E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal. | Mac automated checks pass. The owner rejected the tray header: "Findings" does not say what it holds (2026-09-25; BPR-1204). macOS VoiceOver announcement and Right Arrow accepted by the owner's native listen. Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted. | `2770ebb1`; retained through `0994aa0e` |
 | AC-10 Option-R (Alt+R) composes the review, Option-C (Alt+C) comments or replies, Ctrl+Tab and Ctrl+Shift+Tab move between tabs, Cmd-W (Ctrl+W) closes the tab, with the window moving to Cmd-Shift-W (Ctrl+Shift+W) if the tab takes its key, Esc returns from a composition page, and Option-] and Option-[ are reserved for RFC-BPR-0040's tour stops. Both composition commands are in the Pull Request menu, and no key sequence is used twice in the assembled window. | E0/E1: window/focus-order/tab scales deliver composition and tab keys and assert unique assembled bindings; source inspection finds no Alt-bracket tour binding. | Mac synthetic Qt key delivery passes; no existing Cmd-W window binding required a move. Native/platform delivery remains pending. Tour-stop keys stay reserved for RFC-0040. | `96a86433`, `7c99a1eb`, `0994aa0e` |
 | AC-11 The rows are measured on every supported platform and the tests follow them: application_uiforetw_selected_diff_contract and its course script take the measured stacks with the Updates line open and folded, BPR-0940's window course asserts the new arrangement, and each platform's width floor is swept again. | E0/E1: BPR-0940 window arrangement, title/tab width sweeps; E4: `application_uiforetw_selected_diff_contract` raw v7 geometry in all four appearance profiles. | Partial: Mac measured 872 folded / 838 open at 1280x1000; tab strip 28 px. Linux 876/842 is derived; Windows 884/850 is unmeasured. Both station runs deferred by owner; Windows 850 open budget unchanged. | `0994aa0e` |
 
@@ -48,6 +48,65 @@ Use focused changed-surface checks and a composed public path. Limit native
 and attended claims to actual evidence. Run the documentation gate, then
 reconcile the RFC's index status only when canonical order and its
 dependencies allow.
+
+## Owner verdicts on the m2 questions — 2026-09-25 (attended session 06ad5734)
+
+This is the current frontier; the reconciliation below is the earlier record.
+
+A fresh session, `06ad5734ed9f7c2fd6d0a62c8328fa0a` (packet
+[owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md)),
+carried the fourteen questions verbatim from `60bd1ed5`, with identical
+fingerprints and the same frozen app (`ba9d2723`, executable
+`a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83`). The owner
+answered all fourteen and handed back at sequence 54. Each decision is `actor:
+human` with its fingerprint equal to the prepared one. Two candidates were
+answered twice; the session keeps the later decision current and lists the
+earlier one as superseded.
+
+| Candidate | Decision, seq | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| `BPR-1130-readiness` | `5b349ec3`, 44 | "Move to the track when open and summary when folded" | m2 exit 1's answer is recorded; [[BPR-1201]] |
+| `BPR-1129-title` | `aee924e0`, 40 | "Keep this title row" | Accepted (AC-02, macOS) |
+| `BPR-1129-bar` | `fd158272`, 48 (supersedes `8b8b310b`, 38, "Keep this review bar") | "Revise the review bar; describe the change": "I want to swap the order of file and change. File contains changes so file should be left of change." | Owner amendment to AC-03; [[BPR-1202]] |
+| `BPR-1129-kept` | `011a2ebb`, 39 | **reject**: "When I click compose review I end up on this screen and I have no idea what's happening or what I'm meant to do." | [[BPR-1203]] |
+| `BPR-1134-tray` | `6c6d2c52`, 52 | **reject**: "I have no idea what the hell findings is supposed to be." | [[BPR-1204]] |
+| `BPR-1134-voiceover` | `6ee64abe`, 53 | "Yes, the announcement and Right Arrow both work" | Accepted (AC-09 native, macOS) |
+| `BPR-1130-fold` | `74ee4e1c`, 41 | "Keep this fold and disclosure" | Accepted (AC-01, macOS) |
+| `BPR-1130-history` | `2edcf8e2`, 42 | "The history mark is clear enough" (note below) | Accepted (AC-04, macOS) |
+| `BPR-1130-pair-ready` | `ccba3a15`, 43 | "Keep pair-ready words in the tooltip" | Accepted (AC-04, macOS) |
+| `BPR-1133-default-reply` | `1a095bfe`, 51 | "Reply is the right default" | Accepted (AC-08, macOS) |
+| `BPR-1133-arrow` | `b3d1d32d`, 49 | "Keep the current arrow and menu", with the note "note: clicking comment takes me to this screen in the screenshot which seems completely broken, Doesn't seem like I can actually leave a comment yet." | Accepted; the page is [[BPR-1207]] |
+| `BPR-1133-card-reply` | `37c42e44`, 50 | "Keep Reply on these cards" | Accepted (AC-08, macOS) |
+| `BPR-1132-plus` | `c1a81e29`, 47 (supersedes `f9bfb3f9`, 46, same choice, no note) | "Plus should duplicate the active view": "Plus must switch focus to the new tab. Tabs should work like xcode/ghostty where they expand to fiill the available space and shrink to a minimum size before overflowing and allowing scrolling through." | Duplication accepted; owner amendment for focus and sizing, [[BPR-1206]] |
+| `BPR-1132-later` | `2c856168`, 45 | "Hide later threads until Show them" | [[BPR-1205]] |
+
+The note on `BPR-1130-history`, verbatim: "Metafeedback: Most of these attended
+review questions seem like simple accept/reject review critera would be
+sufficient, not sure why they are being presented as multiple option select
+responses." It is now a rule for preparing attended questions in `AGENTS.md`.
+
+The screenshots on `BPR-1129-kept`, `BPR-1133-arrow` and `BPR-1132-plus` are
+kept with their decisions in the session's external state,
+`/Users/jaeger/.mask/attended-review/owner-review-20260925-fresh-v001/`. They
+are not committed.
+
+**Where m2 stands.** Every owner question on macOS is answered, so exit 1's
+owner answer is recorded and [[BPR-0795]]'s row may now change. The built
+cards stay Done. The verdicts add seven required slices, [[BPR-1201]] to
+[[BPR-1207]], all Ready and listed in this card's dependencies. Still owed:
+the Windows native look and Narrator, the Windows and Linux station courses,
+Linux's measured floors, and Windows's 902-pixel sweep and 850 open budget.
+m3 is not eligible.
+
+The milestone plan names only BPR-1129 to BPR-1135. Placing BPR-1201 to 1207
+before m3 changes its scope, so it needs a plan amendment under the
+coordinator's mandate, as BPR-1197 was added. This round did not amend the plan.
+
+The older session `60bd1ed5` still lists these fourteen as unanswered at
+cursor 42. It belongs to the Codex coordinator, which also owns its server and
+hand-back watch, and it was not written to. Because the fingerprints are
+identical, its owner can import these verdicts by changing only the `session`
+field, or release it.
 
 ## Current reconciliation — partial, 2026-09-25
 

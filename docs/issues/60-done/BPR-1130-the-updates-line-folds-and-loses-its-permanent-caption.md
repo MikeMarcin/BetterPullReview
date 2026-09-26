@@ -216,3 +216,26 @@ Each ask is one question about one criterion.
 
 [[BPR-1129]]'s fourth ask (the comparison 6 pixels shorter until this card) is
 answered by the measurement above: 879 folded and 845 open, against 829.
+
+## Owner verdicts — 2026-09-25 (attended session 06ad5734, macOS)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, hand-back at sequence 54. The
+questions were carried verbatim, with identical fingerprints, from session
+`60bd1ed5`, which still lists them unanswered. They bind the frozen m2 app:
+source `ba9d2723`, executable `a2e5128a…8a83`. Every decision is `actor:
+human`, and its fingerprint equals the prepared one. This card's acceptance
+above is unchanged; the work the verdicts ask for is on new cards.
+
+| Ask | Candidate, decision | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| 1. Where the readiness words go | `BPR-1130-readiness`, `5b349ec3`, seq 44 | "Move to the track when open and summary when folded" | Answered before [[BPR-0795]]'s row changes; [[BPR-1201]] builds it |
+| 2. The fold | `BPR-1130-fold`, `74ee4e1c`, seq 41 | "Keep this fold and disclosure" | Accepted on macOS |
+| 3. The incomplete-history mark | `BPR-1130-history`, `2edcf8e2`, seq 42 | "The history mark is clear enough" | Accepted on macOS |
+| 4. Pair-ready words | `BPR-1130-pair-ready`, `ccba3a15`, seq 43 | "Keep pair-ready words in the tooltip" | Accepted on macOS |
+
+The note on ask 3, verbatim, is about the review itself: "Metafeedback: Most
+of these attended review questions seem like simple accept/reject review
+critera would be sufficient, not sure why they are being presented as multiple
+option select responses." It is recorded as a rule for preparing attended
+questions in `AGENTS.md`.

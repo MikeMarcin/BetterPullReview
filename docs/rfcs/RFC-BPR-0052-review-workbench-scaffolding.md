@@ -55,6 +55,30 @@ plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md) groups
 the slices by their dependencies: BPR-1129, BPR-1131 and BPR-1134 first, then
 BPR-1130, BPR-1132 and BPR-1133, then BPR-1135's closeout.
 
+**Owner verdicts on the built chrome, 2026-09-25 (attended session 06ad5734,
+macOS).** The owner answered all fourteen questions on the frozen m2 app
+(`ba9d2723`, executable `a2e5128a…8a83`); each verdict binds that candidate.
+Accepted as built: the title row, the Updates fold and disclosure, the
+incomplete-history mark, the pair-ready words in the tooltip, Reply as
+Comment's default on a thread's line, the interim arrow and menu, Reply on the
+cards beside the code, the plus duplicating the active view, and the tray's
+VoiceOver announcement and Right Arrow. Decided: the readiness words take the
+track when open and the summary when folded (confirming the paragraph below;
+[[BPR-1201]]), and a tab over an older pair hides later threads until Show them
+([[BPR-1205]]). Two are **owner amendments**. First, the review bar puts file
+navigation before change navigation, "File contains changes so file should be
+left of change" (decision `fd158272`); AC-03 and the bar's list below now say
+so ([[BPR-1202]]). Second, the strip's plus makes the new tab active, and tabs
+"expand to fill the available space and shrink to a minimum size before
+overflowing and allowing scrolling through", like Xcode's and Ghostty's
+(decision `c1a81e29`; [[BPR-1206]]). Two were **rejected**. The kept-draft
+mark led to a Compose review page that told the owner nothing ([[BPR-1203]]),
+and "Findings" does not say what the second tray tab holds ([[BPR-1204]]); the
+tab's name is open until the owner chooses one. The owner also found that
+Comment opened a page with no way to comment ([[BPR-1207]]). Windows's native
+look and Narrator, and the Windows and Linux station runs, remain owed.
+[[BPR-1135]] records each decision.
+
 ## Problem and outcome
 
 The owner, on round v2: the title bar is "too busy … it's getting distracting
@@ -97,8 +121,10 @@ From its left it reads:
 
 - the Updates disclosure, then the comparison and its dates, with the
   "Comparing …" menu;
-- previous and next change, with the position;
 - previous and next file, with the position;
+- previous and next change, with the position (file before change, by the
+  owner's amendment of 2026-09-25: "File contains changes so file should be
+  left of change");
 - private progress (Seen, Read, Accept, Exclude), as an icon whose tooltip
   names this file's state.
 
@@ -117,6 +143,11 @@ tab's menu returns a tab to the window's comparison, or makes its pair the one
 new tabs take. Overview and Discuss have no tab, so they show the window's
 comparison. Tab names elide from the left, where file names differ, and at a
 platform's width floor the strip shows the active tab and a count of the rest.
+By the owner's amendment of 2026-09-25, the strip's plus duplicates the active
+tab's exact view and makes the copy the active tab, and tabs share the strip
+as Xcode's and Ghostty's do: they expand to fill it, shrink to a minimum width
+and then scroll. Whether the width floor's count survives alongside scrolling
+is for [[BPR-1206]] to ask.
 
 **Composition and conversation.** The composition entry row goes. Compose
 review opens the dedicated page RFC-BPR-0037 built, as before. "Draft comment
@@ -145,7 +176,9 @@ menu, with their keys.
 request loads, the readiness words take the Updates line's track, or the
 review bar's summary when folded, so no row comes or goes above the
 comparison. The rounds drew this from v2 on, but the owner was never asked it
-separately. [[BPR-1130]] asks before it removes [[BPR-0795]]'s row.
+separately. [[BPR-1130]] asks before it removes [[BPR-0795]]'s row. The owner
+confirmed it on 2026-09-25 ("Move to the track when open and summary when
+folded", decision `5b349ec3`); [[BPR-1201]] builds it.
 
 ## Architecture
 
@@ -177,7 +210,7 @@ publication, authority or review semantics.
 
 - AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice.
 - AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor.
-- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
+- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next file with the position, previous and next change with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
 - AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires.
 - AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart.
 - AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted.
@@ -197,6 +230,13 @@ publication, authority or review semantics.
 | [[BPR-1132]] | The document tab strip in the comparison's header | AC-05, AC-06, AC-07, AC-10 |
 | [[BPR-1133]] | Comment and Reply where the line and the thread are | AC-08, AC-10 |
 | [[BPR-1134]] | The right tray's tabs | AC-09 |
+| [[BPR-1201]] | Readiness words in the track or the summary (owner decision, 2026-09-25) | AC-01 |
+| [[BPR-1202]] | File navigation before change navigation (owner amendment, 2026-09-25) | AC-03 |
+| [[BPR-1203]] | The Compose review page says what is happening (kept-draft mark rejected) | AC-03 |
+| [[BPR-1204]] | The second tray tab says what it holds ("Findings" rejected) | AC-09 |
+| [[BPR-1205]] | Later threads hidden until Show them (owner decision, 2026-09-25) | AC-07 |
+| [[BPR-1206]] | The plus activates its tab; tabs fill, shrink, then scroll (owner amendment) | AC-05, AC-11 |
+| [[BPR-1207]] | Comment never opens an unusable page | AC-08 |
 | [[BPR-1135]] | Verify and close RFC-BPR-0052 | all |
 
 ## Verification

@@ -138,3 +138,19 @@ Each ask is one question about one criterion.
 3. **A card beside the code replies to its own thread.** The cards beside the
    code now offer Reply where they offered "Comment here". Is that the card you
    chose?
+
+## Owner verdicts — 2026-09-25 (attended session 06ad5734, macOS)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, hand-back at sequence 54. The
+questions were carried verbatim, with identical fingerprints, from session
+`60bd1ed5`, which still lists them unanswered. They bind the frozen m2 app:
+source `ba9d2723`, executable `a2e5128a…8a83`. Every decision is `actor:
+human`, and its fingerprint equals the prepared one. This card's acceptance
+above is unchanged; the work the verdicts ask for is on new cards.
+
+| Ask | Candidate, decision | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| 1. Comment on a thread's line | `BPR-1133-default-reply`, `1a095bfe`, seq 51 | "Reply is the right default" | Accepted on macOS |
+| 2. The arrow and its menu | `BPR-1133-arrow`, `b3d1d32d`, seq 49 | "Keep the current arrow and menu", with the note "note: clicking comment takes me to this screen in the screenshot which seems completely broken, Doesn't seem like I can actually leave a comment yet." | Arrow and menu accepted on macOS; the page Comment opened is [[BPR-1207]] |
+| 3. Reply beside the code | `BPR-1133-card-reply`, `37c42e44`, seq 50 | "Keep Reply on these cards" | Accepted on macOS |

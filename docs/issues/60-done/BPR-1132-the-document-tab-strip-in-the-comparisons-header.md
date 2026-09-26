@@ -207,3 +207,21 @@ width floor and measure its 884/850 budget. A result below the owner's Windows
 native style/Narrator and macOS native VoiceOver and the owner's design answers
 remain on [[BPR-1135]]. The fresh attended session contains the two questions
 above; its decisions are not inferred from automated passes.
+
+## Owner verdicts — 2026-09-25 (attended session 06ad5734, macOS)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, hand-back at sequence 54. The
+questions were carried verbatim, with identical fingerprints, from session
+`60bd1ed5`, which still lists them unanswered. They bind the frozen m2 app:
+source `ba9d2723`, executable `a2e5128a…8a83`. Every decision is `actor:
+human`, and its fingerprint equals the prepared one. This card's acceptance
+above is unchanged; the work the verdicts ask for is on new cards.
+
+| Ask | Candidate, decision | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| The strip's plus | `BPR-1132-plus`, `c1a81e29`, seq 47 (supersedes `f9bfb3f9`, seq 46, the same choice without a note) | "Plus should duplicate the active view": "Plus must switch focus to the new tab. Tabs should work like xcode/ghostty where they expand to fiill the available space and shrink to a minimum size before overflowing and allowing scrolling through." | Duplication accepted; focus and sizing are an owner amendment, [[BPR-1206]] |
+| Later threads on an older pair | `BPR-1132-later`, `2c856168`, seq 45 | "Hide later threads until Show them" | [[BPR-1205]] |
+
+The plus decision carries three reference screenshots (Xcode's and Ghostty's
+tab bars), kept with the decision in the session's external state.

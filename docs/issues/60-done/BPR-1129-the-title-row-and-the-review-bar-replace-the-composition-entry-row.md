@@ -220,3 +220,24 @@ the questions, one per candidate criterion:
 4. The comparison is 6 pixels shorter than before (829 of 1000 on macOS)
    until BPR-1130 folds the Updates line and takes its caption away. Is that
    acceptable in the meantime?
+
+## Owner verdicts — 2026-09-25 (attended session 06ad5734, macOS)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, hand-back at sequence 54. The
+questions were carried verbatim, with identical fingerprints, from session
+`60bd1ed5`, which still lists them unanswered. They bind the frozen m2 app:
+source `ba9d2723`, executable `a2e5128a…8a83`. Every decision is `actor:
+human`, and its fingerprint equals the prepared one. This card's acceptance
+above is unchanged; the work the verdicts ask for is on new cards.
+
+| Ask | Candidate, decision | Verdict, verbatim | Disposition |
+|---|---|---|---|
+| 1. The title row | `BPR-1129-title`, `aee924e0`, seq 40 | "Keep this title row" | Accepted on macOS |
+| 2. The review bar | `BPR-1129-bar`, `fd158272`, seq 48 (supersedes `8b8b310b`, seq 38, "Keep this review bar") | "Revise the review bar; describe the change": "I want to swap the order of file and change. File contains changes so file should be left of change." | RFC-BPR-0052 AC-03 amended; [[BPR-1202]] |
+| 3. The kept-draft mark | `BPR-1129-kept`, `011a2ebb`, seq 39 | **reject**: "When I click compose review I end up on this screen and I have no idea what's happening or what I'm meant to do." | Mark not accepted; the Compose review page is [[BPR-1203]] |
+
+Ask 4 (the comparison 6 pixels shorter) was answered by [[BPR-1130]]'s
+measurement and was not asked. The screenshot on ask 3 shows the Compose review
+page reading "Review authority changed. Open or refresh the pull request to
+continue." with nothing else to explain it; [[BPR-1203]] records what it shows.
