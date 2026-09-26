@@ -2080,10 +2080,15 @@ namespace {
 					  << " moved_files=" << after.TargetedActionabilityFiles - before.TargetedActionabilityFiles
 					  << " observations=" << catalogue.Observations - observed
 					  << " accepted_rows=" << after.AcceptedObservationRows - before.AcceptedObservationRows
-					  << " projected_rows=" << after.FileProjectionRows - before.FileProjectionRows << '\n';
+					  << " projected_rows=" << after.FileProjectionRows - before.FileProjectionRows
+					  << " position_visits=" << after.FilePositionVisits - before.FilePositionVisits
+					  << " published_rows_shifted=" << after.PublishedFileRowsShifted - before.PublishedFileRowsShifted << '\n';
 			expect(catalogue.Observations == observed && after.AcceptedObservationRows == before.AcceptedObservationRows
 					   && after.FileProjectionRows == before.FileProjectionRows && after.TargetedActionabilityFiles - before.TargetedActionabilityFiles == 3U,
 				   "three moved files cost no observation and no complete file projection");
+			expect(after.FilePositionVisits > before.FilePositionVisits && after.FilePositionVisits - before.FilePositionVisits <= 3U * count
+					   && after.PublishedFileRowsShifted > before.PublishedFileRowsShifted && after.PublishedFileRowsShifted - before.PublishedFileRowsShifted <= 3U * count,
+				   "three changed files retain linear active-order maintenance, counted separately from file projection");
 			const auto published = projections.Published.size();
 			host.refresh_actionability();
 			settle();
