@@ -720,10 +720,14 @@ namespace bpr::qt {
 		if (!TrackOpen && !Readiness.isEmpty()) {
 			comparing = Readiness;
 		}
-		if (ComparingButton != nullptr && ComparingButton->text() != comparing) {
-			ComparingButton->setText(comparing);
+		if (ComparingButton != nullptr) {
+			const auto foldedReadiness = !TrackOpen && !Readiness.isEmpty();
+			const auto displayed       = foldedReadiness ? ComparingButton->fontMetrics().elidedText(comparing, Qt::ElideRight, 270) : comparing;
+			if (ComparingButton->text() != displayed) {
+				ComparingButton->setText(displayed);
+			}
 			ComparingButton->setAccessibleDescription(comparing);
-			ComparingButton->setMaximumWidth(Readiness.isEmpty() || TrackOpen ? QWIDGETSIZE_MAX : 320);
+			ComparingButton->setMaximumWidth(foldedReadiness ? 320 : QWIDGETSIZE_MAX);
 		}
 		// [[BPR-1130]]. The comparison's tooltip says what the line row used to
 		// say beside it: whether the pair can be read, and the history

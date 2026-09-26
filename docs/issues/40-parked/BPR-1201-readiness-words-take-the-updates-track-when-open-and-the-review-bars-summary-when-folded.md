@@ -75,5 +75,20 @@ RENDER_OK. Evidence is retained at
 `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/`.
 
 AC4's owner judgment is pending on the final integrated m2b candidate. The
-final integration will also bind the width-floor loading and negative-control
-observations; none of this accepts Windows/Linux station evidence.
+combined-candidate epoch and full-window rows now bind the width-floor loading
+and obsolete-row negative-control observations; none of this accepts
+Windows/Linux station evidence.
+
+### Combined-candidate correction
+
+The later full-window render exposed Qt's centred clipping of a long folded
+readiness message, hiding its beginning. The summary now elides its right edge
+within the same 320-pixel bound; tooltip and accessible description retain the
+complete words. The epoch-control course checks the beginning, ellipsis, complete
+accessible text and restoration of the ordinary width after unfolding. This
+changes no admission, loading or history policy.
+
+The final epoch and full-window courses pass at 100/125/200 percent (six
+rows in `final-qt-tests.log`), including loading/open/folded floors and the
+obsolete-row negative control. The rendered loading text at each scale was
+inspected. AC1–AC3 are verified; AC4 remains the separate owner question.

@@ -1997,6 +1997,18 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	{
+		bpr::qt::epoch_comparison_control control;
+		const auto                        readiness = QStringLiteral("Comparisons unavailable while the accepted review history is loading from retained data");
+		control.set_readiness(readiness, false);
+		auto* button = control.comparing_button();
+		expect(button->text().startsWith(QStringLiteral("Comparisons")) && button->text().endsWith(QChar{ 0x2026 })
+				   && button->toolTip().contains(readiness) && button->accessibleDescription() == readiness
+				   && button->maximumWidth() == 320,
+			   "folded readiness keeps its beginning, elides its end and exposes complete words");
+		control.set_readiness(readiness, true);
+		expect(button->maximumWidth() == QWIDGETSIZE_MAX, "opening the track releases the folded summary bound");
+	}
 	test_model_applies_stable_incremental_rows();
 	test_model_replaces_more_than_one_thousand_bounded_pages();
 	test_control_translates_exact_selection_and_preserves_projection();
