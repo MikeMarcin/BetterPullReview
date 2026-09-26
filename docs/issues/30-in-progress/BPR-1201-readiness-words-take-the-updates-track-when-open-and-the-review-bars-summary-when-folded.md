@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1201"
 title: "Readiness words take the Updates line's track when open and the review bar's summary when folded"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1130", "BPR-0795"]
 priority: "P2"
