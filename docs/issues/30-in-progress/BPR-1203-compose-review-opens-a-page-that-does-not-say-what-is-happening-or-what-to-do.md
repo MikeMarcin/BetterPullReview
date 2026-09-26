@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1203"
 title: "Compose review opens a page that does not say what is happening or what to do"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
