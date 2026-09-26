@@ -236,3 +236,51 @@ attachment bytes remain in private runtime storage. Earlier verdicts are retaine
 AC7 is accepted. The additional drawer scrolling, vertical-space and clipped-reply
 observations remain engineering work in this round; no new acceptance is inferred
 for those symptoms and the thread-control judgment will not be asked again.
+
+## Drawer corrections after the accepted hand-back32 note
+
+The accepted decision and its exact note/images remain bound to their original
+candidate in the metadata and `owner-handback32.json`. The additional navigation
+feedback was investigated within this card; it does not reopen AC7 or the
+accepted AC6 VoiceOver check.
+
+- Card wheel movement used the scrollbar's one-pixel default. It now advances
+  by the current font's line spacing, including after a font change.
+- Scope and filter buttons occupied five separate rows. They now use two rows
+  in Comments, with the optional file selector on its own row in Discuss.
+  “Clear” retains the accessible name and tooltip “Clear filters”. The index
+  keeps six text lines of minimum height and shares extra height with detail.
+  Rationale: the controls keep their existing meaning and keyboard order while
+  returning height to the conversation and body.
+- Qt asks the one-column reply delegate for a size with width -1. The delegate
+  used a guessed width, so the final narrow reply was allocated 70 pixels where
+  Qt's own size request at its actual painted width required 85. Its facts were
+  clipped beyond the scroll limit. Resolve the viewport width before forming
+  the measurement-cache key. Existing resize relayout now measures the right
+  height; full text, thread identity and body selection remain unchanged.
+
+The final panel course passes at 360- and 260-pixel widths and checks the last
+reply at the scrollbar limit using Qt's actual measurement option. Before/after
+renders were inspected. Restoring the old delegate makes that exact regression
+fail; restoring the old wheel behavior independently fails its readable-movement
+check. The latter also checks both normal and enlarged fonts without changing
+thread selection. Existing detail-body, retained measurement and bounded
+selected-thread courses continue to pass.
+
+The focused panel/cards/exact-code-reveal/composed-defect batch passes 4/4 in
+57.50 s. Exact-anchor navigation still distinguishes an explicit current-thread
+choice (reveal its root's exact line) from an automatic default row or an
+unplaceable historical anchor (do not jump to unrelated code). No new selection
+or placement policy is introduced for the owner's reported inconsistent scroll.
+The existing reveal course covers those distinct cases. Strict tidy passes on
+all five changed translation units after existing lambda parameter names were
+corrected and the intentional copy across the selection callback was documented.
+The card course was replayed after that mechanical cleanup. All logs and renders
+are in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-r3-rb0nbkl2/evidence/drawer-*`.
+
+This correction changes only Qt layout, measurement and wheel projection. The
+accepted thread menus, badge, command identities and availability remain. No
+core, host, provider, storage or application-composition source changed, so the
+reviewed composition pins from BPR-1207 remain exact. Native inspection of the
+final copied app follows before this card is finished; other-platform evidence
+remains BPR-1135 debt.

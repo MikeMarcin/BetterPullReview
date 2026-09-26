@@ -2,6 +2,7 @@
 
 #include "bpr/qt/github_conversation_model.hpp"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QFont>
 #include <QFontMetrics>
@@ -429,6 +430,14 @@ namespace bpr::qt {
 
 		QStyleOptionViewItem nativeOption{ aOption };
 		initStyleOption(&nativeOption, aIndex);
+		// QTreeView asks this single-column delegate with an unspecified width.
+		// Measure at the width it will paint, before forming the cache key;
+		// a guessed width can truncate the final reply beyond the scroll range.
+		if (nativeOption.rect.width() <= 0) {
+			if (const auto* view = qobject_cast<const QAbstractItemView*>(nativeOption.widget); view != nullptr) {
+				nativeOption.rect.setWidth(view->viewport()->width());
+			}
+		}
 		const auto* const style        = nativeOption.widget != nullptr ? nativeOption.widget->style()
 																		: QApplication::style();
 		auto              presentation = presentation_for(aIndex, Compact);

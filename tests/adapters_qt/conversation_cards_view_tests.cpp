@@ -12,6 +12,7 @@
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QToolButton>
+#include <QWheelEvent>
 
 #include <glaze/json.hpp>
 
@@ -881,13 +882,41 @@ namespace {
 				   "one thread at a time agrees with the complete read state");
 		}
 	}
+	void test_card_wheel_moves_readable_lines_without_changing_selection()
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 180);
+		view.set_compact(true);
+		auto data = std::vector<conversation>{ };
+		for (auto i = 0; i < 12; ++i) {
+			data.push_back(thread("t" + std::to_string(i), "src/file.cpp", static_cast<std::uint32_t>(i + 1)));
+		}
+		view.adopt(data);
+		view.set_current_thread("t0");
+		view.show();
+		QApplication::processEvents();
+		for (const auto points : { 13, 20 }) {
+			auto font = view.font();
+			font.setPointSize(points);
+			view.setFont(font);
+			QApplication::processEvents();
+			auto* bar = view.verticalScrollBar();
+			bar->setValue(0);
+			QWheelEvent wheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(view.viewport(), &wheel);
+			expect(wheel.isAccepted() && bar->value() >= view.fontMetrics().lineSpacing()
+					   && view.current_thread() == "t0",
+				   "one wheel detent moves readable card lines while retaining the selected thread, including after font changes");
+		}
+	}
+
 	void test_thread_menus_and_native_defect_badges()
 	{
 		qt::conversation_cards_view view;
 		view.resize(430, 420);
 		view.show();
 		view.set_action_dispatch([](auto, const auto&) { });
-		view.set_context_menu_builder([](QMenu& menu, const std::string&) { menu.addAction(QStringLiteral("Classify as defect…")); });
+		view.set_context_menu_builder([](QMenu& aMenu, const std::string&) { aMenu.addAction(QStringLiteral("Classify as defect…")); });
 		view.adopt({ thread("a", "src/a.cpp", 10), reply("a-1", "a", "reviewer", "One thread"), thread("b", "src/a.cpp", 20) });
 		view.set_defect_badges({ { "a", { QStringLiteral("[open] minor · correctness"), QStringLiteral("Nobody has addressed this yet. Shared context available.") } } });
 		QApplication::processEvents();
@@ -937,6 +966,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_card_wheel_moves_readable_lines_without_changing_selection();
 	test_thread_menus_and_native_defect_badges();
 	test_one_thread_read_state_matches_the_complete_state();
 	test_branching_conversation_reads_as_one_card_in_order();

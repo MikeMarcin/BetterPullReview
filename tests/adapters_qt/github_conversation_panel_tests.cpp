@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -652,6 +653,79 @@ namespace {
 			   "Return explicitly opens the selected full-body detail and moves focus once");
 	}
 
+	// Re-measure Qt's own size request at its painted width. A paint option
+	// can carry different native padding and is not a size-request template.
+	class observed_compact_delegate final : public QStyledItemDelegate
+	{
+	public:
+		observed_compact_delegate(QAbstractItemDelegate& aDelegate, QObject* aParent)
+			: QStyledItemDelegate{ aParent }
+			, Delegate{ aDelegate }
+		{ }
+		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+		{
+			if (aIndex.parent().isValid()) {
+				ReplyMeasure = aOption;
+			}
+			return Delegate.sizeHint(aOption, aIndex);
+		}
+		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+		{
+			if (aIndex.parent().isValid()) {
+				ReplyOption = aOption;
+			}
+			Delegate.paint(aPainter, aOption, aIndex);
+		}
+		mutable std::optional<QStyleOptionViewItem> ReplyOption;
+		mutable std::optional<QStyleOptionViewItem> ReplyMeasure;
+
+	private:
+		QAbstractItemDelegate& Delegate;
+	};
+
+	void test_compact_last_reply_has_its_complete_measured_extent()
+	{
+		for (const auto width : { 360, 260 }) {
+			qt::github_conversation_panel panel;
+			auto*                         observed = new observed_compact_delegate{ *panel.view()->itemDelegate(), panel.view() };
+			panel.view()->setItemDelegate(observed);
+			panel.resize(width, 700);
+			auto data               = std::vector<conversation>{ root("thread", "review.cpp"), reply("reply", "thread") };
+			data.back().AuthorLogin = "octo-author";
+			data.back().Body        = "The exact current-head follow-up is ready to verify.";
+			data.back().Path        = "review.cpp";
+			data.back().Line        = 60U;
+			panel.adopt(data, QStringLiteral("Available"));
+			panel.show();
+			process_events();
+			auto* thisFile = panel.findChild<QToolButton*>(QStringLiteral("conversationScopeThisFile"));
+			auto* all      = panel.findChild<QToolButton*>(QStringLiteral("conversationScopeWholePullRequest"));
+			auto* clear    = panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"));
+			expect(thisFile->y() == all->y() && panel.filter_unread_button()->y() == panel.filter_unresolved_button()->y()
+					   && clear->y() == panel.filter_unread_button()->y(),
+				   "scope and filters occupy two compact rows");
+			expect(panel.cards()->viewport()->height() >= panel.fontMetrics().lineSpacing() * 5,
+				   "the drawer keeps several readable lines for its conversation index");
+			auto*      view  = panel.view();
+			const auto index = panel.model()->index_for_id("reply");
+			view->setCurrentIndex(index);
+			process_events();
+			view->verticalScrollBar()->setValue(view->verticalScrollBar()->maximum());
+			process_events();
+			const auto rect = view->visualRect(index);
+			expect(observed->ReplyOption.has_value() && observed->ReplyMeasure.has_value(), "the final reply was measured and actually painted");
+			auto option = *observed->ReplyMeasure;
+			option.rect.setWidth(rect.width());
+			const auto required = qt::github_conversation_delegate{ nullptr, true }.sizeHint(option, index);
+			std::cout << "compact-last-reply width=" << width << " rect=" << rect.x() << ',' << rect.y() << ',' << rect.width() << ',' << rect.height()
+					  << " required=" << required.height() << " viewport=" << view->viewport()->height() << " maximum=" << view->verticalScrollBar()->maximum() << '\n';
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				expect(panel.grab().save(path + QStringLiteral("-drawer-%1.png").arg(width)), "drawer rendered for inspection");
+			}
+			expect(rect.height() >= required.height() && rect.bottom() < view->viewport()->height(), "the final compact reply's complete measured content is reachable at the scroll limit");
+		}
+	}
+
 	void test_long_detail_scroll_routes()
 	{
 		for (const auto points : { 13, 20 }) {
@@ -889,6 +963,7 @@ auto main(int argc, char** argv) -> int
 	test_pr_wide_index_and_selected_detail();
 	test_contextual_scope_survives_clear_and_refresh();
 	test_index_arrows_retain_focus_until_explicit_activation();
+	test_compact_last_reply_has_its_complete_measured_extent();
 	test_long_detail_scroll_routes();
 	test_row_sizes_follow_text_width_and_font();
 	std::cout << "conversation-panel-tests:pass\n";

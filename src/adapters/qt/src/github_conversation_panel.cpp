@@ -10,6 +10,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QGridLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
@@ -283,7 +284,7 @@ namespace bpr::qt {
 		auto* const cardsLayout = new QVBoxLayout{ cardsPane };
 		cardsLayout->setContentsMargins(0, 0, 0, 0);
 		cardsLayout->setSpacing(2);
-		auto* const scopeRow = new QVBoxLayout;
+		auto* const scopeRow = new QGridLayout;
 		scopeRow->setContentsMargins(4, 0, 4, 0);
 		scopeRow->setSpacing(4);
 		ScopeThisFile = new QToolButton{ cardsPane };
@@ -305,15 +306,15 @@ namespace bpr::qt {
 		ScopeWholePr->setCheckable(true);
 		ScopeWholePr->setAutoExclusive(true);
 		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
-		scopeRow->addWidget(ScopeThisFile);
-		scopeRow->addWidget(ScopeWholePr);
+		scopeRow->addWidget(ScopeThisFile, 0, 0);
+		scopeRow->addWidget(ScopeWholePr, 0, 1, 1, 2);
 		DiscussFileChoice = new QComboBox{ cardsPane };
 		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
 		DiscussFileChoice->setAccessibleName(QStringLiteral("Conversation file scope"));
 		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 		DiscussFileChoice->setMinimumContentsLength(12);
 		DiscussFileChoice->hide();
-		scopeRow->addWidget(DiscussFileChoice);
+		scopeRow->addWidget(DiscussFileChoice, 1, 0, 1, 3);
 		connect(DiscussFileChoice, &QComboBox::currentTextChanged, this, [this](const QString& aPath) {
 			DiscussFile = aPath.isEmpty() ? std::nullopt : std::optional{ core::file_identity_of(aPath.toStdString()) };
 			if (Discuss) {
@@ -336,22 +337,24 @@ namespace bpr::qt {
 		FilterUnresolved->setAccessibleDescription(QStringLiteral("Show only threads that are not resolved"));
 		FilterUnresolved->setCheckable(true);
 		FilterUnresolved->setFocusPolicy(Qt::StrongFocus);
-		scopeRow->addWidget(FilterUnread);
-		scopeRow->addWidget(FilterUnresolved);
-		scopeRow->addStretch(1);
+		scopeRow->addWidget(FilterUnread, 2, 0);
+		scopeRow->addWidget(FilterUnresolved, 2, 1);
 		auto* const clearFilters = new QToolButton{ cardsPane };
 		clearFilters->setObjectName(QStringLiteral("conversationClearFilters"));
-		clearFilters->setText(QStringLiteral("Clear filters"));
+		clearFilters->setText(QStringLiteral("Clear"));
+		clearFilters->setAccessibleName(QStringLiteral("Clear filters"));
+		clearFilters->setToolTip(QStringLiteral("Clear filters"));
 		clearFilters->setFocusPolicy(Qt::StrongFocus);
 		connect(clearFilters, &QToolButton::clicked, this, [this] {
 			ScopeWholePr->setChecked(true);
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
 		});
-		scopeRow->addWidget(clearFilters);
+		scopeRow->addWidget(clearFilters, 2, 2);
 		cardsLayout->addLayout(scopeRow);
 		Cards = new conversation_cards_view{ cardsPane };
 		Cards->set_compact(true);
+		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
 		Cards->setAccessibleName(QStringLiteral("Conversation index"));
 		cardsLayout->addWidget(Cards, 1);
 		Notice = new QLabel{ cardsPane };
@@ -470,12 +473,12 @@ namespace bpr::qt {
 		detailLayout->addWidget(Body, 1);
 		QWidget::setTabOrder(View, Body);
 		loaded->addWidget(DetailPane);
-		// The map asks for the band its own sizeHint names and the tree takes
-		// the rest. Left to stretch factors alone the map collapsed to its
-		// minimum in an ordinary window, which showed a highlighted branch
+		// The map asks for the band its own sizeHint names; the cards and
+		// selected detail share the remaining height. Left to stretch factors
+		// alone the map collapsed to its minimum in an ordinary window, which showed a highlighted branch
 		// whose end was off-screen - the exact failure the owner's
 		// "show the full branch" direction is about.
-		loaded->setStretchFactor(0, 0);
+		loaded->setStretchFactor(0, 1);
 		loaded->setStretchFactor(1, 0);
 		loaded->setStretchFactor(2, 1);
 		Stack->addWidget(loaded);

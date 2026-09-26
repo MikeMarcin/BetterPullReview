@@ -174,17 +174,18 @@ namespace bpr::qt {
 		if (at == Cards.end() || at->Draft) {
 			return nullptr;
 		}
-		const auto card = *at; // Selection can rebuild Cards; keep this exact identity.
+		// Selection can rebuild Cards; retain this exact card across the dispatch.
+		const auto card = *at; // NOLINT(performance-unnecessary-copy-initialization)
 		choose(static_cast<std::size_t>(std::distance(Cards.begin(), at)), false);
 		auto* menu = new QMenu{ this };
 		menu->setObjectName(QStringLiteral("threadContextMenu"));
 		menu->setToolTipsVisible(true);
 		menu->setAttribute(Qt::WA_DeleteOnClose);
-		const auto add = [this, menu, identity = card.Id](card_action kind, bool enabled, const QString& reason) {
-			auto* action = menu->addAction(action_text(kind));
-			action->setEnabled(enabled && static_cast<bool>(ActionDispatch));
-			action->setToolTip(enabled ? action->text() : reason);
-			connect(action, &QAction::triggered, menu, [this, identity, kind] { if (ActionDispatch) { ActionDispatch(kind, identity); } });
+		const auto add = [this, menu, identity = card.Id](card_action aKind, bool aEnabled, const QString& aReason) {
+			auto* action = menu->addAction(action_text(aKind));
+			action->setEnabled(aEnabled && static_cast<bool>(ActionDispatch));
+			action->setToolTip(aEnabled ? action->text() : aReason);
+			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
 		add(card_action::reply, has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
 		add(card_action::mark_read, card.UnreadCount > 0U, tr("This thread has no unread posts."));
@@ -1131,6 +1132,7 @@ namespace bpr::qt {
 		ContentHeight = bottom + card_margin;
 		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
 		verticalScrollBar()->setPageStep(viewport()->height());
+		verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
 		sync_badge_buttons();
 		viewport()->update();
 	}
