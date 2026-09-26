@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1208",
+    "BPR-1209",
+    "BPR-1210"
+  ],
+  "reserve_for": "bpr-1204-owner-direction",
+  "purpose": "owner direction on the right tray's second tab, 2026-09-25: thread controls onto the thread, Dif out of the drawer, private notes promoted to drafts",
+  "created": "2026-09-26T06:26:27.321294+00:00",
+  "base": "0a8f9d79b851699cea540abf60bc4ee88d0dac3d"
+}
