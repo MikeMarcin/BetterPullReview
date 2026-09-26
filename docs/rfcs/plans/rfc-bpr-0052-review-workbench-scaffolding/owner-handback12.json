@@ -1,0 +1,25 @@
+{
+  "schema": "bpr.owner-handback.v1",
+  "assignment": "rfc0052-20260925/m2b-handback12-20260926",
+  "mandate_revision": "owner-20260926-unattended-worktrees",
+  "session": "f613e282cad0d66a0813a7c85b3954a0",
+  "after_cursor": 10,
+  "handback_cursor": 12,
+  "handback_at": "2026-09-26T23:48:10.236790+00:00",
+  "source_revision": "c777a33d7467e83cfd0d2217329953e2044f1d41",
+  "executable_sha256": "8589abf9dca824127e1531aa26699c9ee9d0456626fdca090c04eacf217b50ba",
+  "decisions": [
+    {
+      "candidate": "BPR-1207-comment",
+      "fingerprint": "966b3f2f5a2b0dc8d0f3ec27a33dcde644a25726bc3d8e2a2f79074d80a3fb2f",
+      "decision_id": "8d7d2682-13bf-4ff1-970f-c4335f326b16",
+      "outcome": "accept",
+      "note": "",
+      "saved_at": "2026-09-26T23:48:07.513284+00:00",
+      "actor": "human",
+      "event_sequence": 11,
+      "attachments": [],
+      "criterion": "AC3"
+    }
+  ]
+}

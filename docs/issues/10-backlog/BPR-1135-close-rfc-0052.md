@@ -568,3 +568,24 @@ Wizards accompany six ready Accept/Reject decisions in successor session
 and existing ACTIVE continuation heartbeat. The six earlier accepts remain;
 BPR-1201/1206 are Done. BPR-1210 AC1 engineering debt, BPR-1204's dependency
 guard and the native/closeout obligations above remain explicit.
+
+## m2b Comment acceptance reconciled — 2026-09-26
+
+Fresh assignment `rfc0052-20260925/m2b-handback12-20260926`, mandate
+`owner-20260926-unattended-worktrees`, consumes the sole remaining prepared
+question. The owner accepted BPR-1207 AC3 in session
+`f613e282cad0d66a0813a7c85b3954a0`, decision
+`8d7d2682-13bf-4ff1-970f-c4335f326b16`, event 11, hand-back 12, with no note
+or attachment. The [exact receipt](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/owner-handback12.json)
+binds source `c777a33d` and executable `8589abf9…b50ba`. This satisfies the
+local-writing/no-publication owner criterion; AC1/AC2 retain the reproduced,
+corrected public-path evidence on BPR-1207. Its three criteria are now met.
+
+The earlier hand-back32 finished BPR-1202, BPR-1203, BPR-1208 and BPR-1209
+plus carried BPR-0800. BPR-1201, BPR-1205 and BPR-1206 were already Done.
+All prior exact decisions remain recorded. BPR-1210 AC1 is still blocked by
+`historical-note-path-contract`; its promotion AC7 remains accepted. BPR-1204
+keeps its terminal dependency and stays Backlog. Thus m2b and m3 remain
+incomplete, with native Windows/Linux/station and full RFC evidence still owed.
+The [current handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2b-r3-2026-09-26.md)
+preserves cleanup, the consumed cursor and the separate BPR-1211/BPR-1214 debts.
