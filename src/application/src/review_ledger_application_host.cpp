@@ -15,6 +15,17 @@ namespace bpr::application {
 					   std::numeric_limits<std::int64_t>::max());
 		}
 
+		/// \brief Finds a conversation's receipt in receipts sorted by conversation.
+		[[nodiscard]] auto find_conversation_receipt(
+			const std::vector<core::conversation_receipt>& aReceipts,
+			const core::review_conversation_id             aConversation) noexcept
+			-> const core::conversation_receipt*
+		{
+			const auto found = std::ranges::lower_bound(
+				aReceipts, aConversation, { }, &core::conversation_receipt::Conversation);
+			return found != aReceipts.end() && found->Conversation == aConversation ? &*found : nullptr;
+		}
+
 		template <typename Value>
 		[[nodiscard]] constexpr auto enumerator_at_most(
 			const Value aValue,
@@ -185,6 +196,7 @@ namespace bpr::application {
 					++Statistics.ReceiptLoadHits;
 					++Statistics.MaterialReceiptHits;
 				}
+				remember_durable_locked(aObservation.File, *loaded, false);
 				auto observed = loaded->has_value()
 					? core::carry_over(**loaded, aObservation).Receipt
 					: core::file_receipt{
@@ -204,6 +216,8 @@ namespace bpr::application {
 							.Retained = Retained,
 							.Store    = completion.error(),
 						};
+					} else {
+						remember_durable_locked(observed.File, observed, true);
 					}
 				}
 
@@ -239,6 +253,7 @@ namespace bpr::application {
 				++Statistics.StoreFailures;
 				return std::unexpected(ledger_store_failure::integrity_failure);
 			}
+			remember_durable_locked(Retained.File, *loaded, false);
 			const auto observation = core::file_material_observation{
 				.File = Retained.File, .Material = Retained.Material
 			};
@@ -265,12 +280,58 @@ namespace bpr::application {
 		-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>
 	{
 		const auto lock = std::scoped_lock{ Mutex };
+		if (const auto retained = DurableReceipts.find(aFile); retained != DurableReceipts.end()) {
+			++Statistics.ReceiptCacheHits;
+			return retained->second;
+		}
 		++Statistics.ReceiptLoads;
 		auto loaded = Store->load(aFile);
 		if (!loaded) {
 			++Statistics.StoreFailures;
+			return loaded;
 		}
+		remember_durable_locked(aFile, *loaded, false);
 		return loaded;
+	}
+
+	void review_ledger_application_host::invalidate_receipts(const std::span<const core::file_identity> aFiles)
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		if (aFiles.empty()) {
+			return;
+		}
+		for (const auto& file : aFiles) {
+			Statistics.ReceiptInvalidations += DurableReceipts.erase(file);
+		}
+		++DurableRevision;
+	}
+
+	void review_ledger_application_host::invalidate_all_receipts()
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		Statistics.ReceiptInvalidations += DurableReceipts.size();
+		DurableReceipts.clear();
+		++DurableRevision;
+	}
+
+	auto review_ledger_application_host::durable_receipt_revision() const noexcept -> std::uint64_t
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		return DurableRevision;
+	}
+
+	void review_ledger_application_host::remember_durable_locked(
+		const core::file_identity&               aFile,
+		const std::optional<core::file_receipt>& aReceipt,
+		const bool                               aCommitted)
+	{
+		const auto [retained, inserted] = DurableReceipts.try_emplace(aFile, aReceipt);
+		if (!inserted && retained->second != aReceipt) {
+			retained->second = aReceipt;
+			++DurableRevision;
+		} else if (aCommitted) {
+			++DurableRevision;
+		}
 	}
 
 	auto review_ledger_application_host::conversation_receipts_locked()
@@ -287,6 +348,7 @@ namespace bpr::application {
 			return std::unexpected(loaded.error());
 		}
 		ConversationReceipts = std::move(*loaded);
+		std::ranges::sort(*ConversationReceipts, { }, &core::conversation_receipt::Conversation);
 		return { };
 	}
 
@@ -300,12 +362,9 @@ namespace bpr::application {
 		}
 		auto state = conversation_read_state{ };
 		for (const auto& thread : aThreads) {
-			const auto receipt = std::ranges::find(
-				*ConversationReceipts,
-				thread.Conversation,
-				&core::conversation_receipt::Conversation);
-			const auto unread = core::unread_posts(
-				receipt != ConversationReceipts->end()
+			const auto receipt = find_conversation_receipt(*ConversationReceipts, thread.Conversation);
+			const auto unread  = core::unread_posts(
+				receipt != nullptr
 					? *receipt
 					: core::conversation_receipt{ .Conversation = thread.Conversation },
 				thread.Posts);
@@ -314,7 +373,7 @@ namespace bpr::application {
 			}
 			auto projection = conversation_read_projection{
 				.Conversation = thread.Conversation,
-				.SeenBefore   = receipt != ConversationReceipts->end(),
+				.SeenBefore   = receipt != nullptr,
 			};
 			for (const auto index : unread) {
 				projection.UnreadPosts.push_back(thread.Posts[index].Comment);
@@ -333,19 +392,22 @@ namespace bpr::application {
 		if (const auto loaded = conversation_receipts_locked(); !loaded) {
 			return std::unexpected(loaded.error());
 		}
-		const auto existing = std::ranges::find(
+		const auto existing = std::ranges::lower_bound(
 			*ConversationReceipts,
 			aLatest.Conversation,
+			{ },
 			&core::conversation_receipt::Conversation);
+		const auto found = existing != ConversationReceipts->end()
+			&& existing->Conversation == aLatest.Conversation;
 		const auto read = core::mark_conversation_read(
-			existing != ConversationReceipts->end()
+			found
 				? *existing
 				: core::conversation_receipt{ .Conversation = aLatest.Conversation },
 			aLatest);
 		if (!valid(read)) {
 			return std::unexpected(ledger_store_failure::invalid_record);
 		}
-		if (existing != ConversationReceipts->end() && *existing == read) {
+		if (found && *existing == read) {
 			++Statistics.Unchanged;
 			return { };
 		}
@@ -356,10 +418,10 @@ namespace bpr::application {
 			++Statistics.ConversationFailures;
 			return std::unexpected(stored.error());
 		}
-		if (existing != ConversationReceipts->end()) {
+		if (found) {
 			*existing = read;
 		} else {
-			ConversationReceipts->push_back(read);
+			ConversationReceipts->insert(existing, read);
 		}
 		return { };
 	}
@@ -423,6 +485,7 @@ namespace bpr::application {
 						.Changed   = false,
 					};
 				} else {
+					remember_durable_locked(outcome.Receipt.File, outcome.Receipt, true);
 					Retained    = outcome.Receipt;
 					publication = receipt_projection{ .Receipt = Retained };
 					++Statistics.Publications;

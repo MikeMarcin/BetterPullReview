@@ -379,14 +379,21 @@ namespace bpr::qt {
 	{
 		// Every thread of the pull request, whatever the scope shows, so the
 		// strip's next new comment walks the whole review in file order.
+		// [[BPR-0972]]. The first state recorded for a thread answers for it,
+		// found by hash rather than a walk of every state per thread.
+		auto unreadByThread = std::unordered_map<std::string_view, bool>{ };
+		unreadByThread.reserve(ReadState.size());
+		for (const auto& state : ReadState) {
+			unreadByThread.emplace(state.Thread, !state.UnreadPosts.empty());
+		}
 		auto threads = std::vector<const application::github_conversation_projection*>{ };
 		for (const auto& node : Retained) {
 			if (node.Kind != application::github_conversation_kind::review_thread
 				|| node.ParentId.has_value()) {
 				continue;
 			}
-			const auto state = std::ranges::find(ReadState, node.Id, &thread_read_state::Thread);
-			if (state != ReadState.end() && !state->UnreadPosts.empty()) {
+			const auto state = unreadByThread.find(node.Id);
+			if (state != unreadByThread.end() && state->second) {
 				threads.push_back(&node);
 			}
 		}
@@ -743,6 +750,16 @@ namespace bpr::qt {
 		for (const auto& state : ReadState) {
 			readStateByThread.emplace(state.Thread, &state);
 		}
+		// [[BPR-0972]]. The unread posts of every recorded state, so a post
+		// is judged by hash rather than a walk of its thread's unread list.
+		auto unreadPosts = std::unordered_map<std::string_view, std::set<std::string_view>>{ };
+		unreadPosts.reserve(readStateByThread.size());
+		for (const auto& [thread, state] : readStateByThread) {
+			auto& posts = unreadPosts[thread];
+			for (const auto& post : state->UnreadPosts) {
+				posts.insert(post);
+			}
+		}
 		for (const auto& node : Retained) {
 			if (node.Kind == application::github_conversation_kind::review_thread
 				|| (!Compact && !node.ParentId.has_value()) || node.Deleted) {
@@ -758,9 +775,8 @@ namespace bpr::qt {
 			}
 			const auto author = text(node.AuthorLogin);
 			auto&      target = Cards[card->second];
-			const auto state  = readStateByThread.find(root->Id);
-			const auto unread = state != readStateByThread.end()
-				&& std::ranges::find(state->second->UnreadPosts, node.Id) != state->second->UnreadPosts.end();
+			const auto state  = unreadPosts.find(root->Id);
+			const auto unread = state != unreadPosts.end() && state->second.contains(node.Id);
 			if (unread) {
 				if (target.Posts.empty()) {
 					target.RootUnread = true;

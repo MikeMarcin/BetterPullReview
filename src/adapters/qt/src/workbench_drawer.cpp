@@ -13,6 +13,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
+#include <QSet>
 #include <QSizePolicy>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -223,15 +224,17 @@ namespace bpr::qt {
 	void workbench_drawer_model::retire_absent(
 		const std::vector<workbench_drawer_row>& aRows)
 	{
+		// [[BPR-0972]]. One set of the supplied identities, rather than a
+		// search of the supplied order for every retained row.
+		auto wanted = QSet<QString>{ };
+		wanted.reserve(static_cast<qsizetype>(aRows.size()));
+		for (const auto& row : aRows) {
+			wanted.insert(row.Identity);
+		}
 		for (auto index = Rows.size(); index != 0U; --index) {
-			const auto identity = Rows[index - 1U].Identity;
-			const auto retained = std::ranges::any_of(
-				aRows,
-				[&identity](const workbench_drawer_row& aRow) {
-					return aRow.Identity == identity;
-				});
-			if (!retained) {
-				remove(identity);
+			++Statistics.ReconcileRowsVisited;
+			if (!wanted.contains(Rows[index - 1U].Identity)) {
+				remove_at(index - 1U);
 			}
 		}
 	}
@@ -240,11 +243,26 @@ namespace bpr::qt {
 		const std::size_t    aRequestedIndex,
 		workbench_drawer_row aRow)
 	{
-		const auto existing = row_for_identity(aRow.Identity);
-		const auto target   = std::min(aRequestedIndex, Rows.size());
+		++Statistics.ReconcileRowsVisited;
+		const auto target = std::min(aRequestedIndex, Rows.size());
+		// Every row before the target already matches the supplied order, so a
+		// retained row is at or after it: usually exactly there.
+		auto existing = std::optional<std::size_t>{ };
+		if (target < Rows.size() && Rows[target].Identity == aRow.Identity) {
+			existing = target;
+		} else if (Present.contains(aRow.Identity)) {
+			const auto found = std::find_if(
+				Rows.begin() + static_cast<std::ptrdiff_t>(target), Rows.end(),
+				[&aRow](const workbench_drawer_row& aRetained) { return aRetained.Identity == aRow.Identity; });
+			Statistics.ReconcileRowsVisited += static_cast<std::uint64_t>(std::distance(Rows.begin(), found)) - target;
+			if (found != Rows.end()) {
+				existing = static_cast<std::size_t>(std::distance(Rows.begin(), found));
+			}
+		}
 		if (!existing) {
 			const auto position = static_cast<int>(target);
 			beginInsertRows({ }, position, position);
+			Present.insert(aRow.Identity);
 			Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target),
 						std::move(aRow));
 			FileIndexDirty = true;
@@ -279,15 +297,12 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_drawer_model::remove(const QString& aIdentity)
+	void workbench_drawer_model::remove_at(const std::size_t aRow)
 	{
-		const auto existing = row_for_identity(aIdentity);
-		if (!existing) {
-			return;
-		}
-		const auto position = static_cast<int>(*existing);
+		const auto position = static_cast<int>(aRow);
 		beginRemoveRows({ }, position, position);
-		Rows.erase(Rows.begin() + static_cast<std::ptrdiff_t>(*existing));
+		Present.remove(Rows[aRow].Identity);
+		Rows.erase(Rows.begin() + static_cast<std::ptrdiff_t>(aRow));
 		FileIndexDirty = true;
 		endRemoveRows();
 		++Statistics.RowsRemoved;

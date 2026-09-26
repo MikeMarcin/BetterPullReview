@@ -29,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <thread>
+#include <tuple>
 
 namespace {
 	using namespace bpr;
@@ -49,6 +50,28 @@ namespace {
 		expect(aCondition(), aMessage);
 	}
 
+	/// \brief Drains queued continuations, such as a window's own ledger
+	/// notification, until the observed counters stop moving.
+	void settle(const std::function<app::detail::application_scaling_evidence()>& aSample)
+	{
+		const auto signature = [&] {
+			const auto sample = aSample();
+			return std::tuple{ sample.OverviewBuilds, sample.OverviewReceiptVisits, sample.ConversationThreadsVisited, sample.Ledger.ReceiptLoads,
+							   sample.Ledger.ReceiptCacheHits, sample.Ledger.Publications, sample.Workbench.AcceptedObservationRows, sample.Workbench.FileProjectionRows };
+		};
+		auto          last   = signature();
+		auto          stable = 0;
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (stable < 50 && elapsed.elapsed() < 5000) {
+			QApplication::processEvents();
+			QThread::msleep(2);
+			const auto next = signature();
+			stable          = next == last ? stable + 1 : 0;
+			last            = next;
+		}
+	}
+
 	void report(const char* aGesture, const app::detail::application_scaling_evidence& aBefore,
 				const app::detail::application_scaling_evidence& aAfter,
 				const qt::files_tree_work_statistics& aTreeBefore, const qt::files_tree_work_statistics& aTreeAfter)
@@ -61,6 +84,7 @@ namespace {
 				  << " overview_builds=" << aAfter.OverviewBuilds - aBefore.OverviewBuilds
 				  << " overview_receipt_visits=" << aAfter.OverviewReceiptVisits - aBefore.OverviewReceiptVisits
 				  << " receipt_loads=" << aAfter.Ledger.ReceiptLoads - aBefore.Ledger.ReceiptLoads
+				  << " receipt_cache_hits=" << aAfter.Ledger.ReceiptCacheHits - aBefore.Ledger.ReceiptCacheHits
 				  << " persistence_requests=" << aAfter.Ledger.PersistenceRequests - aBefore.Ledger.PersistenceRequests
 				  << " conversation_thread_visits=" << aAfter.ConversationThreadsVisited - aBefore.ConversationThreadsVisited
 				  << " conversation_post_visits=" << aAfter.ConversationPostsVisited - aBefore.ConversationPostsVisited
@@ -156,6 +180,7 @@ try {
 		auto  before     = access::scaling_evidence(*owner);
 		auto  treeBefore = tree->work_statistics();
 		select("src/file_0033.cpp");
+		settle([&] { return access::scaling_evidence(*owner); });
 		report("select-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
 		expect(access::scaling_evidence(*owner).Workbench.FileProjectionRows == before.Workbench.FileProjectionRows, "selection builds no retained file projection");
 		if (round == 0U) {
@@ -164,6 +189,7 @@ try {
 			expect(window->seen_action()->isEnabled(), "Seen enabled");
 			window->seen_action()->trigger();
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.PersistenceRequests > before.Ledger.PersistenceRequests && quiet(); }, "receipt durably accepted");
+			settle([&] { return access::scaling_evidence(*owner); });
 			report("seen-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
 			expect(tree->work_statistics().ModelResets == treeBefore.ModelResets, "one receipt preserves Files model identity");
 			auto* cards = window->conversation_panel()->cards();
@@ -195,6 +221,7 @@ try {
 			QMouseEvent release{ QEvent::MouseButtonRelease, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 			QApplication::sendEvent(cards->viewport(), &release);
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.ConversationWrites > before.Ledger.ConversationWrites; }, "public card commits read cursor");
+			settle([&] { return access::scaling_evidence(*owner); });
 			report("conversation-read-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
 			expect(access::scaling_evidence(*owner).ConversationThreadsVisited - before.ConversationThreadsVisited <= snapshot->ReviewThreads.size(), "one conversation command never duplicates the snapshot observation");
 		} else {
@@ -232,6 +259,7 @@ try {
 				   && sourceAfter.GeometryRebuilds == sourceBefore.GeometryRebuilds,
 			   "scroll reuses accepted source geometry and index");
 		select("src/file_0034.cpp");
+		settle([&] { return access::scaling_evidence(*owner); });
 		report("select-two-during-provider", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
 		const auto exact = surface->current_result()->Alignment.Key;
 		sibling->close();

@@ -5156,7 +5156,8 @@ namespace bpr::qt {
 			auto       marks  = std::vector<diff_line_mark>{ };
 			const auto unread = ConversationPanel->cards()->unread_marked_lines(side);
 			for (const auto line : ConversationPanel->cards()->marked_lines(side)) {
-				const auto fresh = std::ranges::find(unread, line) != unread.end();
+				// Both line lists are sorted and unique ([[BPR-0972]]).
+				const auto fresh = std::ranges::binary_search(unread, line);
 				marks.push_back(diff_line_mark{
 					.Line = line,
 					.Kind = fresh ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread });

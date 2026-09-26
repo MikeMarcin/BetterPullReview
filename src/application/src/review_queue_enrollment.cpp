@@ -293,6 +293,17 @@ namespace bpr::application {
 		if (aWork && !Records.empty()) {
 			++aWork->CapacityGrowths;
 		}
+		// [[BPR-0972]]. The reports are ordered once, so each record's report
+		// is a binary search instead of a walk of every report. The first
+		// report for a ref answers for it, as the walk did.
+		auto reports = std::vector<const queue_activity_report*>{ };
+		reports.reserve(aActivity.size());
+		for (const auto& report : aActivity) {
+			reports.push_back(&report);
+		}
+		std::ranges::stable_sort(reports, [](const queue_activity_report* aLeft, const queue_activity_report* aRight) {
+			return aLeft->Ref < aRight->Ref;
+		});
 		for (const auto& record : Records) {
 			if (aWork) {
 				++aWork->RecordsVisited;
@@ -303,17 +314,17 @@ namespace bpr::application {
 			// A missing report is not an error and must not be guessed at. The
 			// host supplies what it read; an item it has not read yet is not
 			// known to be quiet ([[BPR-0989]]), and `bucket_for` says so.
-			const auto found     = std::ranges::find_if(aActivity, [&](const queue_activity_report& aReport) {
+			const auto        candidate = std::ranges::lower_bound(reports, record.Ref, [&](const core::pull_request_ref& aLeft, const core::pull_request_ref& aRight) {
 				if (aWork) {
 					++aWork->ActivityComparisons;
 				}
-				return aReport.Ref == record.Ref;
-			});
-			const auto activity  = found == aActivity.end()
+				return aLeft < aRight; }, [](const queue_activity_report* aReport) -> const core::pull_request_ref& { return aReport->Ref; });
+			const auto* const found     = candidate != reports.end() && (*candidate)->Ref == record.Ref ? *candidate : nullptr;
+			const auto        activity  = found == nullptr
 				? core::queue_activity_observation{ .Known = false }
 				: found->Observation;
-			auto       facts     = found == aActivity.end() ? core::queue_item_facts{ } : found->Facts;
-			facts.UnseenComments = activity.UnseenComments;
+			auto              facts     = found == nullptr ? core::queue_item_facts{ } : found->Facts;
+			facts.UnseenComments        = activity.UnseenComments;
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = record.Membership,

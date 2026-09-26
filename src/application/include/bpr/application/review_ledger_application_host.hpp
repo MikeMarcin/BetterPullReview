@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstdint>
 #include <expected>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -26,8 +27,15 @@ namespace bpr::application {
 		std::uint64_t Publications         = 0U;
 		std::uint64_t FailurePublications  = 0U;
 		std::uint64_t MaterialObservations = 0U;
-		std::uint64_t ReceiptLoads         = 0U;
-		std::uint64_t ReceiptLoadHits      = 0U;
+		/// Durable receipt reads that reached the store.
+		std::uint64_t ReceiptLoads    = 0U;
+		std::uint64_t ReceiptLoadHits = 0U;
+		/// [[BPR-0972]]. `load_receipt` answers served by the retained durable
+		/// receipts without a store read.
+		std::uint64_t ReceiptCacheHits = 0U;
+		/// [[BPR-0972]]. Retained durable receipts dropped because another
+		/// writer may have changed them.
+		std::uint64_t ReceiptInvalidations = 0U;
 		/// [[BPR-0824]]. The subset of `ReceiptLoadHits` found by
 		/// `observe_material`, so a later `refresh_receipt` cannot count as one.
 		std::uint64_t MaterialReceiptHits  = 0U;
@@ -215,8 +223,29 @@ namespace bpr::application {
 		/// which is the ledger's to answer; this is a read of the store through
 		/// the host, so no composition reaches for the store itself. An absent
 		/// receipt is an engaged optional's absence, not a failure.
+		///
+		/// [[BPR-0972]]. The first answer for a file is read from the store and
+		/// retained, absence included; later answers come from that retained
+		/// durable value. Every commit this host makes updates it, so only a
+		/// write by another host can make it stale, and that writer's
+		/// notification must reach `invalidate_receipts` first. A store failure
+		/// retains nothing.
 		[[nodiscard]] auto load_receipt(const core::file_identity& aFile)
 			-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>;
+
+		/// \brief Drops the retained durable receipts of files another writer changed.
+		void invalidate_receipts(std::span<const core::file_identity> aFiles);
+
+		/// \brief Drops every retained durable receipt, for a change naming no file.
+		void invalidate_all_receipts();
+
+		/// \brief Counts changes to the durable receipts `load_receipt` answers.
+		///
+		/// \details Advances on every commit and every invalidation, and when a
+		/// fresh store read replaces a retained value with a different one. A
+		/// reader that kept the revision of its last complete read may skip
+		/// rereading while it is unchanged: nothing it could see has moved.
+		[[nodiscard]] auto durable_receipt_revision() const noexcept -> std::uint64_t;
 
 		/// \brief Decides the read state of the observed conversations.
 		///
@@ -245,8 +274,15 @@ namespace bpr::application {
 		receipt_projection_port*  Projection = nullptr;
 		[[nodiscard]] auto        conversation_receipts_locked()
 			-> std::expected<void, ledger_store_failure>;
+		void remember_durable_locked(const core::file_identity&               aFile,
+									 const std::optional<core::file_receipt>& aReceipt,
+									 bool                                     aCommitted);
 
-		core::file_receipt                                     Retained;
+		core::file_receipt Retained;
+		/// [[BPR-0972]]. The durable receipts read or written through this host.
+		std::map<core::file_identity, std::optional<core::file_receipt>> DurableReceipts;
+		std::uint64_t                                                    DurableRevision = 0U;
+		/// Sorted by conversation, so each thread's receipt is a binary search.
 		std::optional<std::vector<core::conversation_receipt>> ConversationReceipts;
 		review_ledger_host_statistics                          Statistics;
 		mutable std::mutex                                     Mutex;

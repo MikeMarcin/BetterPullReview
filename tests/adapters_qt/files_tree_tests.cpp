@@ -385,6 +385,56 @@ namespace {
 		}
 	}
 
+	// [[BPR-0972]]. One file leaving or re-entering the actionable order
+	// examines each row a bounded number of times and signals only that row.
+	void test_drawer_reconciliation_is_linear_in_rows()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto rows = std::vector<qt::workbench_drawer_row>{ };
+			for (unsigned index = 0; index < count; ++index) {
+				rows.push_back(file("src/" + std::to_string(index) + ".cpp"));
+			}
+			qt::workbench_drawer_model drawer;
+			drawer.apply(rows);
+			auto resets = 0;
+			QObject::connect(&drawer, &QAbstractItemModel::modelReset, &drawer, [&] { ++resets; });
+			const auto measure = [&](const char* aStep, const std::vector<qt::workbench_drawer_row>& aRows) {
+				const auto before = drawer.statistics();
+				drawer.apply(aRows);
+				const auto after = drawer.statistics();
+				std::cout << "drawer-reconcile rows=" << count << " step=" << aStep
+						  << " rows_visited=" << after.ReconcileRowsVisited - before.ReconcileRowsVisited
+						  << " inserted=" << after.RowsInserted - before.RowsInserted
+						  << " removed=" << after.RowsRemoved - before.RowsRemoved
+						  << " moved=" << after.RowsMoved - before.RowsMoved << '\n';
+				expect(after.ReconcileRowsVisited - before.ReconcileRowsVisited <= 3U * count,
+					   "reconciliation examines each row a bounded number of times");
+				return after;
+			};
+			auto       without = rows;
+			const auto leaving = without[count / 2U];
+			without.erase(without.begin() + static_cast<std::ptrdiff_t>(count / 2U));
+			auto before = drawer.statistics();
+			auto after  = measure("leave", without);
+			expect(after.RowsRemoved == before.RowsRemoved + 1U && after.RowsInserted == before.RowsInserted,
+				   "a file leaving the order removes exactly its row");
+			before = after;
+			after  = measure("return", rows);
+			expect(after.RowsInserted == before.RowsInserted + 1U && after.RowsRemoved == before.RowsRemoved,
+				   "a file returning inserts exactly its row");
+			expect(drawer.index_for_file(*leaving.File).row() == static_cast<int>(count / 2U), "the returned row takes its order position");
+			auto moved = rows;
+			std::rotate(moved.begin(), moved.end() - 1, moved.end());
+			before = after;
+			after  = measure("move", moved);
+			expect(after.RowsMoved == before.RowsMoved + 1U, "one moved file is one row move");
+			before = after;
+			after  = measure("unchanged", moved);
+			expect(after.RowsMoved == before.RowsMoved && after.RowsChanged == before.RowsChanged, "an unchanged order signals nothing");
+			expect(resets == 0, "no bounded order change resets the drawer");
+		}
+	}
+
 	void test_receipt_updates_preserve_tree_indexes()
 	{
 		for (const auto order : { qt::files_order::tree, qt::files_order::flat, qt::files_order::changed_first }) {
@@ -422,6 +472,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_file_lookup_reuses_indexes();
 	test_receipt_updates_preserve_tree_indexes();
+	test_drawer_reconciliation_is_linear_in_rows();
 	test_the_tree_compacts_nesting_only_folders_and_counts_files();
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();

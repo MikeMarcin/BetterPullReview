@@ -292,6 +292,35 @@ namespace {
 		}
 	}
 
+	// [[BPR-0972]]. Every record finds its report by binary search, so the
+	// comparisons grow as n log n rather than records times reports.
+	void test_projection_finds_reports_without_walking_them()
+	{
+		for (const auto count : { 32, 4096 }) {
+			auto records = application::queue_enrollment_register{ };
+			auto reports = std::vector<application::queue_activity_report>{ };
+			for (int number = 1; number <= count; ++number) {
+				records.enroll(ref(number), by_role(core::github_role::reviewer));
+			}
+			for (int number = count; number >= 1; --number) {
+				reports.push_back({ .Ref = ref(number), .Observation = { .UnseenComments = static_cast<std::uint32_t>(number), .Known = true } });
+			}
+			auto       work  = application::queue_projection_work{ };
+			const auto queue = records.project(reports, &work);
+			auto       depth = 0U;
+			while ((1U << depth) < static_cast<unsigned>(count)) {
+				++depth;
+			}
+			std::cout << "queue-projection records=" << count << " reports=" << count << " activity_comparisons=" << work.ActivityComparisons << '\n';
+			expect(queue.size() == static_cast<std::size_t>(count)
+					   && std::ranges::all_of(queue, [](const core::queue_item& aItem) { return aItem.Facts.UnseenComments == static_cast<std::uint32_t>(aItem.Ref.Number); }),
+				   "every record joins its own report");
+			expect(work.RecordsVisited == static_cast<std::uint64_t>(count)
+					   && work.ActivityComparisons <= static_cast<std::uint64_t>(count) * (depth + 2U),
+				   "the join is logarithmic per record");
+		}
+	}
+
 	void test_composed_host_persists_matches_and_removal()
 	{
 		auto       store       = memory_queue_store{ };
@@ -1908,6 +1937,7 @@ auto main() -> int
 	test_an_unobserved_item_is_not_known_to_be_quiet();
 	test_activity_pairs_by_ref_in_any_order();
 	test_single_refresh_projection_work();
+	test_projection_finds_reports_without_walking_them();
 	test_composed_host_persists_matches_and_removal();
 	test_rule_removal_reconciles_every_matching_enrollment_before_publish();
 	test_refresh_identity_and_cancellation_are_authoritative();

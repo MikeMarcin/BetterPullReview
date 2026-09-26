@@ -3855,22 +3855,35 @@ namespace bpr::app {
 		std::filesystem::path Root;
 	};
 
+	/// [[BPR-0972]]. More changed receipt files than this in one coalesced
+	/// delivery invalidate every retained receipt instead of naming each one.
+	inline constexpr std::size_t maximum_named_receipt_changes = 256U;
+
 	/// Shared services outlive every window session that borrows them.
 	/// Accepted ledger invalidations contain no candidate text or navigation state.
 	struct pending_ledger_changes
 	{
-		std::mutex Mutex;
-		bool       Scheduled      = false;
-		bool       Receipts       = false;
-		bool       Conversations  = false;
-		bool       PrivateRecords = false;
+		std::mutex                       Mutex;
+		bool                             Scheduled      = false;
+		bool                             Receipts       = false;
+		bool                             AllReceipts    = false;
+		bool                             Conversations  = false;
+		bool                             PrivateRecords = false;
+		std::vector<core::file_identity> ReceiptFiles;
 	};
 
 	struct ledger_changes
 	{
-		bool Receipts       = false;
-		bool Conversations  = false;
-		bool PrivateRecords = false;
+		bool Receipts = false;
+		/// [[BPR-0972]]. The files whose receipts changed, unless `AllReceipts`
+		/// says a change named none or too many were coalesced.
+		bool                             AllReceipts    = false;
+		bool                             Conversations  = false;
+		bool                             PrivateRecords = false;
+		std::vector<core::file_identity> ReceiptFiles;
+		/// [[BPR-0972]]. The window whose ledger store accepted the writes.
+		/// Its own host already applied its receipt and conversation writes.
+		std::optional<core::bpr_window_context> Origin;
 	};
 
 	class github_profile_runtime final : public std::enable_shared_from_this<github_profile_runtime>, public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port, public application::window_review_restoration_projection_port
@@ -3933,18 +3946,26 @@ namespace bpr::app {
 		}
 		std::map<core::bpr_window_context, window_observer, detail::window_context_less> Observers;
 		/// \brief Coalesces committed store changes onto the profile decision lane.
-		[[nodiscard]] auto ledger_observer(application::workbench_pull_request_authority aAuthority)
+		[[nodiscard]] auto ledger_observer(application::workbench_pull_request_authority aAuthority, core::bpr_window_context aOrigin)
 			-> std::function<void(application::ledger_change)>
 		{
 			auto pending = std::make_shared<pending_ledger_changes>();
-			return [weak = weak_from_this(), pending, aAuthority](application::ledger_change aChange) {
+			return [weak = weak_from_this(), pending, aAuthority, aOrigin](application::ledger_change aChange) {
 				const auto self = weak.lock();
 				if (!self) {
 					return;
 				}
 				const auto lock = std::scoped_lock{ pending->Mutex };
 				switch (aChange.Domain) {
-				case application::ledger_change_domain::receipt:         pending->Receipts = true; break;
+				case application::ledger_change_domain::receipt:
+					pending->Receipts = true;
+					if (!aChange.File || pending->ReceiptFiles.size() >= maximum_named_receipt_changes) {
+						pending->AllReceipts = true;
+						pending->ReceiptFiles.clear();
+					} else if (!pending->AllReceipts) {
+						pending->ReceiptFiles.push_back(*aChange.File);
+					}
+					break;
 				case application::ledger_change_domain::conversation:    pending->Conversations = true; break;
 				case application::ledger_change_domain::private_records: pending->PrivateRecords = true; break;
 				}
@@ -3952,12 +3973,19 @@ namespace bpr::app {
 					return;
 				}
 				pending->Scheduled = true;
-				self->DecisionLane.post([weak, pending, aAuthority] {
+				self->DecisionLane.post([weak, pending, aAuthority, aOrigin] {
 					auto changes = ledger_changes{ };
 					{
 						const auto drainLock = std::scoped_lock{ pending->Mutex };
-						changes              = { std::exchange(pending->Receipts, false), std::exchange(pending->Conversations, false), std::exchange(pending->PrivateRecords, false) };
-						pending->Scheduled   = false;
+						changes              = {
+							.Receipts       = std::exchange(pending->Receipts, false),
+							.AllReceipts    = std::exchange(pending->AllReceipts, false),
+							.Conversations  = std::exchange(pending->Conversations, false),
+							.PrivateRecords = std::exchange(pending->PrivateRecords, false),
+							.ReceiptFiles   = std::exchange(pending->ReceiptFiles, { }),
+							.Origin         = aOrigin,
+						};
+						pending->Scheduled = false;
 					}
 					const auto owner = weak.lock();
 					if (!owner || owner->Closing || !owner->Host || owner->Host->accepted_identity_generation() != aAuthority.IdentityGeneration) {
@@ -9365,6 +9393,7 @@ namespace bpr::app {
 
 		void retire_review_ledger()
 		{
+			OverviewReceiptRevision.reset();
 			DurableDefects.clear();
 			ReviewLedgerHost.reset();
 			ReviewLedger.reset();
@@ -9396,7 +9425,7 @@ namespace bpr::app {
 			});
 			const auto available = opened.has_value();
 			if (available) {
-				ReviewLedger = std::make_unique<application::observing_review_ledger_store>(std::move(*opened), Profile->ledger_observer(workbench_authority(aHandoff)));
+				ReviewLedger = std::make_unique<application::observing_review_ledger_store>(std::move(*opened), Profile->ledger_observer(workbench_authority(aHandoff), DraftWindow));
 			} else {
 				ReviewLedger = std::make_unique<unavailable_review_ledger_store>(
 					opened.error());
@@ -9437,8 +9466,19 @@ namespace bpr::app {
 					return;
 				}
 			}
+			// [[BPR-0972]]. This window's own host committed its receipt and
+			// conversation writes and published them as it did; rereading them
+			// here found the same durable state. Private records are also
+			// written by agent finding delivery through this store, so those
+			// are reloaded whatever their origin.
+			const auto own = aChanges.Origin == std::optional{ DraftWindow };
+			if (aChanges.AllReceipts) {
+				ReviewLedgerHost->invalidate_all_receipts();
+			} else if (aChanges.Receipts && !own) {
+				ReviewLedgerHost->invalidate_receipts(aChanges.ReceiptFiles);
+			}
 			auto overviewPublished = false;
-			if (aChanges.Receipts && SelectedDiffPublication && WorkbenchHost
+			if (aChanges.Receipts && !own && SelectedDiffPublication && WorkbenchHost
 				&& WorkbenchHost->generation() == SelectedDiffPublication->Request.Context.Generation
 				&& WorkbenchHost->selected() == std::optional{ SelectedDiffPublication->Request.File.File }
 				&& ReviewLedgerHost->retained().File == SelectedDiffPublication->Request.File.File
@@ -9450,7 +9490,7 @@ namespace bpr::app {
 				// this view was showing different or unavailable material.
 				WorkbenchHost->refresh_actionability();
 			}
-			if (aChanges.Conversations) {
+			if (aChanges.Conversations && !own) {
 				ReviewLedgerHost->invalidate_conversation_receipts();
 				publish_read_state();
 			}
@@ -9463,7 +9503,11 @@ namespace bpr::app {
 				}
 				refresh_agent_private_context_choices();
 			}
-			if (!overviewPublished) {
+			// Conversation read state is not an overview input; receipts are
+			// reread only when the durable revision moved past the last read.
+			const auto receiptsMoved = aChanges.Receipts
+				&& OverviewReceiptRevision != std::optional{ ReviewLedgerHost->durable_receipt_revision() };
+			if (!overviewPublished && (aChanges.PrivateRecords || receiptsMoved)) {
 				publish_overview();
 			}
 		}
@@ -9579,6 +9623,13 @@ namespace bpr::app {
 		std::uint64_t OverviewReceiptVisits      = 0U;
 		std::uint64_t ConversationThreadsVisited = 0U;
 		std::uint64_t ConversationPostsVisited   = 0U;
+		/// [[BPR-0972]]. The ledger's durable receipt revision the published
+		/// overview read completely, absent when it must be read again.
+		std::optional<std::uint64_t> OverviewReceiptRevision;
+		/// [[BPR-0972]]. The accepted head the published overview was decided
+		/// against. A selection no longer rebuilds the overview, so a moved
+		/// head republishes it on its own.
+		std::optional<core::git_commit_oid> OverviewHead;
 
 		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
 		{
@@ -9620,21 +9671,22 @@ namespace bpr::app {
 			if (!state.has_value()) {
 				return std::nullopt;
 			}
+			// [[BPR-0972]]. Each unread conversation finds its threads, and each
+			// unread post its names, by binary search over one ordering, where
+			// both were a walk of every thread and every post.
+			auto conversations = std::vector<std::pair<core::review_conversation_id, std::size_t>>{ };
+			conversations.reserve(threads.size());
+			for (std::size_t index = 0U; index < threads.size(); ++index) {
+				conversations.emplace_back(threads[index].Conversation, index);
+			}
+			std::ranges::sort(conversations);
 			auto  observed  = observed_read_state{ };
 			auto& presented = observed.Presented;
 			for (const auto& projection : state->Threads) {
-				for (std::size_t index = 0U; index < threads.size(); ++index) {
-					if (threads[index].Conversation != projection.Conversation) {
-						continue;
-					}
+				const auto matching = std::ranges::equal_range(conversations, projection.Conversation, { }, &std::pair<core::review_conversation_id, std::size_t>::first);
+				for (const auto& [conversation, index] : matching) {
 					auto entry = qt::thread_read_state{ .Thread = names[index].first };
-					for (const auto unread : projection.UnreadPosts) {
-						for (std::size_t post = 0U; post < threads[index].Posts.size(); ++post) {
-							if (threads[index].Posts[post].Comment == unread) {
-								entry.UnreadPosts.push_back(names[index].second[post]);
-							}
-						}
-					}
+					append_unread_names(threads[index], names[index].second, projection.UnreadPosts, entry.UnreadPosts);
 					// The queue counts what is newer than what I read: a thread
 					// I never read has no cursor to be newer than.
 					if (projection.SeenBefore) {
@@ -9644,6 +9696,28 @@ namespace bpr::app {
 				}
 			}
 			return observed;
+		}
+
+		/// \brief Appends the presentation names of a thread's unread posts.
+		/// \details Every post carrying an unread comment identity is named, in
+		/// the unread order and then post order, as the nested walk did.
+		static void append_unread_names(
+			const application::conversation_thread_observation& aThread,
+			const std::vector<std::string>&                     aNames,
+			const std::vector<core::review_comment_id>&         aUnread,
+			std::vector<std::string>&                           aOut)
+		{
+			auto posts = std::vector<std::pair<core::review_comment_id, std::size_t>>{ };
+			posts.reserve(aThread.Posts.size());
+			for (std::size_t post = 0U; post < aThread.Posts.size(); ++post) {
+				posts.emplace_back(aThread.Posts[post].Comment, post);
+			}
+			std::ranges::sort(posts);
+			for (const auto unread : aUnread) {
+				for (const auto& [comment, post] : std::ranges::equal_range(posts, unread, { }, &std::pair<core::review_comment_id, std::size_t>::first)) {
+					aOut.push_back(aNames[post]);
+				}
+			}
 		}
 
 		auto publish_read_state() -> std::optional<std::uint32_t>
@@ -9706,24 +9780,34 @@ namespace bpr::app {
 			if (Closing || Window == nullptr || Host == nullptr) {
 				return;
 			}
+			OverviewHead         = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
+				? std::optional{ EpochHost->state().AcceptedRevision->Head }
+				: std::nullopt;
 			const auto& snapshot = WindowRead->accepted_snapshot();
 			if (!snapshot.has_value()) {
 				Window->clear_overview();
 				return;
 			}
 			++OverviewBuilds;
+			OverviewReceiptRevision.reset();
 			auto context = application::overview_context{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
+					const auto revision = ReviewLedgerHost->durable_receipt_revision();
+					auto       complete = true;
 					context.Receipts.reserve(snapshot->Files.size());
 					for (const auto& file : snapshot->Files) {
 						++OverviewReceiptVisits;
 						const auto identity = core::file_identity_of(file.Path);
-						if (const auto loaded = ReviewLedgerHost->load_receipt(identity);
-							loaded.has_value() && loaded->has_value()) {
+						const auto loaded   = ReviewLedgerHost->load_receipt(identity);
+						complete            = complete && loaded.has_value();
+						if (loaded.has_value() && loaded->has_value()) {
 							context.Receipts.push_back(**loaded);
 						}
+					}
+					if (complete) {
+						OverviewReceiptRevision = revision;
 					}
 				}
 			}
@@ -9734,9 +9818,7 @@ namespace bpr::app {
 				}
 			}
 			context.Updates = EpochRows.rows();
-			if (EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()) {
-				context.Head = EpochHost->state().AcceptedRevision->Head;
-			}
+			context.Head    = OverviewHead;
 			if (context.Private.has_value() && context.Private->LastReviewedHead.has_value()
 				&& context.Head.has_value()
 				&& *context.Head != *context.Private->LastReviewedHead) {
@@ -9833,7 +9915,13 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				Window->publish(application::project_file_receipt_actions(
 					aProjection.Receipt));
-				publish_overview();
+				// [[BPR-0972]]. The overview shows durable receipts only. A
+				// selection's in-memory receipt, or a reload that found nothing
+				// new, leaves them as the last overview read them.
+				if (ReviewLedgerHost == nullptr
+					|| OverviewReceiptRevision != std::optional{ ReviewLedgerHost->durable_receipt_revision() }) {
+					publish_overview();
+				}
 			}
 			if (WorkbenchHost != nullptr && authority.has_value()
 				&& actionabilityChanged) {
@@ -12044,7 +12132,10 @@ namespace bpr::app {
 				}
 			}
 			Window->publish(aUpdate);
-			if (aUpdate.Catalog.has_value()) {
+			const auto acceptedHead = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
+				? std::optional{ EpochHost->state().AcceptedRevision->Head }
+				: std::nullopt;
+			if (aUpdate.Catalog.has_value() || acceptedHead != OverviewHead) {
 				publish_overview();
 			}
 			refresh_agent_authority();

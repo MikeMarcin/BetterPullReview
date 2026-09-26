@@ -1054,10 +1054,67 @@ namespace {
 		expect(host.observe_conversations({ }).has_value() && host.statistics().ConversationLoads == loads + 1U && store.Requests.empty(), "sibling conversation invalidation reloads without writes");
 	}
 
+	/// [[BPR-0972]]. The overview's per-file reads are answered from durable
+	/// receipts the host retains; only another writer's notification may
+	/// make one stale, and only a durable change moves the revision.
+	void test_durable_receipts_are_retained_until_another_writer_invalidates_them()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto seed       = seeded_receipt();
+		const auto other      = opaque<core::file_identity>(7U);
+
+		expect(host.load_receipt(seed.File).has_value() && !*host.load_receipt(seed.File),
+			   "an absent durable receipt is answered twice");
+		expect(host.statistics().ReceiptLoads == 1U && host.statistics().ReceiptCacheHits == 1U,
+			   "the second answer for a file reads no store");
+		const auto unread = host.durable_receipt_revision();
+
+		// A selection observes unchanged material: nothing durable moves.
+		static_cast<void>(host.observe_material(core::file_material_observation{ .File = seed.File, .Material = seed.Material }));
+		expect(host.durable_receipt_revision() == unread,
+			   "an in-memory receipt for exact material leaves the durable revision");
+
+		const auto outcome = host.submit(command_for(seed, core::file_receipt_command_kind::mark_read));
+		expect(outcome.Changed && host.durable_receipt_revision() > unread,
+			   "a commit through the host moves the durable revision");
+		const auto loadsAfterCommit = host.statistics().ReceiptLoads;
+		const auto committed        = host.load_receipt(seed.File);
+		expect(committed.has_value() && committed->has_value() && (*committed)->Read == core::file_read_state::read
+				   && host.statistics().ReceiptLoads == loadsAfterCommit,
+			   "the committed receipt is answered without rereading the store");
+
+		// Another host writes the store; until its notification arrives the
+		// retained value stands, and afterwards exactly that file is reread.
+		auto sibling          = *store.Committed;
+		sibling.Accepted      = true;
+		store.Committed       = sibling;
+		const auto beforeNote = host.durable_receipt_revision();
+		expect(host.load_receipt(seed.File)->value().Accepted == false, "an unannounced foreign write is not guessed at");
+		const auto files = std::array{ seed.File };
+		host.invalidate_receipts(files);
+		expect(host.durable_receipt_revision() > beforeNote && host.statistics().ReceiptInvalidations == 1U,
+			   "a named foreign change drops that file and moves the revision");
+		expect(host.load_receipt(seed.File)->value().Accepted && host.statistics().ReceiptLoads == loadsAfterCommit + 1U,
+			   "the invalidated file alone is read again");
+
+		store.fail_next(application::ledger_store_failure::unavailable);
+		expect(!host.load_receipt(other).has_value(), "a failed read is typed");
+		expect(host.load_receipt(other).has_value() && host.statistics().ReceiptLoads == loadsAfterCommit + 3U,
+			   "a failed read retains nothing and is asked again");
+		const auto retainedFiles = host.statistics().ReceiptInvalidations;
+		host.invalidate_all_receipts();
+		expect(host.statistics().ReceiptInvalidations == retainedFiles + 2U,
+			   "a change naming no file drops every retained receipt");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_durable_receipts_are_retained_until_another_writer_invalidates_them();
 	test_accepted_write_observer();
 	test_sibling_refresh_is_observation_only();
 	test_hostile_note_competitors_are_bounded_before_projection();

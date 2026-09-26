@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
+#include <span>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	namespace {
@@ -84,6 +86,29 @@ namespace bpr::application {
 			};
 			return valid(entry) ? std::optional{ std::move(entry) } : std::nullopt;
 		}
+
+		/// \brief Marks every repeat of an identity after its first position.
+		///
+		/// \details [[BPR-0972]]. One sort of (identity, position) pairs, so a
+		/// catalogue of N files costs O(N log N) rather than searching the
+		/// accepted prefix for each file.
+		[[nodiscard]] auto later_repeats(const std::span<const core::file_identity> aIdentities)
+			-> std::vector<bool>
+		{
+			auto ordered = std::vector<std::pair<core::file_identity, std::size_t>>{ };
+			ordered.reserve(aIdentities.size());
+			for (std::size_t position = 0U; position < aIdentities.size(); ++position) {
+				ordered.emplace_back(aIdentities[position], position);
+			}
+			std::ranges::sort(ordered);
+			auto repeated = std::vector<bool>(aIdentities.size(), false);
+			for (std::size_t index = 1U; index < ordered.size(); ++index) {
+				if (ordered[index].first == ordered[index - 1U].first) {
+					repeated[ordered[index].second] = true;
+				}
+			}
+			return repeated;
+		}
 	} // namespace
 
 	snapshot_workbench_observation::snapshot_workbench_observation(
@@ -118,8 +143,8 @@ namespace bpr::application {
 			return answer(aRequest, workbench_observation_status::limit_exceeded);
 		}
 
-		auto result = answer(aRequest, workbench_observation_status::available);
-		result.Actionable.reserve(files->size());
+		auto identities = std::vector<core::file_identity>{ };
+		identities.reserve(files->size());
 		for (const auto& record : *files) {
 			if (aStop.stop_requested()) {
 				return answer(aRequest, workbench_observation_status::cancelled);
@@ -138,16 +163,25 @@ namespace bpr::application {
 				return answer(
 					aRequest, workbench_observation_status::unavailable);
 			}
+			identities.push_back(identity);
+		}
 
-			// The port owns uniqueness within the order; the host resolves the
-			// first matching entry. A snapshot repeating a path would otherwise
-			// put one file in the order twice and make navigation revisit it.
-			if (std::ranges::find(result.Actionable, identity,
-								  &workbench_file_observation_entry::File)
-				!= result.Actionable.end()) {
+		// The port owns uniqueness within the order; the host resolves the
+		// first matching entry. A snapshot repeating a path would otherwise
+		// put one file in the order twice and make navigation revisit it.
+		const auto repeated = later_repeats(identities);
+		auto       result   = answer(aRequest, workbench_observation_status::available);
+		result.Actionable.reserve(files->size());
+		for (std::size_t position = 0U; position < files->size(); ++position) {
+			if (aStop.stop_requested()) {
+				return answer(aRequest, workbench_observation_status::cancelled);
+			}
+			if (repeated[position]) {
 				continue;
 			}
-			const auto file = observed_file(record, identity);
+			const auto& record   = (*files)[position];
+			const auto  identity = identities[position];
+			const auto  file     = observed_file(record, identity);
 			if (!file.has_value()) {
 				return answer(aRequest, workbench_observation_status::unavailable);
 			}

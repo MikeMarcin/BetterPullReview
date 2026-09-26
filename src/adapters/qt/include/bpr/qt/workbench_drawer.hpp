@@ -5,6 +5,7 @@
 
 #include <QAbstractButton>
 #include <QAbstractListModel>
+#include <QSet>
 #include <QString>
 #include <QWidget>
 
@@ -53,6 +54,8 @@ namespace bpr::qt {
 		std::uint64_t ModelResets           = 0U;
 		std::uint64_t FileLookupComparisons = 0U;
 		std::uint64_t FileIndexRowsBuilt    = 0U;
+		/// [[BPR-0972]]. Rows examined while reconciling a supplied order.
+		std::uint64_t ReconcileRowsVisited = 0U;
 
 		auto operator<=>(const workbench_drawer_model_statistics&) const = default;
 	};
@@ -100,9 +103,12 @@ namespace bpr::qt {
 		void rebuild_file_index() const;
 		void retire_absent(const std::vector<workbench_drawer_row>& aRows);
 		void insert_or_move(std::size_t aRequestedIndex, workbench_drawer_row aRow);
-		void remove(const QString& aIdentity);
+		void remove_at(std::size_t aRow);
 
-		std::vector<workbench_drawer_row>                            Rows;
+		std::vector<workbench_drawer_row> Rows;
+		/// [[BPR-0972]]. The identities in `Rows`, so reconciliation decides an
+		/// insertion without searching the retained rows.
+		QSet<QString>                                                Present;
 		mutable workbench_drawer_model_statistics                    Statistics;
 		mutable std::vector<std::pair<core::workbench_file_id, int>> FileIndex;
 		mutable bool                                                 FileIndexDirty = true;
