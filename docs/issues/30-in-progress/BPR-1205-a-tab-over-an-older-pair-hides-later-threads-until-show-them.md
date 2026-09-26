@@ -41,3 +41,24 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Engineering evidence — 2026-09-26
+
+Decision: filter complete current-head thread roots and their descendants from
+both tray views while both endpoints are older. Keep the unfiltered forest
+for Discuss and for a retained per-file notice-count index. Historical
+unplaced entries retain their explicit unavailable wording; no old numeric
+line is guessed onto a revision. The notice says Comparing rather than
+claiming no historical threads exist. Show them's three routes are unchanged.
+
+The conversation course and document-tab courses at 100/125/200 pass 4/4.
+They assert absent later roots and replies, retained notice counts, current-
+head restoration, all three Show them routes, and a negative control whose
+current-head forest fails the older-pair exclusion predicate. Existing
+BPR-0972 per-file indexes remain; the notice now uses a cached keyed count
+instead of scanning the forest. Initial compilation exposed an incorrect
+scalar assumption for file_identity; the corrected typed-key map builds.
+
+No new human verdict is inferred. The owner already chose hiding; the
+combined chrome look and originating platform/station debt remain with
+BPR-1135. This evidence is scoped to Mac engineering.

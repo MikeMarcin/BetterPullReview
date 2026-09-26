@@ -655,6 +655,8 @@ namespace bpr::qt {
 	void github_conversation_panel::index_retained()
 	{
 		PlacedStale = true;
+		EarlierRetained.clear();
+		CurrentThreadCounts.clear();
 		RetainedFiles.clear();
 		RetainedRoot.clear();
 		RetainedByRootFile.clear();
@@ -682,6 +684,14 @@ namespace bpr::qt {
 				node = parent->second;
 			}
 			RetainedRoot.push_back(root);
+			const auto current = root.has_value() && Retained[*root].Kind == application::github_conversation_kind::review_thread
+				&& Retained[*root].AnchorAvailability == application::github_conversation_anchor_availability::current;
+			if (!current) {
+				EarlierRetained.push_back(Retained[index]);
+			}
+			if (current && *root == index) {
+				++CurrentThreadCounts[RetainedFiles[index]];
+			}
 			if (root.has_value() && !Retained[*root].Path.empty()) {
 				RetainedByRootFile.emplace_back(RetainedFiles[*root], index);
 			}
@@ -694,12 +704,20 @@ namespace bpr::qt {
 		if (!AnchorFile.has_value()) {
 			// A line without a file is judged node by node, as before.
 			ProjectionNodesVisited += Retained.size();
+			if (!LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision && !AnchorLine) {
+				return EarlierRetained;
+			}
 			return anchored_to(Retained, RetainedFiles, AnchorFile, AnchorLine, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
 		}
 		auto kept = std::vector<application::github_conversation_projection>{ };
 		for (const auto& [file, index] : std::ranges::equal_range(RetainedByRootFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {
 			++ProjectionNodesVisited;
 			const auto root = *RetainedRoot[index];
+			if (!LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision
+				&& Retained[root].Kind == application::github_conversation_kind::review_thread
+				&& Retained[root].AnchorAvailability == application::github_conversation_anchor_availability::current) {
+				continue;
+			}
 			if (AnchorLine.has_value() && !anchored_to_line(Retained[root], *AnchorLine, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision)) {
 				continue;
 			}
@@ -756,7 +774,7 @@ namespace bpr::qt {
 		const auto postOffset    = -View->visualRect(readingIndex).top();
 		auto       shown         = !Discuss && (AnchorFile.has_value() || AnchorLine.has_value())
 			? anchored()
-			: Retained;
+			: (!Discuss && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained);
 		shown                    = with_endpoint_placement(
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
@@ -764,7 +782,7 @@ namespace bpr::qt {
 		// [[BPR-0972]]. The cards take the whole placed forest only when it
 		// changed; a new anchor alone is a new anchor file.
 		if (PlacedStale) {
-			PlacedRetained = with_endpoint_placement(Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
+			PlacedRetained = with_endpoint_placement(!Discuss && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
 			PlacedStale    = false;
 			Cards->adopt(PlacedRetained, Discuss ? DiscussFile : AnchorFile);
 		} else {
@@ -881,7 +899,9 @@ namespace bpr::qt {
 			DiscussScope         = Cards->scope();
 			DiscussFilters       = Cards->filters();
 		}
-		Discuss = aDiscuss;
+		Discuss     = aDiscuss;
+		PlacedStale = true;
+		PlacedStale = true;
 		DiscussFileChoice->setVisible(Discuss);
 		ScopeThisFile->setText(Discuss ? QStringLiteral("File scope") : QStringLiteral("This file"));
 		ScopeThisFile->setAccessibleName(ScopeThisFile->text());
@@ -1018,16 +1038,8 @@ namespace bpr::qt {
 
 	auto github_conversation_panel::current_head_thread_count(const core::file_identity& aFile) const -> std::size_t
 	{
-		auto count = std::size_t{ 0U };
-		for (std::size_t index = 0; index < Retained.size() && index < RetainedFiles.size(); ++index) {
-			const auto& node = Retained[index];
-			count += !node.ParentId.has_value() && node.Kind == application::github_conversation_kind::review_thread
-					&& node.AnchorAvailability == application::github_conversation_anchor_availability::current
-					&& RetainedFiles[index] == aFile
-				? 1U
-				: 0U;
-		}
-		return count;
+		const auto found = CurrentThreadCounts.find(aFile);
+		return found == CurrentThreadCounts.end() ? 0U : found->second;
 	}
 
 	auto github_conversation_panel::anchor_line() const noexcept

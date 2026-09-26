@@ -6,6 +6,7 @@
 #include "bpr/core/diff_model.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 
+#include <map>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -259,6 +260,8 @@ namespace bpr::qt {
 		/// [[BPR-0972]]. The retained forest with the current endpoint
 		/// placement, handed to the cards only when either changes.
 		std::vector<application::github_conversation_projection> PlacedRetained;
+		std::vector<application::github_conversation_projection> EarlierRetained;
+		std::map<core::file_identity, std::size_t>               CurrentThreadCounts;
 		bool                                                     PlacedStale            = true;
 		std::uint64_t                                            ProjectionNodesVisited = 0U;
 

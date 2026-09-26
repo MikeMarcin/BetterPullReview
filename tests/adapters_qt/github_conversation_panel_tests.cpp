@@ -480,6 +480,29 @@ namespace {
 			   "current GitHub coordinates name a selected-revision mismatch instead of appearing placed");
 	}
 
+	void test_later_threads_are_hidden_with_their_replies()
+	{
+		qt::github_conversation_panel panel;
+		auto                          later      = root("later", "src/file.cpp");
+		auto                          historical = root("historical", "src/file.cpp");
+		historical.AnchorAvailability            = application::github_conversation_anchor_availability::outdated_revision;
+		historical.Outdated                      = true;
+		auto reply                               = later;
+		reply.Id                                 = "later-reply";
+		reply.ParentId                           = "later";
+		panel.adopt({ later, reply, historical }, QStringLiteral("Three posts"));
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		panel.set_current_endpoint_placement(false, false);
+		const auto excludesLater = [&] { return !panel.model()->index_for_id("later").isValid() && !panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 1U; };
+		expect(excludesLater(), "both views hide the entire later thread and retain explicitly historical unplaced threads");
+		expect(panel.current_head_thread_count(core::file_identity_of("src/file.cpp")) == 1U, "notice count uses the unfiltered retained index");
+		panel.set_current_endpoint_placement(false, true);
+		expect(!excludesLater(), "negative control: the current-head forest fails the older-pair exclusion predicate");
+		panel.set_current_endpoint_placement(false, false);
+		panel.set_discuss(true);
+		expect(panel.model()->index_for_id("later-reply").isValid() && panel.cards()->thread_count() == 2U, "Show them's Discuss route restores the complete forest");
+	}
+
 	auto test_invalid_projected_side_is_never_guessed_as_right() -> void
 	{
 		auto invalid     = root("invalid-side", "src/file.cpp");
@@ -856,6 +879,7 @@ auto main(int argc, char** argv) -> int
 	test_an_orphan_is_kept_by_its_own_anchor();
 	test_exact_source_anchor_filters_file_side_and_line();
 	test_unplaced_anchor_wording_is_explicit();
+	test_later_threads_are_hidden_with_their_replies();
 	test_invalid_projected_side_is_never_guessed_as_right();
 	test_pr_wide_index_and_selected_detail();
 	test_contextual_scope_survives_clear_and_refresh();

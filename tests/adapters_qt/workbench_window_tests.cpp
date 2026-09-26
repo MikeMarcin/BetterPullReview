@@ -5971,6 +5971,9 @@ namespace {
 		window.set_conversation_endpoint_placement(false, false);
 		process_events();
 		expect(window.older_pair_notice()->isVisible() && window.older_pair_notice_text().contains(QStringLiteral("One thread is on later updates")), "older-pair notice counts later threads of this file");
+		expect(!window.conversation_panel()->model()->index_for_id("review-thread:later").isValid()
+				   && window.conversation_panel()->cards()->thread_count() == 0U,
+			   "later threads are absent from both older-pair tree and cards");
 		expect(!window.comment_action()->isEnabled(), "new Comment is unavailable off current head");
 		window.show_later_threads_button()->click();
 		expect(std::get<core::activate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 2 }, "Show them routes to same-file window-pair sibling");
@@ -5989,6 +5992,9 @@ namespace {
 		window.set_conversation_endpoint_placement(false, true);
 		process_events();
 		expect(window.older_pair_notice()->isHidden(), "current-head comparison has no later-pair notice");
+		expect(window.conversation_panel()->model()->index_for_id("review-thread:later").isValid()
+				   && window.conversation_panel()->cards()->thread_count() == 1U,
+			   "current-head comparison restores the complete file conversation");
 		window.set_conversation_endpoint_placement(false, false);
 		for (int id = 4; id <= 12; ++id) {
 			projection.Tabs.push_back({ .Id = core::document_tab_id{ static_cast<std::uint64_t>(id) }, .View = { pair(now), otherFile, { } } });

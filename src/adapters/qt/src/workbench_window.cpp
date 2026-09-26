@@ -5527,7 +5527,7 @@ namespace bpr::qt {
 		static constexpr auto words   = std::array{ "One thread is", "Two threads are", "Three threads are", "Four threads are", "Five threads are",
 													"Six threads are", "Seven threads are", "Eight threads are", "Nine threads are" };
 		const auto            counted = later <= words.size() ? QString::fromLatin1(words[later - 1U]) : tr("%1 threads are").arg(later);
-		const auto            text    = tr("No threads on %1. %2 on later updates of this file.").arg(pair_text(active->View.Comparison, false), counted);
+		const auto            text    = tr("Comparing %1. %2 on later updates of this file.").arg(pair_text(active->View.Comparison, false), counted);
 		if (OlderPairText->text() != text) {
 			OlderPairText->setText(text);
 			OlderPairText->setAccessibleDescription(text);
