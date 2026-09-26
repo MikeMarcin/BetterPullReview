@@ -2,13 +2,15 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1207"
 title: "Comment opens a page that looks broken and leaves no way to comment"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "owner note on attended candidate BPR-1133-arrow, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1133-arrow", "decision": "b3d1d32d-02c6-4951-98bf-d5ecd4d36d0f", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-08"], "related_cards": ["BPR-1133", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"356bbdb22624beabe7b8f611e6c54c8d9abdad3f","evidence":{"kind":"observation","detail":"Exact frozen m2 native UIforETW fixture reproduced unusable page before deliberate change and after current-head change selection; closed PR has no admitted mutation draft. Card records executable digest and route; no publication."}},{"criterion":"AC2","outcome":"pass","revision":"356bbdb22624beabe7b8f611e6c54c8d9abdad3f","evidence":{"kind":"command","detail":"1207-controls-tests.log 6/6; final1207-recovery-final-tests.log4/4; real composed local write zero provider mutation, actual hidden panel/button assertions, forced-enable negative control and retained-conflict reopen. All logs in /Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence."}},{"criterion":"AC3","outcome":"pending","revision":"356bbdb22624beabe7b8f611e6c54c8d9abdad3f","evidence":{"kind":"observation","detail":"Owner must write through Comment on open synthetic fixture without publication and judge on macOS. Pending, no acceptance inferred."}}]
 ---
 
 # BPR-1207: Comment opens a page that looks broken and leaves no way to comment
