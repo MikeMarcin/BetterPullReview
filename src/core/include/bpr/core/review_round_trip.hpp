@@ -75,6 +75,14 @@ namespace bpr::core {
 		auto operator<=>(const review_comment_draft&) const = default;
 	};
 
+	/// \brief Admits new inline comments on the right side and replies on either side.
+	/// \details This is target shape only; current-head, authority and endpoint checks
+	/// remain with their existing core and host admission paths.
+	[[nodiscard]] constexpr auto supported_comment_target(const diff_side aSide, const bool aReply) noexcept -> bool
+	{
+		return aSide == diff_side::right || (aSide == diff_side::left && aReply);
+	}
+
 	/// \brief Names one command a reviewer can issue against a draft.
 	enum class review_draft_command_kind : std::uint8_t {
 		edit,

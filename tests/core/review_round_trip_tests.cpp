@@ -403,6 +403,19 @@ namespace {
 			"a revision nobody can name is not one a reviewer can have agreed to");
 	}
 
+	void test_comment_target_shape_preserves_left_replies()
+	{
+		expect(core::supported_comment_target(core::diff_side::right, false)
+				   && core::supported_comment_target(core::diff_side::right, true),
+			   "right-side lines admit new comments and replies");
+		expect(!core::supported_comment_target(core::diff_side::left, false)
+				   && core::supported_comment_target(core::diff_side::left, true),
+			   "left-side lines admit existing-thread replies only");
+		expect(!core::supported_comment_target(static_cast<core::diff_side>(255), false)
+				   && !core::supported_comment_target(static_cast<core::diff_side>(255), true),
+			   "an unknown side cannot admit a comment or reply");
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -437,6 +450,7 @@ auto main() -> int
 	test_a_changed_target_can_never_be_acknowledged_away();
 	test_a_changed_target_outranks_a_moved_head();
 	test_an_unnameable_head_is_refused_outright();
+	test_comment_target_shape_preserves_left_replies();
 	test_every_enumerator_names_itself();
 
 	std::cout << "review-round-trip-core-tests:pass\n";

@@ -420,8 +420,7 @@ namespace bpr::application {
 			// published, so only the right side can carry one; a reply is
 			// anchored by the thread it answers, and the selection it was
 			// drafted from may be on either side.
-			if (selected.PreferredLine.Side != core::diff_side::right
-				&& !aRequest.Proposal.ReplyToThread.has_value()) {
+			if (!core::supported_comment_target(selected.PreferredLine.Side, aRequest.Proposal.ReplyToThread.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			if (!publication.RightPath.has_value() || !key.RightBlob.has_value()

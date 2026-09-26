@@ -77,6 +77,12 @@ endfunction()
 # test-only DEFECT_COMMENTS_STALLED lambda parameter stream to aStream and its
 # one use. Runtime behavior and mutation digest remain unchanged. The combined
 # review record includes this exact delta and the focused replay.
+# BPR-1207 hand-back32 reseal: 9bd38bf1..this product slice; no intervening
+# pinned-source change. Promotion preflight admits an editable left-side thread
+# before Comment converts it to a reply; the following exact scope/anchor and
+# Publish guards remain. Host target admission is shared with core and Qt,
+# preserving left replies and refusing left roots. Full review is on BPR-1207;
+# production mutation composition is byte-identical.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -363,7 +369,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e496dd1ca8e476d887b464642f7799d9bf13215fcffc3fbda5cc664909ce3856"
+		"d92904183c006346613294ad3ea20c458f23392f512897210310cb93ee16b639"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -514,7 +520,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e1f84da2b4fd484736cf85524fabdc304f58e2ab0e438b336dbf217925dbce30"
+        "d7fc7933304ae8e08711a8c95de3a0ce22fefcf70dd57ca245c2b9ffdf519038"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -11148,7 +11148,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		[[nodiscard]] auto promote_private_item(std::string aText) -> bool
 		{
 			if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
-				|| !Window->comment_action()->isEnabled() || !Window->review_editor()->publish_action()->isEnabled()) {
+				|| !Window->comment_action()->isEnabled() || Window->review_editor()->body_editor()->isReadOnly()) {
 				return false;
 			}
 			const auto anchor = ReviewDraft->Anchor;

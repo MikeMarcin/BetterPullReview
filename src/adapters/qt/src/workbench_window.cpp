@@ -5786,7 +5786,7 @@ namespace bpr::qt {
 		const auto key        = CommentAction->shortcut().toString(QKeySequence::NativeText);
 		const auto selection  = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
 		const auto draftReady = ReviewEditor != nullptr
-			&& (ReviewEditor->publish_action()->isEnabled() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
+			&& (!ReviewEditor->body_editor()->isReadOnly() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
 			&& ReviewEditor->shown_draft() && selection
 			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
 		auto reason = QString{ };
@@ -5794,10 +5794,12 @@ namespace bpr::qt {
 			reason = tr("Select the pull request's current head; this tab compares an earlier update.");
 		} else if (target.isEmpty()) {
 			reason = tr("Select a current-head diff line or thread to comment.");
+		} else if (selection && !core::supported_comment_target(selection->PreferredLine.Side, comment_reply_thread().has_value())) {
+			reason = tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread.");
 		} else if (!draftReady) {
 			reason = tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment.");
 		}
-		const auto promotionAvailable = reason.isEmpty() && ReviewEditor->publish_action()->isEnabled();
+		const auto promotionAvailable = reason.isEmpty() && !ReviewEditor->body_editor()->isReadOnly();
 		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
 		if (PrivateNotes != nullptr) {
 			PrivateNotes->set_promotion_target(promotionAvailable, promotionReason);

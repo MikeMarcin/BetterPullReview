@@ -5780,13 +5780,14 @@ namespace {
 		comment->setEnabled(true); // Negative control: activation still rechecks admission.
 		comment->trigger();
 		expect(stack->currentWidget() != page && !usable(), "an incorrectly enabled action cannot open an unusable page");
-		const auto admit = [&window](const std::optional<core::semantic_selection>& selection) {
-			if (selection) {
+		const auto admit = [&window](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
 				window.review_editor()->present(core::review_comment_draft{
-					.Id = core::review_draft_id{ 1U }, .Anchor = selection->PreferredLine, .Body = { } });
+					.Id = core::review_draft_id{ 1U }, .Anchor = aSelection->PreferredLine, .Body = { } });
 			}
 		};
 		window.comparison_surface()->set_selection_sink(admit);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 12U), "select the current-head side of the first change");
 		admit(window.comparison_surface()->selection());
 		expect(usable(), "the host's exact editable draft makes Comment available");
 		const auto key       = comment->shortcut().toString(QKeySequence::NativeText);
@@ -5891,6 +5892,28 @@ namespace {
 				   && window.comparison_surface()->selection().has_value()
 				   && window.comparison_surface()->selection()->PreferredLine.Line == 21U,
 			   "the card's Reply selects its own thread's line and answers that thread on the inline page");
+		back();
+		window.set_conversation_endpoint_placement(true, true);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 12U), "the changed left-side line is selectable");
+		process_events();
+		expect(!comment->isEnabled() && comment->toolTip().contains(QStringLiteral("right, current-head")), "a left-side new comment is unavailable with its exact reason");
+		window.conversation_panel()->adopt({ application::github_conversation_projection{
+											   .Id = "review-thread:left", .Kind = application::github_conversation_kind::review_thread, .AuthorLogin = "left-reviewer", .Path = "src/file.cpp", .Line = 13U, .DiffSide = application::github_conversation_diff_side::left, .AnchorAvailability = application::github_conversation_anchor_availability::current } },
+										   QStringLiteral("left thread"));
+		window.set_review_reply_dispatch([&window, &replies](const std::string& aIdentity) {
+			replies.push_back(aIdentity);
+			auto replyDraft          = *window.review_editor()->shown_draft();
+			replyDraft.ReplyToThread = aIdentity;
+			window.review_editor()->present(replyDraft);
+		});
+		process_events();
+		showsMenu();
+		expect(comment->isEnabled() && comment->text().contains(QStringLiteral("left-reviewer's thread")), "the left line's existing thread remains an admitted Reply target");
+		comment->trigger();
+		process_events();
+		expect(replies.back() == "review-thread:left" && stack->currentWidget() == page
+				   && window.review_editor()->publish_action()->isEnabled(),
+			   "left Reply opens the converted reply draft with explicit Publish available");
 		back();
 		expect(publishes() == 0, "nothing was published: Comment and Reply only open the page, and Publish stays the page's");
 		window.hide();
@@ -6100,8 +6123,8 @@ namespace {
 		const auto exact  = core::find_tab(tabsState, source)->View;
 		auto       shown  = application::document_tabs_projection{ .Tabs = { { .Id = source, .View = exact, .Active = true } }, .WindowComparison = pair(now) };
 		window.publish(shown);
-		window.set_document_tab_dispatch([&](const auto& intent) {
-			const auto result = core::transition(tabsState, intent);
+		window.set_document_tab_dispatch([&](const auto& aIntent) {
+			const auto result = core::transition(tabsState, aIntent);
 			expect(result.Load.has_value(), "plus creates an active load, never a background-only duplicate");
 			shown.Tabs.clear();
 			for (const auto& tab : tabsState.Tabs) {
@@ -6116,7 +6139,7 @@ namespace {
 		const auto activeBefore     = background.Active;
 		const auto backgroundResult = core::transition(background, core::open_in_new_tab_intent{ otherFile });
 		expect(!backgroundResult.Load && background.Active == activeBefore, "Cmd-click remains background and fails the active-load predicate");
-		window.set_document_tab_dispatch([&](const auto& intent) { intents.push_back(intent); });
+		window.set_document_tab_dispatch([&](const auto& aIntent) { intents.push_back(aIntent); });
 		// [[BPR-1197]]. An elided header accompanies a complete explanation
 		// in the empty comparison; it does not replace that explanation.
 		const auto  explanation = QStringLiteral("Comparison unavailable — the file cannot be read at the earlier selected revision. Select another file or comparison to continue. <literal text>");
@@ -7700,8 +7723,8 @@ namespace {
 		window.conversation_panel()->adopt(forest, QStringLiteral("three threads"));
 		std::vector<core::defect_command>                commands;
 		std::vector<qt::workbench_defect_classification> classifications;
-		window.set_defect_dispatch([&](auto command) { commands.push_back(command); });
-		window.set_defect_classification_dispatch([&](auto command) { classifications.push_back(command); });
+		window.set_defect_dispatch([&](auto aCommand) { commands.push_back(aCommand); });
+		window.set_defect_classification_dispatch([&](auto aCommand) { classifications.push_back(aCommand); });
 		auto first                = core::defect_history{ .Defect = { .Id = core::defect_id{ 1U }, .Anchor = { .Comparison = diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 4U } } };
 		first.OriginalAnchor      = first.Defect.Anchor;
 		auto second               = first;

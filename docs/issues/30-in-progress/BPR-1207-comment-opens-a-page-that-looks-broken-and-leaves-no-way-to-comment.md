@@ -146,3 +146,64 @@ attachment bytes remain in private runtime storage. Earlier verdicts are retaine
 AC3 remains unsatisfied. The screenshot shows typed local text with an unsupported
 publication status. Diagnose the exact fixture and status path before preparing
 one successor judgment; do not enable a live provider or relax publication admission.
+
+## Hand-back32 diagnosis and target admission correction
+
+The attached image shows Changes 2/4 and the exact message “This provider does
+not support publication.” The fixture does compose its safe mutation provider.
+The owner's exact Publish gesture was not observed, so the image alone does not
+establish their entire route. The public composition reproduced that message
+by selecting the left-side deletion at zero-based line 45, opening Comment,
+typing disposable text and invoking Publish: Comment was enabled, the host
+returned `unsupported`, and provider submissions remained zero. The diagnostic
+negative control is retained privately in `r3` evidence `left-diagnostic.log`.
+
+The cause is inconsistent target admission: the host already refuses a new root
+comment on the left side, while the workbench offered Comment and the editor
+Publish for that draft. The core now owns that shared target-shape rule. New
+comments require the right/current-head side; an existing-thread reply remains
+valid on either side. The host preserves its authority, exact binding, current
+revision and endpoint checks. An invalid side also fails closed. Qt projects
+the same rule, explains an unavailable left-side root, retains its text, and
+rechecks Comment activation. The generic terminal message now names an
+unavailable target without falsely attributing every refusal to the provider.
+
+### Source pin review before reseal
+
+Reviewed baseline `9bd38bf1` through this product slice. There is no intervening
+`src/app` commit. The only pinned-source change is `promote_private_item`'s
+preflight: require an editable body rather than Publish before Comment converts
+a selected left-side thread into a reply. After that public gesture, the existing
+Publish check remains, together with the exact draft scope, anchor, revision,
+accepted text and rejected-candidate checks. No provider composition, credentials,
+authority grant, source deletion, publication dispatch or lifetime path changes.
+The host's target check is factored into a pure core rule; it admits no additional
+valid target, and refuses unknown sides instead of allowing an unknown-side
+reply. The tests-disabled production mutation branch remains byte-identical,
+SHA-256 `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+The full-TU and production-manifest pins are resealed in this same slice after
+this review. This is implementer review, not independent or human acceptance.
+AC3 remains rejected until the owner reviews the corrected frozen candidate.
+
+### Corrected candidate verification
+
+The core rule, application mutation host and draft editor pass. The existing
+threaded-reply public course passes in 23.57 s. The final window course passes
+in 20.64 s, explicitly selecting the right side before testing Comment, refusing
+forced left-new activation, and retaining a current left-thread Reply with
+Publish available. The composed Comment course passes in 14.61 s: actual local
+typing, zero provider mutation, ordinary right-side Publish availability, and
+Notes promotion/source retention remain covered. The composition source-pin
+contract passes in 11.73 s.
+
+The core-only core rule and both architecture tests pass 3/3 in 111.78 s, using
+the existing verified shared dependency cache with offline acquisition. The
+plain preset initially reset that cache path and failed configuration; the
+explicit existing cache corrected the environment without a source change.
+Changed production/core/editor translation units pass strict tidy; six existing
+mechanical test warnings (five lambda parameter names and one size-cast
+placement) were corrected, the two affected courses replayed, and strict tidy
+on both test translation units passes. Changed paths are formatter-clean.
+Logs live in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-r3-rb0nbkl2/evidence/`
+under `comment-*`. The owner criterion remains pending a successor review;
+these automated checks do not reverse the recorded Reject.

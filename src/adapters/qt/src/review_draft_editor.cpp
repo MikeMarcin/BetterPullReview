@@ -756,7 +756,7 @@ namespace bpr::qt {
 			break;
 		case application::review_mutation_failure::unsupported:
 			Members.MutationStatus->setText(QStringLiteral(
-				"This provider does not support publication."));
+				"Publication is unavailable for this target. Your draft text is kept."));
 			break;
 		case application::review_mutation_failure::cancelled:
 			Members.MutationStatus->setText(
@@ -831,13 +831,15 @@ namespace bpr::qt {
 		Members.Revisioned.Reapply->setEnabled(reapply);
 		const auto drafting = revisionReady && Members.ShownDraft
 			&& Members.ShownDraft->State == core::review_draft_state::drafting;
-		Members.Publish->setEnabled(drafting);
+		const auto supportedTarget = Members.ShownDraft && core::supported_comment_target(Members.ShownDraft->Anchor.Side, Members.ShownDraft->ReplyToThread.has_value());
+		Members.Publish->setEnabled(drafting && supportedTarget);
 		Members.Discard->setEnabled(drafting);
 		Members.Body->setReadOnly(!drafting);
 		Members.Body->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
 		Members.TargetLabel->setVisible(!Members.TargetLabel->text().isEmpty());
 		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
-		Members.Publish->setToolTip(drafting ? tr("Publish this draft comment.") : unavailable);
+		Members.Publish->setToolTip(!drafting ? unavailable : supportedTarget ? tr("Publish this draft comment.")
+																			  : tr("New comments need a line on the right, current-head side. Your draft text is kept."));
 		Members.Discard->setToolTip(drafting ? tr("Discard this local draft.") : unavailable);
 
 		const auto receipt = Members.ShownReceipt.has_value();

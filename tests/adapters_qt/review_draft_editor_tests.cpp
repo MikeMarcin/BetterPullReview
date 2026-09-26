@@ -1154,6 +1154,33 @@ namespace {
 			"send anything, and nothing to write to");
 	}
 
+	void test_left_new_comment_keeps_text_without_offering_publish()
+	{
+		auto  log         = intent_log{ };
+		auto* editor      = editor_for(log);
+		auto  draft       = a_draft("Keep these exact bytes.");
+		draft.Anchor.Side = core::diff_side::left;
+		editor->present(draft);
+		expect(!editor->publish_action()->isEnabled()
+				   && editor->publish_action()->toolTip().contains(QStringLiteral("right, current-head"))
+				   && editor->body_editor()->toPlainText() == QStringLiteral("Keep these exact bytes.")
+				   && !editor->body_editor()->isReadOnly() && editor->discard_action()->isEnabled(),
+			   "an unsupported root retains editable text and explains why Publish is unavailable");
+		editor->publish_action()->trigger();
+		expect(log.Drafts.empty(), "a left-side root emits no publication intent");
+		draft.ReplyToThread = "PRRT_fixture_1";
+		editor->present(draft);
+		expect(editor->publish_action()->isEnabled(), "a left-side reply still offers explicit Publish");
+		editor->publish_action()->trigger();
+		expect(log.Drafts.size() == 1U && log.Drafts.back().Kind == core::review_draft_command_kind::begin_publish,
+			   "a left-side reply emits the same explicit publication intent");
+		draft.ReplyToThread.reset();
+		draft.Anchor.Side = core::diff_side::right;
+		editor->present(draft);
+		expect(editor->publish_action()->isEnabled(), "a right-side root remains publishable");
+		delete editor;
+	}
+
 	void test_target_and_server_failures_are_distinct()
 	{
 		auto  log    = intent_log{ };
@@ -1222,6 +1249,7 @@ auto main(int argc, char** argv) -> int
 	test_the_publication_target_is_shown_before_publishing();
 	test_the_thread_a_reply_answers_is_named_only_while_it_does();
 	test_every_action_and_widget_is_distinctly_named();
+	test_left_new_comment_keeps_text_without_offering_publish();
 	test_target_and_server_failures_are_distinct();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();
