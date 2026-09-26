@@ -107,3 +107,16 @@ identity and the private loopback URL live under the ignored runtime paths
 named in `handoff.json`; images and logs are not committed. Windows remains
 explicitly deferred, including its earlier consider-cue observation. No
 human or other-platform verdict is inferred from the fixture pass.
+
+## Main integration — 2026-09-26
+
+The coordinator landed the parked milestone on main at `de496298`, including
+product `6729ad21` and the separate terminal ownership repair `ca23a9fe`.
+The two changed executables built with the dev preset at parallelism 2.
+`ctest --test-dir build/dev -j1 -R
+'^(application_agent_finding_dif_context_contract|qt_workbench_window_scale_100)$'
+--output-on-failure` passed 2/2 in 40.71 seconds. The documentation gate passed.
+The architecture and contained-temporary gates had passed 2/2 on `ca23a9fe`
+in 24.89 seconds; the workshop adds no effect API. These are macOS arm64
+offscreen integration results, not an owner verdict or native Windows evidence.
+The frozen review candidate and its pending decision remain unchanged.
