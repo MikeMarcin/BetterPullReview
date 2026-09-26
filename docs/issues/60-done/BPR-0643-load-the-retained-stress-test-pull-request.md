@@ -380,7 +380,7 @@ pull request from a fork with 9311 commits (GitHub lists only the newest 250),
 inspection against the read model at `50f364b8` found no bound, nullable
 field, status value, duplicate identity or GraphQL error that explains the
 refusal; the observation is on
-[BPR-0641](../40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
+[BPR-0641](BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
 
 ## Scope
 

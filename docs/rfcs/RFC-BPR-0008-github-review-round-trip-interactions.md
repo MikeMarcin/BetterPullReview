@@ -79,6 +79,9 @@ partial decisions and permission boundaries intact:
   on a separately authorized suitable disposable PR/account.
 - [[BPR-0641]] retains its unfinished private-PR smoke acceptance. The ordinary
   inline-publication implementation and prior passing local records remain valid.
+  (Follow-on, 2026-09-25: the owner accepted that smoke in attended session
+  `06ad5734`, and BPR-0641 is Done. The file comparison that did not render on
+  the private pull request is [[BPR-1199]].)
 
 These are explicitly outside this RFC's terminal gate; none is marked passed
 or Done. Live Enterprise qualification remains skipped under its separate prior

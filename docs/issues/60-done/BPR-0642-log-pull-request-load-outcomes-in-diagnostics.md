@@ -56,7 +56,7 @@ pull request ended in `The pull request could not be loaded.`, the log showed
 the viewer and capability probes succeeding and then nothing, so the failure
 class (`malformed_response`, `response_limit`, `rate_limit`, a mapped provider
 failure, or a snapshot validation error) could not be recovered offline. The
-observation is recorded on [BPR-0641](../40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
+observation is recorded on [BPR-0641](BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
 
 ## Scope
 

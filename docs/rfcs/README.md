@@ -68,9 +68,11 @@ stopping boundary; no historical target observation is upgraded to a pass.
 On 2026-09-21, owner amendment r4 to land RFC-BPR-0014 was applied by explicit
 coordinator assignment to RFC-BPR-0008's blocking closeout. BPR-0242 closes its
 implemented scope with existing exact live comment/reply evidence, current local
-public-path/safety checks and documented source-pin reconciliation. BPR-0143,
-BPR-0144 and BPR-0641 remain parked standalone follow-ups for unobserved live
-mixed-client/state-loss, real review attribution and private-PR smoke acceptance.
+public-path/safety checks and documented source-pin reconciliation. BPR-0143
+and BPR-0144 remain parked standalone follow-ups for unobserved live
+mixed-client/state-loss and real review attribution. BPR-0641's private-PR
+smoke was accepted by the owner on 2026-09-25 (session 06ad5734) and the card
+is Done; the file comparison that did not render is BPR-1199.
 The [RFC-0008 ledger](../verification/RFC-BPR-0008.md#owner-amended-closeout-r4--2026-09-21)
 distinguishes that acceptance change from passing observations. The later RFCs
 were not closed by that step.

@@ -157,3 +157,8 @@ retained in this repository. No comment/review submission to that work PR is
 authorized. Authentication and live observation results belong on the card. The first
 named target did not load and is retained as a stress test on BPR-0643; the
 owner then named a small closed pull request for the read-only smoke check.
+On 2026-09-25 the owner accepted that smoke on a tests-disabled build of
+`3759b0d8`: signed in through GitHub CLI, the pull request opened read-only and
+listed its files, and BPR-0641 is Done. No file showed a comparison there; that
+is BPR-1199. Signed out, the link passed through an empty Overview before Home
+refused it in an easy-to-miss line; that is BPR-1200.

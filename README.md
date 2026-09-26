@@ -72,9 +72,11 @@ restart without a second POST.
 RFC-BPR-0008 is Auto-Verified under the owner's r4 closeout amendment.
 Its [ledger](docs/verification/RFC-BPR-0008.md) separates the implemented and
 locally verified publication paths from pending live mixed-client/state-loss
-checks (BPR-0143), real whole-review attribution (BPR-0144), and private-PR smoke
-acceptance (BPR-0641). Those cards remain parked follow-ups; RFC status does not
-claim those observations or complete release qualification.
+checks (BPR-0143) and real whole-review attribution (BPR-0144). Those cards
+remain parked follow-ups; RFC status does not claim those observations or
+complete release qualification. The private-PR smoke (BPR-0641) was accepted by
+the owner on 2026-09-25; the pull request opened read-only but showed no file
+comparison, which is BPR-1199.
 
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from

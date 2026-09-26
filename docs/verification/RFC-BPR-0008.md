@@ -7,6 +7,7 @@ RFC-BPR-0001 through 0007 are Auto-Verified. The existing designated publication
 appearance decision are accepted. Unfinished live mixed-client/state-loss,
 review-attribution and private-PR smoke work remain pending as standalone
 BPR-0143, BPR-0144 and BPR-0641 follow-ups, not RFC-0008 terminal gates.
+(BPR-0641's smoke was accepted on 2026-09-25; see its follow-on below.)
 
 BPR-0256 v011 used the exact signed macOS capsule at production source
 `a35eccaa`, restored MikeMarcin automatically, loaded the exact designated
@@ -33,7 +34,7 @@ unobserved work passed. The original baseline and all dated records remain.
 | Inline public editor → host → provider → refreshed projection, stale-head refusal and lost-result retry | Current `application_review_round_trip_composition_contract` passes after reviewed test-pin/inventory repair, 12.20 seconds | Testing grants and provider; no live publication. |
 | Comment/Approve/Request Changes and account identity | Current `application_review_submission_composition_public_path` passes, 2.24 seconds; reuse BPR-0610/0613/0614/0615 wire, provider, durable recovery and compile-seal records | Real attribution remains BPR-0144. |
 | Automated mutation isolation | Current `live_mutation_isolation` and `live_mutation_isolation_contract` pass, 110.06/0.16 seconds; BPR-0235 native evidence reused | Prior Windows uncontained exceptions remain documented; no stronger universal isolation claim. |
-| Exact per-gesture ordinary production authority | BPR-0641 AC1–AC3 at `50f364b8`; production inline branch digest remains unchanged across the reviewed range | Private-PR smoke AC4 remains pending. |
+| Exact per-gesture ordinary production authority | BPR-0641 AC1–AC3 at `50f364b8`; production inline branch digest remains unchanged across the reviewed range | Private-PR smoke AC4 was pending at this closeout; the owner accepted it on 2026-09-25 (see the follow-on below). |
 | No provider bypass or external issuer | Both focused `CompositionContractTests` source-cut/issuer-seal cases pass inside the network-denied runner, 8.665 seconds | Implementer review and deterministic negatives, not an independent review. |
 
 Initial focused run: seven of eight pass in 113.31 seconds. The eighth stopped
@@ -69,6 +70,14 @@ live RFC preserve discoverability without allocating replacement IDs:
 - [[BPR-0641]]: unfinished read-only private-PR smoke and human acceptance;
   AC1–AC3 pass, AC4 remains pending. The recorded failed private-target read
   remains a failure, without inferring success from later fixes.
+
+  **Follow-on, 2026-09-25.** In attended session
+  `06ad5734ed9f7c2fd6d0a62c8328fa0a` (decision `cbba6fac`) the owner accepted
+  the read-only smoke on `EpicGames/UnrealEngine#14366` in a tests-disabled
+  build of `3759b0d8`: the pull request opened and listed its files, and no
+  file showed a comparison. BPR-0641 is Done on that verdict; the comparison
+  failure is [[BPR-1199]] and the signed-out refusal's presentation is
+  [[BPR-1200]]. This closeout's status and evidence are unchanged.
 
 No required human decision remains in this amended closeout, so no new attended
 session/server is opened. Future follow-up owners must revalidate candidates and
