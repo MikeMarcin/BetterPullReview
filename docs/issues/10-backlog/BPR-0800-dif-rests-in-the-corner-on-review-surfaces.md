@@ -82,3 +82,13 @@ is authorized by this card. The core decides, the host performs, Qt presents: a
 mascot is presentation and reaches no store, provider or process. No new sprite
 work: this is placement, not identity — sprite revision is RFC-BPR-0030's. The
 Appearance page's Dif controls are [[BPR-0790]] and are not reopened here.
+
+## Related owner decision: Compose — 2026-09-25
+
+For the Compose review page only, the owner chose a visible workshop slot over
+the corner (attended session `06ad5734`, candidate `BPR-0966-compose-dif-v001`,
+decision `dba44cfd`): while a workshop edit is on Compose, Dif moves into a
+small AI tools area on that page and plays ready and acknowledge there. That
+is [[BPR-0966]]'s AC1. It does not decide this card's corner-versus-slot
+question for the other review surfaces, and the one-sprite rule above applies
+to it as well.

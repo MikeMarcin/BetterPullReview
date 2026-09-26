@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0966"
 title: "Reconcile Dif workshop cues with the dedicated composition page"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"}}
-blocked_by: "owner-dif-workshop-placement"
 ---
 
 # Reconcile Dif workshop cues with the dedicated composition page
@@ -137,3 +136,43 @@ explicitly deferred by the user's direction conveyed in this assignment; the
 earlier Windows results and follow-up obligation above remain intact. No new
 native or human verdict was obtained. There is no new visual candidate ready
 for attendance before the owner contract decision.
+
+## Owner decision on AC1 — 2026-09-25 (attended session 06ad5734)
+
+Packet [owner-review-20260925-fresh-v001](../../verification/reviews/owner-review-20260925-fresh-v001/operator-packet.md),
+session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, candidate
+`BPR-0966-compose-dif-v001`: `12ea8646` (its `src/` and `tests/` equal main's
+`faf53c8f`), course `86de5254…85be`, canary `109315a6…cc`, fingerprint
+`e331d3f8ccd44716d1963d48b40cc2b67bd952482db1cff46a1396a564fd6688`, equal to
+the prepared one. Preparation reran the Dif context course on that candidate
+(19.09 s, macOS arm64) and it failed as recorded above:
+`proposal-editor=1 proposal-ai-slot=0 proposal-dif=0 accepted-editor=1
+accepted-ai-slot=0 accepted-dif=0 painted-consider=1 painted-ready=0
+painted-acknowledge=0`.
+
+Decision `dba44cfd-0d53-4c01-bed1-14ef620ffe09`, sequence 37,
+2026-09-26T04:40:42Z, `actor: human`, no note: the owner selected, verbatim,
+"A visible workshop slot on Compose: Dif moves there and plays ready and
+acknowledge".
+
+**What that settles for AC1.** The Compose review page gains a visible
+workshop slot, a small AI tools area of its own. While a workshop proposal is
+shown there and after it is accepted, the one Dif widget moves into that slot
+and plays `comment_ready` after the proposal and `acknowledge` after the
+acceptance. RFC-BPR-0031 B7 is not amended: both cues stay required on
+Compose, and the course's two assertions stay as they are. The corner was not
+chosen for Compose, so this does not answer [[BPR-0800]]'s question for the
+other review surfaces; its one-sprite rule still holds everywhere. RFC-BPR-0037's
+page, drafts and publication semantics are unchanged apart from the slot.
+
+**Remaining.** AC2: build the slot and route Dif to it on Compose, with a
+failing-before check, keeping the exact session, action and draft identity,
+the single sprite, the explicit acceptance and zero publication. AC3: the Dif
+context course passes `painted-ready` and `painted-acknowledge` on the exact
+candidate, with the router, editor and composition courses. The slot is a new
+visible surface on Compose, so the owner's look at it is expected as one
+attended question for that criterion alone. Windows stays deferred, and its
+consider-cue observation above still belongs to AC3's run there.
+
+The card moves from Blocked to Ready: the placement question that blocked it
+is answered, and it has no unfinished dependency.
