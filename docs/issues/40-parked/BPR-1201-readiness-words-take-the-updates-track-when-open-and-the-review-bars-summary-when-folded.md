@@ -2,13 +2,15 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1201"
 title: "Readiness words take the Updates line's track when open and the review bar's summary when folded"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1130", "BPR-0795"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "owner decision on attended candidate BPR-1130-readiness, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1130-readiness", "decision": "5b349ec3-1536-4ed9-954b-572fda931f4f", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-01"], "related_cards": ["BPR-1130", "BPR-0795", "BPR-1197", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"21f3c14781a743dbc9162545444c00c95c7e28bc","evidence":{"kind":"command","detail":"4/4 focused loading and full window scale courses; renders inspected; final integration controls still recorded separately."}},{"criterion":"AC2","outcome":"pending","revision":"21f3c14781a743dbc9162545444c00c95c7e28bc","evidence":{"kind":"command","detail":"Focused tests and scale renders pass; final integrated negative control and loading width-floor observations remain required."}},{"criterion":"AC3","outcome":"pending","revision":"21f3c14781a743dbc9162545444c00c95c7e28bc","evidence":{"kind":"command","detail":"Focused tests and scale renders pass; final integrated negative control and loading width-floor observations remain required."}},{"criterion":"AC4","outcome":"pending","revision":"21f3c14781a743dbc9162545444c00c95c7e28bc","evidence":{"kind":"observation","detail":"Owner loading-state look required on the final m2b candidate."}}]
 ---
 
 # BPR-1201: Readiness words take the Updates line's track when open and the review bar's summary when folded
@@ -56,3 +58,22 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Engineering checkpoint — 2026-09-26
+
+Candidate `21f3c14781a743dbc9162545444c00c95c7e28bc` removes the readiness widget and places its words in the
+existing 34-pixel Updates track when open or in the comparison summary when
+folded. The complete words remain in the tooltip and accessible description;
+the track text is selectable. No authority or loading policy changes.
+
+`qt_composed_loading_scale_100` and `qt_workbench_window_scale_{100,125,200}`
+pass, 4/4 in 64.89 seconds, with held-provider loading, every modality,
+open/folded geometry and absence of the old row. The 100/125/200 loading
+renders were inspected. Format and documentation gates pass. The isolated
+frozen m2 public fixture still prints PUBLIC_PATH_OK, GITHUB_FIXTURE_OK and
+RENDER_OK. Evidence is retained at
+`/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/`.
+
+AC4's owner judgment is pending on the final integrated m2b candidate. The
+final integration will also bind the width-floor loading and negative-control
+observations; none of this accepts Windows/Linux station evidence.
