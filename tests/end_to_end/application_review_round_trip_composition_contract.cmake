@@ -38,6 +38,11 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1210 reseal: 44bd1266..the BPR-1210 product commit. No intervening
+# pinned-scope changes. Private ledger presentation/CRUD reuses its existing
+# lifetime and capabilities; one owned item enters the core's revisioned edit
+# through Comment's exact target. No publication or source deletion branch is
+# added. Full changed-source review and composed negative controls are on BPR-1210.
 # BPR-1132 reseal: fb4b8364..the BPR-1132 product commit. Per-window
 # document-tab composition, exact restoration and gesture precedence, shutdown,
 # and test-build UIforETW tab-strip geometry. No intervening pinned-scope commit;

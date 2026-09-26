@@ -16,6 +16,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -1739,6 +1740,8 @@ namespace bpr::qt {
 		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
+		PrivateNotes = new private_notes_panel{ conversationContents };
+		findingsLayout->addWidget(PrivateNotes);
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		findingsLayout->addWidget(AgentPanel);
@@ -5779,6 +5782,14 @@ namespace bpr::qt {
 		} else if (!draftReady) {
 			reason = tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment.");
 		}
+		const auto promotionAvailable = reason.isEmpty() && ReviewEditor->publish_action()->isEnabled();
+		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
+		if (PrivateNotes != nullptr) {
+			PrivateNotes->set_promotion_target(promotionAvailable, promotionReason);
+		}
+		if (SideChat != nullptr) {
+			SideChat->set_promotion_target(promotionAvailable, promotionReason);
+		}
 		CommentAction->setEnabled(reason.isEmpty());
 		CommentAction->setText(reason.isEmpty() ? target : tr("Co&mment unavailable — %1").arg(reason));
 		const auto tip = reason.isEmpty() ? QStringLiteral("%1 (%2)").arg(words, key) : tr("Comment (%1): %2").arg(key, reason);
@@ -8181,6 +8192,8 @@ namespace bpr::qt {
 	{
 		return AgentPanel;
 	}
+
+	auto workbench_window::private_notes() const noexcept -> private_notes_panel* { return PrivateNotes; }
 
 	auto workbench_window::side_chat() const noexcept -> side_chat_panel*
 	{

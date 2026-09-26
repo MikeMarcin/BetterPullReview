@@ -1,6 +1,7 @@
 #include "bpr/application/agent_chat_session_host.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace bpr::application {
@@ -161,6 +162,7 @@ namespace bpr::application {
 			OptIn = core::agent_private_context_optin{ .Session = aSession.Id };
 		}
 		if (adopted) {
+			Replies.clear();
 			++Statistics.SessionsAdopted;
 		}
 		present_state();
@@ -168,6 +170,7 @@ namespace bpr::application {
 
 	void agent_chat_session_host::clear()
 	{
+		Replies.clear();
 		Session.reset();
 		Observed.reset();
 		Selection.reset();
@@ -185,11 +188,31 @@ namespace bpr::application {
 		// other way to obtain one, so a reply counted here has already passed
 		// the finding bounds. Nothing in this function decodes, validates, or
 		// re-anchors anything.
-		if (!Session.has_value() || aDelivery.Session != Session->Id) {
+		if (!Session.has_value() || aDelivery.Session != Session->Id || aDelivery.Binding != Session->Binding) {
 			return;
 		}
 		++Statistics.Replies;
 		AwaitingReply = false;
+		// The existing reply protocol carries validated findings, not a second
+		// free-form transcript. Present each delivery's claims as one reply;
+		// never copy its private context or protocol metadata into the prose.
+		auto body = std::string{ };
+		for (const auto& finding : aDelivery.Findings) {
+			if (finding.Finding.Claim.empty()) {
+				continue;
+			}
+			if (!body.empty()) {
+				body += "\n\n";
+			}
+			body += finding.Finding.Claim;
+		}
+		if (!body.empty() && NextReply != std::numeric_limits<std::uint64_t>::max()) {
+			if (Replies.size() == maximum_visible_chat_replies) {
+				Replies.erase(Replies.begin());
+			}
+			Replies.push_back({ NextReply++, std::move(body) });
+		}
+		present_state();
 	}
 
 	void agent_chat_session_host::observe_selection(
@@ -383,6 +406,7 @@ namespace bpr::application {
 				.Profile = Session->Profile,
 				.Binding = *Observed,
 			};
+			Replies.clear();
 			Session = started;
 			OptIn   = core::agent_private_context_optin{ .Session = started.Id };
 			Chat    = core::agent_chat_state{ .Scope = Chat.Scope };
@@ -424,6 +448,7 @@ namespace bpr::application {
 			.Chat           = Chat,
 			.PrivateContext = OptIn,
 			.EntryPoint     = core::agent_entry_point::ask_about_selection,
+			.Replies        = Replies,
 		};
 	}
 

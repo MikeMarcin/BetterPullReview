@@ -8,6 +8,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
+#include <QListWidget>
 #include <QPlainTextEdit>
 
 #include <array>
@@ -595,6 +596,7 @@ namespace {
 					 statistics,
 					 dispatch,
 					 shown,
+					 replies, replyBody, promote, promotionAvailable, promotionReason,
 					 provider,
 					 gitHost,
 					 workspace,
@@ -631,6 +633,11 @@ namespace {
 			std::is_same_v<
 				decltype(shown),
 				const std::optional<qt::side_chat_projection>>);
+		static_assert(std::is_same_v<decltype(replies), QListWidget* const>);
+		static_assert(std::is_same_v<decltype(replyBody), QPlainTextEdit* const>);
+		static_assert(std::is_same_v<decltype(promote), QAction* const>);
+		static_assert(std::is_same_v<decltype(promotionAvailable), const bool>);
+		static_assert(std::is_same_v<decltype(promotionReason), const QString>);
 		static_assert(std::is_same_v<decltype(provider), QLabel* const>);
 		static_assert(std::is_same_v<decltype(gitHost), QLabel* const>);
 		static_assert(std::is_same_v<decltype(workspace), QLabel* const>);
@@ -656,7 +663,7 @@ namespace {
 		expect(
 			!applying && lastObservation == core::agent_observation_record{ }
 				&& statistics == qt::side_chat_panel_statistics{ }
-				&& !dispatch && !shown.has_value() && provider == nullptr
+				&& !dispatch && !shown.has_value() && replies == nullptr && replyBody == nullptr && promote == nullptr && !promotionAvailable && promotionReason.isEmpty() && provider == nullptr
 				&& gitHost == nullptr && workspace == nullptr
 				&& epochPair == nullptr && headOid == nullptr
 				&& sessionState == nullptr && scope == nullptr
@@ -692,6 +699,31 @@ namespace {
 			recorded.total() == 0U && panel.chip_count() == 0U,
 			"and triggering every action anyway emits nothing");
 	}
+	void test_selected_reply_promotion_keeps_the_source_and_rechecks_target()
+	{
+		auto recorded = recorder{ };
+		auto panel    = qt::side_chat_panel{ recorded.sink() };
+		auto shown    = current_projection();
+		shown.Replies = { { 11U, "First reply" }, { 12U, "Second reply" } };
+		panel.present(shown);
+		panel.replies_list()->setCurrentRow(1);
+		expect(!panel.promote_action()->isEnabled(), "a selected reply still needs Comment's target");
+		panel.promote_action()->setEnabled(true);
+		panel.promote_action()->trigger();
+		expect(recorded.total() == 0U, "forced enable cannot promote without a current target");
+		panel.set_promotion_target(true, { });
+		panel.promote_action()->trigger();
+		expect(recorded.count<qt::promote_chat_reply_intent>() == 1U && panel.replies_list()->count() == 2,
+			   "promotion emits one selected identity and preserves both replies");
+		const auto intent = std::get<qt::promote_chat_reply_intent>(recorded.Intents.back());
+		expect(intent.Session == shown.Session.Id && intent.Reply == 12U, "the exact session and selected reply leave as an intent");
+		panel.present(shown);
+		expect(panel.replies_list()->currentRow() == 1, "equal refresh keeps reply selection");
+		shown.Session.Id = core::agent_session_id{ 99U };
+		shown.Replies.clear();
+		panel.present(shown);
+		expect(panel.replies_list()->count() == 0 && !panel.promote_action()->isEnabled(), "retiring the session retires its reply choices");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -699,6 +731,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	// The stale path runs first so that a continuation which started itself
 	// fails on the claim it broke rather than on a later count of intents.
+	test_selected_reply_promotion_keeps_the_source_and_rechecks_target();
 	test_a_stale_session_offers_two_continuations_and_starts_neither();
 	test_every_disclosed_field_is_presented_separately();
 	test_nothing_the_reviewer_does_changes_the_display();

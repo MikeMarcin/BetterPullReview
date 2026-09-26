@@ -1,5 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -10,11 +12,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QToolButton>
@@ -152,6 +156,62 @@ auto main(int argc, char** argv) -> int
 					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-inline.png")), "usable inline render");
 				}
 				window.close_review_composition();
+				if (window.conversations_drawer()->state() != core::workbench_drawer_state::expanded) {
+					window.conversations_drawer_toggle_action()->trigger();
+				}
+				window.ai_tools_action()->trigger();
+				auto* notes = window.private_notes();
+				wait([&] { return notes->new_review_action()->isEnabled(); }, "private ledger available without any agent opt-in");
+				notes->new_review_action()->trigger();
+				notes->body_editor()->setPlainText(QStringLiteral("A private note, copied literally."));
+				notes->save_action()->trigger();
+				wait([&] { return notes->notes_list()->count() == 1 && !notes->save_action()->isEnabled(); }, "PR note is committed through the existing ledger");
+				const auto noteId = notes->notes_list()->item(0)->data(Qt::UserRole);
+				notes->new_file_action()->trigger();
+				notes->body_editor()->setPlainText(QStringLiteral("Private file note"));
+				notes->save_action()->trigger();
+				wait([&] { return notes->notes_list()->count() == 2; }, "file note commits");
+				expect(notes->notes_list()->item(0)->data(Qt::UserRole) != noteId && !notes->notes_list()->item(0)->text().contains(QStringLiteral("Pull request")), "newest note names its file");
+				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_note_bytes + 1U), QLatin1Char{ 'x' }));
+				notes->save_action()->trigger();
+				expect(notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_note_bytes + 1U)
+						   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")),
+					   "refused write retains the full local candidate and says why");
+				notes->discard_action()->trigger();
+				expect(notes->body_editor()->toPlainText() == QStringLiteral("Private file note"), "explicit discard restores the accepted note");
+				notes->body_editor()->setPlainText(QStringLiteral("Edited file note"));
+				notes->save_action()->trigger();
+				wait([&] { return !notes->save_action()->isEnabled(); }, "revision-checked note edit commits");
+				notes->erase_action()->trigger();
+				wait([&] { return notes->notes_list()->count() == 1; }, "revision-checked note delete commits");
+				notes->notes_list()->setCurrentRow(0);
+				if (argc > 1) {
+					QApplication::processEvents();
+					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-private-notes.png")), "private notes controls render");
+				}
+				const auto beforePromotion = access::review_mutation_evidence(*application);
+				wait([&] { return notes->promote_action()->isEnabled(); }, "saved private note shares Comment's target");
+				notes->promote_action()->trigger();
+				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "A private note, copied literally." && inlineDraft->body_editor()->isVisible(); }, "promotion opens its exact local draft");
+				const auto afterPromotion   = access::review_mutation_evidence(*application);
+				const auto privatePromotion = [&](const auto& aEvidence) {
+					return notes->notes_list()->count() == 1 && notes->notes_list()->item(0)->data(Qt::UserRole) == noteId
+						&& notes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally.")
+						&& aEvidence.Submissions == beforePromotion.Submissions && aEvidence.StoredComments == beforePromotion.StoredComments
+						&& aEvidence.Replies == beforePromotion.Replies;
+				};
+				expect(privatePromotion(afterPromotion) && window.tray_tabs()->currentIndex() == 0, "one item is copied to Comments while its private source stays and no GitHub mutation occurs");
+				auto publishedPromotion = afterPromotion;
+				++publishedPromotion.StoredComments;
+				expect(!privatePromotion(publishedPromotion), "negative control rejects implicit publication evidence");
+				auto* removedSource = notes->notes_list()->takeItem(0);
+				expect(!privatePromotion(afterPromotion), "negative control rejects a removed source row");
+				notes->notes_list()->addItem(removedSource);
+				notes->notes_list()->setCurrentRow(0);
+				if (argc > 1) {
+					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-note-promoted.png")), "promoted private note render");
+				}
+				window.close_review_composition();
 				window.open_review_composition();
 			}
 
@@ -210,6 +270,10 @@ auto main(int argc, char** argv) -> int
 		application.reset();
 		application = make(app::detail::github_epoch_fixture_phase::reuse);
 		open(*application);
+		auto* restoredNotes = application->window().private_notes();
+		wait([&] { return restoredNotes->notes_list()->count() == 1; }, "private note survives application reconstruction through SQLite");
+		restoredNotes->notes_list()->setCurrentRow(0);
+		expect(restoredNotes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally."), "promotion retained the durable private source");
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
 		expect(restored.shown_draft()->Id == pending.Id && restored.shown_draft()->Attempt == pending.Attempt

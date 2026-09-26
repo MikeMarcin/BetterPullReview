@@ -21,6 +21,7 @@ class QCheckBox;
 class QComboBox;
 class QLabel;
 class QPlainTextEdit;
+class QListWidget;
 
 namespace bpr::qt {
 	/// \brief One supplemental context the reviewer explicitly added.
@@ -38,6 +39,12 @@ namespace bpr::qt {
 		auto operator<=>(const side_chat_context_chip&) const = default;
 	};
 
+	struct side_chat_reply
+	{
+		std::uint64_t Id = 0U;
+		std::string   Text;
+		auto          operator<=>(const side_chat_reply&) const = default;
+	};
 	/// \brief Everything the side chat is told to show, and nothing it computed.
 	///
 	/// \details **There is no field here the head now under review could
@@ -69,6 +76,7 @@ namespace bpr::qt {
 		std::string                         GitHost;
 		std::string                         Workspace;
 		std::vector<side_chat_context_chip> Chips;
+		std::vector<side_chat_reply>        Replies;
 
 		auto operator<=>(const side_chat_projection&) const = default;
 	};
@@ -123,11 +131,18 @@ namespace bpr::qt {
 		auto operator<=>(const choose_chat_continuation_intent&) const = default;
 	};
 
+	struct promote_chat_reply_intent
+	{
+		core::agent_session_id Session;
+		std::uint64_t          Reply = 0U;
+	};
+
 	using side_chat_intent = std::variant<
 		send_chat_message_intent,
 		widen_chat_scope_intent,
 		chat_private_context_intent,
-		choose_chat_continuation_intent>;
+		choose_chat_continuation_intent,
+		promote_chat_reply_intent>;
 
 	using side_chat_intent_dispatch = std::function<void(side_chat_intent)>;
 
@@ -172,6 +187,11 @@ namespace bpr::qt {
 		side_chat_intent_dispatch           Dispatch;
 		std::optional<side_chat_projection> Shown;
 
+		QListWidget*    Replies            = nullptr;
+		QPlainTextEdit* ReplyBody          = nullptr;
+		QAction*        Promote            = nullptr;
+		bool            PromotionAvailable = false;
+		QString         PromotionReason;
 		QLabel*         Provider            = nullptr;
 		QLabel*         GitHost             = nullptr;
 		QLabel*         Workspace           = nullptr;
@@ -213,7 +233,10 @@ namespace bpr::qt {
 			side_chat_intent_dispatch aDispatch = { },
 			QWidget*                  aParent   = nullptr);
 
-		void set_dispatch(side_chat_intent_dispatch aDispatch);
+		void               set_dispatch(side_chat_intent_dispatch aDispatch);
+		void               set_promotion_target(bool aAvailable, const QString& aReason);
+		[[nodiscard]] auto replies_list() const noexcept -> QListWidget*;
+		[[nodiscard]] auto promote_action() const noexcept -> QAction*;
 
 		/// \brief Adopts one accepted projection, and starts nothing.
 		void present(const side_chat_projection& aProjection);

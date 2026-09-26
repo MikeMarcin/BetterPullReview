@@ -110,3 +110,71 @@ RFC-BPR-0023. The core decides, the host performs, Qt presents. No
 publication, authority, provider or Git capability changes. Notes are written
 only through RFC-BPR-0007's existing private ledger port. Windows and Linux
 station runs follow the owed commands on [[BPR-1135]].
+
+## Engineering decisions (2026-09-26)
+
+- Reuse `review_ledger_host` persistence, erase, private observation and rejected-note
+  dismissal. The existing bounded synchronous ledger work on the decision lane is
+  inherited debt tracked by [[BPR-1211]], not a new nonblocking guarantee.
+- Share the existing private-context observation and retain one path index per
+  accepted snapshot. File notes name the current or previous snapshot path; when
+  that identity is absent from both, say "File comparison from an earlier update".
+  Rationale: the existing ledger stores identity, not historical path text, and this
+  card must not introduce a schema or hidden filesystem lookup. This historical
+  naming limit remains explicit for AC1.
+- Sort by descending creation identity because the ledger has no timestamp; editing
+  does not turn an old note into a new note. Scope generations and exact revisions
+  guard gestures. Refreshes retain unsaved text; explicit Discard reloads the
+  accepted record and clears the host's rejected candidate.
+- One validated chat delivery becomes one selectable reply containing its finding
+  claims separated by blank lines, with no private metadata. Keep at most sixteen
+  replies with session-scoped, nonrecycled identities; clearing or replacing the
+  session clears them. Rationale: this enables one-item promotion without inventing
+  RFC-BPR-0023's durable transcript or provenance model. Replies beyond the existing
+  draft body bound remain readable with promotion disabled.
+- Own the copied source text before invoking Comment, since that gesture may refresh
+  the notes projection. The core constructs the exact revisioned draft edit; the
+  existing host persists it. Neither source deletion nor publication is part of
+  promotion. Finding conversion and explicit agent private-context opt-in remain
+  unchanged.
+
+### Composition source review and pin reseal
+
+Reviewed every `github_application.cpp` change since `44bd1266` (the last
+matching pin); there is no intervening commit in the pinned scope. The new
+projection shares the existing private observation and caches accepted paths;
+retirement clears its scope and retained rows. CRUD uses only the owned ledger
+host. Promotion owns its text before Comment can refresh the vector, rechecks
+scope and anchor, uses the core's revisioned edit and retains both source and
+explicit Publish. Reply selection checks the host session and reply identity.
+The mutation branch hash stays
+`a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+The full application and manifest pins are resealed in this same product slice;
+the composed course rejects a removed source row and publication evidence.
+
+### Focused verification and remaining acceptance
+
+The initial composed batch passes 5/5 (40.47 seconds): private Notes, side chat,
+real chat reply promotion, unchanged finding conversions and review composition.
+The final Notes batch passes 4/4 (40.15 seconds): panel plus composed application
+at 100/125/200 percent. It writes PR/file notes, rejects and retains an oversized
+candidate, explicitly discards/reloads, edits/deletes at the accepted revision,
+promotes one note, checks zero provider mutation, rejects removed-source and
+implicit-publication negative controls, and reopens SQLite to recover the source.
+All three Notes renders were inspected. Core/host focused tests pass 3/3; the
+final deterministic core-only promotion test and composition pin pass. The
+core-only boundary contract and architecture boundary contract pass; the
+architecture source gate reproduces the preexisting MCP Windows containment
+ownership failure in `mcp_terminal_diagnostic.hpp` (also seen on the base).
+This is not recorded as a successful architecture gate. Documentation and
+changed-path formatting pass. Logs are under
+`/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/evidence/1210-*`.
+
+**AC1 remains pending for one engineering case:** a file note whose identity is
+absent from both current and previous accepted paths cannot name that historical
+file with the existing retained observation. Current and renamed file cases pass;
+"File comparison from an earlier update" does not satisfy the remaining naming
+requirement. A follow-up must expose an existing accepted historical path without
+hidden effects, or explicitly authorize the required storage design. Owner AC7
+cannot waive that engineering gap. AC7 itself and native station evidence remain
+pending. RFC-BPR-0023 remains Deferred.

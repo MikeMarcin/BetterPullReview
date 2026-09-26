@@ -48,8 +48,10 @@
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTemporaryDir>
 
 #include <cstdlib>
@@ -528,6 +530,23 @@ auto main(int argc, char** argv) -> int
 		&& noGithubMutation && oneLaunchPath;
 
 	if (course == "positive") {
+		if (chat->replies_list()->count() != 1) {
+			return fail(*application, "chat-reply-visible");
+		}
+		chat->replies_list()->setCurrentRow(0);
+		const auto replyId = chat->replies_list()->item(0)->data(Qt::UserRole);
+		if (!chat->promote_action()->isEnabled()) {
+			return fail(*application, "chat-reply-promotion-target");
+		}
+		chat->promote_action()->trigger();
+		QApplication::processEvents();
+		const auto* editor         = window.review_editor();
+		const auto  afterPromotion = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		if (!editor->shown_draft() || editor->shown_draft()->Body != finding.QueuedClaim || !editor->body_editor()->isVisible()
+			|| window.tray_tabs()->currentIndex() != 0 || chat->replies_list()->count() != 1 || chat->replies_list()->item(0)->data(Qt::UserRole) != replyId
+			|| afterPromotion.Submissions != 0U || afterPromotion.StoredComments != 0U || afterPromotion.Replies != 0U) {
+			return fail(*application, "chat-reply-promotion-preserves-source-and-privacy");
+		}
 		if (!positive) {
 			std::cerr << "agent-chat-positive-evidence:" << afterSend.Turns << ':'
 					  << afterSend.Statistics.Turns << ':'

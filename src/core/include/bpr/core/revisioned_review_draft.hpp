@@ -2,6 +2,8 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVISIONED_REVIEW_DRAFT_HPP
 #include "bpr/core/review_round_trip.hpp"
 #include <cstddef>
+#include <optional>
+#include <string_view>
 namespace bpr::core {
 	using review_draft_scope_id                                   = strong_id<struct review_draft_scope_id_tag>;
 	inline constexpr std::size_t maximum_shared_draft_body_bytes  = 64U * 1024U;
@@ -35,6 +37,11 @@ namespace bpr::core {
 		review_draft_rejection   Policy  = review_draft_rejection::none;
 		bool                     Changed = false;
 	};
+	/// \brief Copies one private item's text into the exact editable target.
+	/// No source metadata or publication command can be produced by this seam.
+	[[nodiscard]] auto promote_private_text(std::string_view                              aText,
+											const std::optional<revisioned_review_draft>& aTarget)
+		-> std::optional<revisioned_review_draft_command>;
 	[[nodiscard]] auto apply(const revisioned_review_draft& aDraft, const revisioned_review_draft_command& aCommand) -> revisioned_draft_outcome;
 }
 #endif

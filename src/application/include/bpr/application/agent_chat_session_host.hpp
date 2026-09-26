@@ -190,6 +190,15 @@ namespace bpr::application {
 		auto operator<=>(const agent_chat_outcome&) const = default;
 	};
 
+	/// \brief One validated delivery's claim text, retained for this session only.
+	struct agent_chat_reply
+	{
+		std::uint64_t Id = 0U;
+		std::string   Text;
+		auto          operator<=>(const agent_chat_reply&) const = default;
+	};
+	inline constexpr std::size_t maximum_visible_chat_replies = 16U;
+
 	/// \brief Everything the side chat is told to show, and nothing it computed.
 	///
 	/// \details The first five members of `qt::side_chat_projection`, which is
@@ -212,6 +221,7 @@ namespace bpr::application {
 		core::agent_private_context_optin PrivateContext;
 		core::agent_entry_point           EntryPoint
 			= core::agent_entry_point::ask_about_selection;
+		std::vector<agent_chat_reply> Replies;
 
 		auto operator<=>(const agent_chat_projection&) const = default;
 	};
@@ -421,6 +431,8 @@ namespace bpr::application {
 		/// nobody asked twice.
 		std::optional<core::agent_continuation> Chosen;
 		/// Whether a dispatched turn is still waiting for its delivery.
+		std::vector<agent_chat_reply> Replies;
+		std::uint64_t                 NextReply     = 1U;
 		bool                          AwaitingReply = false;
 		agent_chat_session_statistics Statistics;
 	};

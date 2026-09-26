@@ -35,5 +35,22 @@ int main()
 	expect(apply(other, { { other.Draft.Id, review_draft_command_kind::edit, "foreign" }, other.Revision, false, { }, review_draft_scope_id{ 1 } }).Refusal == revisioned_draft_refusal::invalid_identity);
 	other.Scope = { };
 	expect(apply(other, { { other.Draft.Id, review_draft_command_kind::edit, "zero" }, other.Revision }).Refusal == revisioned_draft_refusal::invalid_identity);
+	const auto source   = std::string{ "Only this private item's text." };
+	const auto promoted = promote_private_text(source, reply.Accepted);
+	expect(promoted && promoted->Command.Kind == review_draft_command_kind::edit && !promoted->ChangeReplyTarget);
+	const auto copied = apply(reply.Accepted, *promoted);
+	expect(copied.Refusal == revisioned_draft_refusal::none && copied.Accepted.Draft.Body == source
+		   && copied.Accepted.Draft.Anchor == reply.Accepted.Draft.Anchor && copied.Accepted.Draft.ReplyToThread == "thread"
+		   && copied.Accepted.Draft.State == review_draft_state::drafting && source == "Only this private item's text.");
+	expect(!promote_private_text(source, std::nullopt) && !promote_private_text(" \n\t", reply.Accepted)
+		   && !promote_private_text(std::string(maximum_shared_draft_body_bytes + 1U, 'x'), reply.Accepted));
+	for (const auto state : { review_draft_state::publishing, review_draft_state::published, review_draft_state::discarded }) {
+		auto invalid        = reply.Accepted;
+		invalid.Draft.State = state;
+		expect(!promote_private_text(source, invalid));
+	}
+	expect(!promote_private_text(source, other) && !promote_private_text(source, draft));
+	const auto stale = apply(copied.Accepted, *promoted);
+	expect(stale.Refusal == revisioned_draft_refusal::conflict && stale.Accepted == copied.Accepted);
 	return EXIT_SUCCESS;
 }

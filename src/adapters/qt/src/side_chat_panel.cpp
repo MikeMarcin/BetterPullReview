@@ -1,4 +1,5 @@
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/core/revisioned_review_draft.hpp"
 
 #include <QAction>
 #include <QCheckBox>
@@ -6,7 +7,10 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QListWidget>
 #include <QPlainTextEdit>
+#include <QSignalBlocker>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
 
@@ -170,6 +174,32 @@ namespace bpr::qt {
 		context->addWidget(Members.ScopeSelector);
 		layout->addLayout(context);
 		layout->addWidget(Members.Composer);
+		Members.Replies = new QListWidget{ this };
+		Members.Replies->setObjectName(QStringLiteral("sideChatReplies"));
+		Members.Replies->setAccessibleName(tr("Recent agent replies in this session"));
+		Members.Replies->setMaximumHeight(120);
+		layout->addWidget(Members.Replies);
+		Members.ReplyBody = new QPlainTextEdit{ this };
+		Members.ReplyBody->setObjectName(QStringLiteral("sideChatReplyBody"));
+		Members.ReplyBody->setAccessibleName(tr("Selected agent reply"));
+		Members.ReplyBody->setReadOnly(true);
+		Members.ReplyBody->setMaximumHeight(180);
+		layout->addWidget(Members.ReplyBody);
+		Members.Promote     = make_action(this, tr("Promote reply to draft"), QStringLiteral("promoteChatReplyAction"));
+		auto* promoteButton = new QToolButton{ this };
+		promoteButton->setDefaultAction(Members.Promote);
+		promoteButton->setFocusPolicy(Qt::StrongFocus);
+		promoteButton->setAccessibleName(tr("Promote reply to draft"));
+		promoteButton->setAccessibleDescription(tr("Copy the selected reply to a local draft without publishing."));
+		layout->addWidget(promoteButton);
+		connect(Members.Replies, &QListWidget::currentRowChanged, this, [this] { refresh_enablement(); });
+		connect(Members.Promote, &QAction::triggered, this, [this] {
+			refresh_enablement();
+			if (!Members.Promote->isEnabled() || !Members.Dispatch || !Members.Shown) {
+				return;
+			}
+			Members.Dispatch(promote_chat_reply_intent{ Members.Shown->Session.Id, Members.Replies->currentItem()->data(Qt::UserRole).toULongLong() });
+		});
 
 		Members.Send = make_action(
 			this, tr("Send"), QStringLiteral("sideChatSend"));
@@ -249,6 +279,19 @@ namespace bpr::qt {
 	void side_chat_panel::present(const side_chat_projection& aProjection)
 	{
 		++Members.Statistics.Presentations;
+		if (!Members.Shown || Members.Shown->Session.Id != aProjection.Session.Id || Members.Shown->Replies != aProjection.Replies) {
+			const auto* item     = Members.Replies->currentItem();
+			const auto  selected = Members.Shown && Members.Shown->Session.Id == aProjection.Session.Id && item ? item->data(Qt::UserRole).toULongLong() : 0U;
+			const auto  blocker  = QSignalBlocker{ Members.Replies };
+			Members.Replies->clear();
+			for (const auto& reply : aProjection.Replies) {
+				auto* row = new QListWidgetItem{ tr("Reply #%1").arg(reply.Id), Members.Replies };
+				row->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(reply.Id));
+				if (selected == reply.Id) {
+					Members.Replies->setCurrentItem(row);
+				}
+			}
+		}
 		Members.Shown       = aProjection;
 		Members.Applying    = true;
 		const auto& binding = aProjection.Session.Binding;
@@ -378,7 +421,35 @@ namespace bpr::qt {
 		Members.Composer->setReadOnly(!shown);
 		Members.NewSession->setEnabled(required);
 		Members.ContinueOldRevision->setEnabled(required);
+		const auto* selected = Members.Replies->currentItem();
+		auto        body     = std::string{ };
+		if (Members.Shown && selected) {
+			const auto found = std::ranges::find(Members.Shown->Replies, selected->data(Qt::UserRole).toULongLong(), &side_chat_reply::Id);
+			if (found != Members.Shown->Replies.end()) {
+				body = found->Text;
+			}
+		}
+		const auto text = QString::fromStdString(body);
+		if (Members.ReplyBody->toPlainText() != text) {
+			Members.ReplyBody->setPlainText(text);
+		}
+		const auto hasReplies = Members.Shown && !Members.Shown->Replies.empty();
+		Members.Replies->setVisible(hasReplies);
+		Members.ReplyBody->setVisible(!body.empty());
+		Members.Promote->setVisible(hasReplies);
+		Members.Promote->setEnabled(Members.PromotionAvailable && !text.trimmed().isEmpty() && body.size() <= core::maximum_shared_draft_body_bytes);
+		Members.Promote->setToolTip(!selected ? tr("Select one reply to promote.") : !Members.PromotionAvailable ? Members.PromotionReason
+										: body.size() > core::maximum_shared_draft_body_bytes                    ? tr("This reply is too long for a draft.")
+																												 : tr("Copy this reply to Comment's target. Keep the reply; publish nothing."));
 	}
+	void side_chat_panel::set_promotion_target(const bool aAvailable, const QString& aReason)
+	{
+		Members.PromotionAvailable = aAvailable;
+		Members.PromotionReason    = aReason;
+		refresh_enablement();
+	}
+	auto side_chat_panel::replies_list() const noexcept -> QListWidget* { return Members.Replies; }
+	auto side_chat_panel::promote_action() const noexcept -> QAction* { return Members.Promote; }
 
 	auto side_chat_panel::provider_text() const -> QString
 	{

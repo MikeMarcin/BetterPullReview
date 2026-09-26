@@ -114,6 +114,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
+#include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
@@ -151,6 +152,7 @@
 #include <QStandardPaths>
 #include <QStyleHints>
 #include <QSystemTrayIcon>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -6539,7 +6541,11 @@ namespace bpr::app {
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
-					if (aUpdate.Transition.AcceptedSnapshot.has_value()) { ReadStateCache.reset(); DefectThreadNames.reset(); }
+if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
+	ReadStateCache.reset();
+	NotePaths.reset();
+	DefectThreadNames.reset();
+}
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
@@ -6653,6 +6659,7 @@ namespace bpr::app {
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
 				nullptr,
 				aConfig.DifCatalog);
+			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -9428,7 +9435,15 @@ namespace bpr::app {
 
 		void retire_review_ledger()
 		{
+			if (PrivateNoteScope < std::numeric_limits<std::uint64_t>::max()) {
+				++PrivateNoteScope;
+			}
+			AcceptedPrivateNotes.clear();
+			if (Window != nullptr) {
+				Window->private_notes()->present({ .Scope = PrivateNoteScope });
+			}
 			ReadStateCache.reset();
+			NotePaths.reset();
 			DefectThreadNames.reset();
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
@@ -9722,6 +9737,7 @@ namespace bpr::app {
 			const auto state = ReviewLedgerHost->observe_conversations(threads);
 			if (!state.has_value()) {
 				ReadStateCache.reset();
+				NotePaths.reset();
 				DefectThreadNames.reset();
 				return std::nullopt;
 			}
@@ -9813,6 +9829,7 @@ namespace bpr::app {
 			const auto state = ReviewLedgerHost->observe_conversations(std::span{ &cache.Threads[aThread], 1U });
 			if (!state.has_value()) {
 				ReadStateCache.reset();
+				NotePaths.reset();
 				DefectThreadNames.reset();
 				return std::nullopt;
 			}
@@ -11104,21 +11121,165 @@ namespace bpr::app {
 			};
 		}
 
+		std::uint64_t                                             PrivateNoteScope = 0U;
+		std::vector<application::local_note_record>               AcceptedPrivateNotes;
+		std::optional<std::map<core::file_identity, std::string>> NotePaths;
+
+		[[nodiscard]] auto private_note_file_label(const core::file_identity& aFile) -> std::string
+		{
+			if (!NotePaths && WindowRead->accepted_snapshot()) {
+				NotePaths.emplace();
+				for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+					NotePaths->try_emplace(core::file_identity_of(file.Path), file.Path);
+					if (file.PreviousPath) {
+						NotePaths->try_emplace(core::file_identity_of(*file.PreviousPath), *file.PreviousPath);
+					}
+				}
+			}
+			if (NotePaths) {
+				if (const auto found = NotePaths->find(aFile); found != NotePaths->end()) {
+					return found->second;
+				}
+			}
+			return "File comparison from an earlier update";
+		}
+
+		/// \brief Copies one selected private item through the existing Comment target.
+		[[nodiscard]] auto promote_private_item(std::string aText) -> bool
+		{
+			if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
+				|| !Window->comment_action()->isEnabled() || !Window->review_editor()->publish_action()->isEnabled()) {
+				return false;
+			}
+			const auto anchor = ReviewDraft->Anchor;
+			const auto scope  = DraftScope;
+			// The same public gesture prepares the exact selected-thread reply,
+			// or opens the current-line draft. It cannot publish.
+			Window->comment_action()->trigger();
+			if (!ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
+				|| !Window->comment_action()->isEnabled() || !Window->review_editor()->publish_action()->isEnabled()) {
+				return false;
+			}
+			const auto command = core::promote_private_text(aText, core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+			if (!command) {
+				return false;
+			}
+			dispatch_review_draft(*command);
+			if (!ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
+				|| ReviewDraft->Id != command->Command.Id || ReviewDraft->Body != aText
+				|| Window->review_editor()->rejected_candidate()) {
+				return false;
+			}
+			Window->tray_tabs()->setCurrentIndex(0);
+			Window->open_review_composition(true);
+			return true;
+		}
+
+		void dispatch_private_note(const qt::private_note_intent& aIntent)
+		{
+			if (Window == nullptr) {
+				return;
+			}
+			auto* panel = Window->private_notes();
+			if (Closing || !ReviewLedgerHost || !ReviewLedgerAvailable || aIntent.Scope != PrivateNoteScope
+				|| PrivateNoteScope == 0U || PrivateNoteScope == std::numeric_limits<std::uint64_t>::max()) {
+				panel->refuse(QStringLiteral("This note belongs to an unavailable review. Your text is kept."));
+				return;
+			}
+			if (aIntent.Action == qt::private_note_action::discard) {
+				ReviewLedgerHost->dismiss_rejected_note();
+				refresh_agent_private_context_choices();
+				return;
+			}
+			const auto found = std::ranges::find(AcceptedPrivateNotes, application::local_note_id{ aIntent.Id }, &application::local_note_record::Id);
+			if (aIntent.Id != 0U && (found == AcceptedPrivateNotes.end() || found->Revision.value() != aIntent.Revision)) {
+				panel->refuse(QStringLiteral("This note changed in another window. Your text is kept; discard changes to reload it."));
+				return;
+			}
+			if (aIntent.Action == qt::private_note_action::promote) {
+				if (found == AcceptedPrivateNotes.end() || !promote_private_item(found->Note.Text)) {
+					panel->refuse(QStringLiteral("Select Comment's current-head target and resolve any draft conflict before promoting."));
+				}
+				return;
+			}
+			const auto refuse = [panel](const application::local_note_failure& aFailure) {
+				panel->refuse(QStringLiteral("The note change was refused (%1). Your text is kept. Discard changes to reload the accepted note.")
+								  .arg(QString::fromUtf8(application::name(aFailure.Reason).data(), static_cast<qsizetype>(application::name(aFailure.Reason).size()))));
+			};
+			if (aIntent.Action == qt::private_note_action::erase) {
+				if (found == AcceptedPrivateNotes.end()) {
+					return;
+				}
+				const auto result = ReviewLedgerHost->erase(found->Id, application::local_note_revision{ aIntent.Revision });
+				if (!result) {
+					refuse(result.error());
+					return;
+				}
+				ReviewLedgerHost->dismiss_rejected_note();
+				panel->acknowledge(0U);
+				refresh_agent_private_context_choices();
+				return;
+			}
+			auto note     = application::local_note_record{ };
+			auto revision = std::optional<application::local_note_revision>{ };
+			if (found != AcceptedPrivateNotes.end()) {
+				note     = *found;
+				revision = application::local_note_revision{ aIntent.Revision };
+			} else {
+				auto next = std::uint64_t{ 1U };
+				for (const auto& accepted : AcceptedPrivateNotes) {
+					if (accepted.Id.value() == std::numeric_limits<std::uint64_t>::max()) {
+						panel->refuse(QStringLiteral("The note identity space is exhausted. Your text is kept."));
+						return;
+					}
+					next = std::max(next, accepted.Id.value() + 1U);
+				}
+				note.Id = application::local_note_id{ next };
+				if (aIntent.Attachment) {
+					const auto offered = application::local_note_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
+					if (current_note_attachment() != std::optional{ offered }) {
+						panel->refuse(QStringLiteral("The selected file changed. Your text is kept; return to that comparison before saving."));
+						return;
+					}
+					note.Attachment = offered;
+				}
+			}
+			note.Note.Text    = aIntent.Text;
+			const auto result = ReviewLedgerHost->persist(note, revision);
+			if (!result) {
+				refuse(result.error());
+				return;
+			}
+			ReviewLedgerHost->dismiss_rejected_note();
+			panel->acknowledge(result->Id.value());
+			refresh_agent_private_context_choices();
+		}
+
 		void refresh_agent_private_context_choices()
 		{
 			if (Window == nullptr || Window->agent_panel() == nullptr) {
 				return;
 			}
 			auto notes = std::vector<application::local_note_id>{ };
+			auto projection = qt::private_notes_projection{ .Scope = PrivateNoteScope };
+			if (const auto attachment = current_note_attachment()) {
+				projection.CurrentFile = qt::private_note_target{ attachment->File, attachment->Comparison };
+				// This path is already owned by the selected comparison.
+				projection.CurrentFileLabel = SelectedDiffPublication->Request.File.PresentationPath;
+			}
 			if (ReviewLedgerHost != nullptr) {
-				if (auto observed = ReviewLedgerHost->private_observation();
-					observed.has_value()) {
-					notes.reserve(observed->Notes.size());
-					for (const auto& note : observed->Notes) {
+				if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
+					AcceptedPrivateNotes = std::move(observed->Notes);
+					projection.Available = ReviewLedgerAvailable && PrivateNoteScope != std::numeric_limits<std::uint64_t>::max();
+					notes.reserve(AcceptedPrivateNotes.size());
+					for (const auto& note : AcceptedPrivateNotes) {
 						notes.push_back(note.Id);
+						projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note.Attachment->File) : "Pull request", .Text = note.Note.Text });
 					}
+					std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 				}
 			}
+			Window->private_notes()->present(std::move(projection));
 			auto draft = current_agent_draft_observation();
 			if (draft.has_value()
 				&& draft->Draft.State != core::review_draft_state::drafting) {
@@ -12120,6 +12281,17 @@ namespace bpr::app {
 				static_cast<void>(ChatHost->set_private_context(optIn->OptIn));
 				return;
 			}
+			if (const auto* promote = std::get_if<qt::promote_chat_reply_intent>(&aIntent)) {
+				const auto projection = ChatHost->projection();
+				if (!projection || projection->Session.Id != promote->Session) {
+					return;
+				}
+				const auto found = std::ranges::find(projection->Replies, promote->Reply, &application::agent_chat_reply::Id);
+				if (found == projection->Replies.end() || !promote_private_item(found->Text)) {
+					present_agent_refusal("promote reply", "select a current-head Comment target and resolve any draft conflict");
+				}
+				return;
+			}
 			const auto& choice
 				= std::get<qt::choose_chat_continuation_intent>(aIntent);
 			static_cast<void>(
@@ -12247,6 +12419,10 @@ namespace bpr::app {
 				return;
 			}
 			++SideChatPresentations;
+			auto replies = std::vector<qt::side_chat_reply>{ };
+			for (const auto& reply : aChat.Replies) {
+				replies.push_back({ reply.Id, reply.Text });
+			}
 			SideChat->present(qt::side_chat_projection{
 				.Session        = aChat.Session,
 				.Continuations  = aChat.Continuations,
@@ -12256,6 +12432,7 @@ namespace bpr::app {
 				.Provider       = agent_provider_name(aChat.Session.Profile),
 				.GitHost        = AgentReview->Hostname,
 				.Workspace      = LastAgentWorkspacePath,
+				.Replies        = std::move(replies),
 			});
 			Window->present_dif_continuation(
 				aChat.Session, aChat.Continuations);

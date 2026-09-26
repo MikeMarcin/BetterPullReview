@@ -1,6 +1,26 @@
 #include "bpr/core/revisioned_review_draft.hpp"
+#include <algorithm>
 #include <limits>
 namespace bpr::core {
+	auto promote_private_text(const std::string_view                        aText,
+							  const std::optional<revisioned_review_draft>& aTarget)
+		-> std::optional<revisioned_review_draft_command>
+	{
+		if (!aTarget || aText.size() > maximum_shared_draft_body_bytes
+			|| !std::ranges::any_of(aText, [](const char aValue) { return aValue != ' ' && aValue != '\t' && aValue != '\r' && aValue != '\n' && aValue != '\v' && aValue != '\f'; })
+			|| aTarget->Draft.State != review_draft_state::drafting) {
+			return std::nullopt;
+		}
+		const auto command = revisioned_review_draft_command{
+			.Command          = { .Id = aTarget->Draft.Id, .Kind = review_draft_command_kind::edit, .Body = std::string{ aText } },
+			.ExpectedRevision = aTarget->Revision,
+			.Scope            = aTarget->Scope
+		};
+		if (apply(*aTarget, command).Refusal != revisioned_draft_refusal::none) {
+			return std::nullopt;
+		}
+		return command;
+	}
 	auto apply(const revisioned_review_draft& aDraft, const revisioned_review_draft_command& aCommand) -> revisioned_draft_outcome
 	{
 		auto result = revisioned_draft_outcome{ aDraft };
