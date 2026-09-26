@@ -536,3 +536,22 @@ mutation was performed.
   `xhigh`, `host_load: not_verified`. Skill CLIs use
   `PYTHONDONTWRITEBYTECODE=1`. The parent-created selection is preserved in
   `strategy-selection.json`; the final obligation binding is `m2-checkpoint.json`.
+
+## m2b owner hand-back 49 — 2026-09-26
+
+Fresh engineering assignment `/root/rfc0052_m2b_verdicts`, segment
+`m2b-owner-verdicts-r2-20260926`, mandate
+`owner-20260926-unattended-worktrees`, starts from integrated main `eb14f40e`.
+[Exact twelve decisions](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/owner-handback49.json)
+bind frozen source `8b5bc31c` and executable `96f2083c…125b`, not the newer
+integrated baseline. Six accepts carry forward: readiness, tab sizing, Notes
+purpose and spoken name, thread VoiceOver, note promotion. Six rejects remain:
+bar grouping, Compose page and kept mark, Comment, thread controls and Dif size.
+
+The rejected preparation exposed public preview and a missing classified defect.
+The next packet requires agent-proved authenticated open-fixture actions and
+Wizard steps with copyable launch/PR values. Navigation labels move before their
+controls with visible group association; Dif becomes smaller under the delegated
+design authority. BPR-1210 AC1 historical naming remains engineering pending;
+BPR-1204 keeps its terminal dependencies. Native Windows/Linux station obligations,
+BPR-1211 synchronous ledger I/O, and later BPR-1212/1213 scope remain unchanged.

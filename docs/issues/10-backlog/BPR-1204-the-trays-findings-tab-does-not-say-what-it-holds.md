@@ -4,11 +4,12 @@ id: "BPR-1204"
 title: "The tray's Findings tab does not say what it holds"
 status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
-depends_on: ["BPR-1134", "BPR-1208", "BPR-1209", "BPR-1210"]
+depends_on: ["BPR-1134","BPR-1208","BPR-1209","BPR-1210"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-platforms: ["mac", "win", "linux"]
-metadata: {"origin": "owner rejection of attended candidate BPR-1134-tray, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1134-tray", "decision": "6c6d2c52-56a8-41dd-9709-943300785898", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-09"], "related_cards": ["BPR-1134", "BPR-1135", "BPR-1208", "BPR-1209", "BPR-1210"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "owner_direction": "2026-09-25, in chat, relayed by the coordinator", "decided_name": "Notes", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+platforms: ["mac","win","linux"]
+metadata: {"origin":"owner rejection of attended candidate BPR-1134-tray, 2026-09-25","session":"06ad5734ed9f7c2fd6d0a62c8328fa0a","candidate":"BPR-1134-tray","decision":"6c6d2c52-56a8-41dd-9709-943300785898","reviewed_revision":"ba9d272339ad235f1d99688c5c1af198b0c9c7ef","reviewed_executable_sha256":"a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83","criteria":["AC-09"],"related_cards":["BPR-1134","BPR-1135","BPR-1208","BPR-1209","BPR-1210"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","owner_direction":"2026-09-25, in chat, relayed by the coordinator","decided_name":"Notes","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"owner_handback49":{"session":"d7cf21b16656c6ec19c8787255aa4006","cursor":49,"source_revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","binary_sha256":"96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b","decisions":[{"candidate":"BPR-1204-purpose","criterion":"AC4","fingerprint":"f25e7be68c7e264a8838b9490f9d66c8c420e22675f66b33f960e9118ff218e5","decision_id":"cc87cbd4-e0f3-4a3a-8dfd-4d61fbf380d4","outcome":"accept","note":"","saved_at":"2026-09-26T21:01:00.917934+00:00","actor":"human"},{"candidate":"BPR-1204-voiceover","criterion":"AC4","fingerprint":"f13807be8e82fdb5f25082b794c487f68a2ab6c8ec8230e51429b18c663cb7f0","decision_id":"d5e1394d-f7b7-43fa-b1eb-90a8e54cd8c7","outcome":"accept","note":"","saved_at":"2026-09-26T21:00:52.567409+00:00","actor":"human"}]}}
+acceptance: [{"criterion":"AC4","outcome":"pass","revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","evidence":{"kind":"observation","detail":"Owner hand-back 49, session d7cf21b16656c6ec19c8787255aa4006; BPR-1204-purpose accept cc87cbd4-e0f3-4a3a-8dfd-4d61fbf380d4; BPR-1204-voiceover accept d5e1394d-f7b7-43fa-b1eb-90a8e54cd8c7. Exact fingerprints and notes retained in metadata. Verdict applies only to the frozen candidate."}}]
 ---
 
 # BPR-1204: The tray's Findings tab does not say what it holds
@@ -175,3 +176,17 @@ and `final-qt-tests.log` (the initial failure is preserved, not counted as a pas
 AC1–AC3 are verified for scoped Mac engineering. AC4's purpose judgment and
 Notes-only VoiceOver listen remain two separate pending attended criteria.
 Canonical Backlog and the unmet terminal dependencies remain unchanged.
+
+## Owner hand-back 49 — 2026-09-26
+
+The owner reviewed frozen source `8b5bc31c`, executable SHA-256
+`96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b`,
+in session `d7cf21b16656c6ec19c8787255aa4006`. Full decision identities and
+fingerprints are retained in the card metadata.
+
+- **AC4 — Accept**, candidate `BPR-1204-purpose`, decision `cc87cbd4-e0f3-4a3a-8dfd-4d61fbf380d4`. No note.
+
+- **AC4 — Accept**, candidate `BPR-1204-voiceover`, decision `d5e1394d-f7b7-43fa-b1eb-90a8e54cd8c7`. No note.
+
+Both parts of AC4 pass for that candidate. Backlog and the terminal dependencies
+on BPR-1208, BPR-1209 and BPR-1210 remain; this decision does not bypass them.

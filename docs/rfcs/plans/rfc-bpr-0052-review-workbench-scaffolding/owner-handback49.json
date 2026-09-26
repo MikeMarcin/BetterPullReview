@@ -1,0 +1,283 @@
+{
+  "session": "d7cf21b16656c6ec19c8787255aa4006",
+  "cursor": 49,
+  "handed_back": "2026-09-26T21:06:23.545594+00:00",
+  "candidates": [
+    {
+      "id": "BPR-1201-readiness",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "b3e036c14e5097cf9b1775f3e15e7afd77da6245ab6ca9326ad19cb511da8114",
+      "criteria": [
+        "Does the loading state read clearly in the open Updates track and the folded review-bar summary?"
+      ],
+      "metadata": {
+        "criterion": "AC4",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1201-readiness"
+      },
+      "decision": {
+        "candidate": "BPR-1201-readiness",
+        "fingerprint": "b3e036c14e5097cf9b1775f3e15e7afd77da6245ab6ca9326ad19cb511da8114",
+        "decision_id": "636e27ba-d490-46bd-91fb-48b2d664d98a",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T21:06:20.888118+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1202-bar",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "e6db6d6f9d7c8d90f18dc17bdfc4a087aa26c1c73e2fd51d64e7f1f2cee0476b",
+      "criteria": [
+        "Does the built review bar have the order you expect?"
+      ],
+      "metadata": {
+        "criterion": "AC3",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1202-bar"
+      },
+      "decision": {
+        "candidate": "BPR-1202-bar",
+        "fingerprint": "e6db6d6f9d7c8d90f18dc17bdfc4a087aa26c1c73e2fd51d64e7f1f2cee0476b",
+        "decision_id": "dc8624d3-1462-44a7-b653-0bbf7a00645c",
+        "outcome": "reject",
+        "note": "Your screenshot doesn't show changes label for some reason.\nI think the file and changes arrow buttons should come after the labels.\nI think there should be something like perhaps a horizontal colored rail or something to signal the relationship of label to controls more strongly.",
+        "saved_at": "2026-09-26T21:05:53.594560+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1203-page",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "f7be43756bd42e13d2da963cade61cfb3f550dbc2845d22bc8e61e06f27cc391",
+      "criteria": [
+        "Does the revised Compose review page make its state and next action clear?"
+      ],
+      "metadata": {
+        "criterion": "AC3",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1203-page"
+      },
+      "decision": {
+        "candidate": "BPR-1203-page",
+        "fingerprint": "f7be43756bd42e13d2da963cade61cfb3f550dbc2845d22bc8e61e06f27cc391",
+        "decision_id": "1d7ebc0a-bc56-4253-8c43-2d20c59e3c94",
+        "outcome": "reject",
+        "note": "I can't reach compose with the instructions provided.",
+        "saved_at": "2026-09-26T21:01:32.675373+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1203-kept",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "d0ff147b36ac078c16d36516ada370a160a0a67e8f216a4834cf2c2adae7249f",
+      "criteria": [
+        "Is the amber kept-draft mark on Compose review clear enough?"
+      ],
+      "metadata": {
+        "criterion": "AC4",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1203-kept"
+      },
+      "decision": {
+        "candidate": "BPR-1203-kept",
+        "fingerprint": "d0ff147b36ac078c16d36516ada370a160a0a67e8f216a4834cf2c2adae7249f",
+        "decision_id": "abd4b1dc-91c7-4d78-97a2-84664b30f00a",
+        "outcome": "reject",
+        "note": "Can't reach compose.",
+        "saved_at": "2026-09-26T21:01:49.841776+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1206-tabs",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "e32861be696d42dbd52ec3dd339c19db20add466f3b220fa7584ee44c7bc28f4",
+      "criteria": [
+        "Does the built tab strip behave and read the way you expect?"
+      ],
+      "metadata": {
+        "criterion": "AC4",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1206-tabs"
+      },
+      "decision": {
+        "candidate": "BPR-1206-tabs",
+        "fingerprint": "e32861be696d42dbd52ec3dd339c19db20add466f3b220fa7584ee44c7bc28f4",
+        "decision_id": "7cbfb275-a06a-4faf-b668-26ef6d210a1b",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T21:00:46.208912+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1207-comment",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "feaaefd6e30de336587c5c074e017c49611be7993ed763a8014f21ca5f1bafe5",
+      "criteria": [
+        "Can you write through Comment on this fixture in the way you expect?"
+      ],
+      "metadata": {
+        "criterion": "AC3",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1207-comment"
+      },
+      "decision": {
+        "candidate": "BPR-1207-comment",
+        "fingerprint": "feaaefd6e30de336587c5c074e017c49611be7993ed763a8014f21ca5f1bafe5",
+        "decision_id": "e1878b04-19ec-40a8-ab7c-ed1b35417f65",
+        "outcome": "reject",
+        "note": "Meta feedback: I don't know why the link to the PR to open isn't in a copyable code block on the review page. And the instructions are not clear as I would expect from the $wizard skill\n\nI cannot add a comment with the instructions and fixture provided, comment button is not active. \n",
+        "saved_at": "2026-09-26T21:00:27.749392+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1208-thread",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "449a814cd9b20b247c4852e9d02caf92a32e091a3ed7b31082dfcf4907233cb3",
+      "criteria": [
+        "Does acting on a defect from its thread put the controls where you expect?"
+      ],
+      "metadata": {
+        "criterion": "AC7",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1208-thread"
+      },
+      "decision": {
+        "candidate": "BPR-1208-thread",
+        "fingerprint": "449a814cd9b20b247c4852e9d02caf92a32e091a3ed7b31082dfcf4907233cb3",
+        "decision_id": "c061bb76-dc64-4e6d-930a-92dbf7d08cda",
+        "outcome": "reject",
+        "note": "There's no defect in that fixture to act on.",
+        "saved_at": "2026-09-26T20:57:45.943874+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1208-voiceover",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "2a02cb5964f621d28ef8df0a87f2be3fde22c997d6af5e6623db1407cc64180e",
+      "criteria": [
+        "Does VoiceOver make the thread defect controls understandable and usable?"
+      ],
+      "metadata": {
+        "criterion": "AC6",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1208-voiceover"
+      },
+      "decision": {
+        "candidate": "BPR-1208-voiceover",
+        "fingerprint": "2a02cb5964f621d28ef8df0a87f2be3fde22c997d6af5e6623db1407cc64180e",
+        "decision_id": "d1b43cd6-ebe1-4814-a3ef-8156bd80878a",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T20:53:54.818915+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1209-corner",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "ce6393e8408d8f2ff3f10b54b272a06947068ce38a847a4d3cb31327af7aaedb",
+      "criteria": [
+        "Does Dif at 40 pixels in the lower-left corner, beside live review text, stay out of the way?"
+      ],
+      "metadata": {
+        "criterion": "AC6",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1209-corner"
+      },
+      "decision": {
+        "candidate": "BPR-1209-corner",
+        "fingerprint": "ce6393e8408d8f2ff3f10b54b272a06947068ce38a847a4d3cb31327af7aaedb",
+        "decision_id": "28f05281-5305-427a-a7c9-247adaec7c7a",
+        "outcome": "reject",
+        "note": "Scale Dif down more, compare with ATT's Nib mascot in the screenshot.",
+        "saved_at": "2026-09-26T20:53:43.070193+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1210-promote",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "4e3aacca34215c53cb9d1479a2fff99c9015135d47d81639f7359f174f1ad44a",
+      "criteria": [
+        "Does promoting from Notes to a draft in Comments work the way you expect?"
+      ],
+      "metadata": {
+        "criterion": "AC7",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1210-promote"
+      },
+      "decision": {
+        "candidate": "BPR-1210-promote",
+        "fingerprint": "4e3aacca34215c53cb9d1479a2fff99c9015135d47d81639f7359f174f1ad44a",
+        "decision_id": "8386d8e9-09d6-4330-8560-f6f41a3fe6d1",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T20:52:42.196584+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1204-purpose",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "f25e7be68c7e264a8838b9490f9d66c8c420e22675f66b33f960e9118ff218e5",
+      "criteria": [
+        "Does this tab read as your private space for notes and AI feedback?"
+      ],
+      "metadata": {
+        "criterion": "AC4-purpose",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1204-purpose"
+      },
+      "decision": {
+        "candidate": "BPR-1204-purpose",
+        "fingerprint": "f25e7be68c7e264a8838b9490f9d66c8c420e22675f66b33f960e9118ff218e5",
+        "decision_id": "cc87cbd4-e0f3-4a3a-8dfd-4d61fbf380d4",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T21:01:00.917934+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1204-voiceover",
+      "revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6:binary-sha256:96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+      "fingerprint": "f13807be8e82fdb5f25082b794c487f68a2ab6c8ec8230e51429b18c663cb7f0",
+      "criteria": [
+        "Does VoiceOver announce the second tray tab as Notes?"
+      ],
+      "metadata": {
+        "criterion": "AC4-voiceover",
+        "source_revision": "8b5bc31cea0da8ec6d1cb016613052134366cae6",
+        "binary_sha256": "96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b",
+        "fixture_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2b-it1v3wy6/owner-fixture-data/BPR-1204-voiceover"
+      },
+      "decision": {
+        "candidate": "BPR-1204-voiceover",
+        "fingerprint": "f13807be8e82fdb5f25082b794c487f68a2ab6c8ec8230e51429b18c663cb7f0",
+        "decision_id": "d5e1394d-f7b7-43fa-b1eb-90a8e54cd8c7",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-26T21:00:52.567409+00:00",
+        "actor": "human"
+      }
+    }
+  ]
+}

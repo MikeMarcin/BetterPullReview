@@ -7,10 +7,10 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-platforms: ["mac", "win", "linux"]
-metadata: {"origin": "owner rejection of attended candidate BPR-1129-kept, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1129-kept", "decision": "011a2ebb-f211-4096-a88a-e5a820219032", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-03"], "related_cards": ["BPR-1129", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+platforms: ["mac","win","linux"]
+metadata: {"origin":"owner rejection of attended candidate BPR-1129-kept, 2026-09-25","session":"06ad5734ed9f7c2fd6d0a62c8328fa0a","candidate":"BPR-1129-kept","decision":"011a2ebb-f211-4096-a88a-e5a820219032","reviewed_revision":"ba9d272339ad235f1d99688c5c1af198b0c9c7ef","reviewed_executable_sha256":"a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83","criteria":["AC-03"],"related_cards":["BPR-1129","BPR-1135"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"owner_handback49":{"session":"d7cf21b16656c6ec19c8787255aa4006","cursor":49,"source_revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","binary_sha256":"96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b","decisions":[{"candidate":"BPR-1203-page","criterion":"AC3","fingerprint":"f7be43756bd42e13d2da963cade61cfb3f550dbc2845d22bc8e61e06f27cc391","decision_id":"1d7ebc0a-bc56-4253-8c43-2d20c59e3c94","outcome":"reject","note":"I can't reach compose with the instructions provided.","saved_at":"2026-09-26T21:01:32.675373+00:00","actor":"human"},{"candidate":"BPR-1203-kept","criterion":"AC4","fingerprint":"d0ff147b36ac078c16d36516ada370a160a0a67e8f216a4834cf2c2adae7249f","decision_id":"abd4b1dc-91c7-4d78-97a2-84664b30f00a","outcome":"reject","note":"Can't reach compose.","saved_at":"2026-09-26T21:01:49.841776+00:00","actor":"human"}]}}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC2","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC3","outcome":"pending","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"observation","detail":"Separate owner page and kept-mark judgments pending."}},{"criterion":"AC4","outcome":"pending","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"observation","detail":"Separate owner page and kept-mark judgments pending."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC2","outcome":"pass","revision":"30748ed64c7bf55f901085ec458891591c1d85ac","evidence":{"kind":"command","detail":"Frozen native closed-fixture reproduction; six editor/composition scale courses and composition pin contract pass. No admission or publication change."}},{"criterion":"AC3","outcome":"fail","revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","evidence":{"kind":"observation","detail":"Owner hand-back 49, session d7cf21b16656c6ec19c8787255aa4006; BPR-1203-page reject 1d7ebc0a-bc56-4253-8c43-2d20c59e3c94. Exact fingerprints and notes retained in metadata. Verdict applies only to the frozen candidate."}},{"criterion":"AC4","outcome":"fail","revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","evidence":{"kind":"observation","detail":"Owner hand-back 49, session d7cf21b16656c6ec19c8787255aa4006; BPR-1203-kept reject abd4b1dc-91c7-4d78-97a2-84664b30f00a. Exact fingerprints and notes retained in metadata. Verdict applies only to the frozen candidate."}}]
 ---
 
 # BPR-1203: Compose review opens a page that does not say what is happening or what to do
@@ -97,3 +97,23 @@ reproduces the empty target and generic authority-changed sentence exactly.
 No publish control was used. Sandboxed GUI attempts could not register an AX
 application; the successful native launch used the fixture-only automated
 boundary. Its process is task-owned and will be stopped before handoff.
+
+## Owner hand-back 49 — 2026-09-26
+
+The owner reviewed frozen source `8b5bc31c`, executable SHA-256
+`96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b`,
+in session `d7cf21b16656c6ec19c8787255aa4006`. Full decision identities and
+fingerprints are retained in the card metadata.
+
+- **AC3 — Reject**, candidate `BPR-1203-page`, decision `1d7ebc0a-bc56-4253-8c43-2d20c59e3c94`.
+
+  > I can't reach compose with the instructions provided.
+
+- **AC4 — Reject**, candidate `BPR-1203-kept`, decision `abd4b1dc-91c7-4d78-97a2-84664b30f00a`.
+
+  > Can't reach compose.
+
+The rejected course is not accepted by its automated tests. The replacement
+preparation must use the open authenticated synthetic fixture, prove the requested
+public action and provide the Wizard steps before the next owner judgment. The
+owner attachments show public preview, which correctly refuses these actions.

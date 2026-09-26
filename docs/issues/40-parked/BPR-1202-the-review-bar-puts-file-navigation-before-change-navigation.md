@@ -7,10 +7,10 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-platforms: ["mac", "win", "linux"]
-metadata: {"origin": "owner revision on attended candidate BPR-1129-bar, 2026-09-25", "session": "06ad5734ed9f7c2fd6d0a62c8328fa0a", "candidate": "BPR-1129-bar", "decision": "fd158272-768f-469d-838a-08ef08e3e47a", "reviewed_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef", "reviewed_executable_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83", "criteria": ["AC-03"], "related_cards": ["BPR-1129", "BPR-1135"], "reservation": "docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json", "milestone_plan": {"id": "rfc-bpr-0052-review-workbench-scaffolding", "path": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+platforms: ["mac","win","linux"]
+metadata: {"origin":"owner revision on attended candidate BPR-1129-bar, 2026-09-25","session":"06ad5734ed9f7c2fd6d0a62c8328fa0a","candidate":"BPR-1129-bar","decision":"fd158272-768f-469d-838a-08ef08e3e47a","reviewed_revision":"ba9d272339ad235f1d99688c5c1af198b0c9c7ef","reviewed_executable_sha256":"a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83","criteria":["AC-03"],"related_cards":["BPR-1129","BPR-1135"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"owner_handback49":{"session":"d7cf21b16656c6ec19c8787255aa4006","cursor":49,"source_revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","binary_sha256":"96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b","decisions":[{"candidate":"BPR-1202-bar","criterion":"AC3","fingerprint":"e6db6d6f9d7c8d90f18dc17bdfc4a087aa26c1c73e2fd51d64e7f1f2cee0476b","decision_id":"dc8624d3-1462-44a7-b653-0bbf7a00645c","outcome":"reject","note":"Your screenshot doesn't show changes label for some reason.\nI think the file and changes arrow buttons should come after the labels.\nI think there should be something like perhaps a horizontal colored rail or something to signal the relationship of label to controls more strongly.","saved_at":"2026-09-26T21:05:53.594560+00:00","actor":"human"}]}}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3161f459eca6dbba8ddb0e9a49e37b15cb145757","evidence":{"kind":"command","detail":"7/7 focused scale/focus/width-floor and composed four-appearance courses; old-order negative control; recorded source review and pin reseal."}},{"criterion":"AC2","outcome":"pass","revision":"3161f459eca6dbba8ddb0e9a49e37b15cb145757","evidence":{"kind":"command","detail":"7/7 focused scale/focus/width-floor and composed four-appearance courses; old-order negative control; recorded source review and pin reseal."}},{"criterion":"AC3","outcome":"pending","revision":"3161f459eca6dbba8ddb0e9a49e37b15cb145757","evidence":{"kind":"observation","detail":"Owner Mac look pending."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3161f459eca6dbba8ddb0e9a49e37b15cb145757","evidence":{"kind":"command","detail":"7/7 focused scale/focus/width-floor and composed four-appearance courses; old-order negative control; recorded source review and pin reseal."}},{"criterion":"AC2","outcome":"pass","revision":"3161f459eca6dbba8ddb0e9a49e37b15cb145757","evidence":{"kind":"command","detail":"7/7 focused scale/focus/width-floor and composed four-appearance courses; old-order negative control; recorded source review and pin reseal."}},{"criterion":"AC3","outcome":"fail","revision":"8b5bc31cea0da8ec6d1cb016613052134366cae6","evidence":{"kind":"observation","detail":"Owner hand-back 49, session d7cf21b16656c6ec19c8787255aa4006; BPR-1202-bar reject dc8624d3-1462-44a7-b653-0bbf7a00645c. Exact fingerprints and notes retained in metadata. Verdict applies only to the frozen candidate."}}]
 ---
 
 # BPR-1202: The review bar puts file navigation before change navigation
@@ -83,3 +83,16 @@ reseals actual main after all 33 m2b commits and the already-integrated BPR-0972
 changes. It names every changed production-manifest commit, preserves the
 mutation pin and records the integration mapping. This engineering self-review
 does not replace AC3's frozen-candidate owner judgment or station evidence.
+
+## Owner hand-back 49 — 2026-09-26
+
+The owner reviewed frozen source `8b5bc31c`, executable SHA-256
+`96f2083ce961d08dbbc022fc00b3e4178304e8f6536c949dc7de0a1f0292125b`,
+in session `d7cf21b16656c6ec19c8787255aa4006`. Full decision identities and
+fingerprints are retained in the card metadata.
+
+- **AC3 — Reject**, candidate `BPR-1202-bar`, decision `dc8624d3-1462-44a7-b653-0bbf7a00645c`.
+
+  > Your screenshot doesn't show changes label for some reason.
+  > I think the file and changes arrow buttons should come after the labels.
+  > I think there should be something like perhaps a horizontal colored rail or something to signal the relationship of label to controls more strongly.
