@@ -9573,6 +9573,13 @@ namespace bpr::app {
 			std::uint32_t                      UnreadPosts = 0U;
 		};
 
+		// Structural diagnostics for the retained review composition. These are
+		// actual visits, including work on hidden panels; no timing inference.
+		std::uint64_t OverviewBuilds             = 0U;
+		std::uint64_t OverviewReceiptVisits      = 0U;
+		std::uint64_t ConversationThreadsVisited = 0U;
+		std::uint64_t ConversationPostsVisited   = 0U;
+
 		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
 		{
 			if (Closing || Host == nullptr || ReviewLedgerHost == nullptr) {
@@ -9592,12 +9599,14 @@ namespace bpr::app {
 			auto names   = std::vector<std::pair<std::string, std::vector<std::string>>>{ };
 			threads.reserve(snapshot->ReviewThreads.size());
 			for (const auto& thread : snapshot->ReviewThreads) {
+				++ConversationThreadsVisited;
 				auto observation = application::conversation_thread_observation{
 					.Conversation = core::review_conversation_id{
 						defect_identity(thread_identity(thread)).Conversation },
 				};
 				auto posts = std::vector<std::string>{ };
 				for (const auto& comment : thread.Comments) {
+					++ConversationPostsVisited;
 					if (comment.Deleted) {
 						continue;
 					}
@@ -9637,13 +9646,14 @@ namespace bpr::app {
 			return observed;
 		}
 
-		void publish_read_state()
+		auto publish_read_state() -> std::optional<std::uint32_t>
 		{
 			auto observed = observe_read_state();
 			if (!observed.has_value() || Window == nullptr) {
-				return;
+				return std::nullopt;
 			}
 			Window->present_read_state(std::move(observed->Presented));
+			return observed->UnreadPosts;
 		}
 
 		/// \brief Tells the queue how many comments of the open pull request
@@ -9685,9 +9695,8 @@ namespace bpr::app {
 				.LatestEdit    = latest->Edit,
 			});
 			if (marked.has_value()) {
-				publish_read_state();
-				if (const auto observed = observe_read_state(); observed.has_value()) {
-					refresh_queue_unseen(observed->UnreadPosts);
+				if (const auto unseen = publish_read_state()) {
+					refresh_queue_unseen(*unseen);
 				}
 			}
 		}
@@ -9702,12 +9711,14 @@ namespace bpr::app {
 				Window->clear_overview();
 				return;
 			}
+			++OverviewBuilds;
 			auto context = application::overview_context{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
 					context.Receipts.reserve(snapshot->Files.size());
 					for (const auto& file : snapshot->Files) {
+						++OverviewReceiptVisits;
 						const auto identity = core::file_identity_of(file.Path);
 						if (const auto loaded = ReviewLedgerHost->load_receipt(identity);
 							loaded.has_value() && loaded->has_value()) {
@@ -14888,6 +14899,19 @@ namespace bpr::app {
 			.Accepted  = implementation.EpochHost->state().AcceptedComparison,
 			.Window    = tabs.WindowComparison,
 			.ActiveTab = active ? std::optional{ active->View.Comparison } : std::nullopt,
+		};
+	}
+
+	auto detail::github_application_fixture_access::scaling_evidence(const github_application& aApplication) noexcept -> application_scaling_evidence
+	{
+		const auto& owner = *aApplication.Implementation;
+		return {
+			.Workbench                  = owner.WorkbenchHost ? owner.WorkbenchHost->work_statistics() : application::workbench_work_statistics{ },
+			.Ledger                     = owner.ReviewLedgerHost ? owner.ReviewLedgerHost->statistics() : application::review_ledger_host_statistics{ },
+			.OverviewBuilds             = owner.OverviewBuilds,
+			.OverviewReceiptVisits      = owner.OverviewReceiptVisits,
+			.ConversationThreadsVisited = owner.ConversationThreadsVisited,
+			.ConversationPostsVisited   = owner.ConversationPostsVisited,
 		};
 	}
 

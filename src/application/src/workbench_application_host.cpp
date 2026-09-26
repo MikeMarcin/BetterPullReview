@@ -158,23 +158,20 @@ namespace bpr::application {
 		/// enter a nonempty order from either end.
 		[[nodiscard]] auto assemble_cursor(
 			const std::span<const core::workbench_file_id> aOrder,
-			const std::optional<core::workbench_file_id>&  aSelected) noexcept
+			const std::optional<core::workbench_file_id>&  aSelected,
+			const std::optional<std::size_t>               aPosition) noexcept
 			-> core::workbench_navigation_cursor
 		{
 			auto cursor = core::workbench_navigation_cursor{
 				.File            = aSelected,
 				.ActionableCount = static_cast<std::uint32_t>(aOrder.size()),
 			};
-			const auto found = aSelected.has_value()
-				? std::ranges::find(aOrder, *aSelected)
-				: aOrder.end();
-			if (found == aOrder.end()) {
+			if (!aPosition.has_value()) {
 				cursor.PreviousAvailable = !aOrder.empty();
 				cursor.NextAvailable     = !aOrder.empty();
 				return cursor;
 			}
-			cursor.Ordinal = static_cast<std::uint32_t>(
-				std::ranges::distance(aOrder.begin(), found) + 1);
+			cursor.Ordinal           = static_cast<std::uint32_t>(*aPosition + 1U);
 			cursor.PreviousAvailable = cursor.Ordinal > 1U;
 			cursor.NextAvailable     = cursor.Ordinal < cursor.ActionableCount;
 			return cursor;
@@ -610,6 +607,29 @@ namespace bpr::application {
 			}
 		}
 
+		/// \brief Looks up a file without walking the accepted navigation order.
+		[[nodiscard]] auto file_position(const core::workbench_file_id aFile) const noexcept -> std::optional<std::size_t>
+		{
+			const auto found = std::ranges::lower_bound(FileIndex, aFile, [this](const auto& aEntry, const auto aIdentity) {
+				++WorkStatistics.FileLookupComparisons;
+				return aEntry < aIdentity; }, [](const auto& aEntry) { return aEntry.first; });
+			if (found == FileIndex.end()) {
+				return std::nullopt;
+			}
+			++WorkStatistics.FileLookupComparisons;
+			return found->first == aFile ? std::optional{ found->second } : std::nullopt;
+		}
+
+		void rebuild_file_index()
+		{
+			FileIndex.clear();
+			FileIndex.reserve(Files.size());
+			for (std::size_t index = 0U; index < Files.size(); ++index) {
+				FileIndex.emplace_back(Files[index].File, index);
+			}
+			std::ranges::sort(FileIndex);
+		}
+
 		[[nodiscard]] auto selected_file() const noexcept
 			-> const workbench_file_observation_entry*
 		{
@@ -619,9 +639,8 @@ namespace bpr::application {
 			if (SelectedFile.has_value() && SelectedFile->File == *Selected) {
 				return &*SelectedFile;
 			}
-			const auto found = std::ranges::find(
-				Files, *Selected, &workbench_file_observation_entry::File);
-			return found == Files.end() ? nullptr : &*found;
+			const auto position = file_position(*Selected);
+			return position ? &Files[*position] : nullptr;
 		}
 
 		void submit_selected_diff()
@@ -900,6 +919,8 @@ namespace bpr::application {
 			Authority  = aAuthority;
 			Actionable.clear();
 			Files.clear();
+			FileIndex.clear();
+			FilesDirty = true;
 			Selected.reset();
 			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
@@ -970,6 +991,8 @@ namespace bpr::application {
 			Authority.reset();
 			Actionable.clear();
 			Files.clear();
+			FileIndex.clear();
+			FilesDirty = true;
 			Selected.reset();
 			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
@@ -1012,19 +1035,16 @@ namespace bpr::application {
 				LastReason = core::workbench_reason_code::no_actionable_files;
 				return;
 			}
-			Selected         = target;
-			const auto found = std::ranges::find(
-				Files, *target, &workbench_file_observation_entry::File);
-			SelectedFile = found == Files.end()
-				? std::nullopt
-				: std::optional<workbench_file_observation_entry>{ *found };
+			Selected            = target;
+			const auto position = file_position(*target);
+			SelectedFile        = position ? std::optional{ Files[*position] } : std::nullopt;
 			observe_cursor();
 		}
 
 		void observe_cursor()
 		{
 			const auto output = core::observe_workbench_navigation(
-				State, assemble_cursor(Actionable, Selected));
+				State, assemble_cursor(Actionable, Selected, Selected ? file_position(*Selected) : std::nullopt));
 			LastReason = output.Reason;
 		}
 
@@ -1308,12 +1328,14 @@ namespace bpr::application {
 								workbench_host_failure::observation_limit);
 				return;
 			}
+			WorkStatistics.AcceptedObservationRows += aObservation.Actionable.size();
 			Files = std::move(aObservation.Actionable);
+			rebuild_file_index();
+			FilesDirty = true;
 			if (Selected.has_value()) {
-				const auto found = std::ranges::find(
-					Files, *Selected, &workbench_file_observation_entry::File);
-				if (found != Files.end()) {
-					SelectedFile = *found;
+				const auto position = file_position(*Selected);
+				if (position) {
+					SelectedFile = Files[*position];
 				} else if (!SelectedFile.has_value()
 						   || SelectedFile->File != *Selected) {
 					SelectedFile.reset();
@@ -1642,19 +1664,27 @@ namespace bpr::application {
 					&& PublishedHome != std::optional{ current_home() })) {
 				projection.HomeView = current_home();
 			}
-			auto files = std::vector<workbench_file_projection>{ };
-			files.reserve(Files.size());
-			std::ranges::transform(
-				Files,
-				std::back_inserter(files),
-				[](const workbench_file_observation_entry& aFile) {
-					return workbench_file_projection{
-						.File = aFile.File,
-						.Path = aFile.PresentationPath,
-					};
-				});
-			if (PublishedFiles != files) {
-				projection.Files = files;
+			if (FilesDirty) {
+				auto files = std::vector<workbench_file_projection>{ };
+				if (files.capacity() < Files.size()) {
+					++WorkStatistics.FileProjectionCapacityGrowths;
+				}
+				WorkStatistics.FileProjectionRows += Files.size();
+				files.reserve(Files.size());
+				std::ranges::transform(
+					Files,
+					std::back_inserter(files),
+					[](const workbench_file_observation_entry& aFile) {
+						return workbench_file_projection{
+							.File = aFile.File,
+							.Path = aFile.PresentationPath,
+						};
+					});
+				if (PublishedFiles != files) {
+					projection.Files = files;
+				}
+				PublishedFiles = std::move(files);
+				FilesDirty     = false;
 			}
 			projection.Refusal = std::exchange(PendingRefusal, std::nullopt);
 			if (empty(projection)) {
@@ -1667,7 +1697,6 @@ namespace bpr::application {
 			PublishedOnePane     = onePane;
 			PublishedCommands    = commands;
 			PublishedLayout      = layout;
-			PublishedFiles       = std::move(files);
 			PublishedBehaviour   = Layout.Behaviour;
 			RepublishBehaviour   = false;
 			if (projection.HomeView.has_value()) {
@@ -1719,14 +1748,17 @@ namespace bpr::application {
 		workbench_host_limits                        Limits;
 		std::shared_ptr<completion_gate>             Gate;
 
-		std::vector<core::workbench_file_id>            Actionable;
-		std::vector<workbench_file_observation_entry>   Files;
-		std::optional<core::workbench_file_id>          Selected;
-		std::optional<workbench_file_observation_entry> SelectedFile;
-		std::optional<workbench_pull_request_authority> Authority;
-		std::optional<workbench_selected_diff_request>  AcceptedSelectedDiff;
-		workbench_layout_settings                       Layout;
-		std::optional<workbench_layout_settings>        PendingLayout;
+		mutable workbench_work_statistics                            WorkStatistics;
+		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
+		bool                                                         FilesDirty = true;
+		std::vector<core::workbench_file_id>                         Actionable;
+		std::vector<workbench_file_observation_entry>                Files;
+		std::optional<core::workbench_file_id>                       Selected;
+		std::optional<workbench_file_observation_entry>              SelectedFile;
+		std::optional<workbench_pull_request_authority>              Authority;
+		std::optional<workbench_selected_diff_request>               AcceptedSelectedDiff;
+		workbench_layout_settings                                    Layout;
+		std::optional<workbench_layout_settings>                     PendingLayout;
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state> HeldHome;
@@ -1874,6 +1906,11 @@ namespace bpr::application {
 	void workbench_application_host::shutdown()
 	{
 		Implementation->enqueue(deferred_workbench_shutdown{ });
+	}
+
+	auto workbench_application_host::work_statistics() const noexcept -> workbench_work_statistics
+	{
+		return Implementation->WorkStatistics;
 	}
 
 	auto workbench_application_host::state() const noexcept

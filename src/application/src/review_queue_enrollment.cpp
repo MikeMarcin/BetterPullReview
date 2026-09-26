@@ -284,20 +284,31 @@ namespace bpr::application {
 	}
 
 	auto queue_enrollment_register::project(
-		const std::span<const queue_activity_report> aActivity) const
+		const std::span<const queue_activity_report> aActivity,
+		queue_projection_work* const                 aWork) const
 		-> std::vector<core::queue_item>
 	{
 		auto items = std::vector<core::queue_item>{ };
 		items.reserve(Records.size());
+		if (aWork && !Records.empty()) {
+			++aWork->CapacityGrowths;
+		}
 		for (const auto& record : Records) {
+			if (aWork) {
+				++aWork->RecordsVisited;
+			}
 			if (!record.present()) {
 				continue;
 			}
 			// A missing report is not an error and must not be guessed at. The
 			// host supplies what it read; an item it has not read yet is not
 			// known to be quiet ([[BPR-0989]]), and `bucket_for` says so.
-			const auto found = std::ranges::find(
-				aActivity, record.Ref, &queue_activity_report::Ref);
+			const auto found     = std::ranges::find_if(aActivity, [&](const queue_activity_report& aReport) {
+				if (aWork) {
+					++aWork->ActivityComparisons;
+				}
+				return aReport.Ref == record.Ref;
+			});
 			const auto activity  = found == aActivity.end()
 				? core::queue_activity_observation{ .Known = false }
 				: found->Observation;
@@ -652,7 +663,7 @@ namespace bpr::application {
 			Projection.publish(queue_landing_projection{
 				.Status            = Status,
 				.Rules             = Rules,
-				.Items             = Enrollments.project(Activity),
+				.Items             = Enrollments.project(Activity, &Statistics.Projection),
 				.Preferences       = Preferences,
 				.Session           = Scheduler.session(),
 				.Online            = Scheduler.online(),

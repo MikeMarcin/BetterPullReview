@@ -354,11 +354,74 @@ namespace {
 		click_row(view, model->index_for_file(core::file_identity_of("src/b.cpp")));
 		expect(chosen == std::vector{ core::file_identity_of("src/b.cpp") }, "a real file mouse gesture still dispatches its exact identity once");
 	}
+	void test_file_lookup_reuses_indexes()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto rows = std::vector<qt::workbench_drawer_row>{ };
+			for (unsigned index = 0; index < count; ++index) {
+				rows.push_back(file("src/" + std::to_string(index) + ".cpp"));
+			}
+			qt::workbench_drawer_model drawer;
+			drawer.apply(rows);
+			qt::files_tree_model tree;
+			tree.apply(rows);
+			const auto before     = drawer.statistics();
+			const auto treeBefore = tree.work_statistics();
+			for (int gesture = 0; gesture < 16; ++gesture) {
+				expect(drawer.index_for_file(*rows.back().File).row() == static_cast<int>(count - 1U), "drawer lookup retains projection order");
+				expect(tree.file_at(tree.index_for_file(*rows.back().File)) == rows.back().File, "tree lookup retains exact identity");
+			}
+			const auto comparisons = drawer.statistics().FileLookupComparisons - before.FileLookupComparisons;
+			std::cout << "file-models rows=" << count << " gestures=16 drawer_comparisons=" << comparisons
+					  << " tree_comparisons=" << tree.work_statistics().LookupComparisons - treeBefore.LookupComparisons << '\n';
+			expect(comparisons <= 16U * 14U, "routine drawer lookup uses retained index");
+			expect(drawer.statistics().FileIndexRowsBuilt == before.FileIndexRowsBuilt, "routine lookup never rebuilds index");
+			std::swap(rows.front(), rows.back());
+			drawer.apply(rows);
+			expect(drawer.index_for_file(*rows.front().File).row() == 0, "index follows a moved row");
+			rows.erase(rows.begin());
+			drawer.apply(rows);
+			expect(!drawer.index_for_file(core::file_identity_of("src/" + std::to_string(count - 1U) + ".cpp")).isValid(), "index retires removed file");
+		}
+	}
+
+	void test_receipt_updates_preserve_tree_indexes()
+	{
+		for (const auto order : { qt::files_order::tree, qt::files_order::flat, qt::files_order::changed_first }) {
+			qt::files_tree_model model;
+			model.apply({ file("src/a.cpp"), file("src/b.cpp"), file("docs/nested/c.md") });
+			model.set_order(order);
+			auto rows = std::vector{
+				overview("src/a.cpp", 1U, 0U, application::overview_change_since_review::unchanged, core::file_read_state::unread, 0U),
+				overview("src/b.cpp", 1U, 0U, application::overview_change_since_review::changed, core::file_read_state::unread, 0U),
+				overview("docs/nested/c.md", 1U, 0U, application::overview_change_since_review::unchanged, core::file_read_state::unread, 0U),
+			};
+			model.apply_overview(rows);
+			const auto fileId  = core::file_identity_of("src/b.cpp");
+			const auto kept    = QPersistentModelIndex{ model.index_for_file(fileId) };
+			auto       resets  = 0;
+			auto       changes = 0;
+			QObject::connect(&model, &QAbstractItemModel::modelReset, &model, [&] { ++resets; });
+			QObject::connect(&model, &QAbstractItemModel::dataChanged, &model, [&](const QModelIndex& aFirst, const QModelIndex& aLast) {
+				expect(aFirst == kept && aLast == kept, "receipt changes only its stable file row");
+				++changes;
+			});
+			rows[1].Read = core::file_read_state::read;
+			model.apply_overview(rows);
+			expect(resets == 0 && changes == 1 && kept.isValid(), "one receipt changes data without resetting the tree");
+			expect(kept.data(qt::files_tree_model::read_role).toInt() == static_cast<int>(core::file_read_state::read), "stable index presents committed read state");
+			model.apply_overview(rows);
+			expect(resets == 0 && changes == 1, "identical overview causes no model notification");
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_file_lookup_reuses_indexes();
+	test_receipt_updates_preserve_tree_indexes();
 	test_the_tree_compacts_nesting_only_folders_and_counts_files();
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();

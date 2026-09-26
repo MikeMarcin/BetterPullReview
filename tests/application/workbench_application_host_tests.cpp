@@ -1970,10 +1970,47 @@ namespace {
 				   && closing.Projections.Failed.empty(),
 			   "the held fold is merged into its record as the window closes");
 	}
+	void test_routine_selection_visits_only_the_retained_index()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto value = harness{ };
+			for (auto index = 0U; index < count; ++index) {
+				value.Observations.Files.push_back(core::file_identity_of("source/" + std::to_string(index) + ".cpp"));
+			}
+			value.Host.observe(authority());
+			value.settle();
+			const auto before   = value.Host.work_statistics();
+			const auto requests = value.Observations.Requests.size();
+			for (auto step = 0U; step < 16U; ++step) {
+				value.Host.apply(core::select_workbench_file_intent{ .File = value.Observations.Files[count - 1U - step] });
+			}
+			const auto after = value.Host.work_statistics();
+			std::cout << "workbench-scaling files=" << count
+					  << " selections=16 lookup_comparisons=" << after.FileLookupComparisons - before.FileLookupComparisons
+					  << " projected_rows=" << after.FileProjectionRows - before.FileProjectionRows
+					  << " projection_capacity_growths=" << after.FileProjectionCapacityGrowths - before.FileProjectionCapacityGrowths << '\n';
+			expect(after.FileProjectionRows == before.FileProjectionRows
+					   && after.FileProjectionCapacityGrowths == before.FileProjectionCapacityGrowths,
+				   "routine selection does not reconstruct the full file projection");
+			expect(after.FileLookupComparisons - before.FileLookupComparisons <= 16U * 32U,
+				   "sixteen selections use logarithmic retained lookups");
+			expect(after.AcceptedObservationRows == before.AcceptedObservationRows && value.Observations.Requests.size() == requests,
+				   "selection neither reloads nor re-observes the catalogue");
+			expect(value.Host.selected() == value.Observations.Files[count - 16U], "indexed selection retains the exact requested identity");
+			value.Host.invalidate(authority());
+			expect(value.Host.actionable().empty() && !value.Host.selected(), "invalidation clears the retained lookup authority");
+			value.Host.observe(authority(18U));
+			value.settle();
+			value.Host.apply(core::select_workbench_file_intent{ .File = value.Observations.Files.back() });
+			expect(value.Host.state().Navigation->Ordinal == count, "reopen reconstructs exact navigation order");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_routine_selection_visits_only_the_retained_index();
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
 	test_geometry_load_observation_and_orderly_drain();

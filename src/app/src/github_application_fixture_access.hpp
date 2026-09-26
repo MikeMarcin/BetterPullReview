@@ -13,6 +13,8 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/application/review_ledger_application_host.hpp"
+#include "bpr/application/workbench_application_host.hpp"
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
@@ -151,10 +153,16 @@ namespace bpr::app::detail {
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
 		/// so both the resident and the quit outcome are observable on one machine.
 		/// Unset selects the running platform's own policy.
-		empty_desktop_policy       EmptyDesktopPolicy;
-		core::diff_compute_limits  DiffComputeLimits;
-		bool                       LargeReviewHistory = false;
-		github_epoch_fixture_phase EpochPhase         = github_epoch_fixture_phase::single;
+		empty_desktop_policy      EmptyDesktopPolicy;
+		core::diff_compute_limits DiffComputeLimits;
+		bool                      LargeReviewHistory = false;
+		/// BPR-0972: the synthetic large-review posts belong to another fixture actor.
+		bool LargeReviewForeignPosts = false;
+		/// BPR-0972: each read session of the paged large review replays its
+		/// complete script from the repository read, as the strict scripts do
+		/// with `RepeatReadSessions`, so a sibling window can load it again.
+		bool                       LargeReviewRepeatReads = false;
+		github_epoch_fixture_phase EpochPhase             = github_epoch_fixture_phase::single;
 		std::string                TimelineCourse;
 		bool                       EmptyHistoricalTimeline        = false;
 		bool                       UnfetchableFirstHistoricalHead = false;
@@ -859,6 +867,17 @@ namespace bpr::app::detail {
 		bool          Quiescent                    = false;
 	};
 
+	/// \brief Observes public-composition scaling without invoking any effect.
+	struct application_scaling_evidence
+	{
+		application::workbench_work_statistics     Workbench;
+		application::review_ledger_host_statistics Ledger;
+		std::uint64_t                              OverviewBuilds             = 0U;
+		std::uint64_t                              OverviewReceiptVisits      = 0U;
+		std::uint64_t                              ConversationThreadsVisited = 0U;
+		std::uint64_t                              ConversationPostsVisited   = 0U;
+	};
+
 	/// \brief Samples comparison ownership without driving any host.
 	struct tab_comparison_fixture_evidence
 	{
@@ -870,6 +889,7 @@ namespace bpr::app::detail {
 	class github_application_fixture_access final
 	{
 	public:
+		[[nodiscard]] static auto scaling_evidence(const github_application& aApplication) noexcept -> application_scaling_evidence;
 		/// \brief Copies the accepted and tab-owned pairs on the decision lane.
 		[[nodiscard]] static auto tab_comparison_evidence(const github_application& aApplication) -> tab_comparison_fixture_evidence;
 		/// \brief Copies the host-accepted records for independent fixture identity checks.

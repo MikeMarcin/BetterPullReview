@@ -18,6 +18,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 class QContextMenuEvent;
@@ -56,7 +57,17 @@ namespace bpr::qt {
 		std::size_t                FileCount = 0U;
 		std::optional<std::size_t> Entry;
 		std::size_t                Parent = 0U;
+		int                        Row    = 0;
 		std::vector<std::size_t>   Children;
+	};
+
+	/// \brief Counts file-tree work without inferring whole-process allocations.
+	struct files_tree_work_statistics
+	{
+		std::uint64_t ModelResets         = 0U;
+		std::uint64_t ChangedRows         = 0U;
+		std::uint64_t OverviewRowsVisited = 0U;
+		std::uint64_t LookupComparisons   = 0U;
 	};
 
 	/// \brief RFC-BPR-0028's files tree ([[BPR-0658]]).
@@ -94,6 +105,7 @@ namespace bpr::qt {
 
 		explicit files_tree_model(QObject* aParent = nullptr);
 
+		[[nodiscard]] auto work_statistics() const noexcept -> files_tree_work_statistics;
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
 		void               set_order(files_order aOrder);
@@ -117,12 +129,15 @@ namespace bpr::qt {
 
 	private:
 		void               rebuild();
+		void               rebuild_file_index();
 		[[nodiscard]] auto node_index(const QModelIndex& aIndex) const -> std::size_t;
 
-		std::vector<files_tree_entry> Entries;
-		std::vector<files_tree_node>  Nodes;
-		files_order                   Order = files_order::tree;
-		QString                       Filter;
+		mutable files_tree_work_statistics                           WorkStatistics;
+		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
+		std::vector<files_tree_entry>                                Entries;
+		std::vector<files_tree_node>                                 Nodes;
+		files_order                                                  Order = files_order::tree;
+		QString                                                      Filter;
 	};
 
 	/// \brief Draws the tree's rows: guide lines, the read dot, the counts.

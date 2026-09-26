@@ -84,8 +84,20 @@ namespace bpr::qt {
 		Nodes.push_back(files_tree_node{ .Folder = true });
 	}
 
+	auto files_tree_model::work_statistics() const noexcept -> files_tree_work_statistics
+	{
+		return WorkStatistics;
+	}
+
 	void files_tree_model::apply(const std::vector<workbench_drawer_row>& aRows)
 	{
+		auto knownRows = QHash<QString, const files_tree_entry*>{ };
+		knownRows.reserve(static_cast<qsizetype>(Entries.size()));
+		for (const auto& entry : Entries) {
+			if (!knownRows.contains(entry.Path)) {
+				knownRows.insert(entry.Path, &entry);
+			}
+		}
 		auto entries = std::vector<files_tree_entry>{ };
 		entries.reserve(aRows.size());
 		for (const auto& row : aRows) {
@@ -94,9 +106,9 @@ namespace bpr::qt {
 			}
 			auto entry = files_tree_entry{ .Path = row.Title, .File = *row.File };
 			// The overview's facts survive a re-listing of the same path.
-			const auto known = std::ranges::find(Entries, row.Title, &files_tree_entry::Path);
-			if (known != Entries.end()) {
-				entry.Overview = known->Overview;
+			const auto known = knownRows.constFind(row.Title);
+			if (known != knownRows.constEnd()) {
+				entry.Overview = (*known)->Overview;
 			}
 			entries.push_back(std::move(entry));
 		}
@@ -118,11 +130,32 @@ namespace bpr::qt {
 				rows.insert(std::move(path), &row);
 			}
 		}
+		auto changed      = std::vector<core::workbench_file_id>{ };
+		auto orderChanged = false;
 		for (auto& entry : Entries) {
+			++WorkStatistics.OverviewRowsVisited;
 			const auto found = rows.constFind(entry.Path);
-			entry.Overview   = found != rows.constEnd() ? std::optional{ **found } : std::nullopt;
+			auto       next  = found != rows.constEnd() ? std::optional{ **found } : std::nullopt;
+			if (entry.Overview == next) {
+				continue;
+			}
+			const auto wasChanged = entry.Overview && changed_since_review(*entry.Overview);
+			const auto nowChanged = next && changed_since_review(*next);
+			orderChanged          = orderChanged || (wasChanged != nowChanged);
+			entry.Overview        = std::move(next);
+			changed.push_back(entry.File);
 		}
-		rebuild();
+		if (Order == files_order::changed_first && orderChanged) {
+			rebuild();
+			return;
+		}
+		for (const auto file : changed) {
+			const auto index = index_for_file(file);
+			if (index.isValid()) {
+				emit dataChanged(index, index);
+				++WorkStatistics.ChangedRows;
+			}
+		}
 	}
 
 	void files_tree_model::set_order(const files_order aOrder)
@@ -156,6 +189,7 @@ namespace bpr::qt {
 
 	void files_tree_model::rebuild()
 	{
+		++WorkStatistics.ModelResets;
 		beginResetModel();
 		Nodes.clear();
 		Nodes.push_back(files_tree_node{ .Folder = true });
@@ -264,6 +298,7 @@ namespace bpr::qt {
 				}
 			}
 		}
+		rebuild_file_index();
 		endResetModel();
 	}
 
@@ -383,16 +418,33 @@ namespace bpr::qt {
 		}
 	}
 
-	auto files_tree_model::index_for_file(const core::workbench_file_id& aFile) const -> QModelIndex
+	void files_tree_model::rebuild_file_index()
 	{
-		for (std::size_t node = 1U; node < Nodes.size(); ++node) {
-			if (Nodes[node].Entry.has_value() && Entries[*Nodes[node].Entry].File == aFile) {
-				const auto& siblings = Nodes[Nodes[node].Parent].Children;
-				const auto  row      = std::ranges::find(siblings, node) - siblings.begin();
-				return createIndex(static_cast<int>(row), 0, static_cast<quintptr>(node));
+		FileIndex.clear();
+		FileIndex.reserve(Entries.size());
+		for (auto& parent : Nodes) {
+			for (std::size_t row = 0U; row < parent.Children.size(); ++row) {
+				Nodes[parent.Children[row]].Row = static_cast<int>(row);
 			}
 		}
-		return { };
+		for (std::size_t node = 1U; node < Nodes.size(); ++node) {
+			if (Nodes[node].Entry) {
+				FileIndex.emplace_back(Entries[*Nodes[node].Entry].File, node);
+			}
+		}
+		std::ranges::sort(FileIndex);
+	}
+
+	auto files_tree_model::index_for_file(const core::workbench_file_id& aFile) const -> QModelIndex
+	{
+		const auto found = std::ranges::lower_bound(FileIndex, aFile, [this](const auto aLeft, const auto aRight) {
+			++WorkStatistics.LookupComparisons;
+			return aLeft < aRight; }, [](const auto& aEntry) { return aEntry.first; });
+		if (found == FileIndex.end()) {
+			return { };
+		}
+		++WorkStatistics.LookupComparisons;
+		return found->first == aFile ? createIndex(Nodes[found->second].Row, 0, static_cast<quintptr>(found->second)) : QModelIndex{ };
 	}
 
 	auto files_tree_model::file_at(const QModelIndex& aIndex) const -> std::optional<core::workbench_file_id>
@@ -648,9 +700,12 @@ namespace bpr::qt {
 	void files_tree_view::apply_overview(const std::span<const application::overview_file_row> aFiles)
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
+		const auto resets   = Model->work_statistics().ModelResets;
 		Model->apply_overview(aFiles);
-		expandAll();
-		select_file(SelectedFile);
+		if (Model->work_statistics().ModelResets != resets) {
+			expandAll();
+			select_file(SelectedFile);
+		}
 	}
 
 	void files_tree_view::set_order(const files_order aOrder)

@@ -3173,3 +3173,15 @@ bpr_add_network_isolated_test(NAME application_diagnostic_subsystems
         "$<TARGET_FILE:test_better_pull_review_review_queue_enrollment_tests>"
         "$<TARGET_FILE:test_better_pull_review_agent_protocol_loop_tests>")
 set_tests_properties(application_diagnostic_subsystems PROPERTIES TIMEOUT 180)
+
+# BPR-0972 reports structural counterexamples; the marker is not blanket AC2 acceptance.
+bpr_add_executable(test_application_scaling application_scaling_tests.cpp)
+target_link_libraries(test_application_scaling PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_application_scaling PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_application_scaling PRIVATE cxx_std_23)
+bpr_enable_hardening(test_application_scaling)
+bpr_enable_warnings(test_application_scaling)
+bpr_add_network_isolated_test(NAME application_active_changed_scaling WINDOWS_UNCONTAINED COMMAND test_application_scaling $<TARGET_FILE:Git::Git>)
+set_tests_properties(application_active_changed_scaling PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "application-scaling:observed")

@@ -12,6 +12,18 @@
 #include <span>
 
 namespace bpr::application {
+	/// \brief Counts retained file work on the serialized workbench lane.
+	/// \details Projection capacity growth counts vector storage acquisitions,
+	/// not all process allocations. Observation ingestion is separate from
+	/// routine selection, so a full accepted catalogue cannot hide a hot scan.
+	struct workbench_work_statistics
+	{
+		std::uint64_t FileLookupComparisons         = 0U;
+		std::uint64_t FileProjectionRows            = 0U;
+		std::uint64_t FileProjectionCapacityGrowths = 0U;
+		std::uint64_t AcceptedObservationRows       = 0U;
+	};
+
 	/// \brief Provides the workbench application host contract.
 	///
 	/// \details The host owns the ordered actionable file set, the retained
@@ -88,6 +100,8 @@ namespace bpr::application {
 		// Closes ingress while draining the latest accepted window layout. Ports and
 		// the decision lane remain live through quiescence; shutdown() can force cancellation.
 		void shutdown_orderly();
+
+		[[nodiscard]] auto work_statistics() const noexcept -> workbench_work_statistics;
 
 		[[nodiscard]] auto state() const noexcept
 			-> const core::workbench_interaction_state&;

@@ -263,6 +263,35 @@ namespace {
 		aLane.run_next();
 	}
 
+	void test_single_refresh_projection_work()
+	{
+		for (const auto count : { 32, 4096 }) {
+			auto store = memory_queue_store{ };
+			for (int number = 1; number <= count; ++number) {
+				store.State.Enrollments.push_back({ .Ref = ref(number), .Membership = by_role(core::github_role::reviewer) });
+			}
+			auto refresh     = observed_refresh{ };
+			auto effects     = application::manual_executor{ };
+			auto decisions   = application::manual_executor{ };
+			auto projections = landing_log{ };
+			auto host        = application::review_queue_application_host{ store, refresh, effects, decisions, projections, { .Host = "github.com", .Account = "reviewer", .Generation = 4U } };
+			host.restore();
+			run_one(effects, decisions);
+			refresh.Observation = core::pull_request_observation{ .Ref = ref(1), .Author = "fixture", .ChangedPaths = { "one.cpp" } };
+			const auto before   = host.statistics();
+			host.refresh(ref(1));
+			run_one(effects, decisions);
+			const auto after = host.statistics();
+			expect(after.AppliedRefreshes == before.AppliedRefreshes + 1U, "single exact refresh accepted on decision lane");
+			expect(host.queue().size() == static_cast<std::size_t>(count), "single refresh retains unrelated queue items");
+			std::cout << "queue records=" << count << " changed=1 publications=" << after.Publications - before.Publications
+					  << " records_visited=" << after.Projection.RecordsVisited - before.Projection.RecordsVisited
+					  << " activity_comparisons=" << after.Projection.ActivityComparisons - before.Projection.ActivityComparisons
+					  << " capacity_growths=" << after.Projection.CapacityGrowths - before.Projection.CapacityGrowths << '\n';
+			host.shutdown();
+		}
+	}
+
 	void test_composed_host_persists_matches_and_removal()
 	{
 		auto       store       = memory_queue_store{ };
@@ -1878,6 +1907,7 @@ auto main() -> int
 	test_the_projection_is_ordered_by_attention();
 	test_an_unobserved_item_is_not_known_to_be_quiet();
 	test_activity_pairs_by_ref_in_any_order();
+	test_single_refresh_projection_work();
 	test_composed_host_persists_matches_and_removal();
 	test_rule_removal_reconciles_every_matching_enrollment_before_publish();
 	test_refresh_identity_and_cancellation_are_authoritative();

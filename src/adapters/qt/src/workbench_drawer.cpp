@@ -142,6 +142,7 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < aRows.size(); ++index) {
 			insert_or_move(index, aRows[index]);
 		}
+		rebuild_file_index();
 	}
 
 	auto workbench_drawer_model::index_for_identity(const QString& aIdentity) const
@@ -171,14 +172,35 @@ namespace bpr::qt {
 		return Rows[static_cast<std::size_t>(aIndex.row())].File;
 	}
 
+	void workbench_drawer_model::rebuild_file_index() const
+	{
+		if (!FileIndexDirty) {
+			return;
+		}
+		FileIndex.clear();
+		FileIndex.reserve(Rows.size());
+		for (std::size_t row = 0U; row < Rows.size(); ++row) {
+			++Statistics.FileIndexRowsBuilt;
+			if (Rows[row].File) {
+				FileIndex.emplace_back(*Rows[row].File, static_cast<int>(row));
+			}
+		}
+		std::ranges::sort(FileIndex);
+		FileIndexDirty = false;
+	}
+
 	auto workbench_drawer_model::index_for_file(
 		const core::workbench_file_id& aFile) const -> QModelIndex
 	{
-		const auto found = std::ranges::find(
-			Rows, std::optional{ aFile }, &workbench_drawer_row::File);
-		return found == Rows.end()
-			? QModelIndex{ }
-			: index(static_cast<int>(std::distance(Rows.begin(), found)), 0);
+		rebuild_file_index();
+		const auto found = std::ranges::lower_bound(FileIndex, aFile, [this](const auto aLeft, const auto aRight) {
+			++Statistics.FileLookupComparisons;
+			return aLeft < aRight; }, [](const auto& aEntry) { return aEntry.first; });
+		if (found == FileIndex.end()) {
+			return { };
+		}
+		++Statistics.FileLookupComparisons;
+		return found->first == aFile ? index(found->second, 0) : QModelIndex{ };
 	}
 
 	auto workbench_drawer_model::statistics() const noexcept
@@ -225,6 +247,7 @@ namespace bpr::qt {
 			beginInsertRows({ }, position, position);
 			Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target),
 						std::move(aRow));
+			FileIndexDirty = true;
 			endInsertRows();
 			++Statistics.RowsInserted;
 			return;
@@ -242,11 +265,13 @@ namespace bpr::qt {
 			Rows.erase(Rows.begin() + static_cast<std::ptrdiff_t>(current));
 			Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target),
 						std::move(moved));
+			FileIndexDirty = true;
 			endMoveRows();
 			current = target;
 			++Statistics.RowsMoved;
 		}
 		if (Rows[current] != aRow) {
+			FileIndexDirty      = FileIndexDirty || Rows[current].File != aRow.File;
 			Rows[current]       = std::move(aRow);
 			const auto position = index(static_cast<int>(current), 0);
 			emit       dataChanged(position, position, changed_roles());
@@ -263,6 +288,7 @@ namespace bpr::qt {
 		const auto position = static_cast<int>(*existing);
 		beginRemoveRows({ }, position, position);
 		Rows.erase(Rows.begin() + static_cast<std::ptrdiff_t>(*existing));
+		FileIndexDirty = true;
 		endRemoveRows();
 		++Statistics.RowsRemoved;
 	}

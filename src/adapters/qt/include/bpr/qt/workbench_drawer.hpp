@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class QToolButton;
@@ -45,11 +46,13 @@ namespace bpr::qt {
 	/// bounded content changed must reach the view through incremental signals.
 	struct workbench_drawer_model_statistics
 	{
-		std::uint64_t RowsInserted = 0U;
-		std::uint64_t RowsRemoved  = 0U;
-		std::uint64_t RowsMoved    = 0U;
-		std::uint64_t RowsChanged  = 0U;
-		std::uint64_t ModelResets  = 0U;
+		std::uint64_t RowsInserted          = 0U;
+		std::uint64_t RowsRemoved           = 0U;
+		std::uint64_t RowsMoved             = 0U;
+		std::uint64_t RowsChanged           = 0U;
+		std::uint64_t ModelResets           = 0U;
+		std::uint64_t FileLookupComparisons = 0U;
+		std::uint64_t FileIndexRowsBuilt    = 0U;
 
 		auto operator<=>(const workbench_drawer_model_statistics&) const = default;
 	};
@@ -94,12 +97,15 @@ namespace bpr::qt {
 	private:
 		[[nodiscard]] auto row_for_identity(const QString& aIdentity) const
 			-> std::optional<std::size_t>;
+		void rebuild_file_index() const;
 		void retire_absent(const std::vector<workbench_drawer_row>& aRows);
 		void insert_or_move(std::size_t aRequestedIndex, workbench_drawer_row aRow);
 		void remove(const QString& aIdentity);
 
-		std::vector<workbench_drawer_row> Rows;
-		workbench_drawer_model_statistics Statistics;
+		std::vector<workbench_drawer_row>                            Rows;
+		mutable workbench_drawer_model_statistics                    Statistics;
+		mutable std::vector<std::pair<core::workbench_file_id, int>> FileIndex;
+		mutable bool                                                 FileIndexDirty = true;
 	};
 
 	/// \brief Reports one observed drawer width out of the presentation layer.

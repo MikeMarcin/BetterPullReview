@@ -100,6 +100,16 @@ namespace bpr::application {
 		auto operator<=>(const queue_activity_report&) const = default;
 	};
 
+	/// \brief Work performed while producing complete queue projections.
+	struct queue_projection_work
+	{
+		std::uint64_t RecordsVisited      = 0U;
+		std::uint64_t ActivityComparisons = 0U;
+		/// Register output-vector storage acquisitions, not all allocator calls.
+		std::uint64_t CapacityGrowths                                 = 0U;
+		auto          operator<=>(const queue_projection_work&) const = default;
+	};
+
 	/// \brief [[BPR-0989]]. One pull request a personal discovery answer found.
 	struct queue_discovered_pull_request
 	{
@@ -207,7 +217,8 @@ namespace bpr::application {
 		/// unenrolled ref moves nothing, and an enrollment without a report is
 		/// quiet.
 		[[nodiscard]] auto project(
-			std::span<const queue_activity_report> aActivity) const
+			std::span<const queue_activity_report> aActivity,
+			queue_projection_work*                 aWork = nullptr) const
 			-> std::vector<core::queue_item>;
 
 	private:
@@ -572,18 +583,19 @@ namespace bpr::application {
 
 	struct review_queue_host_statistics
 	{
-		std::uint64_t RuleIntents            = 0U;
-		std::uint64_t PreferenceIntents      = 0U;
-		std::uint64_t SavedRepositoryIntents = 0U;
-		std::uint64_t SavedServerIntents     = 0U;
-		std::uint64_t PersistenceRequests    = 0U;
-		std::uint64_t RefreshRequests        = 0U;
-		std::uint64_t ConditionalRequests    = 0U;
-		std::uint64_t AppliedRefreshes       = 0U;
-		std::uint64_t StaleCompletions       = 0U;
-		std::uint64_t CancelledCompletions   = 0U;
-		std::uint64_t Publications           = 0U;
-		std::uint64_t Failures               = 0U;
+		queue_projection_work Projection;
+		std::uint64_t         RuleIntents            = 0U;
+		std::uint64_t         PreferenceIntents      = 0U;
+		std::uint64_t         SavedRepositoryIntents = 0U;
+		std::uint64_t         SavedServerIntents     = 0U;
+		std::uint64_t         PersistenceRequests    = 0U;
+		std::uint64_t         RefreshRequests        = 0U;
+		std::uint64_t         ConditionalRequests    = 0U;
+		std::uint64_t         AppliedRefreshes       = 0U;
+		std::uint64_t         StaleCompletions       = 0U;
+		std::uint64_t         CancelledCompletions   = 0U;
+		std::uint64_t         Publications           = 0U;
+		std::uint64_t         Failures               = 0U;
 		/// [[BPR-0989]].
 		std::uint64_t DiscoveryAnswers      = 0U;
 		std::uint64_t StaleDiscoveryAnswers = 0U;

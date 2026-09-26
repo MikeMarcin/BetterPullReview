@@ -1195,6 +1195,8 @@ namespace bpr::app::detail {
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
 			bool                                        RepeatSessions           = false;
+			bool                                        LargeReviewForeignPosts  = false;
+			bool                                        LargeReviewRepeatReads   = false;
 			bool                                        CliEnabled               = false;
 			bool                                        RefuseFirstSmartAcquire  = false;
 			bool                                        FirstSmartAcquireRefused = false;
@@ -1636,7 +1638,8 @@ namespace bpr::app::detail {
 		/// the fixture's replies and resolutions.
 		[[nodiscard]] auto overlay_review_threads(
 			const std::string&                                                    aBody,
-			const std::map<std::string, fixture_recording_state::thread_overlay>& aOverlays)
+			const std::map<std::string, fixture_recording_state::thread_overlay>& aOverlays,
+			const bool                                                            aForeignPosts)
 			-> std::string
 		{
 			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
@@ -1649,8 +1652,24 @@ namespace bpr::app::detail {
 			auto pullRequest = repository.value(QStringLiteral("pullRequest")).toObject();
 			auto threads     = pullRequest.value(QStringLiteral("reviewThreads")).toObject();
 			auto nodes       = threads.value(QStringLiteral("nodes")).toArray();
+			// Paged final-audit answers share the operation but have no thread connection.
+			if (!pullRequest.contains(QStringLiteral("reviewThreads"))) {
+				return aBody;
+			}
 			for (auto index = 0; index < nodes.size(); ++index) {
-				auto       node    = nodes.at(index).toObject();
+				auto node = nodes.at(index).toObject();
+				if (aForeignPosts) {
+					auto comments = node.value(QStringLiteral("comments")).toObject();
+					auto posts    = comments.value(QStringLiteral("nodes")).toArray();
+					for (auto entry = posts.begin(); entry != posts.end(); ++entry) {
+						auto post = entry->toObject();
+						post.insert(QStringLiteral("author"), QJsonObject{ { QStringLiteral("id"), QStringLiteral("SYNTHETIC_USER_800099") }, { QStringLiteral("login"), QStringLiteral("fixture-other-reviewer") } });
+						*entry = post;
+					}
+					comments.insert(QStringLiteral("nodes"), posts);
+					node.insert(QStringLiteral("comments"), comments);
+					nodes.replace(index, node);
+				}
 				const auto overlay = aOverlays.find(node.value(QStringLiteral("id")).toString().toStdString());
 				if (overlay == aOverlays.end()) {
 					continue;
@@ -1816,7 +1835,7 @@ namespace bpr::app::detail {
 				// replay still validates the complete exact recorded request below.
 				if (Role != fixture_transport_role::bootstrap && State->RepeatReads
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
-					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr);
+					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr || State->LargeReviewRepeatReads);
 				}
 				auto response = State->IndependentWindowReads && Role != fixture_transport_role::anonymous
 					? perform_independent_read(Role == fixture_transport_role::bootstrap ? State->IndependentBootstrap : State->IndependentRecording, aRequest.Wire)
@@ -1834,6 +1853,7 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+
 				// [[BPR-0978]]. A second profile's account is a different actor
 				// entirely: database id, node id and login all change together, so
 				// the recorded octo-reviewer records keep their own consistent
@@ -1879,8 +1899,8 @@ namespace bpr::app::detail {
 					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
-					&& !State->ThreadOverlays.empty()) {
-					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays);
+					&& (!State->ThreadOverlays.empty() || State->LargeReviewForeignPosts)) {
+					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays, State->LargeReviewForeignPosts);
 				}
 				return github_wire_success{
 					.Correlation = aRequest.Correlation,
@@ -3455,7 +3475,9 @@ namespace bpr::app::detail {
 			Recording = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
 				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
-			Recording->RepeatSessions = aOptions.DeviceRefreshCourse
+			Recording->LargeReviewForeignPosts = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewForeignPosts;
+			Recording->LargeReviewRepeatReads  = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewRepeatReads;
+			Recording->RepeatSessions          = aOptions.DeviceRefreshCourse
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
