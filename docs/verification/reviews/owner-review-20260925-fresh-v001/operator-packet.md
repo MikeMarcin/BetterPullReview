@@ -1,13 +1,52 @@
 # Owner review, 2026-09-25: a fresh session (v001)
 
-Status: **17 candidates ready and protected at sequence 34, all pending. No
-verdict is inferred from preparation.**
+Status: **Answered: handed back at sequence 54 with all 17 candidates
+decided, and each verdict recorded on its card (2026-09-25). Protections were
+released at sequence 55, the host is stopped and the runtime directory is
+deleted. This packet describes `3759b0d8` and the frozen m2 app on purpose.**
 
 The owner asked for a fresh attended review session. This is a **new session
 with its own state**. It holds every explicit human question that is still
 unanswered and can be judged on this Mac, and nothing that has already been
 answered. Answer any subset. A skipped item stays pending, and **Finish and
 hand back** approves nothing.
+
+## Hand-back, 2026-09-25
+
+The owner decided every candidate and handed back at sequence 54. Every
+decision is `actor: human`, and its fingerprint equals the one in
+[session-identity.json](session-identity.json). `BPR-1129-bar` and
+`BPR-1132-plus` were each answered twice; the session keeps the later
+decision current and lists the earlier one as superseded, and the later one
+is recorded.
+
+| Candidate | Decision, seq | Verdict | Recorded on |
+|---|---|---|---|
+| `BPR-0295-ac1-provenance-v001` | `d7af6bd8`, 35 | Amend AC1 for this exact v008 asset set | [[BPR-0295]] (Ready), RFC-BPR-0019 |
+| `BPR-0641-private-pr-smoke-v001` | `cbba6fac`, 36 | accept, with two findings | [[BPR-0641]] (Done), [[BPR-1199]], [[BPR-1200]] |
+| `BPR-0966-compose-dif-v001` | `dba44cfd`, 37 | A visible workshop slot on Compose | [[BPR-0966]] (Ready) |
+| `BPR-1129-title` | `aee924e0`, 40 | Keep | [[BPR-1129]] |
+| `BPR-1129-bar` | `fd158272`, 48 | Revise: file before change | [[BPR-1129]], [[BPR-1202]] |
+| `BPR-1129-kept` | `011a2ebb`, 39 | reject | [[BPR-1129]], [[BPR-1203]] |
+| `BPR-1134-tray` | `6c6d2c52`, 52 | reject | [[BPR-1134]], [[BPR-1204]] |
+| `BPR-1134-voiceover` | `6ee64abe`, 53 | Works | [[BPR-1134]] |
+| `BPR-1130-fold` | `74ee4e1c`, 41 | Keep | [[BPR-1130]] |
+| `BPR-1130-history` | `2edcf8e2`, 42 | Clear enough | [[BPR-1130]] |
+| `BPR-1130-pair-ready` | `ccba3a15`, 43 | Tooltip | [[BPR-1130]] |
+| `BPR-1130-readiness` | `5b349ec3`, 44 | Track when open, summary when folded | [[BPR-1130]], [[BPR-1201]] |
+| `BPR-1133-default-reply` | `1a095bfe`, 51 | Reply | [[BPR-1133]] |
+| `BPR-1133-arrow` | `b3d1d32d`, 49 | Keep, with a finding | [[BPR-1133]], [[BPR-1207]] |
+| `BPR-1133-card-reply` | `37c42e44`, 50 | Keep | [[BPR-1133]] |
+| `BPR-1132-plus` | `c1a81e29`, 47 | Duplicate, with focus and sizing | [[BPR-1132]], [[BPR-1206]] |
+| `BPR-1132-later` | `2c856168`, 45 | Hidden | [[BPR-1132]], [[BPR-1205]] |
+
+All fourteen RFC-BPR-0052 verdicts are also summarised on [[BPR-1135]]. The
+owner's screenshots show a private repository or the owner's other projects.
+They stay with their decisions in `session.json` and are not committed. After
+recording, `resume-development --all` released this session's 30 resource
+claims. Session `60bd1ed5`'s 28 claims on the same frozen app and Qt were
+untouched. `stop` ended host PID 86003, and the runtime directory above,
+which held the BPR-0641 build and the probes, was deleted.
 
 ## Durable session
 
