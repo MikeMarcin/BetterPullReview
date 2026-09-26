@@ -19945,20 +19945,20 @@ namespace bpr::app {
 	#endif
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
-		// comparison's menu and a rule, the change pair with its position, the
-		// file pair with its position, private progress, a spacer, Compose
+		// comparison's menu and a rule, the file pair with its position, the
+		// change pair with its position, private progress, a spacer, Compose
 		// review and Comment. Review details is the comparison's menu's.
 		const auto exactReviewBarOrder = reviewBarActions.size() == 14
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
 			&& widgetActionNamed(reviewBarActions, 3, "reviewBarComparisonDividerAction")
-			&& reviewBarActions[4] == previousChange
-			&& reviewBarActions[5] == nextChange
-			&& widgetActionNamed(reviewBarActions, 6, "workbenchStripChangePositionAction")
-			&& reviewBarActions[7] == previousFile
-			&& reviewBarActions[8] == nextFile
-			&& widgetActionNamed(reviewBarActions, 9, "workbenchStripFilePositionAction")
+			&& reviewBarActions[4] == previousFile
+			&& reviewBarActions[5] == nextFile
+			&& widgetActionNamed(reviewBarActions, 6, "workbenchStripFilePositionAction")
+			&& reviewBarActions[7] == previousChange
+			&& reviewBarActions[8] == nextChange
+			&& widgetActionNamed(reviewBarActions, 9, "workbenchStripChangePositionAction")
 			&& reviewBar->widgetForAction(reviewBarActions[10]) == reviewControls
 			&& widgetActionNamed(reviewBarActions, 11, "reviewBarSpacerAction")
 			&& reviewBarActions[12] == window->compose_review_action()

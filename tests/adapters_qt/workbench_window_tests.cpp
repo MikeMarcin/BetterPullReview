@@ -813,31 +813,38 @@ namespace {
 			   "the title row is the design's 30-pixel row");
 
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
-		// comparison's menu and a rule, the change pair and its position, the
-		// file pair and its position, private progress, a spacer, Compose
+		// comparison's menu and a rule, the file pair and its position, the
+		// change pair and its position, private progress, a spacer, Compose
 		// review and Comment.
-		const auto barActions = bar->actions();
-		const auto reviewRow  = barActions.size() == 14
-			&& named(barActions, 0, "reviewBarInsetAction")
-			&& named(barActions, 1, "reviewBarUpdatesAction")
-			&& named(barActions, 2, "reviewBarComparingAction")
-			&& named(barActions, 3, "reviewBarComparisonDividerAction")
-			&& barActions[4] == navigation[2]
-			&& barActions[5] == navigation[3]
-			&& named(barActions, 6, "workbenchStripChangePositionAction")
-			&& barActions[7] == navigation[0]
-			&& barActions[8] == navigation[1]
-			&& named(barActions, 9, "workbenchStripFilePositionAction")
-			&& named(barActions, 10, "workbenchReviewControlsAction")
-			&& named(barActions, 11, "reviewBarSpacerAction")
-			&& barActions[12] == window.compose_review_action()
-			&& barActions[13] == window.comment_action();
+		const auto barActions         = bar->actions();
+		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
+			const auto& ordered = aActions;
+			return ordered.size() == 14
+				&& named(ordered, 0, "reviewBarInsetAction")
+				&& named(ordered, 1, "reviewBarUpdatesAction")
+				&& named(ordered, 2, "reviewBarComparingAction")
+				&& named(ordered, 3, "reviewBarComparisonDividerAction")
+				&& ordered[4] == navigation[0]
+				&& ordered[5] == navigation[1]
+				&& named(ordered, 6, "workbenchStripFilePositionAction")
+				&& ordered[7] == navigation[2]
+				&& ordered[8] == navigation[3]
+				&& named(ordered, 9, "workbenchStripChangePositionAction")
+				&& named(ordered, 10, "workbenchReviewControlsAction")
+				&& named(ordered, 11, "reviewBarSpacerAction")
+				&& ordered[12] == window.compose_review_action()
+				&& ordered[13] == window.comment_action();
+		};
+		const auto reviewRow = matchesReviewOrder(barActions);
+		auto       oldOrder  = barActions;
+		std::rotate(oldOrder.begin() + 4, oldOrder.begin() + 7, oldOrder.begin() + 10);
+		expect(!matchesReviewOrder(oldOrder), "negative control: the old change-before-file order fails the exact row contract");
 		if (!reviewRow) {
 			for (auto index = qsizetype{ 0 }; index < barActions.size(); ++index) {
 				std::cerr << "review bar " << index << ": " << barActions[index]->objectName().toStdString() << '\n';
 			}
 		}
-		expect(reviewRow, "the review bar reads Updates and the comparison, then the change and file navigation and progress, with Compose review and Comment at its right");
+		expect(reviewRow, "the review bar reads Updates and the comparison, then the file and change navigation and progress, with Compose review and Comment at its right");
 		expect(bar->height() == qt::workbench_strip::review_bar_height_pixels,
 			   "the review bar is the design's 28-pixel row");
 		expect(window.updates_disclosure_button()->text() == QStringLiteral("Updates")
@@ -6402,10 +6409,10 @@ namespace {
 		const auto barStop  = [&window](QAction* const aAction) { return window.review_bar()->widgetForAction(aAction); };
 		const auto barOrder = QList<QWidget*>{
 			window.epoch_selectors()->comparing_button(),
-			barStop(window.previous_change_action()),
-			barStop(window.next_change_action()),
 			barStop(window.previous_file_action()),
 			barStop(window.next_file_action()),
+			barStop(window.previous_change_action()),
+			barStop(window.next_change_action()),
 			window.review_controls_button(),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
@@ -9012,6 +9019,7 @@ namespace {
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(modality);
+			window.resize(window.minimumWidth(), 820);
 			fold_updates_line(window);
 			process_events();
 			expect(window.findChild<QWidget*>(QStringLiteral("reviewReadiness")) == nullptr
@@ -9019,6 +9027,7 @@ namespace {
 					   && epochs->comparing_button()->toolTip().contains(epochs->readiness_text())
 					   && panesTop() == barBottom(),
 				   "loading in every folded modality uses the review summary and adds no row");
+			save_render(window, QStringLiteral("readiness-folded-floor-%1").arg(static_cast<int>(modality)));
 			open_updates_line(window);
 			process_events();
 			auto* const readiness = window.findChild<QLabel*>(QStringLiteral("epochReadiness"));
@@ -9028,6 +9037,18 @@ namespace {
 					   && epochs->height() == qt::epoch_line::height_pixels,
 				   "loading occupies the existing 34-pixel track with copyable complete words");
 			save_render(window, QStringLiteral("readiness-open-%1").arg(static_cast<int>(modality)));
+			auto* const oldRow = new QWidget{ epochs->parentWidget() };
+			oldRow->setObjectName(QStringLiteral("reviewReadiness"));
+			oldRow->setFixedHeight(20);
+			auto* const rows = qobject_cast<QVBoxLayout*>(epochs->parentWidget()->layout());
+			expect(rows != nullptr, "the real review rows are inspectable");
+			rows->insertWidget(1, oldRow);
+			oldRow->show();
+			process_events();
+			expect(!spans(), "negative control: retaining the old readiness row fails the row contract");
+			delete oldRow;
+			process_events();
+			expect(spans(), "removing the control restores the direct bar-to-track geometry");
 		}
 		window.hide();
 	}

@@ -1068,14 +1068,14 @@ namespace bpr::qt {
 		// row and always shown with a review, in this exact order. From its
 		// left, Updates and the comparison it names with its dates and menu (the
 		// epoch control hands its "Comparing" button over once it exists), the
-		// change pair with its position, the file pair with its position and
+		// file pair with its position, the change pair with its position and
 		// private progress; at its right Compose review and Comment. It is an
 		// ordinary row: its bare surface drags nothing.
 		ReviewBar = new workbench_strip{ QStringLiteral("Review bar"), this, strip_role::review_bar };
 		ReviewBar->setObjectName(QStringLiteral("workbenchReviewBar"));
 		ReviewBar->setAccessibleName(QStringLiteral("Review bar"));
 		ReviewBar->setAccessibleDescription(QStringLiteral(
-			"Updates and the comparison, change and file navigation, private "
+			"Updates and the comparison, file and change navigation, private "
 			"progress, Compose review and Comment"));
 		auto* const barInset = new QWidget{ ReviewBar };
 		barInset->setObjectName(QStringLiteral("reviewBarInset"));
@@ -1091,15 +1091,6 @@ namespace bpr::qt {
 			"Folds or opens the Updates line, the pull request's updates, whose timeline runs below this bar"));
 		connect(UpdatesDisclosure, &QToolButton::clicked, this, [this] { dispatch_updates_line_toggle(); });
 		rowWidget(ReviewBar, UpdatesDisclosure, QStringLiteral("reviewBarUpdatesAction"));
-		ReviewBar->addAction(Navigation[2].Action);
-		ReviewBar->addAction(Navigation[3].Action);
-		ChangePositionLabel = rowLabel(
-			ReviewBar,
-			QStringLiteral("workbenchStripChangePosition"),
-			QStringLiteral("Change position"),
-			QStringLiteral("The selected change's position among the comparison's changes"));
-		ChangePositionAction = rowWidget(
-			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		ReviewBar->addAction(Navigation[0].Action);
 		ReviewBar->addAction(Navigation[1].Action);
 		FilePositionLabel = rowLabel(
@@ -1109,6 +1100,15 @@ namespace bpr::qt {
 			QStringLiteral("The selected file's position among the actionable files"));
 		FilePositionAction = rowWidget(
 			ReviewBar, FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
+		ReviewBar->addAction(Navigation[2].Action);
+		ReviewBar->addAction(Navigation[3].Action);
+		ChangePositionLabel = rowLabel(
+			ReviewBar,
+			QStringLiteral("workbenchStripChangePosition"),
+			QStringLiteral("Change position"),
+			QStringLiteral("The selected change's position among the comparison's changes"));
+		ChangePositionAction = rowWidget(
+			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
@@ -1203,8 +1203,8 @@ namespace bpr::qt {
 		if (auto* const comparing = EpochSelectors->release_comparing_button(); comparing != nullptr) {
 			comparing->setAutoRaise(true);
 			comparing->setParent(ReviewBar);
-			ReviewBar->insertWidget(Navigation[2].Action, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
-			ReviewBar->insertWidget(Navigation[2].Action, new strip_divider{ ReviewBar })
+			ReviewBar->insertWidget(Navigation[0].Action, comparing)->setObjectName(QStringLiteral("reviewBarComparingAction"));
+			ReviewBar->insertWidget(Navigation[0].Action, new strip_divider{ ReviewBar })
 				->setObjectName(QStringLiteral("reviewBarComparisonDividerAction"));
 			if (auto* const menu = comparing->menu(); menu != nullptr) {
 				menu->addSeparator();
@@ -8691,10 +8691,10 @@ namespace bpr::qt {
 			};
 			append(UpdatesDisclosure);
 			append(EpochSelectors->comparing_button());
-			append(barPresenter(Navigation[2].Action));
-			append(barPresenter(Navigation[3].Action));
 			append(barPresenter(Navigation[0].Action));
 			append(barPresenter(Navigation[1].Action));
+			append(barPresenter(Navigation[2].Action));
+			append(barPresenter(Navigation[3].Action));
 			append(ReviewControlsButton);
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));

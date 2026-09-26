@@ -318,6 +318,11 @@ endfunction()
 # owner and bounded queue; private paths/exception bytes omitted. Typed epoch
 # Quill observations replace developer stderr bypasses. Self-review retains
 # all session, mutation and durable terminal authority; mutation digest unchanged.
+# BPR-1202 reseal: reviewed 5c094f80..this candidate. The only application
+# source delta exchanges file/change positions in the test-only UIforETW
+# capture's exact 14-action assertion and its comment. No runtime, authority,
+# persistence or mutation code changes. Mutation branch unchanged. Record and
+# direct capture/focus evidence on BPR-1202.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")

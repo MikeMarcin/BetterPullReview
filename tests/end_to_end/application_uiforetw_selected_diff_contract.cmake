@@ -405,18 +405,18 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		)
 	endif()
 	# [[BPR-1129]]. The review bar reads, from its left, the comparison's menu,
-	# the change pair, the file pair and private progress; Compose review and
+	# the file pair, the change pair and private progress; Compose review and
 	# Comment close its right, after a flexible gap.
 	math(EXPR bar_right_gap
 		"${review_bar_rect_in_window_width} - ${comment_rect_in_bar_right}")
 	math(EXPR bar_gap_width
 		"${compose_review_rect_in_bar_x} - ${private_progress_rect_in_bar_right}")
 	if(comparing_rect_in_bar_x GREATER 160
-			OR comparing_rect_in_bar_right GREATER previous_change_rect_in_bar_x
-			OR previous_change_rect_in_bar_right GREATER next_change_rect_in_bar_x
-			OR next_change_rect_in_bar_right GREATER previous_file_rect_in_bar_x
+			OR comparing_rect_in_bar_right GREATER previous_file_rect_in_bar_x
 			OR previous_file_rect_in_bar_right GREATER next_file_rect_in_bar_x
-			OR next_file_rect_in_bar_right GREATER private_progress_rect_in_bar_x
+			OR next_file_rect_in_bar_right GREATER previous_change_rect_in_bar_x
+			OR previous_change_rect_in_bar_right GREATER next_change_rect_in_bar_x
+			OR next_change_rect_in_bar_right GREATER private_progress_rect_in_bar_x
 			OR private_progress_rect_in_bar_right GREATER compose_review_rect_in_bar_x
 			OR compose_review_rect_in_bar_right GREATER comment_rect_in_bar_x
 			OR bar_right_gap GREATER 20

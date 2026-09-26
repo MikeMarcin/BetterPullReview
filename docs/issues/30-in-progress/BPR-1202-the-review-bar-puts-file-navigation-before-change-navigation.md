@@ -51,3 +51,25 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Engineering evidence — 2026-09-26
+
+The visual and declared focus order now places the file group before the
+change group. The 14-action predicates cover the window and composed fixture;
+a test copy with the old group order is rejected. Full-window and focus
+courses at 100/125/200 and the four-appearance UIforETW composed course pass
+7/7 in 136.44 seconds. The first run exposed a second old focus expectation
+and the old composed geometry comparison; both were corrected and the whole
+focused selection rerun. BPR-1201's width-floor loading and synthetic obsolete
+readiness-row negative controls also pass in these window courses.
+
+Composition source review: `5c094f80..BPR-1202 candidate` changes only the
+14-action test-build capture expectation in `github_application.cpp`; no
+runtime authority, publication, persistence or mutation selection changed.
+The full reviewed digest is
+`34ffd0af35bd3f46ad0e9ba1839191d82059b1f8cf5aefedc20a6d1e44ec31a5`,
+production manifest `8a32003c8eff9ca994a5f1245f483648044baa9fc06967ef2b3c7c6379770859`;
+mutation digest stays `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+This intentional reseal records the source review, not an acceptance waiver.
+
+Owner look AC3 and all originating native/station obligations remain pending.
