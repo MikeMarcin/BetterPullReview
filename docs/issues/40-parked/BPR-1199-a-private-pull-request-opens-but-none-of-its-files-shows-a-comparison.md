@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1199"
 title: "A private pull request opens, but none of its files shows a comparison"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"origin":"owner accept with note on attended candidate BPR-0641-private-pr-smoke-v001, session 06ad5734ed9f7c2fd6d0a62c8328fa0a, decision cbba6fac-e7dc-4b39-a7aa-1dbd0f7e1571, 2026-09-25","observed_revision":"3759b0d8caf5f1732c8bf807be427525f3f9a89a","observed_executable_sha256":"5b3984204f5a63ebf3bcc350d1deca1a1fb0aab6bb985343f95a3e738e0fe1ed","related_rfcs":["RFC-BPR-0037","RFC-BPR-0029","RFC-BPR-0015"],"related_cards":["BPR-0641","BPR-0922","BPR-0668","BPR-0642","BPR-0643"],"reservation":"docs/issues/_reservations/BPR-1199--BPR-1207--b05c1525088e.json","milestone_plan":{"id":"bpr1199-private-comparison","path":"docs/rfcs/plans/bpr1199-private-comparison/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"Existing records reach protocol_acquire/transport/unavailable but epoch window_session=0 prevents an explicit PR join; acquisition step absent. Correlation and fixed-step diagnostic candidate verified. Fresh owner observation remains required; no underlying cause claimed.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC2","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"No actual private rendering repair or legitimate limiting class established. Diagnostic changes preserve existing policy and UI. Pending owner evidence before an appropriate repair can be chosen.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC3","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"Fail-before/pass-after composed logging and synthetic CLI tests prove the diagnostic defects only. The original private failing class is not established, so its composed repair course remains pending.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}},{"criterion":"AC4","outcome":"pending","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","detail":"One ready protected owner question in attended session 2c2e72e3af2e2fd7fa1a566ec49bc5ca, candidate BPR-1199-private-comparison-v001, cursor4. No owner verdict received.","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r1.md"}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c982586fbfc774614c6f4993c4e6c81d450d15be","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Owner run: successful PR request1 and epoch request1 share window43; protocol_acquire/transport/response_limit/clone. Only fixed codes and numeric IDs retained; exact sub-limit remains unknown."}},{"criterion":"AC2","outcome":"pending","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Small-PR/large-repository synthetic failure is repaired and exact base/head render through real CLI/Git/cache composition. Actual private target remains unobserved on v002; no claim that every legitimate size limit has been eliminated."}},{"criterion":"AC3","outcome":"pass","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"Actual composed baseline reproduces the owner diagnostic class with a deterministic 34 MiB unrelated ancestor; repaired Read renders full expected base/head over the same failed store. Host/transport/workbench/logging/architecture6/6 and fixture7/7 pass."}},{"criterion":"AC4","outcome":"pending","revision":"f90cda1bb6ae175806fac7e05fb1836f10d4439b","evidence":{"kind":"artifact","path":"docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md","detail":"v001 exact final Reject consumed. Repaired v002 is prepared as one AC4 Accept/Reject candidate in session2c2e72e3af2e2fd7fa1a566ec49bc5ca; no revised owner verdict yet."}}]
+parked_on: "human-review"
 ---
 
 # BPR-1199: A private pull request opens, but none of its files shows a comparison
@@ -72,3 +73,21 @@ Read-only. No comment, review, label or publication on the private pull
 request. The owner's diagnostics log is private: record reason codes and
 stages only. This is a standalone follow-up; it changes no RFC's recorded
 acceptance.
+
+## Execution record
+
+### Owner rejection and repaired candidate, round r2
+
+The exact v001 final Reject is retained in [round-r2 evidence](../../rfcs/plans/bpr1199-private-comparison/evidence-r2.md).
+The diagnostic run establishes `protocol_acquire / transport / response_limit / clone`
+in the successfully loaded PR's window. It does not identify the exact sub-limit.
+A small PR could select complete repository history, independent of repository
+size. The repaired candidate uses the existing sparse-capable path for every
+validated shape, retaining all admission and object checks and non-sparse behavior.
+
+A composed safe fixture reproduces that same failure class and now renders the
+exact base/head through real Git/cache in Read, including recovery over the
+failed course's persisted state. AC1 and AC3 pass; actual private rendering and
+AC4 remain pending the repaired v002 observation. The owner is not asked to
+reconfirm the known v001 failure. The unrelated Overview folder clarification
+is assigned to a separate follow-up by the coordinator.

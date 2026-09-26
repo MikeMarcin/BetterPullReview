@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "c982586fbfc774614c6f4993c4e6c81d450d15be",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "Owner run: successful PR request1 and epoch request1 share window43; protocol_acquire/transport/response_limit/clone. Only fixed codes and numeric IDs retained; exact sub-limit remains unknown."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pending",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "Small-PR/large-repository synthetic failure is repaired and exact base/head render through real CLI/Git/cache composition. Actual private target remains unobserved on v002; no claim that every legitimate size limit has been eliminated."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "Actual composed baseline reproduces the owner diagnostic class with a deterministic 34 MiB unrelated ancestor; repaired Read renders full expected base/head over the same failed store. Host/transport/workbench/logging/architecture6/6 and fixture7/7 pass."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pending",
+      "revision": "f90cda1bb6ae175806fac7e05fb1836f10d4439b",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/rfcs/plans/bpr1199-private-comparison/evidence-r2.md",
+        "detail": "v001 exact final Reject consumed. Repaired v002 is prepared as one AC4 Accept/Reject candidate in session2c2e72e3af2e2fd7fa1a566ec49bc5ca; no revised owner verdict yet."
+      }
+    }
+  ]
+}
