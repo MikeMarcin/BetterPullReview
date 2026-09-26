@@ -2,17 +2,22 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0966"
 title: "Reconcile Dif workshop cues with the dedicated composition page"
-status: "Parked"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["mac"]
-metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Owner decision dba44cfd from session06ad5734 selects visible Compose workshop slot; BPR1209 prime-slot reconciliation retained. No historical acceptance rewritten."}},{"criterion":"AC2","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"command","detail":"Baseline fails ready/acknowledge only. Candidate actual composed proposal and visible Accept button paint ready/acknowledge; exact session/action/draft router unchanged, one sprite, one acceptance intent and all publication counters zero. See compose-evidence.md."}},{"criterion":"AC3","outcome":"pending","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"artifact","detail":"Six focused macOS offscreen behavior checks pass. New slot visual judgment awaits BPR-0966-compose-slot-v002 in session54fd75833481882c3bb47745f8e30b75. Windows consider-cue/native follow-up explicitly deferred; no Linux or installed-release claim. Architecture boundary failure independently reproduces on baseline; see compose-evidence.md."}}]
+platforms: ["win"]
+metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4-with-owner-compose-20260925-r3","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"},"accepted_platform_scope":"macOS exact candidate 388f814c with final human Dif Accept; historical Mac evidence retained","remaining_scope":"Deferred Windows consider-cue and exact-candidate composed-course verification; no waiver","owner_followup":"BPR-1212"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Owner decision dba44cfd from session06ad5734 selects visible Compose workshop slot; BPR1209 prime-slot reconciliation retained. No historical acceptance rewritten."}},{"criterion":"AC2","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"command","detail":"Baseline fails ready/acknowledge only. Candidate actual composed proposal and visible Accept button paint ready/acknowledge; exact session/action/draft router unchanged, one sprite, one acceptance intent and all publication counters zero. See compose-evidence.md."}},{"criterion":"AC3","outcome":"pending","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Mac behavior: six focused checks pass at 388f814c; main integration recorded in a773d803. Final human Accept 3bcafec9-7811-46dd-83dd-f7bda4cdac1b at session54fd75833481882c3bb47745f8e30b75 sequence5 accepts candidate BPR-0966-compose-slot-v002 fingerprint87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd. Windows consider-cue and exact-candidate public-course outcome remain pending. Full Compose UX rethink deferred to BPR-1212; no native/cross-platform waiver."}}]
 ---
 
 # Reconcile Dif workshop cues with the dedicated composition page
+
+Current disposition (2026-09-26): the owner accepted Dif on the exact Mac
+candidate. AC1 and AC2 pass; AC3 remains partial for the deferred Windows
+course. Backlog now selects `win` for that remaining work, preserving all Mac
+evidence below. There is no outstanding Dif visual question. The full Compose
+UX rethink is the later, independent [[BPR-1212]] follow-up.
 
 ## Observation
 
@@ -230,3 +235,39 @@ preserved above; no Windows/Linux native or installed-release result is claimed.
 The separate BPR-1209 owner received the slot API and will preserve this prime
 placement when the default corner lands. Whichever lands second updates the
 shared Dif course's initial placement.
+
+## Final owner verdict and remaining native work — 2026-09-26
+
+Attended session `54fd75833481882c3bb47745f8e30b75`, candidate
+`BPR-0966-compose-slot-v002`, revision
+`388f814c7be796b91c4dd6779422be3d4321e4f3`, fingerprint
+`87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd`:
+final **Accept**, decision `3bcafec9-7811-46dd-83dd-f7bda4cdac1b`, sequence 5,
+2026-09-26T18:03:54.922881+00:00; handed back at sequence 6. The owner wrote:
+
+> Dif is fine.
+> I utterly hate the compose UX and it needs a full rethink with $frontend-design as a later follow-up.
+
+The preceding Reject `558218a7-99a6-43c7-8d7a-5ec76870d505`, sequence 4,
+is explicitly superseded by this final decision on the same candidate. Both
+remain in [the verdict record](../../rfcs/plans/bpr0966-dif-cues/owner-verdict-compose.json).
+The Accept completes the scoped Mac visual judgment; it does not approve
+Compose UX generally, erase the Windows observation, or change terminal RFC
+acceptance. [[BPR-1212]] preserves the separate later redesign request.
+
+AC1 and AC2 remain pass. AC3 has six passing exact-candidate Mac behavior checks,
+the final human Dif acceptance, and coordinator main-integration evidence at
+`de496298` recorded in `a773d803` (2/2 Dif/context and window checks, plus
+2/2 architecture/contained-temporary checks at `ca23a9fe`). None supplies the
+Windows outcome explicitly retained above. AC3 therefore stays pending, and
+this card returns to Backlog with Windows eligibility rather than Done or an
+answered human-review wait. The historical Mac scope stays accepted.
+
+Next: an authorized Windows station owner should build the integrated candidate,
+run `application_agent_finding_dif_context_contract` and the affected
+router/editor/placement/public-composition checks, observe actual consider,
+ready and acknowledge paints with the exact identity and zero-publication
+assertions, and record the revision and native limits. Diagnose an actual
+failure before changing the assertions. No new owner visual approval is owed
+for the unchanged accepted Mac slot; a materially changed candidate may need
+its own scoped review. No Linux or installed-release qualification is claimed.

@@ -120,3 +120,43 @@ The architecture and contained-temporary gates had passed 2/2 on `ca23a9fe`
 in 24.89 seconds; the workshop adds no effect API. These are macOS arm64
 offscreen integration results, not an owner verdict or native Windows evidence.
 The frozen review candidate and its pending decision remain unchanged.
+
+## Verdict reconciliation — 2026-09-26
+
+Continuation `r4-with-owner-compose-20260925-r3`, segment `owner-verdict-r3`,
+consumes session `54fd75833481882c3bb47745f8e30b75` through hand-back cursor 6.
+Final human Accept `3bcafec9-7811-46dd-83dd-f7bda4cdac1b` supersedes Reject
+`558218a7-99a6-43c7-8d7a-5ec76870d505` for the unchanged candidate
+`BPR-0966-compose-slot-v002`, revision `388f814c7be796b91c4dd6779422be3d4321e4f3`,
+fingerprint `87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd`.
+The [verdict record](owner-verdict-compose.json) preserves exact decision text.
+
+The owner says Dif is fine and requests a full Compose UX rethink with
+`$frontend-design` as a later follow-up, now [[BPR-1212]]. Mac visual acceptance
+is supplied; the earlier paragraphs' pending-human statements and
+`acceptance-compose.json` describe the pre-verdict checkpoint. Current acceptance
+is [acceptance-verdict.json](acceptance-verdict.json): AC1/AC2 pass, AC3 partial
+pending the deferred Windows consider-cue and exact-candidate public course.
+BPR-0966 is Backlog with `win` eligibility and retains its accepted Mac evidence.
+
+This round changes documentation and board state only. Product, test and frozen
+review inputs are unchanged, so the six exact-candidate Mac checks and the
+coordinator's main integration above remain relevant. No build, native station
+run, live account operation or new human decision was performed in this round.
+No material behavior, authority or public API changed; broader product and
+architecture documents have no new semantic impact.
+
+Round verification: `git diff --quiet 388f814c7be796b91c4dd6779422be3d4321e4f3
+-- src tests` succeeds, and all four retained review artifacts above match their
+recorded SHA-256 values. The documentation gate reports `DOCUMENTATION_OK`, its
+regression suite passes 64/64 in 2.322 seconds, scoped board validation reports
+1199 cards with no errors, and `git diff --check` passes. The guarded board move
+returns BPR-0966 to `10-backlog`; no `finish` invocation claims Done or leaves
+an answered question marked human-pending.
+
+The attended helper reports `stopped: true`; PID 41253 no longer exists and
+loopback port 59834 refuses a connection. Releasing only
+`BPR-0966-compose-slot-v002` records cursor 7 with protection false and its final
+Accept intact. Frozen binaries/images, logs and old review packets are retained.
+The original exec handle 46244 is not addressable in this fresh context; OS PID
+and port checks establish shutdown. No task-owned background process remains.

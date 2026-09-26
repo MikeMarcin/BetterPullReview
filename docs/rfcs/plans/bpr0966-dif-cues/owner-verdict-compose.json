@@ -1,0 +1,78 @@
+{
+  "schema": "bpr.attended-verdict.v1",
+  "session": "54fd75833481882c3bb47745f8e30b75",
+  "consumed_event_cursor": 6,
+  "handed_back": "2026-09-26T18:03:56.996901+00:00",
+  "candidate": {
+    "id": "BPR-0966-compose-slot-v002",
+    "title": "Dif in the Compose workshop header",
+    "revision": "388f814c7be796b91c4dd6779422be3d4321e4f3",
+    "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+    "decision": {
+      "candidate": "BPR-0966-compose-slot-v002",
+      "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+      "decision_id": "3bcafec9-7811-46dd-83dd-f7bda4cdac1b",
+      "outcome": "accept",
+      "note": "Dif is fine.\nI utterly hate the compose UX and it needs a full rethink with $frontend-design as a later follow-up.",
+      "saved_at": "2026-09-26T18:03:54.922881+00:00",
+      "actor": "human"
+    },
+    "superseded": [
+      {
+        "candidate": "BPR-0966-compose-slot-v002",
+        "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+        "decision_id": "558218a7-99a6-43c7-8d7a-5ec76870d505",
+        "outcome": "reject",
+        "note": "I utterly hate compose and it needs a full rethink with $frontend-design.",
+        "saved_at": "2026-09-26T18:03:08.715024+00:00",
+        "actor": "human"
+      }
+    ]
+  },
+  "events": [
+    {
+      "sequence": 4,
+      "time": "2026-09-26T18:03:08.715086+00:00",
+      "kind": "decision",
+      "candidate": "BPR-0966-compose-slot-v002",
+      "decision": {
+        "candidate": "BPR-0966-compose-slot-v002",
+        "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+        "decision_id": "558218a7-99a6-43c7-8d7a-5ec76870d505",
+        "outcome": "reject",
+        "note": "I utterly hate compose and it needs a full rethink with $frontend-design.",
+        "saved_at": "2026-09-26T18:03:08.715024+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "sequence": 5,
+      "time": "2026-09-26T18:03:54.922891+00:00",
+      "kind": "decision",
+      "candidate": "BPR-0966-compose-slot-v002",
+      "decision": {
+        "candidate": "BPR-0966-compose-slot-v002",
+        "fingerprint": "87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd",
+        "decision_id": "3bcafec9-7811-46dd-83dd-f7bda4cdac1b",
+        "outcome": "accept",
+        "note": "Dif is fine.\nI utterly hate the compose UX and it needs a full rethink with $frontend-design as a later follow-up.",
+        "saved_at": "2026-09-26T18:03:54.922881+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "sequence": 6,
+      "time": "2026-09-26T18:03:56.996910+00:00",
+      "kind": "handed-back",
+      "decided": [
+        "BPR-0966-compose-slot-v002"
+      ],
+      "pending": []
+    }
+  ],
+  "interpretation": {
+    "accepted": "Dif workshop placement on the exact macOS candidate; no fresh human question remains.",
+    "deferred_followup": "BPR-1212: full Compose UX rethink with $frontend-design later.",
+    "pending": "BPR-0966 AC3 Windows consider-cue and composed-course evidence remains required; no native or cross-platform waiver."
+  }
+}
