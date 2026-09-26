@@ -339,8 +339,13 @@ namespace {
 		click_row(view, folder, true);
 		expect(view.isExpanded(folder) && chosen.empty(), "mouse branch expansion does not select a file");
 		const auto oldFolder = QPersistentModelIndex{ folder };
+		const auto docs      = QPersistentModelIndex{ model->parent(model->index_for_file(core::file_identity_of("docs/readme.md"))) };
 		view.set_filter(QStringLiteral("b.cpp"));
-		expect(!oldFolder.isValid() && chosen.empty(), "model rebuild invalidates old folder indexes without dispatch");
+		// [[BPR-0972]]. The filter is reconciled, not reset: the folder still
+		// shown keeps its identity and the one filtered away is retired.
+		expect(oldFolder.isValid() && oldFolder.data(qt::files_tree_model::path_role).toString() == QStringLiteral("src")
+				   && !docs.isValid() && chosen.empty(),
+			   "a filter keeps a still-shown folder, retires a hidden one, and dispatches nothing");
 		view.set_filter({ });
 		expect(model->file_at(view.currentIndex()) == std::optional{ selected } && chosen.empty(), "clearing a filter restores the actual selected file, not a focused folder");
 		view.apply_overview({ });
@@ -435,6 +440,50 @@ namespace {
 		}
 	}
 
+	// [[BPR-0972]]. A file leaving and re-entering the actionable order is a
+	// bounded update to the tree: its row alone is removed and inserted, other
+	// rows keep their identity, and a folder the reviewer collapsed stays so.
+	void test_file_list_changes_reconcile_without_reset()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto rows = std::vector<qt::workbench_drawer_row>{ };
+			for (unsigned index = 0; index < count; ++index) {
+				rows.push_back(file("src/part" + std::to_string(index % 8U) + "/" + std::to_string(index) + ".cpp"));
+			}
+			qt::files_tree_view view;
+			view.apply(rows);
+			auto* const model  = view.tree_model();
+			auto        resets = 0;
+			QObject::connect(model, &QAbstractItemModel::modelReset, model, [&] { ++resets; });
+			const auto kept      = QPersistentModelIndex{ model->index_for_file(*rows.front().File) };
+			const auto collapsed = QPersistentModelIndex{ model->parent(model->index_for_file(*rows[1].File)) };
+			view.collapse(collapsed);
+			auto without = rows;
+			without.erase(without.begin() + 2);
+			const auto before = model->work_statistics();
+			view.apply(without);
+			const auto removed = model->work_statistics();
+			view.apply(rows);
+			const auto after = model->work_statistics();
+			std::cout << "files-tree-reconcile rows=" << count << " leave_removed=" << removed.RowsRemoved - before.RowsRemoved
+					  << " leave_inserted=" << removed.RowsInserted - before.RowsInserted << " leave_changed=" << removed.ChangedRows - before.ChangedRows
+					  << " leave_moved=" << removed.RowsMoved - before.RowsMoved
+					  << " return_inserted=" << after.RowsInserted - removed.RowsInserted << " return_changed=" << after.ChangedRows - removed.ChangedRows
+					  << " return_moved=" << after.RowsMoved - removed.RowsMoved << '\n';
+			expect(resets == 0 && after.ModelResets == before.ModelResets, "a bounded file-list change never resets the tree");
+			expect(removed.RowsRemoved == before.RowsRemoved + 1U && removed.RowsInserted == before.RowsInserted
+					   && after.RowsInserted == removed.RowsInserted + 1U && after.RowsMoved == before.RowsMoved,
+				   "only the leaving file's row is removed and then inserted");
+			expect(removed.ChangedRows - before.ChangedRows == 2U && after.ChangedRows - removed.ChangedRows == 2U,
+				   "only the two folders whose counts changed are signalled");
+			expect(kept.isValid() && model->file_at(kept) == rows.front().File, "other file rows keep their identity");
+			expect(collapsed.isValid() && !view.isExpanded(collapsed), "a folder the reviewer collapsed stays collapsed");
+			view.apply(std::vector{ rows.front(), file("docs/new/readme.md") });
+			const auto added = model->parent(model->index_for_file(core::file_identity_of("docs/new/readme.md")));
+			expect(added.isValid() && view.isExpanded(added), "a folder that newly appears is expanded");
+		}
+	}
+
 	void test_receipt_updates_preserve_tree_indexes()
 	{
 		for (const auto order : { qt::files_order::tree, qt::files_order::flat, qt::files_order::changed_first }) {
@@ -473,6 +522,7 @@ auto main(int argc, char** argv) -> int
 	test_file_lookup_reuses_indexes();
 	test_receipt_updates_preserve_tree_indexes();
 	test_drawer_reconciliation_is_linear_in_rows();
+	test_file_list_changes_reconcile_without_reset();
 	test_the_tree_compacts_nesting_only_folders_and_counts_files();
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();

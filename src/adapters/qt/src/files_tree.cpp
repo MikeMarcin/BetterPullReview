@@ -14,6 +14,7 @@
 #include <QPalette>
 #include <QPen>
 #include <QScopedValueRollback>
+#include <QSet>
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -112,8 +113,8 @@ namespace bpr::qt {
 			}
 			entries.push_back(std::move(entry));
 		}
-		Entries = std::move(entries);
-		rebuild();
+		auto previous = std::exchange(Entries, std::move(entries));
+		rebuild(previous);
 	}
 
 	void files_tree_model::apply_overview(const std::span<const application::overview_file_row> aFiles)
@@ -147,7 +148,6 @@ namespace bpr::qt {
 		}
 		if (Order == files_order::changed_first && orderChanged) {
 			rebuild();
-			return;
 		}
 		for (const auto file : changed) {
 			const auto index = index_for_file(file);
@@ -187,12 +187,10 @@ namespace bpr::qt {
 		return Filter;
 	}
 
-	void files_tree_model::rebuild()
+	auto files_tree_model::build_nodes() const -> std::vector<files_tree_node>
 	{
-		++WorkStatistics.ModelResets;
-		beginResetModel();
-		Nodes.clear();
-		Nodes.push_back(files_tree_node{ .Folder = true });
+		auto built = std::vector<files_tree_node>{ };
+		built.push_back(files_tree_node{ .Folder = true });
 		// The files this order shows, in the order it shows them. [[BPR-0981]]:
 		// the filter is RFC-BPR-0025's resident fuzzy match over the path,
 		// which carries the file name; a shown file keeps its folders below.
@@ -210,20 +208,20 @@ namespace bpr::qt {
 			std::ranges::sort(shown, byPath);
 			auto folderOf = std::map<QString, std::size_t>{ };
 			folderOf.emplace(QString{ }, root_node);
-			const auto folder = [this, &folderOf](const QString& aPrefix, auto& aSelf) -> std::size_t {
+			const auto folder = [&built, &folderOf](const QString& aPrefix, auto& aSelf) -> std::size_t {
 				if (const auto found = folderOf.find(aPrefix); found != folderOf.end()) {
 					return found->second;
 				}
 				const auto slash  = aPrefix.lastIndexOf(QLatin1Char{ '/' });
 				const auto parent = aSelf(slash < 0 ? QString{ } : aPrefix.left(slash), aSelf);
-				Nodes.push_back(files_tree_node{
+				built.push_back(files_tree_node{
 					.Label  = slash < 0 ? aPrefix : aPrefix.mid(slash + 1),
 					.Path   = aPrefix,
 					.Folder = true,
 					.Parent = parent,
 				});
-				const auto node = Nodes.size() - 1U;
-				Nodes[parent].Children.push_back(node);
+				const auto node = built.size() - 1U;
+				built[parent].Children.push_back(node);
 				folderOf.emplace(aPrefix, node);
 				return node;
 			};
@@ -231,40 +229,40 @@ namespace bpr::qt {
 				const auto& path   = Entries[index].Path;
 				const auto  slash  = path.lastIndexOf(QLatin1Char{ '/' });
 				const auto  parent = slash < 0 ? root_node : folder(path.left(slash), folder);
-				Nodes.push_back(files_tree_node{
+				built.push_back(files_tree_node{
 					.Label  = slash < 0 ? path : path.mid(slash + 1),
 					.Path   = path,
 					.Entry  = index,
 					.Parent = parent,
 				});
-				Nodes[parent].Children.push_back(Nodes.size() - 1U);
+				built[parent].Children.push_back(built.size() - 1U);
 			}
 			// Compact: a folder whose only child is a folder takes that
 			// child's name onto its own row and adopts its children.
-			for (std::size_t node = 1U; node < Nodes.size(); ++node) {
-				while (Nodes[node].Folder && Nodes[node].Children.size() == 1U
-					   && Nodes[Nodes[node].Children.front()].Folder) {
-					const auto child     = Nodes[node].Children.front();
-					Nodes[node].Label    = Nodes[node].Label + QLatin1Char{ '/' } + Nodes[child].Label;
-					Nodes[node].Path     = Nodes[child].Path;
-					Nodes[node].Children = std::move(Nodes[child].Children);
-					for (const auto grandchild : Nodes[node].Children) {
-						Nodes[grandchild].Parent = node;
+			for (std::size_t node = 1U; node < built.size(); ++node) {
+				while (built[node].Folder && built[node].Children.size() == 1U
+					   && built[built[node].Children.front()].Folder) {
+					const auto child     = built[node].Children.front();
+					built[node].Label    = built[node].Label + QLatin1Char{ '/' } + built[child].Label;
+					built[node].Path     = built[child].Path;
+					built[node].Children = std::move(built[child].Children);
+					for (const auto grandchild : built[node].Children) {
+						built[grandchild].Parent = node;
 					}
-					Nodes[child].Children.clear();
-					Nodes[child].Parent = node;
-					Nodes[child].Label.clear();
+					built[child].Children.clear();
+					built[child].Parent = node;
+					built[child].Label.clear();
 				}
 			}
 			// Orphaned compacted folders keep their slots (indices stay
 			// stable) and are simply unreachable from the root.
 			// Folders before files within each folder, each alphabetical.
-			for (auto& node : Nodes) {
-				std::ranges::stable_sort(node.Children, [this](const std::size_t aLeft, const std::size_t aRight) {
-					if (Nodes[aLeft].Folder != Nodes[aRight].Folder) {
-						return Nodes[aLeft].Folder;
+			for (auto& node : built) {
+				std::ranges::stable_sort(node.Children, [&built](const std::size_t aLeft, const std::size_t aRight) {
+					if (built[aLeft].Folder != built[aRight].Folder) {
+						return built[aLeft].Folder;
 					}
-					return Nodes[aLeft].Label.compare(Nodes[aRight].Label, Qt::CaseInsensitive) < 0;
+					return built[aLeft].Label.compare(built[aRight].Label, Qt::CaseInsensitive) < 0;
 				});
 			}
 		} else {
@@ -277,29 +275,223 @@ namespace bpr::qt {
 				});
 			}
 			for (const auto index : shown) {
-				Nodes.push_back(files_tree_node{
+				built.push_back(files_tree_node{
 					.Label  = Entries[index].Path,
 					.Path   = Entries[index].Path,
 					.Entry  = index,
 					.Parent = root_node,
 				});
-				Nodes[root_node].Children.push_back(Nodes.size() - 1U);
+				built[root_node].Children.push_back(built.size() - 1U);
 			}
 		}
-		// File counts, from the leaves up. Nodes are created parents first,
+		// File counts, from the leaves up. built are created parents first,
 		// so walking backwards adds each file to every reachable ancestor.
-		for (std::size_t node = Nodes.size(); node-- > 1U;) {
-			if (!Nodes[node].Folder && !Nodes[node].Label.isEmpty()) {
-				for (auto ancestor = Nodes[node].Parent;; ancestor = Nodes[ancestor].Parent) {
-					++Nodes[ancestor].FileCount;
+		for (std::size_t node = built.size(); node-- > 1U;) {
+			if (!built[node].Folder && !built[node].Label.isEmpty()) {
+				for (auto ancestor = built[node].Parent;; ancestor = built[ancestor].Parent) {
+					++built[ancestor].FileCount;
 					if (ancestor == root_node) {
 						break;
 					}
 				}
 			}
 		}
+		return built;
+	}
+
+	void files_tree_model::rebuild()
+	{
+		rebuild(Entries);
+	}
+
+	void files_tree_model::rebuild(const std::vector<files_tree_entry>& aPrevious)
+	{
+		auto       desired = build_nodes();
+		const auto shown   = Nodes[root_node].Children.size();
+		const auto wanted  = desired[root_node].Children.size();
+		if (shown == 0U && wanted != 0U) {
+			// First rows: one insertion of the whole built tree.
+			beginInsertRows({ }, 0, static_cast<int>(wanted) - 1);
+			Nodes = std::move(desired);
+			FreeNodes.clear();
+			for (std::size_t node = 1U; node < Nodes.size(); ++node) {
+				if (Nodes[node].Folder && !Nodes[node].Label.isEmpty()) {
+					InsertedFolders.push_back(node);
+				}
+			}
+			rebuild_file_index();
+			endInsertRows();
+			WorkStatistics.RowsInserted += wanted;
+			return;
+		}
+		if (wanted == 0U && shown != 0U) {
+			beginRemoveRows({ }, 0, static_cast<int>(shown) - 1);
+			Nodes.assign(1U, files_tree_node{ .Folder = true });
+			FreeNodes.clear();
+			rebuild_file_index();
+			endRemoveRows();
+			WorkStatistics.RowsRemoved += shown;
+			return;
+		}
+		reconcile(root_node, desired, root_node, aPrevious);
+		Nodes[root_node].FileCount = desired[root_node].FileCount;
 		rebuild_file_index();
-		endResetModel();
+	}
+
+	void files_tree_model::reconcile(
+		const std::size_t                    aCurrent,
+		const std::vector<files_tree_node>&  aDesired,
+		const std::size_t                    aWanted,
+		const std::vector<files_tree_entry>& aPrevious)
+	{
+		// A row is the same row when it is still a folder or file at the same
+		// path under the same parent. Compaction changes a folder's path, so
+		// a folder that splits or merges is replaced rather than renamed.
+		const auto key = [](const files_tree_node& aNode) {
+			return (aNode.Folder ? QStringLiteral("d:") : QStringLiteral("f:")) + aNode.Path;
+		};
+		const auto  parent   = index_of_node(aCurrent);
+		const auto& children = aDesired[aWanted].Children;
+		// Rows that no longer belong are removed first, so the rows after
+		// them close up without being moved one by one.
+		auto wanted = QSet<QString>{ };
+		wanted.reserve(static_cast<qsizetype>(children.size()));
+		for (const auto child : children) {
+			wanted.insert(key(aDesired[child]));
+		}
+		for (auto row = Nodes[aCurrent].Children.size(); row-- > 0U;) {
+			if (wanted.contains(key(Nodes[Nodes[aCurrent].Children[row]]))) {
+				continue;
+			}
+			beginRemoveRows(parent, static_cast<int>(row), static_cast<int>(row));
+			release(Nodes[aCurrent].Children[row]);
+			Nodes[aCurrent].Children.erase(Nodes[aCurrent].Children.begin() + static_cast<std::ptrdiff_t>(row));
+			renumber(aCurrent, row);
+			endRemoveRows();
+			++WorkStatistics.RowsRemoved;
+		}
+		auto retained = QHash<QString, std::size_t>{ };
+		retained.reserve(static_cast<qsizetype>(Nodes[aCurrent].Children.size()));
+		for (const auto child : Nodes[aCurrent].Children) {
+			retained.insert(key(Nodes[child]), child);
+		}
+		for (std::size_t position = 0U; position < children.size(); ++position) {
+			const auto& want  = aDesired[children[position]];
+			const auto  found = retained.constFind(key(want));
+			const auto  row   = static_cast<int>(position);
+			if (found == retained.constEnd()) {
+				beginInsertRows(parent, row, row);
+				const auto node = adopt(aDesired, children[position], aCurrent);
+				Nodes[aCurrent].Children.insert(Nodes[aCurrent].Children.begin() + static_cast<std::ptrdiff_t>(position), node);
+				renumber(aCurrent, position);
+				endInsertRows();
+				++WorkStatistics.RowsInserted;
+				continue;
+			}
+			const auto node = *found;
+			retained.remove(found.key());
+			// Every row before this one is settled, so a retained row is here
+			// or after it.
+			if (const auto from = Nodes[node].Row; from != row) {
+				beginMoveRows(parent, from, from, parent, row);
+				auto& siblings = Nodes[aCurrent].Children;
+				std::rotate(siblings.begin() + row, siblings.begin() + from, siblings.begin() + from + 1);
+				renumber(aCurrent, position);
+				endMoveRows();
+				++WorkStatistics.RowsMoved;
+			}
+			const auto& before    = Nodes[node].Entry ? aPrevious[*Nodes[node].Entry].Overview : std::nullopt;
+			const auto& after     = want.Entry ? Entries[*want.Entry].Overview : std::nullopt;
+			const auto  changed   = Nodes[node].Label != want.Label || Nodes[node].FileCount != want.FileCount || before != after;
+			Nodes[node].Label     = want.Label;
+			Nodes[node].FileCount = want.FileCount;
+			Nodes[node].Entry     = want.Entry;
+			if (changed) {
+				const auto index = index_of_node(node);
+				emit       dataChanged(index, index);
+				++WorkStatistics.ChangedRows;
+			}
+			if (want.Folder) {
+				reconcile(node, aDesired, children[position], aPrevious);
+			}
+		}
+		// Only a repeated path can still be unclaimed, left at the end.
+		const auto kept  = children.size();
+		const auto shown = Nodes[aCurrent].Children.size();
+		if (shown > kept) {
+			beginRemoveRows(parent, static_cast<int>(kept), static_cast<int>(shown) - 1);
+			for (auto row = kept; row < shown; ++row) {
+				release(Nodes[aCurrent].Children[row]);
+			}
+			Nodes[aCurrent].Children.resize(kept);
+			endRemoveRows();
+			WorkStatistics.RowsRemoved += shown - kept;
+		}
+	}
+
+	auto files_tree_model::adopt(const std::vector<files_tree_node>& aDesired, const std::size_t aWanted, const std::size_t aParent)
+		-> std::size_t
+	{
+		auto node = std::size_t{ 0U };
+		if (FreeNodes.empty()) {
+			Nodes.emplace_back();
+			node = Nodes.size() - 1U;
+		} else {
+			node = FreeNodes.back();
+			FreeNodes.pop_back();
+		}
+		const auto& want = aDesired[aWanted];
+		Nodes[node]      = files_tree_node{
+			.Label     = want.Label,
+			.Path      = want.Path,
+			.Folder    = want.Folder,
+			.FileCount = want.FileCount,
+			.Entry     = want.Entry,
+			.Parent    = aParent,
+		};
+		if (want.Folder) {
+			InsertedFolders.push_back(node);
+		}
+		for (std::size_t row = 0U; row < aDesired[aWanted].Children.size(); ++row) {
+			const auto child = adopt(aDesired, aDesired[aWanted].Children[row], node);
+			Nodes[node].Children.push_back(child);
+			Nodes[child].Row = static_cast<int>(row);
+		}
+		return node;
+	}
+
+	void files_tree_model::release(const std::size_t aNode)
+	{
+		for (const auto child : Nodes[aNode].Children) {
+			release(child);
+		}
+		Nodes[aNode] = files_tree_node{ };
+		FreeNodes.push_back(aNode);
+	}
+
+	void files_tree_model::renumber(const std::size_t aParent, const std::size_t aFrom)
+	{
+		const auto& children = Nodes[aParent].Children;
+		for (auto row = aFrom; row < children.size(); ++row) {
+			Nodes[children[row]].Row = static_cast<int>(row);
+		}
+	}
+
+	auto files_tree_model::index_of_node(const std::size_t aNode) const -> QModelIndex
+	{
+		return aNode == root_node ? QModelIndex{ } : createIndex(Nodes[aNode].Row, 0, static_cast<quintptr>(aNode));
+	}
+
+	auto files_tree_model::take_inserted_folders() -> std::vector<QModelIndex>
+	{
+		auto folders = std::vector<QModelIndex>{ };
+		folders.reserve(InsertedFolders.size());
+		for (const auto node : std::exchange(InsertedFolders, { })) {
+			if (node < Nodes.size() && Nodes[node].Folder) {
+				folders.push_back(index_of_node(node));
+			}
+		}
+		return folders;
 	}
 
 	auto files_tree_model::node_index(const QModelIndex& aIndex) const -> std::size_t
@@ -330,9 +522,7 @@ namespace bpr::qt {
 		if (parent == root_node) {
 			return { };
 		}
-		const auto& siblings = Nodes[Nodes[parent].Parent].Children;
-		const auto  row      = std::ranges::find(siblings, parent) - siblings.begin();
-		return createIndex(static_cast<int>(row), 0, static_cast<quintptr>(parent));
+		return createIndex(Nodes[parent].Row, 0, static_cast<quintptr>(parent));
 	}
 
 	auto files_tree_model::rowCount(const QModelIndex& aParent) const -> int
@@ -693,18 +883,21 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply(aRows);
-		expandAll();
+		expand_inserted();
 		select_file(SelectedFile);
 	}
 
 	void files_tree_view::apply_overview(const std::span<const application::overview_file_row> aFiles)
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
-		const auto resets   = Model->work_statistics().ModelResets;
 		Model->apply_overview(aFiles);
-		if (Model->work_statistics().ModelResets != resets) {
-			expandAll();
-			select_file(SelectedFile);
+		expand_inserted();
+	}
+
+	void files_tree_view::expand_inserted()
+	{
+		for (const auto& folder : Model->take_inserted_folders()) {
+			expand(folder);
 		}
 	}
 
@@ -712,7 +905,7 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->set_order(aOrder);
-		expandAll();
+		expand_inserted();
 		select_file(SelectedFile);
 	}
 
@@ -720,7 +913,7 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->set_filter(aFilter);
-		expandAll();
+		expand_inserted();
 		select_file(SelectedFile);
 	}
 

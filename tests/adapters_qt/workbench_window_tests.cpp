@@ -9034,7 +9034,14 @@ namespace {
 		QObject::connect(pageModel, &QAbstractItemModel::rowsRemoved, countPageBuild);
 		QObject::connect(pageModel, &QAbstractItemModel::rowsMoved, countPageBuild);
 		QObject::connect(pageModel, &QAbstractItemModel::layoutChanged, countPageBuild);
-		QObject::connect(window.files_tree()->tree_model(), &QAbstractItemModel::modelReset, [&treeResets] { ++treeResets; });
+		// [[BPR-0972]]. The drawer tree is reconciled too, so any structural
+		// signal counts as a tree build.
+		auto* const treeModel      = window.files_tree()->tree_model();
+		const auto  countTreeBuild = [&treeResets] { ++treeResets; };
+		QObject::connect(treeModel, &QAbstractItemModel::modelReset, countTreeBuild);
+		QObject::connect(treeModel, &QAbstractItemModel::rowsInserted, countTreeBuild);
+		QObject::connect(treeModel, &QAbstractItemModel::rowsRemoved, countTreeBuild);
+		QObject::connect(treeModel, &QAbstractItemModel::rowsMoved, countTreeBuild);
 		window.publish(overview);
 		const auto firstPageBuilds = pageBuilds;
 		const auto firstTreeResets = treeResets;

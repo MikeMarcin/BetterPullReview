@@ -68,6 +68,10 @@ namespace bpr::qt {
 		std::uint64_t ChangedRows         = 0U;
 		std::uint64_t OverviewRowsVisited = 0U;
 		std::uint64_t LookupComparisons   = 0U;
+		/// [[BPR-0972]]. Structural notifications of a reconciled order.
+		std::uint64_t RowsInserted = 0U;
+		std::uint64_t RowsRemoved  = 0U;
+		std::uint64_t RowsMoved    = 0U;
 	};
 
 	/// \brief RFC-BPR-0028's files tree ([[BPR-0658]]).
@@ -81,6 +85,11 @@ namespace bpr::qt {
 	/// selection is what dispatches the intent. Nesting-only folders are
 	/// compacted into one row, folders carry their file count, and a filter
 	/// keeps a matching file's parents visible.
+	///
+	/// [[BPR-0972]]. A changed file list, order or filter is reconciled with
+	/// the rows already shown by folder and path: rows that remain keep their
+	/// identity, persistent indexes and expansion, and only inserted, removed,
+	/// moved or changed rows are signalled. The model never resets.
 	class files_tree_model final : public QAbstractItemModel
 	{
 	public:
@@ -126,13 +135,28 @@ namespace bpr::qt {
 		[[nodiscard]] auto node_at(const QModelIndex& aIndex) const -> const files_tree_node*;
 		[[nodiscard]] auto file_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto nodes() const noexcept -> const std::vector<files_tree_node>&;
+		/// \brief Returns, once, the folder rows inserted since the last call.
+		/// \details A view expands these and leaves every retained folder as
+		/// the reviewer left it.
+		[[nodiscard]] auto take_inserted_folders() -> std::vector<QModelIndex>;
 
 	private:
 		void               rebuild();
+		void               rebuild(const std::vector<files_tree_entry>& aPrevious);
+		[[nodiscard]] auto build_nodes() const -> std::vector<files_tree_node>;
+		void               reconcile(std::size_t aCurrent, const std::vector<files_tree_node>& aDesired,
+									 std::size_t aWanted, const std::vector<files_tree_entry>& aPrevious);
+		[[nodiscard]] auto adopt(const std::vector<files_tree_node>& aDesired, std::size_t aWanted, std::size_t aParent)
+			-> std::size_t;
+		void               release(std::size_t aNode);
+		void               renumber(std::size_t aParent, std::size_t aFrom);
+		[[nodiscard]] auto index_of_node(std::size_t aNode) const -> QModelIndex;
 		void               rebuild_file_index();
 		[[nodiscard]] auto node_index(const QModelIndex& aIndex) const -> std::size_t;
 
 		mutable files_tree_work_statistics                           WorkStatistics;
+		std::vector<std::size_t>                                     FreeNodes;
+		std::vector<std::size_t>                                     InsertedFolders;
 		std::vector<std::pair<core::workbench_file_id, std::size_t>> FileIndex;
 		std::vector<files_tree_entry>                                Entries;
 		std::vector<files_tree_node>                                 Nodes;
@@ -192,6 +216,9 @@ namespace bpr::qt {
 		void contextMenuEvent(QContextMenuEvent* aEvent) override;
 
 	private:
+		/// \brief Expands only the folder rows the model just inserted.
+		void expand_inserted();
+
 		files_tree_model*                      Model    = nullptr;
 		files_tree_delegate*                   Delegate = nullptr;
 		files_tree_select_dispatch             Dispatch;
