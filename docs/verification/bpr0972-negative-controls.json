@@ -277,7 +277,13 @@
   "schema": "bpr0972.negative-controls.v1",
   "platform": "macOS 26.6.2 arm64; Qt 6.11.2 offscreen; Debug dev",
   "method": "Each listed production-source mutation was compiled separately, the named public or host/Qt test was run through the network-isolated CTest registration and refused it, then exact source bytes were restored in finally. Original candidate must be rebuilt before positive acceptance.",
-  "positive_replay": "pending final dev integration",
+  "positive_replay": {
+    "source_revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+    "restored_candidate_built": true,
+    "structural_and_public_courses": "pass, including final application_active_changed_scaling34.55s and sibling reload-failure course74.92s",
+    "integration": "467/471 pass; three reproduced baseline failures and one pause-induced timeout that passes unchanged12.51s",
+    "evidence": "bpr0972-final-verification.json"
+  },
   "regressions": [
     {
       "case": "exact_material_receipt_reload_failure",

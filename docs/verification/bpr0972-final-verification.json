@@ -1,0 +1,589 @@
+{
+  "schema": "bpr0972.final-verification.v1",
+  "source_revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+  "mandate_revision": "r4-standalone-full-card-20260925-a2-codex-worktree",
+  "host_load": "not_verified",
+  "integration": {
+    "candidate": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+    "command": "ctest --preset dev --output-on-failure",
+    "exit_code": 8,
+    "registered": 471,
+    "completed": 471,
+    "passed": 467,
+    "failed": 4,
+    "failures": [
+      "358/471 Test #358: application_large_review_responsiveness ............................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 25.04 sec",
+      "359/471 Test #359: application_large_review_launch ....................................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 25.14 sec",
+      "385/471 Test #385: application_agent_finding_dif_context_contract .....................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 18.19 sec",
+      "393/471 Test #393: application_agent_invocation_workspace_diagnostic_contract .........***Timeout 125.83 sec"
+    ],
+    "stdout_sha256": "d1bc23941f9d3f5f99377d614319f75b7f5912f101e1c9173fae2304a628f4bb",
+    "full_test_log_sha256": "f10e20ae3065869a996b505d26e899bed8b43de093b5f1c4890b8880be67f47d",
+    "elapsed_seconds": 6947.28
+  },
+  "scheduler_pauses": {
+    "rows": [
+      155,
+      352,
+      370,
+      393
+    ],
+    "scope": "Only the CTest scheduler was paused. Current children finished normally before Qt slot grants. Row393 exceeded its parent timeout despite a passing child; unchanged unpaused replay passes12.51s. Paused durations are not performance evidence."
+  },
+  "host": {
+    "machine": "arm64",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "hardware": [
+      "Apple M4 Pro",
+      "51539607552",
+      "14"
+    ],
+    "os": [
+      "ProductName:\t\tmacOS",
+      "ProductVersion:\t\t26.6.2",
+      "BuildVersion:\t\t25G83"
+    ],
+    "compiler": [
+      "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+      "Target: arm64-apple-darwin25.6.0"
+    ]
+  },
+  "baseline_source": {
+    "revision": "a2fded0cd482aaaaaee0399764b60145cd4938ac",
+    "verified_tracked_build_source_blobs": 796,
+    "failures": [],
+    "archive_sha256": "468dd9004181ab5d39389e0de867308d59b367c55444c5a17d1264c585c24ae2",
+    "source_directory": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/bpr0972-baseline-a2fded0c",
+    "source_modified": false,
+    "disposable_archive_and_build_removed": true
+  },
+  "configuration": {
+    "candidate": {
+      "BPR_DEPENDENCY_OFFLINE": "ON",
+      "CMAKE_BUILD_TYPE": "Debug",
+      "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+      "CMAKE_OSX_ARCHITECTURES": "",
+      "CMAKE_OSX_DEPLOYMENT_TARGET": "",
+      "CPM_SOURCE_CACHE": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache",
+      "Qt6_DIR": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos/lib/cmake/Qt6"
+    },
+    "baseline": {
+      "BPR_DEPENDENCY_OFFLINE": "ON",
+      "CMAKE_BUILD_TYPE": "Debug",
+      "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+      "CMAKE_OSX_ARCHITECTURES": "",
+      "CMAKE_OSX_DEPLOYMENT_TARGET": "",
+      "CPM_SOURCE_CACHE": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache",
+      "Qt6_DIR": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.11.2/6.11.2/macos/lib/cmake/Qt6"
+    },
+    "equal": true
+  },
+  "artifacts": [
+    {
+      "candidate": "baseline",
+      "path": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/bpr0972-baseline-a2fded0c/build/dev/tests/end_to_end/better_pull_review_large_review",
+      "sha256": "f0f26b268ea573bf6fc26ea993babe4f8d0356cbe6a9211401f6f7be1034b0f0",
+      "bytes": 87333552,
+      "retained_locally": false
+    },
+    {
+      "candidate": "baseline",
+      "path": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/bpr0972-baseline-a2fded0c/build/dev/tests/end_to_end/better_pull_review_agent_finding_composition_public_path",
+      "sha256": "3dfeb29c8b9b358397e7e1e06f43492a6e0da01914b83ce9505ae3ddae4ae52f",
+      "bytes": 83791976,
+      "retained_locally": false
+    },
+    {
+      "candidate": "candidate",
+      "path": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/dev/tests/end_to_end/better_pull_review_large_review",
+      "sha256": "babc47fdd70cd78d44cb9ad85d30f35f923cb299c71b98c2c234e695f9a55281",
+      "bytes": 89305584,
+      "retained_locally": true
+    },
+    {
+      "candidate": "candidate",
+      "path": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/dev/tests/end_to_end/better_pull_review_agent_finding_composition_public_path",
+      "sha256": "cb459ca6c3721f24ac93de44310db29cf32eb133bb243ecfdcf0fc73ccd89d2c",
+      "bytes": 85747368,
+      "retained_locally": true
+    }
+  ],
+  "scaling": {
+    "source_revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+    "test": "application_active_changed_scaling",
+    "passed": true,
+    "elapsed_seconds": 34.55,
+    "observations": [
+      {
+        "platform": "macos",
+        "version": "26.6.2",
+        "arch": "arm64",
+        "qt": "6.11.2",
+        "backend": "offscreen",
+        "files": 515,
+        "threads": 1000
+      },
+      {
+        "platform": "macos",
+        "version": "26.6.2",
+        "arch": "arm64",
+        "qt": "6.11.2",
+        "backend": "offscreen",
+        "files": 515,
+        "threads": 1000,
+        "large_source_lines": 20000
+      },
+      {
+        "allocation_gesture": "queue-update-with-complete-PR-refresh",
+        "process_unaligned_new_calls": 380603,
+        "requested_bytes": 505009789,
+        "elapsed_us_including_settle": 1019242
+      },
+      {
+        "queue_public_changed": 1,
+        "item_publications": 1,
+        "catalogue_visits": 0,
+        "repository_full_builds": 0
+      },
+      {
+        "allocation_gesture": "epoch-refresh-unchanged",
+        "process_unaligned_new_calls": 37225,
+        "requested_bytes": 5476526,
+        "elapsed_us_including_settle": 1088443
+      },
+      {
+        "gesture": "epoch-refresh-unchanged",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 0,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 1,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 6,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 0,
+        "files_overview_visits": 0
+      },
+      {
+        "allocation_gesture": "select-one",
+        "process_unaligned_new_calls": 32109,
+        "requested_bytes": 4097160,
+        "elapsed_us_including_settle": 1031475
+      },
+      {
+        "gesture": "select-one",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 60,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 1,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 3,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 0,
+        "files_overview_visits": 0
+      },
+      {
+        "allocation_gesture": "seen-one",
+        "process_unaligned_new_calls": 979,
+        "requested_bytes": 114419,
+        "elapsed_us_including_settle": 148886
+      },
+      {
+        "gesture": "seen-one",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 0,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 1,
+        "overview_receipt_rows": 1,
+        "receipt_loads": 0,
+        "receipt_cache_hits": 1,
+        "persistence_requests": 1,
+        "private_loads": 0,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 1,
+        "files_overview_visits": 1
+      },
+      {
+        "allocation_gesture": "mark-file-read",
+        "process_unaligned_new_calls": 1507,
+        "requested_bytes": 190973,
+        "elapsed_us_including_settle": 149224
+      },
+      {
+        "gesture": "mark-file-read",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 514,
+        "published_file_rows_shifted": 478,
+        "lookup_comparisons": 30,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 1,
+        "overview_receipt_rows": 1,
+        "receipt_loads": 0,
+        "receipt_cache_hits": 1,
+        "persistence_requests": 1,
+        "private_loads": 0,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 2,
+        "files_overview_visits": 1
+      },
+      {
+        "allocation_gesture": "conversation-read-one",
+        "process_unaligned_new_calls": 1251,
+        "requested_bytes": 210973,
+        "elapsed_us_including_settle": 150371
+      },
+      {
+        "gesture": "conversation-read-one",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 0,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 0,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 0,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 1,
+        "conversation_post_visits": 1,
+        "conversation_writes": 1,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 0,
+        "files_overview_visits": 0
+      },
+      {
+        "allocation_gesture": "source-scroll",
+        "process_unaligned_new_calls": 24466,
+        "requested_bytes": 2121568,
+        "elapsed_us_including_settle": 30180
+      },
+      {
+        "source_scroll_lines": 20000,
+        "index_adoptions": 0,
+        "geometry_rebuilds": 0,
+        "pane_measurements": 0,
+        "alignment_segments_visited": 6
+      },
+      {
+        "allocation_gesture": "select-two-during-provider",
+        "process_unaligned_new_calls": 1596006,
+        "requested_bytes": 292513261,
+        "elapsed_us_including_settle": 2741140
+      },
+      {
+        "gesture": "select-two-during-provider",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 120,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 2,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 6,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 0,
+        "files_overview_visits": 0
+      },
+      {
+        "round": 0,
+        "held_provider_cancelled": 1,
+        "surviving_source_exact": 1
+      },
+      {
+        "allocation_gesture": "select-one",
+        "process_unaligned_new_calls": 31992,
+        "requested_bytes": 4019612,
+        "elapsed_us_including_settle": 1071018
+      },
+      {
+        "gesture": "select-one",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 514,
+        "published_file_rows_shifted": 478,
+        "lookup_comparisons": 90,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 1,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 3,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 1,
+        "files_overview_visits": 0
+      },
+      {
+        "reopen": 1,
+        "material_receipt_hits": 1
+      },
+      {
+        "allocation_gesture": "source-scroll",
+        "process_unaligned_new_calls": 22512,
+        "requested_bytes": 1935456,
+        "elapsed_us_including_settle": 27632
+      },
+      {
+        "source_scroll_lines": 20000,
+        "index_adoptions": 0,
+        "geometry_rebuilds": 0,
+        "pane_measurements": 0,
+        "alignment_segments_visited": 6
+      },
+      {
+        "allocation_gesture": "select-two-during-provider",
+        "process_unaligned_new_calls": 1593529,
+        "requested_bytes": 292180861,
+        "elapsed_us_including_settle": 2781481
+      },
+      {
+        "gesture": "select-two-during-provider",
+        "file_projection_rows": 0,
+        "projection_capacity_growths": 0,
+        "file_position_visits": 0,
+        "published_file_rows_shifted": 0,
+        "lookup_comparisons": 120,
+        "accepted_observation_rows": 0,
+        "overview_builds": 0,
+        "overview_receipt_visits": 0,
+        "overview_receipt_updates": 0,
+        "overview_receipt_rows": 0,
+        "receipt_loads": 2,
+        "receipt_cache_hits": 0,
+        "persistence_requests": 0,
+        "private_loads": 6,
+        "private_writes": 0,
+        "conversation_loads": 0,
+        "overview_history_updates": 0,
+        "conversation_thread_visits": 0,
+        "conversation_post_visits": 0,
+        "conversation_writes": 0,
+        "queue_refreshes": 0,
+        "queue_item_publications": 0,
+        "queue_catalogue_visits": 0,
+        "files_resets": 0,
+        "files_changed_rows": 0,
+        "files_overview_visits": 0
+      },
+      {
+        "round": 1,
+        "held_provider_cancelled": 1,
+        "surviving_source_exact": 1
+      }
+    ],
+    "allocation_scope": "Unaligned scalar/array C++ operator new calls and requested bytes across parent-process threads. Excludes Qt/C malloc, aligned allocations, children, live heap and RSS. No hardware budget inferred."
+  },
+  "focused_diagnosis": {
+    "status": "complete",
+    "method": "Baseline then candidate, serial network-denied offscreen CTest, same Debug/compiler/Qt settings, process-scoped caffeinate; other milestone build/Qt activity explicitly held. No threshold or assertion changes. OS-wide load remains unverified.",
+    "baseline": {
+      "source_revision": "a2fded0cd482aaaaaee0399764b60145cd4938ac",
+      "command": [
+        "caffeinate",
+        "-i",
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^(application_large_review_responsiveness|application_large_review_launch|application_agent_finding_dif_context_contract)$"
+      ],
+      "exit_code": 8,
+      "log_sha256": "5b310f3e0fcf0fa3268cd0ea7cbb2cbc6d5ff6ff533ce824e0e50daa679d5abd",
+      "tests": {
+        "application_large_review_responsiveness": {
+          "accepted_metadata_ms": 275.058,
+          "input_budget_failures": [],
+          "failed_completion_budgets": [
+            {
+              "Name": "accepted_metadata_render",
+              "MeasuredMs": 275.058,
+              "LimitMs": 250,
+              "Passed": false
+            }
+          ],
+          "passed": false,
+          "result": "1/3 Test #358: application_large_review_responsiveness ..........***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 25.04 sec"
+        },
+        "application_large_review_launch": {
+          "accepted_metadata_ms": 278.371375,
+          "input_budget_failures": [],
+          "failed_completion_budgets": [
+            {
+              "Name": "accepted_metadata_render",
+              "MeasuredMs": 278.371375,
+              "LimitMs": 250,
+              "Passed": false
+            }
+          ],
+          "passed": false,
+          "result": "2/3 Test #359: application_large_review_launch ..................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 24.39 sec"
+        },
+        "application_agent_finding_dif_context_contract": {
+          "semantic_result": "agent-finding-composition-failure:dif-context-evidence failed=dif-comment-ready-after-conversion dif-acknowledge-after-acceptance",
+          "passed": false,
+          "result": "3/3 Test #385: application_agent_finding_dif_context_contract ...***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 19.40 sec"
+        }
+      },
+      "working_directory": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview/build/bpr0972-baseline-a2fded0c"
+    },
+    "candidate": {
+      "source_revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+      "command": [
+        "caffeinate",
+        "-i",
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^(application_large_review_responsiveness|application_large_review_launch|application_agent_finding_dif_context_contract|application_agent_invocation_workspace_diagnostic_contract)$"
+      ],
+      "exit_code": 8,
+      "log_sha256": "caef14016b7ee18881dc70cba97735c401c631be5bb1f0a79c88a1b9a0cad3e0",
+      "tests": {
+        "application_large_review_responsiveness": {
+          "accepted_metadata_ms": 287.325375,
+          "input_budget_failures": [],
+          "failed_completion_budgets": [
+            {
+              "Name": "accepted_metadata_render",
+              "MeasuredMs": 287.325375,
+              "LimitMs": 250,
+              "Passed": false
+            }
+          ],
+          "passed": false,
+          "result": "1/4 Test #358: application_large_review_responsiveness ......................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 23.96 sec"
+        },
+        "application_large_review_launch": {
+          "accepted_metadata_ms": 279.309292,
+          "input_budget_failures": [],
+          "failed_completion_budgets": [
+            {
+              "Name": "accepted_metadata_render",
+              "MeasuredMs": 279.309292,
+              "LimitMs": 250,
+              "Passed": false
+            }
+          ],
+          "passed": false,
+          "result": "2/4 Test #359: application_large_review_launch ..............................***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 23.95 sec"
+        },
+        "application_agent_finding_dif_context_contract": {
+          "semantic_result": "agent-finding-composition-failure:dif-context-evidence failed=dif-comment-ready-after-conversion dif-acknowledge-after-acceptance",
+          "passed": false,
+          "result": "3/4 Test #385: application_agent_finding_dif_context_contract ...............***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED] 17.95 sec"
+        },
+        "application_agent_invocation_workspace_diagnostic_contract": {
+          "semantic_result": "agent-invocation-workspace-diagnostic:pass",
+          "passed": true,
+          "result": "4/4 Test #393: application_agent_invocation_workspace_diagnostic_contract ...   Passed   12.51 sec"
+        }
+      },
+      "working_directory": "/Users/jaeger/.codex/worktrees/bpr0972-takeover/BetterPullReview"
+    },
+    "assessment": "Both sources reproduce the same two Debug metadata budget failures and the same two Dif cue terms. Workspace diagnostic passes without the scheduler pause. This does not establish timing parity or optimized performance acceptance. BPR-0967 owns optimized budgets; the separate BPR-1209 placement candidate has a reported passing Dif course and remains coordinator integration work."
+  },
+  "limits": [
+    "Debug/offscreen macOS arm64 observations only.",
+    "Windows/Linux native remain deferred.",
+    "BPR-0967 owns optimized hardware latency/memory acceptance.",
+    "BPR-1211 retains bounded synchronous ledger I/O on the decision lane."
+  ]
+}

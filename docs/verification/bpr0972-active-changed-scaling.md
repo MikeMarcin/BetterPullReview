@@ -1,7 +1,9 @@
 # BPR-0972 application operation inventory and evidence
 
-Status: in progress. This is the current evidence record for the complete
-`application-wide-scaling` milestone; it does not yet accept AC1–AC3.
+Status: AC1–AC3 accepted for the complete `application-wide-scaling` milestone.
+This is structural acceptance of the inventoried paths, with the residual I/O,
+integration-failure and platform limits below; it is not a whole-architecture
+or hardware performance pass.
 Mandate baseline: `a2fded0cd482aaaaaee0399764b60145cd4938ac`.
 Current segment: `codex-takeover-worktree`, amendment a2 in
 [the mandate](../rfcs/plans/bpr0972-active-changed-scaling/mandate.md).
@@ -10,14 +12,22 @@ The observations below use safe local fixtures on macOS arm64, Qt 6.11.2,
 the Debug dev graph and offscreen Qt. They do not establish Windows/Linux
 native behavior or BPR-0967's optimized latency and memory budgets.
 
-The source candidate is `90e21d0c` (product `2cb4c2be` plus the 32/4096
-maintenance-counter assertion). Here **active** includes the complete accepted
+The final product/test candidate is `149704df`, including the sibling reload
+failure correction after `90e21d0c` (product `2cb4c2be` plus the 32/4096
+maintenance-counter assertion). Earlier measured runs retain their original
+revision below; final integration checks the repaired candidate. Here **active** includes the complete accepted
 PR's compact ordered navigation/index state, the selected source/thread, open
-window consumers, retained bounded epoch page and visible queue/repository order.
+window consumers, retained bounded epoch page and accepted queue/repository order
+(including currently filtered rows).
 It does not mean only pixels currently on screen. Initial adoption visits its
 bounded complete input. A changed receipt projects only its file data but still
-maintains the dense active order: it is O(active order + changed files), not
-O(changed files) alone. No zero-total-row-work claim is made.
+maintains the dense active order: host order maintenance is O(active order +
+changed files), not O(changed files) alone. This is a per-receipt-transition
+bound: the shipped receipt port withholds only the currently retained file,
+so a transition restores at most that file and withholds the new retained file.
+It is not a bound for an arbitrary bulk set of withheld rows. Qt folder-shape fallback additionally
+builds and sorts the active tree before reconciling identities; no linear-time
+or changed-only construction claim covers that fallback. No zero-total-row-work claim is made.
 
 ## Public operation inventory (AC1)
 
@@ -69,7 +79,7 @@ full catalogue observation, and resets no model. Conversation Mark read visits
 one thread and one post. Scrolling visits six alignment segments and rebuilds
 no accepted index, axis or pane measurement. Both same-root rounds cancel the
 sibling window's held provider and preserve the survivor's exact source; no
-remote mutation is submitted. Process allocation and elapsed observations are recorded below. Final integration remains; the separate synchronous I/O finding is retained as BPR-1211.
+remote mutation is submitted. Process allocation and elapsed observations are recorded below. Final integration and matched baseline diagnosis are recorded below; the separate synchronous I/O finding is retained as BPR-1211.
 
 ## Source and completion bindings
 
@@ -141,9 +151,11 @@ bytes were restored afterward. These are behavior changes, not counter tampering
 | Retained Overview receipt projection | Unchanged history refresh reconstructs Overview |
 | Single-thread conversation observation | One Mark read observes unrelated threads/posts |
 
-The positive candidate must be rebuilt after these experiments. Final full dev
-integration and the latest focused core/format/tidy replays remain. Native
-Windows/Linux remain deferred; no human or native acceptance is inferred.
+The positive candidate was rebuilt after these experiments. All owning
+structural/public courses pass in the final dev integration; focused core,
+format and strict tidy replays also pass. The wider integration has the exact
+failures recorded below. Native Windows/Linux remain deferred; no human or
+native acceptance is inferred.
 
 ## Queue, epoch and allocation observations
 
@@ -185,7 +197,10 @@ Result: 5/5 pass, 65.71 seconds. The subsequent direct one-row tree update and
 newly matching filtered-root insertion pass `qt_repositories_drawer` again
 (2.24 seconds). These are local macOS Debug/offscreen observations.
 
-The composed course instruments unaligned scalar and array C++ `operator new`
+The following allocation samples were recorded during the final integration on
+`149704df`. The course passes in 34.55 seconds. Its [complete structural
+observations](bpr0972-final-verification.json) retain both same-root rounds. The
+composed course instruments unaligned scalar and array C++ `operator new`
 across all threads. A direct 37-byte allocation calibrates the counter before the
 course. These are requested bytes and calls, not retained memory, peak RSS, Qt/C
 `malloc` or aligned allocations. Elapsed time includes fixture work, event-loop
@@ -194,17 +209,17 @@ qualification. No allocation threshold is inferred from one hardware run.
 
 | Gesture, first same-root round | New calls | Requested bytes | Elapsed microseconds including settle |
 |---|---:|---:|---:|
-| Queue item update during a complete PR Refresh | 380,178 | 503,279,929 | 1,083,641 |
-| Refresh unchanged epoch history | 37,524 | 5,529,742 | 1,167,369 |
-| Select one file | 32,166 | 4,117,976 | 1,128,418 |
-| Seen | 977 | 115,579 | 137,913 |
-| Mark file read | 1,503 | 190,573 | 144,387 |
-| Mark conversation read | 1,245 | 209,013 | 138,305 |
-| Source scroll and render | 24,625 | 2,138,400 | 32,261 |
-| Two selections including cold 20,000-line source during sibling provider load | 1,596,896 | 292,672,045 | 2,916,209 |
+| Queue item update during a complete PR Refresh | 380,603 | 505,009,789 | 1,019,242 |
+| Refresh unchanged epoch history | 37,225 | 5,476,526 | 1,088,443 |
+| Select one file | 32,109 | 4,097,160 | 1,031,475 |
+| Seen | 979 | 114,419 | 148,886 |
+| Mark file read | 1,507 | 190,973 | 149,224 |
+| Mark conversation read | 1,251 | 210,973 | 150,371 |
+| Source scroll and render | 24,466 | 2,121,568 | 30,180 |
+| Two selections including cold 20,000-line source during sibling provider load | 1,596,006 | 292,513,261 | 2,741,140 |
 
-This `application_active_changed_scaling` run passed in 36.28 seconds, bound to
-product `2cb4c2be`; `90e21d0c` changes only the separate host counter assertion.
+The earlier focused course at `2cb4c2be` passed in 36.28 seconds; the final
+34.55-second replay binds these measurements to repaired source `149704df`.
 The public Follow first durably enrolls the fixture PR. Actual PR Refresh then
 updates exactly one queue item, visits zero queue-catalogue rows and performs
 zero repository full builds. Its allocation sample includes complete provider
@@ -215,8 +230,8 @@ catalogue/header deltas because that fixture epoch did not change. The separate
 history helper/page courses provide changed-header equivalence evidence.
 
 The second same-root round observes durable receipt recovery and repeats concurrent
-loading/cancellation. Its selection measured 32,044 calls / 4,028,700 requested
-bytes; source scroll 22,519 / 1,918,496; the two selections 1,594,316 / 292,335,421.
+loading/cancellation. Its selection measured 31,992 calls / 4,019,612 requested
+bytes; source scroll 22,512 / 1,935,456; the two selections 1,593,529 / 292,180,861.
 Re-selecting the durable read file also removes that file from its restored active
 order (514 position visits / 478 shifted published rows), without full projection.
 The large cold-source measurement includes construction of that selected material;
@@ -253,3 +268,64 @@ changed-first modes. The owner's later folder-layout clarification is separately
 assigned to BPR-1213 by the coordinator, not an acceptance claim for this patch.
 
 The repaired sibling course passes in 80.51 seconds, including later PR replacement; the resealed composition contract and strict application/test tidy also pass. The table fault is restored using its original canonical schema SQL and preserved rows, so the existing schema-admission guard remains effective.
+
+
+## Final acceptance and integration diagnosis
+
+AC1 passes with the seven-family public-operation inventory, concrete retained
+owners, full-input and presentation fallbacks, position maintenance, synchronous
+store sites/counts, and exact completion guards above. AC2 passes with the
+32/4,096-record equivalence/identity courses, eight compiled negative controls,
+reordered/stale/cancelled/reentrant host terminals and real composed gestures.
+AC3 passes with the 515-file/1,000-thread/20,000-line course on `149704df`, both
+same-root rounds, held-provider cancellation, retained exact source, final
+allocation/reset/visit observations and explicitly bounded platform claims.
+The sibling SQLite failure/recovery course passes again in the full integration
+(74.92 seconds), after its earlier 80.51-second focused pass.
+
+The complete Debug dev pass ran all **471 tests: 467 passed, four failed**,
+exit 8, 6,947.28 seconds. It is not an all-green run. The full stdout and CTest
+log hashes, exact commands, binary hashes, host and selected configuration
+settings are in [the final verification record](bpr0972-final-verification.json).
+Only the scheduler was paused at rows 155, 352, 370 and 393 to serialize Qt
+courses across implementers. Each current child finished before a slot grant.
+At row 393 the passing child emitted its marker and exited 0, but the paused
+scheduler crossed its 120-second parent timeout. Its unchanged, unpaused replay
+passes in **12.51 seconds**. Those coordination durations are gate context only.
+
+After the full pass, a fresh immutable `git archive` of
+`a2fded0cd482aaaaaee0399764b60145cd4938ac` supplied the baseline. All 796 tracked
+build-source blobs matched Git. The same Debug preset, Apple clang 21, Qt 6.11.2,
+offline dependency cache and deployment settings were used. Only the benchmark
+and Dif-context executable were built, with two jobs. The three baseline and
+four candidate diagnostic rows then ran serially with process-scoped caffeinate
+while the other implementer explicitly held both Qt and builds; OS-wide load
+still is not verified.
+
+| Diagnostic | Immutable baseline | Candidate `149704df` | Unchanged bound/result |
+|---|---:|---:|---|
+| Accepted metadata, responsiveness | 275.058 ms | 287.325375 ms | Both fail 250 ms |
+| Accepted metadata, launch | 278.371375 ms | 279.309292 ms | Both fail 250 ms |
+| Dif comment-ready and acknowledge cues | Same two failed terms | Same two failed terms | Draft identity and mutation refusal still pass |
+| Workspace diagnostic without scheduler pause | Not repeated | Pass, 12.51 s | Existing assertions retained |
+
+Both timing profiles have empty `InputBudgetFailures`; their only failed
+completion budget is accepted metadata. The original full-run candidate values
+were 289.124125 and 287.6695 ms. No threshold or assertion changed. These paired
+observations establish that the failures predate this milestone; they do not
+establish timing parity or attribute the modest duration differences. BPR-0967's
+existing owner amendment requires optimized performance acceptance; its 250 ms
+metadata ceiling was derived from Release observations, while these Debug runs
+are diagnostic/correctness context. No new performance qualification is claimed.
+
+The immutable baseline also reproduces the exact Dif-context cue failure. The
+separate BPR-1209 owner changed workshop/corner placement and fixture visibility
+setup at `8206236f`, preserved both cue assertions, and reported that course
+passing in 20.33 seconds. That is independently owned integration evidence, not
+a repair claimed by BPR-0972; the coordinator must check the combined candidate.
+No additional all-green replay is inferred from that report.
+
+BPR-1211 retains synchronous ledger I/O as an architectural gap. Windows/Linux
+native, optimized hardware budgets and MASK/native-serving readiness remain
+unaccepted. `host_load` remains `not_verified`. No live account, private target,
+remote mutation, release, push, new attended session or delegation was used.
