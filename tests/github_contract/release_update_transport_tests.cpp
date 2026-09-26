@@ -58,7 +58,7 @@ auto main(int aArgc, char** aArgv) -> int
 	// Four separate TLS connections exercise the redirect cap. Give that course
 	// four times the single-request allowance so host contention cannot turn a
 	// redirect-limit assertion into an unrelated shared-deadline expiry.
-	configuration.TotalTimeout            = scenario == "redirect-loop" ? std::chrono::milliseconds{ 2000 } : std::chrono::milliseconds{ 500 };
+	configuration.TotalTimeout = scenario == "redirect-loop" ? std::chrono::milliseconds{ 2000 } : std::chrono::milliseconds{ 500 };
 	std::string canary;
 	std::getline(std::cin, canary);
 	expect(canary.size() == 40U, "bounded fixture canary");
