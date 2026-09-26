@@ -3038,8 +3038,11 @@ progress calls for process/path correlation, not another sign-in or launch.
 
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
 and capability outcomes, local request numbers, capability HTTP status and a
-sanitized error summary. Unknown capability error message/type/code prose stays
-useful. Filtering happens while the native adapter still owns the active
+classified error summary. BPR-0971 reconstructs schema-field, missing-field/type
+and repetition-limit explanations, even with an unfamiliar code. Symbols must
+occur in the compiled public capability queries; known codes retain their fixed
+vocabulary. Unclassified codes, symbols and prose are explicitly omitted.
+Filtering happens while the native adapter still owns the active
 credential, before any summary reaches Quill. Authentication bodies, headers,
 request URLs and source/review bodies are excluded. Local prose can still name
 a service or account. RFC-0014's separate metadata export omits that prose;
@@ -3054,16 +3057,25 @@ comparison. Nested catalog recovery currently retains its mapped core reason,
 so its earlier adapter detail may already be unavailable. Logging refusal or
 backpressure does not change the history result.
 
-Developer startup terminal diagnostics are a separate surface. A tests-enabled
-application retains at most 2,048 bytes of a caught exception cause, replaces
-ASCII controls with spaces, and marks a longer cause `[truncated]` before
-recording or rendering it. The first recorded startup arm still wins. These
-bytes can contain identifying or private text; the bound is not a privacy
-classifier. Tests-disabled builds omit these exception causes. Installed-Git
-nonzero-exit detail keeps its separate 16 KiB limit and URL/SSH-token replacement;
-replacement text is capped before each append. Direct stderr writers remain
-synchronous. The [BPR-0971 terminal audit](../verification/bpr0971-terminal-bounds.md)
-records the MCP helper's still-open environment-name and full-pipe failures.
+The application explicitly owns its terminal diagnostics before Qt startup.
+Records have at most 1,968 content bytes plus a bounded loss prefix in each
+2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts
+saturate and appear on the next admitted record. Ordinary close allows 20 ms
+for delivery, then cancels the owned OS writer and joins it. Unavailable output
+can lose records, including its loss report; kernel/device stalls have no hard
+deadline guarantee. POSIX signal disposition is restored after join, and inherited
+descriptor flags are unchanged. Windows uses synchronous-I/O cancellation on its
+owned thread; native Windows/Linux verification remains deferred.
+
+Workspace recovery reports a fixed refusal without its path. Startup causes
+retain the fixed known composition explanation or an explicit unclassified
+exception omission, with first-failure ownership preserved. Qt messages retain
+only severity and an omission marker. Typed epoch Quill events replace the old
+developer stderr bypass. Git's bounded process detail and agent stderr remain
+in their owning result objects, never diagnostic storage/export. The standalone
+MCP helper separately caps its content-free startup record at 512 bytes and
+owns/cancels/joins its writer. See the
+[BPR-0971 completion evidence](../verification/bpr0971-completion.md).
 
 One owner-only file survives quit and appends across launches. The 16 MiB cap
 stops further recording; automatic rotation is not implemented. RFC-0014 extends

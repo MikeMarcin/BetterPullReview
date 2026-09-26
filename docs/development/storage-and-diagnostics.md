@@ -35,8 +35,8 @@ Disposable agent workspaces live beside the profile root, in
 `<profile-root-leaf>-agent-workspaces-v1`. Suppose startup recovery refuses
 that area. Then every window of the profile adds "Disposable agent workspaces
 are unavailable: their folder needs repair or has reached its limit." to its
-status bar ([[BPR-0817]]). A launch from a terminal also prints
-`AGENT_WORKSPACE_RECOVERY_REFUSED:<ownership registry>:<reason>` to standard
+status bar ([[BPR-0817]]). A launch from a terminal also attempts to print
+`AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:<reason>` to standard
 error. The refusal does not change the exit code: an orderly quit still exits 0.
 
 The usual reason is `repair-required`. It means one of two things:
@@ -97,8 +97,10 @@ If publication succeeded before a final durability failure, the selected file
 may remain; inspect it before retrying. Cancel before the commit boundary is
 advisory, and an operation already committed may still report success.
 
-The readable log is not the export. Its bounded, sanitized service-error prose
-may retain identity information. Do not send raw logs, databases, MCP snapshots
+The readable log is not the export. New capability-error details use classified
+explanations and public query symbols with explicit unknown-content omissions.
+Existing retained files can contain earlier sanitized provider prose and identity
+information; this change does not rewrite historical records. Do not send raw logs, databases, MCP snapshots
 or OS crash reports as if they had passed the preview's policy. BetterPullReview
 does not automatically upload them; OS crash collection has its own settings.
 Current crash evidence does not establish redaction of resident source/comments/

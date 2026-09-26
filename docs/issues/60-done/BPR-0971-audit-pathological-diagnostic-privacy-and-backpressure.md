@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0971"
 title: "Audit pathological diagnostic privacy and backpressure"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0971-diagnostics","path":"docs/rfcs/plans/bpr0971-diagnostics/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9d2fe772f506b8aa63356d7cfb992f9516c9dfae","evidence":{"kind":"artifact","detail":"Complete seven-subsystem field/source/bound inventory with classified provider and explicit terminal ownership.","path":"docs/verification/bpr0971-completion.md"}},{"criterion":"AC2","outcome":"pass","revision":"9d2fe772f506b8aa63356d7cfb992f9516c9dfae","evidence":{"kind":"artifact","detail":"Unchanged canaries pass sanitizer/provider/file/export; hostile input and real pathological composition courses pass without diagnostic content retention.","path":"docs/verification/bpr0971-completion.md"}},{"criterion":"AC3","outcome":"pass","revision":"9d2fe772f506b8aa63356d7cfb992f9516c9dfae","evidence":{"kind":"artifact","detail":"Measured exact loss/recovery; full/closed terminal and full/unavailable Quill preserve composed outcomes and epoch durability. Windows/Linux runs owner-deferred; native crash and uninterruptible I/O limits explicit.","path":"docs/verification/bpr0971-completion.md"}}]
 ---
 
 # Audit pathological diagnostic privacy and backpressure
@@ -131,3 +132,29 @@ pathological-source obligations remain open. The card stays In Progress. The
 [handoff](../../rfcs/plans/bpr0971-diagnostics/HANDOFF-mcp-2026-09-25.md) records
 candidate identities, command ownership and next action; no human acceptance is
 claimed or requested by this slice.
+
+## Whole-card completion — 2026-09-25
+
+Assignment `r4-full-card-20260925`, product/test candidate `9d2fe772f506b8aa63356d7cfb992f9516c9dfae`.
+The [completed seven-subsystem inventory and evidence](../../verification/bpr0971-completion.md)
+resolves the earlier private-content and direct-terminal counterexamples. Unknown
+provider codes/symbols are omitted while closed useful explanations and known
+public query symbols remain. All eight original canaries pass through sanitizer,
+provider, real file and export. Pathological diff/syntax/queue/agent courses and
+the full large-review application complete the named inventory.
+
+An explicitly owned terminal queue caps content/storage, drops without blocking
+producers, reports loss, and cancels/joins blocked writes. Arbitrary Qt/exception
+text and workspace paths are omitted; typed epoch diagnostics replace raw stderr.
+The final integration selection passes 10/10, changed-boundary selection 9/9,
+startup race regression 20/20, ordinary terminal regression 50/50, and tests-disabled
+production builds. Mutation-host authority digest is unchanged. The evidence
+records the initially discovered queue-contention bug and its verified repair.
+
+AC1–AC3 pass under the owner's explicit Windows/Linux native-run deferral.
+Windows cancellation source is implemented but native compilation/runtime is
+unqualified; Linux native evidence is also deferred. No native crash, resident
+secret-memory or uninterruptible device/kernel-I/O guarantee is claimed. This is
+standalone-card acceptance, not RFC0014 release qualification or completion of
+later RFC0027 controls. No owner privacy-policy waiver was needed. Historical
+checkpoints above retain their original candidate-specific meaning.

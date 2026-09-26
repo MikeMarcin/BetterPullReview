@@ -907,9 +907,8 @@ blocked write is canceled and the writer joined before protocol service starts.
 No descriptor flags change and no writer survives the attempt. Failed delivery
 cannot change the helper's exit or JSON-RPC result; stdout's signal behavior is
 restored. A failed sink cannot report its own loss through that sink. This
-course does not bound uninterruptible kernel/device stalls. Windows retains
-synchronous stderr delivery pending its native repair and verification; Linux
-native verification is also pending. The Mac courses are
+course does not bound uninterruptible kernel/device stalls. Windows uses one owned synchronous-I/O writer with cancellation and join.
+Windows and Linux native verification remain pending. The Mac courses are
 `application_mcp_context_helper` and `application_mcp_terminal_diagnostics`.
 
 Nothing the agent returns reaches a second authority. The finding host's only

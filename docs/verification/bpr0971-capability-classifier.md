@@ -29,7 +29,7 @@ account, private source or credential was used.
   `newField` and `UNFAMILIAR_SCHEMA_CODE` / `NEW_SCHEMA_CODE` bytes to survive.
   This round preserves those tests and strengthens the provider test to check
   both the field and code.
-- [BPR-0971](../issues/30-in-progress/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md)
+- [BPR-0971](../issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md)
   AC2 asks for no private source or uncontrolled provider text at diagnostic
   storage and exports, including synthetic content canaries.
 

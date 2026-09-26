@@ -270,10 +270,22 @@ BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition construc
 and injects the concrete logger and closes it after producers quiesce. The logging
 adapter alone owns Quill and file effects; core and Qt presentation have no logger
 or Quill dependency. The GitHub native adapter sanitizes only static capability
-error message/type/code fields while it owns the active credential. Provider
+error message/type/code fields while it owns the active credential. BPR-0971
+reconstructs a closed explanation grammar, retains only compiled public-query
+symbols and known codes, and explicitly omits unknown content. Provider
 callbacks submit that bounded summary and fixed operation facts without changing
 request acceptance, retries or terminal delivery. Quill is pinned centrally and
 excluded from core-only builds. Advanced controls remain RFC-BPR-0027 phase 2.
+
+The entry point also owns one bounded terminal service before Qt startup and
+after producer quiescence. Its 64 slots hold at most 2 KiB each; ingress drops
+on contention/fullness and a saturating count accompanies the next admitted
+record. An owned writer handles OS output, then ordinary shutdown cancels and
+joins stalled delivery. Qt diagnostics retain severity alone; application
+producers admit fixed labels/numbers and classified startup causes. Raw epoch
+Git stderr, workspace paths and arbitrary exception strings have no terminal
+bypass. Native Windows/Linux delivery remains unqualified; OS crash collection
+and uninterruptible device/kernel stalls remain outside this bound.
 
 ## Release maintenance and packaged ownership
 

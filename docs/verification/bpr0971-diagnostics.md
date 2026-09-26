@@ -1,5 +1,9 @@
 # BPR-0971 diagnostic privacy and backpressure audit
 
+Current disposition: the [whole-card completion](bpr0971-completion.md) resolves
+the engineering failures below. This document preserves the original candidate
+and observations; it is not the current acceptance claim.
+
 Standalone owner-r4 follow-up, assigned 2026-09-25. Baseline is
 `97a7564b6c335ea94f9d8e9957e5e038cf92330d`; the audit/test candidate is
 `a0bc72590ba91273806513b09dd2367dfc3069d0`. No product source changed. All inputs

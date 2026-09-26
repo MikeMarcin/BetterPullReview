@@ -327,3 +327,13 @@ neither historical diagnostic packets nor their exact one-run authority.
 Remote telemetry, automatic support uploads, a log analytics service, arbitrary
 user-selected sink plugins, source/review-content capture, crash dumps, changing
 GitHub authorization, and replacing domain stores are outside this RFC.
+
+## BPR-0971 implementation clarification — 2026-09-25
+
+The standalone [completed diagnostic audit](../verification/bpr0971-completion.md)
+implements the existing unknown-error and forbidden-content requirements with
+closed explanation forms and exact public symbols from compiled capability
+queries. Unknown codes, arbitrary symbols and unmatched/trailing prose receive
+explicit omission reasons. Representative unfamiliar codes retain useful known
+field/type/repetition explanations. This corrects the former arbitrary-text
+retention; it does not waive privacy or complete later Settings/retention work.
