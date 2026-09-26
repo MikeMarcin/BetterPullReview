@@ -14,6 +14,7 @@
 class QLabel;
 class QMenu;
 class QResizeEvent;
+class QScrollArea;
 class QTabBar;
 class QToolButton;
 
@@ -51,8 +52,7 @@ namespace bpr::qt {
 	/// \details One tab per exact view (a file, a comparison and a reading
 	/// position), in the core's order. Names elide from the left, where file
 	/// names differ; a tab with its own pair carries it in a pill. When the
-	/// tabs do not fit, as at a platform's width floor, the strip shows the
-	/// active tab and a count of the rest, which opens a menu of them. Each
+	/// tabs do not fit at their readable minimum, they scroll sideways. Each
 	/// tab's menu offers Duplicate Tab, Close Tab, Close Other Tabs, returning
 	/// the tab to the window's comparison and making its pair the one new tabs
 	/// take. The comparison's status (loading, a refusal, an approximate
@@ -63,7 +63,8 @@ namespace bpr::qt {
 	{
 	public:
 		/// \brief The design's row: 28 pixels.
-		static constexpr int height_pixels = 28;
+		static constexpr int height_pixels     = 28;
+		static constexpr int minimum_tab_width = 220;
 
 		explicit document_tab_strip(QWidget* aParent = nullptr);
 
@@ -75,13 +76,10 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto tabs() const noexcept -> const std::vector<document_tab_presentation>&;
 		[[nodiscard]] auto tab_bar() const noexcept -> QTabBar*;
-		/// \brief "+2": the tabs the width floor leaves out, as a menu.
-		[[nodiscard]] auto overflow_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto scroll_area() const noexcept -> QScrollArea*;
 		/// \brief "+": a new tab of the active tab's exact view.
 		[[nodiscard]] auto new_tab_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
-		/// \brief Whether only the active tab and a count are shown.
-		[[nodiscard]] auto collapsed() const noexcept -> bool;
 		/// \brief The tab the bar shows at `aIndex`.
 		[[nodiscard]] auto tab_at(int aIndex) const -> std::optional<core::document_tab_id>;
 		/// \brief The bar index of a shown tab.
@@ -96,24 +94,24 @@ namespace bpr::qt {
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
+		bool eventFilter(QObject*, QEvent*) override;
 
 	private:
 		void               rebuild();
-		[[nodiscard]] auto fits_whole() const -> bool;
+		void               layout_tabs();
+		void               reveal_active();
 		[[nodiscard]] auto active() const -> const document_tab_presentation*;
 		void               send(const core::document_tab_intent& aIntent) const;
 		void               open_tab_menu(const QPoint& aAt);
-		void               populate_overflow();
 
 		document_tab_dispatch                  Dispatch;
 		std::vector<document_tab_presentation> Tabs;
 		/// The tabs the bar shows, in its order.
 		std::vector<core::document_tab_id> Shown;
 		QTabBar*                           Bar        = nullptr;
-		QToolButton*                       Overflow   = nullptr;
+		QScrollArea*                       Scroll     = nullptr;
 		QToolButton*                       NewTab     = nullptr;
 		QLabel*                            Status     = nullptr;
-		bool                               Collapsed  = false;
 		bool                               Rebuilding = false;
 	};
 } // namespace bpr::qt

@@ -111,8 +111,11 @@ on the window's comparison. **Duplicate Tab** and the strip's **+** copy and
 activate the exact view. Names elide from the left, retain enough path to tell
 same-named files apart, and expose the full path in the tooltip. A tab with its
 own comparison carries a date pill and names the pair accessibly. When the
-strip cannot fit every tab, it shows the active tab and **+N**, a menu of the
-others. Loading, refusal and approximate-alignment status appear at its right.
+strip has room, tabs share it equally; at a 220-pixel minimum they scroll
+sideways with the mouse wheel or trackpad. Activating a tab brings all of it
+into view. The plus stays at the right outside the scrolling region and
+focuses its duplicate. There is no count or overflow menu at any width.
+Loading, refusal and approximate-alignment status appear beside the tabs.
 That single line can elide; its tooltip and accessible description keep the
 complete text. When there is no source text to read, the empty comparison also
 shows the complete, wrapping explanation with text selection and Copy

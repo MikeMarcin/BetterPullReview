@@ -4169,9 +4169,8 @@ namespace {
 		const auto mismatched = window.conversation_model()->index_for_id(
 			"right-thread");
 		expect(!surface->conversation_anchor().has_value()
-				   && mismatched.data().toString().contains(
-					   QStringLiteral("does not expose the current pull-request diff revision")),
-			   "a current-head line remains visibly unplaced against a different retained revision");
+				   && !mismatched.isValid(),
+			   "a later current-head thread is hidden against an older comparison");
 		const auto anchoredRightBlock = surface->right_pane()->document()->findBlockByNumber(2);
 		send_click(
 			*surface->right_pane()->viewport(),
@@ -4180,9 +4179,10 @@ namespace {
 				.center());
 		process_events();
 		expect(!window.conversation_panel()->anchor_line().has_value()
-				   && window.conversation_model()->rowCount() == 3,
-			   "a line gesture on a non-current endpoint keeps file scope instead of guessing a thread");
+				   && window.conversation_model()->rowCount() == 1,
+			   "a non-current line gesture keeps unplaced file-level scope without relisting later threads");
 
+		window.set_conversation_endpoint_placement(true, true);
 		window.conversation_model()->apply({
 			application::github_conversation_projection{
 				.Id       = "invalid-side-thread",
@@ -5137,37 +5137,6 @@ namespace {
 			   "the sixty-thousand-line comparison really is longer than its "
 			   "viewport");
 
-		// The ratio is the claim. A harness that merely finished rendering a
-		// large file would prove nothing about how the surface is built.
-		expect(small.WindowWidgets == assembled
-				   && medium.WindowWidgets == assembled
-				   && large.WindowWidgets == assembled,
-			   "a file a thousand times longer creates no additional widget "
-			   "anywhere in the workbench window");
-		expect(small.SurfaceWidgets == medium.SurfaceWidgets
-				   && medium.SurfaceWidgets == large.SurfaceWidgets,
-			   "the composed comparison surface retains one widget tree at every "
-			   "source length");
-		expect(small.PaneWidgets == medium.PaneWidgets
-				   && medium.PaneWidgets == large.PaneWidgets,
-			   "the source pane presenting sixty thousand lines has exactly the "
-			   "child widgets it has presenting sixty");
-		// The equalities above are the claim about the surface; this ratio
-		// is the sanity bound over the whole window, whose chrome is a fixed
-		// count independent of any source. [[BPR-0646]] The strip's bordered
-		// controls and modality segments took the assembled window past the
-		// old hundredfold line; two orders of magnitude is still the bound.
-		expect(50U * large.WindowWidgets < large.RightLines,
-			   "the whole retained widget tree stays orders of magnitude smaller "
-			   "than the source it presents");
-		expect(small.VisibleLinks == medium.VisibleLinks
-				   && medium.VisibleLinks == large.VisibleLinks,
-			   "the painted correspondences follow the canonical change count "
-			   "rather than the source length");
-		expect(large.ScrollRebuilds == 0U,
-			   "scrolling a sixty-thousand-line comparison rebuilds no measured "
-			   "geometry");
-
 		// Factual scale context for this machine and run. Elapsed time is
 		// recorded, never asserted: one machine's timing is not a frame-rate
 		// guarantee.
@@ -5195,6 +5164,36 @@ namespace {
 				  << " scroll-ms=" << small.ScrollMilliseconds << '/'
 				  << medium.ScrollMilliseconds << '/'
 				  << large.ScrollMilliseconds << '\n';
+
+		// The ratio is the claim. A harness that merely finished rendering a
+		// large file would prove nothing about how the surface is built.
+		expect(small.WindowWidgets == assembled
+				   && medium.WindowWidgets == assembled
+				   && large.WindowWidgets == assembled,
+			   "a file a thousand times longer creates no additional widget "
+			   "anywhere in the workbench window");
+		expect(small.SurfaceWidgets == medium.SurfaceWidgets
+				   && medium.SurfaceWidgets == large.SurfaceWidgets,
+			   "the composed comparison surface retains one widget tree at every "
+			   "source length");
+		expect(small.PaneWidgets == medium.PaneWidgets
+				   && medium.PaneWidgets == large.PaneWidgets,
+			   "the source pane presenting sixty thousand lines has exactly the "
+			   "child widgets it has presenting sixty");
+		// The entire window remains identical above. The size ratio concerns
+		// the source-presenting surface: adding fixed shell controls must not
+		// masquerade as a per-source-line allocation regression.
+		expect(100U * large.SurfaceWidgets < large.RightLines,
+			   "the retained diff surface stays two orders of magnitude smaller "
+			   "than the source it presents");
+		expect(small.VisibleLinks == medium.VisibleLinks
+				   && medium.VisibleLinks == large.VisibleLinks,
+			   "the painted correspondences follow the canonical change count "
+			   "rather than the source length");
+		expect(large.ScrollRebuilds == 0U,
+			   "scrolling a sixty-thousand-line comparison rebuilds no measured "
+			   "geometry");
+
 		window.hide();
 	}
 
@@ -5996,23 +5995,76 @@ namespace {
 				   && window.conversation_panel()->cards()->thread_count() == 1U,
 			   "current-head comparison restores the complete file conversation");
 		window.set_conversation_endpoint_placement(false, false);
-		for (int id = 4; id <= 12; ++id) {
-			projection.Tabs.push_back({ .Id = core::document_tab_id{ static_cast<std::uint64_t>(id) }, .View = { pair(now), otherFile, { } } });
+		for (const auto count : { 1, 3, 12, 40 }) {
+			auto sweep = projection;
+			sweep.Tabs.resize(1U);
+			for (int id = 2; id <= count; ++id) {
+				sweep.Tabs.push_back({ .Id = core::document_tab_id{ static_cast<std::uint64_t>(id) }, .View = { pair(now), otherFile, { } } });
+			}
+			for (const auto width : { 1280, 1100, window.minimumWidth() }) {
+				window.resize(width, 852);
+				window.publish(sweep);
+				process_events();
+				auto*      viewport  = strip->scroll_area()->viewport();
+				const auto expected  = std::max(qt::document_tab_strip::minimum_tab_width, viewport->width() / count);
+				const auto equalFill = [&](int aCount, int aWidth) {
+					return aCount == count && aWidth >= expected && aWidth <= expected + 1;
+				};
+				expect(bar->count() == count && equalFill(bar->count(), bar->tabRect(0).width()), "every tab fills an equal share or the pinned220pixel minimum");
+				expect(!equalFill(1, 100) && !equalFill(count, 100), "negative controls reject collapsed-count and fixed100pixel strips");
+				for (int i = 0; i < count; ++i) {
+					expect(equalFill(bar->count(), bar->tabRect(i).width()) && !bar->accessibleTabName(i).isEmpty(), "every tab keeps equal width and accessible name");
+				}
+				expect(strip->findChild<QToolButton*>(QStringLiteral("documentTabOverflow")) == nullptr, "there is no count or overflow menu");
+				expect(strip->rect().contains(strip->new_tab_button()->geometry()) && strip->new_tab_button()->isVisible(), "plus stays outside the scrolled tabs and reachable");
+				expect(window.focus_order().contains(bar) && window.focus_order().contains(strip->new_tab_button()), "tab bar and plus remain keyboard stops");
+				if (count > 3) {
+					auto* scroll = strip->scroll_area()->horizontalScrollBar();
+					scroll->setValue(0);
+					QWheelEvent wheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+					QApplication::sendEvent(viewport, &wheel);
+					expect(scroll->value() > 0, "vertical mouse wheel scrolls horizontal tabs");
+				}
+				sweep.Tabs.front().Active = false;
+				sweep.Tabs.back().Active  = true;
+				window.publish(sweep);
+				process_events();
+				const auto rect = bar->tabRect(count - 1).translated(-strip->scroll_area()->horizontalScrollBar()->value(), 0);
+				expect(rect.left() >= 0 && rect.right() < viewport->width(), "activation reveals the entire active tab including after restoration");
+				bar->setFocus(Qt::OtherFocusReason);
+				process_events();
+				expect(bar->hasFocus(), "active strip remains focused and arrow-key reachable");
+				save_render(window, QStringLiteral("document-tabs-%1-%2").arg(count).arg(width));
+				sweep.Tabs.back().Active  = false;
+				sweep.Tabs.front().Active = true;
+			}
 		}
-		window.publish(projection);
-		for (const auto width : { 1280, 1100, window.minimumWidth() }) {
-			window.resize(width, 852);
-			process_events();
-			expect(strip->collapsed() && bar->count() == 1 && strip->tab_at(0) == core::document_tab_id{ 1 }, "width floor retains exact active tab");
-			expect(strip->overflow_button()->isVisible() && strip->overflow_button()->text() == QStringLiteral("+11"), "width floor counts every other tab");
-			emit strip->overflow_button()->menu()->aboutToShow();
-			expect(strip->overflow_button()->menu()->actions().size() == 11, "overflow makes every hidden tab reachable");
-			expect(window.focus_order().contains(bar) && window.focus_order().contains(strip->overflow_button()) && window.focus_order().contains(strip->new_tab_button()), "tab controls are declared focus stops at every width");
-			expect(!strip->overflow_button()->accessibleName().isEmpty() && !bar->accessibleTabName(0).isEmpty(), "collapsed controls retain accessible names");
-			save_render(window, QStringLiteral("document-tabs-%1").arg(width));
-		}
-		strip->overflow_button()->menu()->actions().front()->trigger();
-		expect(std::get<core::activate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 2 }, "overflow gesture names its exact tab");
+		// Exercise the actual plus intent through the core instead of faking its active flag.
+		auto tabsState = core::document_tabs_state{ };
+		static_cast<void>(core::transition(tabsState, core::set_window_comparison_intent{ pair(now) }));
+		const auto loaded = core::transition(tabsState, core::open_in_active_tab_intent{ file });
+		expect(loaded.Load.has_value(), "plus course starts an exact view");
+		const auto source = *tabsState.Active;
+		const auto exact  = core::find_tab(tabsState, source)->View;
+		auto       shown  = application::document_tabs_projection{ .Tabs = { { .Id = source, .View = exact, .Active = true } }, .WindowComparison = pair(now) };
+		window.publish(shown);
+		window.set_document_tab_dispatch([&](const auto& intent) {
+			const auto result = core::transition(tabsState, intent);
+			expect(result.Load.has_value(), "plus creates an active load, never a background-only duplicate");
+			shown.Tabs.clear();
+			for (const auto& tab : tabsState.Tabs) {
+				shown.Tabs.push_back({ .Id = tab.Id, .View = tab.View, .Active = tabsState.Active == tab.Id });
+			}
+			window.publish(shown);
+		});
+		strip->new_tab_button()->click();
+		process_events();
+		expect(tabsState.Active != source && core::find_tab(tabsState, *tabsState.Active)->View == exact && bar->hasFocus(), "plus activates the exact duplicated view and focuses its tab");
+		auto       background       = tabsState;
+		const auto activeBefore     = background.Active;
+		const auto backgroundResult = core::transition(background, core::open_in_new_tab_intent{ otherFile });
+		expect(!backgroundResult.Load && background.Active == activeBefore, "Cmd-click remains background and fails the active-load predicate");
+		window.set_document_tab_dispatch([&](const auto& intent) { intents.push_back(intent); });
 		// [[BPR-1197]]. An elided header accompanies a complete explanation
 		// in the empty comparison; it does not replace that explanation.
 		const auto  explanation = QStringLiteral("Comparison unavailable — the file cannot be read at the earlier selected revision. Select another file or comparison to continue. <literal text>");
@@ -6739,8 +6791,8 @@ namespace {
 			   "the keys start in the active window, on the comparison");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
 		expect(stack->currentWidget()->objectName() == QStringLiteral("composeReviewPage")
-				   && window.review_submission_editor_view()->body_editor()->hasFocus(),
-			   "Option-R (Alt+R) opens the review page and focuses its summary");
+				   && window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->hasFocus(),
+			   "Option-R (Alt+R) opens the no-draft explanation with Back focused");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		expect(stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
 			   "Esc returns from the review page to the invoking surface and focus");

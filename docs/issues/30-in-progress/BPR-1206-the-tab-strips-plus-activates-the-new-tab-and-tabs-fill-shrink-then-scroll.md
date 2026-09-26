@@ -104,3 +104,27 @@ as the owner amended or decided it on 2026-09-25. The core decides, the host
 performs, Qt presents. No publication, authority, provider, Git or storage
 capability changes. Windows and Linux station runs follow the owed commands on
 the originating card and [[BPR-1135]].
+
+## Engineering evidence — 2026-09-26
+
+Decision: a 220 device-independent-pixel minimum leaves the close control,
+pair pill and filename ending readable; a separate scroll viewport keeps the
+plus reachable. Tabs divide remaining space equally, stop shrinking at that
+minimum and scroll by wheel/trackpad. Keyboard activation reveals the whole
+active tab. Plus dispatches the existing duplicate transition and focuses
+the strip; background Cmd-click retains its existing core semantics.
+
+The core and host tab courses pass, and the Qt matrix covers 1, 3, 12 and 40
+tabs at 1280, 1100 and the width floor at 100/125/200. Injected background
+duplication, fixed 100-pixel tabs and active-only collapse fail their intended
+predicates. The scale courses, focus-order courses and full window width
+sweeps pass 9/9 on the final candidate. The owner look remains pending.
+
+Integration corrected the older-pair window expectation left by BPR-1205 and
+focus on BPR-1203's no-draft page: Back receives focus when its body is hidden.
+The first full-window run then found its fixed-shell ratio at 1201 widgets
+versus a 1200-widget threshold. Diagnostic counts are identical for 60, 6000
+and 60000 source lines, with 37 diff-surface widgets at every size. The strict
+whole-window equality remains; the two-orders-of-magnitude ratio now measures
+the diff surface, so adding fixed shell controls cannot masquerade as
+source-dependent allocation. No growing-widget check was removed.

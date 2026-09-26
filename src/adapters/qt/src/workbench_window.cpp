@@ -5816,7 +5816,12 @@ namespace bpr::qt {
 		}
 		CompositionPage = aInline ? ComposeInlinePage : ComposeReviewPage;
 		apply_modality_surface();
-		(aInline ? ReviewEditor->body_editor() : ReviewSubmissionEditor->body_editor())->setFocus(Qt::OtherFocusReason);
+		auto* body = aInline ? ReviewEditor->body_editor() : ReviewSubmissionEditor->body_editor();
+		if (body->isVisible() && body->isEnabled()) {
+			body->setFocus(Qt::OtherFocusReason);
+		} else if (auto* back = CompositionPage->findChild<QPushButton*>(aInline ? QStringLiteral("composeInlineDraftPageBack") : QStringLiteral("composeReviewPageBack"))) {
+			back->setFocus(Qt::OtherFocusReason);
+		}
 	}
 
 	void workbench_window::close_review_composition()
@@ -8756,7 +8761,6 @@ namespace bpr::qt {
 		// ones the width floor leaves out, and the new-tab button.
 		if (DocumentTabs != nullptr) {
 			append(DocumentTabs->tab_bar());
-			append(DocumentTabs->overflow_button());
 			append(DocumentTabs->new_tab_button());
 		}
 		// One stop stands for the whole composed comparison surface: its last.

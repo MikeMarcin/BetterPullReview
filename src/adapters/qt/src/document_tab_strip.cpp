@@ -8,20 +8,31 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QResizeEvent>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTabBar>
 #include <QToolButton>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <utility>
 
 namespace bpr::qt {
 	namespace {
-		/// \brief What a tab takes beside its name: the style's padding, its
-		/// close button and the gaps around them. An estimate, used only to
-		/// decide whether every tab fits; the bar lays itself out.
-		constexpr int tab_overhead = 48;
+		class equal_tab_bar final : public QTabBar
+		{
+		public:
+			using QTabBar::QTabBar;
+			int  Room = 0;
+			auto tabSizeHint(int aIndex) const -> QSize override
+			{
+				const auto total = std::max(1, count());
+				return { std::max(document_tab_strip::minimum_tab_width, Room / total + (aIndex < Room % total ? 1 : 0)), document_tab_strip::height_pixels };
+			}
+			auto minimumTabSizeHint(int aIndex) const -> QSize override { return tabSizeHint(aIndex); }
+		};
 		constexpr int pill_padding = 6;
 		constexpr int pill_height  = 16;
 
@@ -140,7 +151,19 @@ namespace bpr::qt {
 		layout->setContentsMargins(0, 0, 0, 0);
 		layout->setSpacing(0);
 
-		Bar = new QTabBar{ this };
+		Scroll = new QScrollArea{ this };
+		Scroll->setObjectName(QStringLiteral("documentTabScroll"));
+		Scroll->setFrameShape(QFrame::NoFrame);
+		Scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Scroll->setWidgetResizable(false);
+		Scroll->setFocusPolicy(Qt::NoFocus);
+		Scroll->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		Scroll->setFixedHeight(height_pixels);
+		Scroll->viewport()->installEventFilter(this);
+		connect(Scroll->horizontalScrollBar(), &QScrollBar::rangeChanged, this, [this] { if (Bar) { reveal_active(); } });
+		Bar = new equal_tab_bar{ Scroll };
+		Bar->installEventFilter(this);
 		Bar->setObjectName(QStringLiteral("documentTabBar"));
 		Bar->setAccessibleName(QStringLiteral("Document tabs"));
 		Bar->setAccessibleDescription(QStringLiteral(
@@ -155,19 +178,8 @@ namespace bpr::qt {
 		Bar->setMovable(false);
 		Bar->setFocusPolicy(Qt::StrongFocus);
 		Bar->setContextMenuPolicy(Qt::CustomContextMenu);
-		layout->addWidget(Bar);
-
-		Overflow = new QToolButton{ this };
-		Overflow->setObjectName(QStringLiteral("documentTabOverflow"));
-		Overflow->setAutoRaise(true);
-		Overflow->setPopupMode(QToolButton::InstantPopup);
-		Overflow->setFocusPolicy(Qt::StrongFocus);
-		Overflow->setAccessibleName(QStringLiteral("More tabs"));
-		Overflow->setAccessibleDescription(QStringLiteral("The tabs the strip has no room for"));
-		Overflow->setMenu(new QMenu{ Overflow });
-		Overflow->menu()->setObjectName(QStringLiteral("documentTabOverflowMenu"));
-		Overflow->hide();
-		layout->addWidget(Overflow);
+		Scroll->setWidget(Bar);
+		layout->addWidget(Scroll, 1);
 
 		NewTab = new QToolButton{ this };
 		NewTab->setObjectName(QStringLiteral("documentTabNew"));
@@ -178,11 +190,11 @@ namespace bpr::qt {
 		NewTab->setAccessibleDescription(QStringLiteral("Opens the active tab's file and comparison in a tab of its own"));
 		NewTab->setToolTip(QStringLiteral("New tab: this file and comparison, in a tab of its own"));
 		NewTab->setEnabled(false);
-		layout->addWidget(NewTab);
 
 		Status = new status_line{ this };
 		Status->hide();
-		layout->addWidget(Status, 1);
+		layout->addWidget(Status);
+		layout->addWidget(NewTab);
 
 		connect(Bar, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			if (Rebuilding) {
@@ -190,6 +202,7 @@ namespace bpr::qt {
 			}
 			if (const auto tab = tab_at(aIndex); tab.has_value()) {
 				send(core::activate_tab_intent{ .Tab = *tab });
+				reveal_active();
 			}
 		});
 		connect(Bar, &QTabBar::tabCloseRequested, this, [this](const int aIndex) {
@@ -201,9 +214,9 @@ namespace bpr::qt {
 		connect(NewTab, &QToolButton::clicked, this, [this] {
 			if (const auto* const current = active(); current != nullptr) {
 				send(core::duplicate_tab_intent{ .Tab = current->Id });
+				Bar->setFocus(Qt::OtherFocusReason);
 			}
 		});
-		connect(Overflow->menu(), &QMenu::aboutToShow, this, [this] { populate_overflow(); });
 	}
 
 	void document_tab_strip::set_dispatch(document_tab_dispatch aDispatch)
@@ -213,7 +226,7 @@ namespace bpr::qt {
 
 	void document_tab_strip::present(std::vector<document_tab_presentation> aTabs)
 	{
-		if (aTabs == Tabs && Collapsed == !fits_whole()) {
+		if (aTabs == Tabs) {
 			return;
 		}
 		Tabs = std::move(aTabs);
@@ -227,6 +240,7 @@ namespace bpr::qt {
 		Status->setAccessibleDescription(aText);
 		Status->setVisible(aNotable && !aText.isEmpty());
 		Status->update();
+		layout_tabs();
 	}
 
 	auto document_tab_strip::tabs() const noexcept -> const std::vector<document_tab_presentation>&
@@ -239,10 +253,7 @@ namespace bpr::qt {
 		return Bar;
 	}
 
-	auto document_tab_strip::overflow_button() const noexcept -> QToolButton*
-	{
-		return Overflow;
-	}
+	auto document_tab_strip::scroll_area() const noexcept -> QScrollArea* { return Scroll; }
 
 	auto document_tab_strip::new_tab_button() const noexcept -> QToolButton*
 	{
@@ -252,11 +263,6 @@ namespace bpr::qt {
 	auto document_tab_strip::status_label() const noexcept -> QLabel*
 	{
 		return Status;
-	}
-
-	auto document_tab_strip::collapsed() const noexcept -> bool
-	{
-		return Collapsed;
 	}
 
 	auto document_tab_strip::tab_at(const int aIndex) const -> std::optional<core::document_tab_id>
@@ -313,9 +319,7 @@ namespace bpr::qt {
 	void document_tab_strip::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
-		if (Collapsed == fits_whole()) {
-			rebuild();
-		}
+		layout_tabs();
 	}
 
 	void document_tab_strip::changeEvent(QEvent* const aEvent)
@@ -326,20 +330,50 @@ namespace bpr::qt {
 		}
 	}
 
-	auto document_tab_strip::fits_whole() const -> bool
+	void document_tab_strip::layout_tabs()
 	{
-		if (Tabs.size() <= 1U || width() <= 0) {
+		if (!Scroll || !Bar || Rebuilding) {
+			return;
+		}
+		Status->setMaximumWidth(std::max(24, width() / 3));
+		auto*      bar  = static_cast<equal_tab_bar*>(Bar);
+		const auto room = std::max(0, Scroll->viewport()->width());
+		bar->Room       = room;
+		bar->setFixedSize(std::max(room, bar->count() * minimum_tab_width), height_pixels);
+		bar->setExpanding(true);
+		bar->updateGeometry();
+		reveal_active();
+	}
+	void document_tab_strip::reveal_active()
+	{
+		const auto rect = Bar->tabRect(Bar->currentIndex());
+		if (!rect.isValid()) {
+			return;
+		}
+		auto* scroll = Scroll->horizontalScrollBar();
+		if (rect.left() < scroll->value()) {
+			scroll->setValue(rect.left());
+		} else if (rect.right() >= scroll->value() + Scroll->viewport()->width()) {
+			scroll->setValue(rect.right() + 1 - Scroll->viewport()->width());
+		}
+	}
+	bool document_tab_strip::eventFilter(QObject* aObject, QEvent* aEvent)
+	{
+		if (aEvent->type() == QEvent::Wheel && (aObject == Bar || aObject == Scroll->viewport())) {
+			auto*      wheel  = static_cast<QWheelEvent*>(aEvent);
+			const auto pixels = wheel->pixelDelta();
+			const auto angle  = wheel->angleDelta();
+			const auto delta  = !pixels.isNull() ? (pixels.x() != 0 ? pixels.x() : pixels.y())
+												 : (angle.x() != 0 ? angle.x() : angle.y());
+			auto*      scroll = Scroll->horizontalScrollBar();
+			scroll->setValue(scroll->value() - delta);
+			wheel->accept();
 			return true;
 		}
-		const auto metrics = Bar->fontMetrics();
-		auto       total   = NewTab->sizeHint().width();
-		for (const auto& tab : Tabs) {
-			total += std::min(metrics.horizontalAdvance(tab.Name), 240) + tab_overhead;
-			if (tab.OwnComparison) {
-				total += metrics.horizontalAdvance(tab.OwnPair) + (2 * pill_padding) + 8;
-			}
+		if (aObject == Scroll->viewport() && aEvent->type() == QEvent::Resize) {
+			layout_tabs();
 		}
-		return total <= width();
+		return QWidget::eventFilter(aObject, aEvent);
 	}
 
 	auto document_tab_strip::active() const -> const document_tab_presentation*
@@ -364,7 +398,6 @@ namespace bpr::qt {
 				Bar->removeTab(0);
 			}
 			Shown.clear();
-			Collapsed           = !fits_whole();
 			const auto pillSide = static_cast<QTabBar::ButtonPosition>(
 									  Bar->style()->styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, Bar))
 					== QTabBar::LeftSide
@@ -372,9 +405,6 @@ namespace bpr::qt {
 				: QTabBar::LeftSide;
 			auto       current  = -1;
 			for (const auto& tab : Tabs) {
-				if (Collapsed && !tab.Active) {
-					continue;
-				}
 				const auto state = state_words(tab.State);
 				const auto label = tab.State == core::document_tab_view_state::unavailable
 					? QStringLiteral("%1 (unavailable)").arg(tab.Name)
@@ -408,13 +438,9 @@ namespace bpr::qt {
 				Bar->setCurrentIndex(current);
 			}
 		}
-		const auto hidden = Collapsed ? Tabs.size() - Shown.size() : 0U;
-		Overflow->setVisible(hidden > 0U);
-		Overflow->setText(QStringLiteral("+%1").arg(hidden));
-		Overflow->setToolTip(hidden == 1U ? QStringLiteral("One more tab") : QStringLiteral("%1 more tabs").arg(hidden));
-		Overflow->setAccessibleDescription(Overflow->toolTip());
 		NewTab->setEnabled(active() != nullptr);
 		Rebuilding = false;
+		layout_tabs();
 		updateGeometry();
 	}
 
@@ -435,19 +461,4 @@ namespace bpr::qt {
 		menu->popup(Bar->mapToGlobal(aAt));
 	}
 
-	void document_tab_strip::populate_overflow()
-	{
-		auto* const menu = Overflow->menu();
-		menu->clear();
-		for (const auto& tab : Tabs) {
-			if (tab.Active) {
-				continue;
-			}
-			auto* const action = menu->addAction(tab.OwnComparison && !tab.OwnPair.isEmpty()
-													 ? QStringLiteral("%1 · %2").arg(tab.Name, tab.OwnPair)
-													 : tab.Name);
-			action->setToolTip(tab.Path);
-			connect(action, &QAction::triggered, this, [this, id = tab.Id] { send(core::activate_tab_intent{ .Tab = id }); });
-		}
-	}
 } // namespace bpr::qt
