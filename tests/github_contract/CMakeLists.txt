@@ -1266,3 +1266,6 @@ if(APPLE)
     set_tests_properties(gh_cli_git_smart_transport PROPERTIES TIMEOUT 60 LABELS bpr_local_only_fixture)
     bpr_apply_automated_test_environment(gh_cli_git_smart_transport)
 endif()
+
+bpr_add_network_isolated_test(NAME github_capability_content_policy COMMAND test_better_pull_review_github_capability_probe_tests --audit-content-policy)
+bpr_add_network_isolated_test(NAME github_provider_content_policy COMMAND test_better_pull_review_github_provider_tests --audit-content-policy)

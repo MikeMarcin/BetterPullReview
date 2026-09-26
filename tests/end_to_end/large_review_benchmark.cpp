@@ -4,6 +4,7 @@
 #include "private_data_root.hpp"
 
 #include "bpr/application/epoch_runtime_ports.hpp"
+#include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
@@ -2053,6 +2054,16 @@ namespace bpr::e2e::large_review {
 				require(report.InputBudgetFailures.empty() && std::ranges::all_of(report.CompletionBudgets, &latency_budget::Passed),
 						"pathological fallback completion/input budget exceeded");
 			}
+			application.reset();
+			std::ifstream     diagnosticFile{ dataRoot / "logs/diagnostics.log" };
+			const std::string diagnostics{ std::istreambuf_iterator<char>{ diagnosticFile }, { } };
+			require(diagnostics.find("op=application outcome=shutdown") != std::string::npos, "large public course closes the actual diagnostic file");
+			const auto exported = application::prepare_release_diagnostics(diagnostics, core::release_maintenance_revision{ 1U });
+			require(exported && exported->Descriptor.Records != 0U, "large public course reaches the actual export classifier");
+			for (const auto* marker : { "int fixture_", "// synthetic source", "int sample_", "large/comparison.cpp", "access_token", "refresh_token" }) {
+				require(diagnostics.find(marker) == std::string::npos && exported->Bytes.find(marker) == std::string::npos, "large synthetic source or request content escaped into diagnostics");
+			}
+			require(diagnostics.find(dataRoot.string()) == std::string::npos, "large diagnostics exclude local root");
 			verify_responsiveness_budgets(report);
 			verify_active_work_budgets(report);
 			auto encoded = glz::write_json(report);

@@ -9,6 +9,7 @@
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
+#include "terminal_diagnostics.hpp"
 #if defined(__APPLE__)
 	#include "bpr/adapters/update/release_update_installation.hpp"
 #endif
@@ -1309,8 +1310,8 @@ namespace bpr::app {
 					// quit, so the cleanup that caused it is named on the way out
 					// rather than left to a bisect.
 					const auto detail = entry.Runtime->profile_shutdown_cleanup_detail();
-					std::cerr << "PROFILE_QUIT_CLEANUP_SOURCE:"
-							  << (detail.empty() ? std::string{ "unnamed" } : detail) << std::endl;
+					bpr::app::detail::terminal_text_stream{ } << "PROFILE_QUIT_CLEANUP_SOURCE:"
+															  << QString::fromStdString(detail.empty() ? std::string{ "unnamed" } : detail) << '\n';
 					ExitCode = 1;
 				}
 				position = Runtimes.erase(position);

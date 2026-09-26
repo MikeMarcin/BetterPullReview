@@ -1663,7 +1663,7 @@ namespace {
 		const auto& detail = log->Events[log->Events.size() - 2U];
 		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value(), "provider forwards sanitized detail with request and status");
 		if (!aCanary) {
-			expect(detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos && detail.Summary.text().find("newField") != std::string_view::npos, "provider retains useful unknown code and schema detail");
+			expect(detail.Summary.text().find("Unknown schema field") != std::string_view::npos && detail.Summary.text().find("unclassified-code") != std::string_view::npos && detail.Summary.text().find("newField") == std::string_view::npos, "provider retains unknown-error explanation and explicit content omission");
 		}
 		expect(detail.Summary.text().find(bpr::tests::capability_error_canary_credential) == std::string_view::npos, "provider never records the active credential");
 		expect(log->Events.back().Outcome == application::diagnostic_outcome::failed, "failure terminal remains explicit");

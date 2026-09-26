@@ -3155,3 +3155,21 @@ bpr_add_network_isolated_test(NAME application_recent_account_isolation WINDOWS_
 set_tests_properties(application_recent_account_isolation PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
     PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")
+
+if(UNIX)
+    bpr_add_executable(test_terminal_diagnostics terminal_diagnostic_tests.cpp)
+    target_link_libraries(test_terminal_diagnostics PRIVATE BetterPullReview::Composition)
+    bpr_enable_hardening(test_terminal_diagnostics)
+    bpr_enable_warnings(test_terminal_diagnostics)
+    bpr_add_network_isolated_test(NAME application_terminal_diagnostics
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/terminal_diagnostic_contract.py"
+            "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>")
+    set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT 60)
+endif()
+bpr_add_network_isolated_test(NAME application_diagnostic_subsystems
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_subsystem_contract.py"
+        "$<TARGET_FILE:test_better_pull_review_application_diff_host_tests>"
+        "$<TARGET_FILE:test_better_pull_review_syntax_classification_contract_tests>"
+        "$<TARGET_FILE:test_better_pull_review_review_queue_enrollment_tests>"
+        "$<TARGET_FILE:test_better_pull_review_agent_protocol_loop_tests>")
+set_tests_properties(application_diagnostic_subsystems PROPERTIES TIMEOUT 180)

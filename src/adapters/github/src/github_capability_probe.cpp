@@ -2362,6 +2362,62 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
+	namespace {
+		// Only symbols occurring in the compiled public introspection documents
+		// have provenance here. Identifier shape alone proves nothing.
+		auto public_probe_symbol(const QString& aSymbol) -> QString
+		{
+			const auto symbol     = aSymbol.toStdString();
+			const auto identifier = [](const char aByte) {
+				return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z')
+					|| (aByte >= '0' && aByte <= '9') || aByte == '_';
+			};
+			for (const auto document : graphql_documents) {
+				auto position = document.find(symbol);
+				while (!symbol.empty() && position != std::string_view::npos) {
+					const auto end = position + symbol.size();
+					if ((position == 0U || !identifier(document[position - 1U]))
+						&& (end == document.size() || !identifier(document[end]))) {
+						return QString::fromUtf8(document.substr(position, symbol.size()));
+					}
+					position = document.find(symbol, end);
+				}
+			}
+			return QStringLiteral("[omitted:unclassified-symbol]");
+		}
+
+		auto classified_capability_detail(const QString& aText, const bool aMessage) -> QString
+		{
+			if (!aMessage) {
+				if (graphql_error_code_detail(aText) != application::github_capability_diagnostic::graphql_errors
+					|| aText == QStringLiteral("RATE_LIMITED")) {
+					return aText;
+				}
+				return QStringLiteral("[omitted:unclassified-code]");
+			}
+			// Reconstruct a closed explanation, never concatenate free text. An
+			// unfamiliar code can still explain a schema rejection; unmatched
+			// messages and trailing context have an explicit omission reason.
+			const auto field = QRegularExpression{ QStringLiteral(R"(^Unknown schema field ['"]?([_A-Za-z][_0-9A-Za-z]*)['"]?(?: is unavailable\.)?(.*)$)") }.match(aText);
+			if (field.hasMatch()) {
+				return QStringLiteral("Unknown schema field ") + public_probe_symbol(field.captured(1))
+					+ (field.captured(2).isEmpty() ? QString{ } : QStringLiteral(" [omitted:unclassified-content]"));
+			}
+			const auto absent = QRegularExpression{ QStringLiteral(R"(^Field '([_A-Za-z][_0-9A-Za-z]*)' doesn't exist on type '([_A-Za-z][_0-9A-Za-z]*)'(.*)$)") }.match(aText);
+			if (absent.hasMatch()) {
+				return QStringLiteral("Field ") + public_probe_symbol(absent.captured(1))
+					+ QStringLiteral(" does not exist on type ") + public_probe_symbol(absent.captured(2))
+					+ (absent.captured(3).isEmpty() ? QString{ } : QStringLiteral(" [omitted:unclassified-content]"));
+			}
+			const auto repeated = QRegularExpression{ QStringLiteral(R"(^Field '([_A-Za-z][_0-9A-Za-z]*)' has a max repetition count of [0-9]+.*$)") }.match(aText);
+			if (repeated.hasMatch()) {
+				return QStringLiteral("Field ") + public_probe_symbol(repeated.captured(1))
+					+ QStringLiteral(" exceeds a service repetition limit [omitted:unclassified-content]");
+			}
+			return QStringLiteral("[omitted:unclassified-content]");
+		}
+	} // namespace
+
 	auto sanitize_capability_error(const std::string_view aBody, const std::span<const std::byte> aCredential) noexcept -> application::diagnostic_summary
 	{
 		using state = application::diagnostic_summary_state;
@@ -2428,7 +2484,8 @@ namespace bpr::adapters::github::detail {
 				text.replace(QRegularExpression{ QStringLiteral(R"((?i)\b(?:bearer|basic|token)\s+[^\s,;"']+)") }, QStringLiteral("[redacted credential]"));
 				text.replace(QRegularExpression{ QStringLiteral(R"((?i)\b(?:gh[pousr]_[a-z0-9_]+|github_pat_[a-z0-9_]+|[a-z0-9_+/-]{32,}={0,2}|eyJ[a-z0-9_.-]+))") }, QStringLiteral("[redacted token]"));
 				text.replace(QRegularExpression{ QStringLiteral("[\\x00-\\x1f\\x7f-\\x9f\\x{2028}\\x{2029}\\x{202a}-\\x{202e}\\x{2066}-\\x{2069}]") }, QStringLiteral(" "));
-				summary += aName + QStringLiteral("=\"") + text + QStringLiteral("\" ");
+				summary += aName + QStringLiteral("=\"")
+					+ classified_capability_detail(text, aName == QStringLiteral("message")) + QStringLiteral("\" ");
 				return true;
 			};
 			for (const auto& value : json_array(errors)) {

@@ -307,6 +307,10 @@ endfunction()
 # branch are unchanged. The 8ebf9e6c follow-up also observes whether the
 # host/window modality presents tabs; Overview retains a tab without showing
 # its file. Complete scope review is recorded on BPR-1198.
+# BPR-0971 full-card: classified terminal producers, explicit process terminal
+# owner and bounded queue; private paths/exception bytes omitted. Typed epoch
+# Quill observations replace developer stderr bypasses. Self-review retains
+# all session, mutation and durable terminal authority; mutation digest unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -325,7 +329,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"f5e60f57cd82235d2b27276d1f7d8e1bcb10b9815f656d965e7cae3092c68b63"
+		"46e1fb8c4c4f454ab8ff62de520d66be04745778f9c1e040e1903fb86a511b4e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -368,6 +372,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
         "src/startup_diagnostic.hpp"
+        "src/terminal_diagnostics.cpp"
+        "src/terminal_diagnostics.hpp"
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
@@ -442,6 +448,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/startup_diagnostic.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
+        "src/terminal_diagnostics.cpp"
+        "src/terminal_diagnostics.hpp"
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
@@ -472,7 +480,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2078ae45c6672106a5380587a8c4a24c08618f3d23feb771b4565f548e31af16"
+        "8fd33b782d375fc7520e7017968da90a1666a5792158407c89077a5a42aa811d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

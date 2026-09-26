@@ -389,8 +389,9 @@ namespace {
 
 	void test_stderr_and_every_pipe_status()
 	{
-		auto       stderrOverflow = fake_transport{ };
-		const auto chunk          = std::string(8U * 1024U, 'e');
+		auto stderrOverflow = fake_transport{ };
+		auto chunk          = std::string{ "BPR_DIAGNOSTIC_PRIVATE_CANARY agent stderr" };
+		chunk.resize(8U * 1024U, 'e');
 		for (auto index = std::size_t{ 0U }; index < 128U; ++index) {
 			stderrOverflow.Error.push_back({
 				.Status = agent_protocol_pipe_read_status::data,

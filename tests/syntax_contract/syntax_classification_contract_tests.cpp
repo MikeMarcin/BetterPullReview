@@ -345,6 +345,10 @@ namespace {
 			{ });
 		expect(exceeded.Status == app::syntax_classification_status::limit_exceeded,
 			   "a classification above the span bound is refused, never truncated");
+		const auto marker = std::string{ "BPR_DIAGNOSTIC_PRIVATE_CANARY syntax source" };
+		blobs.install(blob(14U), marker + std::string(syntax::maximum_classified_blob_bytes, 'x'));
+		const auto oversized = classifier.classify(request(blob(14U), aCatalog.definition_for_path("source.cpp")), { });
+		expect(oversized.Status == app::syntax_classification_status::limit_exceeded && oversized.Spans.empty(), "oversized canary source produces only a typed syntax refusal");
 	}
 
 	void appearance_independence_contract(const syntax::packaged_definition_catalog& aCatalog)

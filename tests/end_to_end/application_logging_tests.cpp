@@ -1,9 +1,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/terminal_diagnostics.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "private_data_root.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QLineEdit>
 #include <QSpinBox>
@@ -34,13 +36,19 @@ namespace {
 }
 int main(int aArgc, char** aArgv)
 try {
-	QApplication  qt{ aArgc, aArgv };
-	QTemporaryDir temporary;
+	bpr::app::detail::terminal_diagnostics terminalDiagnostics;
+	QApplication                           qt{ aArgc, aArgv };
+	QTemporaryDir                          temporary{ QDir::tempPath() + QStringLiteral("/BPR_DIAGNOSTIC_PRIVATE_CANARY-XXXXXX") };
 	expect(temporary.isValid(), "private test root");
 	const auto root = bpr::e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "native private root before composed startup");
 	const auto scenario = aArgc == 2 ? std::string_view{ aArgv[1] } : std::string_view{ };
-	if (scenario == "--full-log") {
+	if (scenario == "--recovery-log") {
+		std::ofstream registry{ root / "agent-workspace-ownership-v1" };
+		registry << "BPR_DIAGNOSTIC_PRIVATE_CANARY malformed synthetic registry";
+		registry.close();
+		std::filesystem::permissions(root / "agent-workspace-ownership-v1", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
+	} else if (scenario == "--full-log") {
 		std::filesystem::create_directory(root / "logs");
 		std::filesystem::permissions(root / "logs", std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
 		std::ofstream full{ root / "logs/diagnostics.log", std::ios::binary };
@@ -83,7 +91,7 @@ try {
 		app->begin_shutdown();
 		wait_for([&app] { return app->status().ShutdownComplete; });
 	}
-	if (!scenario.empty()) {
+	if (!scenario.empty() && scenario != "--recovery-log") {
 		expect(scenario == "--full-log" || scenario == "--unavailable-log", "known failure scenario");
 		expect(scenario == "--full-log" ? std::filesystem::file_size(root / "logs/diagnostics.log") == 16U * 1024U * 1024U : std::filesystem::is_regular_file(root / "logs"), "refused diagnostic target is unchanged after authenticated workflow and shutdown");
 		std::cout << "application-logging-failure-isolation:pass\n";

@@ -277,7 +277,7 @@ namespace {
 			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
 		};
 		refresh.Observation = core::pull_request_observation{
-			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }, .Title = "Parse faster"
+			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }, .Title = "BPR_DIAGNOSTIC_PRIVATE_CANARY queue title"
 		};
 
 		auto host = application::review_queue_application_host{
@@ -307,7 +307,7 @@ namespace {
 		// [[BPR-0659]]. The refresh's observation names the title and author;
 		// the activity names what I have not seen; the item carries all three.
 		expect(host.queue().front().Facts
-				   == core::queue_item_facts{ .Title = "Parse faster", .Author = "octocat", .UnseenComments = 2U },
+				   == core::queue_item_facts{ .Title = "BPR_DIAGNOSTIC_PRIVATE_CANARY queue title", .Author = "octocat", .UnseenComments = 2U },
 			   "the queue item carries the title, author and unseen count the refresh read");
 		expect(
 			store.State.Enrollments.front().Membership.Rule == rule,
@@ -1098,7 +1098,10 @@ namespace {
 		run_one(effects, decisions);
 		const auto accepted = projections.Published.back();
 		expect(accepted.Status == application::queue_landing_status::ready && accepted.Items.size() == application::maximum_queue_enrollments, "maximum collections are admitted");
-		host.apply(application::queue_rule_intent{ .Rule = path_rule("overflow") });
+		for (unsigned index = 0U; index < 256U; ++index) {
+			projections.Published.clear();
+			host.apply(application::queue_rule_intent{ .Rule = path_rule("BPR_DIAGNOSTIC_PRIVATE_CANARY/overflow") });
+		}
 		host.apply(application::saved_repository_intent{ .Repository = { "github.com", "reviewer", "octo/overflow" } });
 		host.apply(application::saved_server_intent{ .Server = { "overflow.example", "reviewer" } });
 		expect(effects.pending() == 0 && host.statistics().PersistenceRequests == 0, "overflow edits never reach persistence");

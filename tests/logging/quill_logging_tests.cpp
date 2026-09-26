@@ -73,7 +73,7 @@ namespace {
 		const std::array  bodies{
 			std::string(1024U * 1024U + 1U, 'x'),
 			std::string{ R"({"errors":[{"message":")" } + std::string(8193U, 'x') + R"("}]})",
-			std::string{ R"({"errors":[{"message":")" } + std::string(2048U, ' ') + R"("}]})",
+			std::string{ R"({"errors":[{"message":")" } + std::string(8193U, ' ') + R"("}]})",
 			std::string{ R"({"errors":[{"message":"private content canary"}],"errors":[]})" },
 			std::string{ R"({"errors":[{"message":42,"source":"private content canary"}]})" }
 		};
@@ -277,7 +277,7 @@ try {
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
 		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");
 	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
-	expect(first.find("newField") != std::string::npos && first.find("NEW_SCHEMA_CODE") != std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
+	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
 	expect(first.find("op=github.pull_request outcome=response_received request=43 http_status=403") != std::string::npos
 			   && first.find("failure_domain=github failure=rate_limit pack_failure=none page_operation=ListPullRequestFiles") != std::string::npos

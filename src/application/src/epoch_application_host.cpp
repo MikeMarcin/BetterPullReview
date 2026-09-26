@@ -6,7 +6,6 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
-#include <cstdio>
 #include <deque>
 #include <expected>
 #include <functional>
@@ -310,14 +309,6 @@ namespace bpr::application {
 		[[nodiscard]] auto catalog_failure(
 			const epoch_catalog_failure aFailure) noexcept -> core::epoch_failure
 		{
-#if defined(BPR_APPLICATION_TESTING)
-			// The catalog's typed failure, before it is folded into the
-			// core's (BPR-0441).
-			std::fprintf(
-				stderr,
-				"EPOCH_CATALOG_FAILURE:%u\n",
-				static_cast<unsigned int>(aFailure));
-#endif
 			switch (aFailure) {
 			case epoch_catalog_failure::cancelled:
 				return core::epoch_failure::unavailable;
@@ -352,16 +343,6 @@ namespace bpr::application {
 		[[nodiscard]] auto cache_failure(const git_cache_error& aFailure) noexcept
 			-> core::epoch_failure
 		{
-#if defined(BPR_APPLICATION_TESTING)
-			// The adapter's code and its redacted detail are what an operator
-			// would need; the core failure this maps to keeps neither
-			// (BPR-0441).
-			std::fprintf(
-				stderr,
-				"EPOCH_CACHE_FAILURE:%u:%s\n",
-				static_cast<unsigned int>(aFailure.Code),
-				aFailure.Detail.c_str());
-#endif
 			switch (aFailure.Code) {
 			case git_cache_failure::cancelled:
 				return core::epoch_failure::unavailable;
@@ -3279,39 +3260,6 @@ namespace bpr::application {
 				aBeforeRequests = { })
 			-> core::epoch_transition_output
 		{
-#if defined(BPR_APPLICATION_TESTING)
-			// A developer build names the effect that failed and its typed
-			// failure, because the state the host keeps records only the
-			// status it led to (BPR-0441).
-			std::visit(
-				[](const auto& aValue) {
-					using event_type = std::decay_t<decltype(aValue)>;
-					const char* name = nullptr;
-					if constexpr (std::is_same_v<event_type, core::epoch_catalog_load_failed_event>) {
-						name = "catalog-load";
-					} else if constexpr (std::is_same_v<event_type, core::epoch_revision_prepare_failed_event>) {
-						name = "revision-prepare";
-					} else if constexpr (std::is_same_v<event_type, core::epoch_catalog_commit_failed_event>) {
-						name = "catalog-commit";
-					} else if constexpr (std::is_same_v<event_type, core::comparison_resolve_failed_event>) {
-						name = "comparison-resolve";
-					} else if constexpr (std::is_same_v<event_type, core::epoch_history_page_load_failed_event>) {
-						name = "history-page-load";
-					} else if constexpr (std::is_same_v<event_type, core::epoch_maintenance_failed_event>) {
-						name = "maintenance";
-					}
-					if constexpr (requires { aValue.Failure; }) {
-						if (name != nullptr) {
-							std::fprintf(
-								stderr,
-								"EPOCH_EFFECT_FAILED:%s:%u\n",
-								name,
-								static_cast<unsigned int>(aValue.Failure));
-						}
-					}
-				},
-				aEvent);
-#endif
 			auto output = core::transition(State, aEvent);
 			publish_transition(output);
 			if (aBeforeRequests) {

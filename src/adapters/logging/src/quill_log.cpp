@@ -257,7 +257,14 @@ namespace bpr::adapters::logging {
 			std::atomic<status_type>             Status{ status_type::unavailable };
 			std::atomic<diagnostic_file_failure> OpenFailure{ diagnostic_file_failure::none };
 			std::atomic<std::uint64_t>           Dropped{ 0 };
-			void                                 fail(const status_type aStatus) noexcept
+			void                                 drop() noexcept
+			{
+				auto count = Dropped.load(std::memory_order_relaxed);
+				while (count != std::numeric_limits<std::uint64_t>::max()
+					   && !Dropped.compare_exchange_weak(count, count + 1U, std::memory_order_relaxed)) { }
+			}
+
+			void fail(const status_type aStatus) noexcept
 			{
 				Status.store(aStatus);
 			}
@@ -516,7 +523,7 @@ namespace bpr::adapters::logging {
 		{
 			std::unique_lock lock{ Mutex, std::try_to_lock };
 			if (!lock.owns_lock()) {
-				++State->Dropped;
+				State->drop();
 				return status_type::dropped;
 			}
 			if (Closed) {
@@ -536,13 +543,13 @@ namespace bpr::adapters::logging {
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
 			if (transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter == 127U; })) {
-				++State->Dropped;
+				State->drop();
 				return status_type::dropped;
 			}
 			const auto thread = std::this_thread::get_id();
 			if (std::find(Threads.begin(), Threads.begin() + static_cast<std::ptrdiff_t>(ThreadCount), thread) == Threads.begin() + static_cast<std::ptrdiff_t>(ThreadCount)) {
 				if (ThreadCount == Threads.size()) {
-					++State->Dropped;
+					State->drop();
 					return status_type::dropped;
 				}
 				Threads[ThreadCount++] = thread;
@@ -555,12 +562,12 @@ namespace bpr::adapters::logging {
 					? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
 					: std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
 				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], failureDomain, failure, aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" }, paged_operations[paged], aEvent.WindowSession, aEvent.RelationshipDetail ? failure_name(*aEvent.RelationshipDetail) : std::string_view{ "none" }, transportSources[transportSource])) {
-					++State->Dropped;
+					State->drop();
 					return status_type::dropped;
 				}
 				return status_type::available;
 			} catch (...) {
-				++State->Dropped;
+				State->drop();
 				return status_type::dropped;
 			}
 		}

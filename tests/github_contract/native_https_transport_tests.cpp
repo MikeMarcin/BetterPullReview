@@ -1832,9 +1832,9 @@ namespace {
 					   && success->Response.RateLimitHeaders == expectedRateLimitHeaders,
 				   "capability-fixture-five-header-metadata");
 			expect(success->Summary.State == application::diagnostic_summary_state::sanitized
-					   && success->Summary.text().find("Unknown schema field newField") != std::string_view::npos
-					   && success->Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos
-					   && success->Summary.text().find("[redacted]") != std::string_view::npos
+					   && success->Summary.text().find("Unknown schema field [omitted:unclassified-symbol]") != std::string_view::npos
+					   && success->Summary.text().find("[omitted:unclassified-code]") != std::string_view::npos
+					   && success->Summary.text().find("[omitted:unclassified-content]") != std::string_view::npos
 					   && success->Summary.text().find("ghp_synthetic_secret_marker") == std::string_view::npos
 					   && success->Summary.text().find('\n') == std::string_view::npos
 					   && success->Summary.text().find('\x1b') == std::string_view::npos,

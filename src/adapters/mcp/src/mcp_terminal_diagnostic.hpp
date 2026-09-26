@@ -13,7 +13,12 @@
 #include <string_view>
 #include <thread>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	#ifndef NOMINMAX
+		#define NOMINMAX
+	#endif
+	#include <windows.h>
+#else
 	#include <pthread.h>
 	#include <signal.h>
 	#include <unistd.h>
@@ -45,7 +50,6 @@ namespace bpr::adapters::mcp {
 		return result;
 	}
 
-#if !defined(_WIN32)
 	namespace detail {
 		struct terminal_write
 		{
@@ -53,6 +57,16 @@ namespace bpr::adapters::mcp {
 			std::atomic<bool> Complete{ false };
 		};
 
+#if defined(_WIN32)
+		inline auto WINAPI write_terminal_record(void* aContext) -> DWORD
+		{
+			auto& write   = *static_cast<terminal_write*>(aContext);
+			DWORD written = 0U;
+			WriteFile(GetStdHandle(STD_ERROR_HANDLE), write.Text.data(), static_cast<DWORD>(write.Text.size()), &written, nullptr);
+			write.Complete.store(true, std::memory_order_release);
+			return 0U;
+		}
+#else
 		// POSIX write is a deferred cancellation point. Keep this routine free
 		// of locks and owned C++ data, so cancellation can always join safely.
 		inline auto write_terminal_record(void* aContext) -> void*
@@ -62,8 +76,8 @@ namespace bpr::adapters::mcp {
 			write.Complete.store(true, std::memory_order_release);
 			return nullptr;
 		}
-	} // namespace detail
 #endif
+	} // namespace detail
 
 	/// \brief Attempts one bounded record; diagnostic refusal never changes MCP.
 	///
@@ -72,15 +86,25 @@ namespace bpr::adapters::mcp {
 	/// No retry, queue, detached thread or inherited descriptor flag change.
 	/// The record may be lost/partial on failure; unavailable stderr cannot
 	/// report its own loss. This does not bound uninterruptible device/kernel
-	/// stalls. Windows retains synchronous delivery pending its native course.
+	/// stalls. Windows uses an owned synchronous-I/O writer with cancellation
+	/// and join; target-native qualification remains pending.
 	inline void write_terminal_diagnostic(const std::string_view aText)
 	{
 		if (aText.size() > maximum_terminal_diagnostic_bytes) {
 			return;
 		}
 #if defined(_WIN32)
-		static_cast<void>(std::fwrite(aText.data(), 1U, aText.size(), stderr));
-		static_cast<void>(std::fflush(stderr));
+		auto       write  = detail::terminal_write{ .Text = aText };
+		const auto writer = CreateThread(nullptr, 0U, detail::write_terminal_record, &write, 0U, nullptr);
+		if (writer == nullptr) {
+			return;
+		}
+		if (WaitForSingleObject(writer, 20U) == WAIT_TIMEOUT) {
+			do {
+				CancelSynchronousIo(writer);
+			} while (WaitForSingleObject(writer, 1U) == WAIT_TIMEOUT);
+		}
+		CloseHandle(writer);
 #else
 		// Called once before stdin is read and before stdout is written. Some
 		// POSIX systems direct a pipe's SIGPIPE to the process, so a writer-only

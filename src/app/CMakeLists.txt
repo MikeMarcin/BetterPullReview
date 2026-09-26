@@ -11,6 +11,7 @@ if(BPR_BUILD_QT)
             src/review_submission_workflow.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
+            src/terminal_diagnostics.cpp
     )
     if(BUILD_TESTING)
         target_link_libraries(better_pull_review_composition PRIVATE glaze::glaze)

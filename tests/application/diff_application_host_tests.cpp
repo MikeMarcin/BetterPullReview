@@ -1277,10 +1277,32 @@ namespace {
 			"the bound refuses before the bytes are held");
 	}
 
+	void test_pathological_diagnostic_content()
+	{
+		constexpr auto marker = "BPR_DIAGNOSTIC_PRIVATE_CANARY diff source\n";
+		for (const bool oversized : { false, true }) {
+			auto limits                = core::diff_compute_limits{ };
+			limits.MaximumBytesPerSide = 4096U;
+			fixture test{ { }, limits };
+			auto    content = std::string{ marker };
+			if (oversized) {
+				content.append(1024U * 1024U, 'x');
+			}
+			test.Blobs.LeftBytes  = bytes(content);
+			test.Blobs.RightBytes = bytes(content);
+			test.request(comparison_key());
+			test.run_effect_and_decision();
+			expect(oversized ? test.Projections.Failures.size() == 1U : test.Projections.Results.size() == 1U, "hostile source retains one typed diff terminal");
+			test.Host->shutdown();
+			expect(test.Host->is_quiescent(), "hostile diff source drains completely");
+		}
+	}
+
 } // namespace
 
 int main()
 {
+	test_pathological_diagnostic_content();
 	test_worker_and_cache_lanes();
 	test_exact_cache_key_collisions();
 	test_reordered_generation_and_stale_completion();

@@ -5,6 +5,7 @@
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
+#include "terminal_diagnostics.hpp"
 #include <QCryptographicHash>
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -4977,7 +4978,7 @@ namespace bpr::app {
 				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
 					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
 					try {
-						DecisionLane.post([this, registry, result = std::move(recovered)] {
+						DecisionLane.post([this, result = std::move(recovered)] {
 							// [[BPR-0817]]. A refusal is decided here, at startup, and it
 							// is not a failure of the quit. So it no longer sets the
 							// cleanup flag that a real quit turns into exit 1. Every
@@ -4987,8 +4988,8 @@ namespace bpr::app {
 							if (!result) {
 								AgentWorkspaceRecoveryFailure = static_cast<int>(result.error());
 								AgentWorkspaceRecoveryRefused = true;
-								std::cerr << "AGENT_WORKSPACE_RECOVERY_REFUSED:" << registry.string() << ':'
-										  << named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure) << '\n';
+								bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:"
+																		  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure)) << '\n';
 							}
 							// [[BPR-0808]]. Recovery is profile work, but its refusal is
 							// presented by every window: those open now, and any opened
@@ -6268,10 +6269,10 @@ namespace bpr::app {
 			case core::window_reading_restore_action::unavailable:
 
 #if defined(BPR_BUILD_TESTING)
-				QTextStream{ stderr } << "TAB_RESTORE_UNAVAILABLE:failed=" << TabFailed
-									  << " epoch_status=" << static_cast<int>(EpochHost->state().Status)
-									  << " pair=" << (EpochHost->state().AcceptedComparison == std::optional{ position.Comparison })
-									  << " diff=" << diffReady << " semantic=" << bool(surface->current_semantic_index()) << '\n';
+				bpr::app::detail::terminal_text_stream{ } << "TAB_RESTORE_UNAVAILABLE:failed=" << TabFailed
+														  << " epoch_status=" << static_cast<int>(EpochHost->state().Status)
+														  << " pair=" << (EpochHost->state().AcceptedComparison == std::optional{ position.Comparison })
+														  << " diff=" << diffReady << " semantic=" << bool(surface->current_semantic_index()) << '\n';
 #endif
 				finish_tab_load(core::document_tab_view_outcome::unavailable);
 				break;
@@ -13807,8 +13808,8 @@ namespace bpr::app {
 					// [[BPR-0881]]. A profile with no endpoint answers its own second launch with
 					// owner-busy forever, and skipping the refusal silently is how that survived.
 					const auto resolved = adapters::sqlite::profile_activation_endpoint(*root);
-					qWarning("profile-activation-endpoint-unavailable %s",
-							 resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error()));
+					bpr::app::detail::terminal_text_stream{ } << "profile-activation-endpoint-unavailable "
+															  << (resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error())) << '\n';
 				}
 			}
 			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
@@ -17263,7 +17264,7 @@ namespace bpr::app {
 			// running, so an unnamed refusal here reads as a repaint defect.
 			if (!location.has_value() || !location->Group.has_value()) {
 				if (aReport) {
-					QTextStream{ stderr }
+					bpr::app::detail::terminal_text_stream{ }
 						<< "UIFORETW_REVEAL_PAIR_UNLOCATED:found="
 						<< (location.has_value() ? 1 : 0) << '\n';
 				}
@@ -17271,7 +17272,7 @@ namespace bpr::app {
 			}
 			if (!navigate_to_group(aWorkbench, aResult, *location->Group)) {
 				if (aReport) {
-					QTextStream{ stderr }
+					bpr::app::detail::terminal_text_stream{ }
 						<< "UIFORETW_REVEAL_PAIR_UNSELECTED:groups="
 						<< static_cast<qulonglong>(aResult.Alignment.Groups.size())
 						<< '\n';
@@ -17334,7 +17335,7 @@ namespace bpr::app {
 				// [[BPR-0859]]. The horizontal scroll could not be placed, so
 				// no later visibility report would be meaningful.
 				if (aReport) {
-					QTextStream{ stderr }
+					bpr::app::detail::terminal_text_stream{ }
 						<< "UIFORETW_REVEAL_PAIR_UNPLACED:first_left="
 						<< static_cast<qulonglong>(aFirst.Left)
 						<< " second_left=" << static_cast<qulonglong>(aSecond.Left)
@@ -17362,7 +17363,7 @@ namespace bpr::app {
 					&& viewport.contains(*rect, true);
 				if (!shown && aReport) {
 					const auto* const vertical = aPane.verticalScrollBar();
-					QTextStream{ stderr }
+					bpr::app::detail::terminal_text_stream{ }
 						<< "UIFORETW_REVEAL_PAIR_OFFSCREEN:" << aName
 						<< " line=" << static_cast<qulonglong>(aLine)
 						<< " placed=" << (rect.has_value() ? 1 : 0) << " rect="
@@ -17599,7 +17600,7 @@ namespace bpr::app {
 			const std::size_t             aMinimum,
 			const char* const             aTerm)
 		{
-			auto stream = QTextStream{ stderr };
+			auto stream = bpr::app::detail::terminal_text_stream{ };
 			stream << aTerm << ":minimum=" << static_cast<qulonglong>(aMinimum)
 				   << " one_pane=" << (aWorkbench.one_pane_enabled() ? 1 : 0)
 				   << " variant=" << static_cast<int>(aProfile.variant()) << '\n';
@@ -18749,7 +18750,7 @@ namespace bpr::app {
 				if (++probe.Waits <= uiforetw_review_panes_waits) {
 					return result::pending;
 				}
-				QTextStream{ stderr }
+				bpr::app::detail::terminal_text_stream{ }
 					<< "UIFORETW_REVIEW_PANES_HIDDEN:left_shown="
 					<< (left != nullptr && left->isVisible())
 					<< " right_shown=" << (right != nullptr && right->isVisible())
@@ -19041,7 +19042,7 @@ namespace bpr::app {
 							: static_cast<qlonglong>(std::distance(computed.Alignment.Groups.begin(), found));
 					};
 					const auto selection = workbench->selection();
-					QTextStream{ stderr }
+					bpr::app::detail::terminal_text_stream{ }
 						<< aTerm << ":walked=" << static_cast<qulonglong>(probe.Waits)
 						<< " groups=" << static_cast<qulonglong>(computed.Alignment.Groups.size())
 						<< " target_group=" << groupIndex(*pairOne->Group)
@@ -19164,7 +19165,7 @@ namespace bpr::app {
 			if (!probe.Evidence.FilesDrawerToggle
 				|| !probe.Evidence.ConversationsDrawerToggle
 				|| !probe.Evidence.RepositoriesDrawerToggle) {
-				QTextStream{ stderr }
+				bpr::app::detail::terminal_text_stream{ }
 					<< "UIFORETW_DRAWER_TOGGLE_REFUSED:files="
 					<< probe.Evidence.FilesDrawerToggle << " conversations="
 					<< probe.Evidence.ConversationsDrawerToggle
@@ -19203,7 +19204,7 @@ namespace bpr::app {
 				}
 				// [[BPR-0859]]. Name the part of the focused layout that did
 				// not arrive, rather than the stage it did not leave.
-				QTextStream{ stderr }
+				bpr::app::detail::terminal_text_stream{ }
 					<< "UIFORETW_FOCUSED_LAYOUT_STALLED:rail="
 					<< qt::workbench_drawer_rail::width_pixels
 					<< " files=" << window->files_drawer()->width()
@@ -19372,12 +19373,12 @@ namespace bpr::app {
 			|| !secondUnselectedConnector.has_value()
 			|| !selectedReadable(*firstSelectedConnector)
 			|| !unselectedReadable(*secondUnselectedConnector)) {
-			QTextStream{ stderr } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
+			bpr::app::detail::terminal_text_stream{ } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
 			// [[BPR-1033]]. One term per clause of the condition above, in its
 			// order, with the values each clause reads, so a failure names the
 			// clause instead of the capture. After the marker, so every
 			// earlier line keeps its place.
-			auto       facts     = QTextStream{ stderr };
+			auto       facts     = bpr::app::detail::terminal_text_stream{ };
 			const auto rectangle = [&facts](const QRect& aRect) {
 				facts << aRect.x() << ',' << aRect.y() << ',' << aRect.width() << ',' << aRect.height();
 			};
@@ -19468,7 +19469,7 @@ namespace bpr::app {
 				*firstSelectedConnector, *firstUnselectedConnector)
 			|| !statesDistinct(
 				*secondSelectedConnector, *secondUnselectedConnector)) {
-			QTextStream{ stderr } << "UIFORETW_CAPTURE_SECOND_TARGET_FAILED\n";
+			bpr::app::detail::terminal_text_stream{ } << "UIFORETW_CAPTURE_SECOND_TARGET_FAILED\n";
 			return false;
 		}
 
@@ -19496,7 +19497,7 @@ namespace bpr::app {
 			|| !firstConnector.has_value() || !secondConnector.has_value()
 			|| !selectedReadable(*firstConnector)
 			|| !unselectedReadable(*secondConnector) || !selected(*firstPair)) {
-			QTextStream{ stderr } << "UIFORETW_CAPTURE_FINAL_TARGET_FAILED\n";
+			bpr::app::detail::terminal_text_stream{ } << "UIFORETW_CAPTURE_FINAL_TARGET_FAILED\n";
 			return false;
 		}
 
@@ -19653,7 +19654,7 @@ namespace bpr::app {
 			// [[BPR-0859]]. An exact row order that no longer holds names the
 			// rows it did find, so the difference is read from the run rather
 			// than from some thirty conjuncts in a debugger.
-			auto stream = QTextStream{ stderr };
+			auto stream = bpr::app::detail::terminal_text_stream{ };
 			stream << "UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions="
 				   << toolbarActions.size() << ",review_bar=" << reviewBarActions.size() << '\n';
 			for (auto index = qsizetype{ 0 }; index < toolbarActions.size();
@@ -19741,8 +19742,8 @@ namespace bpr::app {
 		window->updates_line_action()->trigger();
 		const auto refolded = settleFold(false);
 		if (!initiallyFolded || !opened || !refolded) {
-			QTextStream{ stderr } << "UIFORETW_UPDATES_LINE_FOLD_FAILED:initially_folded=" << initiallyFolded
-								  << " opened=" << opened << " refolded=" << refolded << '\n';
+			bpr::app::detail::terminal_text_stream{ } << "UIFORETW_UPDATES_LINE_FOLD_FAILED:initially_folded=" << initiallyFolded
+													  << " opened=" << opened << " refolded=" << refolded << '\n';
 			return false;
 		}
 		const auto comparisonRect = inWindow(*comparisonSurface);
@@ -19761,7 +19762,7 @@ namespace bpr::app {
 			|| comparisonRect.height() - openComparison.height() != openLineRect.height()) {
 			// [[BPR-1036]]. Name what took the room, not only how much is left:
 			// the folded stack, then the open one.
-			auto stream = QTextStream{ stderr };
+			auto stream = bpr::app::detail::terminal_text_stream{ };
 			stream << "UIFORETW_CAPTURE_LAYOUT_FAILED:" << widthRatio << ':'
 				   << heightRatio << ":open=" << openHeightRatio;
 			report_capture_layout(stream, *window, *comparisonSurface);

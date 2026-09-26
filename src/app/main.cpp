@@ -14,6 +14,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
+#include "src/terminal_diagnostics.hpp"
 #if defined(__linux__)
 	#include "src/xcb_activation_host.hpp"
 #endif
@@ -7575,7 +7576,8 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
-	const auto profileLaunch = parse_profile_launch_arguments(argc, argv);
+	bpr::app::detail::terminal_diagnostics terminalDiagnostics;
+	const auto                             profileLaunch = parse_profile_launch_arguments(argc, argv);
 	if (!profileLaunch) {
 		QTextStream{ stdout } << "PROFILE_LAUNCH_ARGUMENTS_INVALID\n";
 		return EXIT_FAILURE;
@@ -7612,7 +7614,7 @@ auto main(int argc, char** argv) -> int
 	}
 #endif
 	if (!bpr::app::restrict_installed_runtime(argc, argv)) {
-		std::fputs("INSTALLED_RUNTIME_REFUSED\n", stderr);
+		bpr::app::detail::record_terminal_diagnostic("INSTALLED_RUNTIME_REFUSED\n");
 		return EXIT_FAILURE;
 	}
 	// [[BPR-0974]]. A tests-disabled Windows image keeps its Qt resources in a
@@ -7625,9 +7627,9 @@ auto main(int argc, char** argv) -> int
 	if (!installedResources) {
 		const auto file    = bpr::app::installed_resources_file_name;
 		const auto refusal = bpr::app::installed_resources_refusal_name(installedResources.error());
-		QTextStream{ stderr } << "INSTALLED_RESOURCES_REFUSED:"
-							  << QLatin1StringView{ file.data(), static_cast<qsizetype>(file.size()) } << ':'
-							  << QLatin1StringView{ refusal.data(), static_cast<qsizetype>(refusal.size()) } << '\n';
+		bpr::app::detail::terminal_text_stream{ } << "INSTALLED_RESOURCES_REFUSED:"
+												  << QLatin1StringView{ file.data(), static_cast<qsizetype>(file.size()) } << ':'
+												  << QLatin1StringView{ refusal.data(), static_cast<qsizetype>(refusal.size()) } << '\n';
 		return EXIT_FAILURE;
 	}
 	QApplication qtApplication{ argc, argv };
@@ -8597,19 +8599,19 @@ auto main(int argc, char** argv) -> int
 				// a developer build names the refusal on stderr. A tests-disabled
 				// build compiles this away and says no more than before.
 				if (aResult.error() != bpr::app::github_application_startup_failure::owner_busy) {
-					QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: startup_failure=" << startup_failure_name(aResult.error()) << '\n';
+					bpr::app::detail::terminal_text_stream{ } << "STARTUP_FAILED_CAUSE: startup_failure=" << startup_failure_name(aResult.error()) << '\n';
 					// [[BPR-0877]]. `registry` above is a catch-all arm, so the
 					// profile refusal that actually fired follows on its own
 					// line: the line above keeps the exact wording a contract
 					// already matches.
 					if (const auto refusal = bpr::app::profile_startup_refusal_name(); !refusal.empty()) {
-						QTextStream{ stderr } << "STARTUP_PROFILE_REFUSAL:" << QString::fromStdString(refusal) << '\n';
+						bpr::app::detail::terminal_text_stream{ } << "STARTUP_PROFILE_REFUSAL:" << QString::fromStdString(refusal) << '\n';
 					}
 					// [[BPR-0882]]. `unavailable` is what every step between
 					// admission and the first window reports, so the arm that
 					// refused, and what it caught, follow on their own line.
 					if (const auto source = bpr::app::startup_failure_source(); !source.empty()) {
-						QTextStream{ stderr } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(source) << '\n';
+						bpr::app::detail::terminal_text_stream{ } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(source) << '\n';
 					}
 				}
 #endif
@@ -8760,7 +8762,7 @@ auto main(int argc, char** argv) -> int
 				// handler's cause line never sees it, so it is named here, the
 				// way the composition's own arms are.
 				bpr::app::detail::note_startup_failure("entry-point-run-setup", std::current_exception());
-				QTextStream{ stderr } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(bpr::app::startup_failure_source()) << '\n';
+				bpr::app::detail::terminal_text_stream{ } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(bpr::app::startup_failure_source()) << '\n';
 #endif
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				desktop->quit(EXIT_FAILURE);
@@ -8800,8 +8802,8 @@ auto main(int argc, char** argv) -> int
 		// stderr what threw, because the first Windows Qt-graph run spent
 		// thirty-five tests on a startup failure nothing could name
 		// (BPR-0435). A tests-disabled build says nothing more, as before.
-		QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: "
-							  << QString::fromStdString(bpr::app::detail::bounded_startup_diagnostic(error.what())) << '\n';
+		bpr::app::detail::terminal_text_stream{ } << "STARTUP_FAILED_CAUSE: "
+												  << QString::fromStdString(bpr::app::detail::bounded_startup_diagnostic(error.what())) << '\n';
 #else
 		static_cast<void>(error);
 #endif

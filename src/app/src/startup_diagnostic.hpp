@@ -6,34 +6,21 @@
 #include <string_view>
 
 namespace bpr::app::detail {
-	inline constexpr std::size_t startup_diagnostic_limit = 2048U;
-
-	/// \brief Captures at most 2 KiB of a developer exception for one terminal line.
-	/// \details Reads at most the limit plus one byte before allocating the result.
-	/// Truncation is explicit and ASCII controls become spaces. This is a resource
-	/// and terminal-format bound, not a privacy classifier for arbitrary text.
+	/// \brief Retains a known composition cause; arbitrary exception text is omitted.
 	[[nodiscard]] inline auto bounded_startup_diagnostic(const char* const aText) -> std::string
 	{
 		if (aText == nullptr) {
 			return "exception text unavailable";
 		}
-		auto length = std::size_t{ 0U };
-		while (length < startup_diagnostic_limit && aText[length] != '\0') {
-			++length;
+		constexpr std::string_view known = "Application data or installed Git is unavailable";
+		auto                       size  = std::size_t{ 0U };
+		while (size <= known.size() && aText[size] != '\0') {
+			++size;
 		}
-		auto text = std::string{ aText, length };
-		for (auto& character : text) {
-			const auto byte = static_cast<unsigned char>(character);
-			if (byte < 0x20U || byte == 0x7fU) {
-				character = ' ';
-			}
+		if (std::string_view{ aText, size } == known) {
+			return std::string{ known };
 		}
-		if (length == startup_diagnostic_limit && aText[length] != '\0') {
-			constexpr std::string_view suffix = " [truncated]";
-			text.resize(startup_diagnostic_limit - suffix.size());
-			text.append(suffix);
-		}
-		return text;
+		return "[omitted:unclassified-exception]";
 	}
 
 	/// \brief Names a caught developer exception without an unbounded what() copy.

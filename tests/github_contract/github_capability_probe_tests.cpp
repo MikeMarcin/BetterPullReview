@@ -1818,7 +1818,7 @@ namespace {
 		const auto        body       = fixture_json(fixture_object{ { "errors", fixture_array{ fixture_object{ { "message", "Unknown schema field 'newField' is unavailable. " + secret + "\n\x1b[31m forged line https://example.invalid/private?token=x ghp_synthetic_secret_marker" }, { "type", "UNFAMILIAR_SCHEMA_CODE" }, { "extensions", fixture_object{ { "code", secret } } } } } } });
 		const auto        result     = sanitize_capability_error(body, credential);
 		expect(result.State == application::diagnostic_summary_state::sanitized, "sanitized bounded GraphQL prose");
-		expect(result.text().find("newField") != std::string_view::npos && result.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "unknown code and useful schema prose retained");
+		expect(result.text().find("Unknown schema field") != std::string_view::npos && result.text().find("unclassified-symbol") != std::string_view::npos && result.text().find("unclassified-code") != std::string_view::npos && result.text().find("newField") == std::string_view::npos && result.text().find("UNFAMILIAR_SCHEMA_CODE") == std::string_view::npos, "unknown errors retain classified explanations without arbitrary symbols or codes");
 		for (const auto& forbidden : { secret, std::string{ "ghp_synthetic_secret_marker" }, std::string{ "https://" }, std::string{ "\n" }, std::string{ "\x1b" } }) {
 			expect(result.text().find(forbidden) == std::string_view::npos, "forbidden span absent before logging");
 		}
@@ -1839,9 +1839,14 @@ namespace {
 		expect(sanitize_capability_error(R"({"access_token":"authentication body"})", credential).text().empty(), "non-error fields excluded");
 		expect(sanitize_capability_error(R"({"errors":[{"message":42}]})", credential).text().empty(), "invalid prose omitted");
 		expect(sanitize_capability_error(body, { }).text().empty(), "missing credential boundary omits prose");
+		for (const auto* message : { "Unknown schema field __schema", "Field 'fields' doesn't exist on type '__Type'", "Field '__type' has a max repetition count of 2" }) {
+			const auto useful = sanitize_capability_error(fixture_json(fixture_object{ { "errors", fixture_array{ fixture_object{ { "message", message }, { "type", "NEVER_SEEN_CODE" } } } } }), credential);
+			expect(useful.text().find("message=\"[omitted") == std::string_view::npos && useful.text().find("unclassified-code") != std::string_view::npos && useful.text().find("NEVER_SEEN_CODE") == std::string_view::npos, "unknown codes retain useful classified schema explanations");
+		}
+
 		const std::string punctuationSecret = "abcd+efgh/ijkl";
 		const auto        selective         = sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField abcd%2Befgh%2Fijkl"}]})", std::as_bytes(std::span{ punctuationSecret }));
-		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("newField") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
+		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("Unknown schema field") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
 	}
 	// Opt-in acceptance probe: failure records the open privacy finding; it
 	// must not make retention of a synthetic content marker a passing contract.
@@ -1873,7 +1878,7 @@ namespace {
 				   "explicit null, trailing documents and malformed skipped Unicode remain invalid diagnostics");
 		}
 		const auto absent = sanitize_capability_error(R"({"errors":[{"message":"ok"}]})", credential);
-		expect(absent.State == application::diagnostic_summary_state::sanitized && absent.text() == "message=\"ok\" ", "absent optional markers differ from explicit null");
+		expect(absent.State == application::diagnostic_summary_state::sanitized && absent.text() == "message=\"[omitted:unclassified-content]\" ", "absent optional markers differ from explicit null");
 		for (const auto* extension : { "\"\\ud800\"", "\"\\udc00\"", "\"\xc3\x28\"", "[true,]" }) {
 			const auto body   = std::string{ "{\"errors\":[{\"type\":\"RATE_LIMITED\"}],\"extensions\":" } + extension + "}";
 			const auto result = normalize_capability_probe(capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = body });
