@@ -61,12 +61,32 @@ This is an engineering self-review, not independent acceptance.
 
 The production mutation branch remains
 `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
-The final reviewed LF-normalized full-source digest is
+The initial combined LF-normalized full-source digest was
 `0e4c85336be0478ef95f35f06b62555e2d68b2fde0dfd34d809cb22dbf0cd108`;
-the production manifest digest is
+the production manifest digest was
 `7ef93d74ebe71c2bf8cb058188a2ddd922b7ccf7e77f211b73251e8faa494d68`.
 The one formatting alignment is included in these values. Printing hashes is
 not behavioral evidence; focused verification is recorded in the final handoff.
+
+Strict main tidy subsequently found seven parameter-naming violations in the
+incoming Qt thread-menu lambdas and one in the test-only
+`DEFECT_COMMENTS_STALLED` diagnostic callback. The complete additional
+application diff renames that callback's `stream` parameter and its one use to
+`aStream`. The Qt corrections rename parameters and their uses only. These
+eight edits have no behavior, authority, storage or mutation effect. The
+final reviewed full-source digest is
+`6faa8a9eb2c4300f0fa51bce8123934e08a78a133c0e56bdead1b80fd17a5d6d`;
+the manifest digest is
+`5eaffa251bd63dc74d8173eb85f739d5b38f4cef59f5c3a71d3713cd00d3e551`.
+The production mutation digest above is unchanged.
+
+The first focused pass also caught a stale composed-GitHub test expecting the
+old defect buttons in Notes. Commit `beddf1f5` preserves its full Notes
+width/layout sweep, adds private note/promotion controls, excludes all thread
+controls from Notes, measures navigation in Comments, requires an exact-thread
+text badge and opens its five-action menu with Shift+F10. The 100/125/200
+replay passed, and its three Comments crops and full Notes-column render were
+inspected. No production expectation was removed or admission relaxed.
 
 ## Required pending boundaries
 

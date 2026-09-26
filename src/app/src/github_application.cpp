@@ -22084,7 +22084,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 		if (probe.Phase == state_type::phase::awaiting_ready && !window->conversation_panel()->isVisible()) {
-			return wait("DEFECT_COMMENTS_STALLED", [&](QTextStream& stream) { stream << course_modality_facts(aApplication); });
+			return wait("DEFECT_COMMENTS_STALLED", [&](QTextStream& aStream) { aStream << course_modality_facts(aApplication); });
 		}
 		const auto firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
 		const auto secondIdentity       = std::string{ "review-thread:PRRT_fixture_3" };

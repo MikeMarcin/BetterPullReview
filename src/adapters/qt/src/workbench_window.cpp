@@ -1588,7 +1588,7 @@ namespace bpr::qt {
 		auto* defectClose = new QDialogButtonBox{ QDialogButtonBox::Close, DefectDialog };
 		connect(defectClose, &QDialogButtonBox::rejected, DefectDialog, &QDialog::hide);
 		defectLayout->addWidget(defectClose);
-		ConversationPanel->cards()->set_context_menu_builder([this](QMenu& menu, const std::string& thread) { append_thread_defect_menu(menu, thread); });
+		ConversationPanel->cards()->set_context_menu_builder([this](QMenu& aMenu, const std::string& aThread) { append_thread_defect_menu(aMenu, aThread); });
 		ClassifyDefect = new QAction{
 			tr("Classify selected conversation as defect"), this
 		};
@@ -4803,7 +4803,7 @@ namespace bpr::qt {
 
 	void workbench_window::show_defect_dialog(core::defect_id aDefect)
 	{
-		const auto at = std::ranges::find(Defects, aDefect, [](const auto& history) { return history.Defect.Id; });
+		const auto at = std::ranges::find(Defects, aDefect, [](const auto& aHistory) { return aHistory.Defect.Id; });
 		if (at == Defects.end()) {
 			return;
 		}
@@ -4825,8 +4825,8 @@ namespace bpr::qt {
 		if (selected.isValid()) {
 			ConversationPanel->choose(selected);
 		}
-		const auto binding = std::ranges::find_if(DefectThreads, [&aThread](const auto& entry) { return entry.second == aThread; });
-		const auto history = binding == DefectThreads.end() ? Defects.end() : std::ranges::find(Defects, binding->first, [](const auto& entry) { return entry.Defect.Id; });
+		const auto binding = std::ranges::find_if(DefectThreads, [&aThread](const auto& aEntry) { return aEntry.second == aThread; });
+		const auto history = binding == DefectThreads.end() ? Defects.end() : std::ranges::find(Defects, binding->first, [](const auto& aEntry) { return aEntry.Defect.Id; });
 		if (history == Defects.end()) {
 			auto* action = aMenu.addAction(tr("Classify as defect…"));
 			action->setObjectName(QStringLiteral("threadClassifyDefect"));
@@ -4845,10 +4845,10 @@ namespace bpr::qt {
 		}
 		// The menu owns an exact history snapshot. A later selection cannot
 		// retarget an action already offered for this thread.
-		auto* snapshot = new defect_card_view{ [this](core::defect_command command) {
+		auto* snapshot = new defect_card_view{ [this](core::defect_command aCommand) {
 												  ++Statistics.DefectIntents;
 												  if (DefectDispatch) {
-													  DefectDispatch(std::move(command));
+													  DefectDispatch(std::move(aCommand));
 												  }
 											  },
 											   &aMenu };
@@ -4888,7 +4888,7 @@ namespace bpr::qt {
 		}
 		DefectCard->setVisible(true);
 		if (PendingDefectDialog) {
-			const auto thread = std::ranges::find_if(DefectThreads, [this](const auto& entry) { return entry.second == *PendingDefectDialog; });
+			const auto thread = std::ranges::find_if(DefectThreads, [this](const auto& aEntry) { return aEntry.second == *PendingDefectDialog; });
 			if (thread != DefectThreads.end()) {
 				const auto id = thread->first;
 				PendingDefectDialog.reset();

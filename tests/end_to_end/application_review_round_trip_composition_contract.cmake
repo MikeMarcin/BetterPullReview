@@ -72,6 +72,10 @@ endfunction()
 # unchanged whole-review admission and retained FilesDelta/queue/epoch paths.
 # Full review and 33-commit mapping: docs/verification/combined-main-integration-
 # 2026-09-26.md and .json; owning card BPR-1202. Mutation pin unchanged.
+# Follow-up strict tidy: the only additional pinned-source edit renames the
+# test-only DEFECT_COMMENTS_STALLED lambda parameter stream to aStream and its
+# one use. Runtime behavior and mutation digest remain unchanged. The combined
+# review record includes this exact delta and the focused replay.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -358,7 +362,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0e4c85336be0478ef95f35f06b62555e2d68b2fde0dfd34d809cb22dbf0cd108"
+		"6faa8a9eb2c4300f0fa51bce8123934e08a78a133c0e56bdead1b80fd17a5d6d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -509,7 +513,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7ef93d74ebe71c2bf8cb058188a2ddd922b7ccf7e77f211b73251e8faa494d68"
+        "5eaffa251bd63dc74d8173eb85f739d5b38f4cef59f5c3a71d3713cd00d3e551"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
