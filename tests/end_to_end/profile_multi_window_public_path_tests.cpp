@@ -621,6 +621,15 @@ try {
 			   && windowB->review_editor()->shown_receipt()->File == windowC->review_editor()->shown_receipt()->File
 			   && windowB->review_editor()->shown_receipt()->Material == windowC->review_editor()->shown_receipt()->Material,
 		   "receipt course starts with the same exact unread file material");
+	auto receiptContextC = core::bpr_window_context{ };
+	for (const auto context : owner->windows()) {
+		if (owner->window(context) == windowC) {
+			receiptContextC = context;
+		}
+	}
+	expect(receiptContextC.Window.value() != 0U, "sibling scaling sample binds an exact live context");
+	const auto receiptWorkB = app::detail::github_application_fixture_access::scaling_evidence(*owner, second);
+	const auto receiptWorkC = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
 	action(*windowB, "toggleSelectedFileReadAction")->trigger();
 	wait_for([&] {
 		return windowB->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()
@@ -628,6 +637,15 @@ try {
 			&& windowC->review_editor()->shown_receipt() == windowB->review_editor()->shown_receipt();
 	},
 			 "public read action refreshes the sibling's accepted receipt");
+	const auto receiptAfterB = app::detail::github_application_fixture_access::scaling_evidence(*owner, second);
+	const auto receiptAfterC = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
+	expect(receiptAfterB.Workbench.ActionabilityObservations == receiptWorkB.Workbench.ActionabilityObservations
+			   && receiptAfterC.Workbench.ActionabilityObservations == receiptWorkC.Workbench.ActionabilityObservations
+			   && receiptAfterB.Workbench.AcceptedObservationRows == receiptWorkB.Workbench.AcceptedObservationRows
+			   && receiptAfterC.Workbench.AcceptedObservationRows == receiptWorkC.Workbench.AcceptedObservationRows
+			   && receiptAfterB.Workbench.TargetedActionabilityUpdates == receiptWorkB.Workbench.TargetedActionabilityUpdates + 1U
+			   && receiptAfterC.Workbench.TargetedActionabilityUpdates == receiptWorkC.Workbench.TargetedActionabilityUpdates + 1U,
+		   "writer and sibling each apply one receipt delta without reobserving their catalogues");
 	expect(windowB->comparison_surface()->current_result() == receiptComparisonB
 			   && windowC->comparison_surface()->current_result() == receiptComparisonC
 			   && windowB->comparison_surface()->selection() == receiptSelectionB
@@ -659,6 +677,17 @@ try {
 		   "conversation receipt fanout preserves independent comparisons, selections, and scroll");
 	windowB->modality()->action(qt::review_modality::read)->trigger();
 	windowC->modality()->action(qt::review_modality::read)->trigger();
+	// Returning from Discuss restores the active tab on the next decision
+	// turn. Finish that public transition before choosing a new reading line.
+	QApplication::processEvents();
+	wait_for([&] {
+		const auto ready = [](const qt::workbench_window& aWindow) {
+			return std::ranges::any_of(aWindow.document_tabs()->tabs(), [](const auto& aTab) { return aTab.Active && aTab.State == core::document_tab_view_state::ready; })
+				&& !aWindow.comparison_surface()->geometry_pending();
+		};
+		return ready(*windowB) && ready(*windowC);
+	},
+			 "returning Read tabs finish restoring before choosing the draft line");
 	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
 			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
 		   "both windows select the same review anchor");
@@ -702,6 +731,7 @@ try {
 	expect(windowC->review_editor()->shown_receipt()->File == windowC->comparison_surface()->current_result()->Alignment.Key.File
 			   && windowC->review_editor()->shown_receipt()->Read != core::file_read_state::read,
 		   "second-file receipt belongs to its own material rather than the sibling's file");
+
 	expect(windowB->comparison_surface()->current_result() == pendingComparisonB
 			   && windowB->comparison_surface()->selection() == pendingSelectionB,
 		   "sibling file replacement preserves the writer's comparison and reading position");

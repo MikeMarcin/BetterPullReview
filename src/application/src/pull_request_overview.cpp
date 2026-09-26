@@ -153,6 +153,27 @@ namespace bpr::application {
 		}
 	} // namespace
 
+	auto project_overview_history(const std::span<const epoch_row_projection> aUpdates,
+								  const std::optional<core::git_commit_oid>&  aReviewed) -> overview_history_update
+	{
+		auto result = overview_history_update{ .Known = aReviewed.has_value() };
+		if (!aReviewed) {
+			return result;
+		}
+		const epoch_row_projection* first = nullptr;
+		const auto                  key   = [](const epoch_row_projection& aRow) { return std::pair{ aRow.ObservedAt, aRow.Id }; };
+		for (const auto& row : aUpdates) {
+			if (row.Head == *aReviewed && (first == nullptr || key(row) < key(*first))) {
+				first = &row;
+			}
+		}
+		if (first != nullptr) {
+			result.ReviewedAt = first->ObservedAt;
+			result.Uploads    = static_cast<std::size_t>(std::ranges::count_if(aUpdates, [&](const epoch_row_projection& aRow) { return key(aRow) >= key(*first); })) - 1U;
+		}
+		return result;
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
@@ -180,19 +201,11 @@ namespace bpr::application {
 			? aContext.Private->LastReviewedHead
 			: std::nullopt;
 		auto&      since        = projection.SinceLastReview;
-		since.Known             = lastReviewed.has_value();
-		auto updates            = aContext.Updates;
-		std::ranges::sort(updates, [](const epoch_row_projection& aLeft, const epoch_row_projection& aRight) {
-			return std::pair{ aLeft.ObservedAt, aLeft.Id } < std::pair{ aRight.ObservedAt, aRight.Id };
-		});
-		if (lastReviewed.has_value()) {
-			const auto reviewed = std::ranges::find(updates, *lastReviewed, &epoch_row_projection::Head);
-			if (reviewed != updates.end()) {
-				since.ReviewedAt = reviewed->ObservedAt;
-				since.Uploads    = static_cast<std::size_t>(std::distance(reviewed, updates.end())) - 1U;
-			}
-		}
-		const auto headMoved = lastReviewed.has_value()
+		const auto history      = project_overview_history(aContext.Updates, lastReviewed);
+		since.Known             = history.Known;
+		since.ReviewedAt        = history.ReviewedAt;
+		since.Uploads           = history.Uploads;
+		const auto headMoved    = lastReviewed.has_value()
 			&& (!aContext.Head.has_value() || *aContext.Head != *lastReviewed);
 		auto changedPaths = std::unordered_set<std::string_view>{ };
 		if (aContext.ChangedSinceReviewPaths.has_value()) {

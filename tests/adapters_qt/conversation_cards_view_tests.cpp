@@ -33,9 +33,12 @@ namespace {
 
 	struct fixture_json_options : glz::opts
 	{
+		// Glaze discovers these options by their required member names.
+		// NOLINTBEGIN(readability-identifier-naming)
 		bool validate_skipped             = true;
 		bool validate_trailing_whitespace = true;
 		bool escape_control_characters    = true;
+		// NOLINTEND(readability-identifier-naming)
 		constexpr fixture_json_options()
 		{
 			null_terminated       = false;

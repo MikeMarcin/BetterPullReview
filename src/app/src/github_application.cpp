@@ -5848,7 +5848,7 @@ namespace bpr::app {
 		// searched now. Posted, so discovery never publishes into the queue
 		// projection that is being delivered; coalesced, so a burst of
 		// projections asks once.
-		if (Discovery != nullptr && !DiscoveryReconcilePosted) {
+		if (!aProjection.UpdatedItem && Discovery != nullptr && !DiscoveryReconcilePosted) {
 			DiscoveryReconcilePosted = true;
 			try {
 				DecisionLane.post([this] {
@@ -5865,9 +5865,13 @@ namespace bpr::app {
 		// Presentation receives the exact accepted projection before any
 		// notification can activate back into it.
 
-		auto active = std::vector<queue_notification_transition>{ };
-		active.reserve(aProjection.Items.size());
-		for (const auto& item : aProjection.Items) {
+		if (aProjection.UpdatedItem && (!QueueActivity || QueueActivity->Ref != aProjection.UpdatedItem->Ref)) {
+			return;
+		}
+		const auto items  = aProjection.UpdatedItem ? std::span<const core::queue_item>{ &*aProjection.UpdatedItem, 1U } : std::span<const core::queue_item>{ aProjection.Items };
+		auto       active = std::vector<queue_notification_transition>{ };
+		active.reserve(items.size());
+		for (const auto& item : items) {
 			const auto trustedActivity = QueueActivity.has_value()
 				&& QueueActivity->Session == aProjection.Session
 				&& QueueActivity->Ref == item.Ref
@@ -6089,7 +6093,7 @@ namespace bpr::app {
 			const auto  diffReady   = publication && position.File == publication->Request.File.File
 				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
 				&& surface->current_context() && surface->current_context()->Key == publication->Key;
-			const auto action = ReadingRestoration->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && std::ranges::find(WorkbenchHost->actionable(), *position.File) != WorkbenchHost->actionable().end(), .Failed = ReadingFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
+			const auto action = ReadingRestoration->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && WorkbenchHost->contains_file(*position.File), .Failed = ReadingFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
 			switch (action) {
 			case core::window_reading_restore_action::select_comparison:
 				clear_diff_selection();
@@ -6262,7 +6266,7 @@ namespace bpr::app {
 			const auto  diffReady   = publication && position.File == publication->Request.File.File
 				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
 				&& surface->current_context() && surface->current_context()->Key == publication->Key;
-			const auto action = TabDriver->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && std::ranges::find(WorkbenchHost->actionable(), *position.File) != WorkbenchHost->actionable().end(), .Failed = TabFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
+			const auto action = TabDriver->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && WorkbenchHost->contains_file(*position.File), .Failed = TabFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
 			switch (action) {
 			case core::window_reading_restore_action::select_comparison:
 				if (EpochHost->state().AcceptedComparison != std::optional{ position.Comparison }) {
@@ -9492,13 +9496,13 @@ namespace bpr::app {
 				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
 				overviewPublished = ReviewLedgerHost->refresh_receipt().has_value();
 			}
-			if (aChanges.Receipts && !own && WorkbenchHost) {
-				// Another file may have re-entered the actionable order while
-				// this view was showing different or unavailable material.
-				// [[BPR-0972]]. This window's own commit already re-observed the
-				// order when it changed actionability.
-				WorkbenchHost->refresh_actionability();
+			if (aChanges.Receipts && !own && !overviewPublished && WorkbenchHost && ReviewLedgerAuthority) {
+				// The selected exact receipt already published its delta above.
+				// Without exact material every retained file is conservative again;
+				// restoring withheld rows needs no new catalogue observation.
+				WorkbenchHost->retain_actionability(*ReviewLedgerAuthority, ReviewLedgerHost->retained().File, true);
 			}
+
 			if (aChanges.Conversations && !own) {
 				ReviewLedgerHost->invalidate_conversation_receipts();
 				publish_read_state();
@@ -9639,6 +9643,8 @@ namespace bpr::app {
 		/// against. A selection no longer rebuilds the overview, so a moved
 		/// head republishes it on its own.
 		std::optional<core::git_commit_oid> OverviewHead;
+		std::optional<core::git_commit_oid> OverviewReviewedHead;
+		std::uint64_t                       OverviewHistoryUpdates = 0U;
 		/// [[BPR-0972]]. The changed-since-review set was refused or answered
 		/// stale and must be asked for again. Every overview publication used
 		/// to ask again; now the next epoch update or receipt change does.
@@ -9924,8 +9930,9 @@ namespace bpr::app {
 					context.Private = std::move(*privateState);
 				}
 			}
-			context.Updates = EpochRows.rows();
-			context.Head    = OverviewHead;
+			OverviewReviewedHead = context.Private ? context.Private->LastReviewedHead : std::nullopt;
+			context.Updates      = EpochRows.rows();
+			context.Head         = OverviewHead;
 			if (context.Private.has_value() && context.Private->LastReviewedHead.has_value()
 				&& context.Head.has_value()
 				&& *context.Head != *context.Private->LastReviewedHead) {
@@ -10807,7 +10814,7 @@ namespace bpr::app {
 					return;
 				}
 				const auto file = core::file_identity_of(target.Path);
-				if (std::ranges::find(WorkbenchHost->actionable(), file) == WorkbenchHost->actionable().end()) {
+				if (!WorkbenchHost->contains_file(file)) {
 					finish_link_location(core::pull_request_location_refusal::file_not_in_pull_request, true);
 					return;
 				}
@@ -12307,8 +12314,16 @@ namespace bpr::app {
 			const auto acceptedHead = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
-			if (aUpdate.Catalog.has_value() || acceptedHead != OverviewHead || OverviewChangedPathsPending) {
+			if (acceptedHead != OverviewHead || OverviewChangedPathsPending || !PublishedOverview) {
 				publish_overview();
+			} else if (aUpdate.Catalog) {
+				const auto history = application::project_overview_history(EpochRows.rows(), OverviewReviewedHead);
+				auto&      since   = PublishedOverview->SinceLastReview;
+				since.Known        = history.Known;
+				since.ReviewedAt   = history.ReviewedAt;
+				since.Uploads      = history.Uploads;
+				++OverviewHistoryUpdates;
+				Window->publish(history);
 			}
 			refresh_agent_authority();
 			const auto* comparison = aUpdate.Transition.has_value()
@@ -15165,14 +15180,24 @@ namespace bpr::app {
 		};
 	}
 
-	auto detail::github_application_fixture_access::scaling_evidence(const github_application& aApplication) noexcept -> application_scaling_evidence
+	auto detail::github_application_fixture_access::scaling_evidence(const github_application& aApplication, const std::optional<core::bpr_window_context> aContext) noexcept -> application_scaling_evidence
 	{
-		const auto& owner = *aApplication.Implementation;
+		auto* selected = aApplication.Implementation.get();
+		if (aContext) {
+			const auto found = aApplication.Sessions.find(*aContext);
+			if (found == aApplication.Sessions.end()) {
+				return { };
+			}
+			selected = found->second.get();
+		}
+		const auto& owner = *selected;
 		return {
 			.Workbench                  = owner.WorkbenchHost ? owner.WorkbenchHost->work_statistics() : application::workbench_work_statistics{ },
 			.Ledger                     = owner.ReviewLedgerHost ? owner.ReviewLedgerHost->statistics() : application::review_ledger_host_statistics{ },
+			.Queue                      = owner.QueueHost ? owner.QueueHost->statistics() : application::review_queue_host_statistics{ },
 			.OverviewBuilds             = owner.OverviewBuilds,
 			.OverviewReceiptVisits      = owner.OverviewReceiptVisits,
+			.OverviewHistoryUpdates     = owner.OverviewHistoryUpdates,
 			.ConversationThreadsVisited = owner.ConversationThreadsVisited,
 			.ConversationPostsVisited   = owner.ConversationPostsVisited,
 			.OverviewReceiptUpdates     = owner.OverviewReceiptUpdates,

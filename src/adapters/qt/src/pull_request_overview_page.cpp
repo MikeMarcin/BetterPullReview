@@ -1498,20 +1498,10 @@ namespace bpr::qt {
 
 		rebuild_participants(aProjection.Participants);
 
-		if (!since.Known) {
-			SinceHeading->setText(QStringLiteral("Since my last review: none yet"));
-		} else if (since.ReviewedAt.has_value()) {
-			const auto when = QDateTime::fromMSecsSinceEpoch(since.ReviewedAt->value(), QTimeZone::UTC).toLocalTime();
-			SinceHeading->setText(QStringLiteral("Since my last review on %1").arg(when.toString(QStringLiteral("MMM d"))));
-		} else {
-			SinceHeading->setText(QStringLiteral("Since my last review"));
-		}
+		apply_history({ .Known = since.Known, .ReviewedAt = since.ReviewedAt, .Uploads = since.Uploads });
 		const auto countOr = [](const std::optional<std::size_t>& aCount, const QString& aAbsent) {
 			return aCount.has_value() ? count_text(*aCount) : aAbsent;
 		};
-		set_value(overview_value::uploads,
-				  since.Known ? countOr(since.Uploads, QStringLiteral("not retained")) : QStringLiteral("—"),
-				  since.Uploads.value_or(0U) != 0U);
 		set_value(overview_value::files_changed,
 				  since.Known ? countOr(since.FilesChanged, QStringLiteral("not yet resolved")) : QStringLiteral("—"),
 				  since.FilesChanged.value_or(0U) != 0U);
@@ -1565,6 +1555,28 @@ namespace bpr::qt {
 		Entry->setToolTip(entryDescription);
 		Entry->setAccessibleDescription(Entry->toolTip());
 		Entry->setEnabled(aProjection.EntryPath.has_value());
+	}
+
+	void pull_request_overview_page::apply_history(const application::overview_history_update& aUpdate)
+	{
+		if (!Projection) {
+			return;
+		}
+		auto& since      = Projection->SinceLastReview;
+		since.Known      = aUpdate.Known;
+		since.ReviewedAt = aUpdate.ReviewedAt;
+		since.Uploads    = aUpdate.Uploads;
+		if (!since.Known) {
+			SinceHeading->setText(QStringLiteral("Since my last review: none yet"));
+		} else if (since.ReviewedAt) {
+			const auto when = QDateTime::fromMSecsSinceEpoch(since.ReviewedAt->value(), QTimeZone::UTC).toLocalTime();
+			SinceHeading->setText(QStringLiteral("Since my last review on %1").arg(when.toString(QStringLiteral("MMM d"))));
+		} else {
+			SinceHeading->setText(QStringLiteral("Since my last review"));
+		}
+		set_value(overview_value::uploads,
+				  since.Known ? (since.Uploads ? count_text(*since.Uploads) : QStringLiteral("not retained")) : QStringLiteral("—"),
+				  since.Uploads.value_or(0U) != 0U);
 	}
 
 	void pull_request_overview_page::apply_receipts(const application::overview_receipt_update& aUpdate)

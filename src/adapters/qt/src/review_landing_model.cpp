@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <set>
 #include <tuple>
 
 namespace bpr::qt {
@@ -400,30 +401,33 @@ namespace bpr::qt {
 	auto review_landing_model::position_of(
 		const core::pull_request_ref& aRef) const -> std::optional<std::size_t>
 	{
-		const auto found = std::ranges::find(Items, aRef, &core::queue_item::Ref);
-		if (found == Items.end()) {
+		const auto found = Positions.find(aRef);
+		if (found == Positions.end()) {
 			return std::nullopt;
 		}
-		return static_cast<std::size_t>(found - Items.begin());
+		return found->second;
 	}
 
 	void review_landing_model::apply(
 		const std::span<const core::queue_item> aQueue)
 	{
+		auto identities = std::set<core::pull_request_ref>{ };
+		for (const auto& item : aQueue) {
+			identities.insert(item.Ref);
+		}
 		// Removals first, from the back, so every index stays valid while they
 		// are issued. Doing them forwards would leave each subsequent index
 		// pointing at the wrong row.
 		for (auto index = Items.size(); index > 0U; --index) {
 			const auto position = index - 1U;
-			const auto present  = std::ranges::any_of(
-				aQueue, [&](const core::queue_item& aCandidate) {
-					return aCandidate.Ref == Items[position].Ref;
-				});
+			const auto present  = identities.contains(Items[position].Ref);
 			if (present) {
 				continue;
 			}
 			beginRemoveRows({ }, static_cast<int>(position), static_cast<int>(position));
+			Positions.erase(Items[position].Ref);
 			Items.erase(Items.begin() + static_cast<std::ptrdiff_t>(position));
+			index_positions(position, Items.size());
 			endRemoveRows();
 		}
 
@@ -440,6 +444,7 @@ namespace bpr::qt {
 					{ }, static_cast<int>(target), static_cast<int>(target));
 				Items.insert(
 					Items.begin() + static_cast<std::ptrdiff_t>(target), wanted);
+				index_positions(target, Items.size());
 				endInsertRows();
 				continue;
 			}
@@ -456,6 +461,7 @@ namespace bpr::qt {
 				Items.insert(
 					Items.begin() + static_cast<std::ptrdiff_t>(target),
 					std::move(moved));
+				index_positions(target, *found + 1U);
 				endMoveRows();
 			}
 
@@ -469,6 +475,42 @@ namespace bpr::qt {
 		adopt_accounts();
 	}
 
+	void review_landing_model::index_positions(const std::size_t aFirst, const std::size_t aEnd)
+	{
+		for (auto row = aFirst; row < aEnd; ++row) {
+			Positions.insert_or_assign(Items[row].Ref, row);
+		}
+	}
+
+	auto review_landing_model::item_for(const core::pull_request_ref& aRef) const -> std::optional<core::queue_item>
+	{
+		const auto found = position_of(aRef);
+		return found ? std::optional{ Items[*found] } : std::nullopt;
+	}
+
+	void review_landing_model::apply_item(const core::queue_item& aItem)
+	{
+		const auto found = position_of(aItem.Ref);
+		if (!found || Items[*found] == aItem) {
+			return;
+		}
+		const auto insertion = std::ranges::lower_bound(Items, aItem, core::queue_precedes);
+		auto       target    = static_cast<std::size_t>(insertion - Items.begin());
+		if (target > *found) {
+			--target;
+		}
+		if (target != *found) {
+			beginMoveRows({ }, static_cast<int>(*found), static_cast<int>(*found), { }, static_cast<int>(target > *found ? target + 1U : target));
+			auto moved = std::move(Items[*found]);
+			Items.erase(Items.begin() + static_cast<std::ptrdiff_t>(*found));
+			Items.insert(Items.begin() + static_cast<std::ptrdiff_t>(target), std::move(moved));
+			index_positions(std::min(target, *found), std::max(target, *found) + 1U);
+			endMoveRows();
+		}
+		Items[target] = aItem;
+		emit dataChanged(index(static_cast<int>(target)), index(static_cast<int>(target)));
+	}
+
 	void review_landing_model::clear()
 	{
 		if (Items.empty()) {
@@ -476,6 +518,7 @@ namespace bpr::qt {
 		}
 		beginRemoveRows({ }, 0, static_cast<int>(Items.size() - 1U));
 		Items.clear();
+		Positions.clear();
 		endRemoveRows();
 		adopt_accounts();
 	}

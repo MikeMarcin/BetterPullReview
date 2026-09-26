@@ -3,7 +3,9 @@
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
+#include "bpr/qt/review_landing_model.hpp"
 #include <QApplication>
+#include <QPersistentModelIndex>
 
 #include <cstdlib>
 #include <iostream>
@@ -331,11 +333,85 @@ namespace {
 			   "once the queue lists the open pull request its row is current, without an open");
 		view.hide();
 	}
+	void test_incremental_queue_matches_complete_projection()
+	{
+		for (const auto count : { 32, 4096 }) {
+			for (const auto& filter : { QString{ }, QStringLiteral("visible") }) {
+				auto items = std::vector<core::queue_item>{ };
+				for (auto number = 1; number <= count; ++number) {
+					items.push_back(item("fixture/repo" + std::to_string(number / 4), number, core::attention_bucket::quiet,
+										 core::github_role::reviewer, "visible " + std::to_string(number)));
+				}
+				auto  view    = qt::repositories_tree_view{ };
+				auto* model   = view.tree_model();
+				auto  landing = qt::review_landing_model{ };
+				view.set_filter(filter);
+				view.apply(items);
+				landing.apply(core::ordered_queue(items));
+				auto resetCount = 0U;
+				QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++resetCount; });
+				QObject::connect(&landing, &QAbstractItemModel::modelReset, [&] { ++resetCount; });
+				const auto retained = QPersistentModelIndex{ model->index_for(items.back().Ref) };
+				const auto parent   = QPersistentModelIndex{ retained.parent() };
+				view.collapse(parent);
+				const auto before = model->work();
+				// Move the last repository to the front, then the item within it;
+				// a title-only edit must also change exactly its displayed facts.
+				for (const auto bucket : { core::attention_bucket::initial_review_requested, core::attention_bucket::quiet }) {
+					items.back().Bucket               = bucket;
+					items.back().Facts.Title          = "visible changed";
+					items.back().Facts.UnseenComments = 2U;
+					view.apply_item(items.back());
+					landing.apply_item(items.back());
+					auto complete = qt::repositories_tree_model{ };
+					complete.set_filter(filter);
+					complete.apply(items);
+					expect(model->rowCount() == complete.rowCount(), "delta and complete repository count agree");
+					for (auto root = 0; root < complete.rowCount(); ++root) {
+						const auto actualRoot   = model->index(root, 0);
+						const auto expectedRoot = complete.index(root, 0);
+						expect(actualRoot.data() == expectedRoot.data() && model->rowCount(actualRoot) == complete.rowCount(expectedRoot), "repository order and child count equal complete projection");
+						for (auto child = 0; child < complete.rowCount(expectedRoot); ++child) {
+							expect(model->item_at(model->index(child, 0, actualRoot)) == complete.item_at(complete.index(child, 0, expectedRoot)), "delta child facts and ordering equal complete projection");
+						}
+					}
+					const auto ordered = core::ordered_queue(items);
+					for (std::size_t row = 0U; row < ordered.size(); ++row) {
+						expect(landing.item_at(landing.index(static_cast<int>(row))) == ordered[row], "landing delta equals core complete order");
+					}
+					expect(retained.isValid() && model->item_at(retained) == items.back() && retained.parent() == parent && !view.isExpanded(parent), "identity, parent and collapse survive both root moves");
+				}
+				const auto beforeTitle   = model->work();
+				items.back().Facts.Title = "visible title only";
+				view.apply_item(items.back());
+				expect(model->work().PositionalRowsUpdated == beforeTitle.PositionalRowsUpdated, "title-only delta does no positional reindexing");
+				const auto after = model->work();
+				expect(after.FullBuilds == before.FullBuilds && after.CatalogueRowsVisited == before.CatalogueRowsVisited && after.ChangedRepositoryRowsVisited - before.ChangedRepositoryRowsVisited <= 8U && resetCount == 0U, "single-item changes inspect only the changed repository and never reset");
+				// Negative-control shape: full catalogue replacement, empty branch,
+				// saved-only node and filtering still agree without reset.
+				items.erase(items.begin(), items.begin() + 4);
+				view.apply(items);
+				view.set_filter(QStringLiteral("no-match"));
+				expect(model->rowCount() == 0 && resetCount == 0U, "full removal and filter use row signals, not reset");
+				const auto filtered      = model->work();
+				items.back().Facts.Title = "no-match now visible";
+				view.apply_item(items.back());
+				expect(model->rowCount() == 1 && model->item_count() == 1U && model->work().FullBuilds == filtered.FullBuilds, "newly matching item inserts its root without a catalogue rebuild");
+				items.back().Facts.Title = "hidden again";
+				view.apply_item(items.back());
+				expect(model->rowCount() == 0 && resetCount == 0U, "last matching item removes its root without reset");
+				std::cout << "queue-qt records=" << count << " changed=2 catalogue_visits=" << after.CatalogueRowsVisited - before.CatalogueRowsVisited
+						  << " active_repository_visits=" << after.ChangedRepositoryRowsVisited - before.ChangedRepositoryRowsVisited << " resets=" << resetCount << '\n';
+			}
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_incremental_queue_matches_complete_projection();
 	test_tree_groups_the_queue_by_repository_with_reasons();
 	test_saved_repositories_are_rows_with_save_and_forget();
 	test_the_filter_is_resident_keeps_context_and_the_chosen_row();

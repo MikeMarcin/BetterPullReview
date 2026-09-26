@@ -102,9 +102,8 @@ namespace bpr::application {
 	auto queue_enrollment_register::find(const core::pull_request_ref& aRef)
 		-> enrollment_record*
 	{
-		const auto found
-			= std::ranges::find(Records, aRef, &enrollment_record::Ref);
-		return found == Records.end() ? nullptr : &*found;
+		const auto found = RecordIndex.find(aRef);
+		return found == RecordIndex.end() ? nullptr : &Records[found->second];
 	}
 
 	void queue_enrollment_register::enroll(
@@ -132,6 +131,7 @@ namespace bpr::application {
 			existing->Departed             = enrollment_departure::none;
 			return;
 		}
+		RecordIndex.emplace(aRef, Records.size());
 		Records.push_back(enrollment_record{
 			.Ref        = aRef,
 			.Membership = aMembership,
@@ -202,6 +202,7 @@ namespace bpr::application {
 			if (record == nullptr) {
 				auto membership    = core::queue_membership{ };
 				flagOf(membership) = true;
+				RecordIndex.emplace(ref, Records.size());
 				Records.push_back(enrollment_record{ .Ref = ref, .Membership = membership, .Departed = enrollment_departure::none });
 				changed.push_back(ref);
 				continue;
@@ -240,6 +241,7 @@ namespace bpr::application {
 			if (!aFollowed) {
 				return false;
 			}
+			RecordIndex.emplace(aRef, Records.size());
 			Records.push_back(enrollment_record{ .Ref = aRef, .Membership = { .Followed = true }, .Departed = enrollment_departure::none });
 			return true;
 		}
@@ -275,12 +277,11 @@ namespace bpr::application {
 		const core::pull_request_ref& aRef) const
 		-> std::optional<enrollment_record>
 	{
-		const auto found
-			= std::ranges::find(Records, aRef, &enrollment_record::Ref);
-		if (found == Records.end()) {
+		const auto found = RecordIndex.find(aRef);
+		if (found == RecordIndex.end()) {
 			return std::nullopt;
 		}
-		return *found;
+		return Records[found->second];
 	}
 
 	auto queue_enrollment_register::project(
@@ -413,6 +414,15 @@ namespace bpr::application {
 				if (Closing) {
 					return;
 				}
+				if (aProjection.UpdatedItem) {
+					Retained.insert_or_assign(aProjection.UpdatedItem->Ref, *aProjection.UpdatedItem);
+				} else {
+					Retained.clear();
+					for (const auto& item : aProjection.Items) {
+						Retained.emplace(item.Ref, item);
+					}
+				}
+				Complete.reset();
 				Latest = std::make_shared<const queue_landing_projection>(std::move(aProjection));
 				++Revision;
 				if (Observer) {
@@ -421,7 +431,7 @@ namespace bpr::application {
 						Observer.reset();
 						Observations.clear();
 					} else {
-						Observations.push_back(Latest);
+						Observations.push_back(Windows == nullptr ? snapshot() : Latest);
 					}
 				}
 				drain();
@@ -437,6 +447,24 @@ namespace bpr::application {
 			[[nodiscard]] auto failed() const noexcept -> bool { return Failed; }
 
 		private:
+			[[nodiscard]] auto snapshot() -> std::shared_ptr<const queue_landing_projection>
+			{
+				if (!Latest->UpdatedItem) {
+					return Latest;
+				}
+				if (!Complete) {
+					auto projection = *Latest;
+					projection.UpdatedItem.reset();
+					projection.Items.reserve(Retained.size());
+					for (const auto& [ref, item] : Retained) {
+						static_cast<void>(ref);
+						projection.Items.push_back(item);
+					}
+					projection.Items = core::ordered_queue(projection.Items);
+					Complete         = std::make_shared<const queue_landing_projection>(std::move(projection));
+				}
+				return Complete;
+			}
 			[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool
 			{
 				return aContext.Profile == Profile && aContext.Window.value() != 0U && aContext.Generation.value() != 0U
@@ -471,7 +499,7 @@ namespace bpr::application {
 				// Copy only the exact attachment and shared immutable payload. A callback
 				// can erase/reallocate the live list or publish a newer revision safely.
 				const auto selected   = *found; // NOLINT(performance-unnecessary-copy-initialization): callbacks may erase the referenced consumer.
-				const auto projection = Latest;
+				const auto projection = found->Delivered + 1U == Revision && found->Delivered != 0U ? Latest : snapshot();
 				found->Delivered      = Revision;
 				try {
 					if (current(selected.Context)) {
@@ -504,6 +532,8 @@ namespace bpr::application {
 			std::shared_ptr<queue_landing_projection_port>              Observer;
 			std::vector<consumer>                                       Consumers;
 			std::shared_ptr<const queue_landing_projection>             Latest;
+			std::shared_ptr<const queue_landing_projection>             Complete;
+			std::map<core::pull_request_ref, core::queue_item>          Retained;
 			std::deque<std::shared_ptr<const queue_landing_projection>> Observations;
 			std::uint64_t                                               NextConsumer = 1U;
 			std::uint64_t                                               Revision     = 0U;
@@ -669,12 +699,13 @@ namespace bpr::application {
 			publish();
 		}
 
-		void publish()
+		void publish(std::optional<core::queue_item> aItem = std::nullopt)
 		{
+			const auto itemUpdate = aItem.has_value();
 			Projection.publish(queue_landing_projection{
 				.Status            = Status,
 				.Rules             = Rules,
-				.Items             = Enrollments.project(Activity, &Statistics.Projection),
+				.Items             = itemUpdate ? std::vector<core::queue_item>{ } : Enrollments.project(Activity, &Statistics.Projection),
 				.Preferences       = Preferences,
 				.Session           = Scheduler.session(),
 				.Online            = Scheduler.online(),
@@ -683,7 +714,9 @@ namespace bpr::application {
 				.SavedServers      = SavedServers,
 				.Failure           = Failure,
 				.Discovery         = Discovery,
+				.UpdatedItem       = std::move(aItem),
 			});
+			Statistics.ItemPublications += itemUpdate ? 1U : 0U;
 			++Statistics.Publications;
 		}
 
@@ -1242,17 +1275,17 @@ namespace bpr::application {
 				.Author         = aRead.Author,
 				.UnseenComments = aObservation.UnseenComments,
 			};
-			const auto found = std::ranges::find(
-				Activity, aRef, &queue_activity_report::Ref);
-			if (found == Activity.end()) {
+			const auto found = ActivityIndex.find(aRef);
+			if (found == ActivityIndex.end()) {
+				ActivityIndex.emplace(aRef, Activity.size());
 				Activity.push_back(queue_activity_report{
 					.Ref         = aRef,
 					.Observation = aObservation,
 					.Facts       = std::move(facts),
 				});
 			} else {
-				found->Observation = aObservation;
-				found->Facts       = std::move(facts);
+				Activity[found->second].Observation = aObservation;
+				Activity[found->second].Facts       = std::move(facts);
 			}
 		}
 
@@ -1303,6 +1336,16 @@ namespace bpr::application {
 			// item still leaves with its rule, as RFC-BPR-0010 decided.
 			membership.Reviewed = existing.has_value() && existing->present() && aActivity.ReviewedByMe
 				&& (existing->Membership.discovered() || existing->Membership.Reviewed);
+			if (existing && existing->present()) {
+				auto candidate = queue_enrollment_register{ };
+				candidate.enroll(existing->Ref, existing->Membership);
+				candidate.enroll(existing->Ref, membership);
+				if (membership.enrolled() && candidate.record_for(existing->Ref) == existing) {
+					const auto& report = Activity[ActivityIndex.at(existing->Ref)];
+					publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
+					return;
+				}
+			}
 			if (membership.enrolled()) {
 				if (!can_enroll(aCompletion.Ref, membership)) {
 					return;
@@ -1323,7 +1366,12 @@ namespace bpr::application {
 				persist_record(aCompletion.Ref, std::move(prior));
 				return;
 			}
-			publish();
+			if (existing && existing->present()) {
+				const auto& report = Activity[ActivityIndex.at(existing->Ref)];
+				publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
+			} else {
+				publish();
+			}
 		}
 
 		/// [[BPR-0989]]. What a discovery answer read about each pull request,
@@ -1335,8 +1383,9 @@ namespace bpr::application {
 			for (const auto& found : aAnswer.PullRequests) {
 				const auto ref      = core::pull_request_ref{ .Host = aAnswer.Session.Host, .Account = aAnswer.Session.Account, .Repository = aAnswer.Repository, .Number = found.Number };
 				const auto known    = aAnswer.Requested || found.Detailed;
-				auto       existing = std::ranges::find(Activity, ref, &queue_activity_report::Ref);
-				if (existing == Activity.end()) {
+				const auto position = ActivityIndex.find(ref);
+				if (position == ActivityIndex.end()) {
+					ActivityIndex.emplace(ref, Activity.size());
 					Activity.push_back(queue_activity_report{
 						.Ref         = ref,
 						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known },
@@ -1344,6 +1393,7 @@ namespace bpr::application {
 					});
 					continue;
 				}
+				auto* existing         = &Activity[position->second];
 				existing->Facts.Title  = found.Title;
 				existing->Facts.Author = found.Author;
 				if (found.Detailed) {
@@ -1393,7 +1443,8 @@ namespace bpr::application {
 				report_collection_limit();
 				return;
 			}
-			if (aIntent.Follow && !aIntent.Title.empty() && std::ranges::find(Activity, aIntent.Ref, &queue_activity_report::Ref) == Activity.end()) {
+			if (aIntent.Follow && !aIntent.Title.empty() && !ActivityIndex.contains(aIntent.Ref)) {
+				ActivityIndex.emplace(aIntent.Ref, Activity.size());
 				Activity.push_back(queue_activity_report{ .Ref = aIntent.Ref, .Observation = { .Known = false }, .Facts = { .Title = aIntent.Title } });
 			}
 			persist_record(aIntent.Ref, std::move(prior));
@@ -1548,6 +1599,7 @@ namespace bpr::application {
 		std::optional<queue_presentation_preferences> QueuedPreferences;
 		std::optional<queue_presentation_preferences> PendingPreferences;
 		std::vector<queue_activity_report>            Activity;
+		std::map<core::pull_request_ref, std::size_t> ActivityIndex;
 		std::vector<outstanding_request>              Outstanding;
 		std::optional<core::pull_request_ref>         LastRef;
 		std::optional<core::pull_request_observation> LastObservation;

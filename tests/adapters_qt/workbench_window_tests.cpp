@@ -9995,7 +9995,7 @@ namespace {
 				   && dif->testAttribute(Qt::WA_TransparentForMouseEvents),
 			   "Dif is decoration outside the focus and pointer paths");
 
-		const auto wait_for_frame = [&](const auto& aReady, const int aTimeoutMs) {
+		const auto waitForFrame = [&](const auto& aReady, const int aTimeoutMs) {
 			QElapsedTimer elapsed;
 			elapsed.start();
 			while (!aReady() && elapsed.elapsed() < aTimeoutMs) {
@@ -10004,26 +10004,26 @@ namespace {
 			}
 			return aReady();
 		};
-		expect(wait_for_frame([&] {
+		expect(waitForFrame([&] {
 				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::greet)
 					   && dif->current_frame().Frame > 0;
 			   },
-							  1'000),
+							1'000),
 			   "full-motion Home paints the greeting");
 		const auto greeting = dif->grab().toImage();
-		expect(wait_for_frame([&] {
+		expect(waitForFrame([&] {
 				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::calm_idle)
 					   && dif->current_frame().Frame > 0;
 			   },
-							  2'000),
+							2'000),
 			   "the greeting returns directly to the breathing loop");
 		const auto breathing = dif->grab().toImage();
 		expect(!greeting.isNull() && !breathing.isNull() && greeting != breathing,
 			   "normal Home renders different accepted greeting and breathing frames");
-		expect(wait_for_frame([&] {
+		expect(waitForFrame([&] {
 				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::blink);
 			   },
-							  13'000),
+							13'000),
 			   "four calm loops reach the bounded blink cadence on Home");
 
 		window.adopt_dif(core::resolve_dif(

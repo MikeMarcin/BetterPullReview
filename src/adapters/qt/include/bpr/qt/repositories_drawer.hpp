@@ -16,10 +16,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace bpr::qt {
@@ -34,10 +37,19 @@ namespace bpr::qt {
 		std::string Host;
 		std::string Account;
 		std::string Repository;
-		std::size_t NeedsMe = 0U;
+		std::size_t NeedsMe  = 0U;
+		quintptr    Identity = 0U;
 		/// [[BPR-0659]]. Kept by the reviewer; listed even with no items.
 		bool                          Saved = false;
 		std::vector<core::queue_item> Items;
+	};
+
+	struct repositories_projection_work
+	{
+		std::uint64_t FullBuilds                   = 0U;
+		std::uint64_t CatalogueRowsVisited         = 0U;
+		std::uint64_t ChangedRepositoryRowsVisited = 0U;
+		std::uint64_t PositionalRowsUpdated        = 0U;
 	};
 
 	/// \brief RFC-BPR-0028's repositories tree: repositories, then their pull requests.
@@ -81,7 +93,9 @@ namespace bpr::qt {
 		void apply(
 			std::span<const core::queue_item>              aItems,
 			std::span<const application::saved_repository> aSaved = { });
-		void clear();
+		void               clear();
+		void               apply_item(const core::queue_item& aItem);
+		[[nodiscard]] auto work() const noexcept -> repositories_projection_work;
 		/// \brief [[BPR-0981]]. Narrows the rows shown; empty shows every row.
 		void               set_filter(const QString& aFilter);
 		[[nodiscard]] auto filter() const noexcept -> const QString&;
@@ -105,7 +119,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto item_count() const noexcept -> std::size_t;
 
 	private:
-		void rebuild();
+		void               rebuild();
+		void               reconcile(std::vector<repository_node> aDesired);
+		void               reconcile_items(std::size_t aPosition, std::vector<core::queue_item> aItems);
+		void               index_roots();
+		void               index_items(std::size_t aPosition, std::size_t aFirst = 0U, std::size_t aEnd = std::numeric_limits<std::size_t>::max());
+		[[nodiscard]] auto shown(const core::queue_item& aItem) const -> bool;
+		[[nodiscard]] auto repository_shown(const std::string& aHost, const std::string& aRepository) const -> bool;
+		using repository_key = std::tuple<std::string, std::string, std::string>;
+		std::map<repository_key, quintptr>                                 Identities;
+		std::map<quintptr, std::size_t>                                    RootPositions;
+		std::map<core::pull_request_ref, std::size_t>                      CataloguePositions;
+		std::map<core::pull_request_ref, std::pair<quintptr, std::size_t>> VisiblePositions;
+		quintptr                                                           NextIdentity = 1U;
+		std::size_t                                                        NeedsMe      = 0U;
+		repositories_projection_work                                       Work;
 
 		std::vector<core::queue_item>              Items;
 		std::vector<application::saved_repository> Saved;
@@ -154,6 +182,7 @@ namespace bpr::qt {
 		void               apply(
 			std::span<const core::queue_item>              aItems,
 			std::span<const application::saved_repository> aSaved = { });
+		void               apply_item(const core::queue_item& aItem);
 		[[nodiscard]] auto delegate() const noexcept -> repositories_tree_delegate*;
 		/// \brief Save the current repository row; Forget the current saved one.
 		[[nodiscard]] auto save_repository_action() const noexcept -> QAction*;

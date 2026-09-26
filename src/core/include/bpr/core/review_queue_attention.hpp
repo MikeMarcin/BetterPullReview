@@ -146,6 +146,9 @@ namespace bpr::core {
 		const queue_activity_observation& aActivity) noexcept
 		-> attention_bucket;
 
+	/// \brief The deterministic priority relation used by complete and incremental projections.
+	[[nodiscard]] auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool;
+
 	/// \brief Builds the ordered queue from enrolled items.
 	///
 	/// \details Ordered by bucket, then by identity. The identity is what makes

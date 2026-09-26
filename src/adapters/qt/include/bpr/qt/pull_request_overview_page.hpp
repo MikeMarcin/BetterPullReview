@@ -203,6 +203,7 @@ namespace bpr::qt {
 		void present(const application::pull_request_overview_projection& aProjection);
 		/// \brief [[BPR-0972]]. Takes receipt changes to the presented overview.
 		void apply_receipts(const application::overview_receipt_update& aUpdate);
+		void apply_history(const application::overview_history_update& aUpdate);
 		/// \brief Clears text and local reading state on the owner's exact authority invalidation.
 		void clear();
 		/// \brief Presents a pending overview without manufacturing accepted rows.

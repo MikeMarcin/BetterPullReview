@@ -12,6 +12,7 @@
 #include <QString>
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <span>
 #include <vector>
@@ -158,6 +159,9 @@ namespace bpr::qt {
 		/// re-reads everything, the selection is meaningless, and assistive
 		/// technology is told the list it was reading no longer exists.
 		void apply(std::span<const core::queue_item> aQueue);
+		/// Updates an existing identity, preserving every persistent index.
+		void               apply_item(const core::queue_item& aItem);
+		[[nodiscard]] auto item_for(const core::pull_request_ref& aRef) const -> std::optional<core::queue_item>;
 
 		void clear();
 
@@ -177,9 +181,11 @@ namespace bpr::qt {
 			-> std::optional<std::size_t>;
 		/// \brief Recounts the account set and says so when a chip appears or goes.
 		void adopt_accounts();
+		void index_positions(std::size_t aFirst, std::size_t aEnd);
 
-		std::vector<core::queue_item> Items;
-		std::vector<home_account>     Accounts;
+		std::vector<core::queue_item>                 Items;
+		std::map<core::pull_request_ref, std::size_t> Positions;
+		std::vector<home_account>                     Accounts;
 	};
 
 	/// \brief Filters and explicitly reorders the decided landing queue.

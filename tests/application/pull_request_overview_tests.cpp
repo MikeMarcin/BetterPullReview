@@ -218,7 +218,7 @@ namespace {
 		expect(partial.CommitCount == 9'311U && partial.ReturnedCommitCount == 3U,
 			   "overview preserves the reported total separately from returned records");
 		expect(projection.Files.size() == 4U
-				   && projection.Files[0].Folder == "" && projection.Files[0].Name == "README.md"
+				   && projection.Files[0].Folder.empty() && projection.Files[0].Name == "README.md"
 				   && projection.Files[1].Folder == "Engine/Renderer"
 				   && projection.Files[1].Name == "HairStrandsLighting.cpp"
 				   && projection.Files[2].Name == "HairStrandsVoxelization.cpp"
@@ -443,10 +443,34 @@ namespace {
 		}
 	}
 
+	void test_history_header_matches_complete_projection()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto review = snapshot();
+			while (review.Files.size() < count) {
+				review.Files.push_back({ .Path = "src/file" + std::to_string(review.Files.size()) + ".cpp", .Change = application::github_file_change::modified });
+			}
+			auto context    = application::overview_context{ };
+			context.Private = application::private_ledger_observation{ .LastReviewedHead = commit('b') };
+			context.Head    = commit('b');
+			auto retained   = application::project_pull_request_overview(review, context);
+			for (const auto& history : { std::vector{ update(3, 'c'), update(1, 'b'), update(2, 'b') }, std::vector{ update(3, 'c') }, std::vector<application::epoch_row_projection>{ } }) {
+				context.Updates                     = history;
+				const auto header                   = application::project_overview_history(history, commit('b'));
+				retained.SinceLastReview.Known      = header.Known;
+				retained.SinceLastReview.ReviewedAt = header.ReviewedAt;
+				retained.SinceLastReview.Uploads    = header.Uploads;
+				expect(retained == application::project_pull_request_overview(review, context), "catalogue-only header update equals full projection for unsorted repeated-head, pruned and empty history");
+			}
+			expect(!application::project_overview_history(context.Updates, std::nullopt).Known, "no reviewed head remains unknown");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_history_header_matches_complete_projection();
 	test_receipt_updates_match_a_complete_projection();
 	test_first_visit_starts_at_the_first_file();
 	test_continue_lands_on_the_first_changed_then_unread_file();

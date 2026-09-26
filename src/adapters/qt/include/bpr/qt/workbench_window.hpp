@@ -372,6 +372,7 @@ namespace bpr::qt {
 		/// move; the page's table and the drawer tree signal those rows alone.
 		/// Without a presented overview there is nothing to change.
 		void publish(const application::overview_receipt_update& aUpdate);
+		void publish(const application::overview_history_update& aUpdate);
 		/// \brief [[BPR-0733]]. Adopts the window's recently viewed pull requests.
 		///
 		/// \details Home lists them between the open bar and the review queue,

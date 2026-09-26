@@ -10,6 +10,7 @@
 #include <compare>
 #include <cstdint>
 #include <expected>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -225,7 +226,8 @@ namespace bpr::application {
 		[[nodiscard]] auto find(const core::pull_request_ref& aRef)
 			-> enrollment_record*;
 
-		std::vector<enrollment_record> Records;
+		std::vector<enrollment_record>                Records;
+		std::map<core::pull_request_ref, std::size_t> RecordIndex;
 	};
 
 	/// \brief Names one durable queue-store failure without exposing SQLite.
@@ -542,6 +544,10 @@ namespace bpr::application {
 		/// [[BPR-0989]]. Personal discovery for the profile's account session.
 		queue_discovery_status Discovery;
 
+		/// One existing item changed. Items is empty; attachment replay supplies a
+		/// complete projection when a consumer has not received the preceding state.
+		std::optional<core::queue_item> UpdatedItem;
+
 		auto operator<=>(const queue_landing_projection&) const = default;
 	};
 
@@ -595,6 +601,7 @@ namespace bpr::application {
 		std::uint64_t         StaleCompletions       = 0U;
 		std::uint64_t         CancelledCompletions   = 0U;
 		std::uint64_t         Publications           = 0U;
+		std::uint64_t         ItemPublications       = 0U;
 		std::uint64_t         Failures               = 0U;
 		/// [[BPR-0989]].
 		std::uint64_t DiscoveryAnswers      = 0U;

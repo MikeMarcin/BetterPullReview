@@ -3553,7 +3553,7 @@ namespace bpr::qt {
 			QueueStatus->setText(tr("Local observer rules and queue preferences are unavailable."));
 			break;
 		case application::queue_landing_status::ready:
-			if (aProjection.Items.empty()) {
+			if (QueueLanding->rowCount() == 0) {
 				QueueStatus->setText(tr(
 					"Review queue is empty. Local rules never change GitHub assignments."));
 				notable = false;
@@ -3561,12 +3561,12 @@ namespace bpr::qt {
 					   && QueueFilterModel->has_active_filters()) {
 				QueueStatus->setText(tr(
 										 "No reviews match the active queue filters. %1 review(s) remain in the queue.")
-										 .arg(aProjection.Items.size()));
+										 .arg(QueueLanding->rowCount()));
 			} else {
 				QueueStatus->setText(
 					tr("%1 of %2 review(s) shown. %3")
 						.arg(QueueFilterModel->rowCount())
-						.arg(aProjection.Items.size())
+						.arg(QueueLanding->rowCount())
 						.arg(aProjection.Online
 								 ? tr("Refresh is online.")
 								 : tr("Refresh is offline.")));
@@ -3667,11 +3667,22 @@ namespace bpr::qt {
 									  QueueSort }) {
 			selector->setEnabled(filtersEnabled);
 		}
-		QueueProjection = aProjection;
-		QueueRules      = aProjection.Rules;
-		QueueLanding->apply(aProjection.Items);
+		// The models retain item identity. Keep only the queue's metadata here.
+		QueueProjection = application::queue_landing_projection{
+			.Status = aProjection.Status, .Rules = aProjection.Rules, .Preferences = aProjection.Preferences, .Session = aProjection.Session, .Online = aProjection.Online, .BackoffSeconds = aProjection.BackoffSeconds, .SavedRepositories = aProjection.SavedRepositories, .SavedServers = aProjection.SavedServers, .Failure = aProjection.Failure, .Discovery = aProjection.Discovery
+		};
+		QueueRules = aProjection.Rules;
+		if (aProjection.UpdatedItem) {
+			QueueLanding->apply_item(*aProjection.UpdatedItem);
+		} else {
+			QueueLanding->apply(aProjection.Items);
+		}
 		if (RepositoriesTree != nullptr) {
-			RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
+			if (aProjection.UpdatedItem) {
+				RepositoriesTree->apply_item(*aProjection.UpdatedItem);
+			} else {
+				RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
+			}
 			update_rail_summaries();
 			refresh_filter_notices();
 		}
@@ -3690,8 +3701,9 @@ namespace bpr::qt {
 				SavedRepositorySelector->setCurrentIndex(restored);
 			}
 		}
-		rebuild_queue_repositories(
-			aProjection.Items, aProjection.Preferences.Repository);
+		if (!aProjection.UpdatedItem) {
+			rebuild_queue_repositories(aProjection.Items, aProjection.Preferences.Repository);
+		}
 		apply_queue_preferences(aProjection.Preferences);
 		if (HomeList != nullptr) {
 			// The panels are recounted now rather than after the model's own
@@ -5094,6 +5106,18 @@ namespace bpr::qt {
 	{
 		play_dif_cue(DifCues->present_continuation(
 			aSession, aOffer, DifCueClock->elapsed()));
+	}
+
+	void workbench_window::publish(const application::overview_history_update& aUpdate)
+	{
+		if (OverviewPage == nullptr || !PresentedOverview) {
+			return;
+		}
+		auto& since      = PresentedOverview->SinceLastReview;
+		since.Known      = aUpdate.Known;
+		since.ReviewedAt = aUpdate.ReviewedAt;
+		since.Uploads    = aUpdate.Uploads;
+		OverviewPage->apply_history(aUpdate);
 	}
 
 	void workbench_window::publish(const application::overview_receipt_update& aUpdate)
@@ -8052,9 +8076,8 @@ namespace bpr::qt {
 			return;
 		}
 		const auto ref      = open_queue_ref();
-		const auto followed = ref.has_value() && std::ranges::any_of(QueueProjection.Items, [&ref](const core::queue_item& aItem) {
-								  return aItem.Ref == *ref && aItem.Membership.Followed;
-							  });
+		const auto item     = ref ? QueueLanding->item_for(*ref) : std::nullopt;
+		const auto followed = item && item->Membership.Followed;
 		FollowPullRequest->setEnabled(ref.has_value() && static_cast<bool>(QueueFollowDispatch));
 		FollowPullRequest->setChecked(followed);
 		const auto followTip = ref.has_value()
@@ -9230,9 +9253,8 @@ namespace bpr::qt {
 				update_pull_request_queue_actions();
 				return;
 			}
-			const auto followed = std::ranges::any_of(QueueProjection.Items, [&ref](const core::queue_item& aItem) {
-				return aItem.Ref == *ref && aItem.Membership.Followed;
-			});
+			const auto item     = QueueLanding->item_for(*ref);
+			const auto followed = item && item->Membership.Followed;
 			QueueFollowDispatch(application::queue_follow_intent{ .Ref = *ref, .Title = OpenQueueTitle, .Follow = !followed });
 			// The check mark is the queue's to decide.
 			update_pull_request_queue_actions();

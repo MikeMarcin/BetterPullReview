@@ -103,6 +103,11 @@ namespace bpr::core {
 		return attention_bucket::quiet;
 	}
 
+	auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool
+	{
+		return aLeft.Bucket == aRight.Bucket ? aLeft.Ref < aRight.Ref : aLeft.Bucket < aRight.Bucket;
+	}
+
 	auto ordered_queue(const std::span<const queue_item> aItems)
 		-> std::vector<queue_item>
 	{
@@ -113,14 +118,7 @@ namespace bpr::core {
 		// cannot keep their place in. Identity is a tiebreak rather than a
 		// ranking: it makes the answer the same every time and claims nothing
 		// about which review matters more.
-		std::ranges::sort(
-			ordered,
-			[](const queue_item& aLeft, const queue_item& aRight) {
-				if (aLeft.Bucket != aRight.Bucket) {
-					return aLeft.Bucket < aRight.Bucket;
-				}
-				return aLeft.Ref < aRight.Ref;
-			});
+		std::ranges::sort(ordered, queue_precedes);
 		return ordered;
 	}
 } // namespace bpr::core

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -80,6 +81,12 @@ namespace bpr::qt {
 		const std::span<const application::saved_repository> aSaved)
 	{
 		Items.assign(aItems.begin(), aItems.end());
+		CataloguePositions.clear();
+		NeedsMe = 0U;
+		for (std::size_t position = 0U; position < Items.size(); ++position) {
+			CataloguePositions.emplace(Items[position].Ref, position);
+			NeedsMe += repository_needs_me(Items[position].Bucket) ? 1U : 0U;
+		}
 		Saved.assign(aSaved.begin(), aSaved.end());
 		rebuild();
 	}
@@ -104,63 +111,274 @@ namespace bpr::qt {
 		return Filter;
 	}
 
+	auto repositories_tree_model::repository_shown(const std::string& aHost, const std::string& aRepository) const -> bool
+	{
+		return Filter.isEmpty() || resident_filter_matches(text(aRepository), Filter)
+			|| resident_filter_matches(text(aHost), Filter);
+	}
+
+	auto repositories_tree_model::shown(const core::queue_item& aItem) const -> bool
+	{
+		return repository_shown(aItem.Ref.Host, aItem.Ref.Repository)
+			|| resident_filter_matches(text(aItem.Facts.Title), Filter)
+			|| resident_filter_matches(QStringLiteral("#%1").arg(aItem.Ref.Number), Filter);
+	}
+
 	void repositories_tree_model::rebuild()
 	{
-		beginResetModel();
-		Repositories.clear();
-		const auto findNode = [this](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
-			return std::ranges::find_if(Repositories, [&](const repository_node& aNode) {
-				return aNode.Host == aHost && aNode.Account == aAccount && aNode.Repository == aRepository;
-			});
-		};
-		const auto nodeFor = [this, &findNode](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
-			auto found = findNode(aHost, aAccount, aRepository);
-			if (found == Repositories.end()) {
-				Repositories.push_back(repository_node{
-					.Host       = aHost,
-					.Account    = aAccount,
-					.Repository = aRepository,
-				});
-				found = std::prev(Repositories.end());
+		++Work.FullBuilds;
+		auto       desired   = std::vector<repository_node>{ };
+		auto       positions = std::map<repository_key, std::size_t>{ };
+		const auto nodeFor   = [&](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) -> repository_node& {
+			const auto key                  = repository_key{ aHost, aAccount, aRepository };
+			const auto [position, inserted] = positions.try_emplace(key, desired.size());
+			if (inserted) {
+				const auto [identity, newIdentity] = Identities.try_emplace(key, NextIdentity);
+				if (newIdentity) {
+					++NextIdentity;
+				}
+				desired.push_back(repository_node{ .Host = aHost, .Account = aAccount, .Repository = aRepository, .Identity = identity->second });
 			}
-			return found;
+			return desired[position->second];
 		};
-		// [[BPR-0981]]. A repository matches by name or host and keeps every
-		// row beneath; otherwise a pull request matches by title or number and
-		// keeps its repository row above it.
-		const auto repositoryShown = [this](const std::string& aHost, const std::string& aRepository) {
-			return Filter.isEmpty() || resident_filter_matches(text(aRepository), Filter)
-				|| resident_filter_matches(text(aHost), Filter);
-		};
-		const auto itemShown = [this, &repositoryShown](const core::queue_item& aItem) {
-			return repositoryShown(aItem.Ref.Host, aItem.Ref.Repository)
-				|| resident_filter_matches(text(aItem.Facts.Title), Filter)
-				|| resident_filter_matches(QStringLiteral("#%1").arg(aItem.Ref.Number), Filter);
-		};
-		// Home's order, repositories in the order they first appear in it.
-		const auto ordered = core::ordered_queue(Items);
-		for (const auto& item : ordered) {
-			if (!itemShown(item)) {
+		for (const auto& item : core::ordered_queue(Items)) {
+			++Work.CatalogueRowsVisited;
+			if (shown(item)) {
+				auto& node = nodeFor(item.Ref.Host, item.Ref.Account, item.Ref.Repository);
+				node.Items.push_back(item);
+				node.NeedsMe += repository_needs_me(item.Bucket) ? 1U : 0U;
+			}
+		}
+		for (const auto& saved : Saved) {
+			if (positions.contains(repository_key{ saved.Host, saved.Account, saved.Repository }) || repository_shown(saved.Host, saved.Repository)) {
+				nodeFor(saved.Host, saved.Account, saved.Repository).Saved = true;
+			}
+		}
+		reconcile(std::move(desired));
+	}
+
+	void repositories_tree_model::index_roots()
+	{
+		RootPositions.clear();
+		for (std::size_t row = 0U; row < Repositories.size(); ++row) {
+			RootPositions.emplace(Repositories[row].Identity, row);
+		}
+	}
+
+	void repositories_tree_model::index_items(const std::size_t aPosition, const std::size_t aFirst, const std::size_t aEnd)
+	{
+		const auto& node = Repositories[aPosition];
+		for (std::size_t row = aFirst; row < std::min(aEnd, node.Items.size()); ++row) {
+			VisiblePositions.insert_or_assign(node.Items[row].Ref, std::pair{ node.Identity, row });
+			++Work.PositionalRowsUpdated;
+		}
+	}
+
+	void repositories_tree_model::reconcile_items(const std::size_t aPosition, std::vector<core::queue_item> aItems)
+	{
+		auto&      node        = Repositories[aPosition];
+		auto&      items       = node.Items;
+		const auto parentIndex = index(static_cast<int>(aPosition), 0);
+		auto       desired     = std::set<core::pull_request_ref>{ };
+		for (const auto& item : aItems) {
+			desired.insert(item.Ref);
+		}
+		Work.ChangedRepositoryRowsVisited += items.size();
+		for (auto row = items.size(); row > 0U; --row) {
+			const auto position = row - 1U;
+			if (!desired.contains(items[position].Ref)) {
+				beginRemoveRows(parentIndex, static_cast<int>(position), static_cast<int>(position));
+				VisiblePositions.erase(items[position].Ref);
+				items.erase(items.begin() + static_cast<std::ptrdiff_t>(position));
+				index_items(aPosition);
+				endRemoveRows();
+			}
+		}
+		for (std::size_t target = 0U; target < aItems.size(); ++target) {
+			const auto& wanted = aItems[target];
+			const auto  found  = VisiblePositions.find(wanted.Ref);
+			if (found == VisiblePositions.end()) {
+				beginInsertRows(parentIndex, static_cast<int>(target), static_cast<int>(target));
+				items.insert(items.begin() + static_cast<std::ptrdiff_t>(target), wanted);
+				index_items(aPosition);
+				endInsertRows();
 				continue;
 			}
-			auto found = nodeFor(item.Ref.Host, item.Ref.Account, item.Ref.Repository);
-			found->Items.push_back(item);
-			if (repository_needs_me(item.Bucket)) {
-				++found->NeedsMe;
+			const auto position = found->second.second;
+			if (position != target) {
+				beginMoveRows(parentIndex, static_cast<int>(position), static_cast<int>(position), parentIndex, static_cast<int>(target));
+				auto moved = std::move(items[position]);
+				items.erase(items.begin() + static_cast<std::ptrdiff_t>(position));
+				items.insert(items.begin() + static_cast<std::ptrdiff_t>(target), std::move(moved));
+				index_items(aPosition);
+				endMoveRows();
+			}
+			if (items[target] != wanted) {
+				items[target] = wanted;
+				emit dataChanged(index(static_cast<int>(target), 0, parentIndex), index(static_cast<int>(target), column_count - 1, parentIndex));
 			}
 		}
-		// [[BPR-0659]]. Then every saved repository, after the ones with pull
-		// requests of interest: a saved one with nothing in it is an empty row.
-		for (const auto& saved : Saved) {
-			const auto found = findNode(saved.Host, saved.Account, saved.Repository);
-			if (found != Repositories.end()) {
-				found->Saved = true;
-			} else if (repositoryShown(saved.Host, saved.Repository)) {
-				nodeFor(saved.Host, saved.Account, saved.Repository)->Saved = true;
-			}
-		}
-		endResetModel();
+		node.NeedsMe = static_cast<std::size_t>(std::ranges::count_if(items, [](const core::queue_item& aItem) { return repository_needs_me(aItem.Bucket); }));
+		emit dataChanged(parentIndex, index(static_cast<int>(aPosition), column_count - 1));
 	}
+
+	void repositories_tree_model::reconcile(std::vector<repository_node> aDesired)
+	{
+		auto identities = std::set<quintptr>{ };
+		for (const auto& node : aDesired) {
+			identities.insert(node.Identity);
+		}
+		for (auto row = Repositories.size(); row > 0U; --row) {
+			const auto position = row - 1U;
+			if (!identities.contains(Repositories[position].Identity)) {
+				beginRemoveRows({ }, static_cast<int>(position), static_cast<int>(position));
+				for (const auto& item : Repositories[position].Items) {
+					VisiblePositions.erase(item.Ref);
+				}
+				Repositories.erase(Repositories.begin() + static_cast<std::ptrdiff_t>(position));
+				index_roots();
+				endRemoveRows();
+			}
+		}
+		for (std::size_t target = 0U; target < aDesired.size(); ++target) {
+			auto&      wanted = aDesired[target];
+			const auto found  = RootPositions.find(wanted.Identity);
+			if (found == RootPositions.end()) {
+				beginInsertRows({ }, static_cast<int>(target), static_cast<int>(target));
+				Repositories.insert(Repositories.begin() + static_cast<std::ptrdiff_t>(target), std::move(wanted));
+				index_roots();
+				index_items(target);
+				endInsertRows();
+				continue;
+			}
+			const auto position = found->second;
+			if (position != target) {
+				beginMoveRows({ }, static_cast<int>(position), static_cast<int>(position), { }, static_cast<int>(target));
+				auto moved = std::move(Repositories[position]);
+				Repositories.erase(Repositories.begin() + static_cast<std::ptrdiff_t>(position));
+				Repositories.insert(Repositories.begin() + static_cast<std::ptrdiff_t>(target), std::move(moved));
+				index_roots();
+				endMoveRows();
+			}
+			Repositories[target].Saved = wanted.Saved;
+			reconcile_items(target, std::move(wanted.Items));
+		}
+	}
+
+	void repositories_tree_model::apply_item(const core::queue_item& aItem)
+	{
+		const auto found = CataloguePositions.find(aItem.Ref);
+		if (found == CataloguePositions.end() || Items[found->second] == aItem) {
+			return;
+		}
+		NeedsMe -= repository_needs_me(Items[found->second].Bucket) ? 1U : 0U;
+		NeedsMe += repository_needs_me(aItem.Bucket) ? 1U : 0U;
+		Items[found->second]            = aItem;
+		const auto key                  = repository_key{ aItem.Ref.Host, aItem.Ref.Account, aItem.Ref.Repository };
+		const auto [identity, inserted] = Identities.try_emplace(key, NextIdentity);
+		if (inserted) {
+			++NextIdentity;
+		}
+		const auto root = RootPositions.find(identity->second);
+		if (root == RootPositions.end()) {
+			if (!shown(aItem)) {
+				return;
+			}
+			const auto target = static_cast<std::size_t>(std::lower_bound(Repositories.begin(), Repositories.end(), aItem,
+																		  [](const repository_node& aNode, const core::queue_item& aValue) { return !aNode.Items.empty() && core::queue_precedes(aNode.Items.front(), aValue); })
+														 - Repositories.begin());
+			auto       node   = repository_node{ .Host = aItem.Ref.Host, .Account = aItem.Ref.Account, .Repository = aItem.Ref.Repository, .NeedsMe = repository_needs_me(aItem.Bucket) ? 1U : 0U, .Identity = identity->second, .Saved = std::ranges::contains(Saved, application::saved_repository{ aItem.Ref.Host, aItem.Ref.Account, aItem.Ref.Repository }), .Items = { aItem } };
+			beginInsertRows({ }, static_cast<int>(target), static_cast<int>(target));
+			Repositories.insert(Repositories.begin() + static_cast<std::ptrdiff_t>(target), std::move(node));
+			index_roots();
+			index_items(target);
+			endInsertRows();
+			return;
+		}
+		const auto position    = root->second;
+		auto&      node        = Repositories[position];
+		auto&      items       = node.Items;
+		const auto parentIndex = index(static_cast<int>(position), 0);
+		const auto visible     = VisiblePositions.find(aItem.Ref);
+		const auto old         = visible == VisiblePositions.end() ? std::optional<std::size_t>{ } : std::optional{ visible->second.second };
+		++Work.ChangedRepositoryRowsVisited;
+		if (shown(aItem)) {
+			auto target = static_cast<std::size_t>(std::ranges::lower_bound(items, aItem, core::queue_precedes) - items.begin());
+			if (old && target > *old) {
+				--target;
+			}
+			if (!old) {
+				beginInsertRows(parentIndex, static_cast<int>(target), static_cast<int>(target));
+				items.insert(items.begin() + static_cast<std::ptrdiff_t>(target), aItem);
+				index_items(position, target);
+				node.NeedsMe += repository_needs_me(aItem.Bucket) ? 1U : 0U;
+				endInsertRows();
+			} else {
+				node.NeedsMe -= repository_needs_me(items[*old].Bucket) ? 1U : 0U;
+				node.NeedsMe += repository_needs_me(aItem.Bucket) ? 1U : 0U;
+				if (target != *old) {
+					beginMoveRows(parentIndex, static_cast<int>(*old), static_cast<int>(*old), parentIndex, static_cast<int>(target > *old ? target + 1U : target));
+					auto moved = std::move(items[*old]);
+					items.erase(items.begin() + static_cast<std::ptrdiff_t>(*old));
+					items.insert(items.begin() + static_cast<std::ptrdiff_t>(target), std::move(moved));
+					index_items(position, std::min(target, *old), std::max(target, *old) + 1U);
+					endMoveRows();
+				}
+				items[target] = aItem;
+				emit dataChanged(index(static_cast<int>(target), 0, parentIndex), index(static_cast<int>(target), column_count - 1, parentIndex));
+			}
+		} else if (old) {
+			beginRemoveRows(parentIndex, static_cast<int>(*old), static_cast<int>(*old));
+			node.NeedsMe -= repository_needs_me(items[*old].Bucket) ? 1U : 0U;
+			VisiblePositions.erase(aItem.Ref);
+			items.erase(items.begin() + static_cast<std::ptrdiff_t>(*old));
+			index_items(position, *old);
+			endRemoveRows();
+		}
+		if (items.empty() && (!node.Saved || !repository_shown(aItem.Ref.Host, aItem.Ref.Repository))) {
+			beginRemoveRows({ }, static_cast<int>(position), static_cast<int>(position));
+			Repositories.erase(Repositories.begin() + static_cast<std::ptrdiff_t>(position));
+			index_roots();
+			endRemoveRows();
+			return;
+		}
+		emit dataChanged(parentIndex, index(static_cast<int>(position), column_count - 1));
+		// Repository order follows its first visible item; empty saved rows follow
+		// in their saved order. Only roots, never other repositories' items, are read.
+		const auto precedes = [this](const repository_node& aLeft, const repository_node& aRight) {
+			if (!aLeft.Items.empty() && !aRight.Items.empty()) {
+				return core::queue_precedes(aLeft.Items.front(), aRight.Items.front());
+			}
+			if (aLeft.Items.empty() != aRight.Items.empty()) {
+				return !aLeft.Items.empty();
+			}
+			const auto savedPosition = [this](const repository_node& aNode) {
+				return std::ranges::find(Saved, application::saved_repository{ aNode.Host, aNode.Account, aNode.Repository }) - Saved.begin();
+			};
+			return savedPosition(aLeft) < savedPosition(aRight);
+		};
+		auto target = position;
+		while (target > 0U && precedes(Repositories[position], Repositories[target - 1U])) {
+			--target;
+		}
+		while (target == position && target + 1U < Repositories.size() && precedes(Repositories[target + 1U], Repositories[position])) {
+			++target;
+		}
+		// If moving down, keep following the same original node, not its neighbours.
+		while (target > position && target + 1U < Repositories.size() && precedes(Repositories[target + 1U], Repositories[position])) {
+			++target;
+		}
+		if (target != position) {
+			beginMoveRows({ }, static_cast<int>(position), static_cast<int>(position), { }, static_cast<int>(target > position ? target + 1U : target));
+			auto moved = std::move(Repositories[position]);
+			Repositories.erase(Repositories.begin() + static_cast<std::ptrdiff_t>(position));
+			Repositories.insert(Repositories.begin() + static_cast<std::ptrdiff_t>(target), std::move(moved));
+			index_roots();
+			endMoveRows();
+		}
+	}
+
+	auto repositories_tree_model::work() const noexcept -> repositories_projection_work { return Work; }
 
 	auto repositories_tree_model::index(const int aRow, const int aColumn, const QModelIndex& aParent) const
 		-> QModelIndex
@@ -181,7 +399,7 @@ namespace bpr::qt {
 			|| static_cast<std::size_t>(aRow) >= Repositories[repository].Items.size()) {
 			return { };
 		}
-		return createIndex(aRow, aColumn, static_cast<quintptr>(repository) + 1U);
+		return createIndex(aRow, aColumn, Repositories[repository].Identity);
 	}
 
 	auto repositories_tree_model::parent(const QModelIndex& aIndex) const -> QModelIndex
@@ -189,7 +407,8 @@ namespace bpr::qt {
 		if (!aIndex.isValid() || aIndex.internalId() == repository_id) {
 			return { };
 		}
-		return createIndex(static_cast<int>(aIndex.internalId() - 1U), 0, repository_id);
+		const auto found = RootPositions.find(aIndex.internalId());
+		return found == RootPositions.end() ? QModelIndex{ } : createIndex(static_cast<int>(found->second), 0, repository_id);
 	}
 
 	auto repositories_tree_model::rowCount(const QModelIndex& aParent) const -> int
@@ -218,11 +437,11 @@ namespace bpr::qt {
 		if (!aIndex.isValid() || aIndex.internalId() == repository_id) {
 			return std::nullopt;
 		}
-		const auto repository = static_cast<std::size_t>(aIndex.internalId() - 1U);
-		if (repository >= Repositories.size()) {
+		const auto found = RootPositions.find(aIndex.internalId());
+		if (found == RootPositions.end()) {
 			return std::nullopt;
 		}
-		const auto& items = Repositories[repository].Items;
+		const auto& items = Repositories[found->second].Items;
 		const auto  row   = static_cast<std::size_t>(aIndex.row());
 		return row < items.size() ? std::optional{ items[row] } : std::nullopt;
 	}
@@ -333,15 +552,8 @@ namespace bpr::qt {
 
 	auto repositories_tree_model::index_for(const core::pull_request_ref& aRef) const -> QModelIndex
 	{
-		for (std::size_t repository = 0U; repository < Repositories.size(); ++repository) {
-			const auto& items = Repositories[repository].Items;
-			for (std::size_t row = 0U; row < items.size(); ++row) {
-				if (items[row].Ref == aRef) {
-					return createIndex(static_cast<int>(row), name_column, static_cast<quintptr>(repository) + 1U);
-				}
-			}
-		}
-		return { };
+		const auto found = VisiblePositions.find(aRef);
+		return found == VisiblePositions.end() ? QModelIndex{ } : createIndex(static_cast<int>(found->second.second), name_column, found->second.first);
 	}
 
 	auto repositories_tree_model::index_for(const std::string_view aRepository, const std::int64_t aNumber) const
@@ -351,7 +563,7 @@ namespace bpr::qt {
 			const auto& items = Repositories[repository].Items;
 			for (std::size_t row = 0U; row < items.size(); ++row) {
 				if (items[row].Ref.Repository == aRepository && items[row].Ref.Number == aNumber) {
-					return createIndex(static_cast<int>(row), name_column, static_cast<quintptr>(repository) + 1U);
+					return createIndex(static_cast<int>(row), name_column, Repositories[repository].Identity);
 				}
 			}
 		}
@@ -360,9 +572,7 @@ namespace bpr::qt {
 
 	auto repositories_tree_model::needs_me_count() const noexcept -> std::size_t
 	{
-		return static_cast<std::size_t>(std::ranges::count_if(Items, [](const core::queue_item& aItem) {
-			return repository_needs_me(aItem.Bucket);
-		}));
+		return NeedsMe;
 	}
 
 	auto repositories_tree_model::item_count() const noexcept -> std::size_t
@@ -451,6 +661,13 @@ namespace bpr::qt {
 			"why it is here; choose one to open it on its overview"));
 		Model = new repositories_tree_model{ this };
 		setModel(Model);
+		connect(Model, &QAbstractItemModel::rowsInserted, this, [this](const QModelIndex& aParentIndex, const int aFirst, const int aLast) {
+			if (!aParentIndex.isValid()) {
+				for (auto row = aFirst; row <= aLast; ++row) {
+					expand(Model->index(row, 0));
+				}
+			}
+		});
 		Delegate = new repositories_tree_delegate{ this };
 		setItemDelegate(Delegate);
 		setHeaderHidden(true);
@@ -548,7 +765,15 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply(aItems, aSaved);
-		expandAll();
+
+		restore_current();
+		update_saved_actions();
+	}
+
+	void repositories_tree_view::apply_item(const core::queue_item& aItem)
+	{
+		const auto applying = QScopedValueRollback{ Applying, true };
+		Model->apply_item(aItem);
 		restore_current();
 		update_saved_actions();
 	}
@@ -557,7 +782,7 @@ namespace bpr::qt {
 	{
 		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->set_filter(aFilter);
-		expandAll();
+
 		restore_current();
 		update_saved_actions();
 	}

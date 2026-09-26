@@ -4,7 +4,9 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "private_data_root.hpp"
@@ -28,13 +30,57 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <new>
 #include <thread>
 #include <tuple>
+
+// Counts interposed unaligned C++ scalar/array allocations across all threads.
+// Qt/C-library malloc and aligned allocation calls are outside this observation.
+namespace allocation_measurement {
+	std::atomic<std::uint64_t> Calls{ 0U };
+	std::atomic<std::uint64_t> Bytes{ 0U };
+}
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+auto operator new(const std::size_t aSize) -> void*
+{
+	if (auto* const block = std::malloc(aSize == 0U ? 1U : aSize); block != nullptr) {
+		allocation_measurement::Calls.fetch_add(1U, std::memory_order_relaxed);
+		allocation_measurement::Bytes.fetch_add(aSize, std::memory_order_relaxed);
+		return block;
+	}
+	throw std::bad_alloc{ };
+}
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+auto operator new[](const std::size_t aSize) -> void* { return ::operator new(aSize); }
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* aBlock) noexcept { std::free(aBlock); }
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* aBlock, std::size_t) noexcept { std::free(aBlock); }
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete[](void* aBlock) noexcept { std::free(aBlock); }
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete[](void* aBlock, std::size_t) noexcept { std::free(aBlock); }
 
 namespace {
 	using namespace bpr;
 	using tests::expect;
 	using access = app::detail::github_application_fixture_access;
+
+	struct gesture_measurement
+	{
+		std::uint64_t                         Calls   = allocation_measurement::Calls.load(std::memory_order_relaxed);
+		std::uint64_t                         Bytes   = allocation_measurement::Bytes.load(std::memory_order_relaxed);
+		std::chrono::steady_clock::time_point Started = std::chrono::steady_clock::now();
+	};
+	gesture_measurement Measurement;
+
+	void report_allocations(const char* aGesture, const gesture_measurement& aBefore)
+	{
+		const auto after = gesture_measurement{ };
+		std::cout << "allocation_gesture=" << aGesture << " process_unaligned_new_calls=" << after.Calls - aBefore.Calls
+				  << " requested_bytes=" << after.Bytes - aBefore.Bytes
+				  << " elapsed_us_including_settle=" << std::chrono::duration_cast<std::chrono::microseconds>(after.Started - aBefore.Started).count() << '\n';
+	}
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { })
 	{
@@ -77,9 +123,12 @@ namespace {
 				const app::detail::application_scaling_evidence& aAfter,
 				const qt::files_tree_work_statistics& aTreeBefore, const qt::files_tree_work_statistics& aTreeAfter)
 	{
+		report_allocations(aGesture, Measurement);
 		std::cout << "gesture=" << aGesture
 				  << " file_projection_rows=" << aAfter.Workbench.FileProjectionRows - aBefore.Workbench.FileProjectionRows
 				  << " projection_capacity_growths=" << aAfter.Workbench.FileProjectionCapacityGrowths - aBefore.Workbench.FileProjectionCapacityGrowths
+				  << " file_position_visits=" << aAfter.Workbench.FilePositionVisits - aBefore.Workbench.FilePositionVisits
+				  << " published_file_rows_shifted=" << aAfter.Workbench.PublishedFileRowsShifted - aBefore.Workbench.PublishedFileRowsShifted
 				  << " lookup_comparisons=" << aAfter.Workbench.FileLookupComparisons - aBefore.Workbench.FileLookupComparisons
 				  << " accepted_observation_rows=" << aAfter.Workbench.AcceptedObservationRows - aBefore.Workbench.AcceptedObservationRows
 				  << " overview_builds=" << aAfter.OverviewBuilds - aBefore.OverviewBuilds
@@ -89,9 +138,16 @@ namespace {
 				  << " receipt_loads=" << aAfter.Ledger.ReceiptLoads - aBefore.Ledger.ReceiptLoads
 				  << " receipt_cache_hits=" << aAfter.Ledger.ReceiptCacheHits - aBefore.Ledger.ReceiptCacheHits
 				  << " persistence_requests=" << aAfter.Ledger.PersistenceRequests - aBefore.Ledger.PersistenceRequests
+				  << " private_loads=" << aAfter.Ledger.PrivateLoads - aBefore.Ledger.PrivateLoads
+				  << " private_writes=" << aAfter.Ledger.PrivateWrites - aBefore.Ledger.PrivateWrites
+				  << " conversation_loads=" << aAfter.Ledger.ConversationLoads - aBefore.Ledger.ConversationLoads
+				  << " overview_history_updates=" << aAfter.OverviewHistoryUpdates - aBefore.OverviewHistoryUpdates
 				  << " conversation_thread_visits=" << aAfter.ConversationThreadsVisited - aBefore.ConversationThreadsVisited
 				  << " conversation_post_visits=" << aAfter.ConversationPostsVisited - aBefore.ConversationPostsVisited
 				  << " conversation_writes=" << aAfter.Ledger.ConversationWrites - aBefore.Ledger.ConversationWrites
+				  << " queue_refreshes=" << aAfter.Queue.AppliedRefreshes - aBefore.Queue.AppliedRefreshes
+				  << " queue_item_publications=" << aAfter.Queue.ItemPublications - aBefore.Queue.ItemPublications
+				  << " queue_catalogue_visits=" << aAfter.Queue.Projection.RecordsVisited - aBefore.Queue.Projection.RecordsVisited
 				  << " files_resets=" << aTreeAfter.ModelResets - aTreeBefore.ModelResets
 				  << " files_changed_rows=" << aTreeAfter.ChangedRows - aTreeBefore.ChangedRows
 				  << " files_overview_visits=" << aTreeAfter.OverviewRowsVisited - aTreeBefore.OverviewRowsVisited << '\n';
@@ -101,6 +157,11 @@ namespace {
 auto main(int aArgc, char** aArgv) -> int
 try {
 	std::cout.setf(std::ios::unitbuf);
+	const auto  calibrationBefore = allocation_measurement::Calls.load();
+	auto* const calibrated        = ::operator new(37U);
+	const auto  calibrationAfter  = allocation_measurement::Calls.load();
+	::operator delete(calibrated);
+	expect(calibrationAfter == calibrationBefore + 1U, "allocation counter detects an explicit allocation");
 	expect(aArgc == 2, "installed Git executable required");
 	const auto   git = std::filesystem::path{ aArgv[1] };
 	QApplication application{ aArgc, aArgv };
@@ -164,6 +225,29 @@ try {
 																																																					 << " epoch=" << static_cast<int>(owner->status().EpochStatus) << " recording_failure=" << access::evidence(*owner).RecordingFailure << '\n'; });
 		const auto snapshot = access::large_review_snapshot(*owner);
 		expect(snapshot && snapshot->Files.size() == 515U && snapshot->ReviewThreads.size() == 1000U, "exact workload");
+		if (round == 0U) {
+			wait_for([&] { return window->follow_pull_request_action()->isEnabled(); }, "public Follow is enabled");
+			window->follow_pull_request_action()->trigger();
+			wait_for([&] { return window->follow_pull_request_action()->isChecked() && window->repositories_tree()->tree_model()->item_count() == 1U; }, "Follow durably enrolls the local queue item");
+			const auto queueBefore        = access::scaling_evidence(*owner).Queue;
+			const auto repositoriesBefore = window->repositories_tree()->tree_model()->work();
+			const auto queueMeasurement   = gesture_measurement{ };
+			expect(window->github_refresh_action()->isEnabled(), "public PR refresh is enabled for the retained queue item");
+			window->github_refresh_action()->trigger();
+			wait_for([&] { return access::scaling_evidence(*owner).Queue.AppliedRefreshes > queueBefore.AppliedRefreshes
+							   && window->session_panel()->status() == core::github_status::pull_request_ready
+							   && owner->status().EpochStatus == core::epoch_status::ready; }, "refreshed public review updates its retained queue item");
+			const auto queueAfter        = access::scaling_evidence(*owner).Queue;
+			const auto repositoriesAfter = window->repositories_tree()->tree_model()->work();
+			report_allocations("queue-update-with-complete-PR-refresh", queueMeasurement);
+			std::cout << "queue_public_changed=1 item_publications=" << queueAfter.ItemPublications - queueBefore.ItemPublications
+					  << " catalogue_visits=" << queueAfter.Projection.RecordsVisited - queueBefore.Projection.RecordsVisited
+					  << " repository_full_builds=" << repositoriesAfter.FullBuilds - repositoriesBefore.FullBuilds << '\n';
+			expect(queueAfter.ItemPublications == queueBefore.ItemPublications + 1U
+					   && queueAfter.Projection.RecordsVisited == queueBefore.Projection.RecordsVisited
+					   && repositoriesAfter.FullBuilds == repositoriesBefore.FullBuilds,
+				   "public refresh publishes one queue item and rebuilds no retained queue or repository catalogue");
+		}
 		window->modality()->action(qt::review_modality::read)->trigger();
 		auto*      surface = window->comparison_surface();
 		auto*      files   = window->files_drawer();
@@ -182,21 +266,51 @@ try {
 		auto* tree       = window->files_tree()->tree_model();
 		auto  before     = access::scaling_evidence(*owner);
 		auto  treeBefore = tree->work_statistics();
+		Measurement      = gesture_measurement{ };
+		if (round == 0U) {
+			expect(window->epoch_selectors()->refresh_action()->isEnabled(), "public epoch refresh is enabled");
+			const auto epochUpdates = window->epoch_selectors()->statistics().PublishedUpdates;
+			window->epoch_selectors()->refresh_action()->trigger();
+			wait_for([&] { return window->epoch_selectors()->statistics().PublishedUpdates > epochUpdates
+							   && window->epoch_selectors()->status() == core::epoch_status::ready && quiet(); }, "same-head history refresh completes on the public decision lane",
+					 [&] { std::cerr << "epoch_status=" << window->epoch_selectors()->status_text().toStdString() << " recording_failure=" << access::evidence(*owner).RecordingFailure << " quiet=" << quiet() << '\n'; });
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto epochAfter = access::scaling_evidence(*owner);
+			report("epoch-refresh-unchanged", before, epochAfter, treeBefore, tree->work_statistics());
+			expect(epochAfter.OverviewBuilds == before.OverviewBuilds && epochAfter.OverviewReceiptVisits == before.OverviewReceiptVisits
+					   && epochAfter.Workbench.FileProjectionRows == before.Workbench.FileProjectionRows,
+				   "unchanged history refresh reads no Overview files or receipts and rebuilds no file projection");
+			before      = epochAfter;
+			treeBefore  = tree->work_statistics();
+			Measurement = gesture_measurement{ };
+		}
 		select("src/file_0033.cpp");
 		settle([&] { return access::scaling_evidence(*owner); });
 		report("select-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
-		expect(access::scaling_evidence(*owner).Workbench.FileProjectionRows == before.Workbench.FileProjectionRows, "selection builds no retained file projection");
+		const auto selectedAfter = access::scaling_evidence(*owner);
+		expect(selectedAfter.Workbench.FileProjectionRows == before.Workbench.FileProjectionRows
+				   && selectedAfter.Workbench.AcceptedObservationRows == before.Workbench.AcceptedObservationRows
+				   && selectedAfter.OverviewBuilds == before.OverviewBuilds
+				   && selectedAfter.Ledger.ReceiptLoads == before.Ledger.ReceiptLoads + 1U
+				   && tree->work_statistics().ModelResets == treeBefore.ModelResets,
+			   "selection reads one receipt without catalogue observation, Overview reconstruction or model reset");
 		if (round == 0U) {
-			before     = access::scaling_evidence(*owner);
-			treeBefore = tree->work_statistics();
+			before      = access::scaling_evidence(*owner);
+			treeBefore  = tree->work_statistics();
+			Measurement = gesture_measurement{ };
 			expect(window->seen_action()->isEnabled(), "Seen enabled");
 			window->seen_action()->trigger();
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.PersistenceRequests > before.Ledger.PersistenceRequests && quiet(); }, "receipt durably accepted");
 			settle([&] { return access::scaling_evidence(*owner); });
 			report("seen-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
-			expect(tree->work_statistics().ModelResets == treeBefore.ModelResets, "one receipt preserves Files model identity");
+			const auto seenAfter = access::scaling_evidence(*owner);
+			expect(seenAfter.OverviewBuilds == before.OverviewBuilds && seenAfter.OverviewReceiptRows == before.OverviewReceiptRows + 1U
+					   && seenAfter.Ledger.ReceiptLoads == before.Ledger.ReceiptLoads && seenAfter.Ledger.PersistenceRequests == before.Ledger.PersistenceRequests + 1U
+					   && tree->work_statistics().ModelResets == treeBefore.ModelResets,
+				   "Seen writes and projects one receipt without rereads, Overview reconstruction or model reset");
 			before                      = access::scaling_evidence(*owner);
 			treeBefore                  = tree->work_statistics();
+			Measurement                 = gesture_measurement{ };
 			const auto selectedMaterial = surface->current_result();
 			expect(window->read_action()->isEnabled(), "Mark read enabled for exact selected material");
 			window->read_action()->trigger();
@@ -212,7 +326,10 @@ try {
 			expect(!files->contents()->index_for_file(core::file_identity_of("src/file_0033.cpp")).isValid()
 					   && surface->current_result() == selectedMaterial,
 				   "read file leaves actionable order while exact comparison stays readable");
-			expect(tree->work_statistics().ModelResets == treeBefore.ModelResets, "Mark read preserves model identity");
+			expect(readAfter.OverviewBuilds == before.OverviewBuilds && readAfter.OverviewReceiptRows == before.OverviewReceiptRows + 1U
+					   && readAfter.Ledger.ReceiptLoads == before.Ledger.ReceiptLoads && readAfter.Ledger.PersistenceRequests == before.Ledger.PersistenceRequests + 1U
+					   && tree->work_statistics().ModelResets == treeBefore.ModelResets,
+				   "Mark read writes and projects one receipt without rereads, Overview reconstruction or model reset");
 			auto* cards = window->conversation_panel()->cards();
 			wait_for([&] { return !cards->cards().empty(); }, "selected file conversation cards");
 			auto button = std::optional<QRect>{ };
@@ -237,6 +354,7 @@ try {
 			const auto point = QPointF{ button->center() - QPoint{ 0, cards->verticalScrollBar()->value() } };
 			before           = access::scaling_evidence(*owner);
 			treeBefore       = tree->work_statistics();
+			Measurement      = gesture_measurement{ };
 			QMouseEvent press{ QEvent::MouseButtonPress, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 			QApplication::sendEvent(cards->viewport(), &press);
 			QMouseEvent release{ QEvent::MouseButtonRelease, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
@@ -244,7 +362,10 @@ try {
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.ConversationWrites > before.Ledger.ConversationWrites; }, "public card commits read cursor");
 			settle([&] { return access::scaling_evidence(*owner); });
 			report("conversation-read-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
-			expect(access::scaling_evidence(*owner).ConversationThreadsVisited - before.ConversationThreadsVisited <= snapshot->ReviewThreads.size(), "one conversation command never duplicates the snapshot observation");
+			expect(access::scaling_evidence(*owner).ConversationThreadsVisited - before.ConversationThreadsVisited == 1U
+					   && access::scaling_evidence(*owner).ConversationPostsVisited - before.ConversationPostsVisited == 1U
+					   && access::scaling_evidence(*owner).OverviewBuilds == before.OverviewBuilds,
+				   "one conversation command observes exactly its thread and post without overview work");
 		} else {
 			expect(access::scaling_evidence(*owner).Ledger.MaterialReceiptHits > 0U, "same-root restart loads durable receipt for selected material");
 			std::cout << "reopen=1 material_receipt_hits=" << access::scaling_evidence(*owner).Ledger.MaterialReceiptHits << '\n';
@@ -263,15 +384,18 @@ try {
 		wait_for([&] { return sibling->home_open_action()->isEnabled(); }, "sibling Open enabled", [&] { std::cerr << "sibling_status=" << sibling->session_panel()->status_text() << '\n'; });
 		sibling->home_open_action()->trigger();
 		wait_for([&] { return readEntered.load(); }, "concurrent provider holds real files page", [&] { std::cerr << "sibling_status=" << sibling->session_panel()->status_text() << " sibling_reason=" << sibling->session_panel()->diagnostic_text() << " showing_home=" << sibling->showing_home() << " recording_failure=" << access::evidence(*owner).RecordingFailure << '\n'; });
-		before     = access::scaling_evidence(*owner);
-		treeBefore = tree->work_statistics();
+		before      = access::scaling_evidence(*owner);
+		treeBefore  = tree->work_statistics();
+		Measurement = gesture_measurement{ };
 		select("large/comparison.cpp");
-		const auto sourceBefore = surface->statistics();
-		const auto semantic     = surface->current_semantic_index();
+		const auto sourceBefore      = surface->statistics();
+		const auto semantic          = surface->current_semantic_index();
+		const auto sourceMeasurement = gesture_measurement{ };
 		surface->shared_scrollbar()->setValue(surface->shared_scrollbar()->maximum() / 2);
 		QApplication::processEvents();
 		expect(!window->grab().isNull(), "composed reading surface renders");
 		const auto sourceAfter = surface->statistics();
+		report_allocations("source-scroll", sourceMeasurement);
 		std::cout << "source_scroll_lines=20000 index_adoptions=" << sourceAfter.SemanticIndexAdoptions - sourceBefore.SemanticIndexAdoptions
 				  << " geometry_rebuilds=" << sourceAfter.GeometryRebuilds - sourceBefore.GeometryRebuilds
 				  << " pane_measurements=" << sourceAfter.PaneMeasurements - sourceBefore.PaneMeasurements

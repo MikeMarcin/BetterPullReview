@@ -136,6 +136,18 @@ namespace bpr::application {
 		auto operator<=>(const overview_since_last_review&) const = default;
 	};
 
+	/// Header facts supplied by retained epoch history, independent of files.
+	struct overview_history_update
+	{
+		bool                                           Known = false;
+		std::optional<core::observed_utc_milliseconds> ReviewedAt;
+		std::optional<std::size_t>                     Uploads;
+		auto                                           operator<=>(const overview_history_update&) const = default;
+	};
+
+	[[nodiscard]] auto project_overview_history(std::span<const epoch_row_projection>      aUpdates,
+												const std::optional<core::git_commit_oid>& aReviewed) -> overview_history_update;
+
 	struct overview_review_progress
 	{
 		std::size_t                FilesRead    = 0U;

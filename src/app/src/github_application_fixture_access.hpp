@@ -14,6 +14,7 @@
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
+#include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -872,8 +873,10 @@ namespace bpr::app::detail {
 	{
 		application::workbench_work_statistics     Workbench;
 		application::review_ledger_host_statistics Ledger;
+		application::review_queue_host_statistics  Queue;
 		std::uint64_t                              OverviewBuilds             = 0U;
 		std::uint64_t                              OverviewReceiptVisits      = 0U;
+		std::uint64_t                              OverviewHistoryUpdates     = 0U;
 		std::uint64_t                              ConversationThreadsVisited = 0U;
 		std::uint64_t                              ConversationPostsVisited   = 0U;
 		std::uint64_t                              OverviewReceiptUpdates     = 0U;
@@ -891,7 +894,7 @@ namespace bpr::app::detail {
 	class github_application_fixture_access final
 	{
 	public:
-		[[nodiscard]] static auto scaling_evidence(const github_application& aApplication) noexcept -> application_scaling_evidence;
+		[[nodiscard]] static auto scaling_evidence(const github_application& aApplication, std::optional<core::bpr_window_context> aContext = std::nullopt) noexcept -> application_scaling_evidence;
 		/// \brief Copies the accepted and tab-owned pairs on the decision lane.
 		[[nodiscard]] static auto tab_comparison_evidence(const github_application& aApplication) -> tab_comparison_fixture_evidence;
 		/// \brief Copies the host-accepted records for independent fixture identity checks.

@@ -284,6 +284,9 @@ namespace {
 			const auto after = host.statistics();
 			expect(after.AppliedRefreshes == before.AppliedRefreshes + 1U, "single exact refresh accepted on decision lane");
 			expect(host.queue().size() == static_cast<std::size_t>(count), "single refresh retains unrelated queue items");
+			expect(after.ItemPublications == before.ItemPublications + 1U
+					   && after.Projection.RecordsVisited == before.Projection.RecordsVisited,
+				   "retained membership with no newly observed role publishes one item without walking records");
 			std::cout << "queue records=" << count << " changed=1 publications=" << after.Publications - before.Publications
 					  << " records_visited=" << after.Projection.RecordsVisited - before.Projection.RecordsVisited
 					  << " activity_comparisons=" << after.Projection.ActivityComparisons - before.Projection.ActivityComparisons
@@ -1232,6 +1235,50 @@ namespace {
 		bool                                               Delivering = false;
 	};
 
+	void test_known_refresh_delta_and_complete_attachment_replay()
+	{
+		for (const auto count : { 32, 4096 }) {
+			auto store = memory_queue_store{ };
+			for (auto number = 1; number <= count; ++number) {
+				store.State.Enrollments.push_back({ .Ref = ref(number), .Membership = by_role(core::github_role::reviewer) });
+			}
+			auto refresh   = observed_refresh{ };
+			auto effects   = application::manual_executor{ };
+			auto decisions = application::manual_executor{ };
+			auto windows   = admitted_queue_windows{ };
+			windows.Live   = { queue_window(1U), queue_window(2U) };
+			auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { .Host = "github.com", .Account = "reviewer", .Generation = 4U } };
+			host.restore();
+			run_one(effects, decisions);
+			auto first = std::make_shared<window_queue_log>();
+			expect(host.attach(queue_window(1U), first).has_value(), "first consumer receives full baseline");
+			const auto before   = host.statistics();
+			refresh.Observation = { .Ref = ref(count), .Author = "fixture", .Role = core::github_role::reviewer, .Title = "one changed item" };
+			host.refresh(ref(count), { .UnseenComments = 2U });
+			run_one(effects, decisions);
+			const auto after = host.statistics();
+			expect(after.ItemPublications == before.ItemPublications + 1U && after.Projection == before.Projection
+					   && after.PersistenceRequests == before.PersistenceRequests && effects.pending() == 0U,
+				   "unchanged enrollment updates one item without catalogue projection or persistence");
+			const auto& delta = first->Published.back();
+			expect(delta.Items.empty() && delta.UpdatedItem && delta.UpdatedItem->Ref == ref(count) && delta.UpdatedItem->Facts.UnseenComments == 2U, "caught-up consumer receives exact changed identity");
+			auto second = std::make_shared<window_queue_log>();
+			expect(host.attach(queue_window(2U), second).has_value(), "new consumer attaches after a delta");
+			expect(!second->Published.back().UpdatedItem && second->Published.back().Items == host.queue(), "new consumer receives complete current state, never a delta without its base");
+			first->Callback = [&] {
+				first->Callback         = { };
+				refresh.Observation.Ref = ref(count - 1);
+				host.refresh(ref(count - 1), { .UnseenComments = 4U });
+				run_one(effects, decisions);
+			};
+			host.refresh(ref(count), { .UnseenComments = 3U });
+			run_one(effects, decisions);
+			expect(!second->Published.back().UpdatedItem && second->Published.back().Items == host.queue(), "a reentrant publication cannot give a lagging consumer a delta with a missing base");
+			std::cout << "queue-delta records=" << count << " changed=1 projected_catalogue_rows=" << after.Projection.RecordsVisited - before.Projection.RecordsVisited << " item_publications=" << after.ItemPublications - before.ItemPublications << '\n';
+			host.shutdown();
+		}
+	}
+
 	struct profile_queue_log final : application::queue_landing_projection_port
 	{
 		void publish(const application::queue_landing_projection&) override
@@ -1917,6 +1964,7 @@ namespace {
 
 auto main() -> int
 {
+	test_known_refresh_delta_and_complete_attachment_replay();
 	test_legacy_combined_sink_keeps_every_reentrant_observation();
 	test_restore_publication_shutdown_never_posts_a_later_load();
 	test_rule_publication_shutdown_never_posts_reconciliation();

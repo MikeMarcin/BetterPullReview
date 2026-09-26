@@ -787,6 +787,32 @@ namespace {
 		expect(opened, "fresh server catalogue enables normal source navigation");
 	}
 
+	void test_history_publication_does_not_touch_file_rows()
+	{
+		auto page     = qt::pull_request_overview_page{ };
+		auto expected = projection();
+		page.present(expected);
+		auto  fileSignals = 0U;
+		auto* model       = page.file_model();
+		QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++fileSignals; });
+		QObject::connect(model, &QAbstractItemModel::dataChanged, [&] { ++fileSignals; });
+		QObject::connect(model, &QAbstractItemModel::rowsInserted, [&] { ++fileSignals; });
+		QObject::connect(model, &QAbstractItemModel::rowsRemoved, [&] { ++fileSignals; });
+		QObject::connect(model, &QAbstractItemModel::rowsMoved, [&] { ++fileSignals; });
+		for (const auto history : { application::overview_history_update{ .Known = true, .ReviewedAt = core::observed_utc_milliseconds{ 1'780'000'000'000 }, .Uploads = 7U }, application::overview_history_update{ .Known = true }, application::overview_history_update{ } }) {
+			page.apply_history(history);
+			expected.SinceLastReview.Known      = history.Known;
+			expected.SinceLastReview.ReviewedAt = history.ReviewedAt;
+			expected.SinceLastReview.Uploads    = history.Uploads;
+			auto complete                       = qt::pull_request_overview_page{ };
+			complete.present(expected);
+			expect(page.projection() == expected && page.since_heading()->text() == complete.since_heading()->text()
+					   && page.value_label(qt::overview_value::uploads)->text() == complete.value_label(qt::overview_value::uploads)->text(),
+				   "history-only presentation equals full header and preserves other retained facts");
+		}
+		expect(fileSignals == 0U, "epoch history changes touch no file rows or models");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -796,6 +822,7 @@ auto main(int argc, char** argv) -> int
 	if (scale > 0) {
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
+	test_history_publication_does_not_touch_file_rows();
 	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();
 	test_page_presents_the_projection_and_reports_its_gestures();

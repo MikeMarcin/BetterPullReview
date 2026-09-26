@@ -641,6 +641,7 @@ namespace bpr::application {
 		void index_inserted(const core::workbench_file_id aFile, const std::size_t aPosition)
 		{
 			for (auto& entry : FileIndex) {
+				++WorkStatistics.FilePositionVisits;
 				entry.second += entry.second >= aPosition ? 1U : 0U;
 			}
 			const auto at = std::ranges::lower_bound(FileIndex, std::pair{ aFile, aPosition });
@@ -655,6 +656,7 @@ namespace bpr::application {
 				FileIndex.erase(at);
 			}
 			for (auto& entry : FileIndex) {
+				++WorkStatistics.FilePositionVisits;
 				entry.second -= entry.second > aPosition ? 1U : 0U;
 			}
 		}
@@ -1032,10 +1034,18 @@ namespace bpr::application {
 					inserted.first += inserted.first >= at ? 1U : 0U;
 				}
 				delta.Inserted.emplace_back(at, workbench_file_projection{ .File = Files[at].File, .Path = Files[at].PresentationPath });
+				if (PublishedFiles) {
+					WorkStatistics.PublishedFileRowsShifted += PublishedFiles->size() - at;
+					PublishedFiles->insert(PublishedFiles->begin() + static_cast<std::ptrdiff_t>(at), delta.Inserted.back().second);
+				}
 				withheld = Withheld.erase(withheld);
 			}
 			if (!aActionable) {
 				if (const auto position = file_position(aFile)) {
+					if (PublishedFiles) {
+						WorkStatistics.PublishedFileRowsShifted += PublishedFiles->size() - *position - 1U;
+						PublishedFiles->erase(PublishedFiles->begin() + static_cast<std::ptrdiff_t>(*position));
+					}
 					Withheld.emplace(aFile, std::move(Files[*position]));
 					Files.erase(Files.begin() + static_cast<std::ptrdiff_t>(*position));
 					Actionable.erase(Actionable.begin() + static_cast<std::ptrdiff_t>(*position));
@@ -1053,28 +1063,12 @@ namespace bpr::application {
 			std::ranges::sort(delta.Inserted, { }, &std::pair<std::size_t, workbench_file_projection>::first);
 			++WorkStatistics.TargetedActionabilityUpdates;
 			WorkStatistics.TargetedActionabilityFiles += delta.Removed.size() + delta.Inserted.size();
-			apply_published_delta(delta);
 			PendingFilesDelta = std::move(delta);
 			if (Selected.has_value() && file_position(*Selected).has_value()) {
 				SelectedFile = Files[*file_position(*Selected)];
 			}
 			observe_cursor();
 			publish_changes(local_context());
-		}
-
-		/// \brief Keeps the last published order equal to what a consumer holds
-		/// after applying a delta.
-		void apply_published_delta(const workbench_files_delta& aDelta)
-		{
-			if (!PublishedFiles.has_value()) {
-				return;
-			}
-			std::erase_if(*PublishedFiles, [&aDelta](const workbench_file_projection& aFile) {
-				return std::ranges::find(aDelta.Removed, aFile.File) != aDelta.Removed.end();
-			});
-			for (const auto& [position, file] : aDelta.Inserted) {
-				PublishedFiles->insert(PublishedFiles->begin() + static_cast<std::ptrdiff_t>(std::min(position, PublishedFiles->size())), file);
-			}
 		}
 
 		void observe_change_navigation_now(
@@ -2101,6 +2095,11 @@ namespace bpr::application {
 		-> const workbench_layout_settings&
 	{
 		return Implementation->Layout;
+	}
+
+	auto workbench_application_host::contains_file(const core::workbench_file_id aFile) const noexcept -> bool
+	{
+		return Implementation->file_position(aFile).has_value();
 	}
 
 	auto workbench_application_host::actionable() const noexcept

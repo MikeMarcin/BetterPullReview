@@ -27,6 +27,9 @@ namespace bpr::application {
 		std::uint64_t TargetedActionabilityUpdates = 0U;
 		std::uint64_t TargetedActionabilityFiles   = 0U;
 		std::uint64_t ActionabilityObservations    = 0U;
+		/// Dense retained order maintenance, distinct from projecting file data.
+		std::uint64_t FilePositionVisits       = 0U;
+		std::uint64_t PublishedFileRowsShifted = 0U;
 	};
 
 	/// \brief Provides the workbench application host contract.
@@ -119,6 +122,7 @@ namespace bpr::application {
 			-> const core::workbench_interaction_state&;
 		[[nodiscard]] auto layout() const noexcept
 			-> const workbench_layout_settings&;
+		[[nodiscard]] auto contains_file(core::workbench_file_id aFile) const noexcept -> bool;
 		[[nodiscard]] auto actionable() const noexcept
 			-> std::span<const core::workbench_file_id>;
 		[[nodiscard]] auto selected() const noexcept
