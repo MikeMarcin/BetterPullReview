@@ -5,8 +5,11 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import tempfile
 import time
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def run(command, sink, environment=None):
@@ -17,7 +20,7 @@ def run(command, sink, environment=None):
 
 
 driver, app, logging = (str(Path(item).resolve()) for item in sys.argv[1:])
-with tempfile.TemporaryDirectory(prefix="bpr-diagnostic-") as temporary:
+with contained_temporary_directory(prefix="bpr-diagnostic-") as temporary:
     root = Path(temporary)
     result, elapsed = run([driver], subprocess.PIPE)
     assert result.returncode == 0 and result.stdout == b"terminal-diagnostics:complete\n"

@@ -1711,6 +1711,12 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
             OR current_allowed_relative STREQUAL "src/adapters/update/src/macos_update_helper.cpp")
             file(READ "${BPR_ROOT}/src/adapters/update/CMakeLists.txt" effect_owner_cmake)
             set(effect_owner_target "better_pull_review_adapter_update")
+        elseif(current_allowed_relative STREQUAL "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp")
+            file(READ "${BPR_ROOT}/src/adapters/mcp/CMakeLists.txt" effect_owner_cmake)
+            set(effect_owner_target "tool_better_pull_review_mcp_context_helper")
+        elseif(current_allowed_relative STREQUAL "src/app/src/terminal_diagnostics.cpp")
+            set(effect_owner_cmake "${app_cmake_contents}")
+            set(effect_owner_target "better_pull_review_composition")
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
@@ -1754,7 +1760,7 @@ verify_effect_owner(
     "${agent_windows_supervisor_relative}"
 )
 verify_effect_owner(
-    "(CreateJobObjectW|SetInformationJobObject|AssignProcessToJobObject|ResumeThread|TerminateJobObject|QueryInformationJobObject|InitializeProcThreadAttributeList|UpdateProcThreadAttribute|DeleteProcThreadAttributeList|PROC_THREAD_ATTRIBUTE_HANDLE_LIST|CancelSynchronousIo)"
+    "(CreateJobObjectW|SetInformationJobObject|AssignProcessToJobObject|ResumeThread|TerminateJobObject|QueryInformationJobObject|InitializeProcThreadAttributeList|UpdateProcThreadAttribute|DeleteProcThreadAttributeList|PROC_THREAD_ATTRIBUTE_HANDLE_LIST)"
     "native Windows agent containment API"
     "${git_process_runner_relative}"
     "${agent_windows_process_relative}"
@@ -1762,6 +1768,18 @@ verify_effect_owner(
     # [[BPR-1115]]. The handle list a QProcess launcher applies is built here,
     # once, rather than in each launcher.
     "${platform_windows_standard_handles_relative}"
+)
+# BPR-0972: cancelling one owned blocking write is not process containment.
+# BPR-0971's terminal owners need only this API; Job Object and inherited-handle
+# APIs above remain confined to their existing process/platform owners.
+verify_effect_owner(
+    "CancelSynchronousIo"
+    "native Windows synchronous I/O cancellation API"
+    "${git_process_runner_relative}"
+    "${agent_windows_process_relative}"
+    "${agent_windows_supervisor_relative}"
+    "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp"
+    "src/app/src/terminal_diagnostics.cpp"
 )
 verify_effect_owner(
     "QNetworkAccessManager"

@@ -1605,6 +1605,30 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_terminal_cancellation_owners_cannot_acquire_containment(self) -> None:
+        owners = (
+            "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp",
+            "src/app/src/terminal_diagnostics.cpp",
+        )
+        sources = {path: "CancelSynchronousIo(writer);\n" for path in owners}
+        sources["src/adapters/mcp/CMakeLists.txt"] = (
+            "target_sources(tool_better_pull_review_mcp_context_helper PRIVATE src/mcp_terminal_diagnostic.hpp)\n"
+        )
+        sources["src/app/CMakeLists.txt"] = "target_sources(better_pull_review_composition PRIVATE src/terminal_diagnostics.cpp)\n"
+        result = self.run_check(sources)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path in owners:
+            for primitive in ("AssignProcessToJobObject", "PROC_THREAD_ATTRIBUTE_HANDLE_LIST"):
+                with self.subTest(path=path, primitive=primitive):
+                    self.assert_failure(
+                        "native Windows agent containment API ownership violation",
+                        {path: primitive + ";\n"},
+                    )
+        self.assert_failure(
+            "native Windows synchronous I/O cancellation API ownership violation",
+            {"src/adapters/mcp/src/other.cpp": "CancelSynchronousIo(writer);\n"},
+        )
+
     def test_native_windows_agent_target_owns_selected_backend(self) -> None:
         self.assert_failure(
             "Agent process adapter target contract is incomplete",

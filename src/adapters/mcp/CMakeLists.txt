@@ -35,6 +35,7 @@ bpr_enable_warnings(better_pull_review_adapter_mcp)
 bpr_add_executable(
     tool_better_pull_review_mcp_context_helper
     src/mcp_context_helper_main.cpp
+    src/mcp_terminal_diagnostic.hpp
 )
 bpr_add_windows_version_resource(tool_better_pull_review_mcp_context_helper "BetterPullReview MCP context helper")
 target_link_libraries(

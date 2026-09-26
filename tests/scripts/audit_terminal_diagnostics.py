@@ -12,12 +12,16 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import tempfile
+import sys
 import signal
 
 if os.name == "posix":
     import fcntl
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
 
 MAXIMUM_STDERR_BYTES = 512
 CONTENT = "BPR_SYNTHETIC_PRIVATE_CONTENT_CANARY"
@@ -113,7 +117,7 @@ def main() -> int:
     )
     blocked_refusal, refusal_output = blocked_stderr(helper, {}, b"")
     closed_refusal = closed_stderr(helper, {}, b"")
-    with tempfile.TemporaryDirectory(prefix="bpr-mcp-terminal-") as scratch:
+    with contained_temporary_directory(prefix="bpr-mcp-terminal-") as scratch:
         pin = "1/2/3/" + "a" * 40 + "/" + "b" * 40 + "/4/5"
         environment = {"BPR_MCP_SNAPSHOT_ROOT": scratch, "BPR_MCP_PINNED_BINDING": pin}
         healthy = subprocess.run(
