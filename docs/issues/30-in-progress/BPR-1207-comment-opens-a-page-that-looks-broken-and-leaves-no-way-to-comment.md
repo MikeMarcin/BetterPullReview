@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1207"
 title: "Comment opens a page that looks broken and leaves no way to comment"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1133"]
 priority: "P2"
