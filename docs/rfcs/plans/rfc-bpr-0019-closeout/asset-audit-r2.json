@@ -1,0 +1,142 @@
+{
+  "schema": "bpr.rfc0019.current-asset-audit.v1",
+  "run_id": "rfc0019-20260925-parallel",
+  "mandate_revision": "r2",
+  "revision": "379d09b99079aa6eadb7adb88191f69db2200df0",
+  "product_revision": "fdeea1ac0313167f0706b12b0ec9d8bd0798a36b",
+  "python": "3.14.7",
+  "zlib": "1.2.12",
+  "manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+  "provenance_sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c",
+  "asset_tool_sha256": "c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf",
+  "boundary_tool_sha256": "daed464537389b753b91a3058b9f81efe5bbae009ab888351e491e12659551d7",
+  "schema_version": 2,
+  "clip_ids": [
+    "calm_idle",
+    "greet",
+    "rest",
+    "blink",
+    "compare_glance",
+    "consider",
+    "comment_ready",
+    "attention",
+    "acknowledge",
+    "blocked"
+  ],
+  "frames": 71,
+  "gutters": 20,
+  "content_decoded_bytes": 18612224,
+  "complete_decoded_bytes": 23855104,
+  "max_frames_per_second": 10.0,
+  "current_empty_output_byte_mismatches": [],
+  "current_canonical_product_mismatches": [],
+  "current_committed_digest_inventory_stale": false,
+  "v008_source_files_compared": 72,
+  "v008_canonical_source_mismatches": [],
+  "v008_candidate_manifest_matches": true,
+  "v008_verdict_sha256": "57a2a6d8fa6c297173b9f7a93e6411faa3b1cd0c0262ba059b1da36021f4e116",
+  "v008_verdict_matches_provenance": true,
+  "v008_session": "7e489c0dd362c256bc28715a16892b65",
+  "v008_cursor": 123,
+  "v008_accepted_decisions": 12,
+  "v008_pending": [],
+  "old_review_bound_product_mismatches": [
+    "source/calm-idle/frame-000.png",
+    "source/calm-idle/frame-001.png",
+    "source/calm-idle/frame-002.png",
+    "source/dif-neutral-master.png",
+    "source/greet/frame-000.png",
+    "source/greet/frame-001.png",
+    "source/greet/frame-002.png",
+    "source/greet/frame-003.png",
+    "source/greet/frame-004.png",
+    "source/rest/frame-000.png",
+    "generated/dif-calm-idle.png",
+    "generated/dif-greet.png",
+    "generated/dif-rest.png",
+    "generated/dif-sprite-catalog.hpp",
+    "generated/dif-sprite-digests.json"
+  ],
+  "old_review_manifest_matches": false,
+  "old_review_provenance_matches": false,
+  "old_review_tool_matches": false,
+  "historical_verdicts": [
+    {
+      "family": "dif-provenance-v001",
+      "historical_validation_manifest_and_verdict_hashes_match": {
+        "manifest": true,
+        "verdict": true
+      },
+      "validation_sha256": "e506b82b13d17238f120a6563b6e698a5ec161ed58223a00fff3a218e6ddca27",
+      "limitation": "Historical validation receipt identity rechecked; original historical validator is not redeployed or rerun."
+    },
+    {
+      "family": "dif-final-v001",
+      "historical_validation_manifest_and_verdict_hashes_match": {
+        "manifest": true,
+        "verdict": true
+      },
+      "validation_sha256": "d847a0405e144398edc06a4cfb9ca449e29b5ff06fa2ab6bceade5dda82a2577",
+      "limitation": "Historical validation receipt identity rechecked; original historical validator is not redeployed or rerun."
+    }
+  ],
+  "asset_hygiene": {
+    "checked_files": 87,
+    "png_count": 82,
+    "prompt_recorded_as_provenance_only": true
+  },
+  "offline_tool": {
+    "imports": [
+      "__future__",
+      "argparse",
+      "dataclasses",
+      "hashlib",
+      "json",
+      "math",
+      "pathlib",
+      "struct",
+      "sys",
+      "tempfile",
+      "typing",
+      "zlib"
+    ],
+    "sha256": "c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf"
+  },
+  "runtime_source_boundary": {
+    "checked_files": 582
+  },
+  "artifact_inventory": [
+    {
+      "path": "docs/verification/dif-production-art-v008/review/human-verdict.json",
+      "sha256": "57a2a6d8fa6c297173b9f7a93e6411faa3b1cd0c0262ba059b1da36021f4e116"
+    },
+    {
+      "path": "scripts/dif_assets.py",
+      "sha256": "c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf"
+    },
+    {
+      "path": "scripts/verify_dif_asset_boundaries.py",
+      "sha256": "daed464537389b753b91a3058b9f81efe5bbae009ab888351e491e12659551d7"
+    },
+    {
+      "path": "src/adapters/qt/CMakeLists.txt",
+      "sha256": "ef839642b4359a38c5d356924a2b204afe2a7f77018cca80b8ef5c1b14e2cc6b"
+    },
+    {
+      "path": "src/adapters/qt/assets/dif/dif-sprite-manifest.json",
+      "sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d"
+    },
+    {
+      "path": "src/adapters/qt/assets/dif/provenance.json",
+      "sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c"
+    },
+    {
+      "path": "tests/scripts/dif_asset_tests.py",
+      "sha256": "883c50738d19ebb5b17b63d76217c0ec6cb99cccad336526714774a72a9da414"
+    }
+  ],
+  "reproduction": {
+    "inherited_from": "asset-audit-r1.json reproduction.script",
+    "changes": "mandate_revision r2, product_revision fdeea1ac0313167f0706b12b0ec9d8bd0798a36b; serialize a real final newline; all assertions unchanged"
+  }
+}

@@ -1,0 +1,324 @@
+{
+  "schema": "bpr.rfc0019.graph_verification.v1",
+  "candidate_revision": "b03fc9fd3d97434c2cc9a60d5f6b59f923d612c7",
+  "product_revision": "fdeea1ac0313167f0706b12b0ec9d8bd0798a36b",
+  "platform": "macOS arm64, 2026-09-26",
+  "commands": [
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "dev",
+        "-DBPR_DEPENDENCY_OFFLINE=ON"
+      ],
+      "exit_code": 0,
+      "result": "Fresh configure; selected offline copied dependency cache. Initial configure completed before the explicit parallel-level environment cap; KSyntaxHighlighting provider internally used bare --parallel."
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 150.223,
+      "log": "build/rfc0019-closeout/graph-0.log"
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-j1",
+        "-R",
+        "^dif_assets_contract$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 87.686,
+      "log": "build/rfc0019-closeout/graph-1.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "core-only",
+        "-DBPR_DEPENDENCY_OFFLINE=ON"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.646,
+      "log": "build/rfc0019-closeout/graph-2.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 118.396,
+      "log": "build/rfc0019-closeout/graph-3.log"
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "-j1",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "elapsed_seconds": 558.871,
+      "log": "build/rfc0019-closeout/graph-4.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "app-release",
+        "-DBPR_DEPENDENCY_OFFLINE=ON"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 56.547,
+      "log": "build/rfc0019-closeout/graph-5.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "app-release",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 192.731,
+      "log": "build/rfc0019-closeout/graph-6.log"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_dif_asset_boundaries.py",
+        "--source",
+        ".",
+        "--dev-build",
+        "build/dev",
+        "--core-build",
+        "build/core-only",
+        "--app-build",
+        "build/app-release"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 48.355,
+      "log": "build/rfc0019-closeout/graph-7.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.406,
+      "log": "build/rfc0019-closeout/repair-0.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.636,
+      "log": "build/rfc0019-closeout/repair-1.log"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "app-release",
+        "--parallel",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.419,
+      "log": "build/rfc0019-closeout/repair-2.log"
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "-j1",
+        "-R",
+        "^(architecture_boundaries|architecture_boundary_contract|contained_temporary_usage_contract|documentation_structure|documentation_issue_graph_contract|issue_id_allocation_contract)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 115.814,
+      "log": "build/rfc0019-closeout/repair-3.log"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_dif_asset_boundaries.py",
+        "--source",
+        ".",
+        "--dev-build",
+        "build/dev",
+        "--core-build",
+        "build/core-only",
+        "--app-build",
+        "build/app-release"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 46.022,
+      "log": "build/rfc0019-closeout/repair-4.log"
+    }
+  ],
+  "repair": {
+    "author_scope": "BPR-0972 owner; coordinator reviewed/authorized integration",
+    "original_commit": "ecf93cfd3cb29b0196ef3acc23db1b5742e17904",
+    "main_commit": "ca23a9fe",
+    "local_commit": "b03fc9fd3d97434c2cc9a60d5f6b59f923d612c7",
+    "changed_paths": [
+      "cmake/VerifyArchitectureBoundaries.cmake",
+      "src/adapters/mcp/CMakeLists.txt",
+      "tests/end_to_end/terminal_diagnostic_contract.py",
+      "tests/scripts/architecture_boundary_tests.py",
+      "tests/scripts/audit_terminal_diagnostics.py"
+    ],
+    "runtime_effect": "No runtime behavior edit: split CancelSynchronousIo ownership from containment, register existing MCP header, use existing contained temporary helper in two probes, and add positive/negative controls.",
+    "replay": "All five failed rows plus changed architecture contract pass 6/6; graph builds auto-reconfigure and selected graph/binary audit passes again."
+  },
+  "initial_core_only_result": "161/166 pass, exit8; three missing ignored MASK helper deployment failures and two existing diagnostic-workstream contract failures.",
+  "helper_setup": "Task-local ignored symlink to the assigned installed MASK implement-rfc payload; isolated CTest unsets PYTHONPATH. Three setup rows pass both first targeted replay and final 6-row replay.",
+  "environment": {
+    "CMAKE_BUILD_PARALLEL_LEVEL": "2 for all commands after the initial dev configure",
+    "QT_QPA_PLATFORM": "offscreen",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "/Users/jaeger/.mask/store/v1/6ad19f0fc539b9b393a02dbeff6bf0745f83ac499d7c953cba4d9236bf667832/payload/implement-rfc/scripts"
+  },
+  "developer_scope": "Fresh selected ordinary developer application target; focused dif_assets_contract CTest, 63 cases; no full developer suite claim.",
+  "core_only_tests": 166,
+  "core_only_final_disposition": "All 166 rows covered by initial 161 passes and final 6/6 replay (five failures plus architecture negative controls); no full-suite rerun or single all-green-run claim",
+  "selected_profiles": {
+    "app-release": {
+      "accepted_compiled_strips": 10,
+      "application_sha256": "fd4f3536a4e182efe7880a7f72a255afb764df2c537f3e27977015381a454e68",
+      "bpr_build_qt": "ON",
+      "build_testing": "OFF",
+      "first_party_translation_units": 367
+    },
+    "core-only": {
+      "bpr_build_qt": "OFF",
+      "build_testing": "ON",
+      "core_artifacts": {
+        "artifact_count": 4,
+        "combined_sha256": "14bb78925ff912b285b9f08d5720c845643ecd7750f15088ce409de83893e6d9"
+      },
+      "first_party_translation_units": 240
+    },
+    "dev": {
+      "accepted_compiled_strips": 10,
+      "application_sha256": "2cb105bcde88b465c27d06ebd9412e135aba9cf5137f295c1a80b7a768eafed2",
+      "bpr_build_qt": "ON",
+      "build_testing": "ON",
+      "first_party_translation_units": 609
+    }
+  },
+  "boundary_observation": {
+    "asset_tree": {
+      "checked_files": 87,
+      "manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+      "notice_required": false,
+      "png_count": 82,
+      "prompt_recorded_as_provenance_only": true,
+      "provenance_sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c"
+    },
+    "limitations": [
+      "Visual originality, GitHub-mark absence, and foreign-character exclusion remain attended decisions.",
+      "This verifies development and tests-disabled application graphs, not a signed, notarized, installable, or certified package."
+    ],
+    "offline_tool": {
+      "imports": [
+        "__future__",
+        "argparse",
+        "dataclasses",
+        "hashlib",
+        "json",
+        "math",
+        "pathlib",
+        "struct",
+        "sys",
+        "tempfile",
+        "typing",
+        "zlib"
+      ],
+      "sha256": "c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf"
+    },
+    "runtime_source_absence": {
+      "checked_files": 582
+    },
+    "schema_name": "bpr.dif_asset_boundary_verification",
+    "schema_version": 1,
+    "selected_profiles": {
+      "app-release": {
+        "accepted_compiled_strips": 10,
+        "application_sha256": "fd4f3536a4e182efe7880a7f72a255afb764df2c537f3e27977015381a454e68",
+        "bpr_build_qt": "ON",
+        "build_testing": "OFF",
+        "first_party_translation_units": 367
+      },
+      "core-only": {
+        "bpr_build_qt": "OFF",
+        "build_testing": "ON",
+        "core_artifacts": {
+          "artifact_count": 4,
+          "combined_sha256": "14bb78925ff912b285b9f08d5720c845643ecd7750f15088ce409de83893e6d9"
+        },
+        "first_party_translation_units": 240
+      },
+      "dev": {
+        "accepted_compiled_strips": 10,
+        "application_sha256": "2cb105bcde88b465c27d06ebd9412e135aba9cf5137f295c1a80b7a768eafed2",
+        "bpr_build_qt": "ON",
+        "build_testing": "ON",
+        "first_party_translation_units": 609
+      }
+    }
+  },
+  "source_input_git_objects": {
+    "src": "899e27730ba3308b0cc7ff83238e6eabb4ce424f",
+    "tests": "7eebeb9f0554620dad0b872d3f2bcbc0cb89ebff",
+    "scripts": "1bbcc4391fe6a326bd8b18da41850545491b83e4",
+    "cmake": "2b93972450102b23e3010155fd566f7686d4efcb",
+    "CMakeLists.txt": "06f04e3dd3adadfffd9e49d8a3c1c71e49959bb4",
+    "CMakePresets.json": "f13b0f88901b688b26499adb5b97e9bf8e4d1783"
+  },
+  "limitations": [
+    "No installed, signed, notarized, released or native visual package claim.",
+    "Original no-runtime literal is superseded by RFC-0031; selected app graphs intentionally compile ten accepted strips.",
+    "Independent reviews are reused for unchanged scoped art/tool/authority inputs, not claimed freshly rerun.",
+    "Transient logs and build outputs are not committed; the command results and selected binary digests are retained here."
+  ],
+  "initial_command_revision": "379d09b99079aa6eadb7adb88191f69db2200df0",
+  "repair_command_revision": "b03fc9fd3d97434c2cc9a60d5f6b59f923d612c7"
+}

@@ -2,6 +2,79 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
+## Final reconciliation — 2026-09-26
+
+**RFC-BPR-0019 is Auto-Verified; BPR-0295 is Done.** All seven original criteria
+are accepted under the existing RFC-0030/0031
+supersession and exact AC1 owner amendment. The candidate is
+`b03fc9fd3d97434c2cc9a60d5f6b59f923d612c7`, based on
+`fdeea1ac0313167f0706b12b0ec9d8bd0798a36b` plus coordinator-approved BPR-0972
+gate repair `ca23a9fe` (local `b03fc9fd`). Asset/tool/authority inputs are
+unchanged from the `379d09b9` replay; the imported repair changes only two
+existing contract violations, their negative controls and the MCP header's
+explicit CMake listing. It changes no runtime behavior. The terminal documentation gate returns
+`DOCUMENTATION_OK`, all 64 documentation cases pass, and `git diff --check`
+passes. The seven-row acceptance, RFC, index and board are reconciled.
+
+The [seven exact-key replay records](../rfcs/plans/rfc-bpr-0019-closeout/final-replay-r2.json)
+retain each canonical criterion, command/result, proving revision, artifact
+digest and independent disposition. They accept superseded clauses by their
+recorded successor authority rather than label false original literals passed.
+
+| Row | Accepted current evidence | Authority and limits |
+|---|---|---|
+| 1 | All 72 source files, manifest/provenance and v008 verdict match; 87-file/82-PNG hygiene audit passes. | BPR-0287 original rights scope, exact v008 derivative acceptance, and AC1 amendment `d7af6bd8`; unknown creator/tool/history/terms remain disclosed. No provenance file edit. |
+| 2 | Public validate/verify and current strict generated-byte comparison pass. | RFC-0030 and BPR-0378/0408 govern portable pixel/text/payload-hash equality; local Python 3.14.7/zlib 1.2.12 byte equality is a scoped observation. |
+| 3 | 63/63 asset contract cases, strict schema and descriptor consumers pass. | Exactly ten schema-2 clips under RFC-0030; the original three-clip clause is superseded. |
+| 4 | 71 content cells, 20 gutters, 18,612,224/23,855,104 decoded bytes, maximum 10 fps; geometry and negatives pass. | RFC-0030 replaces original numeric limits with 76 frames and 19/24 MiB ceilings. 256-square RGBA and registration remain. |
+| 5 | Mechanical validation; unchanged current source/manifest/player and 58 previews bind the twelve v008 accepts at sequence 123. | Current visual/derivative verdict reused exactly; BPR-0291 remains evidence for its old bytes only. |
+| 6 | Fresh dev/tests-disabled application builds and selected binary/resource audit; core-only build, initial 161/166, then all five failed rows plus updated architecture contract pass 6/6. | No art generation/tool dependency in builds; core-only excludes Qt/assets. RFC-0031 owns intentional runtime composition. No installed/native visual/release claim. |
+| 7 | Current owning asset/architecture/UX/security/build/package documentation states the accepted source, products, limits, provenance and runtime boundary. | This reconciliation preserves original no-runtime stage wording as history; DOCUMENTATION_OK, 64/64 documentation cases and whitespace checks pass. |
+
+[graph-verification-r3.json](../rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r3.json)
+records all fresh graph commands, selected flags, binary hashes and source Git
+objects. The developer build covers the application target and focused asset
+CTest; no full developer suite is claimed. Configure used an isolated copy of
+the pinned cache in offline mode. Initial dev configuration's dependency build
+used the provider's bare `--parallel`; every subsequent configure/build was
+capped with `CMAKE_BUILD_PARALLEL_LEVEL=2`, top-level builds used `--parallel 2`,
+and tests ran serially with Qt offscreen.
+
+The core run's five failures are retained: three absent local MASK helper
+deployment rows, fixed by the task-local ignored installed-payload link, and
+two existing diagnostic gate violations, corrected by the separate BPR-0972
+owner. Final 6/6 targeted replay covers those five and the new architecture
+negative controls. All three graph builds and the exact graph/binary audit
+were repeated after the narrow repair; other passing rows are reused. No
+all-green initial full-suite or native Windows execution is claimed.
+
+The supplied [independent reports and dispositions](../rfcs/plans/rfc-bpr-0019-closeout/review-disposition-r2.json)
+are the ordinary reviewer thread `01a0d807-eb0b-7543-ac87-6f867774134c`
+(`0a9e26ed`/`07f41e25`/`7faf61d1`) and critical reviewer thread
+`01a0d84f-0ab7-7ed2-a754-79d86fc4ead7` (`dc12c489`, including `f530e08b`).
+The ordinary P2 premature-exit finding was corrected before graph r2 and is
+now closed by fresh graph r3. The critical P2 completeness finding is closed
+by the explicit AC1 amendment; its AC6/AC7 bookkeeping note is resolved here.
+Their unchanged scoped inputs were compared directly. No new independent
+review or missing fact is inferred from self-review.
+
+The [scoped human event replay](../rfcs/plans/rfc-bpr-0019-closeout/owner-amendment-r2.json)
+confirms session `06ad5734ed9f7c2fd6d0a62c8328fa0a`, exact fingerprint
+`a10c0106b0c2f555c9d48b52ae37aa1c9ea77203dd4708796aaa048a0b33ff8d`,
+decision sequence 35, hand-back 54 with no pending question, and
+resume-development 55. No new server/session or visual/rights decision is
+required. Original RFC-base documentation mapping remains below; current
+owning documents already describe RFC-0030/0031 accurately and need no product
+semantic change. The amendment changes acceptance only.
+
+RFC-0001–0018 and both explicit dependencies are Auto-Verified; BPR-0287–0294,
+BPR-0115 and BPR-0617 are Done. Canonical order therefore permits this closeout.
+No other RFC status or follow-up acceptance is changed.
+
+Everything below is dated audit or implementation history. Its old statuses,
+limits and pending statements retain their original candidates; the final
+reconciliation above is the current disposition.
+
 ## Owner amendment to AC1 — 2026-09-25
 
 **The AC1 provenance blocker recorded below is resolved by a scoped owner
@@ -19,7 +92,7 @@ unchanged. The owner's note names the generator as "ChatGPT 5.6 Sol"; that
 statement is recorded on BPR-0295 and the RFC and is not written into
 `provenance.json`. The exact wording is on
 [RFC-BPR-0019](../rfcs/RFC-BPR-0019-dif-visual-identity-sprite-assets.md#status-and-scope)
-and [BPR-0295](../issues/30-in-progress/BPR-0295-anchor-rfc-0019-verification.md#owner-amendment-to-ac1--2026-09-25-attended-session-06ad5734).
+and [BPR-0295](../issues/60-done/BPR-0295-anchor-rfc-0019-verification.md#owner-amendment-to-ac1--2026-09-25-attended-session-06ad5734).
 The audit below is kept as it was written.
 
 ## Ordinary closeout audit — 2026-09-25

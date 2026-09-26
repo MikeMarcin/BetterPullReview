@@ -1,0 +1,40 @@
+{
+  "schema": "bpr.rfc0019.scoped-owner-amendment.v1",
+  "session_id": "06ad5734ed9f7c2fd6d0a62c8328fa0a",
+  "candidate_id": "BPR-0295-ac1-provenance-v001",
+  "prepared_revision": "3759b0d8",
+  "fingerprint": "a10c0106b0c2f555c9d48b52ae37aa1c9ea77203dd4708796aaa048a0b33ff8d",
+  "decision_sequence": 35,
+  "decision": {
+    "candidate": "BPR-0295-ac1-provenance-v001",
+    "fingerprint": "a10c0106b0c2f555c9d48b52ae37aa1c9ea77203dd4708796aaa048a0b33ff8d",
+    "decision_id": "d7af6bd8-d44c-469a-9f46-397b5ad8bb52",
+    "outcome": "select",
+    "selected": [
+      "Amend AC1 for this exact v008 asset set: accept the recorded unknowns as disclosed gaps"
+    ],
+    "note": "It was ChatGPT 5.6 Sol that generated the images, but I also don't care.",
+    "saved_at": "2026-09-26T04:32:59.657385+00:00",
+    "actor": "human"
+  },
+  "hand_back_sequence": 54,
+  "pending_at_hand_back": [],
+  "resume_development_sequence": 55,
+  "candidate_protected_at_replay": false,
+  "recorded_rfc_amendment_commit": "a6f88ee93caf1750a23453c8ebf664686b5af061",
+  "scope": "Only BPR-0295 AC1 for the exact unchanged v008 set. Unknown facts remain unknown; provenance.json intentionally unchanged. No decision for another candidate is copied.",
+  "bound_files": [
+    {
+      "path": "src/adapters/qt/assets/dif/provenance.json",
+      "sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c"
+    },
+    {
+      "path": "src/adapters/qt/assets/dif/dif-sprite-manifest.json",
+      "sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d"
+    },
+    {
+      "path": "docs/verification/dif-production-art-v008/review/human-verdict.json",
+      "sha256": "57a2a6d8fa6c297173b9f7a93e6411faa3b1cd0c0262ba059b1da36021f4e116"
+    }
+  ]
+}

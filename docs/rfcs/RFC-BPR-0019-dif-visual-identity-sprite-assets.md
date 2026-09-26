@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0019"
 title: "Dif Visual Identity, Sprite Assets, and Animation Contract"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0006","RFC-BPR-0013"]
@@ -11,6 +11,16 @@ pack_version: "post-v2"
 # RFC-BPR-0019: Dif Visual Identity, Sprite Assets, and Animation Contract
 
 ## Status and scope
+
+**Auto-Verified on 2026-09-26 through [[BPR-0295]].** The
+[final ledger](../verification/RFC-BPR-0019.md#final-reconciliation--2026-09-26)
+binds the unchanged v008 asset set, the exact AC1 amendment below, supplied
+independent review dispositions, fresh selected graph/build evidence and final
+documentation checks. RFC-BPR-0006/0013 and all earlier canonical RFCs are
+Auto-Verified. RFC-0030/0031 govern their accepted clip, resource, regeneration
+and runtime deltas; the original stage scope and criteria below are preserved.
+Recorded creator/tool unknowns remain disclosed. This closes no other RFC and
+supplies no installed-package or new native visual acceptance.
 
 This is the first of two ordered deferred post-pack RFCs for the BetterPullReview
 mascot. It establishes an original, reviewable, deterministic asset system for
@@ -44,8 +54,8 @@ the absence of foreign or private material are unchanged and already evidenced.
 AC1's wording below is unchanged; this changes acceptance, not observations.
 The generator name in the note is the owner's statement and is not recorded in
 `provenance.json`, whose bytes the amendment binds. Terminal reconciliation of
-the other rows remains on [[BPR-0295]], and this RFC stays Deferred until it is
-done.
+all seven rows is complete on [[BPR-0295]]; the amendment remains scoped to
+the exact unchanged v008 bytes.
 
 ## Source material and adaptation boundary
 
