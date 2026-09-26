@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1206"
 title: "The tab strip's plus activates the new tab, and tabs fill the strip, shrink to a minimum, then scroll"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1132"]
 priority: "P2"
