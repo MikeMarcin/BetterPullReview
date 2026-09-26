@@ -106,3 +106,13 @@ holds the app, seven-file inventory, identity, absolute launcher, offline HTML
 and future allowlisted observations. Launcher canary self-test passes. The
 owner must quit the previous app before this launcher starts the new one.
 The full review identity and live server are recorded in the handoff.
+
+## Main integration
+
+The coordinator landed the repair as `0bfcbaa9` and parked evidence as
+`50e729af`. The dev epoch-host and window-read-host targets rebuilt on this
+main candidate. `application_epoch_host` and `application_github_window_read_host`
+passed 2/2 (1.00 seconds); the documentation gate passed. This integrates
+the repair with previously landed diagnostics and Compose changes. It does not
+replace the synthetic production-course evidence above or settle actual private
+rendering and owner acceptance. The frozen v002 candidate remains unchanged.
