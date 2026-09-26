@@ -611,6 +611,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
 		/// \brief The single contextual presentation slot, empty until explicitly selected.
 		[[nodiscard]] auto dif_ai_slot() const noexcept -> QWidget*;
+		/// \brief Compose's illustration slot for the currently offered workshop revision.
+		[[nodiscard]] auto dif_workshop_slot() const noexcept -> QWidget*;
 		/// \brief [[BPR-0775]]. Dif's resting place at the start of the status line.
 		///
 		/// \details Mandate r2: Dif greets on the first-launch card and otherwise
@@ -1137,6 +1139,7 @@ namespace bpr::qt {
 		void               place_dif_corner();
 		void               play_dif_cue(std::optional<dif_clip_id> aCue);
 		[[nodiscard]] auto showing_dif_ai() const -> bool;
+		[[nodiscard]] auto showing_dif_workshop() const -> bool;
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
 		/// or hides the section by whether there are any.
 		void apply_recent_reviews();
@@ -1376,6 +1379,8 @@ namespace bpr::qt {
 		std::unique_ptr<QElapsedTimer>        DifCueClock;
 		dif_widget*                           Dif                = nullptr;
 		QWidget*                              DifAiSlot          = nullptr;
+		QWidget*                              DifWorkshopSlot    = nullptr;
+		QWidget*                              WorkshopHeader     = nullptr;
 		QWidget*                              DifCornerSlot      = nullptr;
 		QAction*                              AiToolsAction      = nullptr;
 		QScrollArea*                          ConversationScroll = nullptr;

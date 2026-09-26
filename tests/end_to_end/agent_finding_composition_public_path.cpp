@@ -26,6 +26,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
 #include <QEvent>
 #include <QItemSelectionModel>
 #include <QLineEdit>
@@ -33,6 +34,7 @@
 #include <QObject>
 #include <QPlainTextEdit>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QThread>
@@ -68,6 +70,14 @@ namespace {
 	constexpr std::string_view agent_claim
 		= "BPR_FINDING_CLAIM_0504 the retry budget is not reported to the caller";
 	constexpr auto contextual_cue_cooldown_ms = 2'100UL;
+
+	/// \brief Saves the real composed workshop when a review capture directory is supplied.
+	auto capture_workshop(qt::workbench_window& aWindow, const QString& aStage) -> bool
+	{
+		const auto directory = qEnvironmentVariable("BPR_DIF_WORKSHOP_RENDER_DIR");
+		return directory.isEmpty()
+			|| aWindow.grab().save(QDir{ directory }.filePath(aStage + QStringLiteral(".png")));
+	}
 
 	/// \brief Records the visible sprite's paint events inside event-loop delivery.
 	/// \details A start and a terminal can both land before the next wait predicate.
@@ -669,10 +679,16 @@ auto main(int argc, char** argv) -> int
 		&& editor->shown_proposal().has_value()
 		&& editor->shown_proposal()->Draft == draftBeforeConversion->Id
 		&& editor->shown_draft() == draftBeforeConversion;
-	const auto proposalEditorVisible        = editor->isVisible();
-	const auto proposalAiSlotVisible        = window.dif_ai_slot()->isVisible();
-	const auto proposalDifVisible           = dif != nullptr && dif->isVisible();
+	const auto proposalEditorVisible   = editor->isVisible();
+	const auto proposalAiSlotVisible   = window.dif_ai_slot()->isVisible();
+	const auto proposalDifVisible      = dif != nullptr && dif->isVisible();
+	const auto proposalWorkshopVisible = window.dif_workshop_slot()->isVisible()
+		&& dif != nullptr && dif->parentWidget() == window.dif_workshop_slot()
+		&& !dif->visibleRegion().isEmpty();
 	const auto draftIntentsBeforeAcceptance = editor->statistics().DraftIntents;
+	if (course == "dif-context" && !capture_workshop(window, QStringLiteral("proposal"))) {
+		return fail(*application, "proposal-capture");
+	}
 
 	if (course == "workshop-press" && editor->clarify_action() != nullptr) {
 		// Answered, so the offer is open again. A control that stayed shut
@@ -690,8 +706,20 @@ auto main(int argc, char** argv) -> int
 		if (course == "dif-context") {
 			QThread::msleep(contextual_cue_cooldown_ms);
 			QApplication::processEvents();
+			auto* page   = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+			auto* accept = window.findChild<QToolButton*>(QStringLiteral("reviewAcceptRevisionButton"));
+			if (page == nullptr || accept == nullptr || !accept->isVisible() || !accept->isEnabled()) {
+				return fail(*application, "workshop-accept-button");
+			}
+			page->verticalScrollBar()->setValue(page->verticalScrollBar()->maximum());
+			QApplication::processEvents();
+			if (dif->visibleRegion().isEmpty() || accept->visibleRegion().isEmpty()) {
+				return fail(*application, "workshop-header-scroll");
+			}
+			accept->click();
+		} else {
+			editor->accept_revision_action()->trigger();
 		}
-		editor->accept_revision_action()->trigger();
 		QApplication::processEvents();
 	}
 	const auto difAcknowledge = dif != nullptr
@@ -703,8 +731,14 @@ auto main(int argc, char** argv) -> int
 	const auto acceptedEditorVisible   = editor->isVisible();
 	const auto acceptedAiSlotVisible   = window.dif_ai_slot()->isVisible();
 	const auto acceptedDifVisible      = dif != nullptr && dif->isVisible();
+	const auto acceptedWorkshopVisible = window.dif_workshop_slot()->isVisible()
+		&& dif != nullptr && dif->parentWidget() == window.dif_workshop_slot()
+		&& !dif->visibleRegion().isEmpty();
 	const auto acceptanceEmitsOneDraft = editor->statistics().DraftIntents
 		== draftIntentsBeforeAcceptance + 1U;
+	if (course == "dif-context" && !capture_workshop(window, QStringLiteral("accepted"))) {
+		return fail(*application, "accepted-capture");
+	}
 	// BPR-0538. Two more stages, on the press course only, and both driven
 	// through the same composed graph: the turn that answers nothing, and the
 	// turn that belongs to somebody else.
@@ -852,6 +886,10 @@ auto main(int argc, char** argv) -> int
 		contract.require("dif-attention-after-delivery", difAttention);
 		contract.require("dif-comment-ready-after-conversion", difCommentReady);
 		contract.require("dif-acknowledge-after-acceptance", difAcknowledge);
+		contract.require("proposal-in-compose-slot", proposalWorkshopVisible && !proposalAiSlotVisible);
+		contract.require("accepted-in-compose-slot", acceptedWorkshopVisible && !acceptedAiSlotVisible);
+		contract.require("ready-painted", difPaints->saw(qt::dif_clip_id::comment_ready));
+		contract.require("acknowledge-painted", difPaints->saw(qt::dif_clip_id::acknowledge));
 		contract.require("proposal-preserves-exact-draft", proposalMatchesDraft);
 		contract.require("acceptance-preserves-draft-id", acceptedMatchesDraft);
 		contract.require("acceptance-emits-one-draft", acceptanceEmitsOneDraft);
@@ -866,6 +904,32 @@ auto main(int argc, char** argv) -> int
 		contract.require(
 			"draft-body-is-suggestion", evidence.LocalDraftBody == agent_suggested);
 		contract.require("no-github-mutation", noGithubMutation);
+		// Leaving and returning exposes current content at rest, never a
+		// queued success. Whole-review composition has no inline workshop.
+		window.open_review_composition(false);
+		QApplication::processEvents();
+		contract.require("whole-review-hides-workshop", !window.dif_workshop_slot()->isVisible());
+		window.open_review_composition(true);
+		QApplication::processEvents();
+		contract.require("return-keeps-one-neutral-sprite", window.dif() == dif && window.dif_workshop_slot()->isVisible() && dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::rest) && !dif->current_frame().NextMs);
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::full },
+			core::motion_observation::full));
+		QApplication::processEvents();
+		contract.require("hidden-preference-reclaims-workshop-slot", !window.dif_workshop_slot()->isVisible() && !dif->isVisible() && !dif->current_frame().NextMs);
+		contract.require("hidden-art-keeps-acceptance-controls", window.findChild<QToolButton*>(QStringLiteral("reviewAcceptRevisionButton"))->isVisible() && editor->accept_revision_action()->isEnabled());
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced },
+			core::motion_observation::full));
+		QApplication::processEvents();
+		contract.require("reduced-workshop-rests", window.dif_workshop_slot()->isVisible() && dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::rest) && !dif->current_frame().NextMs);
+		const auto acceptedDraft   = editor->shown_draft();
+		const auto acceptedIntents = editor->statistics().DraftIntents;
+		editor->reject_revision_action()->trigger();
+		QApplication::processEvents();
+		contract.require("dismissal-retires-only-workshop-slot", !window.dif_workshop_slot()->isVisible() && editor->shown_draft() == acceptedDraft && editor->statistics().DraftIntents == acceptedIntents);
+		const auto finalMutation = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		contract.require("navigation-publishes-nothing", finalMutation.Submissions == 0U && finalMutation.TargetObservations == 0U && finalMutation.StoredComments == 0U);
 		const auto passed = report_contract("dif-context-evidence", contract);
 		if (!passed) {
 			std::cerr << "agent-finding-dif-context-evidence:"
@@ -875,10 +939,11 @@ auto main(int argc, char** argv) -> int
 					  << ':' << mutation.Submissions << '\n';
 			std::fprintf(stderr,
 						 "agent-finding-dif-workshop-visibility:proposal-editor=%d proposal-ai-slot=%d proposal-dif=%d "
-						 "accepted-editor=%d accepted-ai-slot=%d accepted-dif=%d "
+						 "accepted-editor=%d accepted-ai-slot=%d accepted-dif=%d proposal-workshop=%d accepted-workshop=%d "
 						 "painted-consider=%d painted-ready=%d painted-acknowledge=%d\n",
 						 proposalEditorVisible, proposalAiSlotVisible, proposalDifVisible,
 						 acceptedEditorVisible, acceptedAiSlotVisible, acceptedDifVisible,
+						 proposalWorkshopVisible, acceptedWorkshopVisible,
 						 difPaints->saw(qt::dif_clip_id::consider),
 						 difPaints->saw(qt::dif_clip_id::comment_ready),
 						 difPaints->saw(qt::dif_clip_id::acknowledge));

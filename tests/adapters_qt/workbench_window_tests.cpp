@@ -10188,6 +10188,32 @@ namespace {
 		expect(!action->isChecked() && !window.dif_ai_slot()->isVisible()
 				   && !dif->isVisible(),
 			   "leaving the AI area removes its decoration without changing AI content");
+		auto* editor = window.review_editor();
+		auto  draft  = core::review_comment_draft{
+			.Id     = core::review_draft_id{ 1U },
+			.Anchor = { .Comparison = opaque<core::file_comparison_digest>(2U), .Side = core::diff_side::right, .Line = 8U },
+			.Body   = "Original comment",
+		};
+		editor->present(draft);
+		editor->present(qt::comment_workshop_proposal{ draft.Id, draft.Body, "Proposed revision", { } });
+		window.open_review_composition(true);
+		process_events();
+		auto* accept = window.findChild<QToolButton*>(QStringLiteral("reviewAcceptRevisionButton"));
+		expect(accept != nullptr && accept->isVisible() && accept->isEnabled()
+				   && window.dif_workshop_slot()->isVisible() && dif->parentWidget() == window.dif_workshop_slot()
+				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1,
+			   "Compose offers the exact proposal with the same single Dif beside visible acceptance");
+		accept->setFocus();
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		expect(!window.dif_workshop_slot()->isVisible(), "Escape also returns from the fixed workshop header");
+		window.open_review_composition(true);
+		process_events();
+		draft.Id = core::review_draft_id{ 2U };
+		editor->present(draft);
+		process_events();
+		expect(!window.dif_workshop_slot()->isVisible() && !accept->isEnabled()
+				   && editor->reject_revision_action()->isEnabled() && editor->statistics().DraftIntents == 0U,
+			   "another draft cannot keep the workshop illustration or accept its proposal");
 		window.hide();
 	}
 
@@ -10359,6 +10385,13 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
 		test_comments_filter_and_return_comparison_preferences_apply_on_open();
 		std::cout << "shared-snapshot-navigation:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--dif-workshop-placement"))) {
+		test_composition_pages_retain_editors_and_never_submit_on_navigation();
+		test_composition_keys_open_the_pages_and_esc_returns();
+		test_dif_moves_to_the_explicit_ai_area_without_owning_it();
+		std::cout << "dif-workshop-placement:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {

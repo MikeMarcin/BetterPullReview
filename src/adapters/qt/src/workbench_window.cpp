@@ -1698,6 +1698,34 @@ namespace bpr::qt {
 		};
 		ComposeReviewPage = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"));
 		ComposeInlinePage = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"));
+		// Keep the decision and its illustration visible while the before/after
+		// scrolls. Mascot preferences must never hide these semantic controls.
+		WorkshopHeader = new QWidget{ CentreSurface };
+		WorkshopHeader->setObjectName(QStringLiteral("workbenchWorkshopHeader"));
+		auto* workshopEscape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, WorkshopHeader };
+		workshopEscape->setContext(Qt::WidgetWithChildrenShortcut);
+		connect(workshopEscape, &QShortcut::activated, this, [this] { close_review_composition(); });
+		auto* workshopHeader = new QHBoxLayout{ WorkshopHeader };
+		workshopHeader->addWidget(new QLabel{ tr("Comment workshop"), WorkshopHeader });
+		for (auto* action : { ReviewEditor->accept_revision_action(), ReviewEditor->reject_revision_action() }) {
+			auto* button = new QToolButton{ WorkshopHeader };
+			button->setObjectName(action->objectName() + QStringLiteral("Button"));
+			button->setDefaultAction(action);
+			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			button->setFocusPolicy(Qt::StrongFocus);
+			workshopHeader->addWidget(button);
+			connect(action, &QAction::changed, this, [this] { update_dif_presentation(); });
+		}
+		workshopHeader->addStretch();
+		DifWorkshopSlot = new QWidget{ WorkshopHeader };
+		DifWorkshopSlot->setObjectName(QStringLiteral("workbenchDifWorkshopSlot"));
+		DifWorkshopSlot->setAccessibleName(tr("Decorative Dif workshop illustration"));
+		DifWorkshopSlot->setFixedSize(64, 64);
+		auto* workshopIllustration = new QHBoxLayout{ DifWorkshopSlot };
+		workshopIllustration->setContentsMargins(0, 0, 0, 0);
+		workshopHeader->addWidget(DifWorkshopSlot);
+		WorkshopHeader->hide();
+		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
@@ -4921,6 +4949,11 @@ namespace bpr::qt {
 		return DifAiSlot;
 	}
 
+	auto workbench_window::dif_workshop_slot() const noexcept -> QWidget*
+	{
+		return DifWorkshopSlot;
+	}
+
 	void workbench_window::adopt_dif(const core::dif_resolution aResolution)
 	{
 		DifResolution      = aResolution;
@@ -6386,8 +6419,21 @@ namespace bpr::qt {
 			&& Drawers[1].Panel->width() >= 240;
 	}
 
+	auto workbench_window::showing_dif_workshop() const -> bool
+	{
+		// Reuse the editor's exact draft/proposal and conflict gate rather than
+		// retaining a second workshop identity just for decoration.
+		return !showing_home() && CompositionPage == ComposeInlinePage
+			&& ReviewEditor != nullptr && ReviewEditor->isVisible()
+			&& ReviewEditor->accept_revision_action()->isEnabled();
+	}
+
 	void workbench_window::update_dif_presentation()
 	{
+		if (WorkshopHeader != nullptr) {
+			WorkshopHeader->setVisible(!showing_home() && CompositionPage == ComposeInlinePage
+									   && ReviewEditor->shown_proposal().has_value());
+		}
 		if (HomeLanding == nullptr || DifAiSlot == nullptr || !DifResolutionReady) {
 			return;
 		}
@@ -6395,17 +6441,20 @@ namespace bpr::qt {
 		const auto home  = showing_home();
 		// [[BPR-0775]] mandate r2. Dif shows up on Home's first-launch card, at
 		// RFC-BPR-0031's Home sizes, and otherwise rests in the bottom-left
-		// corner out of the way. Only Home rests him there: a review keeps
-		// RFC-BPR-0031's explicit AI slot, or no Dif at all.
-		const auto card       = home && HomeLanding->state() == landing_state::sign_in;
-		const auto cardSlot   = card && HomeLanding->illustration_space_available();
-		const auto cornerSlot = home && !card;
-		const auto aiSlot     = showing_dif_ai();
-		if (Dif == nullptr && shown && isVisible() && (cardSlot || cornerSlot || aiSlot) && DifCatalog) {
+		// corner out of the way. Reviews use the explicit AI tools slot;
+		// BPR-0966 gives an offered workshop revision its own Compose slot.
+		const auto  card           = home && HomeLanding->state() == landing_state::sign_in;
+		const auto  cardSlot       = card && HomeLanding->illustration_space_available();
+		const auto  cornerSlot     = home && !card;
+		const auto  aiSlot         = showing_dif_ai();
+		const auto  workshopSlot   = showing_dif_workshop();
+		auto* const contextualSlot = workshopSlot ? DifWorkshopSlot : DifAiSlot;
+		const auto  contextual     = workshopSlot || aiSlot;
+		if (Dif == nullptr && shown && isVisible() && (cardSlot || cornerSlot || contextual) && DifCatalog) {
 			if (auto cache = DifCatalog->acquire()) {
 				auto* const parent = cardSlot ? static_cast<QWidget*>(HomeLanding)
 					: cornerSlot              ? static_cast<QWidget*>(this)
-											  : DifAiSlot;
+											  : contextualSlot;
 				Dif                = new dif_widget{ std::move(cache), parent };
 				Dif->setObjectName(QStringLiteral("workbenchDif"));
 				Dif->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -6413,18 +6462,16 @@ namespace bpr::qt {
 		}
 		HomeLanding->set_illustration_enabled(shown && card);
 		DifAiSlot->setVisible(shown && aiSlot && Dif != nullptr);
+		DifWorkshopSlot->setVisible(shown && workshopSlot && Dif != nullptr);
 		DifCornerSlot->setVisible(shown && cornerSlot && Dif != nullptr && statusBar()->currentMessage().isEmpty());
 		DifCues->set_visible(
-			shown && aiSlot && DifResolution.EffectiveMotion == core::motion_mode::full
+			shown && contextual && DifResolution.EffectiveMotion == core::motion_mode::full
 			&& isActiveWindow() && QApplication::activeModalWidget() == nullptr);
 		if (Dif == nullptr) {
 			return;
 		}
 		if (card) {
 			if (HomeLanding->illustration() != Dif) {
-				if (DifAiSlot->layout() != nullptr) {
-					DifAiSlot->layout()->removeWidget(Dif);
-				}
 				HomeLanding->set_illustration(Dif);
 			}
 		} else if (cornerSlot) {
@@ -6432,21 +6479,18 @@ namespace bpr::qt {
 				static_cast<void>(HomeLanding->take_illustration());
 			}
 			if (Dif->parentWidget() != this) {
-				if (DifAiSlot->layout() != nullptr) {
-					DifAiSlot->layout()->removeWidget(Dif);
-				}
 				Dif->setParent(this);
 			}
 			Dif->setFixedSize(dif_corner_size, dif_corner_size);
 			place_dif_corner();
-		} else if (aiSlot) {
+		} else if (contextual) {
 			if (HomeLanding->illustration() == Dif) {
 				static_cast<void>(HomeLanding->take_illustration());
 			}
-			if (Dif->parentWidget() != DifAiSlot) {
-				Dif->setParent(DifAiSlot);
-				DifAiSlot->layout()->addWidget(Dif);
-				DifAiSlot->layout()->setAlignment(Dif, Qt::AlignCenter);
+			if (Dif->parentWidget() != contextualSlot) {
+				Dif->setParent(contextualSlot);
+				contextualSlot->layout()->addWidget(Dif);
+				contextualSlot->layout()->setAlignment(Dif, Qt::AlignCenter);
 			}
 			Dif->setFixedSize(64, 64);
 			Dif->show();
@@ -6454,7 +6498,7 @@ namespace bpr::qt {
 			Dif->hide();
 		}
 		Dif->set_eligibility({
-			.Shown      = shown && (home || aiSlot),
+			.Shown      = shown && (home || contextual),
 			.FullMotion = DifResolution.EffectiveMotion == core::motion_mode::full,
 			.Active     = isActiveWindow(),
 			.Modal      = QApplication::activeModalWidget() != nullptr,

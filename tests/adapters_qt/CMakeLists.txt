@@ -969,6 +969,15 @@ target_link_libraries(
 )
 bpr_enable_hardening(test_better_pull_review_qt_workbench_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_workbench_window_tests)
+bpr_add_network_isolated_test(
+    NAME qt_dif_workshop_placement
+    COMMAND test_better_pull_review_qt_workbench_window_tests --dif-workshop-placement
+)
+set_tests_properties(qt_dif_workshop_placement PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "dif-workshop-placement:pass"
+    TIMEOUT 60
+)
 # [[BPR-1022]]. The strip menu's keyboard course delivers keys and clicks
 # through QWindowSystemInterface, where the Windows platform plugin hands
 # input to Qt, so the shortcut map and the window see them as they would

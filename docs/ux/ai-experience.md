@@ -125,6 +125,19 @@ leading `#`. Accepting emits exactly one draft `edit` carrying the proposed text
 byte for byte; rejecting emits nothing and leaves the original byte-identical,
 tab and trailing space included (BPR-0503, `qt_review_draft_editor`).
 
+Compose gives the offered revision a fixed **Comment workshop** header with
+the existing Accept revision and Reject revision actions ([[BPR-0966]]).
+The workbench's one Dif widget moves there at 64 logical
+pixels while that exact draft's revision is offered, and remains after the
+local acceptance. The accepted proposal plays `comment_ready`; the matching
+explicit acceptance plays `acknowledge`. Neither publishes a comment. Rejection,
+draft replacement or a conflict removes the illustration. The header stays
+visible while the before/after scrolls, and Escape returns from its controls
+as it does from the editor. Leaving and returning shows
+neutral rest without replaying a cue; hidden and reduced-motion preferences
+retain the same draft controls. This slot is Compose's prime placement under
+the owner amendment; [[BPR-1209]] separately owns Dif's default corner elsewhere.
+
 ### What is specified here but not yet built
 
 Delivered since this list was first written, and kept here so the list is
