@@ -74,10 +74,12 @@ line is selected (even when another line was), and the draft on that line
 answers it. No card offers a comment that would start a second thread on the
 same line.
 
-Nothing else sits between the title row and the Updates line, except the readiness line
-([[BPR-0795]]) while a pull request loads, which sits between the bar and the
-line until the owner answers [[BPR-1130]]'s question about where its words go.
-The composition entry row is gone. Home has no review bar.
+Nothing else sits between the title row, review bar and Updates line.
+Loading, preparation and unavailable-comparison words occupy the open Updates
+track, or the review bar's summary when folded ([[BPR-1201]]). The track stays
+34 pixels high; complete readiness words remain selectable there and available
+in the summary's tooltip and accessible description. The separate readiness
+and composition entry rows are gone. Home has no review bar.
 
 **The Updates line folds** ([[BPR-1130]]). The disclosure at the bar's left,
 a triangle and the word Updates, folds the timeline away and opens it again;
@@ -99,7 +101,7 @@ with an exclamation point, sits at the line's start before the track, and the
 disclosure carries the same mark after its name, so a folded line still says
 so; both tooltips carry the statement. The line's "pair ready" words left its
 row with the caption; their sentence is the comparison menu's tooltip, and
-loading or an unreadable pair is the readiness line's to say.
+loading or an unreadable pair uses that summary when folded and the track when open.
 
 **Document tabs fill the comparison's header** ([[BPR-1132]]), replacing
 its status row. Each tab keeps an exact file, comparison and semantic reading

@@ -8917,26 +8917,21 @@ namespace {
 		auto* const client = window.centralWidget();
 		// [[BPR-1129]]. RFC-BPR-0052 AC-01: above the Updates line the review
 		// surface holds the review bar and nothing else, directly under the
-		// title row. The one exception is [[BPR-0795]]'s readiness line while a
-		// pull request loads, whose place [[BPR-1130]] asks the owner about; it
-		// may sit only between the bar and the line. The composition entry
-		// row is gone.
+		// title row, including while loading. Readiness occupies the track
+		// itself; no separate readiness or composition-entry row exists.
 		const auto entriesBottom = [&window, epochs, bar, client] {
 			const auto top      = epochs->mapTo(&window, QPoint{ 0, 0 }).y();
 			const auto barFrame = QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() };
 			if (!bar->isVisible() || barFrame.top() != client->mapTo(&window, QPoint{ 0, 0 }).y()) {
 				return -1;
 			}
-			auto bottom = barFrame.bottom() + 1;
+			const auto bottom = barFrame.bottom() + 1;
 			for (const auto* const row : epochs->parentWidget()->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
 				const auto placed = QRect{ row->mapTo(&window, QPoint{ 0, 0 }), row->size() };
 				if (row == epochs || row == bar || !row->isVisible() || placed.top() >= top) {
 					continue;
 				}
-				if (row->objectName() != QStringLiteral("reviewReadiness") || placed.top() < barFrame.bottom()) {
-					return -1;
-				}
-				bottom = std::max(bottom, placed.bottom() + 1);
+				return -1;
 			}
 			return bottom;
 		};
@@ -9011,6 +9006,29 @@ namespace {
 		fold_updates_line(window);
 		expect(!epochs->isVisible() && QRect{ bar->mapTo(&window, QPoint{ 0, 0 }), bar->size() } == barFolded && panesTop() == barBottom(),
 			   "folded again, the line leaves no row and the bar has not moved");
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
+		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+									 qt::review_modality::review, qt::review_modality::discuss }) {
+			window.choose_modality(modality);
+			fold_updates_line(window);
+			process_events();
+			expect(window.findChild<QWidget*>(QStringLiteral("reviewReadiness")) == nullptr
+					   && epochs->comparing_button()->text().contains(QStringLiteral("Loading"))
+					   && epochs->comparing_button()->toolTip().contains(epochs->readiness_text())
+					   && panesTop() == barBottom(),
+				   "loading in every folded modality uses the review summary and adds no row");
+			open_updates_line(window);
+			process_events();
+			auto* const readiness = window.findChild<QLabel*>(QStringLiteral("epochReadiness"));
+			expect(spans() && readiness != nullptr && readiness->isVisible() && !epochs->line()->isVisible()
+					   && readiness->text() == epochs->readiness_text()
+					   && readiness->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+					   && epochs->height() == qt::epoch_line::height_pixels,
+				   "loading occupies the existing 34-pixel track with copyable complete words");
+			save_render(window, QStringLiteral("readiness-open-%1").arg(static_cast<int>(modality)));
+		}
 		window.hide();
 	}
 

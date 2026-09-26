@@ -58,7 +58,6 @@
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPointer>
-#include <QProgressBar>
 #include <QPushButton>
 #include <QRectF>
 #include <QScreen>
@@ -1196,32 +1195,9 @@ namespace bpr::qt {
 		auto* const review = new QVBoxLayout{ ReviewSurface };
 		review->setContentsMargins(0, 0, 0, 0);
 		review->setSpacing(0);
-		ReviewReadiness = new QWidget{ ReviewSurface };
-		ReviewReadiness->setObjectName(QStringLiteral("reviewReadiness"));
-		auto* readiness = new QHBoxLayout{ ReviewReadiness };
-		readiness->setContentsMargins(12, 6, 12, 6);
-		ReviewReadinessText = new QLabel{ ReviewReadiness };
-		ReviewReadinessText->setObjectName(QStringLiteral("reviewReadinessText"));
-		ReviewReadinessText->setAccessibleName(QStringLiteral("Review loading and readiness"));
-		ReviewReadinessText->setTextFormat(Qt::PlainText);
-		ReviewReadinessText->setWordWrap(true);
-		ReviewReadinessProgress = new QProgressBar{ ReviewReadiness };
-		ReviewReadinessProgress->setObjectName(QStringLiteral("reviewReadinessProgress"));
-		ReviewReadinessProgress->setAccessibleName(QStringLiteral("Loading review"));
-		ReviewReadinessProgress->setRange(0, 0);
-		ReviewReadinessProgress->setTextVisible(false);
-		ReviewReadinessProgress->setFixedWidth(100);
-		readiness->addWidget(ReviewReadinessText, 1);
-		readiness->addWidget(ReviewReadinessProgress);
-		ReviewReadiness->hide();
-		// [[BPR-1129]]. The review surface reads, top to bottom, the review bar,
-		// the readiness line while a pull request loads ([[BPR-0795]]'s row,
-		// which [[BPR-1130]] asks the owner about), the Updates line's timeline,
-		// and the drawers and panes. The bar takes the epoch control's
-		// "Comparing" menu, and that menu takes Review details, since what it
-		// discloses are the comparison's anchors.
+		// Readiness uses the Updates track or the folded comparison summary,
+		// so loading never inserts a row above the comparison.
 		review->addWidget(ReviewBar);
-		review->addWidget(ReviewReadiness);
 		review->addWidget(EpochSelectors);
 		review->addWidget(CentralSplitter, 1);
 		if (auto* const comparing = EpochSelectors->release_comparing_button(); comparing != nullptr) {
@@ -9746,7 +9722,7 @@ namespace bpr::qt {
 		if (EpochSelectors != nullptr && line != nullptr) {
 			// Folded, the timeline leaves no row; the control stays only for
 			// the review details it also holds.
-			line->setVisible(open);
+			EpochSelectors->set_readiness(EpochSelectors->readiness_text(), open);
 			const auto shown = open || EpochSelectors->details_visible();
 			if (EpochSelectors->isHidden() == shown) {
 				EpochSelectors->setVisible(shown);
@@ -10307,7 +10283,7 @@ namespace bpr::qt {
 
 	void workbench_window::update_review_readiness()
 	{
-		if (ReviewReadiness == nullptr || SessionPanel == nullptr) {
+		if (EpochSelectors == nullptr || SessionPanel == nullptr) {
 			return;
 		}
 		auto wording = QString{ };
@@ -10343,11 +10319,7 @@ namespace bpr::qt {
 				wording = QStringLiteral("File comparisons unavailable. %1 Refresh to try again.").arg(EpochSelectors->status_text());
 			}
 		}
-		ReviewReadinessText->setText(wording);
-		ReviewReadinessText->setAccessibleDescription(wording);
-		ReviewReadinessProgress->setVisible(busy);
-		const auto overview = Modality != nullptr && Modality->current() == review_modality::overview;
-		ReviewReadiness->setVisible(!wording.isEmpty() && (busy || overview || !EpochSelectors->comparison_available()));
+		EpochSelectors->set_readiness(busy || !EpochSelectors->comparison_available() ? wording : QString{ }, updates_line_open());
 	}
 
 	auto workbench_window::status_line() const -> QString
@@ -10362,7 +10334,7 @@ namespace bpr::qt {
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
-			status = ReviewReadinessText != nullptr ? ReviewReadinessText->text() : QStringLiteral("Loading pull request…");
+			status = EpochSelectors->readiness_text();
 		} else if (!home && HasCachedOverview) {
 			status = QStringLiteral("Cached review data; freshness unknown. Current review state is unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {

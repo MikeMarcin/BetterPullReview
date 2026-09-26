@@ -369,6 +369,15 @@ namespace bpr::qt {
 											 | Qt::TextSelectableByMouse);
 		lineRow->addWidget(lineName);
 		lineRow->addWidget(Line, 1);
+		ReadinessLabel = new QLabel{ this };
+		ReadinessLabel->setObjectName(QStringLiteral("epochReadiness"));
+		ReadinessLabel->setAccessibleName(QStringLiteral("Review loading and readiness"));
+		ReadinessLabel->setTextFormat(Qt::PlainText);
+		ReadinessLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		ReadinessLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		ReadinessLabel->setFixedHeight(epoch_line::height_pixels);
+		ReadinessLabel->hide();
+		lineRow->addWidget(ReadinessLabel, 1);
 		lineRow->addWidget(LineSummary);
 		lineRow->addWidget(ComparingButton);
 		layout->addLayout(lineRow);
@@ -708,8 +717,13 @@ namespace bpr::qt {
 		if (const auto dates = Line->selection_dates(); dates && ComparingDatesShown) {
 			comparing.append(QStringLiteral(", %1 → %2").arg(dates->first, dates->second));
 		}
+		if (!TrackOpen && !Readiness.isEmpty()) {
+			comparing = Readiness;
+		}
 		if (ComparingButton != nullptr && ComparingButton->text() != comparing) {
 			ComparingButton->setText(comparing);
+			ComparingButton->setAccessibleDescription(comparing);
+			ComparingButton->setMaximumWidth(Readiness.isEmpty() || TrackOpen ? QWIDGETSIZE_MAX : 320);
 		}
 		// [[BPR-1130]]. The comparison's tooltip says what the line row used to
 		// say beside it: whether the pair can be read, and the history
@@ -726,6 +740,23 @@ namespace bpr::qt {
 				ComparingButton->setToolTip(tip);
 			}
 		}
+	}
+
+	void epoch_comparison_control::set_readiness(QString aText, const bool aTrackOpen)
+	{
+		Readiness = std::move(aText);
+		TrackOpen = aTrackOpen;
+		ReadinessLabel->setText(Readiness);
+		ReadinessLabel->setToolTip(Readiness);
+		ReadinessLabel->setAccessibleDescription(Readiness);
+		ReadinessLabel->setVisible(TrackOpen && !Readiness.isEmpty());
+		Line->setVisible(TrackOpen && Readiness.isEmpty());
+		update_comparing_text();
+	}
+
+	auto epoch_comparison_control::readiness_text() const -> QString
+	{
+		return Readiness;
 	}
 
 	auto epoch_comparison_control::release_comparing_button() -> QToolButton*

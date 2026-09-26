@@ -508,7 +508,7 @@ namespace {
 			submit(window, url);
 			wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*application, context) != 0U; },
 					 "the real provider read reaches its held decision lane");
-			auto* readiness = window.findChild<QLabel*>(QStringLiteral("reviewReadinessText"));
+			auto* readiness = window.epoch_selectors()->comparing_button();
 			expect(!window.showing_home() && window.overview_page()->isVisible()
 					   && window.overview_page()->width() > window.width() * 3 / 4
 					   && readiness != nullptr && readiness->isVisible() && readiness->text().contains(QStringLiteral("Loading"))

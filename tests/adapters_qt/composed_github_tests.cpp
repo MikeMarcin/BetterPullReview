@@ -906,7 +906,7 @@ namespace {
 		window.resize(900, 720);
 		window.show();
 		QApplication::processEvents();
-		auto* title = required_child<QLabel>(window, "reviewReadinessText");
+		auto* title = window.epoch_selectors()->comparing_button();
 		title->installEventFilter(&observer);
 		provider.OnSubmit = [&] {
 			expect(presentation_state(window) == QStringLiteral("loading"),
@@ -3532,7 +3532,7 @@ namespace {
 				   && required_child<QLabel>(window, "overviewTitle")->text().contains(QStringLiteral("Loading"))
 				   && window.home_open_details_button()->isHidden()
 				   && required_child<QStackedWidget>(window, "githubViewState")->isHidden()
-				   && required_child<QLabel>(window, "reviewReadinessText")->text().contains(QStringLiteral("Loading")),
+				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral("Loading")),
 			   "a first load opens the provisional Overview immediately, with explicit loading and no accepted content");
 		publish_session_ready(window);
 		QApplication::processEvents();

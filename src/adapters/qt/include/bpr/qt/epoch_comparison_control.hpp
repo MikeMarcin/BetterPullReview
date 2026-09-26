@@ -62,6 +62,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1129]]. Whether the button names the compared dates;
 		/// the review bar drops them first as it narrows.
 		void set_comparing_dates_shown(bool aShown);
+		/// \brief Places readiness in the open track or the folded comparison summary.
+		void               set_readiness(QString aText, bool aTrackOpen);
+		[[nodiscard]] auto readiness_text() const -> QString;
 		/// \brief The exact anchors, OIDs, status and maintenance, shown on request.
 		[[nodiscard]] auto details() const noexcept -> QWidget*;
 		void               set_details_visible(bool aVisible);
@@ -133,9 +136,12 @@ namespace bpr::qt {
 		/// [[BPR-1129]]. Guarded: once released it belongs to the review bar,
 		/// which may be destroyed before this control.
 		QPointer<QToolButton> ComparingButton;
-		QLabel*               LineName                = nullptr;
-		bool                  ComparingReleased       = false;
-		bool                  ComparingDatesShown     = true;
+		QLabel*               LineName            = nullptr;
+		bool                  ComparingReleased   = false;
+		bool                  ComparingDatesShown = true;
+		QString               Readiness;
+		bool                  TrackOpen               = true;
+		QLabel*               ReadinessLabel          = nullptr;
 		QWidget*              Details                 = nullptr;
 		QComboBox*            LeftSelector            = nullptr;
 		QComboBox*            RightSelector           = nullptr;
