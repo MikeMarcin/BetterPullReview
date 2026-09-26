@@ -171,3 +171,18 @@ The corrected direct network-isolated selector runs set and assert 1.25 and
 unclassified card, along with the Comments navigation, are readable at each
 scale. This completes the automated/rendered part of AC6; VoiceOver remains
 pending.
+
+## Combined main integration — 2026-09-26
+
+The integration pass caught a stale expectation in the composed-GitHub course:
+it still demanded the old defect buttons in Notes. The test now retains its
+complete Notes width/layout sweep, includes the private note and promotion
+controls, and refuses thread controls there. It measures Comments navigation,
+requires an exact-thread text badge, and opens the thread menu with Shift+F10
+to check all five explained defect actions. No product command or admission
+rule changes. The corrected composed course passes at 100/125/200 percent
+(3.84/3.51/4.15 seconds); the three Comments crops and full Notes column were
+inspected. The main defect public course also passes in 53.91 seconds.
+The [combined integration record](../../verification/combined-main-integration-2026-09-26.md)
+binds this additional evidence to main. It does not replace the frozen owner
+candidate or satisfy native VoiceOver or the owner's placement judgment.

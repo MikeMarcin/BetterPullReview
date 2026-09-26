@@ -41,6 +41,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QLocale>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPersistentModelIndex>
@@ -4577,8 +4578,7 @@ namespace {
 		// Only the centre absorbs a window resize, so widening the window
 		// leaves the drawer at the width the composition gives it - which is
 		// the default width the claim is about. The height is generous so the
-		// whole defect stack can be shown at once, which is what the window
-		// capture below has to be a picture of.
+		// Comments navigation and its thread cards can be shown together.
 		window.resize(1'400, 1'500);
 		window.show();
 
@@ -4594,8 +4594,8 @@ namespace {
 		expect(
 			drawer != nullptr && drawer->isVisible(),
 			"the conversations drawer opens on the core's decided state");
-		// [[BPR-1134]]. The agent tools, the finding queue and the defect
-		// controls are the Findings tab's, in its own column.
+		// [[BPR-1204]], [[BPR-1208]]. Notes holds private tools; defect
+		// navigation is in Comments and verdicts belong to the thread menu.
 		window.ai_tools_action()->setChecked(true);
 		QApplication::processEvents();
 		auto* const column = window.findings_tab_scroll();
@@ -4689,12 +4689,10 @@ namespace {
 			   "findingOpenEvidence", "findingAskFollowUp",
 			   "findingConvertToDraftComment", "findingConvertToDraftDefect",
 			   "findingAddToPrivateNotes", "findingDismiss",
-			   // The three that fill and walk the defect queue, then the five
-			   // verdicts RFC-BPR-0009 and RFC-BPR-0010 give the selected
-			   // defect (BPR-0520).
-			   "classifySelectedDefect", "previousDefect", "nextDefect",
-			   "defectVerify", "defectReopen", "defectWithdraw",
-			   "defectAcceptAsIs", "defectReclassify" }) {
+			   // The private note editor and one-item promotion (BPR-1210).
+			   "newReviewNoteAction", "newFileNoteAction", "savePrivateNoteAction",
+			   "promotePrivateNoteAction", "deletePrivateNoteAction",
+			   "discardPrivateNoteChangesAction", "promoteChatReplyAction" }) {
 			auto* const button = offered(QString::fromLatin1(name));
 			expect(
 				button != nullptr && button->isVisible() && button->width() > 0
@@ -4764,44 +4762,62 @@ namespace {
 					offered(QStringLiteral("cancelAgentAction"))),
 			"the agent launcher's run controls are stacked rather than laid in a row: startAgentAction, cancelAgentAction");
 
-		// The one control in these rows that is not an action. BPR-0527's card
-		// measured it 17 px past the viewport with its text still legible,
-		// which is the failure that reads as success: the label was inside the
-		// drawer, its right edge was not.
-		auto* const defectCount = drawer->findChild<QLabel*>(
-			QStringLiteral("defectCount"));
-		expect(
-			defectCount != nullptr && defectCount->isVisible(),
-			"the open drawer shows the defect queue position");
-		expect(
-			std::find(controls.begin(), controls.end(), defectCount)
-					!= controls.end()
-				&& QRect{ defectCount->mapTo(column->viewport(), QPoint{ 0, 0 }),
-						  defectCount->size() }
-						.right()
-					< column->viewport()->width(),
-			"the defect queue position is inside the drawer's visible width");
-
-		// The column is taller than the drawer, so the defect stack has to be
-		// brought into the drawer's visible region before a capture is a
-		// picture of it. Scrolling moves these rows down the drawer; what it
-		// cannot do is move them across it, which is the whole point.
-		auto* const first = offered(QStringLiteral("classifySelectedDefect"));
-		auto* const last  = offered(QStringLiteral("defectReclassify"));
-		column->verticalScrollBar()->setValue(
-			column->verticalScrollBar()->value()
-			+ first->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
+		// The moved controls must be absent from Notes, not silently omitted
+		// from its width sweep. Comments keeps its own measured navigation.
+		for (const auto* name : { "classifySelectedDefect", "previousDefect", "nextDefect",
+								  "defectVerify", "defectReopen", "defectWithdraw", "defectAcceptAsIs", "defectReclassify" }) {
+			const auto* button = offered(QString::fromLatin1(name));
+			expect(button == nullptr || !column->isAncestorOf(button),
+				   std::string{ "Notes contains no thread control: " } + name);
+		}
+		expect(!column->isAncestorOf(window.defect_card()) && !column->isAncestorOf(window.defect_count_label()),
+			   "Notes contains neither the defect editor nor the queue position");
+		window.tray_tabs()->setCurrentIndex(0);
 		QApplication::processEvents();
-		const auto wholly = [column](const QWidget* const aWidget) {
-			const QRect placed{
-				aWidget->mapTo(column->viewport(), QPoint{ 0, 0 }),
-				aWidget->size(),
-			};
-			return column->viewport()->rect().contains(placed);
-		};
-		expect(
-			wholly(first) && wholly(last),
-			"the defect stack from its first action to its last is inside the drawer's visible region");
+		auto* const comments        = window.comments_tab_scroll();
+		auto        commentControls = std::vector<QWidget*>{ };
+		collect_drawer_controls(comments->widget(), commentControls);
+		for (auto* control : { static_cast<QWidget*>(window.defect_count_label()),
+							   static_cast<QWidget*>(offered(QStringLiteral("previousDefect"))),
+							   static_cast<QWidget*>(offered(QStringLiteral("nextDefect"))) }) {
+			expect(control && control->isVisible() && comments->isAncestorOf(control)
+					   && laid_into(control->parentWidget()->layout(), control)
+					   && std::ranges::find(commentControls, control) != commentControls.end(),
+				   "Comments visibly lays out and sweeps every defect navigation control");
+			const QRect placed{ control->mapTo(comments->viewport(), QPoint{ }), control->size() };
+			expect(comments->viewport()->rect().contains(placed),
+				   std::string{ "Comments defect navigation is wholly reachable: " } + control_name(control));
+		}
+
+		auto* const cards = window.conversation_panel()->cards();
+		{
+			const auto  menu     = std::unique_ptr<QMenu>{ cards->thread_menu("review-thread:t1") };
+			const auto* classify = menu ? menu->findChild<QAction*>(QStringLiteral("threadClassifyDefect")) : nullptr;
+			expect(classify && classify->isVisible() && !classify->isEnabled() && !classify->toolTip().isEmpty(),
+				   "the thread menu explains why classification needs a current code comparison");
+		}
+		window.present_defects({ core::defect_history{ .Defect = { .Id = core::defect_id{ 1U }, .State = core::defect_state::needs_verification } } },
+							   { { core::defect_id{ 1U }, "review-thread:t1" } });
+		QApplication::processEvents();
+		const auto badges = cards->findChildren<QToolButton*>(QStringLiteral("threadDefectBadge"));
+		expect(badges.size() == 1 && badges.front()->isVisible()
+				   && badges.front()->property("threadIdentity") == QStringLiteral("review-thread:t1")
+				   && !badges.front()->text().isEmpty(),
+			   "the composed Comments thread owns one visible text defect badge");
+		cards->set_current_thread("review-thread:t1");
+		QKeyEvent menuKey{ QEvent::KeyPress, Qt::Key_F10, Qt::ShiftModifier };
+		QApplication::sendEvent(cards, &menuKey);
+		QApplication::processEvents();
+		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		expect(menu && menu->isVisible(), "Shift+F10 reaches the composed thread's defect menu");
+		for (const auto* name : { "defectVerify", "defectReopen", "defectWithdraw", "defectAcceptAsIs", "threadReclassifyDefect" }) {
+			auto* action = menu->findChild<QAction*>(QString::fromLatin1(name));
+			expect(action && action->isVisible() && !menu->actionGeometry(action).isEmpty()
+					   && menu->rect().contains(menu->actionGeometry(action)) && !action->toolTip().isEmpty(),
+				   std::string{ "the reachable thread menu retains the explained defect action: " } + name);
+		}
+		menu->close();
+		QApplication::processEvents();
 
 		// The capture the card asks for, cropped to the drawer the actions are
 		// in. A whole-window raster would differ on a repaint anywhere; this
