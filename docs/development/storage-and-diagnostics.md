@@ -106,6 +106,17 @@ does not automatically upload them; OS crash collection has its own settings.
 Current crash evidence does not establish redaction of resident source/comments/
 tokens across the supported matrix.
 
+Epoch records carry the originating numeric `window_session` as well as the
+epoch-local `request` (`0` during catalog opening before request allocation).
+CLI Git acquisition refusals also carry a closed `git_step`, separating tool
+version probes/qualification, identity probes, clone, object checks, local
+store/pack work and pack reading. Other transports leave it `none`. These
+fields record where a refusal occurred, not its unobserved underlying cause:
+`clone` plus `unavailable` does not establish an authentication or size limit.
+They contain no executable path, command output, repository identity or source.
+The preview/export policy above continues to omit request identities and the
+readable diagnostic suffix. Older records are not retroactively enriched.
+
 ## Clear diagnostics or purge a profile
 
 1. Finish or save work in every window of the selected profile. In **Storage &

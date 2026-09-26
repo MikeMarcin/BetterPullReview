@@ -233,6 +233,9 @@ namespace {
 			return 0;
 		}
 		if ((args.size() == 19 || args.size() == 21) && args[1] == "repo" && args[2] == "clone") {
+			if (std::filesystem::exists(root / "fail-clone")) {
+				return 1;
+			}
 			if (args.size() == 21 && (args[19] != "--depth=1" || args[20] != "--filter=blob:none")) {
 				return 6;
 			}
@@ -423,6 +426,10 @@ namespace {
 			const auto          unsupported = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, refused, limits, { });
 			expect(!unsupported && refused.Received.empty() && !refused.Finished,
 				   "older, unknown future and prerelease CLI versions cannot acquire objects");
+			const auto* error = std::get_if<application::git_smart_transport_error>(&unsupported.error());
+			expect(error && error->Failure == application::git_smart_transport_failure::unavailable
+					   && error->Step == application::git_smart_transport_step::cli_qualification,
+				   "unsupported versions retain the actual qualification boundary");
 		}
 		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		write(root / "missing-sparse", "1");
@@ -451,7 +458,14 @@ namespace {
 		write(root / "fail-viewer", "1");
 		auto failed = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
 		expect(!failed && failed.error().Failure == application::git_smart_transport_failure::unavailable, "viewer transport failure is not account mismatch");
+		expect(failed.error().Step == application::git_smart_transport_step::identity_before, "viewer refusal is distinguished from clone and version qualification");
 		std::filesystem::remove(root / "fail-viewer");
+		write(root / "fail-clone", "1");
+		auto cloneFailure = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
+		expect(!cloneFailure && cloneFailure.error().Failure == application::git_smart_transport_failure::unavailable
+				   && cloneFailure.error().Step == application::git_smart_transport_step::clone,
+			   "nonzero clone failure keeps its step without retaining stderr");
+		std::filesystem::remove(root / "fail-clone");
 		write(root / "overflow", "1");
 		auto overflow = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
 		expect(!overflow && overflow.error().Failure == application::git_smart_transport_failure::response_limit, "kernel file ceiling maps to response limit");

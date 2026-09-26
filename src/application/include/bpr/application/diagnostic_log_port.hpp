@@ -14,6 +14,7 @@ namespace bpr::application {
 	enum class epoch_catalog_failure : std::uint8_t;
 	enum class git_cache_failure : std::uint8_t;
 	enum class git_smart_transport_failure : std::uint8_t;
+	enum class git_smart_transport_step : std::uint8_t;
 	enum class git_protocol_v2_failure : std::uint8_t;
 	enum class git_pack_stream_failure : std::uint8_t;
 	enum class diagnostic_epoch_stage : std::uint8_t {
@@ -93,6 +94,7 @@ namespace bpr::application {
 		std::optional<git_pack_stream_failure>      EpochPackFailure;
 		std::optional<github_read_validation_error> RelationshipDetail;
 		diagnostic_transport_failure_source         TransportFailureSource = diagnostic_transport_failure_source::none;
+		git_smart_transport_step                    GitStep{ };
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,

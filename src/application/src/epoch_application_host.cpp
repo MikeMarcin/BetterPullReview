@@ -255,7 +255,8 @@ namespace bpr::application {
 
 			void record(diagnostic_epoch_stage aStage, diagnostic_outcome aOutcome,
 						diagnostic_epoch_failure               aFailure = { },
-						std::optional<git_pack_stream_failure> aPack    = { }) const noexcept
+						std::optional<git_pack_stream_failure> aPack    = { },
+						git_smart_transport_step               aStep    = git_smart_transport_step::none) const noexcept
 			{
 				if (Log) {
 					static_cast<void>(Log->record({ .Operation        = diagnostic_operation::epoch,
@@ -264,7 +265,8 @@ namespace bpr::application {
 													.WindowSession    = WindowSession,
 													.EpochStage       = aStage,
 													.EpochFailure     = std::move(aFailure),
-													.EpochPackFailure = aPack }));
+													.EpochPackFailure = aPack,
+													.GitStep          = aStep }));
 				}
 			}
 			template <typename Failure>
@@ -278,7 +280,7 @@ namespace bpr::application {
 			}
 			void failed(diagnostic_epoch_stage aStage, const git_smart_transport_error& aFailure) const noexcept
 			{
-				failed(aStage, aFailure.Failure);
+				record(aStage, diagnostic_outcome::failed, aFailure.Failure, { }, aFailure.Step);
 			}
 			void failed(diagnostic_epoch_stage aStage, const git_protocol_v2_error& aFailure) const noexcept
 			{

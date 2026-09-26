@@ -277,6 +277,7 @@ namespace {
 	{
 		std::optional<application::git_smart_transport_failure> AcquireFailure;
 		std::optional<application::git_smart_transport_failure> DiscoveryFailure;
+		application::git_smart_transport_step                   DiscoveryStep{ };
 		bool                                                    MalformedDiscovery = false;
 		std::optional<application::git_pack_stream_failure>     PackFailure;
 		std::vector<std::string>                                Calls;
@@ -1970,7 +1971,7 @@ namespace {
 		{
 			State.Calls.emplace_back("transport.discover");
 			if (State.DiscoveryFailure) {
-				return std::unexpected{ application::git_smart_transport_error{ .Failure = *State.DiscoveryFailure } };
+				return std::unexpected{ application::git_smart_transport_error{ .Failure = *State.DiscoveryFailure, .Step = State.DiscoveryStep } };
 			}
 			if (State.MalformedDiscovery) {
 				return application::git_smart_discovery_response{ .Body = bytes("not-pkt-line") };
@@ -3187,6 +3188,7 @@ namespace {
 					break;
 				case 3U:
 					value.State.DiscoveryFailure = application::git_smart_transport_failure::network;
+					value.State.DiscoveryStep    = application::git_smart_transport_step::identity_before;
 					expectedStage                = stage::protocol_acquire;
 					expectedFailure              = *value.State.DiscoveryFailure;
 					break;
@@ -3212,6 +3214,9 @@ namespace {
 
 				const auto expectedReason = mode == 5U ? core::epoch_reason_code::repair_required : core::epoch_reason_code::unavailable;
 				expect(std::ranges::any_of(value.State.Updates, [&](const auto& aUpdate) { return aUpdate.Transition && std::ranges::any_of(aUpdate.Transition->Diagnostics, [&](const auto& aDiagnostic) { return aDiagnostic.Code == expectedReason; }); }), "logging status preserves the original core diagnostic");
+				if (mode == 3U) {
+					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.GitStep == application::git_smart_transport_step::identity_before; }), "protocol acquisition preserves the closed transport step without affecting the core failure");
+				}
 				if (mode == 6U) {
 					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochPackFailure == application::git_pack_stream_failure::input_limit; }), "protocol acquisition retains exact pack failure");
 				}

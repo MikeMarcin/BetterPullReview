@@ -22,3 +22,9 @@ prepared when it is concrete, with one question per criterion.
 Design decision: reuse the existing numeric `window_session` diagnostic field
 because epoch requests are only unique within their owning window session;
 no private authority or repository text is needed to separate them.
+
+Diagnostic-step decision: preserve a closed acquisition-step enum beside the
+unchanged transport refusal so one owner rerun can distinguish tool
+qualification, identity, clone and local-pack branches without retaining process
+output. This changes no admitted tools, sizes, credentials, network operations
+or core failure policy.

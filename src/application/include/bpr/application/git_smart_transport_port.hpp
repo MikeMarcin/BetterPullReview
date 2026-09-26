@@ -89,10 +89,30 @@ namespace bpr::application {
 		consumer_rejected,
 	};
 
+	/// \brief Closed diagnostic location within object acquisition; never grants authority or changes failure policy.
+	enum class git_smart_transport_step : std::uint8_t {
+		none,
+		admission,
+		temporary_store,
+		process_runner,
+		identity_before,
+		cli_version,
+		git_version,
+		cli_qualification,
+		git_qualification,
+		clone,
+		object_check,
+		identity_after,
+		local_store,
+		local_pack,
+		pack_read,
+	};
+
 	/// \brief Describes the git smart transport error record.
 	struct git_smart_transport_error
 	{
 		git_smart_transport_failure Failure = git_smart_transport_failure::unavailable;
+		git_smart_transport_step    Step    = git_smart_transport_step::none;
 
 		auto operator<=>(const git_smart_transport_error&) const = default;
 	};

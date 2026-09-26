@@ -185,6 +185,7 @@ try {
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 45, .PagedOperation = application::diagnostic_paged_operation::search_pull_requests, .GithubFailure = application::github_read_validation_error::invalid_relationship, .RelationshipDetail = application::github_read_validation_error::relationship_actor_login }) == status::available, "fixed relationship diagnostic queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 46, .HttpStatus = 404, .PagedOperation = application::diagnostic_paged_operation::get_repository, .GithubFailure = core::github_failure::permission, .TransportFailureSource = application::diagnostic_transport_failure_source::http_response }) == status::available, "HTTP denial metadata queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 47, .PagedOperation = application::diagnostic_paged_operation::get_repository, .GithubFailure = core::github_failure::permission, .TransportFailureSource = application::diagnostic_transport_failure_source::network_reply }) == status::available, "network denial has no fabricated HTTP status");
+		expect(log.record({ .GitStep = static_cast<application::git_smart_transport_step>(255U) }) == status::dropped, "unknown Git acquisition step never enters log");
 		expect(log.record({ .TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U) }) == status::dropped, "unknown source never enters log");
 		expect(log.record({ .HttpStatus = 600U }) == status::dropped, "invalid HTTP status never enters log");
 		log.close();
@@ -193,6 +194,7 @@ try {
 
 	{
 		adapters::logging::quill_log log{ root };
+		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 20U, .WindowSession = 2U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_smart_transport_failure::unavailable, .GitStep = application::git_smart_transport_step::cli_qualification }) == status::available, "classified CLI refusal reaches the real log");
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
 	}
 	{
@@ -276,6 +278,7 @@ try {
 	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
 		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");
+	expect(first.find("git_step=cli_qualification") != std::string::npos && first.find("window_session=2") != std::string::npos, "closed acquisition step and window identity persist without raw executable or provider output");
 	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
