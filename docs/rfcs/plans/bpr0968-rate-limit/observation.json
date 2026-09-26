@@ -1,6 +1,6 @@
 {
   "run_id": "bpr0968-rate-limit",
-  "segment_id": "mac-20260925",
+  "segment_id": "mac-full-card-20260925",
   "mandate_revision": "r4",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
@@ -34,10 +34,10 @@
         "id": "BPR-0968:*",
         "source": "BPR-0968",
         "selector": null,
-        "source_fingerprint": "sha256:5037263ce68171bfe57238f8660fbb5e444fdf0521db6ee7b9cd0bcf29ed61ce"
+        "source_fingerprint": "sha256:8c4d491c3b25900f47ef54f0c85946bf2764950631a8f0c9f438af74e2f7f7f0"
       }
     ],
-    "obligation_fingerprint": "sha256:8fc3b09e976d5e13305d7e1ce977867458d3eaa036e07aefb8700c087f54378c",
+    "obligation_fingerprint": "sha256:987fd4debf5060f6162be28399f827bdb44c50bb716bcb884b0b9ad2cf7c8b42",
     "exit_criteria": [
       {
         "id": "rendered-rate-recovery:exit:1",
@@ -60,24 +60,58 @@
     "diagnostics_truncated": false
   },
   "milestone": "rendered-rate-recovery",
-  "disposition": "continue-milestone",
-  "candidate_revision": "34c86e0b3823b058db672479700cec216ccedd8a",
+  "disposition": "milestone-complete",
+  "candidate_revision": "cabb6c59b4f2bebad665e114ee4210601a3fc93a",
   "handoff_ref": "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
-  "required_pending": [
-    "AC1 bounded scheduling",
-    "AC2 Retry-After admission, retry caps, cancellation, authority replacement and exact selection",
-    "AC3 full backoff negative course"
-  ],
+  "required_pending": [],
   "evidence_refs": [
     "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
-    "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md"
+    "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+    "docs/rfcs/plans/bpr0968-rate-limit/acceptance.json"
   ],
-  "acceptance_records": [],
+  "acceptance_records": [
+    {
+      "id": "BPR-0968:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
+        "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr0968-rate-limit/acceptance.json"
+      ]
+    },
+    {
+      "id": "rendered-rate-recovery:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
+        "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr0968-rate-limit/acceptance.json"
+      ]
+    },
+    {
+      "id": "rendered-rate-recovery:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
+        "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr0968-rate-limit/acceptance.json"
+      ]
+    },
+    {
+      "id": "rendered-rate-recovery:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr0968-rate-limit/evidence.json",
+        "docs/rfcs/plans/bpr0968-rate-limit/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr0968-rate-limit/acceptance.json"
+      ]
+    }
+  ],
   "continuation": {
-    "intent": "continue",
-    "next_milestone": "rendered-rate-recovery",
-    "reason": "current-milestone",
-    "detail": "Rendered diagnostic correction complete; preserve failing scheduling criterion for a bound PR-read policy round."
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "Entire BPR-0968 and all authored exits accepted. Coordinator owns publication and next independent front. The unchanged diagnostics baseline gate remains with its separate owner."
   },
   "ownership": "quiescent"
 }

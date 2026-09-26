@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real macOS composition over denied-network recorded transport displays distinct primary/secondary refusal in Account Details and enforces shared admission. 515 files, 1000 threads, real Git 20000-line comparison. Inspected Settings and recovered-reading rasters; integration log and hashes in docs/rfcs/plans/bpr0968-rate-limit/evidence.json."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+      "evidence": {
+        "kind": "command",
+        "detail": "core_github_read_backoff, application_github_window_read_host and application_rate_limit_render_recovery pass. Shared multi-window Open/Refresh, Retry-After/reset precedence, 60-900s fallback cap, zero automatic rate retries, three transient attempts with re-admission, authority retirement/cancel/stale completion and exact selection verified. Public course blocked 61 gestures, intervals 2468622/2498662/5785721us; selected line100/scroll33333 exact after work settles; actual held provider cancelled on close."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Final public course: 119 ordinary account requests, eight repository starts, three refusals, zero mutations, 33053ms. Backoff-removal and LastProblem-projection-removal each rebuild and fail intended public assertion (CTest exit8); exact source digests restored, then final integration 8/8. Candidate, inputs, timings, hashes, baseline failures and reproduction commands recorded in evidence.json and HANDOFF-2026-09-25.md."
+      }
+    }
+  ]
+}

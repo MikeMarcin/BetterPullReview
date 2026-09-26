@@ -1,25 +1,215 @@
 {
-  "candidate": "34c86e0b",
-  "baseline": "7c07a1cb",
-  "sources": {
-    "src/adapters/qt/src/workbench_window.cpp": "5eadae3564bf2e4bd895af8015ba2644e98663b378159df32933c871a30aa982",
-    "src/app/src/github_application_fixture_access.hpp": "2d272634ae8cf607f89adcb748a9c8b38405912eeeb9a2377cacfe13800f59d1",
-    "src/app/src/github_public_path_fixture.cpp": "8488267550942e7641a861b7f886900fd43e7f63527151a1de34b10c5a99d390",
-    "src/app/src/large_review_fixture.hpp": "198527a1dea78c7a679247923fd0880062a6310189d1571180f1d967ceb2075c",
-    "tests/end_to_end/rate_limit_public_path_tests.cpp": "dfbaa19c7f8704b4445eb34143fab90811da48df749e0241a57905b7db4201bd",
-    "tests/end_to_end/CMakeLists.txt": "35e082f2bc1178452f6b18e4ffe4009e7b61d43bc7297c9d10024a8ad6f0a536"
+  "assignment": {
+    "leaf": "/root/bpr0968_full_card",
+    "mandate_revision": "r4",
+    "amendment": "whole remaining card in one implementer",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main"
   },
-  "evidence": {
-    "backoff-required.log": "fc19587cd69a30a674feb1692d83454eb77d219c276472f6c4c54baa653b0258",
-    "projection-cut-build.log": "03414659ff4f06a63984726f18d0f88cfd13f19bb4db27d8e67d8e14a22b035d",
-    "final-positive.log": "1f85fd1fff5cc28240ba1bde02cfa51c9a2a827e589000a3d61a36bf7dc1cb25",
-    "restored-course.log": "bfb89782e65c9c6ade6fd571a4e220159aafb97fc7c6e7fa26cd7d8dfb6ced92",
-    "integration.log": "9385bb28e0e20a08cfb0ed51f65e8b262ac7ed1ba892b6877fa432bf1a5adb8a",
-    "rate-limit-2.png": "fa900f6bcede0f1959330b18d1b7a89b9b610c4d98030431139146e6eb476dc3",
-    "rate-limit-1.png": "948c98a9ff41c9a913a4ebc6f2b2074a052db8c04c2b1aa4f6f881cd5b2ece63",
-    "projection-cut.log": "55ec80a31f0f878e13ebf1fdac24ebfc63da31571b1b171302c876b2823039de",
-    "build-controls.log": "4f98a86de2616e8fc25084b2a7ee1a076f5dc04eda55622aa113a688b816bdae",
-    "projection-cut-result.json": "bb4026ce841c7b147e7f084bc2f7fc199dcad6756ae1554ee169403b6a3aaa30",
-    "restored-build.log": "7fa5f93da931bc04f0003c1d2e78582e4486e688b43a47048530e70b17a2455c"
+  "baseline": "7f0111ec3278a6a1ed7011752e359e2367646c99",
+  "product_candidate": "7c71c570d1a0391f011a480456fc058210db88b9",
+  "ancillary_format_candidate": "cabb6c59b4f2bebad665e114ee4210601a3fc93a",
+  "sources": {
+    "docs/architecture/system-architecture.md": "baca3aa57517010b6d470ed6fe52b6df2225413ead5c9ecb2f0abf4ebc932413",
+    "docs/verification/fixture-catalog.md": "964903bd8fb7f0a52edf8e6576ffb58558c135aa14afeb613de7015fce7c42c1",
+    "src/app/src/github_application.cpp": "d54662c4a693bb88ede34e59bddfd6964ce7ed095ddc00ad7b02b25591b26512",
+    "src/app/src/github_application_fixture_access.hpp": "7c59bc3dc48f4b67e026a15f324868675d648d2e3cdc95a183398c2e63fc7255",
+    "src/app/src/github_public_path_fixture.cpp": "60101675b7591a984a9bf5a7ded8efb92ed3addd5a34f3aac0d7eeb2f5fc8cd4",
+    "src/application/CMakeLists.txt": "497ea806311234c58c2fd146ca50568bc4bc2b26a767d73588be7a392a39b8f8",
+    "src/application/include/bpr/application/github_read_admission.hpp": "c785795b779436fba68ac8aee7627f47eda8c57dc2ce906dac697ac36201a423",
+    "src/application/include/bpr/application/github_window_read_host.hpp": "3c69a8015ab114cc8dce310a62c3e4ed1269a30644cea507e7b27fe99bbf0c8a",
+    "src/application/src/github_read_admission.cpp": "dcc0a9b2be425d66212cb7cec3cbed976dacdb82510c3617394eb758063afed3",
+    "src/application/src/github_window_read_host.cpp": "794bdd24233bdc44b5cfee2f200517aebbf6d15a9cdcef8af6b0fbe37ff25d28",
+    "src/core/include/bpr/core/github_read_backoff.hpp": "b71935ab6f701d259d259a503387f097b5e83af90e6bbe9d782e2905d1cec89b",
+    "tests/application/github_window_read_host_tests.cpp": "cbc9796b2893dd4169aab399666684cc7d309f71acfd98642b076e3288a05acf",
+    "tests/core/CMakeLists.txt": "f0dab50e138cd95e16606d71608d084d64c806e652e32e60e7701035542f6321",
+    "tests/core/github_read_backoff_tests.cpp": "dce5ab413e492674e7dd5343e06fe18bba1fcde171d77bb51ad8bccff500351e",
+    "tests/end_to_end/CMakeLists.txt": "381ddc217fbaa7f997db4e423ec3a9011b3618c7b95f5dadf56292b9fc6a7184",
+    "tests/end_to_end/rate_limit_public_path_tests.cpp": "7f5cf98763d3280d19a26764bcd64ce535716437486102e056939e1f81597e79",
+    "src/adapters/qt/src/workbench_window.cpp": "59d2543c219674cfa0f62a2927592f8083f0e60d3c07cad1ac8d6cf62c850178"
+  },
+  "environment": {
+    "platform": "macOS arm64",
+    "qt_platform": "offscreen",
+    "transport": "safe recorded fixture with network denied",
+    "git": "installed Git for real comparison",
+    "live_account": false
+  },
+  "acceptance": {
+    "AC1": "pass",
+    "AC2": "pass",
+    "AC3": "pass",
+    "required_pending": [],
+    "detail": "All authored milestone criteria met within the authorized Mac fixture scope; no native or human criterion is substituted."
+  },
+  "public_course": {
+    "files": 515,
+    "threads": 1000,
+    "comparison_lines": 20000,
+    "selected_right_line": 100,
+    "shared_scroll": 33333,
+    "scenarios": [
+      {
+        "cause": "primary",
+        "retry_after_seconds": 2,
+        "reset_after_seconds": 1,
+        "blocked_initial_gestures": 20,
+        "wire_recovery_interval_us": 2468622
+      },
+      {
+        "cause": "secondary",
+        "retry_after_seconds": 2,
+        "reset_after_seconds": 1,
+        "blocked_initial_gestures": 20,
+        "wire_recovery_interval_us": 2498662
+      },
+      {
+        "cause": "primary",
+        "retry_after_seconds": 1,
+        "reset_after_seconds": 4,
+        "blocked_initial_gestures": 20,
+        "additional_gesture_after_shorter_retry_after": 1,
+        "wire_recovery_interval_us": 5785721
+      }
+    ],
+    "normal_account_requests": 119,
+    "repository_requests": 8,
+    "limited_responses": 3,
+    "mutation_submissions": 0,
+    "automatic_rate_retries": 0,
+    "held_provider_request_cancelled": true,
+    "retired_window_absent": true,
+    "surviving_selection_exact": true,
+    "settled_reading_ready": true,
+    "elapsed_ms": 33053,
+    "ctest_seconds": 34.75
+  },
+  "failing_before": {
+    "exit_code": 1,
+    "primary_second_request_us": 76464,
+    "secondary_second_request_us": 30979,
+    "required_interval_us": 2000000
+  },
+  "negative_controls": [
+    {
+      "control": "backoff-cut",
+      "path": "src/application/src/github_window_read_host.cpp",
+      "candidate_sha256": "794bdd24233bdc44b5cfee2f200517aebbf6d15a9cdcef8af6b0fbe37ff25d28",
+      "build_exit": 0,
+      "test_exit": 8,
+      "restored_sha256": "794bdd24233bdc44b5cfee2f200517aebbf6d15a9cdcef8af6b0fbe37ff25d28"
+    },
+    {
+      "control": "projection-cut",
+      "path": "src/adapters/qt/src/workbench_window.cpp",
+      "candidate_sha256": "59d2543c219674cfa0f62a2927592f8083f0e60d3c07cad1ac8d6cf62c850178",
+      "build_exit": 0,
+      "test_exit": 8,
+      "restored_sha256": "59d2543c219674cfa0f62a2927592f8083f0e60d3c07cad1ac8d6cf62c850178"
+    }
+  ],
+  "verification": [
+    {
+      "gate": "final focused integration",
+      "result": "pass",
+      "passed": 8,
+      "total": 8,
+      "seconds": 145.66,
+      "log": "build/bpr0968-evidence/integration.log"
+    },
+    {
+      "gate": "full core-only",
+      "result": "164/166 pass; two unrelated baseline failures",
+      "seconds": 572.19,
+      "log": "build/bpr0968-core-tests.log"
+    },
+    {
+      "gate": "coding_format_check after authorized ancillary repair",
+      "result": "pass",
+      "seconds": 22.36,
+      "log": "build/bpr0968-format-restored.log"
+    },
+    {
+      "gate": "contained_temporary_usage_contract",
+      "result": "baseline failure retained per coordinator scope direction",
+      "detail": "tests/scripts/audit_terminal_diagnostics.py:116 uses tempfile.TemporaryDirectory; unchanged from assigned baseline; separate diagnostics work owns it"
+    },
+    {
+      "gate": "tests-disabled application composition syntax",
+      "result": "pass",
+      "scope": "github_application.cpp without BPR_BUILD_TESTING; not a full installed build",
+      "log": "build/bpr0968-production-syntax.log"
+    },
+    {
+      "gate": "documentation contract tests",
+      "result": "64 tests pass",
+      "log": "build/bpr0968-docs-contract.log"
+    }
+  ],
+  "preflight": {
+    "readiness": "incomplete",
+    "diagnostic": "state.drift",
+    "host_load": "not_verified",
+    "repair_performed": false
+  },
+  "limits": [
+    "No native appearance or human verdict",
+    "No live GitHub account",
+    "Windows/Linux deferred by user",
+    "No installed-package or release qualification",
+    "No independent review claim"
+  ],
+  "local_artifacts": {
+    "build/bpr0968-failing-before.log": "cbb0436ac92fbd2a34fb9c799734796c3c2eccd4834a9f459edb63333dd7600f",
+    "build/bpr0968-core-configure.log": "b7316b0a090b56d5701356cec2534eb32345bdfeba40ab12936eacadd19f946f",
+    "build/bpr0968-core-build.log": "2e3164f195a1c51117efd34abfba7c84f1dd43cd852e96372ee72912449767a0",
+    "build/bpr0968-core-tests.log": "3bf4c2838b18dca9de305d90c369f4d89eb03afe3239b722ce283f5dd941de11",
+    "build/bpr0968-format-restored.log": "c0a0699c7f3ad1e4c725efb8bd81afe39ed3d850a15b0243875c28af32919589",
+    "build/bpr0968-production-syntax.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build/bpr0968-docs-contract.log": "7030358218f4dc36045d006155877cf139abacfa5ff9eb56bede707594c9cf71",
+    "build/bpr0968-evidence/backoff-cut-build.log": "4586b674f1bdeccada595cdde0076f2ab920cdc4a6dabf3d0556fbaa19a59a35",
+    "build/bpr0968-evidence/backoff-cut.log": "697fe6da4d85bfeccf8dfe9958d863f3fcdd71d601bf2a70b748afac2f4dd368",
+    "build/bpr0968-evidence/full-course.log": "745f4c1fd88bd696485d41f0f4179bed066b682b5f20a36d076d6544f44d8414",
+    "build/bpr0968-evidence/integration-build.log": "8b8b7590b8f1ed766bc127067c18291768c09f5fcec0ce779d1260b736e6a0ca",
+    "build/bpr0968-evidence/integration.log": "c0d1b57422b1c369aa80afbac0038d37789c6ef9fdd811b251e3d1f2e05f4b9b",
+    "build/bpr0968-evidence/negative-results.json": "7600fe0384676b1a29337c4575f169ce389362efb27eefdd49b812efd8c67f66",
+    "build/bpr0968-evidence/projection-cut-build.log": "149cebfa148e30b02805e3504eec1b0a47dbdca9dee121d4808e4d501f4fd5ac",
+    "build/bpr0968-evidence/projection-cut.log": "b952a8bc789af221ae57d742523953c9e2eba2eb2f9eeb1e19230b681b98ecb9",
+    "build/bpr0968-evidence/rate-limit-1.png": "943c97a00c98274458f00a3db8261e4b67ffcf71975a3b327c7010095bc1fd99",
+    "build/bpr0968-evidence/rate-limit-2.png": "dda2c21041f2ce4eea9973f79ab87cdbcf3efaee8b5ca4cac741def3da4f8f31",
+    "build/bpr0968-evidence/rate-limit-3.png": "24c15c4b99d550457b3af8d6d4386cf833c2b2a5fc45ae73b9bfbf7388a32f61",
+    "build/bpr0968-evidence/recovered-reading-1.png": "04e3e8cb33e83dd99c18ca5600993ec572ee191ac4683d05eda99fb85110f49b",
+    "build/bpr0968-evidence/recovered-reading-2.png": "04e3e8cb33e83dd99c18ca5600993ec572ee191ac4683d05eda99fb85110f49b",
+    "build/bpr0968-evidence/recovered-reading-3.png": "04e3e8cb33e83dd99c18ca5600993ec572ee191ac4683d05eda99fb85110f49b",
+    "build/bpr0968-evidence/restored-build.log": "4e1bcf02dc167bd5d73178c216707f3a596ffe6b4565ded11cf79147ad7c085e",
+    "build/bpr0968-evidence/settled-course.log": "d9295ea58c77da99423f874aeb08469f49fb4fa395774ccf628e794a0673b535"
+  },
+  "artifact_policy": "Synthetic logs and rasters remain ignored local build evidence, not committed. Digests identify the observed files.",
+  "prior_characterization": {
+    "candidate": "34c86e0b",
+    "baseline": "7c07a1cb",
+    "sources": {
+      "src/adapters/qt/src/workbench_window.cpp": "5eadae3564bf2e4bd895af8015ba2644e98663b378159df32933c871a30aa982",
+      "src/app/src/github_application_fixture_access.hpp": "2d272634ae8cf607f89adcb748a9c8b38405912eeeb9a2377cacfe13800f59d1",
+      "src/app/src/github_public_path_fixture.cpp": "8488267550942e7641a861b7f886900fd43e7f63527151a1de34b10c5a99d390",
+      "src/app/src/large_review_fixture.hpp": "198527a1dea78c7a679247923fd0880062a6310189d1571180f1d967ceb2075c",
+      "tests/end_to_end/rate_limit_public_path_tests.cpp": "dfbaa19c7f8704b4445eb34143fab90811da48df749e0241a57905b7db4201bd",
+      "tests/end_to_end/CMakeLists.txt": "35e082f2bc1178452f6b18e4ffe4009e7b61d43bc7297c9d10024a8ad6f0a536"
+    },
+    "evidence": {
+      "backoff-required.log": "fc19587cd69a30a674feb1692d83454eb77d219c276472f6c4c54baa653b0258",
+      "projection-cut-build.log": "03414659ff4f06a63984726f18d0f88cfd13f19bb4db27d8e67d8e14a22b035d",
+      "final-positive.log": "1f85fd1fff5cc28240ba1bde02cfa51c9a2a827e589000a3d61a36bf7dc1cb25",
+      "restored-course.log": "bfb89782e65c9c6ade6fd571a4e220159aafb97fc7c6e7fa26cd7d8dfb6ced92",
+      "integration.log": "9385bb28e0e20a08cfb0ed51f65e8b262ac7ed1ba892b6877fa432bf1a5adb8a",
+      "rate-limit-2.png": "fa900f6bcede0f1959330b18d1b7a89b9b610c4d98030431139146e6eb476dc3",
+      "rate-limit-1.png": "948c98a9ff41c9a913a4ebc6f2b2074a052db8c04c2b1aa4f6f881cd5b2ece63",
+      "projection-cut.log": "55ec80a31f0f878e13ebf1fdac24ebfc63da31571b1b171302c876b2823039de",
+      "build-controls.log": "4f98a86de2616e8fc25084b2a7ee1a076f5dc04eda55622aa113a688b816bdae",
+      "projection-cut-result.json": "bb4026ce841c7b147e7f084bc2f7fc199dcad6756ae1554ee169403b6a3aaa30",
+      "restored-build.log": "7fa5f93da931bc04f0003c1d2e78582e4486e688b43a47048530e70b17a2455c"
+    }
   }
 }

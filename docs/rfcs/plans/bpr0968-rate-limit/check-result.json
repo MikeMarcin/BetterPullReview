@@ -1,1 +1,1 @@
-{"action": "continue-context", "detail": "Rendered diagnostic correction complete; preserve failing scheduling criterion for a bound PR-read policy round.", "engineering_acceptance": "not-evaluated"}
+{"action": "stop", "detail": "Entire BPR-0968 and all authored exits accepted. Coordinator owns publication and next independent front. The unchanged diagnostics baseline gate remains with its separate owner.", "engineering_acceptance": "not-evaluated"}
