@@ -36,3 +36,47 @@ candidate. Reuse relevant passing evidence with its actual input limits.
 Use safe fixtures; no live account, private-target access, remote mutation or
 release is authorized by this card. Required native or human evidence remains
 pending until actually observed.
+
+## Candidate source review and composition reseal — 2026-09-26
+
+Implementer self-review binds `a2fded0cd482aaaaaee0399764b60145cd4938ac` through
+`90e21d0c`, with product candidate `2cb4c2be`. The baseline LF-normalized full
+application hash exactly matches the prior pin. `git log` across every production
+app manifest source shows these pinned-scope changes only: `bcb982da`, `c55456e4`,
+`0a8f9d79`, `9ed1ce7d`, `10b96b31`, `2cb4c2be`. The other changed app files are
+fixture-only access/provider support outside that production manifest.
+
+The full composition diff was reviewed. Retained receipt revisions and named
+invalidations are conservative on unknown/overflowed changes; exact profile,
+account, repository, PR and identity-generation checks remain before sibling
+publication. The writer's own notification skips reads already committed by its
+host. Selected-material refresh also retains generation/file/comparison-digest
+checks. Cache state is dropped on provider acceptance or ledger retirement.
+Conversation indexes preserve duplicate-identity fallback and full-observation
+semantics. Queue deltas retain durable membership, typed provider completion and
+full attachment/lag replay; notification authority checks remain. Same-head epoch
+catalogue updates change only retained header facts; changed heads and unresolved
+changed-since-review observations keep complete projection. Indexed restoration,
+tab and link membership checks preserve the prior accepted-order membership test.
+The read-only fixture counters do not drive a host. The existing consent helper's
+`exact_current` to `exactCurrent` rename changes no check or branch.
+
+No credential, vault, transport capability, trust, mutation consent or release
+behavior changes. The production mutation-branch hash remains
+`a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+The reviewed full-source pin is
+`d6f8e7eb70525e9845aa6a3952f03b3c2b826b7747d83ae0a28436d2b02252ae`;
+the production manifest pin is
+`c107944197417caf4487fad1e3432e0ffd5e343eede211cf6b0be088d5674fd5`.
+Printing/resealing these hashes is not test evidence. Final integration remains
+required before the card is finished.
+
+The [operation inventory and measured evidence](../../verification/bpr0972-active-changed-scaling.md)
+and [eight compiled negative controls](../../verification/bpr0972-negative-controls.json)
+retain exact bounds and source hashes. “Active” includes the complete accepted
+PR's compact navigation order: receipt deltas project changed file data but still
+maintain dense positions. This is O(active order + changed data), not a claim of
+O(changed data) alone. [BPR-1211](../10-backlog/BPR-1211-move-review-ledger-reads-and-writes-off-the-decision-lane.md)
+retains the named synchronous ledger I/O gap; no whole-architecture or no-I/O
+acceptance is implied. Windows/Linux native remain deferred; BPR-0967 owns
+optimized hardware latency/memory budgets.

@@ -48,6 +48,13 @@ endfunction()
 # the operation still fails and no retry or mutation is started. The production
 # mutation branch is unchanged. Review and focused refusal evidence are on
 # BPR-0898; no other commit in this range changed the pinned application scope.
+# BPR-0972 reseal: a2fded0c..90e21d0c, pinned-scope commits bcb982da,
+# c55456e4, 0a8f9d79, 9ed1ce7d, 10b96b31 and 2cb4c2be. Retained receipt,
+# conversation and queue indexes/deltas, exact sibling invalidation, indexed
+# selection membership, same-head Overview history and read-only counters.
+# The full review is recorded on BPR-0972; authority/lifetime and durable-before-
+# publication guards remain. Mutation-branch digest is unchanged. No other
+# production app manifest source changed in the reviewed range.
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
@@ -329,7 +336,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"46e1fb8c4c4f454ab8ff62de520d66be04745778f9c1e040e1903fb86a511b4e"
+		"d6f8e7eb70525e9845aa6a3952f03b3c2b826b7747d83ae0a28436d2b02252ae"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -480,7 +487,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8fd33b782d375fc7520e7017968da90a1666a5792158407c89077a5a42aa811d"
+        "c107944197417caf4487fad1e3432e0ffd5e343eede211cf6b0be088d5674fd5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1,0 +1,281 @@
+{
+  "source_revision": "90e21d0c359aa1a8186635a93792a2852ac92d07",
+  "results": [
+    {
+      "case": "selection_full_projection",
+      "path": "src/application/src/workbench_application_host.cpp",
+      "original_sha256": "bc39873097f348bdcf81a7ac2dfafe6cdfd22d87cfa76145f31ba32e399b5e57",
+      "mutated_sha256": "f051ca404ca62403437728ef0530f68a567248254e0be58ec803f8ee83f80665",
+      "replace": "if (FilesDirty) {",
+      "with_text": "if (true) {",
+      "test": "application_workbench_host",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_application_workbench_host_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_workbench_host$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: routine selection does not reconstruct the full file projection"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 2.989
+    },
+    {
+      "case": "receipt_full_observation",
+      "path": "src/application/src/workbench_application_host.cpp",
+      "original_sha256": "bc39873097f348bdcf81a7ac2dfafe6cdfd22d87cfa76145f31ba32e399b5e57",
+      "mutated_sha256": "ff24b2a4b139d43a4ef6d152eaad19e7c5ca046e8bf66aa9ffcbb62c455ab32f",
+      "replace": "if (observing || !Numbered) {",
+      "with_text": "if (observing || !Numbered || Authority.has_value()) {",
+      "test": "application_workbench_host",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_application_workbench_host_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_workbench_host$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: a read retained file leaves as a one-file delta"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 2.721
+    },
+    {
+      "case": "queue_full_projection",
+      "path": "src/application/src/review_queue_enrollment.cpp",
+      "original_sha256": "b3f48976e30cdbe44876e50a0c1e1d3c534e11f3928dfdfdaaabeeb621771495",
+      "mutated_sha256": "d3466dca56f6020a1d34c44709bc1807d3aabaa2af8c8fa1c9aa4be9cc44c741",
+      "replace": "const auto itemUpdate = aItem.has_value();",
+      "with_text": "aItem.reset();\n\t\t\tconst auto itemUpdate = aItem.has_value();",
+      "test": "application_review_queue_enrollment",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_review_queue_enrollment_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_review_queue_enrollment$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: unchanged enrollment updates one item without catalogue projection or persistence"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 2.563
+    },
+    {
+      "case": "repository_full_rebuild",
+      "path": "src/adapters/qt/src/repositories_drawer.cpp",
+      "original_sha256": "75d15ae4819b382341ea1050f5ca5db2e89ca5a3d1aec25e1d28ede099fef5af",
+      "mutated_sha256": "7a1180cc69acdf7e5ff5c0e6c64a92e7fe16c94d881864af42f1bd43819533f1",
+      "replace": "void repositories_tree_model::apply_item(const core::queue_item& aItem)\n\t{",
+      "with_text": "void repositories_tree_model::apply_item(const core::queue_item& aItem)\n\t{\n\t\trebuild();",
+      "test": "qt_repositories_drawer",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_qt_repositories_drawer_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^qt_repositories_drawer$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: single-item changes inspect only the changed repository and never reset"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 4.201
+    },
+    {
+      "case": "repository_reset",
+      "path": "src/adapters/qt/src/repositories_drawer.cpp",
+      "original_sha256": "75d15ae4819b382341ea1050f5ca5db2e89ca5a3d1aec25e1d28ede099fef5af",
+      "mutated_sha256": "60c37b0a4ce2c0a4eb29af1a90a85a5f80d4699ed29dba7c3ddffb24ae9144b4",
+      "replace": "void repositories_tree_model::apply_item(const core::queue_item& aItem)\n\t{",
+      "with_text": "void repositories_tree_model::apply_item(const core::queue_item& aItem)\n\t{\n\t\tbeginResetModel();\n\t\tendResetModel();",
+      "test": "qt_repositories_drawer",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_qt_repositories_drawer_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^qt_repositories_drawer$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: identity, parent and collapse survive both root moves"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 2.367
+    },
+    {
+      "case": "history_header_stale",
+      "path": "src/adapters/qt/src/pull_request_overview_page.cpp",
+      "original_sha256": "b6c6fde6e70e9a721b7db0ca653b8b4cc621bf3aa09e9af271263e5db24b07ba",
+      "mutated_sha256": "310a449e1e051c45fb4e1bf09b8af9e08d3d8a3bef4779b5ecb4e166e5ff44c8",
+      "replace": "since.Uploads    = aUpdate.Uploads;",
+      "with_text": "since.Uploads    = 0U;",
+      "test": "qt_pull_request_overview_page",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_better_pull_review_qt_pull_request_overview_page_tests"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^qt_pull_request_overview_page$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: history-only presentation equals full header and preserves other retained facts"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 3.412
+    },
+    {
+      "case": "overview_full_reprojection",
+      "path": "src/app/src/github_application.cpp",
+      "original_sha256": "d6f8e7eb70525e9845aa6a3952f03b3c2b826b7747d83ae0a28436d2b02252ae",
+      "mutated_sha256": "75651ef6a28ea2a577bc9689f5f20e7600b9b318d4495c7a8083c69ff9c808c8",
+      "replace": "void refresh_overview_receipts()\n\t\t{",
+      "with_text": "void refresh_overview_receipts()\n\t\t{\n\t\t\tpublish_overview();\n\t\t\treturn;",
+      "test": "application_active_changed_scaling",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_application_scaling"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_active_changed_scaling$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: unchanged history refresh reads no Overview files or receipts and rebuilds no file projection"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 34.627
+    },
+    {
+      "case": "conversation_full_observation",
+      "path": "src/app/src/github_application.cpp",
+      "original_sha256": "d6f8e7eb70525e9845aa6a3952f03b3c2b826b7747d83ae0a28436d2b02252ae",
+      "mutated_sha256": "64239140f1db0b86a9bfe05e39ebceab00ad8b514f686b98397ea1bf1c7eee3d",
+      "replace": "cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt",
+      "with_text": "cached.has_value() ? publish_read_state() : std::nullopt",
+      "test": "application_active_changed_scaling",
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "-j2",
+        "--target",
+        "test_application_scaling"
+      ],
+      "test_command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-V",
+        "-R",
+        "^application_active_changed_scaling$"
+      ],
+      "build_exit": 0,
+      "test_exit": 8,
+      "refusal": [
+        "FAILED: one conversation command observes exactly its thread and post without overview work"
+      ],
+      "detected": true,
+      "restored_exactly": true,
+      "elapsed_seconds": 35.182
+    }
+  ],
+  "schema": "bpr0972.negative-controls.v1",
+  "platform": "macOS 26.6.2 arm64; Qt 6.11.2 offscreen; Debug dev",
+  "method": "Each listed production-source mutation was compiled separately, the named public or host/Qt test was run through the network-isolated CTest registration and refused it, then exact source bytes were restored in finally. Original candidate must be rebuilt before positive acceptance.",
+  "positive_replay": "pending final dev integration"
+}

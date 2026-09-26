@@ -10,6 +10,15 @@ The observations below use safe local fixtures on macOS arm64, Qt 6.11.2,
 the Debug dev graph and offscreen Qt. They do not establish Windows/Linux
 native behavior or BPR-0967's optimized latency and memory budgets.
 
+The source candidate is `90e21d0c` (product `2cb4c2be` plus the 32/4096
+maintenance-counter assertion). Here **active** includes the complete accepted
+PR's compact ordered navigation/index state, the selected source/thread, open
+window consumers, retained bounded epoch page and visible queue/repository order.
+It does not mean only pixels currently on screen. Initial adoption visits its
+bounded complete input. A changed receipt projects only its file data but still
+maintains the dense active order: it is O(active order + changed files), not
+O(changed files) alone. No zero-total-row-work claim is made.
+
 ## Public operation inventory (AC1)
 
 | Operation | Public entry and retained owner | Work, retained bounds and residual costs |
@@ -44,6 +53,13 @@ Result: 3/3 pass. At both 32 and 4,096 files, three retained actionability
 changes publish three moved files with zero observations, accepted catalogue
 rows or full file projection rows. This does not count vector position shifts
 as zero work and is not a whole-process allocation claim.
+
+The strengthened course reports three moved files at 32 and 4,096 active files:
+93 and 12,285 `FilePositionVisits`, and 53 and 8,181
+`PublishedFileRowsShifted`, respectively. Both must be nonzero and at most three
+times the active-order size. The 515-file composed Mark read reports 514 position
+visits and 478 shifted published rows alongside zero accepted/projected file
+rows. This explicitly exposes the linear maintenance behind the compact delta.
 
 The composed course holds 515 files, 1,000 foreign-authored threads, and a
 20,000-line source. File selection reads one receipt and rebuilds no Overview.
@@ -107,12 +123,27 @@ FIFO and durable-before-publication tests. This finding is neither waived nor
 reported as an external blocker, and no blanket no-I/O or whole-architecture pass
 is claimed by BPR-0972.
 
-## Current unfinished verification
+## Compiled negative controls
 
-Final negative-control results, strict-tidy replays, composition digest review and
-one dev integration pass remain. Native Windows/Linux remain deferred and
-BPR-0967 retains optimized hardware latency/memory budgets. No human or native
-acceptance is inferred from these unattended fixtures.
+[The durable results](bpr0972-negative-controls.json) bind eight separate mutations
+to `90e21d0c`, including source hashes, exact replacements, build/CTest commands
+and refusal messages. Every mutant compiled; every named test failed; exact source
+bytes were restored afterward. These are behavior changes, not counter tampering:
+
+| Disabled property | Observed refusal |
+|---|---|
+| Retained file projection | Routine selection reconstructs the full projection |
+| Targeted receipt actionability | A read retained file no longer leaves as a one-file delta |
+| Queue item publication | Unchanged enrollment projects the whole catalogue |
+| Repository delta work | Single-item changes rebuild the catalogue |
+| Repository persistent identity | A reset invalidates the retained child/parent indexes |
+| History header update | Header facts differ from complete projection |
+| Retained Overview receipt projection | Unchanged history refresh reconstructs Overview |
+| Single-thread conversation observation | One Mark read observes unrelated threads/posts |
+
+The positive candidate must be rebuilt after these experiments. Final full dev
+integration and the latest focused core/format/tidy replays remain. Native
+Windows/Linux remain deferred; no human or native acceptance is inferred.
 
 ## Queue, epoch and allocation observations
 
@@ -163,16 +194,31 @@ qualification. No allocation threshold is inferred from one hardware run.
 
 | Gesture, first same-root round | New calls | Requested bytes | Elapsed microseconds including settle |
 |---|---:|---:|---:|
-| Select one file | 32,429 | 4,135,848 | 1,113,779 |
-| Seen | 992 | 115,027 | 120,222 |
-| Mark file read | 1,570 | 195,197 | 121,621 |
-| Mark conversation read | 1,262 | 210,021 | 121,863 |
-| Source scroll and render | 24,530 | 2,128,616 | 32,609 |
-| Two selections including cold 20,000-line source during sibling provider load | 1,597,115 | 292,701,573 | 2,922,901 |
+| Queue item update during a complete PR Refresh | 380,178 | 503,279,929 | 1,083,641 |
+| Refresh unchanged epoch history | 37,524 | 5,529,742 | 1,167,369 |
+| Select one file | 32,166 | 4,117,976 | 1,128,418 |
+| Seen | 977 | 115,579 | 137,913 |
+| Mark file read | 1,503 | 190,573 | 144,387 |
+| Mark conversation read | 1,245 | 209,013 | 138,305 |
+| Source scroll and render | 24,625 | 2,138,400 | 32,261 |
+| Two selections including cold 20,000-line source during sibling provider load | 1,596,896 | 292,672,045 | 2,916,209 |
+
+This `application_active_changed_scaling` run passed in 36.28 seconds, bound to
+product `2cb4c2be`; `90e21d0c` changes only the separate host counter assertion.
+The public Follow first durably enrolls the fixture PR. Actual PR Refresh then
+updates exactly one queue item, visits zero queue-catalogue rows and performs
+zero repository full builds. Its allocation sample includes complete provider
+snapshot acceptance, not just the queue delta. Refresh unchanged history
+completes ready/quiescent with zero file projection and Overview rebuilds,
+one selected-material receipt load and six private observations; it emits zero
+catalogue/header deltas because that fixture epoch did not change. The separate
+history helper/page courses provide changed-header equivalence evidence.
 
 The second same-root round observes durable receipt recovery and repeats concurrent
-loading/cancellation. Its selection measured 32,121 calls / 4,045,404 requested
-bytes; source scroll 22,408 / 1,904,456; the two selections 1,594,347 / 292,335,253.
+loading/cancellation. Its selection measured 32,044 calls / 4,028,700 requested
+bytes; source scroll 22,519 / 1,918,496; the two selections 1,594,316 / 292,335,421.
+Re-selecting the durable read file also removes that file from its restored active
+order (514 position visits / 478 shifted published rows), without full projection.
 The large cold-source measurement includes construction of that selected material;
 it is not a claim that source adoption allocates only visible lines.
 
