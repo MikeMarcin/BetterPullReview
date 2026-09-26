@@ -176,3 +176,28 @@ consider-cue observation above still belongs to AC3's run there.
 
 The card moves from Blocked to Ready: the placement question that blocked it
 is answered, and it has no unfinished dependency.
+
+## The owner's direction of 2026-09-25 on Dif's home, and this card (BPR-1209)
+
+Later the same day, in chat, relayed by the coordinator, the owner directed:
+"Move Dif out of the right drawer entirely, he can live in the lower left
+corner of the status bar by default just like AllTheThings unless he's got a
+prime spot on a screen like on the first time experience home." [[BPR-1209]]
+builds it. The direction and this card's AC1 verdict (decision `dba44cfd`,
+the workshop slot chosen over the corner) could read as a conflict. The
+coordinator relayed that the owner delegates it, and it was resolved under
+that delegation, with the full rationale on BPR-1209:
+
+- **Compose's workshop slot is a prime spot.** While a workshop proposal is
+  shown on Compose and after it is accepted, Dif stays in this card's slot and
+  plays ready and acknowledge there. This card's verdict, AC2 and AC3 are
+  unchanged. Rationale: the owner chose this slot over the corner for Compose,
+  and the direction keeps a prime spot wherever a screen has one.
+- **Outside a workshop, Dif rests in the corner.** Before BPR-1209 lands, Dif
+  leaves Compose's slot for the drawer's slot as today. After it lands, he
+  returns to the status bar's corner instead.
+- **No dependency either way.** Both cards change
+  `application_agent_finding_dif_context_contract`, and whichever lands second
+  updates it. Under BPR-1209, the consider observation that this card's Mac
+  follow-up takes through the tray tab's slot moves to the corner. This
+  card's ready and acknowledge assertions on Compose stay as they are.

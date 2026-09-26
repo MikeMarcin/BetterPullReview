@@ -4,8 +4,8 @@ id: "BPR-0800"
 title: "Dif rests in the bottom-left corner on review surfaces too"
 status: "Backlog"
 rfcs: ["RFC-BPR-0031", "RFC-BPR-0032"]
-depends_on: []
-metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner mandate r2, 2026-09-15; the remainder BPR-0775 bounded out and d8 left un-carded; allocated on main in d9","acceptance":["RFC-BPR-0031 B5","RFC-BPR-0031 B6"]}
+depends_on: ["BPR-1209"]
+metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner mandate r2, 2026-09-15; the remainder BPR-0775 bounded out and d8 left un-carded; allocated on main in d9","acceptance":["RFC-BPR-0031 B5","RFC-BPR-0031 B6"],"carried_by":"BPR-1209"}
 ---
 
 # BPR-0800: Dif rests in the bottom-left corner on review surfaces too
@@ -92,3 +92,31 @@ small AI tools area on that page and plays ready and acknowledge there. That
 is [[BPR-0966]]'s AC1. It does not decide this card's corner-versus-slot
 question for the other review surfaces, and the one-sprite rule above applies
 to it as well.
+
+## Owner direction, 2026-09-25: the question is answered, and BPR-1209 carries this card
+
+In chat, relayed by the coordinator, the owner directed on [[BPR-1204]]'s tab,
+verbatim: "Dif living in a tab that's likely hidden forever makes no sense,
+definitely doesn't belong there. [...] Move Dif out of the right drawer
+entirely, he can live in the lower left corner of the status bar by default
+just like AllTheThings unless he's got a prime spot on a screen like on the
+first time experience home."
+
+**The open question above is answered.** Dif leaves the conversations drawer,
+so the AI tools slot there cannot keep him. On review surfaces the corner
+replaces the slot. That is the owner's answer, not an implementer's choice.
+
+**Decided under the owner's delegation.** The coordinator relayed that the
+owner delegates the Dif conflict and every other open choice in this batch.
+Each of these is recorded with its rationale on [[BPR-1209]]:
+
+- **The Compose workshop slot is a prime spot.** [[BPR-0966]]'s workshop slot
+  on Compose (decision `dba44cfd`) keeps Dif while a workshop proposal is
+  shown and after its acceptance, and that verdict is unchanged.
+- **Cues play where Dif is.** Every RFC-BPR-0031 cue keeps its trigger and
+  plays wherever Dif is, and B7 is not amended.
+- **This card folds into [[BPR-1209]].** BPR-1209 carries this card's
+  acceptance: the review-surface corner, the one-sprite rule, the
+  RFC-BPR-0031 amendment (now recorded in RFC-BPR-0031 as the owner's
+  amendment of 2026-09-25) and the attended corner verdict. This card depends
+  on BPR-1209 and closes on its evidence, with no separate build.

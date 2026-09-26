@@ -4,7 +4,7 @@ id: "BPR-1135"
 title: "Verify and close RFC-BPR-0052"
 status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
-depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197","BPR-1201","BPR-1202","BPR-1203","BPR-1204","BPR-1205","BPR-1206","BPR-1207"]
+depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197","BPR-1201","BPR-1202","BPR-1203","BPR-1204","BPR-1205","BPR-1206","BPR-1207","BPR-1208","BPR-1209","BPR-1210"]
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
@@ -21,7 +21,7 @@ attended look at the built chrome on macOS and Windows.
 
 RFC base: `0453103ddd11337ee8b3adf5053b25149104acd8`.
 Requested RFC set: RFC-BPR-0052; workstream position: 1 of 1.
-Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135, BPR-1197, and from the owner's 2026-09-25 verdicts BPR-1201 to BPR-1207. Add subsequently allocated required slices to
+Planned cards: BPR-1129, BPR-1130, BPR-1131, BPR-1132, BPR-1133, BPR-1134, BPR-1135, BPR-1197, from the owner's 2026-09-25 verdicts BPR-1201 to BPR-1207, and from the owner's direction on the second tray tab the same day BPR-1208 to BPR-1210. Add subsequently allocated required slices to
 this list and dependencies before closeout. Registration is not implementation.
 
 ## Closeout checklist
@@ -36,7 +36,7 @@ this list and dependencies before closeout. Registration is not implementation.
 | AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted. | E0: `core_document_tabs`, `application_document_tab_host`; E1: exact two-pair tab/restart course, tab scales and single-request workbench composition. | Mac automated checks pass: window versus tab pair, menu actions, modality return, exact reading and stale rejection. Required station/attended acceptance remains pending. | `e94e67f1`, `0994aa0e` |
 | AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head. | E1: `qt_document_tabs_scale_{100,125,200}` tests exact revision placement, later-thread count, three Show them routes and disabled Comment off current head. | Mac automated checks pass. Later threads remain listed but unplaced; the owner chose hidden until Show them (2026-09-25; BPR-1205). Native/station acceptance remains pending. | `0994aa0e` |
 | AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss. | E0/E1: window scales and conversation cards; E2: `application_threaded_reply_contract` and `application_review_submission_composition_public_path`; E5 combined mutation composition. | Mac automated checks pass: named line/reply target, own-thread Reply and no automatic Publish. The owner accepted Reply as the default, the interim arrow and menu, and Reply beside the code (2026-09-25), and found Comment opening a page with no way to comment (BPR-1207). Native/station acceptance pending. RFC-0048 labels remain future conditional scope. | `7c99a1eb`, `0994aa0e`; later diagnostics `9734f0cb`, `12830eff` |
-| AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. | E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal. | Mac automated checks pass. The owner rejected the tray header: "Findings" does not say what it holds (2026-09-25; BPR-1204). macOS VoiceOver announcement and Right Arrow accepted by the owner's native listen. Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted. | `2770ebb1`; retained through `0994aa0e` |
+| AC-09 The right tray's header holds tabs, Comments and Notes, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. Notes is the reviewer's private space for their non-public notes and the AI conversations and review feedback, and anything in it can be promoted to a draft in Comments; a thread's controls sit on the thread, and Dif is not in the tray. | E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal. | Mac automated checks pass for the tabs as built at `2770ebb1`, named Comments and Findings. The owner rejected the tray header: "Findings" does not say what it holds (2026-09-25; BPR-1204). The same day the owner amended AC-09: the tab is Notes, the reviewer's private space, with the name chosen under his delegation. BPR-1204 and BPR-1208 to BPR-1210 build it, and none of them is built yet. The owner's native listen accepted the macOS VoiceOver announcement and Right Arrow; the listen is repeated for "Notes" only. Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted. | `2770ebb1`; retained through `0994aa0e` |
 | AC-10 Option-R (Alt+R) composes the review, Option-C (Alt+C) comments or replies, Ctrl+Tab and Ctrl+Shift+Tab move between tabs, Cmd-W (Ctrl+W) closes the tab, with the window moving to Cmd-Shift-W (Ctrl+Shift+W) if the tab takes its key, Esc returns from a composition page, and Option-] and Option-[ are reserved for RFC-BPR-0040's tour stops. Both composition commands are in the Pull Request menu, and no key sequence is used twice in the assembled window. | E0/E1: window/focus-order/tab scales deliver composition and tab keys and assert unique assembled bindings; source inspection finds no Alt-bracket tour binding. | Mac synthetic Qt key delivery passes; no existing Cmd-W window binding required a move. Native/platform delivery remains pending. Tour-stop keys stay reserved for RFC-0040. | `96a86433`, `7c99a1eb`, `0994aa0e` |
 | AC-11 The rows are measured on every supported platform and the tests follow them: application_uiforetw_selected_diff_contract and its course script take the measured stacks with the Updates line open and folded, BPR-0940's window course asserts the new arrangement, and each platform's width floor is swept again. | E0/E1: BPR-0940 window arrangement, title/tab width sweeps; E4: `application_uiforetw_selected_diff_contract` raw v7 geometry in all four appearance profiles. | Partial: Mac measured 872 folded / 838 open at 1280x1000; tab strip 28 px. Linux 876/842 is derived; Windows 884/850 is unmeasured. Both station runs deferred by owner; Windows 850 open budget unchanged. | `0994aa0e` |
 
@@ -48,6 +48,76 @@ Use focused changed-surface checks and a composed public path. Limit native
 and attended claims to actual evidence. Run the documentation gate, then
 reconcile the RFC's index status only when canonical order and its
 dependencies allow.
+
+## Owner direction on the second tray tab — 2026-09-25
+
+This is the current frontier. The verdict section below and the reconciliation
+after it are the earlier record, and the sentence there that has
+[[BPR-1204]]'s name waiting on a purpose discussion is superseded.
+
+**The direction.** In chat, relayed by the coordinator, the owner settled what
+BPR-1204's tab is for. BPR-1204 quotes the direction verbatim, and it says:
+
+- the tab is the reviewer's private space for non-public notes and AI
+  conversations and review feedback, and items are promoted from it to drafts
+  in Comments, which publishes;
+- a thread's controls move onto the thread;
+- Dif leaves the right drawer and rests in the status bar's corner unless a
+  screen gives him a prime spot;
+- AI or Agent alone is rejected as the framing, and the name is one of Local,
+  Notes or Personal.
+
+**Delegation.** In three further relayed messages, the owner delegated the
+tab's name ("We can always change it later if we don't like it"), the form of
+the thread controls, and the Dif conflict with [[BPR-0966]] and [[BPR-0800]].
+He asked that no open owner choice be left in this batch.
+
+**Decisions made under that delegation.** Each card records its rationale.
+
+| Choice | Decision | Card |
+| --- | --- | --- |
+| The tab's name | Notes | [[BPR-1204]] |
+| Where a thread's defect controls go | Both forms: a context menu on every thread card, a badge button on a defect's card, and defect navigation beside Next new comment | [[BPR-1208]] |
+| The Compose workshop slot against "corner by default" | Compose's workshop slot is a prime spot, and BPR-0966's verdict (`dba44cfd`) stands | [[BPR-1209]], [[BPR-0966]] |
+| Where Dif's cues play | Wherever he is, with unchanged triggers, so RFC-BPR-0031 B7 is not amended | [[BPR-1209]] |
+| BPR-0800 against a new card | BPR-0800 folds into BPR-1209, depends on it and closes on its evidence | [[BPR-1209]], [[BPR-0800]] |
+| Order of BPR-0966 and BPR-1209 | No dependency; whichever lands second updates the Dif context course | [[BPR-1209]], [[BPR-0966]] |
+| How promotion targets a draft | At Comment's target, one item at a time, keeping the source; RFC-BPR-0023 stays Deferred | [[BPR-1210]] |
+| Plan placement of BPR-1208 to BPR-1210 | In `m2b-owner-verdict-follow-ups`, because AC-09 as amended cannot be met without them | this card |
+| Order within m2b | BPR-1204 builds the header last. It depends on BPR-1208 to BPR-1210 and moves from Ready to Backlog until they are Done | [[BPR-1204]] |
+
+BPR-0800's open question needed no delegated decision: "Move Dif out of the
+right drawer entirely" answers it, because the corner replaces the drawer
+slot.
+
+**Promotion coverage.** Findings already promote to drafts through
+RFC-BPR-0012's queue, and that flow is reused. Notes exist only in RFC-BPR-0007's
+ledger, with no surface to write them and no promotion to a draft, and side-chat
+replies cannot become drafts. [[BPR-1210]] adds that half.
+
+**Text amended.** RFC-BPR-0052 AC-09, its tray design text, its status section,
+its architecture and relation sections and its implementation table. The AC-09
+row above follows the amended criterion. RFC-BPR-0031 records an owner
+amendment of Dif's placement, keeping its criteria's accepted text.
+RFC-BPR-0032's Home section points to that amendment. The
+[plan](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md)'s
+m2b adds the three cards, their exits and a rewritten BPR-1204 exit and
+boundary, and MILESTONES.md is regenerated from the JSON with the installed
+renderer. m1, m2 and m3 are unchanged. No product code changed.
+
+**Plan checks.** The installed `milestone_plan.py check-amendment` refuses the
+change with `amendment cannot change plan identity or authorized scope`, as it
+refused the first amendment. It admits only refinements that keep the scope,
+and the owner's delegation is what authorizes the wider one.
+`milestone_plan.py check --target RFC-BPR-0052` reports the plan found and
+structurally valid, with m1, m2, m2b and m3. `inspect --milestone
+m2b-owner-verdict-follow-ups` lists all ten cards. BPR-1204's only unresolved
+prerequisites are BPR-1208 to BPR-1210.
+
+**Next.** m2's exits are still to be judged and accepted before the plan admits
+m2b. In m2b, BPR-1208, BPR-1209 and BPR-1210 are Ready and independent of one
+another. BPR-1204 follows them, and it asks the owner one question about the
+built Notes tab, not about its name.
 
 ## Owner verdicts on the m2 questions — 2026-09-25 (attended session 06ad5734)
 

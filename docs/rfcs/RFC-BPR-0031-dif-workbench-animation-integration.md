@@ -80,6 +80,43 @@ own it. The two must never be painted/animated simultaneously in one window. All
 surfaces hide it. No persistent toolbar/status mascot, tray animation, code overlay,
 inline author image, or blocking mascot dialogue is added.
 
+### Owner amendment, 2026-09-25: Dif leaves the conversations drawer
+
+In chat, relayed by the coordinator, the owner directed, verbatim: "Dif living
+in a tab that's likely hidden forever makes no sense, definitely doesn't belong
+there. [...] Move Dif out of the right drawer entirely, he can live in the lower
+left corner of the status bar by default just like AllTheThings unless he's got
+a prime spot on a screen like on the first time experience home." It extends
+to every surface the owner's direction of 2026-09-15, which RFC-BPR-0032
+records for Home.
+
+This amends the placement above:
+
+- **The drawer slot goes.** Dif no longer uses a slot in the conversations
+  drawer.
+- **The corner is his default place.** On every workbench surface without a
+  prime spot, the same single widget rests at 40 pixels in the status bar's
+  leading corner. There it has no pointer or focus path, and it steps aside
+  while the status bar carries a transient message, as RFC-BPR-0032 records
+  for Home.
+- **Two screens give him a prime spot.** The signed-out first-time Home keeps
+  the landing placement above. While a workshop proposal is shown on the
+  Compose review page, and after it is accepted, Dif takes that page's
+  workshop slot, as the owner chose on [[BPR-0966]] (decision `dba44cfd`).
+- **Two statements no longer hold.** "All other surfaces hide it" and "No
+  persistent toolbar/status mascot" give way to the corner.
+
+The coordinator relayed that the owner delegated the resulting choices. Under
+that delegation it was decided that every cue keeps its trigger, identity and
+deduplication and plays wherever Dif is. That includes `compare_glance`, on the
+reviewer's explicit selection of the tray's AI tab, so B7 is unchanged. The
+one-sprite rule, the preferences, the lifecycle and the catalog are unchanged.
+
+The acceptance criteria below keep their accepted text. B6's "explicit visible
+AI tools slot" is read as the corner or a prime spot, and B5's courses that
+assert Dif is hidden elsewhere follow the amendment. [[BPR-1209]] builds it and
+carries [[BPR-0800]]. Until it lands, the product still shows the drawer slot.
+
 ## Architecture
 
 **The core decides. The host performs. Qt presents.**

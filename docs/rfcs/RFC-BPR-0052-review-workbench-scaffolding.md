@@ -74,7 +74,7 @@ overflowing and allowing scrolling through", like Xcode's and Ghostty's
 (decision `c1a81e29`; [[BPR-1206]]). Two were **rejected**. The kept-draft
 mark led to a Compose review page that told the owner nothing ([[BPR-1203]]),
 and "Findings" does not say what the second tray tab holds ([[BPR-1204]]); the
-tab's name is open until the owner chooses one. The owner also found that
+owner's direction on the tab's purpose, below, settles it. The owner also found that
 Comment opened a page with no way to comment ([[BPR-1207]]). Windows's native
 look and Narrator, and the Windows and Linux station runs, remain owed.
 [[BPR-1135]] records each decision.
@@ -87,6 +87,43 @@ a milestone between m2 and m3, `m2b-owner-verdict-follow-ups`, which holds
 those seven slices, and m3 waits for it. The plan's scope grows by those
 seven cards. The outcomes and exits of m1, m2 and m3 are unchanged, and so
 are the criteria.
+
+**Owner amendment, 2026-09-25: the second tray tab is Notes, the reviewer's
+private space.** In chat, relayed by the coordinator, the owner settled what
+[[BPR-1204]]'s tab is for, verbatim: "It's the place for your non-public
+notes and AI conversations/review feedback. You can promote things from there
+to draft in the Comments / Public tab to publish them." In the same direction:
+
+- "move the thread controls to well the thread, right click menu maybe or a
+  button";
+- "Move Dif out of the right drawer entirely, he can live in the lower left
+  corner of the status bar by default just like AllTheThings unless he's got
+  a prime spot on a screen like on the first time experience home".
+
+AI or Agent alone was rejected as the tab's framing, and the owner offered
+Local, Notes or Personal as its name. BPR-1204 quotes the whole direction. The
+owner then delegated the name ("We can always change it later if we don't
+like it") and every other open choice in this batch. The decisions below were
+made under that delegation, and each card records its rationale.
+
+- **The name is Notes.** It names what the tab holds, as Comments and Tour
+  do, and it is already the product's word for this material.
+- **A thread's defect controls take both forms.** Every thread card gets a
+  context menu, a defect's card gets a badge button, and defect navigation
+  moves beside Next new comment ([[BPR-1208]]).
+- **Dif's default place is the status bar's corner on every surface.** His
+  prime spots are the signed-out first-time Home and the Compose workshop slot
+  that [[BPR-0966]]'s verdict chose. His cues play wherever he is. [[BPR-1209]]
+  builds this, carries [[BPR-0800]], and brings an owner amendment of
+  RFC-BPR-0031's placement.
+- **Private notes are written in the tab.** A note or an AI reply is promoted
+  to a draft at Comment's target, and findings keep RFC-BPR-0012's existing
+  conversion ([[BPR-1210]]).
+
+AC-09 and the tray's design text below now say this. Under the same
+delegation, [[BPR-1208]] to [[BPR-1210]] join `m2b-owner-verdict-follow-ups`,
+because AC-09 as amended cannot be met without them. [[BPR-1204]] builds the
+header after them. No other criterion changes.
 
 ## Problem and outcome
 
@@ -172,10 +209,20 @@ one shown. A tab over an older pair places only the threads that belong to its
 revisions, says how many are on later updates, and offers no new comment off
 the current head.
 
-**The right tray** takes tabs in its header: Comments and Findings, and Tour
+**The right tray** takes tabs in its header: Comments and Notes, and Tour
 once RFC-BPR-0039 provides it. Each tab's tools sit beneath the tabs, so the
 conversations column stops stacking the AI tools, the finding queue and the
-defect controls under the threads.
+defect controls under the threads. **By the owner's amendment of
+2026-09-25**, Notes is the reviewer's private space. It holds their
+non-public notes and the AI conversations and review feedback: the agent
+panel, the side chat and the finding queue. Anything in it can be promoted to
+a draft in Comments, and only Comments publishes. A thread's controls sit on
+the thread, in its card's menu and, for a defect, on a badge on its card.
+Defect navigation sits beside Next new comment. Dif is not in the tray: he
+rests in the status bar's corner unless a screen gives him a prime spot. The
+tab was drawn and built as Findings until the owner rejected that name, and
+Notes was chosen under his delegation ([[BPR-1204]], [[BPR-1208]] to
+[[BPR-1210]]).
 
 **Keys**, as the owner accepted them: Option-R (Alt+R) Compose review,
 Option-C (Alt+C) Comment or Reply, Ctrl+Tab and Ctrl+Shift+Tab the next and
@@ -201,8 +248,11 @@ comparison and the reading position RFC-BPR-0024 already restores, they belong
 to the core and its restoration store, not to widgets. A completion names the
 tab it was asked for; a late one cannot populate another. No new provider,
 GitHub, Git or storage capability is introduced. The kept-draft mark is a
-projection of the review workflow's existing draft state. Nothing here changes
-publication, authority or review semantics.
+projection of the review workflow's existing draft state. The Notes tab's
+notes are RFC-BPR-0007's existing private ledger notes, written through its
+existing port. Promoting one produces an ordinary local draft, which only the
+existing explicit Publish sends. Nothing here changes publication, authority
+or review semantics.
 
 ## Relation to other RFCs
 
@@ -215,6 +265,16 @@ publication, authority or review semantics.
   caption to a mark on the line and the line's tooltip.
 - **RFC-BPR-0037.** The composition pages, their retained drafts and their
   publication semantics are unchanged; only how they are reached moves.
+- **RFC-BPR-0009.** Its defect controls move from the tray onto the thread
+  card ([[BPR-1208]]). Their commands and semantics are unchanged.
+- **RFC-BPR-0007, RFC-BPR-0012, RFC-BPR-0023 and RFC-BPR-0048.** Notes are
+  RFC-BPR-0007's private ledger notes, and findings keep RFC-BPR-0012's
+  conversion to drafts. Promoting a single note or AI reply to a draft
+  ([[BPR-1210]]) is the single-item seam that RFC-BPR-0048 anticipates.
+  RFC-BPR-0023's private threads and Squash to Draft stay Deferred.
+- **RFC-BPR-0031.** The owner amended its placement on 2026-09-25, and
+  RFC-BPR-0031 records the amendment. Dif leaves the tray, and his default
+  place is the status bar's corner ([[BPR-1209]]).
 - **RFC-BPR-0039 to 0051.** Tours and Conventional Comments fill the places
   drawn here: the Tour tray tab, the tour-stop keys, Comment's labels, the
   review page's preflight and the label icons on cards.
@@ -229,7 +289,7 @@ publication, authority or review semantics.
 - AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted.
 - AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head.
 - AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss.
-- AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column.
+- AC-09 The right tray's header holds tabs, Comments and Notes, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. Notes is the reviewer's private space for their non-public notes and the AI conversations and review feedback, and anything in it can be promoted to a draft in Comments; a thread's controls sit on the thread, and Dif is not in the tray.
 - AC-10 Option-R (Alt+R) composes the review, Option-C (Alt+C) comments or replies, Ctrl+Tab and Ctrl+Shift+Tab move between tabs, Cmd-W (Ctrl+W) closes the tab, with the window moving to Cmd-Shift-W (Ctrl+Shift+W) if the tab takes its key, Esc returns from a composition page, and Option-] and Option-[ are reserved for RFC-BPR-0040's tour stops. Both composition commands are in the Pull Request menu, and no key sequence is used twice in the assembled window.
 - AC-11 The rows are measured on every supported platform and the tests follow them: application_uiforetw_selected_diff_contract and its course script take the measured stacks with the Updates line open and folded, BPR-0940's window course asserts the new arrangement, and each platform's width floor is swept again.
 
@@ -246,10 +306,13 @@ publication, authority or review semantics.
 | [[BPR-1201]] | Readiness words in the track or the summary (owner decision, 2026-09-25) | AC-01 |
 | [[BPR-1202]] | File navigation before change navigation (owner amendment, 2026-09-25) | AC-03 |
 | [[BPR-1203]] | The Compose review page says what is happening (kept-draft mark rejected) | AC-03 |
-| [[BPR-1204]] | The second tray tab says what it holds ("Findings" rejected) | AC-09 |
+| [[BPR-1204]] | The second tray tab is Notes, the reviewer's private space ("Findings" rejected; owner amendment, name under the owner's delegation) | AC-09 |
 | [[BPR-1205]] | Later threads hidden until Show them (owner decision, 2026-09-25) | AC-07 |
 | [[BPR-1206]] | The plus activates its tab; tabs fill, shrink, then scroll (owner amendment) | AC-05, AC-11 |
 | [[BPR-1207]] | Comment never opens an unusable page | AC-08 |
+| [[BPR-1208]] | A thread's defect controls sit on the thread (owner amendment, 2026-09-25) | AC-09 |
+| [[BPR-1209]] | Dif leaves the right drawer for the status bar's corner (owner amendment, 2026-09-25) | AC-09 |
+| [[BPR-1210]] | Private notes are written in Notes and promoted to drafts in Comments (owner amendment, 2026-09-25) | AC-09 |
 | [[BPR-1135]] | Verify and close RFC-BPR-0052 | all |
 
 ## Verification

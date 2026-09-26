@@ -214,6 +214,10 @@ message. RFC-BPR-0031's greeting, calm and blink cadence, its motion and
 visibility preferences, its one sprite per window and its explicit AI tools
 slot on review surfaces are unchanged. Resting in the corner while a review
 is read lies outside this RFC's Home boundary and is carried as a follow-up.
+On 2026-09-25 the owner extended the direction to every surface. Dif leaves
+the conversations drawer and rests in this corner on every surface without a
+prime spot. RFC-BPR-0031 records this as an owner amendment, and
+[[BPR-1209]] builds it. The Home placement described here is unchanged.
 
 **Group collapse (owner direction, 2026-09-15).** Collapsing an
 organization, repository or account group is remembered only while its window
