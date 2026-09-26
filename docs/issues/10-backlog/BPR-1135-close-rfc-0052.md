@@ -555,3 +555,16 @@ controls with visible group association; Dif becomes smaller under the delegated
 design authority. BPR-1210 AC1 historical naming remains engineering pending;
 BPR-1204 keeps its terminal dependencies. Native Windows/Linux station obligations,
 BPR-1211 synchronous ledger I/O, and later BPR-1212/1213 scope remain unchanged.
+
+### m2b successor preparation complete — 2026-09-26
+
+The [second-round handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2b-r2-2026-09-26.md)
+binds the repaired label/rail geometry and28px corner Dif to frozen source
+`1971a9ab` and executable `b45b6420…12715`. Native proof now reaches editable
+Compose and Comment and an actual critical/security defect through the open,
+authenticated synthetic fixture. One shared setup Wizard and six criterion
+Wizards accompany six ready Accept/Reject decisions in successor session
+`0a3f0caf7998162c936e25e6d3f68672`, cursor25. Root owns the armed hand-back watch
+and existing ACTIVE continuation heartbeat. The six earlier accepts remain;
+BPR-1201/1206 are Done. BPR-1210 AC1 engineering debt, BPR-1204's dependency
+guard and the native/closeout obligations above remain explicit.
