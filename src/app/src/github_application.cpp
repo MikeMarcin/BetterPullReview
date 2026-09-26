@@ -21,6 +21,7 @@
 #include "system_browser_opener.hpp"
 
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/github_read_admission.hpp"
 
 #include "designated_review_public_observer.hpp"
 #include "gh_cli_git_smart_transport.hpp"
@@ -3892,6 +3893,7 @@ namespace bpr::app {
 		worker_executor                                         ReviewMutationEffects;
 		worker_executor                                         ReviewSubmissionEffects;
 		qt::event_loop_executor                                 DecisionLane;
+		std::shared_ptr<application::github_read_admission>     ReadAdmission = std::make_shared<application::github_read_admission>();
 		struct window_observer
 		{
 			std::weak_ptr<const void>                                                                 Lifetime;
@@ -6507,7 +6509,7 @@ namespace bpr::app {
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
-					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this);
+					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission);
 			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 					WindowRead->read_cached_source(aPath.toStdString());

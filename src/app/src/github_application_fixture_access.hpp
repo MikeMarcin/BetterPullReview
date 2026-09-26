@@ -109,8 +109,11 @@ namespace bpr::app::detail {
 		/// 0 serves the recording, 1 exhausts core, 2 throttles core.
 		std::atomic<unsigned>     Mode{ 0U };
 		std::atomic<unsigned>     Responses{ 0U };
+		std::atomic<unsigned>     Requests{ 0U };
+		std::atomic<std::int64_t> LastRequestNanoseconds{ 0 };
 		std::atomic<std::int64_t> LastResponseNanoseconds{ 0 };
 		std::uint32_t             RetryAfterSeconds = 2U;
+		std::uint32_t             ResetAfterSeconds = 1U;
 	};
 
 	/// \brief BPR-0969's safe network-loss control, shared by wire and smart-Git fixtures.

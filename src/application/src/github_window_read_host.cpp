@@ -1,6 +1,7 @@
 #include "bpr/application/github_window_read_host.hpp"
 
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/github_read_admission.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
 #include "github_projection_mapping.hpp"
@@ -357,7 +358,7 @@ namespace bpr::application {
 					   github_pull_request_port& aReads, decision_executor& aLane, publication aPublish,
 					   github_epoch_handoff_port* aEpochs, github_pull_request_port* aNonymous,
 					   git_smart_transport_factory_port* aGit, diagnostic_log_port* aLog,
-					   cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources)
+					   cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources, std::shared_ptr<github_read_admission> aAdmission)
 			: Policy{ aWindow, aSession }
 			, State{ Policy.state() }
 			, DiagnosticWindowSession{ aSession }
@@ -371,6 +372,7 @@ namespace bpr::application {
 			, Overviews{ aOverviews }
 			, CacheEffects{ aCacheEffects }
 			, Sources{ aSources }
+			, Admission{ aAdmission ? std::move(aAdmission) : std::make_shared<github_read_admission>() }
 		{ }
 		void record_pull_request(const diagnostic_outcome aOutcome, const core::request_id aRequest,
 								 const std::optional<core::github_failure>         aFailure            = std::nullopt,
@@ -807,6 +809,16 @@ namespace bpr::application {
 
 		void submit_pull_request(const github_pull_request_provider_request& aRequest)
 		{
+			const auto usesGraphql = aRequest.CapabilityEvidence.ReadShape.ReviewThreads || aRequest.CapabilityEvidence.ReadShape.ViewedFileState;
+			if (const auto refusal = Admission->refusal(aRequest.ProfileAuthority, aRequest.Viewer, usesGraphql)) {
+				PendingProvider.reset();
+				++ProviderOperationToken;
+				observe_provider_error(*refusal);
+				publish_error_advisory(*refusal);
+				record_pull_request(diagnostic_outcome::failed, aRequest.Context.Request, mapped_failure(refusal->Failure));
+				dispatch_core(core::pull_request_load_failed_event{ aRequest.Context, mapped_failure(refusal->Failure) });
+				return;
+			}
 			PendingProvider  = aRequest;
 			ProgressSequence = 0U;
 			const auto token = ++ProviderOperationToken;
@@ -1215,6 +1227,8 @@ namespace bpr::application {
 					record_pull_request(diagnostic_outcome::succeeded,
 										success->Request.Context.Request, std::nullopt, std::nullopt,
 										success->LastReadOperation);
+					Admission->succeeded(success->Request.ProfileAuthority, success->Request.Viewer,
+										 success->Request.CapabilityEvidence.ReadShape.ReviewThreads || success->Request.CapabilityEvidence.ReadShape.ViewedFileState);
 					install_snapshot(std::move(*StagedSnapshot));
 					retain_overview(success->Request.Context);
 					StagedSnapshot.reset();
@@ -1244,6 +1258,12 @@ namespace bpr::application {
 					error->Error, true, true, usesGraphql);
 				if (errorValid) {
 					observe_provider_error(error->Error);
+					Admission->observe(error->Request.ProfileAuthority, error->Request.Viewer, error->Error);
+					if (error->Error.Failure == github_provider_failure::rate_limit) {
+						if (auto remaining = Admission->refusal(error->Request.ProfileAuthority, error->Request.Viewer, usesGraphql)) {
+							error->Error.RetryAfterSeconds = remaining->RetryAfterSeconds;
+						}
+					}
 				}
 				if (error->Request.Mode
 						== core::github_access_mode::public_preview
@@ -1491,6 +1511,7 @@ namespace bpr::application {
 		cached_review_overview_port*                        Overviews;
 		effect_executor*                                    CacheEffects;
 		cached_review_source_port*                          Sources;
+		std::shared_ptr<github_read_admission>              Admission;
 		std::optional<core::cached_review_overview>         CachedOverview;
 		std::optional<core::pull_request_request_context>   CachedRequest;
 		std::stop_source                                    CachedSourceStop;
@@ -1531,8 +1552,8 @@ namespace bpr::application {
 	github_window_read_host::github_window_read_host(core::bpr_window_context     aWindow,
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
-													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources)
-		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects, aSources) }
+													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources, std::shared_ptr<github_read_admission> aAdmission)
+		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects, aSources, std::move(aAdmission)) }
 	{ }
 	github_window_read_host::~github_window_read_host()
 	{

@@ -3133,7 +3133,7 @@ bpr_enable_warnings(test_rate_limit_public_path)
 bpr_add_network_isolated_test(NAME application_rate_limit_render_recovery WINDOWS_UNCONTAINED COMMAND test_rate_limit_public_path)
 set_tests_properties(application_rate_limit_render_recovery PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
-    PASS_REGULAR_EXPRESSION "rate-limit-public-path:render-and-recovery-pass")
+    PASS_REGULAR_EXPRESSION "rate-limit-public-path:full-recovery-pass")
 
 # BPR-0969 inventories present behavior without claiming full offline acceptance.
 bpr_add_executable(test_offline_inventory_public_path offline_inventory_public_path_tests.cpp)

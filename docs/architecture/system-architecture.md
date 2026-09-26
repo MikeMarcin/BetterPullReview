@@ -540,6 +540,37 @@ controller.
   still preserving their separate effect-execution and decision-serialization
   roles.
 
+PR Open and Refresh share `github_read_admission` across the windows of one
+profile runtime. The host keys its bounded cooldown records by canonical
+hostname, viewer node and rate resource, independent of the connection profile
+and authentication generation. Every provider submission, including a transient
+retry, checks the resources its read shape uses: REST core/search, plus GraphQL
+when that capability is used. An already-running request can finish, but neither
+an older success nor replacing the session clears a live cooldown. Cancellation,
+retirement and shutdown retain their exact-request publication checks.
+
+`core::github_read_backoff` decides the delay from explicit clock observations.
+Primary exhaustion waits for the later of Retry-After and the primary reset;
+secondary throttling uses Retry-After and does not confuse the ordinary primary
+reset with a secondary delay. Missing, zero or expired minimums use 60, 120,
+240, 480, then 900 seconds. The fallback cap never shortens a server minimum.
+The host translates reset time once to a monotonic deadline and rounds remaining
+seconds upward for presentation. Arithmetic saturates instead of wrapping.
+
+Rate refusals make **zero automatic retries**. Open or Refresh before the
+deadline reports the retained cause and remaining wait without spending a wire
+request; after the deadline a new gesture may start one read. No timer, deferred
+callback or retry queue survives cancellation. Closing the window cancels its
+active read; later terminals cannot publish into another window or account.
+Ordinary network/timeout/unavailable failures retain the existing three-attempt
+ceiling, and each retry rechecks shared rate admission. The registry retains at
+most 256 resource records, evicts only expired records, and refuses unknown
+keys at capacity; a late overflow observation conservatively holds all PR reads
+for its minimum. This is runtime-local admission, not a persistent or
+cross-process account budget, and does not govern personal discovery or mutations.
+Account → Details presents distinct primary/secondary advice. Same-head refresh
+retains the exact accepted comparison, semantic selection and Qt scroll position.
+
 Epoch ingestion and comparison resolution use separate typed generations and
 at most one semantic pending operation in each core lane. Their contexts
 include the request, application session, complete pull-request authority,

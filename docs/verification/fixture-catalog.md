@@ -1686,23 +1686,31 @@ platform/build/Qt/scale, phase/event-loop and host/scroll observations to
 noncanonical bodies while retaining strict single-page fixture validation.
 
 `application_rate_limit_render_recovery` (BPR-0968) uses the same 515-file,
-1,000-thread workload and safe recorded wire transport. After a successful read,
-it serves HTTP 403 primary exhaustion and secondary throttling at the next
-canonical repository read, each with `Retry-After: 2`. It opens Account → Details,
-checks the actual visible diagnostic, renders the Settings window, and verifies
-an explicit later Refresh restores the exact repository, viewer, PR/head, files
-and threads. It counts 88 ordinary account requests and four refusal requests in
-the current course; no mutation is submitted. Optional
-`BPR_RATE_LIMIT_RENDER_DIR` saves the two synthetic rasters in an existing local
-directory. The fixture repeats only this course's same-head paged read and still
-compares every request to the exact recorded exchange.
+1,000-thread workload and safe recorded wire transport. It selects the real
+20,000-line comparison through installed Git, selects right-side line 100 and
+sets a nonzero scroll position. Its three cases cover primary exhaustion with
+Retry-After 2 seconds, secondary throttling with Retry-After 2 seconds, and
+primary reset 4 seconds ahead with a shorter Retry-After 1 second. Account →
+Details renders each distinct diagnostic. Twenty current-window Refresh and
+sibling-window Open gestures per case spend no further request before the
+minimum; the third case also retries after the shorter Retry-After expires.
+Expiration alone starts no work. Explicit recovery retains the exact repository,
+viewer, PR/head, files, threads, comparison key, semantic selection and scroll.
+A final sibling is closed while its real provider files-page request is held;
+its cancellation drains without altering the surviving window's reading state.
 
-The default row is a rendering/recovery regression, **not complete BPR-0968
-acceptance**. The executable's `--require-backoff` mode additionally requires an
-immediate second Refresh to issue no request before the interval expires. It
-currently fails: the second primary and secondary requests reach the transport
-within the two-second interval. The card preserves cancellation, authority
-replacement, exact file-selection retention and retry-policy obligations.
+The complete course records 119 ordinary account requests, eight repository
+requests (three rate refusals, four successful starts, one cancelled start), and
+zero mutation submissions. Request arrival intervals are printed in microseconds.
+`BPR_RATE_LIMIT_RENDER_DIR` saves Settings and full-window recovery rasters in an
+existing local directory. Every ordinary request still matches the recorded
+exchange. The default CTest row now requires backoff; `--require-backoff` remains
+a compatible alias. Core and host courses cover monotonic clock changes, both
+minimum orderings, fallback/attempt/registry caps, resource/account partitioning,
+session retirement, late terminals and transient retries during a sibling delay.
+Removing admission or the Last problem mapping fails this same rendered course.
+These are macOS offscreen fixture observations, not native appearance, a live
+account, other-platform or release acceptance.
 
 `application_offline_inventory` (BPR-0969) runs the real desktop composition in
 five processes over the same private data root and synthetic vault pipe. It

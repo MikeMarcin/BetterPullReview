@@ -1,4 +1,5 @@
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/github_read_admission.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include <cstdlib>
@@ -801,12 +802,155 @@ namespace {
 	}
 
 }
+namespace {
+	auto limited_error(bool aSecondary, application::github_rate_limit_resource aResource = application::github_rate_limit_resource::core) -> application::github_provider_error
+	{
+		auto rate  = application::github_rate_limit_record{ aResource, 5000, aSecondary ? 4999U : 0U, 105U, aSecondary };
+		auto error = application::github_provider_error{ .Failure = application::github_provider_failure::rate_limit, .RetryAfterSeconds = 2, .RateLimitCause = rate };
+		expect(application::observe(error.RateLimits, rate), "valid typed rate cause");
+		return error;
+	}
+
+	void test_shared_backoff_lifecycle()
+	{
+		auto                                                now       = core::github_read_time{ 1000, 100 };
+		auto                                                admission = std::make_shared<application::github_read_admission>([&] { return now; });
+		reads                                               provider;
+		application::manual_executor                        lane;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                first{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 2 }, provider, lane, [&](const auto& aUpdate) { updates.push_back(aUpdate); }, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, admission
+		};
+		application::github_window_read_host second{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 3 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 3 }, provider, lane, [](const auto&) { }, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, admission
+		};
+		auto identity = session();
+		expect(first.adopt(identity) && second.adopt(identity), "two windows share accepted session and admission");
+		const auto open = core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } };
+		first.dispatch(open);
+		auto call = provider.Calls.back();
+		call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+		lane.drain();
+		first.dispatch(core::refresh_pull_request_intent{ });
+		call = provider.Calls.back();
+		call.Complete(application::github_pull_request_error{ call.Request, limited_error(false) });
+		lane.drain();
+		expect(provider.Calls.size() == 2 && first.is_quiescent() && first.accepted_snapshot(), "primary refusal schedules zero automatic attempts and retains snapshot");
+		for (int i = 0; i < 10; ++i) {
+			first.dispatch(core::refresh_pull_request_intent{ });
+			second.dispatch(open);
+		}
+		expect(provider.Calls.size() == 2 && second.is_quiescent(), "Refresh and sibling Open cannot bypass primary reset");
+		expect(updates.back().Presentation.HostDiagnostics.back().RetryAfterSeconds == 5, "blocked explicit retry projects actual remaining primary delay");
+		first.cancel();
+		now.MonotonicMilliseconds = 5999;
+		second.dispatch(open);
+		expect(provider.Calls.size() == 2, "one millisecond before deadline remains refused");
+		now.MonotonicMilliseconds = 6000;
+		lane.drain();
+		expect(provider.Calls.size() == 2, "deadline expiration alone starts no work");
+		second.dispatch(open);
+		expect(provider.Calls.size() == 3, "explicit retry at deadline gets one request");
+		call = provider.Calls.back();
+		second.cancel();
+		call.Complete(application::github_pull_request_error{ call.Request, limited_error(true) });
+		lane.drain();
+		expect(second.is_quiescent() && !second.accepted_snapshot(), "cancelled request's late rate failure cannot publish");
+		second.dispatch(open);
+		expect(provider.Calls.size() == 4, "late cancelled refusal does not change current admission");
+		call = provider.Calls.back();
+		expect(second.retire(identity), "retire exact request authority");
+		auto replacement                                 = identity;
+		replacement.Generation                           = core::github_identity_generation{ 2 };
+		replacement.Session.Viewer.Account               = core::github_account_id{ 2 };
+		replacement.Session.Viewer.Node                  = application::github_actor_id{ "other-actor" };
+		replacement.CapabilityEvidence.Authority.Account = replacement.Session.Viewer.Account;
+		expect(second.adopt(replacement), "replacement account adopts independently");
+		call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+		lane.drain();
+		expect(!second.accepted_snapshot(), "old account success cannot publish after retirement");
+		admission->observe(identity.ProfileAuthority, identity.Session.Viewer, limited_error(true));
+		second.dispatch(open);
+		expect(provider.Calls.size() == 5, "other account does not inherit cooldown");
+		call = provider.Calls.back();
+		second.cancel();
+		call.Complete(application::github_pull_request_cancelled{ call.Request });
+		lane.drain();
+		expect(first.retire(identity), "retire rate-limited session");
+		identity.Generation = core::github_identity_generation{ 2 };
+		expect(first.adopt(identity), "reauthenticate same account with new authority");
+		first.dispatch(open);
+		expect(provider.Calls.size() == 5, "same account reauthentication cannot erase cooldown");
+		now.MonotonicMilliseconds += 2000;
+		first.dispatch(open);
+		call = provider.Calls.back();
+		// Existing transient retry policy is also bounded: exactly three attempts.
+		for (unsigned attempt = 1; attempt <= application::maximum_github_provider_attempts; ++attempt) {
+			call = provider.Calls.back();
+			expect(call.Request.Attempt.value() == attempt, "transient retry carries bounded attempt identity");
+			call.Complete(application::github_pull_request_error{ call.Request, { .Failure = application::github_provider_failure::timeout } });
+			lane.drain();
+		}
+		expect(provider.Calls.size() == 8 && first.is_quiescent(), "transient failure stops at three attempts");
+		first.dispatch(open);
+		call = provider.Calls.back();
+		admission->observe(identity.ProfileAuthority, identity.Session.Viewer, limited_error(true));
+		call.Complete(application::github_pull_request_error{ call.Request, { .Failure = application::github_provider_failure::timeout } });
+		lane.drain();
+		expect(provider.Calls.size() == 9 && first.is_quiescent(), "transient automatic retry rechecks a sibling's newly observed rate minimum");
+
+		first.shutdown();
+		second.shutdown();
+		expect(first.is_quiescent() && second.is_quiescent(), "all cancelled/retired terminals drain");
+	}
+
+	void test_resource_and_account_admission()
+	{
+		auto                               now = core::github_read_time{ 0, 100 };
+		application::github_read_admission admission{ [&] { return now; } };
+		const auto                         identity = session();
+		const auto&                        profile  = identity.ProfileAuthority;
+		const auto&                        viewer   = identity.Session.Viewer;
+		admission.observe(profile, viewer, limited_error(true, application::github_rate_limit_resource::graphql));
+		expect(!admission.refusal(profile, viewer, false) && admission.refusal(profile, viewer, true), "GraphQL scope gates only PR shapes that use GraphQL");
+		auto otherProfile     = profile;
+		otherProfile.Hostname = application::github_canonical_hostname{ "ghe.example.invalid" };
+		expect(!admission.refusal(otherProfile, viewer, true), "other host is independent");
+		otherProfile         = profile;
+		otherProfile.Profile = core::host_profile_id{ 99 };
+		expect(admission.refusal(otherProfile, viewer, true).has_value(), "another connection to same host/account shares cooldown");
+		admission.observe(profile, viewer, limited_error(true, application::github_rate_limit_resource::search));
+		expect(admission.refusal(profile, viewer, false).has_value(), "search delay covers PR's ancillary search resource");
+		now.MonotonicMilliseconds = 1999;
+		admission.succeeded(profile, viewer, true);
+		expect(admission.refusal(profile, viewer, true).has_value(), "older concurrent success cannot clear active cooldown");
+		now.MonotonicMilliseconds = 2000;
+		expect(!admission.refusal(profile, viewer, true), "all resource minimums expire exactly");
+		application::github_read_admission bounded{ [&] { return now; } };
+		for (unsigned index = 0; index < 256; ++index) {
+			auto account = viewer;
+			account.Node = application::github_actor_id{ std::to_string(index) };
+			bounded.observe(profile, account, limited_error(true));
+		}
+		expect(bounded.refusal(profile, viewer, true)->Failure == application::github_provider_failure::response_limit, "full live registry fails closed for an unretained account");
+		auto late              = limited_error(true);
+		late.RetryAfterSeconds = 10;
+		bounded.observe(profile, viewer, late);
+		now.MonotonicMilliseconds += 2000;
+		expect(bounded.refusal(profile, viewer, true)->Failure == application::github_provider_failure::response_limit, "late in-flight overflow preserves its longer minimum");
+		now.MonotonicMilliseconds += 8000;
+		expect(!bounded.refusal(profile, viewer, true), "bounded registry recovers after overflow minimum");
+	}
+}
+
 int main()
 {
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
 	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();
+	test_shared_backoff_lifecycle();
+	test_resource_and_account_admission();
 	test_reentrant_read_publication();
 	test_safe_read_presentation_matches_accepted_state();
 	test_two_windows_have_distinct_diagnostic_courses();

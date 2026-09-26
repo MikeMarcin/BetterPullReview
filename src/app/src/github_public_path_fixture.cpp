@@ -466,6 +466,9 @@ namespace bpr::app::detail {
 			auto       limited   = wire_response{ .Status = 403, .Headers = response_headers(), .Body = secondary ? R"({"message":"You have exceeded a secondary rate limit. Please wait."})" : R"({"message":"API rate limit exceeded."})" };
 			append_rate_limit_headers(limited, read_operation::get_repository);
 			for (auto& header : limited.Headers) {
+				if (header.Name == "X-RateLimit-Reset") {
+					header.Value = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() + aFixture.ResetAfterSeconds);
+				}
 				if (header.Name == "X-RateLimit-Remaining") {
 					header.Value = secondary ? "4999" : "0";
 				}
@@ -1758,6 +1761,10 @@ namespace bpr::app::detail {
 					++State->Offline->WireRefusals;
 					return github_wire_error{ .Correlation = aRequest.Correlation,
 											  .Error       = provider_error(application::github_provider_failure::network) };
+				}
+				if (Role == fixture_transport_role::account && State->RateLimit && aRequest.Wire.Operation == read_operation::get_repository) {
+					State->RateLimit->LastRequestNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+					++State->RateLimit->Requests;
 				}
 				if (Role == fixture_transport_role::account && State->RateLimit
 					&& aRequest.Wire.Operation == read_operation::get_repository

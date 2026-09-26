@@ -19,6 +19,7 @@
 
 namespace bpr::application {
 	class device_authorization_browser_port;
+	class github_read_admission;
 	enum class github_public_preview_refusal_cause : std::uint8_t {
 		/// No anonymous read authority is composed, so the mode cannot be
 		/// entered at all. This is a composition fact the host reports
@@ -74,13 +75,14 @@ namespace bpr::application {
 		github_window_read_host(core::bpr_window_context     aWindow,
 								core::application_session_id aSession, github_pull_request_port& aReads,
 								decision_executor& aDecision, publication aPublication,
-								github_epoch_handoff_port*        aEpochs         = nullptr,
-								github_pull_request_port*         aAnonymousReads = nullptr,
-								git_smart_transport_factory_port* aAnonymousGit   = nullptr,
-								diagnostic_log_port*              aLog            = nullptr,
-								cached_review_overview_port*      aOverviews      = nullptr,
-								effect_executor*                  aCacheEffects   = nullptr,
-								cached_review_source_port*        aSources        = nullptr);
+								github_epoch_handoff_port*             aEpochs         = nullptr,
+								github_pull_request_port*              aAnonymousReads = nullptr,
+								git_smart_transport_factory_port*      aAnonymousGit   = nullptr,
+								diagnostic_log_port*                   aLog            = nullptr,
+								cached_review_overview_port*           aOverviews      = nullptr,
+								effect_executor*                       aCacheEffects   = nullptr,
+								cached_review_source_port*             aSources        = nullptr,
+								std::shared_ptr<github_read_admission> aAdmission      = nullptr);
 		~github_window_read_host();
 		github_window_read_host(const github_window_read_host&)                                  = delete;
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;
