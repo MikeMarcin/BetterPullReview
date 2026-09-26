@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0800"
 title: "Dif rests in the bottom-left corner on review surfaces too"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0031", "RFC-BPR-0032"]
 depends_on: ["BPR-1209"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner mandate r2, 2026-09-15; the remainder BPR-0775 bounded out and d8 left un-carded; allocated on main in d9","acceptance":["RFC-BPR-0031 B5","RFC-BPR-0031 B6"],"carried_by":"BPR-1209"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1971a9ab82b965d57925023469ec9b14513de894","evidence":{"kind":"observation","detail":"BPR-1209 AC1/AC2/AC5: one28px leading-corner widget on ordinary review surfaces, no pointer/focus path, transient-message hiding; explicit-scale100/125/200 placement and negative control pass. Size amended by owner hand-back49."}},{"criterion":"AC2","outcome":"pass","revision":"1971a9ab82b965d57925023469ec9b14513de894","evidence":{"kind":"observation","detail":"BPR-1209 AC3/AC5: one-widget rule, shared decoded catalogue, first-launch Home and accepted Compose workshop prime spots remain unchanged; placement courses pass."}},{"criterion":"AC3","outcome":"pass","revision":"1971a9ab82b965d57925023469ec9b14513de894","evidence":{"kind":"observation","detail":"Owner2026-09-25 direction removes the drawer slot before implementation; recorded decisions on BPR-1209 resolve the corner/slot question and preserve cue triggers."}},{"criterion":"AC4","outcome":"pass","revision":"1971a9ab82b965d57925023469ec9b14513de894","evidence":{"kind":"observation","detail":"RFC-BPR-0031 retains original acceptance and records the2026-09-25 owner placement amendment; BPR-1209 carries the new implementation evidence."}},{"criterion":"AC5","outcome":"pass","revision":"1971a9ab82b965d57925023469ec9b14513de894","evidence":{"kind":"observation","detail":"Native macOS owner Accept at hand-back32, session0a3f0caf7998162c936e25e6d3f68672, BPR-1209-corner decisionc91d25c2-3b77-4e7c-a123-b545cedb4ad1; exact frozen source/executable and fingerprint recorded on card. No other native platform inferred."}}]
 ---
 
 # BPR-0800: Dif rests in the bottom-left corner on review surfaces too
@@ -120,3 +121,22 @@ Each of these is recorded with its rationale on [[BPR-1209]]:
   RFC-BPR-0031 amendment (now recorded in RFC-BPR-0031 as the owner's
   amendment of 2026-09-25) and the attended corner verdict. This card depends
   on BPR-1209 and closes on its evidence, with no separate build.
+
+## Carried acceptance — 2026-09-26
+
+BPR-1209 is Done on source `1971a9ab82b965d57925023469ec9b14513de894`.
+Its AC1–AC5 focused placement and cue courses establish this card's review
+corner, one-widget and original-trigger requirements. The owner directed removal
+of the drawer slot before implementation; the recorded RFC-BPR-0031 amendment
+and preserved Compose prime spot resolve the original question.
+
+The owner's subsequent hand-back49 amended the corner size to28 logical pixels.
+BPR-1209's corrected100/125/200 courses and native inspection establish that
+size. At hand-back32, session `0a3f0caf7998162c936e25e6d3f68672`, the owner
+accepted `BPR-1209-corner`, decision `c91d25c2-3b77-4e7c-a123-b545cedb4ad1`,
+fingerprint `19daf83f60ffb542aba4b984db8c771f2cdfc165c634ad7ff6dbbc66eb7c436f`,
+for executable SHA-256
+`b45b64204b0d34fac1e9e9c977905768408536ff1e42cbd8b03021c1ee512715`.
+This supplies the separate native macOS review-surface judgment. It claims no
+Windows/Linux native observation or release qualification. No separate build
+or repeated owner question was required by the explicit carried-by decision.
