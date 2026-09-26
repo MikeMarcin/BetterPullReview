@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1202"
 title: "The review bar puts file navigation before change navigation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
