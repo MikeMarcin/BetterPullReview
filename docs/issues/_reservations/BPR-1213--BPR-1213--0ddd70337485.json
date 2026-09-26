@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1213"
+  ],
+  "reserve_for": "owner-overview-flat-folders",
+  "purpose": "Owner clarification: flat Overview folder rows with file collapse only",
+  "created": "2026-09-26T18:35:05.909888+00:00",
+  "base": "89ccfd4b4adf5ba793411c80d6667ff32b0ab17c"
+}
