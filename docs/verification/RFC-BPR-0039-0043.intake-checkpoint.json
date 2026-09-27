@@ -1,0 +1,80 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr-review-tour-20260926",
+  "segment_id": "intake-r1",
+  "mandate_revision": "r1-20260926-land-each-milestone",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0039",
+  "binding": {
+    "plan_id": "bpr-review-tour-v1",
+    "plan_path": "docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json",
+    "milestone_id": "intake",
+    "definition_fingerprint": "sha256:fa46e87a6c669f830cb5892b15efa1db633921d17201baf4c85017a1b9edbb3b",
+    "obligations": [
+      {
+        "id": "BPR-0991:*",
+        "source": "BPR-0991",
+        "selector": null,
+        "source_fingerprint": "sha256:778424f69e964ee64454557ade39297efe48f61970574b82a3dc8f8e86bb46b7"
+      }
+    ],
+    "obligation_fingerprint": "sha256:d60348a670464a3890c76c236a3f808c516d14f7f3c8d26d8f1a4ec6f5a525f8",
+    "exit_criteria": [
+      {
+        "id": "intake:exit:1",
+        "text": "All proposed RFC and issue aliases are collision-checked/remapped with committed allocator receipts and source lineage."
+      },
+      {
+        "id": "intake:exit:2",
+        "text": "The installed skill validates/imports the authored grouping; one live baseline note names existing composition and any prerequisite gaps."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "intake",
+    "manual-authoring",
+    "github-round-trip",
+    "staged-publication",
+    "manual-maintenance",
+    "scoped-ai",
+    "outline-and-adversaries",
+    "qualification-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/review-tour-pack",
+    "source_revision": "129432b3941d21edd4bee84b7edec77a32562b64",
+    "workflow_branch": "codex/review-tour-pack",
+    "workflow_revision": "129432b3941d21edd4bee84b7edec77a32562b64"
+  }
+}
