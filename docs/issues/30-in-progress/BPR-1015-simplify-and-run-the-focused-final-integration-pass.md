@@ -60,3 +60,32 @@ successful initial description to retain the original CRLF template bytes.
 Strict tidy passes on the affected reconciliation/editor/composition-test units.
 The final integration result and exact producing revision are in the
 [execution ledger](../../verification/RFC-BPR-0039-0043.md).
+
+### Final composition-pin review
+
+The final integration exposed an inherited stale full-application pin, already
+mismatched at entry `2e2aca96`. Reviewed the only intervening manifest-source
+commits after last matching manual candidate `5b9080fb`: `9b71342a`, `1d84e59c`
+and `1ef7a98c`, all in `github_application.cpp`. Profile hook restore/subscribe/
+unsubscribe use the existing owner. Assistance starts only on explicit controls,
+clears unrelated context and MCP sources, captures exact editor/context/hook/
+invocation identity, decodes bounded results and preserves native undo. Outline
+insertion and completion remain separate local transitions requiring visible
+source and current author content. These changes add no publication grant.
+The source-line mutation branch is byte-identical; prior scoped-AI/outline
+reviews and the final real-process course are retained. The full-application
+pin now binds that actual composed source; no product source changed for this
+reseal and native metrics remain valid for `5ca53796`.
+
+### Cold-import observation correction
+
+The final cold-import course found a false website change at restart: all text,
+raw baselines and identities matched, but the revision advanced 4→5 because
+`HasPriorObservation` and `ObservedChanges` changed. A manual description span
+was compared with the importer's automatic heading span despite byte-identical
+remote source. The core now requires changed raw source before inferring a brief
+website delta. The regression keeps whole-draft equality at public-path restart;
+it does not weaken persistence or normalize away the false observation. A core
+counterexample binds different spans to the same document; existing positive
+website-delta assertions remain. Scoped tidy also reserves the already bounded
+route vector and names two callback arguments consistently.

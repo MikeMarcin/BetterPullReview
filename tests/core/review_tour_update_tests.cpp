@@ -61,6 +61,14 @@ namespace {
 		local.Stops.push_back(privateStop);
 		local.LastStopId = 6;
 		expect(observed_tour_changes(local, base).empty(), "private text/reorder/removal/insertion is never website history");
+		auto              mapped      = base;
+		auto              sameWebsite = base;
+		const std::string rawBrief    = "Preface\n\n## Problem\nProblem text\n\n## Solution\nSolution text\n";
+		retain_tour_brief_baselines(mapped, rawBrief, "PR17");
+		retain_tour_brief_baselines(sameWebsite, rawBrief, "PR17");
+		mapped.SolutionBaseline->SourceSpan = std::pair<std::size_t, std::size_t>{ 0, 7 };
+		mapped.Solution                     = "Preface\n";
+		expect(observed_tour_changes(mapped, sameWebsite).empty(), "manual description mapping cannot invent a website edit from identical raw bytes");
 		auto remote = base;
 		remote.Stops[0].Baseline->Raw += "website edit";
 		remote.Stops[1].Destination = destination_of(*remote.Stops[1].Original);

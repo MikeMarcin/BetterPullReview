@@ -20,6 +20,7 @@ namespace bpr::core {
 			for (const auto& list : map.Lists) {
 				if ((aTour.IndexBaseline->SourceSpan && list.Source == tour_text_span{ aTour.IndexBaseline->SourceSpan->first, aTour.IndexBaseline->SourceSpan->second }) || (!aTour.IndexBaseline->SourceSpan && map.Lists.size() == 1)) {
 					std::vector<std::string> result;
+					result.reserve(list.Entries.size());
 					for (const auto& entry : list.Entries) {
 						result.push_back(entry.Destination);
 					}
@@ -58,7 +59,7 @@ namespace bpr::core {
 			if (!original) {
 				continue;
 			}
-			const auto  matches = [&](const auto& endpoint) { return original->Commit == endpoint.Commit && original->Path == endpoint.Path && (!original->Blob || original->Blob == endpoint.Blob); };
+			const auto  matches = [&](const auto& aEndpoint) { return original->Commit == aEndpoint.Commit && original->Path == aEndpoint.Path && (!original->Blob || original->Blob == aEndpoint.Blob); };
 			const auto* from    = matches(aLeft) ? &aLeft : matches(aRight) ? &aRight
 																			: nullptr;
 			if (!from) {
@@ -127,7 +128,7 @@ namespace bpr::core {
 			if (!stop.Remote) {
 				continue;
 			}
-			const auto old = std::ranges::find_if(previous, [&](const auto& value) { return value.Remote && value.Remote->Entity == stop.Remote->Entity; });
+			const auto old = std::ranges::find_if(previous, [&](const auto& aValue) { return aValue.Remote && aValue.Remote->Entity == stop.Remote->Entity; });
 			if (old == previous.end() || std::ranges::find(oldRoute, stop.Remote->WebUrl) == oldRoute.end()) {
 				result.push_back({ tour_change_kind::added, tour_stop_id{ ++nextId }, stop.Title });
 				continue;
@@ -150,7 +151,9 @@ namespace bpr::core {
 		for (const auto problem : { true, false }) {
 			const auto& old = problem ? aBefore.ProblemBaseline : aBefore.SolutionBaseline;
 			const auto& now = problem ? aAfter.ProblemBaseline : aAfter.SolutionBaseline;
-			if (old && now && old->SourceSpan && now->SourceSpan && old->Raw.substr(old->SourceSpan->first, old->SourceSpan->second - old->SourceSpan->first) != now->Raw.substr(now->SourceSpan->first, now->SourceSpan->second - now->SourceSpan->first)) {
+			// A local manual mapping can differ from the importer's heading span.
+			// Identical remote bytes are never a website edit.
+			if (old && now && old->Raw != now->Raw && old->SourceSpan && now->SourceSpan && old->Raw.substr(old->SourceSpan->first, old->SourceSpan->second - old->SourceSpan->first) != now->Raw.substr(now->SourceSpan->first, now->SourceSpan->second - now->SourceSpan->first)) {
 				result.push_back({ tour_change_kind::text, { }, problem ? "Problem" : "Solution" });
 			}
 		}

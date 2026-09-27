@@ -64,7 +64,14 @@ endfunction()
 # the production app manifest: initial and maintenance descriptions now share
 # core mapped-byte preservation. Initial backlink remains separately named and
 # journaled; no operation support/grant/actor/head/recovery boundary changed.
-# Full application and source-line mutation branch hashes are unchanged.
+# Source-line mutation branch hash is unchanged. The final integration also
+# found the full-application pin still at the manual-maintenance revision.
+# Reviewed 5b9080fb..2e2aca96: 9b71342a, 1d84e59c, 1ef7a98c are the only
+# intervening manifest-source commits, all in github_application.cpp. Profile
+# hook restore, explicit bounded writing/cancel/delivery and visible per-stop
+# completion retain captured identity; no implicit inference or publish grant.
+# Prior scoped-AI/outline reviews and the final real-process course are recorded
+# on BPR-1015 and the pack ledger. Reseal their unchanged composed source here.
 # Resealing the pinned digests ([[BPR-0383]], [[BPR-0819]])
 #
 # The three digests below are review tripwires, not build products. A pin that
@@ -418,7 +425,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e66ae5fa891c194799cf62833681836a9921700093171bb9dfe7566535c83a66"
+		"124e5fdace29a3d032e45d467fe7615b922198b68776803bc964fff7134f177b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
