@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M6 complete; final independent review and integrated feature criteria pending**
+Status: **implementation authorized under mandate r2; M1–M8 local work integrated; M7 external publication evidence and final independent review pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -1542,3 +1542,37 @@ designated evidence or a precise live blocker. A blocker can complete that local
 evidence card but cannot satisfy BPR-0584, RFC AC-12/13/17 or the external M9
 exit. BPR-0589 proceeds independently with rendered/native presentation work.
 No source-pack criterion or independent final-review requirement is removed.
+
+## M9 BPR-0589 rendered UX slice
+
+The [rendered evidence record](RFC-BPR-0023.m9-rendered-evidence.md) preserves
+synthetic captures and exact outcomes from the shipped executable and Qt
+projection test. The app course passed at 100%, 125% and 200% across system,
+light, dark, high-contrast-light and high-contrast-dark appearances. Native
+macOS Cocoa runs passed at 125% dark and 200% high-contrast-dark. The 200%
+offscreen course asserted Tab focus on Accept and automatic scroll visibility;
+the background Cocoa process could not own a key window, so its native run
+asserted scroll visibility. `qt_private_review_panel` passed at 100% and 200%
+and exercised three panel Tab transitions, distinct local and published names,
+provenance bases, two exact targets, stale refusal and zero full model resets
+under bounded projection changes.
+
+The captures found two presentation defects: the separate composition dialog
+kept a light palette under dark appearance, and native Cocoa selectors clipped
+workspace/target labels. The dialog now follows its workbench palette at
+creation and on palette changes. Workspace and target selectors have usable
+widths at 200%; the target label displays a short commit prefix while its
+tooltip retains the full head and the application intent retains the exact
+target. The final native captures show readable labels and a reachable Accept
+action after scroll. One Cocoa fixture run stalled before entering Review;
+a fresh three-process rerun passed. The failure and its boundary are retained
+in the evidence record.
+
+Changed source/test paths for this slice: the Qt composition editor header and
+implementation, the testing-only shipped-app private review fixture course,
+its Python public-path launcher, and the Qt panel test. Operator-visible
+behavior is limited to palette inheritance and selector legibility in the
+composition dialog; the extra capture/focus paths run only in the local test
+course. The image set and evidence record are in `docs/verification/`. BPR-0588
+still owns M9 failure/performance evidence. BPR-0584's designated or signed
+publication readback and M10's final independent review remain pending.

@@ -10,11 +10,14 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QFileInfo>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextStream>
@@ -32,6 +35,10 @@ namespace bpr::app::detail {
 			core::private_review_thread_id        Thread;
 			int                                   SharedResets = 0;
 			int                                   SharedRows   = 0;
+			QString                               Theme;
+			bool                                  ThemeApplied      = false;
+			bool                                  CapturedInput     = false;
+			bool                                  CapturedCandidate = false;
 		};
 		void tick(github_application& aApp, std::shared_ptr<course> aCourse)
 		{
@@ -58,8 +65,28 @@ namespace bpr::app::detail {
 				button->click();
 				return true;
 			};
+			auto capture = [](QWidget* aWidget, const QString& aName) {
+				const auto render = qEnvironmentVariable("BPR_PRIVATE_REVIEW_RENDER");
+				if (render.isEmpty()) {
+					return true;
+				}
+				const auto path = QFileInfo{ render };
+				return aWidget->grab().save(path.absolutePath() + QLatin1Char('/') + path.completeBaseName() + QLatin1Char('-') + aName + QStringLiteral(".png"));
+			};
 			switch (aCourse->Stage) {
 			case 0:
+				if (!aCourse->ThemeApplied) {
+					const auto mode = aCourse->Theme == QStringLiteral("light")   ? core::appearance_mode::light
+						: aCourse->Theme == QStringLiteral("dark")                ? core::appearance_mode::dark
+						: aCourse->Theme == QStringLiteral("high-contrast-light") ? core::appearance_mode::high_contrast_light
+						: aCourse->Theme == QStringLiteral("high-contrast-dark")  ? core::appearance_mode::high_contrast_dark
+																				  : core::appearance_mode::system;
+					if (!github_application_fixture_access::apply_appearance_gesture(aApp, mode, 4)) {
+						break;
+					}
+					aCourse->ThemeApplied = true;
+				}
+				window.resize(1200, 900);
 				window.github_connect_action()->trigger();
 				++aCourse->Stage;
 				break;
@@ -133,6 +160,10 @@ namespace bpr::app::detail {
 						return;
 					}
 					click(panel, "privateSelectFinding");
+					if (!capture(panel, QStringLiteral("sources"))) {
+						fail("render_sources");
+						return;
+					}
 					if (click(panel, "privateCompose")) {
 						++aCourse->Stage;
 					}
@@ -162,6 +193,11 @@ namespace bpr::app::detail {
 					auto* composition = dynamic_cast<qt::private_composition_editor*>(window.findChild<QDialog*>(QStringLiteral("privateCompositionEditor")));
 					if (composition && composition->isVisible()) {
 						composition->findChild<QPlainTextEdit*>(QStringLiteral("privateCompositionBody"))->setPlainText(aCourse->Representation == "file" ? QStringLiteral("BPR-0571 off-hunk publication.") : QStringLiteral("Synthetic reviewer-approved RFC-0023 comment."));
+						if (!aCourse->CapturedInput && !capture(composition, QStringLiteral("composition-input"))) {
+							fail("render_composition_input");
+							return;
+						}
+						aCourse->CapturedInput = true;
 						if (click(composition, "privateCompositionCreate")) {
 							++aCourse->Stage;
 						}
@@ -170,7 +206,38 @@ namespace bpr::app::detail {
 				break;
 			case 7: {
 				auto* composition = dynamic_cast<qt::private_composition_editor*>(window.findChild<QDialog*>(QStringLiteral("privateCompositionEditor")));
-				if (composition && click(composition, "privateCompositionAccept")) {
+				auto* accept      = composition ? composition->findChild<QPushButton*>(QStringLiteral("privateCompositionAccept")) : nullptr;
+				if (composition && composition->isVisible() && accept && accept->isEnabled() && !aCourse->CapturedCandidate) {
+					if (!capture(composition, QStringLiteral("composition-candidate"))) {
+						fail("render_composition_candidate");
+						return;
+					}
+					auto* before = composition->findChild<QPushButton*>(QStringLiteral("privateCompositionAsk"));
+					auto* scroll = composition->findChild<QScrollArea*>();
+					if (QGuiApplication::platformName() == QStringLiteral("cocoa")) {
+						// A background native test process has no key window and cannot own focus.
+						scroll->ensureWidgetVisible(accept);
+					} else {
+						before->setFocus(Qt::TabFocusReason);
+						QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+						QApplication::sendEvent(before, &tab);
+					}
+					QApplication::processEvents();
+					const auto position = accept->mapTo(scroll->viewport(), QPoint{ 0, 0 });
+					if ((QGuiApplication::platformName() != QStringLiteral("cocoa") && !accept->hasFocus()) || !scroll->viewport()->rect().intersects(QRect{ position, accept->size() })) {
+						QTextStream{ stdout } << "PRIVATE_REVIEW_FOCUS accept=" << accept->hasFocus() << " active="
+											  << (QApplication::focusWidget() ? QApplication::focusWidget()->objectName() : QStringLiteral("none"))
+											  << " position=" << position.x() << ',' << position.y() << " viewport=" << scroll->viewport()->width() << 'x' << scroll->viewport()->height() << "\n";
+						fail("accept_not_keyboard_visible");
+						return;
+					}
+					if (!capture(composition, QStringLiteral("composition-action"))) {
+						fail("render_composition_action");
+						return;
+					}
+					aCourse->CapturedCandidate = true;
+				}
+				if (aCourse->CapturedCandidate && composition && click(composition, "privateCompositionAccept")) {
 					++aCourse->Stage;
 				}
 			} break;
@@ -192,6 +259,10 @@ namespace bpr::app::detail {
 			case 10: {
 				const auto provenance = panel->findChild<QPlainTextEdit*>(QStringLiteral("privateProvenanceDetails"))->toPlainText();
 				if (provenance.contains(QStringLiteral("Requested")) && provenance.contains(QStringLiteral("Configured")) && provenance.contains(QStringLiteral("unknown"))) {
+					if (!capture(panel, QStringLiteral("provenance"))) {
+						fail("render_provenance");
+						return;
+					}
 					aCourse->Stage = 9;
 				}
 				break;
@@ -254,6 +325,7 @@ namespace bpr::app::detail {
 		auto state            = std::make_shared<course>();
 		state->Phase          = std::move(aPhase);
 		state->Representation = std::move(aRepresentation);
+		state->Theme          = qEnvironmentVariable("BPR_PRIVATE_REVIEW_THEME", "system");
 		QTimer::singleShot(0, &aApp.window(), [&aApp, state] { tick(aApp, state); });
 	}
 }

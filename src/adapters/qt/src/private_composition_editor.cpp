@@ -1,5 +1,6 @@
 #include "bpr/qt/private_composition_editor.hpp"
 #include <QComboBox>
+#include <QEvent>
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -22,6 +23,10 @@ namespace bpr::qt {
 	private_composition_editor::private_composition_editor(QWidget* aParent)
 		: QDialog(aParent)
 	{
+		if (aParent != nullptr) {
+			setPalette(aParent->palette());
+			aParent->installEventFilter(this);
+		}
 		setObjectName(QStringLiteral("privateCompositionEditor"));
 		setWindowTitle(tr("Squash to Draft · private composition"));
 		setModal(false);
@@ -57,12 +62,13 @@ namespace bpr::qt {
 		Workspace = new QComboBox(page);
 		Workspace->setObjectName(QStringLiteral("privateCompositionWorkspace"));
 		Workspace->setAccessibleName(tr("Split composition workspace"));
+		Workspace->setMinimumWidth(220);
 		form->addRow(tr("Workspace"), Workspace);
 		Target = new QComboBox(page);
 		Target->setObjectName(QStringLiteral("privateCompositionTarget"));
 		Target->setAccessibleName(tr("Explicit exact target, never a guessed line"));
 		Target->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		Target->setMinimumContentsLength(12);
+		Target->setMinimumWidth(360);
 		form->addRow(tr("Target"), Target);
 		Profile = new QComboBox(page);
 		Profile->setObjectName(QStringLiteral("privateCompositionProfile"));
@@ -95,6 +101,13 @@ namespace bpr::qt {
 		connect(Workspace, &QComboBox::activated, this, [this] { dispatch(application::private_composition_action::select); });
 		connect(this, &QDialog::rejected, this, [this] { dispatch(application::private_composition_action::cancel); });
 	}
+	bool private_composition_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
+	{
+		if (aWatched == parentWidget() && aEvent->type() == QEvent::PaletteChange) {
+			setPalette(parentWidget()->palette());
+		}
+		return QDialog::eventFilter(aWatched, aEvent);
+	}
 	void private_composition_editor::set_dispatch(application::private_composition_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
 	void private_composition_editor::show_status(std::string_view aStatus) { Status->setText(text(aStatus)); }
 	void private_composition_editor::present(const application::private_composition_projection& aProjection)
@@ -118,7 +131,9 @@ namespace bpr::qt {
 		Target->clear();
 		Target->addItem(tr("Choose an exact target or split; unplaceable sources need a new selection"));
 		for (const auto& target : aProjection.Targets) {
-			Target->addItem(tr("%1 side, line %2 · head %3").arg(target.Line.Side == core::diff_side::right ? tr("Right") : tr("Left")).arg(target.Line.Line + 1).arg(text(core::canonical_hex(target.Binding.Revision.HeadOid).view())));
+			const auto head = text(core::canonical_hex(target.Binding.Revision.HeadOid).view());
+			Target->addItem(tr("%1 side, line %2 · head %3").arg(target.Line.Side == core::diff_side::right ? tr("Right") : tr("Left")).arg(target.Line.Line + 1).arg(head.left(12)));
+			Target->setItemData(Target->count() - 1, tr("Full head: %1").arg(head), Qt::ToolTipRole);
 			if (aProjection.Current && aProjection.Current->Target == target) {
 				Target->setCurrentIndex(Target->count() - 1);
 			}
