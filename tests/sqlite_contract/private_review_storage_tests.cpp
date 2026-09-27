@@ -360,6 +360,8 @@ namespace {
 		auto                                 prepared = compose(*store, first.Revision);
 		auto                                 peer     = open(config);
 		expect(store->commit(prepared.Write).has_value(), "composition candidate source set and existing draft type commit atomically");
+		auto sourceBadge = store->source_lineage(core::source_of(first.Revision));
+		expect(sourceBadge && sourceBadge->Composition && sourceBadge->Draft && !sourceBadge->Published, "exact source badges distinguish local accepted draft from publication");
 		expect(peer->commit(prepared.Write).error() == private_store_failure::conflict, "second allocator loses without ID reuse");
 		auto restored = peer->load_draft(prepared.Draft.Draft.Draft.Id);
 		expect(restored && restored->Draft == prepared.Draft.Draft && restored->Binding == prepared.Draft.Binding, "linked draft body and exact target round trip without runtime scope");
@@ -380,6 +382,8 @@ namespace {
 		store             = open(config);
 		auto publications = store->find_publication("server-17");
 		expect(publications && publications->Records.size() == 1 && publications->Records.front().WireBodyDigest == publication.WireBodyDigest && publications->Records.front().ApprovedProseDigest != publication.WireBodyDigest, "publication wire and approved prose digests remain separate after restart");
+		sourceBadge = store->source_lineage(core::source_of(first.Revision));
+		expect(sourceBadge && sourceBadge->Published, "source publication badge is reconstructed from durable server receipt after restart");
 		expect(store->load_candidate(prepared.Candidate.Identity)->Body == prepared.Candidate.Body, "composition body survives linkage and receipt");
 		auto dependents = store->list_thread_dependents(first.Thread.Id);
 		expect(dependents && dependents->Objects == std::vector{ private_object_reference{ private_object_kind::composition, prepared.Write.Compositions[0].Record.State.Id.value() } }, "bounded dependency page explains deletion refusal");
@@ -615,6 +619,24 @@ namespace {
 		fixture_sql(ledger_path(config), "UPDATE private_scope_state SET findings=0");
 		expect(store->commit(write).has_value(), "finding snapshot commits with durable run identity");
 		expect(store->load_finding(retained->Source)->Finding == finding, "full finding survives source load");
+		std::vector<private_source_reference> extras;
+		for (std::uint32_t ordinal = 1; ordinal <= 65; ++ordinal) {
+			auto more = retain_agent_finding(run, ordinal, private_vertex_order{ store->frontier()->NextIdentity }, finding, { run.Binding.Revision, { } });
+			expect(more.has_value(), "prepare independent retained finding identity");
+			expect(store->commit({ .ExpectedNextIdentity = store->frontier()->NextIdentity, .Findings = { *more } }).has_value(), "retain paginated finding");
+			extras.push_back(more->Source);
+		}
+		store.reset();
+		store          = open(config);
+		auto firstPage = store->list_findings();
+		expect(firstPage && firstPage->Sources.size() == 64 && firstPage->Next, "restart first finding page is bounded");
+		auto secondPage = store->list_findings(firstPage->Next);
+		expect(secondPage && secondPage->Sources.size() == 2 && !secondPage->Next, "finding continuation returns exact remaining identities");
+		expect(firstPage->Sources.front() == retained->Source && secondPage->Sources.back() == extras.back(), "pagination does not substitute source revision");
+		for (const auto& extra : extras) {
+			expect(store->erase_local_object({ private_object_kind::finding, extra.Order.value() }).has_value(), "clean unreferenced page fixture");
+		}
+		expect(store->list_findings(firstPage->Next).error() == private_store_failure::stale_cursor, "changed finding catalog refuses stale continuation");
 		expect(store->erase_local_object({ private_object_kind::run, run.Run.value() }).error() == private_store_failure::references_present, "retained finding keeps run provenance");
 		expect(store->erase_local_object({ private_object_kind::finding, retained->Source.Order.value() }).has_value() && store->erase_local_object({ private_object_kind::run, run.Run.value() }).has_value(), "explicit unreferenced finding then run cleanup");
 		expect(store->erase_thread(first.Thread.Id, edited->Thread.Version).has_value(), "source can be explicitly deleted after dependents removed");

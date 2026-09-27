@@ -43,6 +43,7 @@ namespace bpr::qt {
 		void present(const application::private_conversation_projection&);
 		void present_body(const core::private_source_reference&, std::string_view, bool);
 		void present_provenance(const core::agent_run_provenance&);
+		void present_finding(std::string_view);
 		void show_status(const QString&);
 		auto selected_sources() const -> const std::vector<core::private_source_selection>& { return Sources; }
 		auto thread_model() -> private_thread_model* { return Threads; }

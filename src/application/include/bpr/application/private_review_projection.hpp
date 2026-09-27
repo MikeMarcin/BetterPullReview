@@ -20,21 +20,36 @@ namespace bpr::application {
 		std::string                        Lineage;
 		auto                               operator==(const private_turn_row&) const -> bool = default;
 	};
+	struct private_draft_row
+	{
+		core::review_draft_id    Id;
+		core::source_line_ref    Anchor;
+		core::review_draft_state State;
+	};
 	struct private_conversation_projection
 	{
-		std::uint64_t                                 Generation = 0;
-		bool                                          Available  = false;
-		bool                                          Busy       = false;
-		std::vector<private_thread_row>               Threads;
-		std::optional<core::private_review_thread_id> SelectedThread;
-		std::vector<private_turn_row>                 Turns;
-		std::vector<core::private_source_observation> Findings;
-		bool                                          MoreThreads = false;
-		bool                                          MoreTurns   = false;
-		std::string                                   Status;
+		std::uint64_t                                               Generation = 0;
+		bool                                                        Available  = false;
+		bool                                                        Busy       = false;
+		std::vector<private_thread_row>                             Threads;
+		std::optional<core::private_review_thread_id>               SelectedThread;
+		std::uint64_t                                               SelectedVersion = 0;
+		std::vector<private_turn_row>                               Turns;
+		std::vector<core::private_source_observation>               Findings;
+		std::vector<private_draft_row>                              Drafts;
+		bool                                                        IncludeArchived = false;
+		std::vector<std::pair<core::agent_profile_id, std::string>> Profiles;
+		bool                                                        MoreFindings = false;
+		bool                                                        MoreThreads  = false;
+		bool                                                        MoreTurns    = false;
+		std::string                                                 Status;
 	};
 	enum class private_conversation_action : std::uint8_t { refresh,
 															next_threads,
+															next_findings,
+															inspect_finding,
+															include_archived,
+															open_draft,
 															select_thread,
 															next_turns,
 															read_body,
@@ -55,6 +70,10 @@ namespace bpr::application {
 		std::uint64_t                                 ExpectedVersion = 0;
 		std::optional<core::private_source_selection> Revision;
 		std::vector<core::private_source_selection>   Sources;
+		core::agent_profile_id                        Profile;
+		core::agent_setting_facts                     Requested;
+		bool                                          IncludeArchived = false;
+		std::optional<core::review_draft_id>          Draft;
 		std::string                                   Body;
 	};
 	using private_conversation_dispatch = std::function<void(private_conversation_intent)>;

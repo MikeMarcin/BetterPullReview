@@ -21,6 +21,7 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
+	#include "src/private_review_fixture_course.hpp"
 	#include "src/startup_diagnostic.hpp"
 #endif
 
@@ -8284,6 +8285,16 @@ auto main(int argc, char** argv) -> int
 				<< "REVIEW_LEDGER_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		const auto privateReviewCourse         = argument_value(argc, argv, "--private-review-course");
+		const auto privateReviewRepresentation = argument_value(argc, argv, "--private-review-representation").value_or("native");
+		if (privateReviewCourse) {
+			const auto agent = argument_value(argc, argv, "--private-review-agent");
+			if (!selectedFixture || !agent || (*privateReviewCourse != "seed" && *privateReviewCourse != "compose" && *privateReviewCourse != "publish") || (privateReviewRepresentation != "native" && privateReviewRepresentation != "file")) {
+				return EXIT_FAILURE;
+			}
+			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *agent } };
+			fixtureOptions.RepeatReadSessions   = true;
+		}
 		const auto reviewRoundTripCompositionProbe = has_argument(
 			argc, argv, "--review-round-trip-composition-probe");
 		const auto threadedReplyProbe         = has_argument(argc, argv, "--threaded-reply-probe");
@@ -8300,7 +8311,7 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		fixtureOptions.LoseFirstReviewMutationResult
-			= reviewRoundTripCompositionProbe;
+			= reviewRoundTripCompositionProbe || (privateReviewCourse && has_argument(argc, argv, "--private-review-lose-first-result"));
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
 		const auto overviewSinceReview = has_argument(
@@ -8669,7 +8680,9 @@ auto main(int argc, char** argv) -> int
 #endif
 					);
 #if defined(BPR_BUILD_TESTING)
-				if (scheduleNativeNotificationRun) {
+				if (privateReviewCourse) {
+					bpr::app::detail::schedule_private_review_course(*application, std::string{ *privateReviewCourse }, std::string{ privateReviewRepresentation });
+				} else if (scheduleNativeNotificationRun) {
 					schedule_native_notification_run(
 						*application,
 						std::make_shared<native_notification_run>(native_notification_run{

@@ -4,9 +4,11 @@
 #include <QComboBox>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <algorithm>
 namespace bpr::qt {
@@ -133,15 +135,32 @@ namespace bpr::qt {
 		Status->setTextFormat(Qt::PlainText);
 		Status->setObjectName(QStringLiteral("privateReviewStatus"));
 		layout->addWidget(Status);
+		auto* tabs = new QTabWidget(this);
+		tabs->setObjectName(QStringLiteral("privateReviewPages"));
+		auto* history       = new QWidget(tabs);
+		auto* sourcesPage   = new QWidget(tabs);
+		auto* writePage     = new QWidget(tabs);
+		auto* historyLayout = new QVBoxLayout(history);
+		auto* sourcesLayout = new QVBoxLayout(sourcesPage);
+		auto* writeLayout   = new QVBoxLayout(writePage);
+		tabs->addTab(history, tr("History"));
+		tabs->addTab(sourcesPage, tr("Sources"));
+		tabs->addTab(writePage, tr("Write"));
+		layout->addWidget(tabs);
+		layout     = historyLayout;
 		Threads    = new private_thread_model(this);
 		ThreadList = new QListView(this);
 		ThreadList->setObjectName(QStringLiteral("privateThreadList"));
 		ThreadList->setAccessibleName(tr("Private threads, one page"));
 		ThreadList->setModel(Threads);
-		ThreadList->setMinimumHeight(100);
+		ThreadList->setFixedHeight(84);
 		layout->addWidget(ThreadList);
-		auto button = [&](const QString& aLabel, const QString& aName, application::private_conversation_action aCtion) { auto* b = new QPushButton(aLabel, this); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aCtion] { emit_action(aCtion); }); return b; };
+		auto button = [&](const QString& aLabel, const QString& aName, application::private_conversation_action aAction) { auto* b = new QPushButton(aLabel, this); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aAction] { emit_action(aAction); }); return b; };
 		button(tr("Refresh private history"), QStringLiteral("privateRefresh"), application::private_conversation_action::refresh);
+		auto* archived = new QCheckBox(tr("Include archived threads"), this);
+		archived->setObjectName(QStringLiteral("privateIncludeArchived"));
+		layout->addWidget(archived);
+		connect(archived, &QCheckBox::clicked, this, [this] { emit_action(application::private_conversation_action::include_archived); });
 		MoreThreads = button(tr("Next thread page"), QStringLiteral("privateMoreThreads"), application::private_conversation_action::next_threads);
 		Turns       = new private_turn_model(this);
 		TurnList    = new QListView(this);
@@ -149,7 +168,7 @@ namespace bpr::qt {
 		TurnList->setAccessibleName(tr("Private turns and immutable revision history"));
 		TurnList->setWordWrap(true);
 		TurnList->setModel(Turns);
-		TurnList->setMinimumHeight(130);
+		TurnList->setFixedHeight(150);
 		layout->addWidget(TurnList);
 		MoreTurns = button(tr("Next revision page"), QStringLiteral("privateMoreTurns"), application::private_conversation_action::next_turns);
 		Body      = new QPlainTextEdit(this);
@@ -157,6 +176,7 @@ namespace bpr::qt {
 		Body->setObjectName(QStringLiteral("privateTurnBody"));
 		Body->setAccessibleName(tr("Exact private revision body, current chunk"));
 		Body->setMinimumHeight(100);
+		Body->setMaximumHeight(160);
 		layout->addWidget(Body);
 		MoreBody = button(tr("Next body chunk"), QStringLiteral("privateMoreBody"), application::private_conversation_action::read_body);
 		button(tr("Inspect provenance"), QStringLiteral("privateProvenance"), application::private_conversation_action::provenance);
@@ -166,6 +186,7 @@ namespace bpr::qt {
 		Provenance->setAccessibleName(tr("Requested, configured, reported and self-reported provenance"));
 		Provenance->setMaximumHeight(160);
 		layout->addWidget(Provenance);
+		layout     = sourcesLayout;
 		Historical = new QCheckBox(tr("Explicitly select this historical revision"), this);
 		Historical->setObjectName(QStringLiteral("privateHistorical"));
 		layout->addWidget(Historical);
@@ -181,8 +202,9 @@ namespace bpr::qt {
 		connect(clear, &QPushButton::clicked, this, [this] { Sources.clear(); Selection->setText(tr("0 exact sources selected")); });
 		Findings = new QComboBox(this);
 		Findings->setObjectName(QStringLiteral("privateFindingSources"));
-		Findings->setAccessibleName(tr("Exact retained findings from the selected invocation"));
+		Findings->setAccessibleName(tr("Exact retained findings, bounded page"));
 		layout->addWidget(Findings);
+		button(tr("Next retained findings"), QStringLiteral("privateMoreFindings"), application::private_conversation_action::next_findings);
 		auto* findingSource = new QPushButton(tr("Select exact finding as source"), this);
 		findingSource->setObjectName(QStringLiteral("privateSelectFinding"));
 		layout->addWidget(findingSource);
@@ -197,6 +219,27 @@ namespace bpr::qt {
 			}
 			Selection->setText(tr("%1 exact sources selected").arg(Sources.size()));
 		});
+		layout        = writeLayout;
+		auto* profile = new QComboBox(this);
+		profile->setObjectName(QStringLiteral("privateAgentProfile"));
+		profile->setAccessibleName(tr("Agent profile for private question"));
+		layout->addWidget(profile);
+		for (const auto& field : { "Model", "Effort" }) {
+			auto* input = new QLineEdit(this);
+			input->setObjectName(QStringLiteral("privateRequested") + QString::fromLatin1(field));
+			input->setPlaceholderText(tr("Requested %1 (optional)").arg(QString::fromLatin1(field)));
+			input->setAccessibleName(input->placeholderText());
+			layout->addWidget(input);
+		}
+		layout = sourcesLayout;
+		button(tr("Inspect selected finding"), QStringLiteral("privateInspectFinding"), application::private_conversation_action::inspect_finding);
+		auto* findingDetails = new QPlainTextEdit(this);
+		findingDetails->setObjectName(QStringLiteral("privateFindingDetails"));
+		findingDetails->setAccessibleName(tr("Exact retained finding and verdict"));
+		findingDetails->setReadOnly(true);
+		findingDetails->setMaximumHeight(200);
+		layout->addWidget(findingDetails);
+		layout   = writeLayout;
 		Composer = new QPlainTextEdit(this);
 		Composer->setObjectName(QStringLiteral("privateReviewerText"));
 		Composer->setAccessibleName(tr("Private reviewer text or explicit agent question"));
@@ -207,9 +250,19 @@ namespace bpr::qt {
 		button(tr("Add reviewer turn"), QStringLiteral("privateReply"), application::private_conversation_action::reply);
 		button(tr("Edit as reviewer successor"), QStringLiteral("privateEdit"), application::private_conversation_action::edit);
 		button(tr("Ask agent using only selected sources"), QStringLiteral("privateAskAgent"), application::private_conversation_action::ask_agent);
+		layout       = sourcesLayout;
+		auto* drafts = new QComboBox(this);
+		drafts->setObjectName(QStringLiteral("privateAcceptedDrafts"));
+		drafts->setAccessibleName(tr("Exact retained local drafts"));
+		layout->addWidget(drafts);
+		button(tr("Open selected local draft"), QStringLiteral("privateOpenDraft"), application::private_conversation_action::open_draft);
 		button(tr("Squash selected sources to draft…"), QStringLiteral("privateCompose"), application::private_conversation_action::compose);
+		layout = writeLayout;
 		button(tr("Archive private thread"), QStringLiteral("privateArchive"), application::private_conversation_action::archive);
 		button(tr("Delete private thread"), QStringLiteral("privateDelete"), application::private_conversation_action::erase);
+		historyLayout->addStretch();
+		sourcesLayout->addStretch();
+		writeLayout->addStretch();
 		connect(ThreadList->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { if (!Applying) { emit_action(application::private_conversation_action::select_thread); } });
 		connect(TurnList->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { if (!Applying) { select_turn(); } });
 		present({ });
@@ -225,6 +278,29 @@ namespace bpr::qt {
 			Provenance->clear();
 		}
 		Shown = aProjection;
+		findChild<QCheckBox*>(QStringLiteral("privateIncludeArchived"))->setChecked(aProjection.IncludeArchived);
+		auto*      drafts      = findChild<QComboBox*>(QStringLiteral("privateAcceptedDrafts"));
+		const auto chosenDraft = drafts->currentData();
+		drafts->clear();
+		for (const auto& draft : aProjection.Drafts) {
+			const auto state = draft.State == core::review_draft_state::drafting ? tr("Draft") : draft.State == core::review_draft_state::publishing ? tr("Publishing")
+				: draft.State == core::review_draft_state::published                                                                                 ? tr("Published")
+																																					 : tr("Discarded");
+			drafts->addItem(tr("%1 %2 · line %3").arg(state).arg(draft.Id.value()).arg(draft.Anchor.Line + 1), QVariant::fromValue<qulonglong>(draft.Id.value()));
+		}
+		if (drafts->findData(chosenDraft) >= 0) {
+			drafts->setCurrentIndex(drafts->findData(chosenDraft));
+		}
+		auto*      profile = findChild<QComboBox*>(QStringLiteral("privateAgentProfile"));
+		const auto chosen  = profile->currentData();
+		profile->clear();
+		for (const auto& item : aProjection.Profiles) {
+			profile->addItem(text(item.second), QVariant::fromValue<qulonglong>(item.first.value()));
+		}
+		if (profile->findData(chosen) >= 0) {
+			profile->setCurrentIndex(profile->findData(chosen));
+		}
+		findChild<QPushButton*>(QStringLiteral("privateMoreFindings"))->setEnabled(aProjection.MoreFindings);
 		Findings->clear();
 		for (const auto& finding : aProjection.Findings) {
 			const auto* key = std::get_if<core::private_finding_source>(&finding.Source.Key);
@@ -292,20 +368,42 @@ namespace bpr::qt {
 		}
 		Selection->setText(tr("%1 exact sources selected; content is sent only by Ask agent or agent-assisted composition.").arg(Sources.size()));
 	}
-	void private_review_panel::emit_action(application::private_conversation_action aCtion)
+	void private_review_panel::emit_action(application::private_conversation_action aAction)
 	{
 		if (Applying || !Dispatch || !Shown.Available || Shown.Busy) {
 			return;
 		}
-		auto       intent = application::private_conversation_intent{ .Action = aCtion, .Generation = Shown.Generation, .Thread = Shown.SelectedThread, .Sources = Sources, .Body = Composer->toPlainText().toStdString() };
+		auto       intent = application::private_conversation_intent{ .Action = aAction, .Generation = Shown.Generation, .Thread = Shown.SelectedThread, .ExpectedVersion = Shown.SelectedVersion, .Sources = Sources, .Body = Composer->toPlainText().toStdString() };
 		const auto thread = ThreadList->currentIndex().row();
-		if (thread >= 0 && thread < Threads->rowCount()) {
+		if (aAction == application::private_conversation_action::select_thread && thread >= 0 && thread < Threads->rowCount()) {
 			intent.Thread          = Threads->rows()[static_cast<std::size_t>(thread)].Thread.Id;
 			intent.ExpectedVersion = Threads->rows()[static_cast<std::size_t>(thread)].Thread.Version;
 		}
 		const auto turn = TurnList->currentIndex().row();
 		if (turn >= 0 && turn < Turns->rowCount()) {
 			intent.Revision = Turns->rows()[static_cast<std::size_t>(turn)].Selection;
+		}
+		intent.Profile             = core::agent_profile_id{ findChild<QComboBox*>(QStringLiteral("privateAgentProfile"))->currentData().toULongLong() };
+		const auto requestedModel  = findChild<QLineEdit*>(QStringLiteral("privateRequestedModel"))->text();
+		const auto requestedEffort = findChild<QLineEdit*>(QStringLiteral("privateRequestedEffort"))->text();
+		if (!requestedModel.isEmpty()) {
+			intent.Requested.Model = requestedModel.toStdString();
+		}
+		if (!requestedEffort.isEmpty()) {
+			intent.Requested.Effort = requestedEffort.toStdString();
+		}
+		intent.IncludeArchived = findChild<QCheckBox*>(QStringLiteral("privateIncludeArchived"))->isChecked();
+		const auto draft       = findChild<QComboBox*>(QStringLiteral("privateAcceptedDrafts"))->currentData().toULongLong();
+		if (draft) {
+			intent.Draft = core::review_draft_id{ draft };
+		}
+		if (aAction == application::private_conversation_action::inspect_finding) {
+			const auto row = Findings->currentIndex();
+			if (row < 0 || static_cast<std::size_t>(row) >= Shown.Findings.size()) {
+				return;
+			}
+			const auto& value = Shown.Findings[static_cast<std::size_t>(row)];
+			intent.Revision   = core::private_source_selection{ value.Source, value.Latest, false };
 		}
 		Dispatch(std::move(intent));
 	}
@@ -317,6 +415,7 @@ namespace bpr::qt {
 			MoreBody->setEnabled(aMore);
 		}
 	}
+	void private_review_panel::present_finding(std::string_view aDetail) { findChild<QPlainTextEdit*>(QStringLiteral("privateFindingDetails"))->setPlainText(text(aDetail)); }
 	void private_review_panel::present_provenance(const core::agent_run_provenance& aRun)
 	{
 		auto result = tr("Run %1 · profile %2\nModel and effort remain unknown unless a fact below supplies them.\n").arg(aRun.Run.value()).arg(text(aRun.ProfileDisplayName));

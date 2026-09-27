@@ -15,6 +15,7 @@ namespace bpr::qt {
 		explicit private_composition_editor(QWidget* = nullptr);
 		void set_dispatch(application::private_composition_dispatch);
 		void present(const application::private_composition_projection&);
+		void show_status(std::string_view);
 
 	private:
 		void                                        dispatch(application::private_composition_action);

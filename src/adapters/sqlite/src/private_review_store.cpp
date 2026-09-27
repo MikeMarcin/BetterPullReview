@@ -1161,6 +1161,40 @@ namespace bpr::adapters::sqlite::detail {
 					return result;
 				});
 			}
+			auto list_findings(std::optional<private_finding_cursor> aCursor) -> private_store_result<private_finding_page> override
+			{
+				return guarded([&] {
+					transaction snapshot{ Ledger.handle(), false };
+					auto        db    = database();
+					auto        state = db.read_state();
+					if (aCursor) {
+						require(aCursor->Scope == Identity && aCursor->Generation == state.Generation, error::stale_cursor);
+					}
+					auto                 q = db.sql("SELECT id,record FROM private_content WHERE scope_id=?1 AND kind=1 AND id>?2 ORDER BY id LIMIT 65", Scope, aCursor ? aCursor->After : 0);
+					private_finding_page page;
+					while (q.row()) {
+						if (page.Sources.size() == maximum_private_page_rows) {
+							page.Next = private_finding_cursor{ Identity, state.Generation, page.Sources.back().Order.value() };
+							break;
+						}
+						auto finding = q.record<retained_agent_finding>(1);
+						require(valid_retained_agent_finding(finding) && finding.Source.Scope == Identity && finding.Source.Order.value() == q.integer(0), error::integrity);
+						page.Sources.push_back(finding.Source);
+					}
+					return page;
+				});
+			}
+			auto source_lineage(const private_source_reference& aSource) -> private_store_result<private_source_lineage> override
+			{
+				return guarded([&] {
+					transaction snapshot{ Ledger.handle(), false };
+					auto        db = database();
+					(void)db.source(aSource);
+					auto q = db.sql("SELECT EXISTS(SELECT 1 FROM private_composition_source WHERE scope_id=?1 AND source_id=?2),EXISTS(SELECT 1 FROM private_composition_source s JOIN private_content c ON c.scope_id=s.scope_id AND c.kind=2 AND c.owner_id=s.composition_id JOIN private_draft d ON d.scope_id=c.scope_id AND d.content_id=c.id WHERE s.scope_id=?1 AND s.source_id=?2),EXISTS(SELECT 1 FROM private_composition_source s JOIN private_content c ON c.scope_id=s.scope_id AND c.kind=2 AND c.owner_id=s.composition_id JOIN private_publication p ON p.scope_id=c.scope_id AND p.content_id=c.id WHERE s.scope_id=?1 AND s.source_id=?2 AND p.server_id IS NOT NULL)", Scope, aSource.Order.value());
+					require(q.row(), error::integrity);
+					return private_source_lineage{ q.integer(0) != 0, q.integer(1) != 0, q.integer(2) != 0 };
+				});
+			}
 			auto load_finding(const private_source_reference& aSource) -> private_store_result<retained_agent_finding> override
 			{
 				return guarded([&] {

@@ -971,3 +971,22 @@ recovery discovery and rendering. M7 fixture courses exercise the actual store,
 coordinator, provider and journal, but do not supply designated live-target or
 signed-recording acceptance. Public prose stays byte-preserved; the authorized
 file representation adds only its canonical visible permalink.
+
+
+### Durable workbench drafts (RFC-BPR-0023 M8)
+
+The workbench serializes private draft persistence before adopting its projection
+into the shared in-process draft owner. Each incoming gesture must still name the
+current runtime scope, draft and revision. A text edit awaiting acknowledgement
+cannot be published; conflicting local text remains available for explicit
+Reapply or Reload. Reply captures the exact thread and comparison line while a
+draft loads, and navigation clears that continuation. Ordinary replies may name
+an exact left-side thread; composition acceptance continues to require a current
+right-side target.
+
+A definite preflight failure returns a draft to editing. A submitted operation
+whose result is uncertain keeps its durable publishing revision and read-only
+body. Retry publication reuses that exact identity through the existing logical
+journal. A request retired before delivery to the mutation host is compensated
+on its original storage context. A successful terminal adopts the committed
+receipt before requesting ordinary shared conversation synchronization.

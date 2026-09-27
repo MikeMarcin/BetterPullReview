@@ -3259,3 +3259,34 @@ bpr_add_network_isolated_test(NAME application_review_tour_writing
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")
 set_tests_properties(application_review_tour_writing PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")
+
+# RFC-BPR-0023 / BPR-0587: three fresh processes use the actual workbench,
+# private profile, existing process launcher and designated synthetic wire.
+foreach(representation IN ITEMS native file)
+    bpr_add_network_isolated_test(NAME application_private_review_${representation}
+        WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/private_review_public_path.py"
+            --application $<TARGET_FILE:app_better_pull_review>
+            --agent $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+            --representation ${representation}
+            --render "${CMAKE_CURRENT_BINARY_DIR}/private-review-${representation}.png")
+    set_tests_properties(application_private_review_${representation} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "PRIVATE_REVIEW_PUBLIC_PATH_OK ${representation}"
+        RESOURCE_LOCK bpr_private_review_course)
+    bpr_bound_automated_run(application_private_review_${representation}
+        TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)
+endforeach()
+
+bpr_add_network_isolated_test(NAME application_private_review_retry
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/private_review_public_path.py"
+        --application $<TARGET_FILE:app_better_pull_review>
+        --agent $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+        --representation native --lose-first-result)
+set_tests_properties(application_private_review_retry PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "PRIVATE_REVIEW_PUBLIC_PATH_OK native"
+    RESOURCE_LOCK bpr_private_review_course)
+bpr_bound_automated_run(application_private_review_retry
+    TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)

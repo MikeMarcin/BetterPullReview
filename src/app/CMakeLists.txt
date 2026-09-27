@@ -10,6 +10,7 @@ if(BPR_BUILD_QT)
             src/diagnostic_controls.cpp
             src/release_update_desktop.cpp
             src/review_submission_workflow.cpp
+            src/private_review_workflow.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
             src/terminal_diagnostics.cpp
@@ -20,6 +21,7 @@ if(BPR_BUILD_QT)
             better_pull_review_composition
             PRIVATE
                 src/github_public_path_fixture.cpp
+                src/private_review_fixture_course.cpp
                 src/review_submission_fixture.cpp
         )
     endif()
@@ -218,6 +220,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application.cpp
 		src/app/src/review_submission_workflow.hpp
 		src/app/src/review_submission_workflow.cpp
+            src/app/src/private_review_workflow.cpp
+        src/app/src/private_review_workflow.hpp
 		src/application/include/bpr/application/review_submission_application_host.hpp
 		src/application/include/bpr/application/review_submission_contract.hpp
 		src/application/include/bpr/application/review_submission_port.hpp

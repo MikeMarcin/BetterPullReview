@@ -176,6 +176,23 @@ namespace bpr::application {
 		std::vector<private_publication_record>        Publications;
 		std::vector<core::private_source_selection>    SourceGuards;
 	};
+	struct private_finding_cursor
+	{
+		core::private_review_scope Scope;
+		std::uint64_t              Generation = 0;
+		std::uint64_t              After      = 0;
+	};
+	struct private_finding_page
+	{
+		std::vector<core::private_source_reference> Sources;
+		std::optional<private_finding_cursor>       Next;
+	};
+	struct private_source_lineage
+	{
+		bool Composition = false;
+		bool Draft       = false;
+		bool Published   = false;
+	};
 	/// \brief Source guard owned and released on the store effect lane.
 	class private_source_use
 	{
@@ -212,6 +229,10 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto load_run_details(std::span<const core::agent_run_id>) -> private_store_result<std::vector<core::agent_run_provenance>> = 0;
 		/// \brief Reobserves at most 256 exact source identities and their retained tips.
 		[[nodiscard]] virtual auto load_sources(std::span<const core::private_source_reference>) -> private_store_result<std::vector<core::private_source_observation>> = 0;
+		/// \brief At most 64 retained finding identities, including across restarts; generation-bound continuation.
+		[[nodiscard]] virtual auto list_findings(std::optional<private_finding_cursor> = { }) -> private_store_result<private_finding_page> { return std::unexpected(private_store_failure::unavailable); }
+		/// \brief Compact exact-source membership badges, no transcript/body aggregation.
+		[[nodiscard]] virtual auto source_lineage(const core::private_source_reference&) -> private_store_result<private_source_lineage> { return std::unexpected(private_store_failure::unavailable); }
 		/// \brief Loads one validated retained finding, never a revalidation against a new head.
 		[[nodiscard]] virtual auto load_finding(const core::private_source_reference&) -> private_store_result<core::retained_agent_finding> = 0;
 		/// \brief Loads one bounded source selection and compact composition state.

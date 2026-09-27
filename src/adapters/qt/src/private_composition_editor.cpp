@@ -84,7 +84,7 @@ namespace bpr::qt {
 		Body->setObjectName(QStringLiteral("privateCompositionBody"));
 		Body->setAccessibleName(tr("Candidate prose, no automatic public metadata"));
 		layout->addWidget(Body);
-		auto button = [&](const QString& aLabel, const QString& aName, application::private_composition_action aCtion) { auto* b = new QPushButton(aLabel, page); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aCtion] { dispatch(aCtion); }); return b; };
+		auto button = [&](const QString& aLabel, const QString& aName, application::private_composition_action aAction) { auto* b = new QPushButton(aLabel, page); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aAction] { dispatch(aAction); }); return b; };
 		button(tr("Create local candidate"), QStringLiteral("privateCompositionCreate"), application::private_composition_action::create);
 		button(tr("Split into exact target drafts"), QStringLiteral("privateCompositionSplit"), application::private_composition_action::split);
 		button(tr("Use selected exact target"), QStringLiteral("privateCompositionSetTarget"), application::private_composition_action::target);
@@ -96,6 +96,7 @@ namespace bpr::qt {
 		connect(this, &QDialog::rejected, this, [this] { dispatch(application::private_composition_action::cancel); });
 	}
 	void private_composition_editor::set_dispatch(application::private_composition_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
+	void private_composition_editor::show_status(std::string_view aStatus) { Status->setText(text(aStatus)); }
 	void private_composition_editor::present(const application::private_composition_projection& aProjection)
 	{
 		Applying                    = true;
@@ -146,13 +147,13 @@ namespace bpr::qt {
 		Accept->setEnabled(!aProjection.Busy && aProjection.Candidate && aProjection.Current && aProjection.Current->Target && aProjection.Current->Lifecycle == core::review_composition_lifecycle::editing);
 		Applying = false;
 	}
-	void private_composition_editor::dispatch(application::private_composition_action aCtion)
+	void private_composition_editor::dispatch(application::private_composition_action aAction)
 	{
 		if (Applying || !Dispatch || Shown.Busy) {
 			return;
 		}
-		auto intent = application::private_composition_intent{ .Action = aCtion, .Generation = Shown.Generation, .Mode = static_cast<core::review_composition_mode>(Mode->currentIndex()), .Composition = Shown.Current ? std::optional{ Shown.Current->Id } : std::nullopt, .ExpectedVersion = Shown.Version, .Candidate = Shown.Candidate ? std::optional{ Shown.Candidate->Identity } : std::nullopt, .Profile = core::agent_profile_id{ Profile->currentData().toULongLong() }, .Body = Body->toPlainText().toStdString() };
-		if (aCtion == application::private_composition_action::select) {
+		auto intent = application::private_composition_intent{ .Action = aAction, .Generation = Shown.Generation, .Mode = static_cast<core::review_composition_mode>(Mode->currentIndex()), .Composition = Shown.Current ? std::optional{ Shown.Current->Id } : std::nullopt, .ExpectedVersion = Shown.Version, .Candidate = Shown.Candidate ? std::optional{ Shown.Candidate->Identity } : std::nullopt, .Profile = core::agent_profile_id{ Profile->currentData().toULongLong() }, .Body = Body->toPlainText().toStdString() };
+		if (aAction == application::private_composition_action::select) {
 			intent.Composition = core::review_composition_id{ Workspace->currentData().toULongLong() };
 		}
 		if (Target->currentIndex() > 0 && static_cast<std::size_t>(Target->currentIndex()) <= Shown.Targets.size()) {
@@ -165,7 +166,7 @@ namespace bpr::qt {
 			intent.Requested.Effort = Effort->text().toStdString();
 		}
 		Dispatch(std::move(intent));
-		if (aCtion == application::private_composition_action::cancel) {
+		if (aAction == application::private_composition_action::cancel) {
 			hide();
 		}
 	}

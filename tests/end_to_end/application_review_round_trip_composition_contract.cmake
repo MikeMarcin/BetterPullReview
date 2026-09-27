@@ -1,3 +1,14 @@
+# BPR-0587 reseal: scoped engineering self-review of 5b9080fb6..this M8 slice.
+# Intervening pinned-source commits 9b71342a0, 1d84e59c2 and 1ef7a98c3 retain
+# their recorded BPR-1007/BPR-1010/BPR-1011 writing acceptance; WritingOnly
+# still bypasses private-run admission. M8 composes the existing private store,
+# run and publication hosts, serializes durable draft updates, preserves frozen
+# retry identities and waits for the durable receipt before shared refresh.
+# The production provider gains only its storage lineage port. Existing user
+# grants, target/actor/source checks and sole mutation-host publication remain.
+# Add the private workflow to the production manifest and its testing-only
+# executable course to inventory. This is self-review, not the independent
+# RFC review reserved for M10. Evidence: RFC-BPR-0023.md M8 section.
 # BPR-1002 staged-publication merge reseal: reviewed f1e0c652..ef05b58c.
 # Pinned-scope commits: 36d535eb, 505c942d, 189d24f9, e0a870b3,
 # 0fb249a2 and ef05b58c. Tour preview freezes the exact plan and grants
@@ -412,7 +423,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e66ae5fa891c194799cf62833681836a9921700093171bb9dfe7566535c83a66"
+		"6956991679f7077b4c3c8ff177971461682e8ab4b9da1cc3a4fe3efbd24dd45f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -450,6 +461,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/installed_runtime.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/private_review_workflow.cpp"
+        "src/private_review_workflow.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -524,6 +537,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/large_review_fixture.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/private_review_fixture_course.cpp"
+        "src/private_review_fixture_course.hpp"
+        "src/private_review_workflow.cpp"
+        "src/private_review_workflow.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -567,7 +584,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "71fa41698c1f8871b31dede13f2082fa65fa193b0e4601d27159e9ba9ad75070"
+        "7b4b8b8247c4c01a3acac2fad74014eea48f75fbcdd2830bea423b083b134eb1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -888,7 +905,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "83a7c809526a324ab4e730f7a58c23160f2a6813cc2de659d97ce13f4b056e5c"
+        "c0546c9d349e8de83619d632aef4108a80b0b11bad375f410ef5dd103385fc78"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

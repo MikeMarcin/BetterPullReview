@@ -443,6 +443,23 @@ namespace {
 			expect(f.Process.Starts == 0, "unchecked/deleted/edited/duplicate/cross-review/overlimit source never launches");
 		}
 	}
+	void durable_left_reply()
+	{
+		fixture f;
+		auto    index        = private_review_fixture::index();
+		f.Binding.Comparison = index.diff().Alignment.Digest;
+		review_composition_application_host host(*f.Store);
+		const auto                          line = source_line_ref{ *f.Binding.Comparison, diff_side::left, 1 };
+		expect(!make_composition_target(f.Binding, line, index), "private compositions still require current-head right targets");
+		expect(!host.allocate_reply(f.Binding, line, index, ""), "reply requires an explicit thread identity");
+		auto reply = host.allocate_reply(f.Binding, line, index, "thread-left");
+		expect(reply && reply->records().size() == 1 && reply->records().front().Draft.Draft.ReplyToThread == "thread-left"
+				   && !reply->records().front().Draft.Composition,
+			   "ordinary durable reply preserves its exact left side without composition lineage");
+		auto reopened = host.restore();
+		expect(reopened && reopened->records().front().Draft == reply->records().front().Draft, "ordinary reply restores its durable identity");
+	}
+
 	void local_compositions()
 	{
 		fixture f;
@@ -570,6 +587,7 @@ namespace {
 }
 int main()
 {
+	durable_left_reply();
 	composition_adversaries();
 	local_compositions();
 	agent_composition();
