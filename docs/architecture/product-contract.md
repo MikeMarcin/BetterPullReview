@@ -114,6 +114,15 @@ explicit diagnostic cleanup/profile purge. Diagnostic export saves only the
 exact previewed classified metadata to a new local file; it uploads nothing.
 The readable log and external OS crash reports have separate privacy limits.
 
+Help → Diagnostics opens the same profile Settings while signed out. Recording
+starts On, Standard and Anonymized. Detail and identity privacy are separate
+persistent choices, with an explicit disclosure before Include locally. Off
+stops new records and recent context after acknowledgement, preserving existing
+files. Clear local diagnostics resets the ring and removes the admitted profile
+logs under the logger barrier; it preserves external exports and the profile's
+other state. Refused or partial cleanup is visible. This immediate diagnostic
+control is distinct from the stopped-profile prepared maintenance below.
+
 Preparing destructive maintenance stops the selected profile and drains its
 producers before capturing an exact inventory. Confirmation applies only to
 that inventory; cancellation does not resume the profile. Purge deletes known

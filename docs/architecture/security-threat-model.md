@@ -1279,5 +1279,23 @@ before queue copying. Session labels come from native-backed random-device
 entropy, never account/path hashes; they are diagnostic joins only. The current
 metadata exporter reconstructs its small allowed vocabulary and counts unknown
 or malformed records rather than copying source text. Existing plaintext files
-are retained, with their historical privacy limitations. Retention, identity
-privacy options and richer exports remain subsequent RFC-BPR-0027 milestones.
+are retained, with their historical privacy limitations.
+
+BPR-1216 bounds native private session files and coordinated retention. BPR-1217
+adds persisted independent detail/privacy controls: default request/window fields
+become typed opaque labels before any queue or ring copy; Include locally may
+retain only the admitted numeric identities. Names, paths, tokens, headers,
+source/review bodies and arbitrary producer prose have no new admission path.
+Nonempty summaries require the credential-owner's sanitized classification.
+Reserved priority ingress preserves room for warnings/errors during normal-detail
+overload, within 4,096 events and 8 MiB total (normal traffic stops at 3,584 and
+7 MiB); Quill's smaller per-thread bounds can refuse earlier. Every refusal
+contributes to the visible loss counter. The transient ring is bounded by three
+minutes, 512 events and 2 MiB, with expiry checks before reads and periodic cleanup.
+Generation changes invalidate queued records and clear ring/identity state on
+Off, detail/privacy transitions, Clear and Sign out. Controls acknowledge only
+after storage and writer barriers; failures retain accepted UI state. Sign out
+revokes transient access immediately without waiting for file I/O; delayed
+intermediate producers carry their captured generation and cannot repopulate it. Historical
+files, external exports and OS crash reports retain their original privacy.
+Richer scope-aware export and complete native evidence remain later milestones.

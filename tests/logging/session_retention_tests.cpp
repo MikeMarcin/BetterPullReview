@@ -35,7 +35,7 @@ namespace {
 	}
 	void bounded_rotation(const std::filesystem::path& aRoot)
 	{
-		quill_log log{ aRoot, { .FileBytes = 1400U, .TotalBytes = 2800U, .Files = 3U } };
+		quill_log log{ aRoot, { .FileBytes = 1400U, .TotalBytes = 2800U, .Files = 3U }, { .Privacy = bpr::application::diagnostic_privacy::include_locally } };
 		for (std::uint64_t index = 1U; index <= 20U; ++index) {
 			expect(log.record({ .Request = index }) == status::available, "bounded rotation ingress");
 		}
@@ -83,7 +83,7 @@ namespace {
 	{
 		const diagnostic_file_limits limits{ .FileBytes = 1400U, .TotalBytes = 2800U, .Files = 2U };
 		quill_log                    first{ aRoot, limits };
-		quill_log                    second{ aRoot, limits };
+		quill_log                    second{ aRoot, limits, { .Privacy = bpr::application::diagnostic_privacy::include_locally } };
 		expect(first.status() == status::available && second.status() == status::available, "two active sessions coexist");
 		const auto firstFiles = bpr::tests::diagnostic_files(aRoot);
 		quill_log  refused{ aRoot, limits };

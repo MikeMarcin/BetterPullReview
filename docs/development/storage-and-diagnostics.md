@@ -61,7 +61,7 @@ recovery refuses anything whose recorded identity it cannot prove.
 
 | Data | Location relative to the admitted profile root | Removal behavior |
 |---|---|---|
-| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
+| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
 | Retained Git data | Managed repository/cache/catalog layout and its identity manifests | No automatic TTL/LRU pruning. Exact epoch pruning leaves tombstones and does not promise immediate byte reclamation. Explicit repository-cache deletion removes that cache's bytes; never-observed history cannot be recovered. |
 | Agent and MCP material | Adjacent `<profile-root-leaf>-agent-workspaces-v1` ownership area; profile `agent-workspace-ownership-v1` and `mcp-snapshot` | Original owners reconcile active/interrupted work before purge. Populated or unknown workspace state can block it; no broad sweep is used. Existing developer checkouts are outside purge. |
 | Diagnostics | `logs/session-<opaque-session>-<segment>.jsonl`; legacy `logs/diagnostics.log` is read for compatibility | New files rotate before 5 MiB. Coordinated retention bounds the profile to 50 MiB and 64 files, pruning inactive history older than 30 days and oldest inactive files under pressure. Explicit cleanup removes the prepared logs; `logs/.retention.lock` remains. |
@@ -85,6 +85,50 @@ identities refuse logging. These bounds apply to cooperating application writers
 external modification is not a disk quota. A crash may leave a partial final
 record. Restart creates a new session file and never appends to that tail.
 
+## Diagnostic controls
+
+Open **Help → Diagnostics**, or profile **Settings → Storage & privacy**.
+The controls remain available while signed out and are shared by the profile's
+windows; other profiles have independent preferences and logs.
+
+- **Record local diagnostics** defaults to On. Off stops new file and recent
+  context capture after acknowledgement; it keeps older files.
+- **Detail** defaults to Standard. Verbose adds bounded intermediate provider
+  steps and their timestamps. Warnings/errors are recorded in either mode.
+- **Identity privacy** defaults to Anonymized and is independent of detail.
+  Request/window joins use opaque typed labels. **Include locally** asks for
+  confirmation before also retaining their numeric identities. Current producers
+  do not admit account/repository names, paths or review bodies in either mode.
+- **Open logs folder** requests the OS handler for this profile's logs directory.
+  A successful handoff does not prove a file manager displayed it; refusal is shown.
+- **Clear local diagnostics** confirms this profile's scope, invalidates pending
+  records, resets recent context and removes admitted logs. It preserves exports,
+  preferences and other profile data. A fresh empty session segment and the
+  coordination lock remain. Another active session returns Busy; unsafe storage
+  and partial deletion have explicit failure results.
+
+The accepted selection is shown until the effect and writer barrier complete.
+Preferences live in the owner-private `state/v1/diagnostic-preferences.sqlite3`.
+Restart loads them before recording starts. Unknown detail/privacy values use
+Standard/Anonymized and preserve a valid Off choice; an unreadable store disables
+capture and editing, with visible safe-default status. Explicit choices can
+repair readable compatible rows. Failed storage does not appear as accepted.
+
+Recent sanitized intermediate context remains in memory in either detail mode:
+at most three minutes, 512 events and 2 MiB. Expired entries cannot be read and
+idle backend maintenance retires them. Off, detail/privacy changes, Clear,
+Sign out and logger retirement clear transient context; privacy changes also
+reset identity joins. Off collects no hidden ring. Rich preview/export selection
+of this ring is the next RFC-BPR-0027 milestone; the existing metadata preview
+below reads persisted files only. Historical logs are never silently reprocessed
+when a preference changes. Sanitized explanation text can still be contextual.
+
+Status shows availability, cumulative loss, recent context size and control
+failures. Loss includes contention, capacity and invalid events; saturation or
+failure can prevent an event reaching disk. Normal ingress uses up to 3,584
+events/7 MiB with reserved warning/error room inside 4,096 events/8 MiB. Smaller
+per-thread Quill queues can drop earlier. These are bounds, not delivery promises.
+
 ## Preview and export diagnostics
 
 1. Open Settings for the intended profile, then **Storage & privacy** and
@@ -99,8 +143,8 @@ record. Restart creates a new session file and never appends to that tail.
    silently added. Nothing is uploaded. Share only through your approved channel.
 
 Input work across the selected directory is bounded to 16 MiB and 65,536 records; a larger retained set reports a limit instead of silently truncating. Each incomplete file tail is counted as one omitted record, independently of the next file. Legacy v1 lines admit at
-most 8,192 bytes; canonical v2 JSONL records admit at most 16 KiB including the
-newline. The v2 parser accepts the writer's exact field order and bounded ASCII
+most 8,192 bytes; canonical v2/v3 JSONL records admit at most 16 KiB including the
+newline. The JSONL parser accepts the writer's exact field order and bounded ASCII
 scalar grammar, and omits unsupported encodings or extra fields. Output
 is at most 1,024 records and 256 KiB. Unknown/incomplete records are omitted and
 counted. A missing/unsafe log, changed target or limit refusal is not a successful
@@ -125,8 +169,9 @@ fields and their bounds. Each newly constructed profile logger creates a fresh
 session; older records remain unchanged. These diagnostic identities grant no
 authority and are excluded from the current metadata preview/export.
 
-Epoch records carry the originating numeric `window_session` as well as the
-epoch-local `request` (`0` during catalog opening before request allocation).
+Epoch records carry originating `window_label` and `request_label` joins.
+Include locally additionally retains numeric `window_session` and epoch-local
+`request` (`0` during catalog opening before request allocation).
 CLI Git acquisition refusals also carry a closed `git_step`, separating tool
 version probes/qualification, identity probes, clone, object checks, local
 store/pack work and pack reading. Other transports leave it `none`. These

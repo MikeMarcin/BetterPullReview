@@ -2991,12 +2991,16 @@ these events:
 tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/"session-*.jsonl
 ```
 
-BPR-1215 writes one version-two JSON object per line. `event` is the closed
+BPR-1217 writes one version-three JSON object per line, extending BPR-1215. `event` is the closed
 operation/outcome name, with a separate category and `info`, `warning` or `error`
 severity. `utc_ms` is milliseconds since the Unix epoch in UTC; `elapsed_us` is
 monotonic time since that logger was created. A fresh opaque 128-bit `session`
 and increasing `sequence` distinguish launches and profile loggers; join
-`session`, `window_session` and `request` to correlate operations. Cancellation
+`session`, `window_label` and `request_label` to correlate operations. Under the
+default Anonymized choice, raw `window_session` and `request` are zero. Include
+locally preserves those numeric identities after explicit consent. Labels are
+stable within the current capture generation; mode changes and Sign out reset
+the mapping. The numeric label counter is not reused within a session. Cancellation
 is informational. Failed outcomes are errors; other HTTP 4xx/5xx observations
 are warnings. `build` contains the application version, a source/toolchain
 content digest and configuration. It is diagnostic identity, not a signed
@@ -3010,11 +3014,12 @@ encoded record including its newline is at most 16 KiB; summary storage remains
 bytes are refused. This framing guard does not sanitize provider content; the
 credential-owning BPR-0971 classifier still decides what may enter the port.
 Existing plaintext records remain in place. The maintenance preview recognizes
-their v1 prefix and canonical v2 JSONL; neither format copies prose or identities
+their v1 prefix and canonical v2/v3 JSONL; none copies prose or identities
 to the metadata export.
 
-`github.pull_request` entries identify each load by `window_session` and
-`request`. A `started` entry precedes `response_received` entries with the
+`github.pull_request` entries identify each load by the typed window/request
+labels. Verbose adds a `started` entry for each provider operation, before
+`response_received` entries with the
 closed `page_operation` name and HTTP status; the final `succeeded` or `failed`
 entry gives the last attempted operation and any typed `failure`. Transport
 failures may have no HTTP response entry. These fields contain no URL, path,
@@ -3059,7 +3064,7 @@ verified instance before proceeding. An apparently connected UI without matching
 progress calls for process/path correlation, not another sign-in or launch.
 
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
-and capability outcomes, local request numbers, capability HTTP status and a
+and capability outcomes, opaque request/window labels, capability HTTP status and a
 classified error summary. BPR-0971 reconstructs schema-field, missing-field/type
 and repetition-limit explanations, even with an unfamiliar code. Symbols must
 occur in the compiled public capability queries; known codes retain their fixed
@@ -3067,8 +3072,11 @@ vocabulary. Unclassified codes, symbols and prose are explicitly omitted.
 Filtering happens while the native adapter still owns the active
 credential, before any summary reaches Quill. Authentication bodies, headers,
 request URLs and source/review bodies are excluded. Local prose can still name
-a service or account. RFC-0014's separate metadata export omits that prose;
-general identity anonymization of the readable log remains deferred.
+contextual service information. RFC-0014's separate metadata export omits that
+prose. Typed request/window identity privacy now follows the independent capture
+choice; older retained records are not rewritten. See the
+[diagnostic controls guide](storage-and-diagnostics.md#diagnostic-controls) for
+persisted settings, barriers, bounded context and visible failures.
 
 Epoch preparation also records fixed `epoch_stage`, `failure_domain`, `failure`
 and optional `pack_failure` names. These distinguish catalog/cache access,

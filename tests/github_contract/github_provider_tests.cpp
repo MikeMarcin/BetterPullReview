@@ -1689,9 +1689,17 @@ namespace {
 				   && !error.ValidationError,
 			   "provider terminal carries last attempted page despite absent HTTP response");
 		expect(std::ranges::none_of(log->Events, [](const auto& aEvent) {
-				   return aEvent.Operation == application::diagnostic_operation::pull_request;
+				   return aEvent.Operation == application::diagnostic_operation::pull_request
+					   && aEvent.Outcome == application::diagnostic_outcome::response_received;
 			   }),
 			   "transport failure invents no response_received event");
+		expect(std::ranges::any_of(log->Events, [](const auto& aEvent) {
+				   return aEvent.Operation == application::diagnostic_operation::pull_request
+					   && aEvent.Outcome == application::diagnostic_outcome::started
+					   && aEvent.Detail == application::diagnostic_detail::verbose
+					   && aEvent.PagedOperation == application::diagnostic_paged_operation::get_repository;
+			   }),
+			   "attempt retains bounded Verbose operation metadata without an HTTP response");
 	}
 
 	void test_capability_refusal_detail_propagation()

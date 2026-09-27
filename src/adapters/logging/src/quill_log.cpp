@@ -10,6 +10,8 @@
 #include <atomic>
 #include <charconv>
 #include <chrono>
+#include <deque>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <quill/Backend.h>
@@ -243,12 +245,18 @@ namespace bpr::adapters::logging {
 			static constexpr auto        queue_type             = quill::QueueType::BoundedDropping;
 			static constexpr std::size_t initial_queue_capacity = 64U * 1024U;
 		};
-		using frontend = quill::FrontendImpl<frontend_options>;
+		struct priority_frontend_options : frontend_options
+		{ };
+		using frontend          = quill::FrontendImpl<frontend_options>;
+		using priority_frontend = quill::FrontendImpl<priority_frontend_options>;
 		struct sink_state
 		{
 			std::atomic<status_type>             Status{ status_type::unavailable };
 			std::atomic<diagnostic_file_failure> OpenFailure{ diagnostic_file_failure::none };
 			std::atomic<std::uint64_t>           Dropped{ 0 };
+			std::atomic<std::uint64_t>           Generation{ 1 };
+			std::atomic<std::size_t>             PendingEvents{ 0 };
+			std::atomic<std::size_t>             PendingBytes{ 0 };
 			void                                 drop() noexcept
 			{
 				auto count = Dropped.load(std::memory_order_relaxed);
@@ -264,22 +272,44 @@ namespace bpr::adapters::logging {
 		class capped_sink final : public quill::Sink
 		{
 		public:
-			capped_sink(const std::filesystem::path& aRoot, const std::string& aSession, diagnostic_file_limits aLimits, std::shared_ptr<sink_state> aState)
+			capped_sink(const std::filesystem::path& aRoot, const std::string& aSession, diagnostic_file_limits aLimits, std::shared_ptr<sink_state> aState, std::function<void()> aMaintainContext)
 				: State{ std::move(aState) }
 				, Files{ aRoot, aSession, aLimits }
+				, MaintainContext{ std::move(aMaintainContext) }
 			{
 				State->OpenFailure = Files.failure();
 				State->Status      = Files.failure() == diagnostic_file_failure::none ? status_type::available : status_type::unavailable;
 			}
 
+			auto clear() -> application::diagnostic_clear_result { return Files.clear(); }
+			void stop_context_maintenance()
+			{
+				const std::lock_guard lock{ MaintenanceMutex };
+				MaintainContext = { };
+			}
+
 		protected:
 			void write_log(const quill::MacroMetadata*, std::uint64_t, std::string_view, std::string_view, const std::string&, std::string_view, quill::LogLevel, std::string_view, std::string_view, const std::vector<std::pair<std::string, std::string>>*, std::string_view, const std::string_view aStatement) override
 			{
+				State->PendingEvents.fetch_sub(1U);
+				State->PendingBytes.fetch_sub(aStatement.size() - 1U);
+				const auto    separator  = aStatement.find('|');
+				std::uint64_t generation = 0U;
+				if (separator == std::string_view::npos) {
+					State->drop();
+					return;
+				}
+				const auto prefix = aStatement.substr(0U, separator);
+				const auto parsed = std::from_chars(prefix.data(), prefix.data() + prefix.size(), generation);
+				if (parsed.ec != std::errc{ } || parsed.ptr != aStatement.data() + separator || generation != State->Generation.load()) {
+					State->drop();
+					return;
+				}
 				if (State->Status != status_type::available) {
 					State->drop();
 					return;
 				}
-				const auto result = Files.write(aStatement);
+				const auto result = Files.write(aStatement.substr(separator + 1U));
 				if (result != status_type::available) {
 					State->drop();
 					if (result != status_type::dropped) {
@@ -290,10 +320,25 @@ namespace bpr::adapters::logging {
 			// Native writes reach the kernel before the directory lock is released.
 			// There is no userspace file buffer and no crash-durability promise.
 			void flush_sink() override { }
+			void run_periodic_tasks() override
+			{
+				const auto now = std::chrono::steady_clock::now();
+				if (now < NextMaintenance) {
+					return;
+				}
+				NextMaintenance = now + std::chrono::milliseconds{ 100 };
+				const std::lock_guard lock{ MaintenanceMutex };
+				if (MaintainContext) {
+					MaintainContext();
+				}
+			}
 
 		private:
-			std::shared_ptr<sink_state> State;
-			session_files               Files;
+			std::shared_ptr<sink_state>           State;
+			session_files                         Files;
+			std::mutex                            MaintenanceMutex;
+			std::function<void()>                 MaintainContext;
+			std::chrono::steady_clock::time_point NextMaintenance = std::chrono::steady_clock::now() + std::chrono::milliseconds{ 100 };
 		};
 		// Only already-classified fields enter this fixed-capacity encoder. Escaping
 		// protects JSON framing; it does not classify or sanitize provider content.
@@ -375,12 +420,18 @@ namespace bpr::adapters::logging {
 	class quill_log::implementation
 	{
 	public:
-		explicit implementation(const std::filesystem::path& aRoot, const diagnostic_file_limits aLimits)
+		explicit implementation(const std::filesystem::path& aRoot, const diagnostic_file_limits aLimits, application::diagnostic_preferences aPreferences)
 			: State{ std::make_shared<sink_state>() }
 		{
 			try {
-				Session = session_identity();
-				Sink    = std::make_shared<capped_sink>(aRoot, Session, aLimits, State);
+				Preferences = application::valid_diagnostic_preferences(aPreferences) ? aPreferences : application::diagnostic_preferences{ };
+				Session     = session_identity();
+				Sink        = std::make_shared<capped_sink>(aRoot, Session, aLimits, State, [this] {
+					const std::unique_lock lock{ Mutex, std::try_to_lock };
+					if (lock.owns_lock()) {
+						refresh_context();
+					}
+				});
 				if (State->Status != status_type::available) {
 					return;
 				}
@@ -390,7 +441,8 @@ namespace bpr::adapters::logging {
 					State->fail(status_type::unavailable);
 					return;
 				}
-				Logger = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(message)" });
+				Logger         = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(message)" });
+				PriorityLogger = priority_frontend::create_or_get_logger(Backend->Name + ".priority", Sink, quill::PatternFormatterOptions{ "%(message)" });
 			} catch (...) {
 				// [[BPR-0885]]. A throw while admitting the file still names a
 				// cause. Once the sink exists the file was admitted, and a later
@@ -409,9 +461,19 @@ namespace bpr::adapters::logging {
 				return;
 			}
 			Closed = true;
+			if (Sink) {
+				// Retire the callback before the implementation can die, even if
+				// Quill temporarily retains the sink in its backend cache.
+				Sink->stop_context_maintenance();
+			}
+			Recent.clear();
+			RecentBytes = 0U;
+			Identities.clear();
 			try {
 				if (Logger != nullptr) {
-					Logger->flush_log();
+					flush();
+					priority_frontend::remove_logger_blocking(PriorityLogger);
+					PriorityLogger = nullptr;
 					frontend::remove_logger_blocking(Logger);
 					Logger = nullptr;
 				}
@@ -431,6 +493,14 @@ namespace bpr::adapters::logging {
 			if (Closed) {
 				return status_type::closed;
 			}
+			refresh_context();
+			if (aEvent.ContextGeneration != 0U && aEvent.ContextGeneration != ContextGeneration) {
+				State->drop();
+				return status_type::dropped;
+			}
+			if (!Preferences.Enabled) {
+				return status_type::closed;
+			}
 			if (status() != status_type::available || Logger == nullptr) {
 				return status();
 			}
@@ -445,7 +515,7 @@ namespace bpr::adapters::logging {
 			static constexpr std::array<std::string_view, 15> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read" };
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
-			if (gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
+			if ((aEvent.Detail != application::diagnostic_detail::standard && aEvent.Detail != application::diagnostic_detail::verbose) || gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size() || (aEvent.Summary.Size != 0U && aEvent.Summary.State != application::diagnostic_summary_state::sanitized)
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter >= 127U; })) {
 				State->drop();
 				return status_type::dropped;
@@ -472,7 +542,7 @@ namespace bpr::adapters::logging {
 					return status_type::dropped;
 				}
 				json_record record;
-				record.number("v", 2U);
+				record.number("v", 3U);
 				record.text("event", std::string{ operations[operation] } + "." + std::string{ outcomes[outcome] });
 				record.text("category", operation == 0U ? "application" : operation == 4U ? "epoch"
 																						  : "github");
@@ -485,7 +555,7 @@ namespace bpr::adapters::logging {
 				record.text("build", BPR_DIAGNOSTIC_BUILD);
 				record.text("op", operations[operation]);
 				record.text("outcome", outcomes[outcome]);
-				record.number("request", aEvent.Request);
+				record.number("request", Preferences.Privacy == application::diagnostic_privacy::include_locally ? aEvent.Request : 0U);
 				record.number("http_status", aEvent.HttpStatus);
 				record.text("summary", summaries[summary]);
 				record.number("dropped", State->Dropped.load());
@@ -495,12 +565,44 @@ namespace bpr::adapters::logging {
 				record.text("failure", failure);
 				record.text("pack_failure", aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" });
 				record.text("page_operation", paged_operations[paged]);
-				record.number("window_session", aEvent.WindowSession);
+				record.number("window_session", Preferences.Privacy == application::diagnostic_privacy::include_locally ? aEvent.WindowSession : 0U);
 				record.text("relationship_detail", aEvent.RelationshipDetail ? failure_name(*aEvent.RelationshipDetail) : std::string_view{ "none" });
 				record.text("transport_source", transportSources[transportSource]);
 				record.text("git_step", gitSteps[gitStep]);
+				record.text("request_label", identity_label(aEvent.Request, false));
+				record.text("window_label", identity_label(aEvent.WindowSession, true));
+				record.text("capture_privacy", Preferences.Privacy == application::diagnostic_privacy::include_locally ? "include_locally" : "anonymized");
+				const bool priority = aEvent.Outcome == application::diagnostic_outcome::failed || aEvent.HttpStatus >= 400U;
+				const bool verbose  = !priority && (aEvent.Detail == application::diagnostic_detail::verbose || (aEvent.GitStep != application::git_smart_transport_step{ } && aEvent.Outcome == application::diagnostic_outcome::started));
+				record.text("capture_detail", Preferences.Detail == application::diagnostic_detail::verbose ? "verbose" : "standard");
+				record.text("event_detail", verbose ? "verbose" : "standard");
 				const auto bytes = record.finish();
-				if (bytes.empty() || !Logger->log_statement<false>(&metadata, bytes)) {
+				if (bytes.empty()) {
+					State->drop();
+					return status_type::dropped;
+				}
+				if (verbose) {
+					retain_recent(bytes);
+				}
+				if (verbose && Preferences.Detail == application::diagnostic_detail::standard) {
+					return status_type::available;
+				}
+				// The generation prefix is transport-only and is stripped before file I/O.
+				const auto transport  = std::to_string(ContextGeneration) + "|" + std::string{ bytes };
+				const auto eventLimit = priority ? 4096U : 3584U;
+				const auto byteLimit  = (priority ? 8U : 7U) * 1024U * 1024U;
+				if (State->PendingEvents.load() >= eventLimit || State->PendingBytes.load() > byteLimit - transport.size()) {
+					State->drop();
+					return status_type::dropped;
+				}
+				State->PendingEvents.fetch_add(1U);
+				State->PendingBytes.fetch_add(transport.size());
+				const auto submitted = priority
+					? PriorityLogger->log_statement<false>(&metadata, std::string_view{ transport })
+					: Logger->log_statement<false>(&metadata, std::string_view{ transport });
+				if (!submitted) {
+					State->PendingEvents.fetch_sub(1U);
+					State->PendingBytes.fetch_sub(transport.size());
 					State->drop();
 					return status_type::dropped;
 				}
@@ -517,15 +619,156 @@ namespace bpr::adapters::logging {
 				? status_type::unavailable
 				: result;
 		}
+		void discard_context() noexcept
+		{
+			State->Generation.fetch_add(1U);
+			const std::unique_lock lock{ Mutex, std::try_to_lock };
+			if (lock.owns_lock()) {
+				refresh_context();
+			}
+		}
+		auto configure(application::diagnostic_preferences aPreferences) noexcept -> bool
+		{
+			if (!application::valid_diagnostic_preferences(aPreferences)) {
+				return false;
+			}
+			std::lock_guard lock{ Mutex };
+			if (Closed) {
+				return false;
+			}
+			try {
+				State->Generation.fetch_add(1U);
+				refresh_context();
+				flush();
+				Preferences = aPreferences;
+				return true;
+			} catch (...) {
+				State->fail(status_type::unavailable);
+				return false;
+			}
+		}
+		auto clear() noexcept -> application::diagnostic_clear_result
+		{
+			using result = application::diagnostic_clear_result;
+			std::lock_guard lock{ Mutex };
+			if (Closed) {
+				return result::unavailable;
+			}
+			try {
+				State->Generation.fetch_add(1U);
+				refresh_context();
+				flush();
+				const auto cleared = Sink ? Sink->clear() : result::unavailable;
+				if (cleared == result::cleared) {
+					State->Status = status_type::available;
+				}
+				if (cleared == result::partial) {
+					State->fail(status_type::unavailable);
+				}
+				return cleared;
+			} catch (...) {
+				State->fail(status_type::unavailable);
+				return result::unavailable;
+			}
+		}
+
+		auto capture_state() -> application::diagnostic_capture_state
+		{
+			std::lock_guard lock{ Mutex };
+			refresh_context();
+			return { Preferences, status(), State->Dropped.load(), Recent.size(), RecentBytes };
+		}
+		auto recent_context() -> std::vector<std::string>
+		{
+			std::lock_guard lock{ Mutex };
+			refresh_context();
+			std::vector<std::string> result;
+			result.reserve(Recent.size());
+			for (const auto& item : Recent) {
+				result.push_back(item.Bytes);
+			}
+			if (ContextGeneration != State->Generation.load()) {
+				refresh_context();
+				result.clear();
+			}
+			return result;
+		}
 		std::shared_ptr<sink_state> State;
 
 	private:
-		std::mutex                      Mutex;
-		std::array<std::thread::id, 16> Threads{ };
-		std::size_t                     ThreadCount = 0;
-		std::shared_ptr<capped_sink>    Sink;
-		frontend::logger_t*             Logger = nullptr;
-		std::unique_ptr<backend_lease>  Backend;
+		void flush()
+		{
+			if (Logger) {
+				Logger->flush_log();
+			}
+			if (PriorityLogger) {
+				PriorityLogger->flush_log();
+			}
+		}
+		void refresh_context()
+		{
+			const auto generation = State->Generation.load();
+			if (ContextGeneration != generation) {
+				Recent.clear();
+				RecentBytes = 0;
+				Identities.clear();
+				ContextGeneration = generation;
+			}
+			const auto cutoff = std::chrono::steady_clock::now() - std::chrono::minutes{ 3 };
+			while (!Recent.empty() && Recent.front().Time <= cutoff) {
+				RecentBytes -= Recent.front().Bytes.size();
+				Recent.pop_front();
+			}
+		}
+		void retain_recent(std::string_view aBytes)
+		{
+			while (!Recent.empty() && (Recent.size() >= 512U || RecentBytes + aBytes.size() > 2U * 1024U * 1024U)) {
+				RecentBytes -= Recent.front().Bytes.size();
+				Recent.pop_front();
+			}
+			Recent.push_back({ std::chrono::steady_clock::now(), std::string{ aBytes } });
+			RecentBytes += aBytes.size();
+		}
+		auto identity_label(std::uint64_t aValue, bool aWindow) -> std::string
+		{
+			if (aValue == 0U) {
+				return "none";
+			}
+			const auto found = std::ranges::find_if(Identities, [&](const auto& aIdentity) { return aIdentity.Value == aValue && aIdentity.Window == aWindow; });
+			if (found != Identities.end()) {
+				return found->Label;
+			}
+			if (Identities.size() == 4096U) {
+				return "omitted_limit";
+			}
+			auto label = std::string{ aWindow ? "window-" : "request-" } + Session + "-" + std::to_string(++NextIdentity);
+			Identities.push_back({ aValue, aWindow, label });
+			return label;
+		}
+		struct recent_record
+		{
+			std::chrono::steady_clock::time_point Time;
+			std::string                           Bytes;
+		};
+		struct identity_record
+		{
+			std::uint64_t Value;
+			bool          Window;
+			std::string   Label;
+		};
+		application::diagnostic_preferences Preferences;
+		std::deque<recent_record>           Recent;
+		std::vector<identity_record>        Identities;
+		std::size_t                         RecentBytes       = 0;
+		std::uint64_t                       ContextGeneration = 1;
+		std::uint64_t                       NextIdentity      = 0;
+		priority_frontend::logger_t*        PriorityLogger    = nullptr;
+		std::mutex                          Mutex;
+		std::array<std::thread::id, 16>     Threads{ };
+		std::size_t                         ThreadCount = 0;
+		std::shared_ptr<capped_sink>        Sink;
+		frontend::logger_t*                 Logger = nullptr;
+		std::unique_ptr<backend_lease>      Backend;
 		// Retained after close so concurrent status reads never race pointer reset.
 		std::shared_ptr<backend_status>             BackendStatus;
 		const std::chrono::steady_clock::time_point Started = std::chrono::steady_clock::now();
@@ -533,13 +776,24 @@ namespace bpr::adapters::logging {
 		std::uint64_t                               Sequence = 0U;
 		bool                                        Closed   = false;
 	};
-	quill_log::quill_log(const std::filesystem::path& aRoot, const diagnostic_file_limits aLimits) noexcept
+	quill_log::quill_log(const std::filesystem::path& aRoot, const diagnostic_file_limits aLimits, application::diagnostic_preferences aPreferences) noexcept
 	{
 		try {
-			Implementation = std::make_unique<implementation>(aRoot, aLimits);
+			Implementation = std::make_unique<implementation>(aRoot, aLimits, aPreferences);
 		} catch (...) { }
 	}
 	quill_log::~quill_log() = default;
+	void quill_log::discard_context() noexcept
+	{
+		if (Implementation) {
+			Implementation->discard_context();
+		}
+	}
+	auto quill_log::context_generation() const noexcept -> std::uint64_t { return Implementation ? Implementation->State->Generation.load() : 0U; }
+	auto quill_log::configure(application::diagnostic_preferences aPreferences) noexcept -> bool { return Implementation && Implementation->configure(aPreferences); }
+	auto quill_log::clear() noexcept -> application::diagnostic_clear_result { return Implementation ? Implementation->clear() : application::diagnostic_clear_result::unavailable; }
+	auto quill_log::capture_state() -> application::diagnostic_capture_state { return Implementation ? Implementation->capture_state() : application::diagnostic_capture_state{ }; }
+	auto quill_log::recent_context() -> std::vector<std::string> { return Implementation ? Implementation->recent_context() : std::vector<std::string>{ }; }
 	auto quill_log::record(const application::diagnostic_event& aEvent) noexcept -> status_type { return Implementation ? Implementation->record(aEvent) : status_type::unavailable; }
 	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->status() : status_type::unavailable; }
 	auto quill_log::open_failure() const noexcept -> diagnostic_file_failure { return Implementation ? Implementation->State->OpenFailure.load() : diagnostic_file_failure::io_failure; }

@@ -18,6 +18,7 @@ add_library(
         src/profile_activation.cpp
         src/appearance_settings_database.cpp
         src/appearance_settings_store.cpp
+        src/diagnostic_preferences.cpp
         src/workbench_settings_database.cpp
         src/workbench_settings_store.cpp
         src/review_ledger_store.cpp

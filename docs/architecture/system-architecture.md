@@ -278,14 +278,30 @@ request acceptance, retries or terminal delivery. Quill is pinned centrally and
 excluded from core-only builds. BPR-1215 frames those same admitted fields as bounded JSONL before Quill
 receives them, with adapter-owned clocks, opaque per-logger session, sequence,
 closed severity/category and source/toolchain build identity. Existing metadata
-export admits canonical v2 and legacy v1 while discarding every free-text or
+export admits canonical v2/v3 and legacy v1 while discarding every free-text or
 identity field. BPR-1216 adds the adapter-owned native session-file owner:
 exclusive creation, current-file lifetime locks, a shared retention transaction,
 5 MiB segments, 50 MiB aggregate, 64 files and 30-day inactive age retention.
-Only backend work performs inventory/pruning/writes. Producer contention and
+Normal record inventory/pruning/writes run on the backend. Producer contention and
 backend lock contention drop with counters; I/O failure stays local. Maintenance
 recognizes the same closed filenames, separates incomplete file tails and leaves
-the coordination inode in place. Advanced controls remain RFC-BPR-0027 follow-ups.
+the coordination inode in place.
+
+BPR-1217 adds profile-owned diagnostic settings. The application host serializes
+preference storage and logger barriers on an effect executor, then acknowledges
+accepted state on its decision lane. SQLite owns versioned private preferences;
+Qt presents the projection in signed-out Settings and Help → Diagnostics.
+Composition loads preferences before the first event and clears account context
+on Sign out. Standard/Verbose detail is independent of identity privacy. JSONL
+v3 uses typed opaque request/window labels by default; explicit Include locally
+also retains those numeric identities. No new provider names or content enter
+the contract. Warnings/errors use separately reserved bounded Quill queues.
+Recent sanitized intermediate context is capped at 512 events, 2 MiB and three
+minutes, checked before exposure and retired by bounded idle backend maintenance.
+Off, privacy/detail changes and Clear invalidate queued generations and reset
+transient context before acknowledgement. Clear coordinates native owned files
+without retiring the profile; busy/unsafe/partial failures are distinct. Rich
+scope-aware export and native/attended qualification remain later milestones.
 
 The entry point also owns one bounded terminal service before Qt startup and
 after producer quiescence. Its 64 slots hold at most 2 KiB each; ingress drops
