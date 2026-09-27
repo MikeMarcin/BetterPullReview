@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M9 local work integrated; external publication evidence and final independent review pending**
+Status: **implementation authorized under mandate r2; M1–M9 local work integrated; designated publication and independent server read supplied; final independent review pending**
 
 ### M10 preliminary finding repairs
 
@@ -147,12 +147,12 @@ their current direct surfaces and evidence owners; feature checks have not run.
 | AC-09 | `Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step. | Local pass | 891735401 |
 | AC-10 | Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess. | Local pass | 891735401 |
 | AC-11 | Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart. | Local pass | 891735401 |
-| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Local pass; external read pending | 891735401 |
-| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Local pass; external read pending | 891735401 |
+| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Local pass; [designated live pass](RFC-BPR-0023-live-publication.md) | 891735401 |
+| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Local pass; [designated live pass](RFC-BPR-0023-live-publication.md) | 891735401 |
 | AC-14 | Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | Local pass | 891735401 |
 | AC-15 | Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | Local pass | 891735401 |
 | AC-16 | Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | Local pass | 891735401 |
-| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local pass; external read pending | 891735401 |
+| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local deletion/crash pass; [independent live server read](RFC-BPR-0023-live-publication.md) | 891735401 |
 | AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Local pass; final review pending | 80d4eb4da |
 
 The producing commits in this table identify the M9 evidence records, not the
@@ -1706,3 +1706,24 @@ memory/database measurements and documentation tests were run on the same M9
 source before the conflict-free merge and are reused. No push, PR, live
 GitHub mutation or release action occurred. BPR-0584 and external M9 exit 3
 remain pending; M10 local work follows the checked sequencing amendment.
+
+## Designated publication and independent readback — 2026-09-27
+
+The M9 statements above describe its earlier local integration state. The
+owner subsequently designated `MikeMarcin/BPR-Test` as a safe live target.
+The [bounded live course](RFC-BPR-0023-live-publication.md) exercised the
+signed tests-disabled application, private revision 16, reviewer-authored
+composition 18, local draft 20 and a separate Publish gesture against PR 1
+at its verified head. The opt-in designated CTest passed 1/1, and the mount
+was removed after normal app shutdown.
+
+The independent GitHub API read returned review comment `4116400082` / node
+`PRRC_kwDOTyvof871W0fS`, by MikeMarcin, on the exact right-side line 1 with
+the exact reviewer prose. A read-only private ledger lookup found publication
+21 joined to draft 20 and that same server node. The baseline contained two
+comments; the result contained three. No publication retry occurred. This
+supplies BPR-0584's two external criteria and the designated/public-read
+component of AC-12/13/17. The deterministic deletion/crash and remote-success
+local-failure recovery checks remain the owning evidence for those branches.
+M9 external exit 3 is now satisfied. The final independent M10 review and
+RFC/board closeout are still pending at this point in the ledger.
