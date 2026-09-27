@@ -1,6 +1,6 @@
 # RFC-BPR-0022 Verification Plan
 
-Status: **imported plan; implementation deferred; no criterion satisfied**
+Status: **implementation active under mandate r1; milestone A in progress; no full RFC criterion yet satisfied**
 
 RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -97,3 +97,15 @@ admission with no native attempt. Unresolved native attempts cannot use this rou
 Only pack integrity, mapping/dependency/status consistency, documentation checks,
 and diff whitespace are verified by this import. No build, CTest, UI, migration,
 agent, GitHub, or GHES feature evidence was run. See [import record](../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md).
+
+## Milestone A readiness — 2026-09-26
+
+The [authored four-milestone plan](../rfcs/plans/rfc-bpr-0022-off-hunk-comments/MILESTONES.md)
+is adopted; BPR-0561 records its current-source audit. The retained pack and
+legacy planning snapshot remain immutable. Recovery is now schema 3, so BPR-0567
+must preserve v1/v2 inline origins and v3 whole-review tables. Existing left-side
+replies and ordinary exact user-Publish grants remain supported.
+
+No product/API/UX/security statement changes in the readiness slice: the new
+policy and permalink behavior remain pending until their code and tests land.
+The fifteen canonical claim rows above remain the final acceptance authority.
