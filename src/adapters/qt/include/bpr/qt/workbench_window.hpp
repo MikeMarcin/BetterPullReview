@@ -33,6 +33,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
+#include "bpr/qt/writing_hooks_panel.hpp"
 #if defined(_WIN32)
 	#include "bpr/qt/windows_caption_buttons.hpp"
 #endif
@@ -727,6 +728,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
+		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
 		/// \brief The side chat, placed beside the agent launcher it belongs to.
 		///
 		/// \details BPR-0513. The panel is composed here because the drawer is
@@ -1641,6 +1643,7 @@ namespace bpr::qt {
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
+		writing_hooks_panel*                               WritingHooks = nullptr;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;
 		QWidget*                                           AccountsPanel  = nullptr;

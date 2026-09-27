@@ -1,6 +1,13 @@
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/application-contract.md" WRITING_CONTRACT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/problem-statement.md" WRITING_PROBLEM)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/solution-summary.md" WRITING_SOLUTION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline.md" WRITING_OUTLINE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
+configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
 add_library(
     better_pull_review_application
     STATIC
+        src/writing_hooks.cpp
         src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/window_review_restoration_host.cpp
@@ -110,3 +117,5 @@ endif()
 
 bpr_enable_hardening(better_pull_review_application)
 bpr_enable_warnings(better_pull_review_application)
+
+target_include_directories(better_pull_review_application PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

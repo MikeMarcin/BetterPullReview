@@ -3374,7 +3374,7 @@ namespace bpr::app {
 			admit_sink                                     aAdmissions,
 			run_sink                                       aRuns,
 			workspace_sink                                 aWorkspaces,
-			start_sink                                     aStarts)
+			start_sink aStarts, std::function<void(std::string_view)> aRefused)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
@@ -3382,6 +3382,7 @@ namespace bpr::app {
 			, Runs{ std::move(aRuns) }
 			, Workspaces{ std::move(aWorkspaces) }
 			, Starts{ std::move(aStarts) }
+			, Refused{ std::move(aRefused) }
 		{
 		}
 
@@ -3393,6 +3394,9 @@ namespace bpr::app {
 		void refuse(const std::string_view aReason) override
 		{
 			Panel.refuse(aReason);
+			if (Refused) {
+				Refused(aReason);
+			}
 		}
 
 		void admit(
@@ -3470,6 +3474,7 @@ namespace bpr::app {
 		run_sink                                       Runs;
 		workspace_sink                                 Workspaces;
 		start_sink                                     Starts;
+		std::function<void(std::string_view)>          Refused;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -4537,6 +4542,7 @@ namespace bpr::app {
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
+				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
@@ -4869,8 +4875,10 @@ namespace bpr::app {
 				throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 			}
 
-			EpochActors           = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
-			WorkbenchPreferences  = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
+			EpochActors          = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+			WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
+			// The shared owner also serves defaults-only windows, which have no window-record restore.
+			WorkbenchPreferences->restore();
 			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 			SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 			QueueStore            = adapters::sqlite::make_queue_enrollment_store({
@@ -5737,6 +5745,7 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		std::optional<std::filesystem::path> CodexAgentExecutable;
+		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool UseGrantedNotificationSink = false;
@@ -6990,6 +6999,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						const application::agent_invocation_projection_identity&
 							aIdentity) {
 						if (!Closing && Window != nullptr) {
+							if (PendingWriting && !PendingWriting->Invocation) {
+								PendingWriting->Invocation = aIdentity;
+							}
 							Window->admit_dif_invocation(aIdentity);
 						}
 					},
@@ -7006,6 +7018,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						if (Closing) {
 							return;
 						}
+						finish_writing(aIdentity, aResult);
 						settle_comment_workshop(
 							aIdentity.Session.Id, aResult.Outcome);
 						Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -7018,6 +7031,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							aIdentity) {
 						if (!Closing && Window != nullptr) {
 							Window->start_dif_invocation(aIdentity);
+						}
+					},
+					[this](std::string_view) {
+						if (!PendingWriting) {
+							return;
+						}
+						const bool test = PendingWriting->Test;
+						PendingWriting.reset();
+						WritingState.cancel();
+						if (test) {
+							Window->writing_hooks()->show_notice("Writing request was refused by the selected agent host.");
+						} else {
+							Window->tour_editor()->show_writing_notice(QStringLiteral("Writing request was refused by the selected agent host. Manual editing is available."));
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
@@ -7041,6 +7067,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&core::agent_profile::Id);
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
+				}
+			}
+			if (ClaudeAgentExecutable) {
+				const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
+				if (claude != agentProfiles.end()) {
+					claude->Executable = ClaudeAgentExecutable->string();
 				}
 			}
 			if (CodexAgentExecutable.has_value()) {
@@ -7412,6 +7444,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				SessionWorkbenchSettings = std::make_unique<session_workbench_settings>(std::move(initial));
 			}
+			WritingHookSubscription = Profile->WorkbenchPreferences->subscribe(DraftWindow.Profile, [this](const auto& aPreferences) {
+				if (!Closing) {
+					if (PendingWriting && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
+						cancel_writing();
+					}
+					Window->writing_hooks()->present(aPreferences.WritingHooks);
+				}
+			});
+			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
+			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -8680,6 +8722,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		std::unique_ptr<application::review_tour_host>    TourHost;
+		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		struct retained_tour_host
 		{
@@ -8908,6 +8951,275 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return source;
 			}));
 		}
+		struct writing_operation
+		{
+			core::writing_request                                            Request;
+			std::vector<application::writing_source>                         Sources;
+			std::optional<application::agent_invocation_projection_identity> Invocation;
+			bool                                                             Test = false;
+		};
+		core::scoped_writing_state       WritingState;
+		std::optional<writing_operation> PendingWriting;
+		void                             cancel_writing()
+		{
+			WritingState.cancel();
+			if (!PendingWriting) {
+				return;
+			}
+			PendingWriting.reset();
+			if (AgentHost) {
+				AgentHost->cancel();
+			}
+			if (Window) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Assistance cancelled. Your text is unchanged."));
+			}
+		}
+		auto writing_context_key() const -> std::array<std::uint8_t, 32>
+		{
+			std::string key;
+			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+				key = std::to_string(snapshot->Snapshot.value()) + ":" + std::string{ snapshot->PullRequest.HeadOid.value() };
+			}
+			if (const auto& draft = Window->tour_editor()->shown().Draft; draft) {
+				key += ":" + std::to_string(draft->Revision);
+			}
+			if (SelectedDiffPublication) {
+				const auto digest = core::comparison_digest(SelectedDiffPublication->Key);
+				key.append(reinterpret_cast<const char*>(digest.bytes().data()), digest.bytes().size());
+			}
+			if (const auto range = Window->comparison_surface()->selected_source_range()) {
+				key += ":" + std::to_string(static_cast<unsigned>(range->first.Side)) + ":" + std::to_string(range->first.Line) + ":" + std::to_string(range->second.Line);
+			}
+			return core::writing_digest(key);
+		}
+		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>
+		{
+			const auto& draft = Window->tour_editor()->shown().Draft;
+			const auto& prefs = Profile->WorkbenchPreferences->accepted();
+			const auto  agent = Window->agent_panel()->selected_profile();
+			if (!draft || !prefs || !agent || !EpochHost || !TourOwner || draft->Owner != *TourOwner || !current(DraftWindow)) {
+				return std::nullopt;
+			}
+			const auto* stop = Window->tour_editor()->selected_stop();
+			if (aHook == core::writing_hook::comment && !stop) {
+				return std::nullopt;
+			}
+			return core::writing_target{ .Owner = draft->Owner, .Draft = draft->Id, .Stop = aHook == core::writing_hook::comment ? stop->Id : core::tour_stop_id{ }, .Hook = aHook, .Window = DraftWindow, .Session = EpochHost->state().ApplicationSession, .Agent = *agent, .HookRevision = prefs->WritingHooks.Revision, .TextGeneration = aCapture.TextGeneration, .EditorGeneration = aCapture.EditorGeneration, .ContextDigest = writing_context_key() };
+		}
+		auto writing_sources(core::writing_hook aHook, const core::writing_request& aRequest) const -> std::vector<application::writing_source>
+		{
+			std::vector<application::writing_source> sources;
+			std::size_t                              total = 0;
+			const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {
+				if (text.empty() || sources.size() == 8) {
+					return;
+				}
+				auto size = std::min({ text.size(), limit, 8192 - total });
+				while (size && !core::writing_boundary(text, size)) {
+					--size;
+				}
+				if (!size || !core::valid_writing_utf8(text.substr(0, size))) {
+					return;
+				}
+				sources.push_back({ std::move(id), std::string{ text.substr(0, size) } });
+				total += size;
+			};
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (snapshot) {
+				add("pr-description", snapshot->PullRequest.Body, 4096);
+				for (const auto& comment : snapshot->IssueComments) {
+					if (snapshot->PullRequest.Author && comment.Author && comment.Author->Actor == snapshot->PullRequest.Author->Actor && !comment.Deleted) {
+						add("author-comment-" + std::string{ comment.Comment.value() }, comment.Observation.RawBody.value_or(comment.Body), 1024);
+					}
+				}
+			}
+			const auto& draft = Window->tour_editor()->shown().Draft;
+			if (draft) {
+				if (aHook != core::writing_hook::problem) {
+					add("private-problem", draft->Problem, 1024);
+				}
+				if (aHook != core::writing_hook::solution) {
+					add("private-solution", draft->Solution, 1024);
+				}
+			}
+			if (aRequest.Scope == core::writing_scope::selection) {
+				add("field-before", std::string_view{ aRequest.Raw }.substr(0, aRequest.Selection.Begin), 512);
+				add("field-after", std::string_view{ aRequest.Raw }.substr(aRequest.Selection.End), 512);
+			}
+			const auto* stop     = Window->tour_editor()->selected_stop();
+			const auto  selected = selected_tour_source();
+			const auto& result   = Window->comparison_surface()->current_result();
+			if (aHook == core::writing_hook::comment && stop && stop->Original && selected && *selected == *stop->Original && result && SelectedDiffPublication && result->Alignment.Key == SelectedDiffPublication->Key) {
+				const auto& document = selected->First.Side == core::diff_side::left ? result->LeftDocument : result->RightDocument;
+				if (document && selected->Last.Line < document->Lines.size()) {
+					const auto begin = document->Lines[selected->First.Line].Content.Begin, end = document->Lines[selected->Last.Line].Content.End;
+					if (end >= begin && end <= document->Bytes.size() && end - begin <= 4096) {
+						add("stop-source", std::string_view{ reinterpret_cast<const char*>(document->Bytes.data() + begin), static_cast<std::size_t>(end - begin) }, 4096);
+					}
+				}
+			}
+			return sources;
+		}
+		void request_writing(core::writing_hook aHook, qt::prose_capture aCapture)
+		{
+			cancel_writing();
+			if (Closing || !TourHost || !WindowRead->accepted_snapshot() || !Window->tour_editor()->writing_visible(aHook)) {
+				return;
+			}
+			const auto target = writing_target(aHook, aCapture);
+			if (!target || !AgentHost || !AgentHost->is_quiescent()) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Choose an available agent and wait for its current request. Manual editing is available."));
+				return;
+			}
+			const auto request = WritingState.begin(*target, std::move(aCapture.Raw), aCapture.Selection);
+			if (!request) {
+				return;
+			}
+			auto sources = writing_sources(aHook, *request);
+			// Recover an unambiguous existing author section before asking a model.
+			if (request->Scope == core::writing_scope::empty_field && aHook != core::writing_hook::comment) {
+				const auto&                         description = WindowRead->accepted_snapshot()->PullRequest.Body;
+				const auto                          map         = core::map_tour_markdown(description);
+				std::optional<core::tour_text_span> recovered;
+				bool                                ambiguous = false;
+				for (const auto& section : map.Sections) {
+					if (section.Name == (aHook == core::writing_hook::problem ? "Problem" : "Solution")) {
+						if (recovered) {
+							ambiguous = true;
+						}
+						recovered = section.Content;
+					}
+				}
+				if (recovered && !ambiguous && map.Bounded) {
+					auto edit = WritingState.complete(request->Id, *target, request->Raw, description.substr(recovered->Begin, recovered->End - recovered->Begin));
+					if (edit && Window->tour_editor()->writing_editor(aHook)->apply(*edit)) {
+						Window->tour_editor()->show_writing_notice(QStringLiteral("Recovered — pr-description. Existing author text; no inference."));
+					}
+					return;
+				}
+			}
+			if (target->Agent != core::claude_stream_json_profile_id) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This selected agent has no qualified tool-free writing mode. Select Approved Claude stream JSON in Agents & context, or keep writing manually."));
+				return;
+			}
+			if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
+				return;
+			}
+			const auto prompt = application::build_writing_prompt(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
+			if (!prompt) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions."));
+				return;
+			}
+			PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Writing assistance running… Your text remains editable."));
+			if (!dispatch_agent_invocation(target->Agent, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+				cancel_writing();
+			}
+		}
+		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string
+		{
+			if (aResult.Insufficient) {
+				return "More context needed: " + aResult.Reason;
+			}
+			const auto hook = aOperation.Request.Target.Hook;
+			if (aOperation.Test) {
+				if (hook == core::writing_hook::outline) {
+					return "Hook test completed: valid outline skeleton. Nothing inserted.";
+				}
+				return "Hook test completed. Private result:\n" + aResult.Replacement;
+			}
+			if (!Window->tour_editor()->writing_visible(hook)) {
+				return "The captured editor is no longer active. Your text is unchanged.";
+			}
+			auto*      editor  = Window->tour_editor()->writing_editor(hook);
+			const auto capture = editor->capture();
+			const auto target  = capture ? writing_target(hook, *capture) : std::nullopt;
+			if (!target) {
+				return "The captured owner or editor changed. Your text is unchanged.";
+			}
+			auto edit = WritingState.complete(aOperation.Request.Id, *target, editor->raw(), aResult.Replacement);
+			if (!edit || !editor->apply(*edit)) {
+				return "Result made no change or the captured text is no longer current.";
+			}
+			std::string message = "Updated captured text. Undo restores it. Nothing published.";
+			for (const auto& note : aResult.Notes) {
+				auto label = std::string{ "Unclear" };
+				if (note.Kind == "recovered") {
+					label = "Recovered";
+				} else if (note.Kind == "inferred") {
+					label = "Inferred";
+				}
+				message += "\n" + label + ": " + note.Text;
+				for (const auto& ref : note.SourceRefs) {
+					message += " [" + ref + "]";
+				}
+			}
+			return message;
+		}
+		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult)
+		{
+			if (!PendingWriting || PendingWriting->Invocation != aIdentity) {
+				return;
+			}
+			auto operation = std::move(*PendingWriting);
+			PendingWriting.reset();
+			std::string message = "Assistance did not complete; your text is unchanged.";
+			std::string json;
+			bool        bounded = true;
+			for (const auto& event : aResult.Events) {
+				if (json.size() + event.Text.size() > 32768) {
+					bounded = false;
+					break;
+				}
+				json += event.Text;
+			}
+			const auto  result = aResult.Outcome == application::agent_run_outcome::success && bounded ? application::decode_writing_result(json, operation.Request.Target.Hook, operation.Sources, operation.Request.Scope == core::writing_scope::empty_field) : std::nullopt;
+			const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+			if (result && prefs && prefs->WritingHooks.Revision == operation.Request.Target.HookRevision && writing_context_key() == operation.Request.Target.ContextDigest) {
+				message = apply_writing_result(operation, *result);
+			} else if (aResult.Outcome == application::agent_run_outcome::success) {
+				message = "Assistance returned an invalid, unsupported or stale result. Your text is unchanged.";
+			}
+			WritingState.cancel();
+			if (operation.Test) {
+				Window->writing_hooks()->show_notice(message);
+			} else {
+				Window->tour_editor()->show_writing_notice(QString::fromStdString(message));
+			}
+		}
+		void test_writing_hook(core::writing_hook aHook)
+		{
+			cancel_writing();
+			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
+			const auto  selected = Window->agent_panel()->selected_profile();
+			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !AgentHost || !AgentHost->is_quiescent()) {
+				Window->writing_hooks()->show_notice("Select Approved Claude stream JSON for tool-free writing tests; wait for any running request.");
+				return;
+			}
+			core::writing_request request;
+			request.Target.Hook                              = aHook;
+			request.Target.HookRevision                      = prefs->WritingHooks.Revision;
+			request.Target.ContextDigest                     = writing_context_key();
+			request.Raw                                      = "The cache reduces repeated work.";
+			request.Selection.End                            = request.Raw.size();
+			std::vector<application::writing_source> sources = { { "test-source", "The cache reuses previously computed results. No performance or test-success claim is supplied." } };
+			const auto                               prompt  = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+			if (!prompt) {
+				Window->writing_hooks()->show_notice("Hook instructions exceed the test context limit.");
+				return;
+			}
+			PendingWriting = writing_operation{ request, std::move(sources), { }, true };
+			Window->writing_hooks()->show_notice("Testing saved hook… Nothing will be inserted or published.");
+			if (!dispatch_agent_invocation(*selected, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+				PendingWriting.reset();
+				Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
+			}
+		}
+
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
 			if (Closing || !TourHost || !current(DraftWindow)) {
@@ -8923,18 +9235,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					TourPublication->dispatch(aAction);
 				}
 				return;
-			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
-			case qt::tour_editor_action::retry_save:      TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy:  TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::import_selected:     TourHost->import_selected(Window->tour_editor()->import_choice()); return;
+			case qt::tour_editor_action::retry_save:          TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy:      TourHost->use_saved_copy(); return;
 			case qt::tour_editor_action::keep_local_conflict:
 			case qt::tour_editor_action::use_remote_conflict:
 				if (const auto draft = Window->tour_editor()->shown().Draft) {
 					TourHost->resolve_remote_conflict(draft->Revision, aAction == qt::tour_editor_action::use_remote_conflict);
 				}
 				return;
-			case qt::tour_editor_action::undo_structure:  TourHost->undo(); return;
-			case qt::tour_editor_action::redo_structure:  TourHost->redo(); return;
-			case qt::tour_editor_action::navigate_stop:   {
+			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
+			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
+			case qt::tour_editor_action::navigate_stop:  {
 				const auto*                                stop = Window->tour_editor()->selected_stop();
 				std::optional<core::tour_code_destination> source;
 				if (stop) {
@@ -8973,8 +9285,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 					auto value = *selected;
 					if (aAction == qt::tour_editor_action::retarget_stop) {
-						value.Mapped  = *source;
-						value.Mapping = core::tour_mapping::author_selected;
+						value.Mapped         = *source;
+						value.Mapping        = core::tour_mapping::author_selected;
 						value.ReaffirmedHead = draft->ObservedHead.value_or(draft->Head);
 					} else {
 						value.Related.push_back(*source);
@@ -11992,7 +12304,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const std::string_view                                aChatMessage,
 			const std::optional<core::agent_session>&             aTurnSession,
 			const core::agent_entry_point                         aEntryPoint,
-			const std::optional<core::workshop_operation>&        aWorkshopOperation)
+			const std::optional<core::workshop_operation>& aWorkshopOperation, bool aWritingOnly = false)
 			-> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
@@ -12125,6 +12437,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					*aTurnSession,
 					pointedAt);
 			}
+			if (aWritingOnly) {
+				observation.Files.clear();
+				observation.Selection.reset();
+				observation.CurrentDraft.reset();
+				observation.Private.Notes.clear();
+				observation.Private.Defects.clear();
+			}
 			return launch_agent_invocation(
 				aProfile,
 				authority,
@@ -12132,7 +12451,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(observation),
 				aExistingCheckoutChosen,
 				std::nullopt,
-				frozen_snapshot_files());
+				aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly);
 		}
 
 		/// \brief Freezes one turn's identities, pins them, and dispatches it.
@@ -12159,12 +12478,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			application::agent_context_observation         aObservation,
 			const bool                                     aExistingCheckoutChosen,
 			const std::optional<core::agent_session>&      aContinuedSession,
-			std::vector<core::agent_finding_snapshot_file> aFrozen) -> bool
+			std::vector<core::agent_finding_snapshot_file> aFrozen, bool aWritingOnly = false) -> bool
 		{
 			if (Closing || AgentHost == nullptr) {
 				return false;
 			}
-			if (McpHelper != nullptr) {
+			if (McpHelper != nullptr && !aWritingOnly) {
 				const auto encoded = adapters::mcp::encode_revision_binding(
 					aObservation.Binding);
 				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, aFrozen)) {
@@ -12181,6 +12500,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.ExistingCheckout       = ExistingCheckout,
 				.FrozenFiles            = std::move(aFrozen),
 				.ContinuedSession       = aContinuedSession,
+				.WritingOnly            = aWritingOnly,
 			});
 			return true;
 		}
@@ -13837,6 +14157,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			Profile->WorkbenchPreferences->unsubscribe(WritingHookSubscription);
 			if (TourHost) {
 				TourHost->shutdown();
 			}
@@ -14432,6 +14753,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
+		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;

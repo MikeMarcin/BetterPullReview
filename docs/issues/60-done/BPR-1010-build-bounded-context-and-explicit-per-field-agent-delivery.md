@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1010"
 title: "Build bounded context and explicit per-field agent delivery"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1007", "BPR-1008", "BPR-1009"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-20","milestone":"scoped-ai","acceptance":["AC43-01","AC43-07","AC43-09","AC43-10"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC43-01","outcome":"pass","revision":"1d84e59c25f1bc06324060a0280f478d66e8c638","evidence":{"kind":"observation","detail":"Final integration passes 12/12 in 36.79s: production manual composition unchanged, explicit field and Settings Test only dispatch existing host; unsupported selected protocol safely refuses optional writing. Manual editing remains available."}},{"criterion":"AC43-07","outcome":"pass","revision":"1d84e59c25f1bc06324060a0280f478d66e8c638","evidence":{"kind":"observation","detail":"Actual public process course proves exact existing description recovery with zero inference; empty current-stop generation requires pinned source and private supplied provenance. Strict decoder refuses missing/forged references, malformed/overbudget UTF8, and insufficient context without editing. Semantic model truth and installed qualification remain BPR-1013."}},{"criterion":"AC43-09","outcome":"pass","revision":"1d84e59c25f1bc06324060a0280f478d66e8c638","evidence":{"kind":"observation","detail":"Real child-process fixture checks exact no-tools argv, empty strict MCP/settings/hook restrictions, no GitHub token environment and no unrelated note/draft canaries. Restricted decoder refuses tool frames and forged extra publication fields; composition counters prove no remote publication or stop readiness. Selected Codex writing refuses pending enforceable protocol; no global config modified."}},{"criterion":"AC43-10","outcome":"pass","revision":"1d84e59c25f1bc06324060a0280f478d66e8c638","evidence":{"kind":"observation","detail":"Actual Qt and complete composition course prove profile saved override, captured byte splice, native undo/redo, current-stop isolation, private notes, Settings Test preserving entire draft, local-edit cancellation and window-switch cancellation. Final writing course after readability pass: 1/1 in 16.86s. Canned process evidence is not real-model or installed/native quality acceptance."}}]
 ---
 
 # BPR-1010: Build bounded context and explicit per-field agent delivery

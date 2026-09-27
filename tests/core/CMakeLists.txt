@@ -571,6 +571,12 @@ bpr_enable_hardening(test_review_tour_update)
 bpr_enable_warnings(test_review_tour_update)
 bpr_add_network_isolated_test(NAME core_review_tour_update COMMAND test_review_tour_update)
 
+bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
+target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_review_preparation)
+bpr_enable_warnings(test_review_preparation)
+bpr_add_network_isolated_test(NAME core_review_preparation COMMAND test_review_preparation)
+
 bpr_add_executable(test_private_review_core private_review_tests.cpp)
 target_link_libraries(test_private_review_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_private_review_core)

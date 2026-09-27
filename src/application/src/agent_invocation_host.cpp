@@ -346,6 +346,10 @@ namespace bpr::application {
 				project_refuse("profile_unknown");
 				return;
 			}
+			if (aRequest.WritingOnly && (profile->Protocol != core::agent_protocol::claude_stream_json || aRequest.ExistingCheckoutChosen || aRequest.ContinuedSession)) {
+				project_refuse("selected_agent_has_no_qualified_writing_protocol");
+				return;
+			}
 			const auto policy = core::policy_for_host(Policies, aRequest.Authority.Host);
 			++CoreDecisions;
 			const auto verdict = core::decide_agent_invocation(*profile, policy);
@@ -641,7 +645,7 @@ namespace bpr::application {
 					aInvocation);
 				return;
 			}
-			auto launch = build_agent_launch(aProfile, aSupplement, Environment);
+			auto launch = build_agent_launch(aProfile, aSupplement, Environment, aRequest.WritingOnly);
 			if (!launch.has_value() || !workspace.has_value()) {
 				complete(
 					{ .Session = aInvocation->Identity.Session.Id,

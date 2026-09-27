@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #include "bpr/application/review_tour_projection.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 #include <QWidget>
 #include <functional>
 #include <map>
@@ -14,6 +15,7 @@ class QPlainTextEdit;
 class QTabWidget;
 class QLabel;
 class QPushButton;
+class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
 	enum class tour_editor_action : std::uint8_t { import_selected,
@@ -43,12 +45,16 @@ namespace bpr::qt {
 		explicit review_tour_editor(QWidget* aParent = nullptr);
 		void               set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction);
 		void               present(const application::tour_presentation& aProjection);
+		void               set_writing_dispatch(std::function<void(core::writing_hook, prose_capture)> aRequest, std::function<void()> aCancel);
+		[[nodiscard]] auto writing_editor(core::writing_hook aHook) const -> scoped_prose_editor*;
+		[[nodiscard]] auto writing_visible(core::writing_hook aHook) const -> bool;
 		void               present_publication(const application::tour_publication_presentation& aProjection);
 		[[nodiscard]] auto compatibility_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
+		void               show_writing_notice(const QString& aText);
 		void               show_stops();
 		void               trigger(tour_editor_action aAction);
 		[[nodiscard]] auto selected_stop() const -> const core::tour_stop*;
@@ -64,56 +70,63 @@ namespace bpr::qt {
 		[[nodiscard]] auto shown() const -> const application::tour_presentation& { return Shown; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
+	protected:
+		void hideEvent(QHideEvent* aEvent) override;
+
 	private:
-		void                                         edit(core::tour_command_kind aKind, const QString& aText);
-		void                                         refresh_preview();
-		void                                         build_stops();
-		void                                         present_stops(bool aOwnerChanged);
-		void                                         edit_stop();
-		void                                         structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
-		void                                         next_stop(int aOffset);
-		void                                         next_changed_stop();
-		QComboBox*                                   PublicationMode    = nullptr;
-		QCheckBox*                                   DescriptionEdit    = nullptr;
-		QLabel*                                      PublicationStatus  = nullptr;
-		markdown_body_view*                          PublicationPreview = nullptr;
-		QPushButton*                                 PublishTour        = nullptr;
-		QPushButton*                                 ResumeTour         = nullptr;
-		QPushButton*                                 ReconcileTour      = nullptr;
-		QPushButton*                                 StopTour           = nullptr;
-		QComboBox*                                   Imports            = nullptr;
-		QPushButton*                                 Import             = nullptr;
-		QListWidget*                                 Outline            = nullptr;
-		QListWidget*                                 Related            = nullptr;
-		QLineEdit*                                   Title              = nullptr;
-		QPlainTextEdit*                              Body               = nullptr;
-		QLabel*                                      Source             = nullptr;
-		QWidget*                                     StopFields         = nullptr;
-		QAction*                                     MoveUp             = nullptr;
-		QAction*                                     MoveDown           = nullptr;
-		QAction*                                     UndoStructure      = nullptr;
-		QAction*                                     RedoStructure      = nullptr;
-		core::tour_stop_id                           Selected;
-		core::tour_stop_id                           Editing;
-		std::optional<core::tour_command_kind>       EditingKind;
-		std::map<core::tour_stop_id, QTextDocument*> BodyDocuments;
-		std::map<core::tour_stop_id, int>            BodyPositions;
-		application::tour_presentation               Shown;
-		std::function<void(core::tour_command)>      Dispatch;
-		std::function<void(tour_editor_action)>      Action;
-		QPlainTextEdit*                              Problem           = nullptr;
-		QPlainTextEdit*                              Solution          = nullptr;
-		QPlainTextEdit*                              Conflict          = nullptr;
-		QTabWidget*                                  Roadmap           = nullptr;
-		markdown_body_view*                          Preview           = nullptr;
-		QLabel*                                      RevisionChanges   = nullptr;
-		QPushButton*                                 NextChanged       = nullptr;
-		QLabel*                                      Status            = nullptr;
-		QPushButton*                                 Retry             = nullptr;
-		QPushButton*                                 UseSaved          = nullptr;
-		QPushButton*                                 KeepLocalConflict = nullptr;
-		QPushButton*                                 UseRemoteConflict = nullptr;
-		bool                                         Applying          = false;
+		void                                                   edit(core::tour_command_kind aKind, const std::string& aText);
+		void                                                   add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QVBoxLayout* aLayout);
+		std::function<void(core::writing_hook, prose_capture)> WritingRequest;
+		std::function<void()>                                  WritingCancel;
+		void                                                   refresh_preview();
+		void                                                   build_stops();
+		void                                                   present_stops(bool aOwnerChanged);
+		void                                                   edit_stop();
+		void                                                   structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
+		void                                                   next_stop(int aOffset);
+		void                                                   next_changed_stop();
+		QComboBox*                                             PublicationMode    = nullptr;
+		QCheckBox*                                             DescriptionEdit    = nullptr;
+		QLabel*                                                PublicationStatus  = nullptr;
+		markdown_body_view*                                    PublicationPreview = nullptr;
+		QPushButton*                                           PublishTour        = nullptr;
+		QPushButton*                                           ResumeTour         = nullptr;
+		QPushButton*                                           ReconcileTour      = nullptr;
+		QPushButton*                                           StopTour           = nullptr;
+		QComboBox*                                             Imports            = nullptr;
+		QPushButton*                                           Import             = nullptr;
+		QListWidget*                                           Outline            = nullptr;
+		QListWidget*                                           Related            = nullptr;
+		QLineEdit*                                             Title              = nullptr;
+		scoped_prose_editor*                                   Body               = nullptr;
+		QLabel*                                                Source             = nullptr;
+		QWidget*                                               StopFields         = nullptr;
+		QAction*                                               MoveUp             = nullptr;
+		QAction*                                               MoveDown           = nullptr;
+		QAction*                                               UndoStructure      = nullptr;
+		QAction*                                               RedoStructure      = nullptr;
+		core::tour_stop_id                                     Selected;
+		core::tour_stop_id                                     Editing;
+		std::optional<core::tour_command_kind>                 EditingKind;
+		std::map<core::tour_stop_id, QTextDocument*>           BodyDocuments;
+		std::map<core::tour_stop_id, int>                      BodyPositions;
+		application::tour_presentation                         Shown;
+		std::function<void(core::tour_command)>                Dispatch;
+		std::function<void(tour_editor_action)>                Action;
+		scoped_prose_editor*                                   Problem           = nullptr;
+		scoped_prose_editor*                                   Solution          = nullptr;
+		QPlainTextEdit*                                        Conflict          = nullptr;
+		QTabWidget*                                            Roadmap           = nullptr;
+		markdown_body_view*                                    Preview           = nullptr;
+		QLabel*                                                RevisionChanges   = nullptr;
+		QPushButton*                                           NextChanged       = nullptr;
+		QLabel*                                                WritingStatus     = nullptr;
+		QLabel*                                                Status            = nullptr;
+		QPushButton*                                           Retry             = nullptr;
+		QPushButton*                                           UseSaved          = nullptr;
+		QPushButton*                                           KeepLocalConflict = nullptr;
+		QPushButton*                                           UseRemoteConflict = nullptr;
+		bool                                                   Applying          = false;
 	};
 }
 #endif

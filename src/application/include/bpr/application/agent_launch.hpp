@@ -134,6 +134,7 @@ namespace bpr::application {
 		/// Present only for a workspace with durable recovery ownership. A
 		/// requested guard must be retained or launch refuses before execution.
 		std::optional<agent_workspace_lifetime_guard> WorkspaceLifetimeGuard;
+		bool                                          WritingOnly = false;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -156,7 +157,7 @@ namespace bpr::application {
 	[[nodiscard]] auto build_agent_launch(
 		const core::agent_profile&            aProfile,
 		const core::agent_context_supplement& aSupplement,
-		const environment_reader&             aParent)
+		const environment_reader& aParent, bool aWritingOnly = false)
 		-> std::expected<agent_launch_request, agent_launch_failure>;
 
 	/// \brief Renders every supplement field with explicit count/presence data.
@@ -331,7 +332,7 @@ namespace bpr::application {
 	class agent_protocol_decoder final
 	{
 	public:
-		explicit agent_protocol_decoder(core::agent_protocol aProtocol);
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false);
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -343,6 +344,7 @@ namespace bpr::application {
 
 	private:
 		core::agent_protocol Protocol;
+		bool                 WritingOnly = false;
 		std::string          Pending;
 		std::size_t          TotalBytes   = 0U;
 		bool                 Failed       = false;

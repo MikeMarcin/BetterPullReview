@@ -3,6 +3,7 @@
 
 #include "bpr/application/home_view_state.hpp"
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include <compare>
@@ -580,7 +581,8 @@ namespace bpr::application {
 		/// [[BPR-1130]]. This window's Updates line, folded or open. Like
 		/// Home it belongs to the window alone: the profile's defaults never
 		/// store it, so every new window starts folded.
-		core::workbench_updates_line UpdatesLine = core::workbench_updates_line::folded;
+		core::workbench_updates_line UpdatesLine  = core::workbench_updates_line::folded;
+		core::writing_hook_settings  WritingHooks = { };
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -603,9 +605,10 @@ namespace bpr::application {
 	};
 	struct workbench_profile_preferences
 	{
-		review_behaviour_settings Behaviour;
-		workbench_window_layout   NewWindowDefaults;
-		auto                      operator<=>(const workbench_profile_preferences&) const = default;
+		review_behaviour_settings   Behaviour;
+		workbench_window_layout     NewWindowDefaults;
+		core::writing_hook_settings WritingHooks                                            = { };
+		auto                        operator<=>(const workbench_profile_preferences&) const = default;
 	};
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
 	{
@@ -633,7 +636,7 @@ namespace bpr::application {
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
-		return valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
+		return core::valid(aPreferences.WritingHooks) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
 		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded;
 	}
@@ -679,14 +682,16 @@ namespace bpr::application {
 			auto defaults     = window_layout(*loaded);
 			defaults.Home     = { };
 			defaults.Geometry = { };
-			return workbench_profile_preferences{ loaded->Behaviour, defaults };
+			return workbench_profile_preferences{ loaded->Behaviour, defaults, loaded->WritingHooks };
 		}
 		[[nodiscard]] virtual auto store_preferences(const workbench_profile_preferences& aPreferences,
 													 std::stop_token                      aStop) -> workbench_settings_result<void>
 		{
 			// Compatibility for legacy in-memory ports. Durable adapters override
 			// this operation; window stores never invoke it.
-			return store(combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour), aStop);
+			auto settings         = combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour);
+			settings.WritingHooks = aPreferences.WritingHooks;
+			return store(settings, aStop);
 		}
 		/// Retains only explicitly authoritative stable window IDs; empty removes all layout rows.
 		[[nodiscard]] virtual auto retain_windows(std::span<const core::bpr_window_id>, std::stop_token) -> workbench_settings_result<void>

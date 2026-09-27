@@ -208,6 +208,7 @@ namespace bpr::app::detail {
 		/// protocol is the one with a result frame a finding payload can ride
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
+		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.

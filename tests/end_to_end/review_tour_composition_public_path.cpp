@@ -2,11 +2,13 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -121,7 +123,7 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
 		auto                                     startup  = access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,
-																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && std::string_view{ argv[1] } == "--cold", .ReviewSubmissionServer = server },
+																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing"), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt },
 																		  [&](auto aResult) { terminal = true; if (aResult) { started = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(started != nullptr, "startup succeeds");
@@ -135,9 +137,109 @@ auto main(int argc, char** argv) -> int
 		auto& editor = *window.tour_editor();
 		expect(editor.problem_editor()->toPlainText().isEmpty() && editor.solution_editor()->toPlainText().isEmpty(), "new draft is empty, coaching is not source");
 
+		if (argc > 2 && std::string_view{ argv[1] } == "--writing") {
+			const auto mutationBefore = access::review_mutation_evidence(*application);
+			auto*      panel          = window.agent_panel();
+			auto*      selector       = panel->profile_selector();
+			select_file(window, "review.cpp");
+			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
+			const auto claude = selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value()));
+			expect(claude >= 0, "existing Claude profile offered");
+			selector->setCurrentIndex(claude);
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
+			window.open_review_tour();
+			editor.show_problem();
+			auto* prose  = editor.writing_editor(core::writing_hook::problem);
+			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
+			magic->click();
+			expect(!prose->raw().empty(), "recovery gesture accepted");
+			saved(editor);
+			expect(prose->raw() == "\r\n**Keep raw** problem.\r\n\r\n" && status->text().contains("Recovered") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "empty description section recovered exactly before inference");
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			auto       cursor = prose->textCursor();
+			cursor.setPosition(3);
+			cursor.setPosition(7, QTextCursor::KeepAnchor);
+			prose->setTextCursor(cursor);
+			const auto captured = *prose->capture();
+			run();
+			const auto expected = captured.Raw.substr(0, captured.Selection.Begin) + "Rewritten 😀\r\nexact." + captured.Raw.substr(captured.Selection.End);
+			if (prose->raw() != expected) {
+				std::cerr << "writing status: " << status->text().toStdString() << " agent: " << panel->status_text().toStdString() << '\n';
+			}
+			expect(prose->raw() == expected && editor.shown().Draft->Problem == expected, "real process response changes only captured raw bytes and saves locally");
+			const auto calls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			prose->undo();
+			QApplication::processEvents();
+			saved(editor);
+			expect(prose->raw() == captured.Raw && prose->textCursor().anchor() == captured.Selection.Anchor && prose->textCursor().position() == captured.Selection.Cursor, "real completion has one native undo with original selection");
+			prose->redo();
+			saved(editor);
+			expect(prose->raw() == expected && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == calls, "native redo performs no inference");
+			const auto set = [&](const char* text) {prose->selectAll();prose->insertPlainText(QString::fromUtf8(text));saved(editor);prose->moveCursor(QTextCursor::End); };
+			set("INVALID_CANARY");
+			const auto invalidSteps = prose->document()->availableUndoSteps();
+			run();
+			expect(prose->raw() == "INVALID_CANARY" && prose->document()->availableUndoSteps() == invalidSteps && status->text().contains("invalid"), "extra publish field rejected without text/history mutation");
+			set("INSUFFICIENT_CANARY");
+			run();
+			expect(prose->raw() == "INSUFFICIENT_CANARY" && status->text().contains("More context"), "insufficient context remains private and unchanged");
+			set("WAIT_CANARY");
+			const auto before = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			magic->click();
+			wait([&] { return access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations > before; }, "delayed child starts");
+			prose->insertPlainText(QStringLiteral(" newer"));
+			saved(editor);
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent; }, "cancelled child drains");
+			expect(prose->raw() == "WAIT_CANARY newer", "late result cannot overwrite local edit");
+			// Profile settings affect only the explicitly requested current stop.
+			select_file(window, "review.cpp");
+			select_range(window, core::diff_side::right, 1, 2);
+			window.add_tour_stop_action()->trigger();
+			editor.stop_title()->insert(QStringLiteral("Manual stop"));
+			editor.stop_body()->insertPlainText(QStringLiteral("Keep manual body."));
+			saved(editor);
+			const auto firstStop = editor.selected_stop()->Id;
+			select_range(window, core::diff_side::right, 3, 4);
+			window.add_tour_stop_action()->trigger();
+			editor.stop_title()->insert(QStringLiteral("Current stop"));
+			saved(editor);
+			wait([&] { return selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())) >= 0; }, "agent available after source navigation");
+			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
+			auto* hooks = window.writing_hooks();
+			hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice"))->setCurrentIndex(3);
+			hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions"))->setPlainText(QStringLiteral("EMPTY_CANARY. Recover supported explanation with source references. No tools or publication."));
+			hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave"))->click();
+			wait([&] { return hooks->findChild<QLabel*>(QStringLiteral("writingHookSource"))->text().contains("Profile override"); }, "profile hook persisted through real Settings path");
+			const auto beforeStop = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"))->click();
+			wait([&] {const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>beforeStop && evidence.Quiescent; }, "current stop process completed");
+			saved(editor);
+			expect(editor.selected_stop()->Body == "Evidence-backed draft." && editor.selected_stop()->Preparation == core::tour_preparation::editing && status->text().contains("Inferred") && status->text().contains("pr-description"), "current stop has private provenance and remains unacknowledged");
+			const auto first = std::ranges::find(editor.shown().Draft->Stops, firstStop, &core::tour_stop::Id);
+			expect(first != editor.shown().Draft->Stops.end() && first->Body == "Keep manual body.", "per-stop generation never writes another stop");
+			const auto beforeTest = *editor.shown().Draft;
+			hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice"))->setCurrentIndex(0);
+			const auto testCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			hooks->findChild<QPushButton*>(QStringLiteral("writingHookTest"))->click();
+			wait([&] {const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>testCalls && evidence.Quiescent; }, "explicit Settings test process completed");
+			expect(*editor.shown().Draft == beforeTest && hooks->findChild<QLabel*>(QStringLiteral("writingHookStatus"))->text().contains("Hook test completed"), "hook test displays private result and changes no draft");
+
+			editor.show_problem();
+			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value())));
+			const auto beforeUnsupported = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			magic->click();
+			expect(status->text().contains("no qualified") && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == beforeUnsupported, "unqualified protocol fails closed before process start");
+			const auto mutationAfter = access::review_mutation_evidence(*application);
+			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions, "all writing responses leave remote mutation counters unchanged");
+			shutdown(*application);
+			std::cout << "review-tour-writing:pass\n";
+			return EXIT_SUCCESS;
+		}
+
 		if (argc > 1 && std::string_view{ argv[1] } == "--cold") {
 			const auto remoteBefore = access::review_mutation_evidence(*application);
-			auto* choices = editor.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+			auto*      choices      = editor.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
 			wait([&] { return choices && choices->count() == 1; }, "published root discovered through real provider snapshot");
 			editor.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
 			expect(editor.shown().Draft->Stops.size() == 3 && !editor.shown().Draft->ReadOnly, "cold profile reconstructs editable own route");
@@ -375,6 +477,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {
 		std::cerr << "review-tour-composition:fail " << error.what() << '\n';
+		std::cerr << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().toStdString() << " writing=" << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourWritingStatus"))->text().toStdString() << " agent=" << application->window().agent_panel()->status_text().toStdString() << "\n";
 		shutdown(*application);
 		return EXIT_FAILURE;
 	}

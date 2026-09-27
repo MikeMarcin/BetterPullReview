@@ -3250,3 +3250,12 @@ foreach(course native compat stop description conflict unsupported maintenance r
     bpr_add_network_isolated_test(NAME application_review_tour_publication_${course} WINDOWS_UNCONTAINED COMMAND test_review_tour_publication_public_path ${course} "${CMAKE_CURRENT_BINARY_DIR}/review-tour-publication-${course}.png")
     set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
 endforeach()
+
+
+bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
+bpr_enable_hardening(test_scoped_writing_agent)
+bpr_enable_warnings(test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_review_tour_writing
+    COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_review_tour_writing PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")

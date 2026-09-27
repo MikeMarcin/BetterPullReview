@@ -135,6 +135,33 @@ int main()
 {
 	test_refused_subscription_has_no_effect_authority();
 	test_reentrant_preference_fanout();
+	{
+		state                                   firstState, otherState;
+		fake_settings_store                     port{ firstState, { } }, otherPort{ otherState, { } };
+		application::manual_executor            effects, decision;
+		application::workbench_preferences_host owner{ port, effects, decision }, other{ otherPort, effects, decision, core::bpr_profile_id{ 2 } };
+		owner.restore();
+		other.restore();
+		effects.drain();
+		decision.drain();
+		expect(owner.apply_writing_hook(core::writing_hook::problem, "keep precise"), "hook override admitted");
+		expect(owner.apply_writing_hook(core::writing_hook::solution, "keep qualified"), "pending hook edits coalesce");
+		effects.drain();
+		decision.drain();
+		effects.drain();
+		decision.drain();
+		expect(firstState.Preferences.WritingHooks.Revision == 3 && firstState.Preferences.WritingHooks.Overrides[0] == "keep precise" && firstState.Preferences.WritingHooks.Overrides[1] == "keep qualified", "distinct hook overrides survive coalesced store");
+		expect(otherState.Preferences.WritingHooks == core::writing_hook_settings{ }, "sibling profile unaffected");
+		expect(!owner.apply_writing_hook(core::writing_hook::outline, std::string(8193, 'x')) && !owner.apply_writing_hook(core::writing_hook::comment, std::string(1, static_cast<char>(0xff))), "oversize and malformed instructions refused");
+		expect(owner.apply_writing_hook(core::writing_hook::problem, { }), "reset selected hook");
+		effects.drain();
+		decision.drain();
+		expect(firstState.Preferences.WritingHooks.Overrides[0].empty() && firstState.Preferences.WritingHooks.Overrides[1] == "keep qualified", "reset preserves other hooks");
+		owner.shutdown();
+		other.shutdown();
+		expect(owner.is_quiescent() && other.is_quiescent(), "settings drained");
+	}
+
 	state                                   durable;
 	fake_settings_store                     preferencesPort{ durable, { } }, firstPort{ durable, core::bpr_window_id{ 7 } }, secondPort{ durable, core::bpr_window_id{ 9 } };
 	application::manual_executor            effects, decision;
