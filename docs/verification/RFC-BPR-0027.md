@@ -449,7 +449,7 @@ Source corrections are `92c983615d1ac23943a34f29327c2a78412c1c4c`,
 `189d24f937d16cfedba7990aff3837bcc1a2c5b0`, and
 `7ab119933439878d858100410083080ab4d1ea7b`. The full RFC is **not accepted**:
 three attended judgments remain pending. The reconciled nine-criterion map is
-[BPR-0601](../issues/50-blocked/BPR-0601-close-rfc-0027.md).
+[BPR-0601](../issues/20-ready/BPR-0601-close-rfc-0027.md).
 
 ### Corrections and direct failure evidence
 
