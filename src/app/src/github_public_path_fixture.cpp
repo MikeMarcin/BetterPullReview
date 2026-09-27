@@ -546,10 +546,13 @@ namespace bpr::app::detail {
 				document = QJsonDocument{ pull };
 			} else if (aOperation == read_operation::list_reviews) {
 				auto review = document.array().first().toObject();
-				review.insert("body", "## A hand-authored route\r\n\r\n1. [same](" + prefix + "#discussion_r71002)\r\n1. [same](" + prefix + "#discussion_r71001)\r\n");
+				review.insert("body", "## A hand-authored route\r\n\r\n1. [same](" + prefix + "#discussion_r71002)\r\n1. [same](" + prefix + "#discussion_r71001)\r\n1. [Historical](" + prefix + "#issuecomment-71003)\r\n");
 				review.insert("html_url", prefix + "#pullrequestreview-4001");
 				review.insert("updated_at", "2026-09-26T00:00:00Z");
 				document = QJsonDocument{ QJsonArray{ review } };
+			} else if (aOperation == read_operation::list_issue_comments) {
+				const auto body = QStringLiteral("https://github.com/octo-org/review-repository/blob/1111111111111111111111111111111111111111/entirely-unchanged.md?plain=1#L1-L2\r\n\r\nHistorical explanation remains visible.");
+				document        = QJsonDocument{ QJsonArray{ QJsonObject{ { "id", 71003 }, { "node_id", "IC_tour_history" }, { "body", body }, { "html_url", prefix + "#issuecomment-71003" }, { "user", QJsonObject{ { "node_id", "U_fixture_viewer" }, { "login", "octo-reviewer" } } } } } };
 			} else if (aOperation == read_operation::list_review_threads) {
 				auto body    = document.object();
 				auto data    = body["data"].toObject();
@@ -567,6 +570,24 @@ namespace bpr::app::detail {
 					comment.insert("updatedAt", "2026-09-26T00:00:00Z");
 					comment.insert("commit", QJsonObject{ { "oid", QString::fromUtf8(aDescriptor.HeadOneOid.data(), static_cast<qsizetype>(aDescriptor.HeadOneOid.size())) } });
 					comment.insert("originalCommit", comment["commit"]);
+					comment.insert("line", 4);
+					comment.insert("originalLine", 4);
+					comment.insert("startLine", 2);
+					comment.insert("originalStartLine", 2);
+					thread.insert("line", 4);
+					thread.insert("originalLine", 4);
+					if (i == 0) {
+						const auto permalink = "https://github.com/octo-org/review-repository/blob/" + QString::fromUtf8(aDescriptor.HeadOneOid.data(), static_cast<qsizetype>(aDescriptor.HeadOneOid.size())) + "/review.cpp#L2-L4";
+						comment.insert("body", permalink + "\r\n\r\n" + comment["body"].toString());
+						thread.insert("subjectType", "FILE");
+						thread.insert("line", QJsonValue::Null);
+						thread.insert("originalLine", QJsonValue::Null);
+						comment.insert("line", QJsonValue::Null);
+						comment.insert("originalLine", QJsonValue::Null);
+						comment.insert("startLine", QJsonValue::Null);
+						comment.insert("originalStartLine", QJsonValue::Null);
+					}
+
 					comment.insert("pullRequestReview", QJsonObject{ { "id", "PRR_fixture_1" } });
 					comment.insert("author", QJsonObject{ { "id", "U_fixture_viewer" }, { "login", "octo-reviewer" } });
 					comments.insert("nodes", QJsonArray{ comment });

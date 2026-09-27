@@ -39,18 +39,26 @@ namespace {
 		auto              read = adapters::sqlite::detail::tour_codec{ .Input = legacy.Bytes, .Reading = true };
 		core::review_tour restored;
 		read.tour(restored);
-		expect(legacy.Good && read.Good && read.Input.empty() && restored == original, "v1 draft payload remains exactly readable by v2");
+		expect(legacy.Good && read.Good && read.Input.empty() && restored == original, "v1 draft payload remains exactly readable by v3");
 		original.Remote          = core::tour_remote_binding{ .DatabaseId = 18446744073709551615ULL, .Entity = "node", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#pullrequestreview-18446744073709551615", .Own = true };
 		original.IndexBaseline   = core::tour_field_baseline{ .Raw = "index\r\n", .RemoteEntity = "node" };
 		original.Stops[0].Remote = original.Remote;
 		original.ImportNotice    = "third party";
 		original.ReadOnly        = true;
+		adapters::sqlite::detail::tour_codec version2;
+		version2.Version = 2;
+		version2.tour(original);
+		auto              read2 = adapters::sqlite::detail::tour_codec{ .Input = version2.Bytes, .Reading = true };
+		core::review_tour restored2;
+		read2.tour(restored2);
+		expect(read2.Good && read2.Input.empty() && restored2 == original, "v2 remote draft remains exactly readable by v3");
+		original.Stops[0].Destination = core::destination_of(*original.Stops[0].Original);
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };
 		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);
-		expect(store->save(original, 0, { }).has_value(), "v2 remote provenance saved");
+		expect(store->save(original, 0, { }).has_value(), "v3 remote source/provenance saved");
 		store.reset();
 		store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);
-		expect(store->load(original.Owner, original.Id, { }).value() == original, "v2 provenance baselines and readonly state survive real reopen");
+		expect(store->load(original.Owner, original.Id, { }).value() == original, "v3 source provenance baselines and readonly state survive real reopen");
 	}
 	void storage()
 	{

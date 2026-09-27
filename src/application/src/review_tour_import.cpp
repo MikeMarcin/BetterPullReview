@@ -27,8 +27,21 @@ namespace bpr::application {
 					 .ValidDestination = valid_destination(aObservation, aKind, aPrefix),
 					 .Root             = aRoot };
 		}
+		auto native_destination(const github_review_comment_record& aComment) -> std::optional<core::tour_code_destination>
+		{
+			const auto& observed = aComment.Observation;
+			const bool  original = !observed.OriginalCommit.empty() && aComment.OriginalLine;
+			const auto  commit   = core::parse_git_commit_oid(original ? observed.OriginalCommit : observed.Commit);
+			const auto  last     = original ? aComment.OriginalLine : aComment.Line;
+			const auto  first    = original ? observed.OriginalStartLine : observed.StartLine;
+			if (!commit || !last || (!original && aComment.Outdated)) {
+				return { };
+			}
+			auto destination = core::tour_code_destination{ .Commit = *commit, .Path = aComment.Path, .FirstLine = first.value_or(*last) - 1U, .LastLine = *last - 1U };
+			return core::valid(destination) ? std::optional{ destination } : std::nullopt;
+		}
 	}
-	auto observe_review_tours(const core::review_tour& aSeed, const github_pull_request_snapshot& aSnapshot, std::string_view aHostname) -> std::vector<core::tour_import_candidate>
+	auto observe_review_tours(const core::review_tour& aSeed, const github_pull_request_snapshot& aSnapshot, std::string_view aHostname, const std::function<std::optional<core::tour_code_destination>(std::string_view)>& aPinnedSource) -> std::vector<core::tour_import_candidate>
 	{
 		if (!valid_github_canonical_hostname(aHostname) || aSeed.Owner.Host != aSnapshot.Host || aSeed.Owner.Account != aSnapshot.Account
 			|| aSeed.Owner.Repository != aSnapshot.Repository.Repository || aSeed.Owner.PullRequest != aSnapshot.PullRequest.PullRequest) {
@@ -54,6 +67,9 @@ namespace bpr::application {
 				}
 				auto value             = object(comment.Observation, thread.Subject == github_review_thread_subject::file ? core::tour_remote_kind::file_comment : core::tour_remote_kind::line_comment, comment.Comment.value(), comment.Author, aSnapshot, prefix, false);
 				value.Binding.Resolved = thread.Resolved;
+				if (thread.Subject == github_review_thread_subject::line && thread.DiffSide == github_diff_side::right) {
+					value.Source = native_destination(comment);
+				}
 				value.Binding.Outdated = thread.Outdated || comment.Outdated;
 				objects.push_back(std::move(value));
 			}
@@ -63,6 +79,13 @@ namespace bpr::application {
 			auto        value      = object(comment.Observation, core::tour_remote_kind::line_comment, comment.Comment.value(), comment.Author, aSnapshot, prefix, false);
 			value.Binding.Outdated = comment.Outdated;
 			objects.push_back(std::move(value));
+		}
+		for (auto& value : objects) {
+			if (aPinnedSource && value.Available && (value.Binding.Kind == core::tour_remote_kind::file_comment || value.Binding.Kind == core::tour_remote_kind::conversation_comment)) {
+				if (const auto pinned = aPinnedSource(value.Raw)) {
+					value.Source = pinned;
+				}
+			}
 		}
 		// Failed pagination never reaches an accepted snapshot. Missing raw facts in
 		// older recordings or unavailable collections cannot imply editable completeness.

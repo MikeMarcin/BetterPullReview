@@ -12,6 +12,7 @@
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
+#include "review_comment_permalink.hpp"
 #include "terminal_diagnostics.hpp"
 #include <QCryptographicHash>
 
@@ -8652,7 +8653,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::tour_owner> TourOwner;
 		core::git_commit_oid            TourHead;
 		core::git_commit_oid            TourAttentionHead;
-		std::optional<core::tour_source_range> PendingTourSource;
+		std::optional<core::tour_code_destination> PendingTourSource;
 		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
@@ -8695,7 +8696,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto& p      = *SelectedDiffPublication;
-			const bool  left   = source.First.Side == core::diff_side::left;
+			const bool  left   = source.Side == core::diff_side::left;
 			const auto& commit = left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit;
 			const auto& blob   = left ? p.Key.LeftBlob : p.Key.RightBlob;
 			const auto& path   = left ? p.LeftPath : p.RightPath;
@@ -8705,15 +8706,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->tour_editor()->show_notice(QStringLiteral("The original source revision is not in this comparison. The stop and its pinned destination are retained; choose its revision to inspect it."));
 				return;
 			}
-			auto first = source.First;
-			auto last  = source.Last;
+			auto first = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.FirstLine };
+			auto last  = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.LastLine };
 			// Restart changes runtime scope. Reuse lines only after the immutable
 			// commit, blob, path and side match the newly admitted material.
 			first.Comparison = last.Comparison = core::comparison_digest(p.Key);
 			const bool placed                  = surface->restore_source_range(first, last);
+			if (placed) {
+				auto observed = source;
+				observed.Blob = blob;
+				TourHost->observe_source(std::move(observed));
+			}
 			Window->tour_editor()->show_notice(placed ? QStringLiteral("Tour source selected. Visiting a stop does not mark code reviewed.") : QStringLiteral("Source lines unavailable. The explanation and original destination are retained."));
 		}
-		void navigate_tour_source(const std::optional<core::tour_source_range>& aSource)
+		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource)
 		{
 			Window->open_review_tour();
 			Window->tour_editor()->show_stops();
@@ -8794,7 +8800,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																			   return;
 																		   }
-																		   Window->tour_editor()->present(aProjection);
+																		   auto projected = aProjection;
+																		   if (projected.Draft && WindowRead->accepted_snapshot()) {
+																			   const auto& snapshot = *WindowRead->accepted_snapshot();
+																			   if (const auto* profile = find_profile(snapshot.Profile)) {
+																				   const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+																				   for (auto& destination : projected.Destinations) {
+																					   const auto stop = std::ranges::find(projected.Draft->Stops, destination.Stop, &core::tour_stop::Id);
+																					   if (stop == projected.Draft->Stops.end()) {
+																						   continue;
+																					   }
+																					   auto source = stop->Destination;
+																					   if (stop->Original) {
+																						   source = core::destination_of(*stop->Original);
+																					   }
+																					   if (source) {
+																						   destination.SourceLink = adapters::github::detail::compile_tour_permalink(scope, *source).value_or(std::string{ });
+																					   }
+																				   }
+																			   }
+																		   }
+																		   Window->tour_editor()->present(projected);
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
@@ -8814,7 +8840,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
-			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname()));
+			const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname(), [scope, seed](std::string_view aBody) {
+				auto source = adapters::github::detail::parse_tour_permalink(scope, aBody);
+				if (source && source->Commit == seed.Base) {
+					source->Side = core::diff_side::left;
+				}
+				return source;
+			}));
 		}
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
@@ -8829,10 +8862,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
 			case qt::tour_editor_action::navigate_stop:  {
 				const auto* stop = Window->tour_editor()->selected_stop();
-				navigate_tour_source(stop ? (stop->Mapped ? stop->Mapped : stop->Original) : std::nullopt);
+				std::optional<core::tour_code_destination> source;
+				if (stop) {
+					source = stop->Destination;
+					if (stop->Mapped || stop->Original) {
+						source = core::destination_of(stop->Mapped ? *stop->Mapped : *stop->Original);
+					}
+				}
+				navigate_tour_source(source);
 				return;
 			}
-			case qt::tour_editor_action::navigate_related: navigate_tour_source(Window->tour_editor()->selected_related()); return;
+			case qt::tour_editor_action::navigate_related: {
+				const auto related = Window->tour_editor()->selected_related();
+				navigate_tour_source(related ? std::optional{ core::destination_of(*related) } : std::nullopt);
+				return;
+			}
 			case qt::tour_editor_action::add_stop:
 			case qt::tour_editor_action::insert_before:
 			case qt::tour_editor_action::add_related:      {

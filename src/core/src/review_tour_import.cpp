@@ -40,8 +40,8 @@ namespace bpr::core {
 					const auto mapping = map_tour_stop(object->Raw);
 					stop.Baseline      = baseline(object->Raw, object->Binding.Entity, object->Version, mapping.Narrative);
 					stop.Body          = mapping.Narrative ? object->Raw.substr(mapping.Narrative->Begin, mapping.Narrative->End - mapping.Narrative->Begin) : object->Raw;
-					stop.Original      = object->Source;
-					stop.Mapping       = object->Source ? tour_mapping::exact_original : tour_mapping::unavailable;
+					stop.Destination   = object->Source;
+					stop.Mapping       = tour_mapping::unavailable;
 					if (!mapping.Narrative) {
 						aDraft.ImportNotice += "Custom stop layout is retained as a whole comment. ";
 					}

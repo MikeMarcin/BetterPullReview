@@ -33,7 +33,7 @@ namespace bpr::core {
 		}
 		auto stop_bytes(const tour_stop& aStop) noexcept -> std::size_t
 		{
-			auto size = 64U + aStop.Title.size() + aStop.Body.size() + baseline_bytes(aStop.Baseline) + remote_bytes(aStop.Remote);
+			auto size = (aStop.Destination ? 192U + aStop.Destination->Path.size() : 1U) + 64U + aStop.Title.size() + aStop.Body.size() + baseline_bytes(aStop.Baseline) + remote_bytes(aStop.Remote);
 			if (aStop.Original) {
 				size += source_bytes(*aStop.Original);
 			}
@@ -50,7 +50,7 @@ namespace bpr::core {
 			if (!field_ok(aStop.Title) || !field_ok(aStop.Body) || !baseline_ok(aStop.Baseline) || !remote_ok(aStop.Remote) || aStop.Related.size() > maximum_tour_related_sources) {
 				return tour_refusal::bounds;
 			}
-			if ((aStop.Original && !valid(*aStop.Original)) || (aStop.Mapped && !valid(*aStop.Mapped))
+			if ((aStop.Destination && !valid(*aStop.Destination)) || (aStop.Original && !valid(*aStop.Original)) || (aStop.Mapped && !valid(*aStop.Mapped))
 				|| !std::ranges::all_of(aStop.Related, [](const auto& aSource) { return valid(aSource); })) {
 				return tour_refusal::invalid_source;
 			}
@@ -148,7 +148,7 @@ namespace bpr::core {
 			aSelected        = found->Id;
 			switch (aCommand.Kind) {
 			case tour_command_kind::edit_stop:
-				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || (found->Remote && !found->Remote->Own)) {
+				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || aCommand.Value.Destination != found->Destination || (found->Remote && !found->Remote->Own)) {
 					return tour_refusal::identity;
 				}
 				*found             = aCommand.Value;
@@ -229,6 +229,35 @@ namespace bpr::core {
 			}
 		}
 	}
+	auto valid(const tour_code_destination& aSource) noexcept -> bool
+	{
+		if (!aSource.Commit.valid() || (aSource.Blob && (!aSource.Blob->valid() || aSource.Blob->algorithm() != aSource.Commit.algorithm()))
+			|| aSource.Path.empty() || aSource.Path.size() > maximum_tour_path_bytes || aSource.Path.front() == '/'
+			|| aSource.Side > diff_side::right || aSource.LastLine < aSource.FirstLine || aSource.LastLine == std::numeric_limits<std::uint32_t>::max()) {
+			return false;
+		}
+		if (std::ranges::any_of(aSource.Path, [](unsigned char aByte) { return aByte < 0x20 || aByte == 0x7f || aByte == '\\'; })) {
+			return false;
+		}
+		std::size_t at = 0;
+		while (at <= aSource.Path.size()) {
+			const auto end     = aSource.Path.find('/', at);
+			const auto segment = std::string_view{ aSource.Path }.substr(at, end == std::string::npos ? end : end - at);
+			if (segment.empty() || segment == "." || segment == "..") {
+				return false;
+			}
+			if (end == std::string::npos) {
+				break;
+			}
+			at = end + 1;
+		}
+		return true;
+	}
+	auto destination_of(const tour_source_range& aSource) -> tour_code_destination
+	{
+		return { aSource.Commit, aSource.Blob, aSource.Path, aSource.First.Side, aSource.First.Line, aSource.Last.Line };
+	}
+
 	auto valid(const tour_owner& aOwner) noexcept -> bool
 	{
 		return aOwner.Profile.value() && aOwner.Host.value() && aOwner.HostAuthority.valid() && aOwner.Account.value() && aOwner.Repository.value() && aOwner.PullRequest.value();

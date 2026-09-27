@@ -136,10 +136,11 @@ auto main(int argc, char** argv) -> int
 		expect(editor.problem_editor()->toPlainText().isEmpty() && editor.solution_editor()->toPlainText().isEmpty(), "new draft is empty, coaching is not source");
 
 		if (argc > 1 && std::string_view{ argv[1] } == "--cold") {
+			const auto remoteBefore = access::review_mutation_evidence(*application);
 			auto* choices = editor.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
 			wait([&] { return choices && choices->count() == 1; }, "published root discovered through real provider snapshot");
 			editor.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
-			expect(editor.shown().Draft->Stops.size() == 2 && !editor.shown().Draft->ReadOnly, "cold profile reconstructs editable own route");
+			expect(editor.shown().Draft->Stops.size() == 3 && !editor.shown().Draft->ReadOnly, "cold profile reconstructs editable own route");
 			expect(editor.shown().Draft->Stops[0].Remote->DatabaseId == 71002 && editor.shown().Draft->Stops[1].Remote->DatabaseId == 71001, "website list order overrides returned collection order");
 			expect(editor.shown().Draft->Problem == "\r\n**Keep raw** problem.\r\n\r\n" && editor.shown().Draft->Solution == "\r\nSmall exact solution.\r\n\r\n", "ordinary description sections preserve raw CRLF bytes");
 			auto* description = window.overview_page()->body_view();
@@ -150,6 +151,23 @@ auto main(int argc, char** argv) -> int
 			description->source_view()->setTextCursor(selection);
 			editor.findChild<QPushButton*>(QStringLiteral("tourSolutionMap"))->click();
 			expect(editor.shown().Draft->Solution == "Preface α\r\n" && editor.shown().Draft->SolutionBaseline->SourceSpan == std::optional{ std::pair<std::size_t, std::size_t>{ 0, 12 } }, "manual native source selection maps Unicode and CRLF back to exact UTF-8 bytes");
+			expect(editor.shown().Draft->Stops[0].Destination && !editor.shown().Draft->Stops[0].Original && editor.shown().Draft->Stops[1].Destination, "native and file-permalink imported destinations retain source without a fabricated comparison");
+			editor.show_stops();
+			editor.outline()->setCurrentRow(0);
+			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			wait([&] {const auto* surface=window.comparison_surface();return surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("secondary.cpp") && surface->selected_source_range() && surface->selected_source_range()->first.Line==1 && surface->selected_source_range()->second.Line==3; }, "native imported multiline stop navigates exact admitted commit/path/range");
+			editor.outline()->setCurrentRow(1);
+			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			wait([&] {const auto* surface=window.comparison_surface();return surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp") && surface->selected_source_range() && surface->selected_source_range()->first.Line==1 && surface->selected_source_range()->second.Line==3; }, "file-level fallback range navigates canonical pinned source");
+			editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
+			expect(editor.preview()->original_body().find("not yet qualified") != std::string::npos, "real preview never treats loaded code as pending-operation support");
+			expect(editor.preview()->original_body().find("entirely-unchanged.md?plain=1#L1-L2") != std::string::npos, "unavailable historical source keeps a visible canonical code link");
+			const auto historical = editor.shown().Draft->Stops[2];
+			editor.show_stops();
+			editor.outline()->setCurrentRow(2);
+			editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			expect(*editor.selected_stop() == historical && editor.findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().contains(QStringLiteral("unavailable")), "unavailable historical/unchanged source keeps its explanation without selecting a nearby changed line");
+			editor.show_problem();
 			const auto baseline = *editor.shown().Draft->ProblemBaseline;
 			editor.problem_editor()->selectAll();
 			editor.problem_editor()->insertPlainText(QStringLiteral("Revised problem."));
@@ -160,7 +178,17 @@ auto main(int argc, char** argv) -> int
 			expect(edited && *edited == baseline.Raw.substr(0, span.first) + "Revised problem." + baseline.Raw.substr(span.second), "only explicitly mapped problem bytes change; testing prose and backlink remain exact");
 			const auto accepted = *editor.shown().Draft;
 			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0 && access::review_mutation_evidence(*application).Submissions == 0, "cold import and editing have no inference or remote writes");
+			const auto remoteAfter = access::review_mutation_evidence(*application);
+			expect(remoteAfter.StoredComments == remoteBefore.StoredComments && remoteAfter.Replies == remoteBefore.Replies && remoteAfter.Resolutions == remoteBefore.Resolutions, "cold navigation creates no remote comments replies or resolutions");
 			shutdown(*application);
+			{
+				auto ledger = adapters::sqlite::make_review_ledger_store({ .StorageRoot = *dataRoot, .Host = "github.com", .Account = "1001", .Repository = "octo-org/review-repository", .PullRequest = 17 });
+				expect(ledger.has_value(), "cold route ledger available after real shutdown");
+				for (const auto* path : { "review.cpp", "secondary.cpp" }) {
+					const auto receipt = (*ledger)->load(core::file_identity_of(path));
+					expect(receipt && !*receipt, "cold imported route creates no viewed-file receipt");
+				}
+			}
 			application.reset();
 			application = make();
 			open(*application);

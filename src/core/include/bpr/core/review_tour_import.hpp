@@ -8,7 +8,7 @@ namespace bpr::core {
 		tour_remote_binding              Binding;
 		std::string                      Raw;
 		std::string                      Version;
-		std::optional<tour_source_range> Source;
+		std::optional<tour_code_destination> Source;
 		bool                             Available        = true;
 		bool                             ValidDestination = true;
 		bool                             Root             = false;

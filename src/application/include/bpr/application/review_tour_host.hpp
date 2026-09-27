@@ -19,6 +19,7 @@ namespace bpr::application {
 		void start();
 		void observe_imports(std::vector<core::tour_import_candidate> aCandidates);
 		void import_selected(std::size_t aIndex);
+		void observe_source(core::tour_code_destination aSource);
 		void dispatch(const core::tour_command& aCommand);
 		void undo();
 		void redo();

@@ -21,6 +21,19 @@ int main()
 	using namespace bpr;
 	using state  = core::off_hunk_creation_capability;
 	using source = application::review_publication_evidence_source;
+	{
+		application::review_publication_capability_cache operations;
+		const auto                                       exact = application::review_publication_capability_evidence{ .State = state::supported, .Source = source::recorded_contract, .ContractDigest = { 1 }, .ObservedAt = 100, .ExpiresAt = 200 };
+		expect(operations.record(key(), exact, 100), "standalone exact source observed");
+		for (auto operation : { application::review_publication_operation::create_pending_line_batch, application::review_publication_operation::create_pending_off_hunk_batch, application::review_publication_operation::add_pending_file_thread, application::review_publication_operation::create_standalone_file_comment, application::review_publication_operation::create_tour_conversation_comment }) {
+			auto selected      = key();
+			selected.Operation = operation;
+			expect(!operations.lookup(selected, 100), "standalone evidence cannot qualify a different tour operation");
+			expect(operations.record(selected, exact, 100) && operations.lookup(selected, 100)->State == state::supported, "only exact operation evidence qualifies");
+			selected.AnchorDigest[0] = 2;
+			expect(!operations.lookup(selected, 100), "another source range cannot borrow evidence");
+		}
+	}
 	application::review_publication_capability_cache cache;
 	auto                                             evidence = application::review_publication_capability_evidence{ .State = state::unsupported, .Source = source::observed_definitive_unsupported, .ContractDigest = { 1 }, .ObservedAt = 100, .ExpiresAt = 400 };
 	expect(!cache.lookup(key(), 100), "empty is unknown");

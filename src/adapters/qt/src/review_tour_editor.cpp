@@ -203,8 +203,26 @@ namespace bpr::qt {
 			body += "\n### " + std::to_string(i + 1) + " — " + stop.Title + "\n\n" + stop.Body + "\n\n";
 			if (stop.Original) {
 				body += "Source: " + stop.Original->Path + " · " + (stop.Original->First.Side == core::diff_side::left ? "base" : "head") + " lines " + std::to_string(stop.Original->First.Line + 1U) + "–" + std::to_string(stop.Original->Last.Line + 1U) + "\n\n";
-			} else {
+			} else if (!stop.Destination) {
 				body += "Source unavailable.\n\n";
+			}
+			if (stop.Destination && !stop.Original) {
+				const auto& source = *stop.Destination;
+				body += "Pinned source: " + source.Path + " · " + std::string{ core::canonical_hex(source.Commit).view() } + " · lines " + std::to_string(source.FirstLine + 1U) + "–" + std::to_string(source.LastLine + 1U) + "\n\n";
+			}
+			const auto plan = std::ranges::find(Shown.Destinations, stop.Id, &application::tour_stop_destination::Stop);
+			if (plan != Shown.Destinations.end()) {
+				if (!plan->SourceLink.empty()) {
+					body += "[Original source](" + plan->SourceLink + ")\n\n";
+				}
+				if (plan->Plan.IncompatibleBody) {
+					body += "Publication requires a native line subject for this suggestion.\n\n";
+				} else if (plan->Plan.RequiresCompatibility) {
+					body += "This destination requires an explicit compatibility publication plan. It cannot join one pending review.\n\n";
+				}
+				if (plan->Plan.NeedsQualification) {
+					body += "Publication support for this exact source and operation is not yet qualified.\n\n";
+				}
 			}
 			for (const auto& related : stop.Related) {
 				body += "Related: " + related.Path + " · lines " + std::to_string(related.First.Line + 1U) + "–" + std::to_string(related.Last.Line + 1U) + "\n\n";
@@ -453,6 +471,10 @@ namespace bpr::qt {
 		}
 		const auto label = [](const core::tour_source_range& aSource) { return QStringLiteral("%1 · %2:%3–%4 · %5").arg(QString::fromStdString(aSource.Path), aSource.First.Side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("head")).arg(aSource.First.Line + 1U).arg(aSource.Last.Line + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(aSource.Commit).view() }).left(12)); };
 		Source->setText(stop->Original ? label(*stop->Original) : tr("Source unavailable — your text remains editable."));
+		if (!stop->Original && stop->Destination) {
+			const auto& destination = *stop->Destination;
+			Source->setText(QStringLiteral("%1 · %2–%3 · %4").arg(QString::fromStdString(destination.Path)).arg(destination.FirstLine + 1U).arg(destination.LastLine + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(destination.Commit).view() }).left(12)));
+		}
 		if (stop->Mapping != core::tour_mapping::exact_original && stop->Mapping != core::tour_mapping::unchanged_material) {
 			Source->setText(Source->text() + tr("\nSource needs attention; original destination is retained."));
 		}

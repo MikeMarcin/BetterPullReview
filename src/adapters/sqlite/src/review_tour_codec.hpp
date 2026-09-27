@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 2;
+		std::uint8_t                  Version = 3;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -173,6 +173,16 @@ namespace bpr::adapters::sqlite::detail {
 			number(aValue.Resolved);
 			number(aValue.Outdated);
 		}
+		void destination(core::tour_code_destination& aValue)
+		{
+			oid(aValue.Commit);
+			optional(aValue.Blob, [this](auto& aBlob) { oid(aBlob); });
+			text(aValue.Path, core::maximum_tour_path_bytes);
+			enumeration(aValue.Side);
+			number(aValue.FirstLine);
+			number(aValue.LastLine);
+		}
+
 		void stop(core::tour_stop& aStop)
 		{
 			id(aStop.Id);
@@ -187,11 +197,14 @@ namespace bpr::adapters::sqlite::detail {
 			if (Version >= 2) {
 				optional(aStop.Remote, [&](auto& aValue) { remote(aValue); });
 			}
+			if (Version >= 3) {
+				optional(aStop.Destination, [this](auto& aValue) { destination(aValue); });
+			}
 		}
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2) {
+			if (Version != 1 && Version != 2 && Version != 3) {
 				Good = false;
 				return;
 			}

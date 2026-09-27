@@ -43,6 +43,21 @@ namespace bpr::core {
 		auto                        operator==(const tour_source_range&) const -> bool = default;
 	};
 
+	/// A remote source address has no fabricated retained-comparison identity.
+	/// Navigation binds it to an actual admitted blob before selecting source lines.
+	struct tour_code_destination
+	{
+		git_commit_oid              Commit;
+		std::optional<git_blob_oid> Blob;
+		std::string                 Path;
+		diff_side                   Side                                                   = diff_side::right;
+		std::uint32_t               FirstLine                                              = 0;
+		std::uint32_t               LastLine                                               = 0;
+		auto                        operator==(const tour_code_destination&) const -> bool = default;
+	};
+	[[nodiscard]] auto valid(const tour_code_destination& aSource) noexcept -> bool;
+	[[nodiscard]] auto destination_of(const tour_source_range& aSource) -> tour_code_destination;
+
 	enum class tour_mapping : std::uint8_t { exact_original,
 											 unchanged_material,
 											 changed_material,
@@ -98,6 +113,7 @@ namespace bpr::core {
 		std::optional<tour_field_baseline> Baseline;
 		std::optional<tour_remote_binding> Remote;
 		auto                               operator==(const tour_stop&) const -> bool = default;
+		std::optional<tour_code_destination> Destination;
 	};
 
 	/// \brief A private draft; vector order is conceptual route order, never file or title order.

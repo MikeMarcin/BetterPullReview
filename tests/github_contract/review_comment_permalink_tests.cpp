@@ -660,8 +660,36 @@ namespace {
 
 } // namespace
 
+void tour_ranges()
+{
+	using namespace bpr;
+	using namespace bpr::adapters::github::detail;
+	const auto scope  = tour_permalink_scope{ "github.com", { "octo-org", "review-repository" } };
+	auto       source = core::tour_code_destination{ .Commit = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .Path = "old/Unicode α #%.md", .Side = core::diff_side::left, .FirstLine = 1, .LastLine = 3 };
+	const auto link   = compile_tour_permalink(scope, source);
+	expect(link && link->ends_with("old/Unicode%20%CE%B1%20%23%25.md?plain=1#L2-L4"), "range/historical/plain-view shares canonical RFC0022 path escaping");
+	const auto parsed = parse_tour_permalink(scope, *link + "\r\n\r\n### Author's tour · 1 — Why\r\n");
+	expect(parsed && parsed->Commit == source.Commit && parsed->Path == source.Path && parsed->FirstLine == 1 && parsed->LastLine == 3, "cold body retains historical range without retained comparison fabrication");
+	auto foreign            = scope;
+	foreign.Repository.Name = "other";
+	expect(!parse_tour_permalink(foreign, *link + "\n\nbody"), "cross-repository source rejected");
+	auto altered = *link;
+	altered.replace(altered.find("#L2-L4"), 7, "#L4-L2");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "reversed range refused");
+	altered = *link;
+	altered.replace(altered.find("?plain=1"), 8, "");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "Markdown rendered page is not canonical source");
+	altered = *link;
+	altered.replace(altered.find("1111111111111111111111111111111111111111"), 40, "main");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "branch links never stand for immutable source");
+	source.Path      = "entirely-unchanged.cpp";
+	source.FirstLine = source.LastLine = 0;
+	expect(compile_tour_permalink(scope, source)->ends_with("#L1"), "unchanged and single-line destinations retain exact source");
+}
+
 auto main() -> int
 {
+	tour_ranges();
 	test_session_negotiation_and_cache();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();

@@ -799,6 +799,14 @@ Markdown renderer](https://github.com/github/markup/blob/master/lib/github/marku
 observed on 2026-09-26. Provider publication, recovery and read normalization
 connect this codec in the subsequent authored milestones.
 
+The review-tour extension (BPR-0998) calls the same canonical path/prefix builder
+through a separate read-only codec. It admits full commit-pinned single lines or
+inclusive `#Lfirst-Llast` ranges, LF/CRLF first-line separation and historical
+source. The old single-line publication parser retains its existing contract.
+Tour parsing has no retained blob or comparison authority: the host binds the
+address to exact admitted material before selecting source lines. See
+[review tours](review-tours.md#exact-source-and-compatibility).
+
 ### RFC-0022 logical journal (schema 4)
 
 Schema 4 adds `logical_publication` transactionally after exact validation of
