@@ -909,3 +909,12 @@ rejects generic validation, spam, rate, malformed and other-status answers.
 synthetic fixtures prove classifier mechanics, not that either server emits that
 answer. BPR-0573 must record and approve the exact live contract before production
 fallback can be enabled. Hostname, version and status alone provide no evidence.
+
+The write evidence cache is separate from the existing read/schema cache. It has
+128 entries and a maximum 300-second observed lifetime. Profile/revision, host,
+server contract, complete actor, repository database/node identity, operation,
+API/classifier revision and freshness generation are exact key components.
+Expiry and a backward monotonic observation yield unknown. Only verified native
+success, definitive rejection, or an explicitly admitted recorded contract can
+supply an evidence entry. Session ownership and production wiring are completed
+with BPR-0568; the cache itself is not mutation or recovery authority.
