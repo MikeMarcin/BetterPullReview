@@ -46,7 +46,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-08 | [BPR-0568](../../issues/60-done/BPR-0568-native-fallback-negotiation.md) |
 | PACK-BPR-0022-09 | [BPR-0569](../../issues/60-done/BPR-0569-fallback-normalization-thread-map.md) |
 | PACK-BPR-0022-10 | [BPR-0570](../../issues/60-done/BPR-0570-qt-comment-anywhere-ux.md) |
-| PACK-BPR-0022-11 | [BPR-0571](../../issues/10-backlog/BPR-0571-compose-public-path.md) |
+| PACK-BPR-0022-11 | [BPR-0571](../../issues/20-ready/BPR-0571-compose-public-path.md) |
 | PACK-BPR-0022-12 | [BPR-0572](../../issues/10-backlog/BPR-0572-automated-security-recovery-verification.md) |
 | PACK-BPR-0022-13 | [BPR-0573](../../issues/10-backlog/BPR-0573-designated-live-native-fallback-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0574](../../issues/10-backlog/BPR-0574-documentation-and-simplification.md) |
