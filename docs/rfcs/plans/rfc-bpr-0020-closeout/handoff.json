@@ -1,0 +1,97 @@
+{
+  "schema": "bpr.rfc0020.handoff.v1",
+  "run_id": "rfc0020-closeout-20260926",
+  "segment_id": "closeout-r1",
+  "mandate_revision": "r1",
+  "engineering_owner": "/root/rfc0020_closeout",
+  "repository": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "outcome": "RFC-BPR-0020 Auto-Verified; BPR-1220 Done; bounded milestone accepted",
+  "entry_revision": "a028dcee40729457066129c73edd34f1d1820bdf",
+  "tested_candidate": "c62c2fcbffa78251b7ca60f886f815e1ebf2bc5b",
+  "acceptance_commit": "3b1981c2a65980d7b7fb4194de0e5c4408e9d366",
+  "commits": [
+    "8f40abed",
+    "2723138b",
+    "c62c2fcb",
+    "3b1981c2a65980d7b7fb4194de0e5c4408e9d366"
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/issues/60-done/BPR-1220-close-rfc-0020.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1220--BPR-1220--ec1af8e44ceb.json",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0020-animated-dif-mascot-qt-composition.md",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/acceptance.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/appearance-public-test.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/binding-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/binding.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/documentation-gate.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/documentation-tests.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/evidence.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/execution-strategy.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/focused-tests.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/prepare.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/scale-tests-repaired.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/scale-tests.json",
+    "docs/rfcs/plans/rfc-bpr-0020-closeout/source.json",
+    "docs/ux/appearance-and-accessibility.md",
+    "docs/verification/RFC-BPR-0020.md",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "verification": {
+    "current_focused_tests": "12/12 pass after the bounded test repair",
+    "initial_scale_result": "0/3, stale two-tab expectation; retained as negative evidence",
+    "final_scale_result": "3/3 at 1.0/1.25/2.0, 71.85s",
+    "documentation": "DOCUMENTATION_OK before and after guarded finish",
+    "documentation_tests": "64/64",
+    "board_validation": "valid",
+    "format": "clang-format --dry-run --Werror passed on touched C++ test",
+    "whitespace": "git diff --check passed",
+    "source_review": "git diff from immutable entry contains only docs/tracker and five-line test diff; src unchanged"
+  },
+  "required_pending": [],
+  "retained_external_obligations": [
+    "BPR-0966 Windows consider/ready/acknowledge course remains Backlog; no native pass inferred.",
+    "BPR-1212 Compose redesign remains separate.",
+    "Windows/Linux System observer unsupported.",
+    "RFC0038 package/release qualification remains separate."
+  ],
+  "review_handoff": {
+    "new_session": null,
+    "server": null,
+    "pending_decisions": [],
+    "reused_records": [
+      "docs/verification/dif-verification-closeout-v001/human-verdict.json",
+      "BPR-1209 owner_handback32 exact corner Accept",
+      "BPR-0966 exact Mac workshop Accept",
+      "RFC0031 runtime/Home/d14/d15 consumed independent reviews"
+    ]
+  },
+  "command_state": {
+    "active_task_commands": [],
+    "all_sessions_completed": [
+      58446,
+      28040,
+      32603,
+      65767,
+      94594,
+      62038,
+      38081,
+      25685,
+      93851
+    ],
+    "task_owned_temporary_build_logs": "removed",
+    "build_outputs": "standard ignored build/dev outputs retained for normal reuse; no running writer",
+    "review_server": "none"
+  },
+  "ownership": "Sole assigned engineering leaf; no agents spawned; release writer after metadata-only checkpoint commit. No other writer observed; initial and post-finish tree clean.",
+  "protected_candidates": "Historical art, provenance and attended packets unchanged; no newly protected candidate.",
+  "binding_note": "Entry binding retained. Final binding refresh records only closeout execution evidence; original acceptance words and exits unchanged.",
+  "next_action": "Coordinator reports completed RFC0020. Stop; do not start RFC0021 or close later RFCs without mandate.",
+  "checkpoint_note": "This metadata-only checkpoint follows acceptance_commit; its own Git commit does not change tested inputs."
+}

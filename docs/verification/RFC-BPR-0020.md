@@ -169,3 +169,8 @@ newly frozen attended candidate, active review server or pending human decision.
 All task-owned builds and tests have completed; the engineering writer stops
 after the final checkpoint commit. RFC-0021 is the next canonical frontier;
 this assignment does not start it or close later RFCs.
+
+Guarded finish committed the accepted closeout as `3b1981c2`. The
+[final handoff](../rfcs/plans/rfc-bpr-0020-closeout/handoff.json) and
+[checked observation](../rfcs/plans/rfc-bpr-0020-closeout/check.json) bind that
+transaction to the tested candidate and record the stop boundary.
