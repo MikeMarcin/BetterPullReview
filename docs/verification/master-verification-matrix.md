@@ -55,5 +55,6 @@ matrix for semantic admission, native/file wire forms, exact unsupported
 classification, logical recovery, GitHub-truth rehydration, ordinary UX and
 mutation isolation. Automated native/fallback composition and hostile courses
 pass; designated GitHub.com publication and collaborator judgments remain
-pending. Production fallback is disabled. GHES fixtures are retained with native
+pending. Production classifier2 is restricted to the owner-approved exact PR2
+contract. GHES fixtures are retained with native
 GHES explicitly unobserved under the owner's amendment.

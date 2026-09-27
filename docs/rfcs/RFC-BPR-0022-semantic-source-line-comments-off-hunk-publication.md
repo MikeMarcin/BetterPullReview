@@ -34,6 +34,20 @@ RFC-BPR-0022 cannot become `Auto-Verified` before every listed dependency is
 a designated safe GitHub.com target and, for the legacy enterprise claim, a
 designated GHES target or an exact product-owner-approved recorded contract.
 
+## Owner amendments for milestone D
+
+Mandate r2 permits GitHub.com live validation in place of native GHES; automated
+GHES contracts remain and native GHES is unobserved. Mandate r3 accepts the
+[three exact owner decisions](../issues/_checkpoints/BPR-0575/m4-r3-amendments.md).
+AC-03 and the native-only live course use supported-path fixtures while native
+GitHub.com success remains unobserved. The narrow recorded rejection contract
+may enable prospective classifier2 only for its exact PR2/base/head/actor/profile
+and revalidated source/patch evidence. All four earlier witnesses stay GET-only.
+Actual fallback publication, GitHub-only collaborator continuity and independent
+acceptance remain pending. RFC0022 may close ahead of Deferred0020/0021 only
+after its remaining accepted requirements pass. The canonical criterion text
+below is retained with these explicit evidence-scope amendments.
+
 ## Product decision
 
 The product contract is:

@@ -72,3 +72,12 @@ Imported 2026-09-04 under an import-only direction. The 2026-09-26
 implementation mandate r1 activates RFC-BPR-0022; live dependencies and lanes
 remain authoritative. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
+
+## Mandate r3 decisions
+
+The [accepted owner amendments](../_checkpoints/BPR-0575/m4-r3-amendments.md)
+supersede the earlier pending-decision statements. AC-03 uses the verified
+supported-path fixtures with native success unobserved. The exact prospective
+classifier2 contract and the narrow0020/0021 ordering exception are approved.
+Actual fallback, collaborator continuity and independent acceptance remain open;
+this closeout card remains ineligible until BPR-0573 is accepted.

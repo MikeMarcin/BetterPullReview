@@ -424,3 +424,9 @@ accepted the revised proposal on 2026-09-12 under mandate r17; [[BPR-0743]]
 built it, and [[BPR-0750]] closed it `Auto-Verified` on 2026-09-23. It
 supersedes RFC-BPR-0003 in part, in the two respects RFC-BPR-0003's own note
 names, and RFC-BPR-0003 is not reopened.
+
+RFC-BPR-0022 mandate r3 permits its closeout ahead of Deferred RFC-BPR-0020 and
+RFC-BPR-0021 once its remaining acceptance passes. The
+[exact owner decision](../issues/_checkpoints/BPR-0575/m4-r3-amendments.md)
+changes only that ordering; native-success limitations and pending fallback,
+collaborator and independent acceptance remain explicit.

@@ -132,10 +132,10 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const review_mutation_wire_response&) const -> bool = default;
 	};
 
-	inline constexpr std::uint32_t off_hunk_classifier_revision = 1U;
+	inline constexpr std::uint32_t off_hunk_classifier_revision = 2U;
 	/// \brief A pinned complete non-creation contract selected by the adapter.
-	/// Production has no admitted contract until direct evidence establishes it.
-	/// Synthetic fixture contracts exercise the mechanism without enabling a host.
+	/// The owner-approved recorded contract is restricted to the designated PR.
+	/// Synthetic contracts remain explicit fixture inputs, never production defaults.
 	struct off_hunk_unsupported_contract
 	{
 		application::github_server_contract Server             = application::github_server_contract::github_com_2022_11_28;
@@ -146,6 +146,7 @@ namespace bpr::adapters::github::detail {
 		std::string                         Field;
 		std::string                         Code;
 		std::string                         Message;
+		bool                                RecordedDesignatedScope                                 = false;
 		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
 	};
 
@@ -422,6 +423,12 @@ namespace bpr::adapters::github::detail {
 
 	[[nodiscard]] auto valid(
 		const live_review_mutation_configuration& aConfiguration) noexcept -> bool;
+
+	/// \brief Selects the RFC-0022 r3 recorded contract only for its exact live identity.
+	/// Each classification additionally revalidates the recorded immutable patch
+	/// against the sealed source endpoint, blob, path and selected line.
+	[[nodiscard]] auto recorded_off_hunk_contract(const live_review_mutation_configuration& aConfiguration)
+		-> std::optional<off_hunk_unsupported_contract>;
 
 	/// \brief Implements the production provider protocol without naming its adapter.
 	///

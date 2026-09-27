@@ -860,9 +860,10 @@ negotiation, exact-anchor cache reuse, interruption at each durable boundary,
 legacy/logical alias protection, cancellation and lost-response recovery.
 `application_review_mutation_application_host` pins the retained-source handoff;
 `native_https_transport_fixture` pins complete 422 delivery and truncated 422
-refusal. These are synthetic evidence. Production still supplies no admitted
-unsupported-response contract; BPR-0573 must establish any such exact tuple
-before production fallback is enabled.
+refusal. These fixtures are separate from the r3 owner-approved recorded
+contract, whose exact identity/source/response bounds are owned by the
+[provider contract](github-provider-contract.md#off-hunk-publication-wire-contracts-rfc-0022-milestone-b).
+Revision2 cannot reinterpret an existing unresolved native journal.
 
 ### File subjects and selected source placement (RFC-BPR-0022)
 

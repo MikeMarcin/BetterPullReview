@@ -329,6 +329,16 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		struct recorded_unsupported_response_json
+		{
+			std::string                         Message, DocumentationUrl, Status;
+			std::vector<unsupported_error_json> Errors;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("message", &recorded_unsupported_response_json::Message, "documentation_url", &recorded_unsupported_response_json::DocumentationUrl, "status", &recorded_unsupported_response_json::Status, "errors", &recorded_unsupported_response_json::Errors);
+			};
+		};
+
 		struct comment_response_json
 		{
 			std::uint64_t                Id = 0U;
@@ -2051,6 +2061,94 @@ namespace bpr::adapters::github::detail {
 		return review_mutation_viewer_observation{ .Identity = aExpected };
 	}
 
+	namespace {
+		// Owner decision de5b5b6d, mandate r3. This evidence describes one
+		// immutable PR pair, not a service-wide interpretation of the message.
+		[[nodiscard]] auto recorded_target_matches(const application::review_mutation_target_binding& aTarget) -> bool
+		{
+			return aTarget.Hostname.value() == "github.com"
+				&& aTarget.ServerContract == application::github_server_contract::github_com_2022_11_28
+				&& aTarget.Repository.Owner == "MikeMarcin" && aTarget.Repository.Name == "BPR-Test"
+				&& aTarget.RepositoryDatabaseId == 1'328'277'631U && aTarget.RepositoryNodeId == "R_kgDOTyvofw"
+				&& aTarget.BaseRepositoryDatabaseId == 1'328'277'631U
+				&& aTarget.Number.value() == 2U && aTarget.PullRequestDatabaseId == 4'650'736'621U
+				&& aTarget.PullRequestNodeId == "PR_kwDOTyvof88AAAABFTSb7Q" && aTarget.Open
+				&& core::canonical_hex(aTarget.BaseOid).view() == "a939a85a5525994fe9e9cb4c973ad9362ed427c7"
+				&& core::canonical_hex(aTarget.Semantic.ExpectedHead).view() == "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a"
+				&& aTarget.BaseRef == "codex/rfc0022-fixture-base-20260926"
+				&& aTarget.HeadRef == "codex/rfc0022-live-comments-20260926";
+		}
+		[[nodiscard]] auto recorded_actor_matches(const application::review_mutation_acting_identity& aActor) -> bool
+		{
+			return aActor.DatabaseId == 7'605'339U && aActor.NodeId == "MDQ6VXNlcjc2MDUzMzk=" && aActor.Login == "MikeMarcin";
+		}
+		[[nodiscard]] auto recorded_anchor_matches(const application::review_mutation_request& aRequest) -> bool
+		{
+			if (!aRequest.LiveBinding || !aRequest.Source || !aRequest.Source->Endpoint
+				|| !recorded_target_matches(aRequest.LiveBinding->Target) || !recorded_actor_matches(aRequest.LiveBinding->ActingIdentity)) {
+				return false;
+			}
+			const auto& source   = *aRequest.Source;
+			const auto& endpoint = *source.Endpoint;
+			const auto& anchor   = aRequest.LiveBinding->Anchor;
+			// m4-live-anchor-eligibility.json records complete provider patches:
+			// both are @@ -7,7 +7,7 @@ with exactly one addition/deletion.
+			// Their fixed base/head and content-addressed blobs bind that proof;
+			// changing any of them requires a new reviewed evidence contract.
+			const auto blob      = core::canonical_hex(endpoint.blob());
+			const bool knownBlob = (anchor.Path == "off_hunk_fixture.md" && blob.view() == "828d5c87c20a0f9d74c498e04c36b32d2948b7c5")
+				|| (anchor.Path == "off_hunk_fixture.txt" && blob.view() == "79fe8e95cf056dd629442c686696851f26631115");
+			return knownBlob && source.LineCount == 80U && anchor.Semantic.Side == core::diff_side::right
+				&& anchor.Semantic.Line < source.LineCount && (anchor.Semantic.Line < 6U || anchor.Semantic.Line >= 13U)
+				&& source.Placement != core::review_placement::legacy_line
+				&& endpoint.request().Diff.Comparison.Left.Commit == aRequest.LiveBinding->Target.BaseOid
+				&& endpoint.request().File.Change == application::workbench_file_change_kind::modified
+				&& compile_review_permalink_body({ .Target = aRequest.LiveBinding->Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, anchor.Semantic, "Source validation").has_value();
+		}
+		[[nodiscard]] auto recorded_response_metadata_valid(const review_mutation_wire_response& aResponse) -> bool
+		{
+			// Native HTTPS supplies only normalized metadata after complete TLS,
+			// content-length/encoding and duplicate-header validation. Require the
+			// complete core rate tuple again at this authority boundary.
+			if (aResponse.Headers.size() != 5U) {
+				return false;
+			}
+			auto headers = std::map<std::string, std::string_view>{ };
+			for (const auto& header : aResponse.Headers) {
+				auto name = header.Name;
+				std::ranges::transform(name, name.begin(), [](const unsigned char aByte) { return static_cast<char>(std::tolower(aByte)); });
+				if (!headers.emplace(std::move(name), header.Value).second) {
+					return false;
+				}
+			}
+			const auto number = [&headers](const char* aName) -> std::optional<std::uint64_t> {
+				const auto found = headers.find(aName);
+				if (found == headers.end() || found->second.empty()) {
+					return std::nullopt;
+				}
+				auto       value  = std::uint64_t{ };
+				const auto text   = found->second;
+				const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+				return parsed.ec == std::errc{ } && parsed.ptr == text.data() + text.size() ? std::optional{ value } : std::nullopt;
+			};
+			const auto type     = headers.find("content-type");
+			const auto resource = headers.find("x-ratelimit-resource");
+			const auto limit = number("x-ratelimit-limit"), remaining = number("x-ratelimit-remaining"), reset = number("x-ratelimit-reset");
+			return type != headers.end() && (type->second == "application/json" || type->second == "application/json; charset=utf-8")
+				&& resource != headers.end() && resource->second == "core"
+				&& limit && remaining && reset && *limit > 0U && *remaining > 0U && *remaining <= *limit && *reset > 0U;
+		}
+	}
+
+	auto recorded_off_hunk_contract(const live_review_mutation_configuration& aConfiguration) -> std::optional<off_hunk_unsupported_contract>
+	{
+		if (!valid(aConfiguration) || aConfiguration.CredentialContext.Authority.BprProfile.value() != 2U
+			|| !recorded_target_matches(aConfiguration.Target) || !recorded_actor_matches(aConfiguration.ActingIdentity)) {
+			return std::nullopt;
+		}
+		return off_hunk_unsupported_contract{ .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .RecordedDesignatedScope = true };
+	}
+
 	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
 										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
 	{
@@ -2068,6 +2166,18 @@ namespace bpr::adapters::github::detail {
 		}
 		if (aResponse.Body.size() > 4096U || !json_preflight{ aResponse.Body }.run()) {
 			return false;
+		}
+		if (aContract.RecordedDesignatedScope) {
+			auto           parsed  = recorded_unsupported_response_json{ };
+			constexpr auto options = [] { auto value = review_json_options{ }; value.error_on_unknown_keys = true; return value; }();
+			if (!recorded_anchor_matches(*semantic) || !recorded_response_metadata_valid(aResponse)
+				|| glz::read<options>(parsed, aResponse.Body) || parsed.Message != "Validation Failed"
+				|| parsed.DocumentationUrl != "https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request"
+				|| parsed.Status != "422" || parsed.Errors.size() != 1U) {
+				return false;
+			}
+			const auto& error = parsed.Errors.front();
+			return error.Resource == aContract.Resource && error.Field == aContract.Field && error.Code == aContract.Code && error.Message == aContract.Message;
 		}
 		auto           parsed  = unsupported_response_json{ };
 		constexpr auto options = [] { auto value = review_json_options{}; value.error_on_unknown_keys = true; return value; }();
@@ -2623,7 +2733,7 @@ namespace bpr::adapters::github::detail {
 			append_fingerprint_text(anchor, aRequest.LiveBinding->Anchor.Path);
 			append_fingerprint_integer(anchor, aRequest.LiveBinding->Anchor.Semantic.Line);
 			append_fingerprint_oid(anchor, aRequest.LiveBinding->Anchor.Commit);
-			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
+			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .ClassifierRevision = off_hunk_classifier_revision, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
 		}
 		[[nodiscard]] auto publication_fingerprint(const application::review_mutation_request& aRequest, const live_review_mutation_configuration& aConfig) -> std::array<std::uint8_t, 32>
 		{
@@ -2758,8 +2868,9 @@ namespace bpr::adapters::github::detail {
 		if (!child || child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
 			return result;
 		}
-		if (!file && response && UnsupportedContract && aRequest.Source->Placement != core::review_placement::legacy_line
-			&& definitive_off_hunk_unsupported(*response, *wire, *UnsupportedContract)) {
+		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
+		if (!file && response && contract && aRequest.Source->Placement != core::review_placement::legacy_line
+			&& definitive_off_hunk_unsupported(*response, *wire, *contract)) {
 			auto rejected          = current;
 			rejected.State         = publication_state::native_definitively_unsupported;
 			rejected.Authorization = { .Source         = application::review_fallback_authorization_source::native_rejection,

@@ -6,13 +6,13 @@ lines use the same gesture. The app checks the exact current head, retained
 file/line and acting account again before posting. Left-side off-hunk and
 arbitrary historical publication are outside this feature.
 
-Native publication is attempted when support is unknown. Current production
-has no admitted unsupported-response contract, so a rejection does not trigger
-automatic file fallback. A timeout or uncertain result also never starts a
+Native publication is attempted when support is unknown. The recorded rejection
+contract currently permits fallback only in the designated PR2 validation course
+with its exact source, account and profile. Other scopes remain unknown. A timeout or uncertain result also never starts a
 second POST. Keep the draft and report the typed result; a new representation
 is not a retry policy.
 
-When an approved contract makes file fallback available, the public body starts
+When the approved exact contract makes file fallback available, the public body starts
 with an immutable code permalink, a blank line and the original prose. Markdown
 source links include `?plain=1`. In BetterPullReview a validated link places the
 conversation at its exact source line. Collapsed Support details exposes its

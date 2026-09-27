@@ -203,7 +203,9 @@ RFC-BPR-0022 adds no write authority. Native and file children share the existin
 exact source/target/actor grant and serialized provider route. A durable
 possibly-transmitted native attempt admits GET-only reconciliation; timeout,
 lost/malformed success, generic 422 and GET absence cannot authorize fallback.
-Production admits no unsupported classifier tuple at present.
+Production classifier2 admits only the exact owner-approved PR2/base/head/actor/
+profile2 recorded contract with sealed source and provider-patch validation.
+Older witnesses cannot acquire fallback authorization from that new contract.
 
 A remote permalink is untrusted content. Same-authority canonical parsing plus
 sealed exact-source validation grants a presentation anchor only. It cannot

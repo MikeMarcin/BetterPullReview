@@ -405,6 +405,40 @@ namespace {
 	{
 		return { .Status = 422, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" };
 	}
+	[[nodiscard]] auto recorded_rejection() -> review_mutation_wire_response
+	{
+		return { .Status = 422, .Headers = { { "Content-Type", "application/json; charset=utf-8" }, { "X-RateLimit-Limit", "5000" }, { "X-RateLimit-Remaining", "4990" }, { "X-RateLimit-Reset", "2000000000" }, { "X-RateLimit-Resource", "core" } }, .Body = R"({"message":"Validation Failed","documentation_url":"https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422","errors":[{"resource":"PullRequestReviewComment","field":"pull_request_review_thread.line","code":"custom","message":"could not be resolved"}]})" };
+	}
+	[[nodiscard]] auto recorded_request() -> application::review_mutation_request
+	{
+		auto source                                    = permalink_source("off_hunk_fixture.md");
+		source.Target.Number                           = core::pull_request_number{ 2U };
+		source.Target.PullRequestDatabaseId            = 4'650'736'621U;
+		source.Target.PullRequestNodeId                = "PR_kwDOTyvof88AAAABFTSb7Q";
+		source.Target.BaseRef                          = "codex/rfc0022-fixture-base-20260926";
+		source.Target.HeadRef                          = "codex/rfc0022-live-comments-20260926";
+		source.Target.BaseOid                          = *core::parse_git_commit_oid("a939a85a5525994fe9e9cb4c973ad9362ed427c7");
+		source.Target.Semantic.ExpectedHead            = *core::parse_git_commit_oid("61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a");
+		auto endpoint                                  = source.Endpoint->request();
+		endpoint.WorkbenchAuthority.Number             = source.Target.Number;
+		endpoint.Diff.Authority.Number                 = source.Target.Number;
+		endpoint.Diff.Comparison.Left.Commit           = source.Target.BaseOid;
+		endpoint.Diff.Comparison.Right.Commit          = source.Target.Semantic.ExpectedHead;
+		const auto blob                                = *core::parse_git_blob_oid("828d5c87c20a0f9d74c498e04c36b32d2948b7c5");
+		source.Endpoint                                = application::make_workbench_selected_diff_endpoint_for_testing(endpoint, core::diff_side::right, blob, "off_hunk_fixture.md");
+		source.Comparison.Authority                    = endpoint.Diff.Authority;
+		source.Comparison.RightBlob                    = blob;
+		source.LineCount                               = 80U;
+		auto request                                   = publication_request(source);
+		request.LiveBinding->ActingIdentity.DatabaseId = 7'605'339U;
+		request.LiveBinding->ActingIdentity.NodeId     = "MDQ6VXNlcjc2MDUzMzk=";
+		request.LiveBinding->ActingIdentity.Login      = "MikeMarcin";
+		request.Proposal.Anchor.Line                   = 61U;
+		request.LiveBinding->Anchor.Semantic           = request.Proposal.Anchor;
+		request.IdempotencyKey                         = application::idempotency_key_for(request.Proposal, request.Target);
+		return request;
+	}
+
 	class publication_transport final : public github_mutation_wire_transport
 	{
 	public:
@@ -418,11 +452,17 @@ namespace {
 			auto response = review_mutation_wire_response{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } } };
 			if (wire.Operation == operation::observe_viewer) {
 				response.Body = WrongActor ? R"({"id":23,"node_id":"U_foreign","login":"foreign"})" : R"({"id":22,"node_id":"U_fixture","login":"fixture-reviewer"})";
+				if (RecordedIdentity && !WrongActor) {
+					response.Body = R"({"id":7605339,"node_id":"MDQ6VXNlcjc2MDUzMzk=","login":"MikeMarcin"})";
+				}
 			} else if (wire.Operation == operation::observe_pull_request) {
 				++Targets;
 				response.Body = R"({"id":4246446933,"node_id":"PR_kwDOTyvof879G6NV","number":1,"state":"open","base":{"sha":"1010101010101010101010101010101010101010","ref":"main","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"MikeMarcin/BPR-Test"}},"head":{"sha":")";
 				response.Body += (StaleAtTarget != 0U && Targets >= StaleAtTarget) ? "1212121212121212121212121212121212121212" : "1111111111111111111111111111111111111111";
 				response.Body += R"(","ref":"codex/disposable-live-review-20260810"}})";
+				if (RecordedIdentity && (StaleAtTarget == 0U || Targets < StaleAtTarget)) {
+					response.Body = R"({"id":4650736621,"node_id":"PR_kwDOTyvof88AAAABFTSb7Q","number":2,"state":"open","base":{"sha":"a939a85a5525994fe9e9cb4c973ad9362ed427c7","ref":"codex/rfc0022-fixture-base-20260926","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"MikeMarcin/BPR-Test"}},"head":{"sha":"61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a","ref":"codex/rfc0022-live-comments-20260926"}})";
+				}
 			} else if (wire.Operation == operation::observe_review_comments) {
 				if (HideAfterPost && !Posts.empty()) {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
@@ -448,13 +488,17 @@ namespace {
 				Posts.push_back(wire);
 				const bool file = std::get<application::review_mutation_request>(wire.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
 				if ((!file && RejectNative) || GenericStatus != 0) {
-					response = fixture_rejection();
+					response = Rejection.value_or(fixture_rejection());
 					if (GenericStatus != 0) {
 						response.Status = GenericStatus;
 						response.Body   = R"({"message":"Validation Failed"})";
 					}
 				} else {
 					response = created_response(wire);
+					if (RecordedIdentity) {
+						const auto actor = response.Body.find(R"("user":)");
+						response.Body.replace(actor, response.Body.size() - actor, R"("user":{"id":7605339,"node_id":"MDQ6VXNlcjc2MDUzMzk=","login":"MikeMarcin"}})");
+					}
 					response.Body.replace(response.Body.find("PRRC_fixture_44"), 15U, "PRRC_fixture_" + std::to_string(Posts.size() + 100U));
 					if (Publish) {
 						Comments.push_back(response.Body);
@@ -478,20 +522,22 @@ namespace {
 				throw std::runtime_error{ "simulated process interruption at wire boundary" };
 			}
 		}
-		std::size_t                               Boundaries = 0U;
-		std::optional<std::size_t>                InterruptAt;
-		std::vector<review_mutation_operation>    Operations;
-		std::vector<review_mutation_wire_request> Posts;
-		std::vector<std::string>                  Comments;
-		bool                                      RejectNative    = false;
-		bool                                      LoseResponse    = false;
-		bool                                      HideAfterPost   = false;
-		bool                                      Publish         = true;
-		bool                                      WrongActor      = false;
-		unsigned                                  Targets         = 0U;
-		unsigned                                  StaleAtTarget   = 0U;
-		int                                       GenericStatus   = 0;
-		std::stop_source*                         CancelAfterPost = nullptr;
+		std::size_t                                  Boundaries = 0U;
+		std::optional<std::size_t>                   InterruptAt;
+		std::vector<review_mutation_operation>       Operations;
+		std::vector<review_mutation_wire_request>    Posts;
+		std::vector<std::string>                     Comments;
+		bool                                         RecordedIdentity = false;
+		std::optional<review_mutation_wire_response> Rejection;
+		bool                                         RejectNative    = false;
+		bool                                         LoseResponse    = false;
+		bool                                         HideAfterPost   = false;
+		bool                                         Publish         = true;
+		bool                                         WrongActor      = false;
+		unsigned                                     Targets         = 0U;
+		unsigned                                     StaleAtTarget   = 0U;
+		int                                          GenericStatus   = 0;
+		std::stop_source*                            CancelAfterPost = nullptr;
 	};
 	[[nodiscard]] auto session_configuration(const application::review_mutation_request& aRequest) -> live_review_mutation_configuration
 	{
@@ -503,6 +549,130 @@ namespace {
 		expect(store.has_value(), "publication SQLite journal opens");
 		return std::make_unique<recording_journal>(std::move(*store));
 	}
+	[[nodiscard]] auto recorded_configuration(const application::review_mutation_request& aRequest) -> live_review_mutation_configuration
+	{
+		auto config                                   = session_configuration(aRequest);
+		config.CredentialContext.Authority.BprProfile = core::bpr_profile_id{ 2U };
+		return config;
+	}
+	void test_recorded_contract_scope_and_protocol()
+	{
+		const auto request  = recorded_request();
+		const auto config   = recorded_configuration(request);
+		const auto contract = recorded_off_hunk_contract(config);
+		const auto wire     = compile_review_comment_request(request);
+		expect(contract && wire && definitive_off_hunk_unsupported(recorded_rejection(), *wire, *contract), "owner-approved exact shape and immutable source classify");
+		for (unsigned change = 0; change < 10U; ++change) {
+			auto other = config;
+			switch (change) {
+			case 0:  other.CredentialContext.Authority.BprProfile = core::bpr_profile_id{ 1U }; break;
+			case 1:  other.Target.Number = core::pull_request_number{ 3U }; break;
+			case 2:  other.Target.RepositoryDatabaseId++; break;
+			case 3:  other.Target.PullRequestNodeId += "other"; break;
+			case 4:  other.Target.BaseOid = commit(0x12U); break;
+			case 5:  other.Target.Semantic.ExpectedHead = commit(0x12U); break;
+			case 6:  other.ActingIdentity.DatabaseId++; break;
+			case 7:  other.ActingIdentity.Login = "other"; break;
+			case 8:  other.Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28; break;
+			default: other.Target.Open = false; break;
+			}
+			expect(!recorded_off_hunk_contract(other), "foreign profile/PR/repository/revision/actor/server has no recorded contract");
+		}
+		for (unsigned change = 0; change < 7U; ++change) {
+			auto other = request;
+			switch (change) {
+			case 0:  other.Source->LineCount = 81U; break;
+			case 1:  other.Source->Comparison.RightBlob = oid<core::git_blob_oid>(51U); break;
+			case 2:  other.Source->Endpoint.reset(); break;
+			case 3:  other.Source->Placement = core::review_placement::legacy_line; break;
+			case 4:  other.LiveBinding->Anchor.Semantic.Line = other.Proposal.Anchor.Line = 9U; break;
+			case 5:  other.LiveBinding->Anchor.Semantic.Line = other.Proposal.Anchor.Line = 80U; break;
+			default: other.LiveBinding->Anchor.Path = "other.md"; break;
+			}
+			const auto candidate = compile_review_comment_request(other);
+			expect(!candidate || !definitive_off_hunk_unsupported(recorded_rejection(), *candidate, *contract), "missing/stale/hunk/out-of-range source cannot borrow recorded patch proof");
+		}
+		auto       refusals = std::vector<review_mutation_wire_response>{ };
+		const auto replace  = [&refusals](const std::string_view aFrom, const std::string_view aTo) {
+			auto response = recorded_rejection();
+			response.Body.replace(response.Body.find(aFrom), aFrom.size(), aTo);
+			refusals.push_back(std::move(response));
+		};
+		replace("could not be resolved", "could not be resolved.");
+		replace("pull_request_review_thread.line", "line");
+		replace("PullRequestReviewComment", "PullRequest");
+		replace("custom", "invalid");
+		replace("Validation Failed", "Spam detected");
+		replace(R"("status":"422")", R"("status":422)");
+		replace(R"("status":"422")", R"("status":null)");
+		replace(R"("status":"422",)", "");
+		replace("https://docs.github.com/", "https://example.test/");
+		replace(R"("status":"422")", R"("status":"422","status":"422")");
+		replace(R"("status":"422")", R"("status":"422","extra":true)");
+		replace(R"("code":"custom")", R"("code":"custom","extra":true)");
+		replace(R"("code":"custom")", R"("code":"custom","code":"custom")");
+		replace("}]}", "},{}]}");
+		for (const auto& header : std::vector<http_header>{ { "Retry-After", "1" }, { "lOcAtIoN", "https://github.com/" }, { "x-ratelimit-remaining", "4990" }, { "Content-Encoding", "gzip" } }) {
+			auto response = recorded_rejection();
+			response.Headers.push_back(header);
+			refusals.push_back(std::move(response));
+		}
+		for (const auto& [index, value] : std::vector<std::pair<std::size_t, std::string>>{ { 0U, "text/plain" }, { 1U, "invalid" }, { 2U, "0" }, { 2U, "5001" }, { 3U, "0" }, { 4U, "search" } }) {
+			auto response                 = recorded_rejection();
+			response.Headers[index].Value = value;
+			refusals.push_back(std::move(response));
+		}
+		for (const auto status : { 201, 403, 429, 500 }) {
+			auto response   = recorded_rejection();
+			response.Status = status;
+			refusals.push_back(std::move(response));
+		}
+		auto missing = recorded_rejection();
+		missing.Headers.pop_back();
+		refusals.push_back(std::move(missing));
+		for (const auto& response : refusals) {
+			expect(!definitive_off_hunk_unsupported(response, *wire, *contract), "recorded shape and metadata counterexample refuses");
+			auto scratch               = tests::sqlite_contract::scratch_root{ "recorded-refusal" };
+			auto transport             = publication_transport{ };
+			transport.RecordedIdentity = true;
+			transport.RejectNative     = true;
+			transport.Rejection        = response;
+			{
+				auto session = review_mutation_session{ transport, config, std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+				static_cast<void>(session.submit(request));
+			}
+			auto session = review_mutation_session{ transport, config, std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			static_cast<void>(session.submit(request));
+			expect(transport.Posts.size() == 1U, "nearby error and restart never authorize a fallback or retry POST");
+		}
+		auto scratch               = tests::sqlite_contract::scratch_root{ "recorded-success" };
+		auto transport             = publication_transport{ };
+		transport.RecordedIdentity = true;
+		transport.RejectNative     = true;
+		transport.Rejection        = recorded_rejection();
+		auto        journal        = open_journal(scratch.path());
+		const auto* observed       = journal.get();
+		auto        session        = review_mutation_session{ transport, config, std::make_shared<publication_lease>(), std::move(journal) };
+		const auto  result         = session.submit(request);
+		expect(result && result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 2U && transport.Comments.size() == 1U, "default production protocol negotiates native rejection then exactly one file comment");
+		expect(observed->Saved.back().State == journal_state::succeeded_fallback && observed->Saved.back().Authorization.Source == application::review_fallback_authorization_source::native_rejection, "fallback uses the atomic native rejection journal authority");
+		expect(session.submit(request)->Duplicate && transport.Posts.size() == 2U, "completed recorded publication replay has no POST");
+		// An earlier build with no selected contract left a transmission witness.
+		// Loading the very same logical request under rev2 must remain GET-only.
+		auto oldRoot             = tests::sqlite_contract::scratch_root{ "recorded-old-witness" };
+		auto oldWire             = publication_transport{ };
+		oldWire.RecordedIdentity = true;
+		oldWire.RejectNative     = true;
+		oldWire.Rejection        = recorded_rejection();
+		{
+			auto oldSession = review_mutation_session{ oldWire, config, std::make_shared<publication_lease>(), open_journal(oldRoot.path()), off_hunk_unsupported_contract{ } };
+			expect(!oldSession.submit(request), "old disabled classifier retains unresolved witness");
+		}
+		auto newSession = review_mutation_session{ oldWire, config, std::make_shared<publication_lease>(), open_journal(oldRoot.path()) };
+		expect(!newSession.submit(request) && oldWire.Posts.size() == 1U, "new recorded contract cannot retroactively reject an old native attempt");
+		std::cout << "recorded-contract-refusal-courses:" << refusals.size() << '\n';
+	}
+
 	void next_draft(application::review_mutation_request& aRequest)
 	{
 		aRequest.Proposal.Draft = core::review_draft_id{ aRequest.Proposal.Draft.value() + 1U };
@@ -916,6 +1086,7 @@ namespace {
 
 auto main() -> int
 {
+	test_recorded_contract_scope_and_protocol();
 	test_publication_diagnostic_privacy_and_authority();
 	test_server_truth_placement();
 	test_session_negotiation_and_cache();

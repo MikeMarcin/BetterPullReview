@@ -233,7 +233,9 @@ separately from the passing reconstruction fixtures.
 
 The [review round-trip contract](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
 owns representation selection and recovery. Native writes are attempted under
-unknown capability. Production currently admits no exact unsupported contract,
-so automatic file fallback remains unavailable; a generic 422 cannot enable it.
+unknown capability. The owner-approved classifier2 contract admits only the designated PR2, exact
+base/head, actor and profile2 with revalidated immutable source and recorded
+provider-patch proof. All other scopes remain unknown; generic422 cannot enable
+fallback. Earlier unresolved attempts remain GET-only.
 The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) records this limitation
 and the GitHub.com-only owner amendment; native GHES is unobserved.

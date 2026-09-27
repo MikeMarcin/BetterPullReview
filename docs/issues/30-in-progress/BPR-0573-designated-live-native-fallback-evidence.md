@@ -192,3 +192,12 @@ complete-provider-patch evidence, a narrow prospective revision2 and its limits.
 Separate native-live scope and canonical-order judgments are prepared. No owner,
 collaborator or independent verdict is asserted. BPR-0573 awaits human review;
 BPR-0575 remains ineligible and RFC0022 remains Proposed.
+
+## Mandate r3 continuation
+
+The [recorded owner decisions](../_checkpoints/BPR-0575/m4-r3-amendments.md)
+accept the bounded prospective classifier2 dependency and supported-path fixture
+substitution for native off-hunk success. Earlier paragraphs retain historical
+observations, not current decision state. All four historic journals remain
+GET-only. Actual fallback publication and GitHub-only collaborator continuity
+remain required; native GHES/Windows qualification remains unobserved.
