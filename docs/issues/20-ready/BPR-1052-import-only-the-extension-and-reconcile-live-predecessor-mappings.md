@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1052"
 title: "Import only the extension and reconcile live predecessor mappings"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: []
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-01","milestone":"intake","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
