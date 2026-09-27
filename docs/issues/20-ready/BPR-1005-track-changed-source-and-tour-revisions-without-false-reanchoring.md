@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1005"
 title: "Track changed source and tour revisions without false reanchoring"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0042", "RFC-BPR-0040"]
 depends_on: ["BPR-1004", "BPR-0998"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-15","milestone":"manual-maintenance","acceptance":["AC42-06","AC42-08","AC40-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
