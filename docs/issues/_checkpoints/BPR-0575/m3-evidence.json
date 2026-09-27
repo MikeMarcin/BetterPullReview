@@ -1,0 +1,277 @@
+{
+  "schema": "rfc0022.milestone-evidence.v1",
+  "assignment": "/root/rfc0022_m3",
+  "mandate_revision": "r2",
+  "milestone": "c-product-round-trip",
+  "start_revision": "2deb889b9ec31ba5ea165fb3c8e96b9957c3b7e7",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "source_candidate": "2311209476dd8d87cd10d07b7d33a934e5188046",
+  "production_source_candidate": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+  "board_candidate": "604821f30727872dec1be8f4187524b0e2d6abec",
+  "accepted_cards": [
+    "BPR-0569",
+    "BPR-0570",
+    "BPR-0571",
+    "BPR-0572"
+  ],
+  "commits": [
+    "1f0b67d6ab99a28011a8af7881648db79a9523c5 docs: bind RFC-0022 round-trip milestone",
+    "c0ce3faa2be24b32fcc6155934e7043699b3c8b5 Claim BPR-0569",
+    "e12e0fda7885b47b4da0379ccd1549e4ad2f585a feat: rehydrate file review comments against exact retained source",
+    "ed4cd6fe4c21b3c75caed9305bac5d92141d554c Finish BPR-0569",
+    "ae3c0216e7080bd1fdac36e8f347d4e607ab303a docs: make semantic comment UX eligible",
+    "b17a1d4eccb3f2b6a1d9fd95719c1dcec5f8294e Claim BPR-0570",
+    "9c14888d2a7d65fed06d6780ab073637c88cc571 feat: preserve semantic comment selection and collapse support details",
+    "26890471c18459c12ea1f7e8cdedce20e97fb9ac Finish BPR-0570",
+    "27957c236e47950d2ae176b7604de22058e34e86 docs: make semantic publication composition eligible",
+    "1dc28675dfb721d2cfaf51d4f1d3d1439e6f0121 Claim BPR-0571",
+    "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571 feat: compose semantic comment publication through server refresh",
+    "f76b3ada24a7d2f3db6f4794f430b41b1f4ecb8a Finish BPR-0571",
+    "e654771b43835b11b2d03f4f48d953b1f5d8d438 docs: make semantic publication security verification eligible",
+    "a5d43868825dc800fcf727a39524acb7f2c494e0 Claim BPR-0572",
+    "2311209476dd8d87cd10d07b7d33a934e5188046 test: prove semantic publication interruption and isolation boundaries",
+    "604821f30727872dec1be8f4187524b0e2d6abec Finish BPR-0572"
+  ],
+  "changed_paths": [
+    "docs/architecture/review-round-trip.md",
+    "docs/issues/10-backlog/BPR-0569-fallback-normalization-thread-map.md",
+    "docs/issues/10-backlog/BPR-0570-qt-comment-anywhere-ux.md",
+    "docs/issues/10-backlog/BPR-0571-compose-public-path.md",
+    "docs/issues/10-backlog/BPR-0572-automated-security-recovery-verification.md",
+    "docs/issues/60-done/BPR-0569-fallback-normalization-thread-map.md",
+    "docs/issues/60-done/BPR-0570-qt-comment-anywhere-ux.md",
+    "docs/issues/60-done/BPR-0571-compose-public-path.md",
+    "docs/issues/60-done/BPR-0572-automated-security-recovery-verification.md",
+    "docs/issues/_checkpoints/BPR-0575/bpr0569-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0570-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0571-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0572-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/m3-binding.json",
+    "docs/issues/_checkpoints/BPR-0575/m3-frontier.md",
+    "docs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md",
+    "scripts/verify_live_mutation_isolation.py",
+    "src/adapters/github/src/review_comment_permalink.cpp",
+    "src/adapters/github/src/review_comment_permalink.hpp",
+    "src/adapters/qt/include/bpr/qt/github_conversation_model.hpp",
+    "src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp",
+    "src/adapters/qt/src/conversation_cards_view.cpp",
+    "src/adapters/qt/src/github_conversation_model.cpp",
+    "src/adapters/qt/src/github_conversation_panel.cpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/github_projection.hpp",
+    "src/application/include/bpr/application/review_comment_placement.hpp",
+    "src/application/src/github_projection_mapping.cpp",
+    "src/application/src/review_comment_placement.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/adapters_qt/github_conversation_panel_tests.cpp",
+    "tests/adapters_qt/review_draft_editor_tests.cpp",
+    "tests/core/review_round_trip_tests.cpp",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/github_contract/review_comment_permalink_tests.cpp",
+    "tests/scripts/verify_live_mutation_isolation_tests.py"
+  ],
+  "commands": [
+    {
+      "command": "cmake --build --preset app-release --target app_better_pull_review -j6",
+      "result": "PASS final tests-disabled application at exact final production source; production_source_candidate. Earlier inherited M1 compile gap repaired in0569."
+    },
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_review_round_trip_core_tests test_better_pull_review_review_comment_permalink_tests test_better_pull_review_revisioned_review_draft_tests test_better_pull_review_review_mutation_application_host_tests test_better_pull_review_review_mutation_tests test_review_publication_capability_cache test_better_pull_review_review_mutation_recovery_storage_tests test_better_pull_review_review_submission_recovery_storage_tests test_better_pull_review_qt_review_draft_editor_tests test_better_pull_review_native_https_transport_tests test_better_pull_review_github_mutation_contract_tests test_better_pull_review_live_review_mutation_provider_tests test_better_pull_review_qt_github_conversation_panel_tests test_better_pull_review_qt_github_thread_map_tests test_better_pull_review_qt_conversation_cards_view_tests -j6",
+      "result": "PASS; full dev application and composed Qt previously built at unchanged owning source."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(core_review_round_trip|core_revisioned_review_draft|application_review_mutation_application_host|application_review_mutation|application_review_publication_capability_cache|sqlite_review_mutation_recovery_storage|sqlite_review_submission_recovery_storage|github_mutation_contract|live_review_mutation_provider|live_review_mutation_restart_recovery|github_review_comment_permalink|native_https_transport_fixture|qt_review_draft_editor|qt_github_conversation_panel|qt_conversation_cards_view|qt_github_thread_map_scale_(100|125|200)|live_mutation_isolation_contract|application_review_round_trip_composition_contract)$'",
+      "result": "PASS20/20;43.09s. Real native/fallback application course13.57s;66 reached interruption courses with3 reopened sessions each;24 isolation guard tests."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^qt_composed_github_scale_(100|125|200)$'",
+      "result": "PASS3/3;10.64s at final Qt source. All3 themes at each scale, keyboard/focus/viewport support details and selection/no-reset checks;9 rendered artifacts."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(architecture_boundaries|application_review_round_trip_composition_contract)$'",
+      "result": "PASS2/2;21.50s after exact-material selection correction."
+    },
+    {
+      "command": "python3 scripts/verify_live_mutation_isolation.py --root . --manifest build/rfc0022/m3-changed-executables.txt",
+      "result": "PASS complete source inventory and17 relevant nonproduction binaries including composed Qt and test app, with coordinator positive control. No exhaustive unrelated binary claim."
+    },
+    {
+      "command": "python3 -B _coding-standard/scripts/tidy.py --root . --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm/bin/clang-tidy --warnings-as-errors --paths [scoped changed units]",
+      "result": "PASS placement units, five product UI/app units, final app source, and two final security test units. Detailed exact paths in tidy logs."
+    },
+    {
+      "command": "/opt/homebrew/opt/llvm/bin/clang-format --dry-run --Werror [all21 changed C++ paths]",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK; repeated after final checkpoint commit preparation."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "PASS64 tests;2.184s"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "logs": [
+    {
+      "path": "build/rfc0022/m3-early-composition.log",
+      "sha256": "949a246651087a67daf57990d559b4ced4ba98fda827fbf0edabe75c7331bc59"
+    },
+    {
+      "path": "build/rfc0022/m3-normalization-checks-final.log",
+      "sha256": "3838dd11cf696d916b96287d242312ae3ef0c7e9be3acaaf966927b4191acc0a"
+    },
+    {
+      "path": "build/rfc0022/m3-placement-tidy.log",
+      "sha256": "bf272cb6bbda4bb7705a491b8630a4b9e29420aa44f302455a1a4bbe8cdff92a"
+    },
+    {
+      "path": "build/rfc0022/m3-production-build2.log",
+      "sha256": "4e8cbd3ddf9688d3d8a6a9414723445f8fc7f7511911745d7fa3c3e22803a6b8"
+    },
+    {
+      "path": "build/rfc0022/m3-ux-final-tests.log",
+      "sha256": "ccdb2dc48c7ead5b54bcae8dabb65f05d29432a6d4130c0b94cfb2b0dd04a863"
+    },
+    {
+      "path": "build/rfc0022/m3-editor-tests.log",
+      "sha256": "74a7f97977290069c68b65cdf73360a3587ef6db983fe2dbb4b325eec36cf4c1"
+    },
+    {
+      "path": "build/rfc0022/m3-full-course-tests3.log",
+      "sha256": "3298c6a4a21b3b95e31e87b310b8be5507ad74014aeb171df38365281a43c066"
+    },
+    {
+      "path": "build/rfc0022/m3-material-return-tests.log",
+      "sha256": "3b36c07c5f31b8f0c98142d45ba8ac363955dee39e251c2a826cfd6af9b8bf75"
+    },
+    {
+      "path": "build/rfc0022/m3-composition-confirmation.log",
+      "sha256": "6b06d7d2232ca83317123adddf890618d6912d7f03bc4e181f074b547a886e42"
+    },
+    {
+      "path": "build/rfc0022/m3-production-exact-build.log",
+      "sha256": "168f7ffc8a141bcff80a133c1da210381e2e93bf6abe105329ce989418978eac"
+    },
+    {
+      "path": "build/rfc0022/m3-security-build.log",
+      "sha256": "92c7bf24e73a0e1e4963a89bb0e90d503e3ebc1e7e28af4b5ea1e34f4da6794b"
+    },
+    {
+      "path": "build/rfc0022/m3-final-focused-tests.log",
+      "sha256": "699069964545dc7064e9048fb2cea92f24156cae7c94c343cfc2a72f0dc00642"
+    },
+    {
+      "path": "build/rfc0022/m3-final-focused-detail.log",
+      "sha256": "c71d34c34ed251d6e9bc73e0616c3fa4d9cd567ef9a45e49d90b36d6718ee5dd"
+    },
+    {
+      "path": "build/rfc0022/m3-isolation-complete.log",
+      "sha256": "66b98fa214868bcddfb8f623e21c88046147150c64340d97ada2241d9a35783f"
+    },
+    {
+      "path": "build/rfc0022/m3-changed-executables.txt",
+      "sha256": "91ecdb1fe74db6329617b060a29925c7d396b6eb2e4dbc78f3a2650e53c2cc8c"
+    },
+    {
+      "path": "build/rfc0022/m3-final-tidy.log",
+      "sha256": "12f18ad14f84b01ebcbbaada9ac0612875f042428947c85fd5477abfad3ad335"
+    },
+    {
+      "path": "build/rfc0022/m3-app-exact-tidy.log",
+      "sha256": "46e5e2efe33d5c4c590462c07b2edd3f094eecc21d98b7663261c8b9d082641d"
+    },
+    {
+      "path": "build/rfc0022/m3-security-tidy.log",
+      "sha256": "998d74f0814de815e248ab22054b751959fc19962a9ca7e5b56b19353b8cb108"
+    },
+    {
+      "path": "build/rfc0022/m3-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/rfc0022/m3-final-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "path": "build/rfc0022/m3-doc-validator-tests.log",
+      "sha256": "04befd0bfc957869d56a6b4c152f431c8307aa74de18dd9b76ab70692492df91"
+    }
+  ],
+  "rendered_artifacts": [
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-100-semantic-dark.png",
+      "sha256": "c16ce297334d88585c3076f0437d8d7a3d33c23332477c210c529c271590a075"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-100-semantic-high-contrast.png",
+      "sha256": "ee9097cf4dc25c164506c4e3f9a5a373dda101c61bc4c14a2accd4aba95100ca"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-100-semantic-light.png",
+      "sha256": "aedb37d25e3bfb42f55e00580139e5d83efe213239f02e13977804c991b2be4d"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-125-semantic-dark.png",
+      "sha256": "a281b05c325213483a18dd4866724f64b5af3b00198ac1e3355d9e279de00164"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-125-semantic-high-contrast.png",
+      "sha256": "13798e3aa0ea0e1082710bc3fb438906b934e0ab0cf57f80e1d13ebbd4c214e6"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-125-semantic-light.png",
+      "sha256": "5239f87b575c5ec9871fd4bbd8af99d10e055c8d6617632987e5a542e7e9b21f"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-200-semantic-dark.png",
+      "sha256": "748af2c093c6f947676620eb2affb28793d28e38f3c79e56473cf6b5cc039b61"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-200-semantic-high-contrast.png",
+      "sha256": "104132df5c5077f70c166cf3e0edeebab80ad80edbadc47853498109e541af2a"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/composed-github-200-semantic-light.png",
+      "sha256": "ab7418ef8f3e709facf812275ee6c7ed59b48d50a4b3a5dade5f21e817862d76"
+    }
+  ],
+  "coverage": [
+    "Honest remote FILE subject remains distinct from semantic exact-source anchor; raw Body plus decoded ReviewerProse; canonical thread/comment identity and root-only cached parsing; replies inherit root, invalid/external/deleted content clears mapping.",
+    "Fresh host rehydrates from ordinary accepted server snapshot and exact source without any local DB/receipt. Database-loss/uninstall-shaped fixture, not actual uninstall.",
+    "One source-line editor gesture, typed incompatible body, collapsed Support details; keyboard toggle/Tab, accessible wording, exact selected thread and no model reset across3 scales and3 themes.",
+    "Full app gesture uses actual protocol session+real SQLite through synthetic wire; native stale-head/lost response/recreated session retry, then off-hunk native rejection+one file POST, ordinary server read+material normalization into exact selected post.",
+    "66 deterministic interruption courses:46 before/after wire-read/response/witness,18 before/after native/fallback journal,2 cached admission. Every hook reached, three fresh-session restarts, at most1 remote candidate per logical publication; neither child blindly repeated. No OS kill/power-loss claim.",
+    "Generic422 and ambiguous outcomes never authorize fallback; strict classifier authority/routing, exact source admission, legacy left reply and schema3 whole-review compatibility inside schema4 remain covered."
+  ],
+  "corrected_findings": [
+    "Inherited M1 unconditional source admission used fields/helper available only under BPR_BUILD_TESTING. Moved common lifetime declarations/helper to production graph; production full build now passes.",
+    "Earlier-comparison filtering and reverse interactive-line filtering discarded semantic FILE anchors; exact semantic membership and comparison validation corrected both.",
+    "Expanded Support details can require scrolling in drawer; tests scroll and verify full visible label extent. No automatic scroll claim.",
+    "Fixture real journal lookup initially used legacy key, then synthetic FILE GraphQL side was null; corrected to exact logical key and RIGHT side without loosening parsers.",
+    "Real accepted refresh retires old editor publication state; course now checks canonical selected server post. Final run exposed snapshot-before-material race: pending successful selection waits for conversation_source before revealing; fixed course and confirmation passed.",
+    "Initial isolation manifest used production capitalization for dev bundle; existence check refused. Corrected17-binary manifest includes composed Qt and test app."
+  ],
+  "source_review": "Implementer self-review across C; full app/production pins resealed after review. Production mutation-branch digest unchanged83a7c809526a324ab4e730f7a58c23160f2a6813cc2de659d97ce13f4b056e5c. No independent review claimed.",
+  "reused_evidence": "M1/M2 unchanged authorization/admission/codec/storage evidence; all affected integrated suites rerun. Rendered3scale3theme course retained after app-only/testing edits; Qt owning inputs unchanged. Concurrent RFC0027 logging/retention/release-maintenance preserved; early public composition passed12.03s at merged starting tree.",
+  "required_pending_for_milestone": [],
+  "pending_followup": [
+    "Coordinator must merge/push accepted milestoneC to main before any milestoneD work.",
+    "D BPR0573..0575 must use authorized existing attended identity-bound application mutation authority for GitHub.com safe PR2. No live writes performed inC.",
+    "Production unsupported classifier DISABLED. Generic422 is not evidence; enable only after exact observed or approved recorded non-creation contract. Native acceptance may avoid fallback.",
+    "GHES synthetic contract fixtures pass; native GHES remains unobserved per owner amendment. No live GHES target available.",
+    "All fifteen final RFC criteria/documentation/closeout remain D obligations; RFC not closed by C."
+  ],
+  "review": "No C human criterion or attended server required. Native macOS/GitHub/GHES human acceptance not fabricated; D handles remaining direct evidence.",
+  "ownership": "Leaf only; all task-owned build/test/tidy commands completed, no review server or extra writer. Checkout released to coordinator after final report.",
+  "binding_renewal": "m3-binding-final.json refreshes byte fingerprints after appended evidence and accepted-card bookkeeping. All four Acceptance sections compare equal to start revision; milestone definition, prerequisites and exits compare equal to initial binding. No scope change."
+}

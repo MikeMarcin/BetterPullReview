@@ -44,7 +44,7 @@
       "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
       "evidence": {
         "kind": "observation",
-        "detail": "Fallback-only rogue implementation/factory and fallback submission symbol rejected;24 guard counterexample tests; complete source inventory plus16 rebuilt nonproduction binaries pass positive-controlled scan. See BPR-0572 card and m3-evidence.json."
+        "detail": "Fallback-only rogue implementation/factory and fallback submission symbol rejected;24 guard counterexample tests; complete source inventory plus17 rebuilt nonproduction binaries pass positive-controlled scan. See BPR-0572 card and m3-evidence.json."
       }
     },
     {
