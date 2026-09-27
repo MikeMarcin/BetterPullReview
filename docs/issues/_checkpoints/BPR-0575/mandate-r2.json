@@ -1,0 +1,48 @@
+{
+  "revision": "r2",
+  "run_id": "rfc0022-20260926",
+  "assignment": "/root/rfc0022_m1",
+  "mandate": "Use implement-rfc for RFC-BPR-0022 and land it on main.",
+  "bounded_scope": "First authored milestone A: BPR-0561 through BPR-0564, including initial plan adoption; stop at its boundary.",
+  "source_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "tracker_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "runtime_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022",
+  "baseline": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "start_revision": "fa20ff5868a7b59b5df5771b688370fe26672365",
+  "branch": "codex/rfc0022-semantic-comments",
+  "constraints": [
+    "Preserve authored A-D grouping and immutable source snapshots.",
+    "Current implementation mandate supersedes import-only deferral.",
+    "Canonical closeout order and existing required external acceptance are not waived.",
+    "No other writer is active in this assigned checkout; preserve coordinator strategy-selection.json.",
+    "No subagents; intentional explicit-path commits.",
+    "This milestone uses fixtures only; later live mutation is scoped to the coordinator-designated PR and fresh exact authority."
+  ],
+  "supersedes": "mandate-r1.json",
+  "amendments": [
+    {
+      "instruction": "Land on main after each milestone.",
+      "effect": "Coordinator integrates and pushes accepted milestone A before dispatching milestone B."
+    },
+    {
+      "instruction": "I do not have a suitable GHES target, so we are going to have to do our best and settle for GitHub.com evidence.",
+      "effect": "Final live acceptance uses GitHub.com; GHES automated fixture coverage remains required and native GHES behavior is explicitly unobserved."
+    },
+    {
+      "instruction": "Create one in the MikeMarcin/BPR-Test repo.",
+      "effect": "Coordinator created the designated safe PR; later authorized live comment course is scoped to that PR."
+    }
+  ],
+  "live_target": {
+    "url": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "files": [
+      "off_hunk_fixture.txt",
+      "off_hunk_fixture.md"
+    ],
+    "changed_line": 10,
+    "off_hunk_line": 60,
+    "provenance": "Coordinator /root created and attached it after explicit owner authorization; no feature comment published by milestone A."
+  }
+}

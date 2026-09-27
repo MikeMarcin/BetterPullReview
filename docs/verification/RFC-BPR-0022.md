@@ -106,6 +106,24 @@ legacy planning snapshot remain immutable. Recovery is now schema 3, so BPR-0567
 must preserve v1/v2 inline origins and v3 whole-review tables. Existing left-side
 replies and ordinary exact user-Publish grants remain supported.
 
-No product/API/UX/security statement changes in the readiness slice: the new
-policy and permalink behavior remain pending until their code and tests land.
-The fifteen canonical claim rows above remain the final acceptance authority.
+The readiness slice made no product claims. Milestone A adds the pure policy,
+exact source admission and isolated canonical codec; the provider fallback,
+transactional recovery, rehydration and Qt route remain milestone B/C work.
+The fifteen canonical claim rows above remain the final acceptance authority,
+subject to the explicit owner amendment below.
+
+### Owner amendments at milestone A
+
+The owner requested main integration after each milestone. Accepted milestone A
+returns to the coordinator for main integration before milestone B begins.
+The owner also narrowed direct live evidence to GitHub.com because no suitable
+GHES target is available. GHES automated contract/fixture checks remain required;
+native GHES behavior must be reported as unobserved, not passed.
+
+The owner authorized creation of a safe PR in `MikeMarcin/BPR-Test`; the
+coordinator designated [PR 2](https://github.com/MikeMarcin/BPR-Test/pull/2).
+Exact initial base/head and fixture lines are in
+[mandate r2](../issues/_checkpoints/BPR-0575/mandate-r2.json). Milestone A performed
+no live mutation. The later live course must refresh the PR/actor/head seal.
+Canonical RFC closeout sequencing is unchanged; this is implementation
+integration, not final RFC acceptance.
