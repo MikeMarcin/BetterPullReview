@@ -1505,3 +1505,29 @@ on the final composition root. Repository-wide `coding-format-check` still
 reports seven untouched legacy files; the one M8-touched test it identified was
 formatted. These are synthetic and local observations, so the M7
 external acceptance and M9 native/rendered checks remain open.
+
+### M8 integration on current main
+
+The coordinator merged the exact BPR-0587 candidate `f55e39e72` into local
+`main` at `ccf3f9bea`, with no conflicts. BPR-0585, BPR-0586 and BPR-0587 are
+Done; all three M8 exits have direct component and public-executable evidence
+above. The merged tree passed the documentation gate and scoped board validation.
+The nine focused tests and tests-disabled app build ran on the same M8 content
+before the conflict-free merge, so those results are reused. No push, PR or
+live GitHub mutation occurred.
+
+The assigned M8 implementer reached a usage limit after the Qt and app wiring
+and released its writer. The coordinator reconciled the uncommitted paths and
+completed the remaining regression fix, focused verification and bookkeeping
+in a direct recovery segment with no other writer or running product process.
+The [recovery checkpoint](RFC-BPR-0023.m8-recovery-checkpoint.json) binds this
+segment to the merged candidate, and its [observation](RFC-BPR-0023.m8-observation.json)
+passed the milestone consistency check as `fresh-context`. The direct-strategy
+readiness probe reported `state.drift`; no scoped model-control enforcement or
+installed skill health is inferred from it. Product acceptance rests on the
+listed source and public-path observations.
+
+M9/BPR-0588 and BPR-0589 are next. BPR-0584 still awaits a qualifying designated
+or signed publication target and an independent public body/actor read. M10 owns
+the single independent review at the end, as the owner requested; neither gate
+is counted as M8 acceptance.
