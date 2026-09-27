@@ -556,6 +556,7 @@ namespace bpr::application {
 						.Result            = std::move(aSubmission.Result),
 						.Reconciliation    = std::move(aSubmission.Reconciliation),
 						.MutationAttempted = aSubmission.MutationAttempted,
+						.Lineage           = aSubmission.Lineage,
 					});
 				} catch (...) {
 				}

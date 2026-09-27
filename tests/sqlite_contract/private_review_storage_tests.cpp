@@ -63,6 +63,29 @@ namespace {
 		auto encoded            = detail::encode_private(current);
 		expect(encoded && detail::decode_private<agent_run_provenance>(*encoded) == current, "v2 run payload preserves boundaries without duplicate text");
 	}
+	void publication_codec_compatibility()
+	{
+		private_publication_record old;
+		old.LogicalPublication = "retained-v1-logical";
+		old.ServerComment      = "retained-server";
+		old.ReconciledIdentity = old.ServerComment;
+		detail::private_codec codec;
+		std::uint64_t         version = 1;
+		codec.value(version);
+		codec.value(old);
+		auto decoded = detail::decode_private<private_publication_record>(codec.Bytes);
+		expect(decoded && decoded->LogicalPublication == old.LogicalPublication && decoded->ServerComment == old.ServerComment && decoded->IdempotencyKey.empty() && decoded->ReceiptReserve == 0 && decoded->ActorNode.empty() && decoded->Path.empty(), "v1 publication retains old evidence without inventing actor or recovery metadata");
+		auto current            = old;
+		current.IdempotencyKey  = "local-key";
+		current.ActorNode       = "U_fixture";
+		current.ActorDatabaseId = 73;
+		current.ActorLogin      = "fixture";
+		current.Path            = "src/example.cpp";
+		current.AcceptedHead    = private_review_fixture::binding().Revision.HeadOid;
+		auto encoded            = detail::encode_private(current);
+		auto roundTrip          = encoded ? detail::decode_private<private_publication_record>(*encoded) : std::nullopt;
+		expect(roundTrip && roundTrip->ServerComment == old.ServerComment && roundTrip->IdempotencyKey == current.IdempotencyKey && roundTrip->ActorNode == current.ActorNode && roundTrip->ActorDatabaseId == current.ActorDatabaseId && roundTrip->ActorLogin == current.ActorLogin && roundTrip->Path == current.Path && roundTrip->AcceptedHead == current.AcceptedHead, "v2 publication retains exact local recovery binding");
+	}
 
 	void smoke()
 	{
@@ -751,6 +774,7 @@ auto main() -> int
 {
 	protocol_metadata_storage_and_secret_scan();
 	run_codec_compatibility();
+	publication_codec_compatibility();
 	smoke();
 	facade_thread_coherence();
 	simultaneous_allocations();

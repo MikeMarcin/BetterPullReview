@@ -456,3 +456,22 @@ not duplicated in run metadata. Bounded run pages (16 records/256 KiB) support
 recovery after producer quiescence; pending admitted runs become interrupted
 without launching an agent. The session catalog's 128-row pruning does not
 remove these separately retained runs or their transcript lineage.
+
+
+## Composition publication lineage
+
+Ledger schema 7 retains the private publication join beside durable drafts and
+immutable composition revisions. Publication payload version 2 adds the exact
+idempotency key, actor node/database/login, path, accepted head and receipt-space
+reservation. Version 1 payloads remain readable with these formerly unrecorded
+facts absent; no actor or recovery authority is invented. The remote logical
+journal remains recovery schema 5 and retains ownership of send/reconcile state.
+
+Pending joins reserve 4 KiB in the existing payload quota before remote
+admission. Completion consumes this reserve, atomically attaches the canonical
+receipt and advances the exact publishing draft; later quota growth cannot
+strand that bounded receipt. The indexed logical-ID lookup returns one row;
+server-ID and draft/advisory views remain cursor-bounded pages. A failed local
+commit is repairable from the existing remote journal and exact server reread,
+without another POST. Purge and lineage retention still obey the existing
+producer-quiescence and dependency rules.

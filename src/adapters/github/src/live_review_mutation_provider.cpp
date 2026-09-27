@@ -10,11 +10,11 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                      aLease,
 		detail::github_mutation_wire_transport&                     aTransport,
 		detail::live_review_mutation_configuration                  aConfiguration,
-		std::unique_ptr<application::review_mutation_recovery_port> aRecovery) noexcept
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery, application::review_publication_lineage_port* aLineage) noexcept
 		: Session{ aTransport,
 				   std::move(aConfiguration),
 				   std::move(aLease),
-				   std::move(aRecovery) }
+				   std::move(aRecovery), std::nullopt, aLineage }
 	{
 	}
 
@@ -61,6 +61,10 @@ namespace bpr::adapters::github {
 		return Session.resolve_thread(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
+	{
+		return Session.reconcile_publication(aRequest, aStop);
+	}
 	auto live_review_mutation_provider::capabilities() const
 		-> application::review_provider_capabilities
 	{
@@ -76,7 +80,7 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                      aLease,
 		application::review_mutation_target_binding                 aTarget,
 		application::review_mutation_acting_identity                aActingIdentity,
-		std::unique_ptr<application::review_mutation_recovery_port> aRecovery) noexcept
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery, application::review_publication_lineage_port* aLineage) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>
@@ -96,6 +100,7 @@ namespace bpr::adapters::github {
 			*admission->Transport,
 			std::move(admission->Configuration),
 			std::move(aRecovery),
+			aLineage,
 		};
 		if (provider == nullptr) {
 			return std::unexpected(application::review_mutation_failure::unavailable);

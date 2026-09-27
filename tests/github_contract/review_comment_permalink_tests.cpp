@@ -1,8 +1,12 @@
 #include "../sqlite_contract/scratch_root.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/application/private_publication_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
 #include "review_comment_permalink.hpp"
+#include <sqlite3.h>
 #include <stdexcept>
 
 #include <algorithm>
@@ -458,6 +462,9 @@ namespace {
 					response.Body.replace(response.Body.find("PRRC_fixture_44"), 15U, "PRRC_fixture_" + std::to_string(Posts.size() + 100U));
 					if (Publish) {
 						Comments.push_back(response.Body);
+						if (AfterPost) {
+							AfterPost();
+						}
 					}
 				}
 				if (CancelAfterPost) {
@@ -492,6 +499,7 @@ namespace {
 		unsigned                                  StaleAtTarget   = 0U;
 		int                                       GenericStatus   = 0;
 		std::stop_source*                         CancelAfterPost = nullptr;
+		std::function<void()>                     AfterPost;
 	};
 	[[nodiscard]] auto session_configuration(const application::review_mutation_request& aRequest) -> live_review_mutation_configuration
 	{
@@ -894,8 +902,161 @@ void tour_ranges()
 	expect(compile_tour_permalink(scope, source)->ends_with("#L1"), "unchanged and single-line destinations retain exact source");
 }
 
+namespace {
+	struct lineage_fault final : application::review_publication_lineage_port
+	{
+		application::private_publication_application_host& Real;
+		bool                                               FailPrepare = false;
+		explicit lineage_fault(application::private_publication_application_host& aReal)
+			: Real(aReal)
+		{ }
+		auto prepare(const application::review_mutation_request& r, std::string_view key, std::string_view body) -> bool override { return !FailPrepare && Real.prepare(r, key, body); }
+		auto complete(const application::review_mutation_request& r, std::string_view key, std::string_view body, const application::review_mutation_receipt& receipt) -> bool override { return Real.complete(r, key, body, receipt); }
+	};
+	struct session_adapter final : application::review_mutation_port
+	{
+		review_mutation_session& Session;
+		explicit session_adapter(review_mutation_session& aSession)
+			: Session(aSession)
+		{ }
+		auto observe_target() -> std::expected<core::review_mutation_target, application::review_mutation_failure> override { return Session.observe_target(); }
+		auto submit(const application::review_mutation_request& r) -> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override { return Session.submit(r); }
+		auto submit_and_reconcile(const application::review_mutation_request& r, std::stop_token stop) -> application::review_mutation_submission override { return Session.submit_and_reconcile(r, stop); }
+		auto capabilities() const -> application::review_provider_capabilities override { return { }; }
+	};
+	auto lineage_writer(const std::filesystem::path& aRoot) -> sqlite3*
+	{
+		std::filesystem::path path;
+		for (const auto& file : std::filesystem::recursive_directory_iterator(aRoot)) {
+			if (file.path().filename() == "review-ledger.sqlite3") {
+				path = file.path();
+			}
+		}
+		expect(!path.empty(), "fault injector finds only fixture ledger");
+		sqlite3* db = nullptr;
+		expect(sqlite3_open(path.string().c_str(), &db) == SQLITE_OK, "fixture SQLite fault injection opens");
+		expect(sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture peer holds SQLite writer exclusion");
+		return db;
+	}
+	void private_composition_publication()
+	{
+		using namespace application;
+		for (unsigned mode = 0; mode < 8; ++mode) {
+			auto scratch              = tests::sqlite_contract::scratch_root{ "private-publication" };
+			auto source               = permalink_source();
+			auto request              = publication_request(source);
+			request.Source->Placement = core::review_placement::off_hunk;
+			adapters::sqlite::private_review_configuration config{ { scratch.path(), "github.com", "fixture-reviewer", "MikeMarcin/BPR-Test", 1 }, core::bpr_profile_id{ 1 }, request.Target.Host, request.ActingIdentity, request.Target.Repository, request.Target.PullRequest };
+			auto                                           store   = std::move(*adapters::sqlite::make_private_review_store(config));
+			auto                                           binding = core::private_review_binding{ .Scope = store->frontier()->Scope, .HostAuthority = source.Comparison.Authority.HostAuthority, .Revision = { request.Target.Host, request.Target.Repository, request.Target.PullRequest, source.Target.BaseOid, request.Target.ExpectedHead, source.Comparison.LeftAnchor.Epoch, source.Comparison.RightAnchor.Epoch }, .LeftAnchor = source.Comparison.LeftAnchor, .RightAnchor = source.Comparison.RightAnchor, .Comparison = request.Proposal.Anchor.Comparison };
+			std::string                                    text;
+			for (unsigned i = 0; i < 100; ++i) {
+				text += "line\n";
+			}
+			auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(text.data()), text.size() };
+			auto computed = core::compute_file_diff({ .Key = source.Comparison, .Options = { }, .LeftBytes = bytes, .RightBytes = bytes });
+			expect(computed.Result.has_value(), "real diff material for composition/publication");
+			auto index = *core::build_diff_semantic_index(std::make_shared<const core::computed_file_diff>(std::move(*computed.Result)));
+			auto note  = *core::create_private_thread(core::private_review_thread_id{ 1 }, { binding, core::private_pr_subject{ } }, { core::private_review_turn_id{ 2 }, core::private_review_turn_revision_id{ 3 }, core::private_vertex_order{ 3 }, core::private_reviewer_actor{ }, "private reasoning stays local" });
+			expect(store->commit({ .ExpectedNextIdentity = 1, .Threads = { { note.Thread, 0 } }, .Revisions = { note.Revision } }).has_value(), "persist source before composition");
+			auto                                ref = core::source_of(note.Revision);
+			review_composition_application_host compositions(*store);
+			auto                                workspace = compositions.create({ binding, core::review_composition_mode::reviewer_authored, { { ref, ref.Key, false } }, core::private_composition_target{ binding, request.Proposal.Anchor }, request.Proposal.Body });
+			expect(workspace.has_value(), "create real composition before publish");
+			std::array selection{ review_composition_acceptance{ workspace->State.Id, workspace->Version, *workspace->State.Candidate } };
+			auto       accepted = compositions.accept(selection, binding, index, core::review_draft_scope_id{ 1 });
+			expect(accepted.has_value(), "composition acceptance creates durable draft");
+			auto draft = accepted->records().front().Draft;
+			expect(store->find_publication()->Records.empty(), "acceptance alone creates no publication");
+			auto publishing = compositions.change_draft({ { draft.Draft.Id, core::review_draft_command_kind::begin_publish, { } }, draft.Revision, false, { }, core::review_draft_scope_id{ 1 } });
+			expect(publishing.has_value(), "separate explicit begin-publish commits existing reducer state");
+			draft = publishing->records().front().Draft;
+			private_publication_application_host lineage(*store);
+			request.Proposal       = *lineage.proposal(draft.Draft.Id, draft.Revision);
+			request.IdempotencyKey = idempotency_key_for(request.Proposal, request.Target);
+			auto legacy            = request.Proposal;
+			legacy.Durable.reset();
+			expect(idempotency_key_for(legacy, request.Target) != request.IdempotencyKey, "durable idempotency domain separates legacy identity");
+			auto foreign = request.Proposal;
+			++foreign.Durable->Incarnation[0];
+			expect(idempotency_key_for(foreign, request.Target) != request.IdempotencyKey, "recreated ledger cannot collide with same draft bytes");
+			lineage_fault fault(lineage);
+			fault.FailPrepare       = mode == 4;
+			auto transport          = publication_transport{ };
+			transport.RejectNative  = mode == 1;
+			transport.HideAfterPost = mode == 3;
+			transport.WrongActor    = mode == 5;
+			sqlite3* heldWriter     = nullptr;
+			if (mode == 2) {
+				transport.AfterPost = [&] { heldWriter = lineage_writer(scratch.path()); };
+			}
+			if (mode == 7) {
+				transport.AfterPost = [&] {
+					auto db = lineage_writer(scratch.path());
+					expect(sqlite3_exec(db, "UPDATE private_scope_state SET payload_bytes=67108864; COMMIT", nullptr, nullptr, nullptr) == SQLITE_OK, "simulate quota occupied after reservation");
+					sqlite3_close(db);
+				};
+			}
+			auto                        session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &fault };
+			session_adapter             adapter(session);
+			review_mutation_coordinator coordinator(adapter, request.LiveBinding->Target, request.LiveBinding->ActingIdentity);
+			std::stop_source            stop;
+			if (mode == 6) {
+				stop.request_stop();
+			}
+			auto result = coordinator.publish_attempt(request.Proposal, request.LiveBinding->Anchor, false, stop.get_token(), request.Source);
+			auto rows   = store->find_publication();
+			expect(rows.has_value(), "local publication joins readable");
+			if (mode >= 4 && mode <= 6) {
+				expect(!result.Result && transport.Posts.empty() && rows->Records.empty(), "prepare failure wrong actor and cancellation send nothing and record no success");
+				continue;
+			}
+			expect(result.Result && rows->Records.size() == 1 && transport.Comments.size() == 1, "one logical publication and one shared comment");
+			auto row = rows->Records.front();
+			expect(row.Draft == draft.Draft.Id && row.DraftRevision == draft.Revision && row.Composition == draft.Composition && row.IdempotencyKey == request.IdempotencyKey && row.ActorNode == "U_fixture" && row.ActorDatabaseId == 22 && row.ActorLogin == "fixture-reviewer", "lineage freezes exact draft/composition actor and idempotency");
+			expect(row.ApprovedProseDigest == core::private_digest(request.Proposal.Body), "approved prose digest retained independently");
+			if (mode == 2 || mode == 3) {
+				expect(!row.ServerComment && result.Lineage == review_lineage_state::pending && store->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::publishing, "remote success and refused local write or refresh remains pending");
+			} else {
+				expect(row.ServerComment && result.Lineage == review_lineage_state::recorded, "successful receipt commits even when later writes occupy the remaining quota");
+			}
+			const auto posts = transport.Posts.size();
+			if (mode == 2) {
+				expect(sqlite3_exec(heldWriter, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "release competing fixture writer");
+				sqlite3_close(heldWriter);
+				transport.AfterPost = { };
+			}
+			transport.HideAfterPost                       = false;
+			auto                                 reopened = std::move(*adapters::sqlite::make_private_review_store(config));
+			private_publication_application_host recoveredLineage(*reopened);
+			auto                                 recovered = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &recoveredLineage };
+			auto                                 repaired  = recovered.reconcile_publication(request);
+			expect(repaired.Result && repaired.Lineage == review_lineage_state::recorded && transport.Posts.size() == posts, "restart repairs only through reads and one local transaction with zero new POST");
+			auto lookup = reopened->lookup_publication(row.LogicalPublication);
+			expect(lookup && *lookup && (**lookup).ServerComment == result.Result->ServerCommentId && (**lookup).ReconciledIdentity == result.Result->ServerCommentId && (**lookup).ReceiptReserve == 0, "exact canonical server join survives reopen");
+			expect(reopened->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::published, "draft terminal and lineage commit atomically");
+			auto expectedWire = mode == 1 ? *compile_review_permalink_body(source, request.Proposal.Anchor, request.Proposal.Body) : request.Proposal.Body;
+			expect((**lookup).WireBodyDigest == core::private_digest(expectedWire), "wire digest names native prose or canonical visible permalink plus prose");
+			auto publicRead = tests::parse_fixture_object(transport.Comments.front());
+			expect(publicRead.at("body").get_string() == expectedWire && publicRead.at("user").get_object().at("node_id").get_string() == "U_fixture", "separate fixture reader checks exact public body and actor without local metadata");
+			auto wrongRequest = request;
+			wrongRequest.Proposal.Body += " altered";
+			expect(!recovered.reconcile_publication(wrongRequest).Result && transport.Posts.size() == posts, "wrong body cannot borrow a logical receipt or send repair POST");
+			wrongRequest                                    = request;
+			wrongRequest.LiveBinding->ActingIdentity.NodeId = "foreign";
+			expect(!recovered.reconcile_publication(wrongRequest).Result && transport.Posts.size() == posts, "wrong actor cannot repair lineage");
+			expect(reopened->find_publication(result.Result->ServerCommentId)->Records.size() == 1, "lineage lookup by server ID resolves same draft");
+			expect(recovered.reconcile_publication(request).Lineage == review_lineage_state::recorded && transport.Posts.size() == posts, "repeated repair is idempotent and read-only");
+			expect(recoveredLineage.for_draft(draft.Draft.Id)->Records.size() == 1, "bounded draft lookup returns canonical logical row");
+			expect(recoveredLineage.duplicates(workspace->State.Id)->Records.size() == 1, "duplicate source body target remains an advisory with server identity");
+			expect(reopened->read_revision_body({ ref, 0 })->Bytes == note.Revision.Body, "publication preserves private source bytes");
+		}
+	}
+}
+
 auto main() -> int
 {
+	private_composition_publication();
 	tour_ranges();
 	test_server_truth_placement();
 	test_session_negotiation_and_cache();

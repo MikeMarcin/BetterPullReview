@@ -2702,12 +2702,13 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_transport aLease,
 		std::unique_ptr<application::review_mutation_recovery_port>
 													 aRecovery,
-		std::optional<off_hunk_unsupported_contract> aUnsupportedContract) noexcept
+		std::optional<off_hunk_unsupported_contract> aUnsupportedContract, application::review_publication_lineage_port* aLineage) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
 		, UnsupportedContract{ std::move(aUnsupportedContract) }
+		, Lineage{ aLineage }
 	{
 	}
 
@@ -3196,6 +3197,10 @@ namespace bpr::adapters::github::detail {
 					next.State  = publication_state::native_prepared;
 					next.Native = prepared_child(aRequest, key, *baseline);
 				}
+				const auto localBody = publication_body(aRequest);
+				if (aRequest.Proposal.Durable && (!Lineage || !localBody || !Lineage->prepare(aRequest, key, *localBody))) {
+					return publication_failure();
+				}
 				const auto saved = Recovery->advance_publication(std::nullopt, next);
 				if (!saved) {
 					return publication_failure();
@@ -3221,9 +3226,13 @@ namespace bpr::adapters::github::detail {
 					result.Result = std::unexpected(baseline.error());
 					return result;
 				}
-				auto next        = *current;
-				next.State       = publication_state::fallback_prepared;
-				next.Fallback    = prepared_child(request, key, *baseline);
+				auto next            = *current;
+				next.State           = publication_state::fallback_prepared;
+				next.Fallback        = prepared_child(request, key, *baseline);
+				const auto localBody = publication_body(request);
+				if (request.Proposal.Durable && (!Lineage || !localBody || !Lineage->prepare(request, key, *localBody))) {
+					return publication_failure();
+				}
 				const auto saved = Recovery->advance_publication(current, next);
 				if (!saved) {
 					return result;
@@ -3249,6 +3258,51 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 		return result;
+	}
+
+	auto review_mutation_session::finish_lineage(const application::review_mutation_request& aRequest, application::review_mutation_submission aResult, std::stop_token aStop) -> application::review_mutation_submission
+	{
+		if (!aRequest.Proposal.Durable) {
+			return aResult;
+		}
+		aResult.Lineage = application::review_lineage_state::pending;
+		if (!aResult.Result || !Lineage) {
+			return aResult;
+		}
+		auto request           = aRequest;
+		request.Representation = aResult.Result->Representation;
+		const auto observed    = reconcile(request, aStop);
+		if (!observed) {
+			return aResult;
+		}
+		aResult.Reconciliation = observed->Projection;
+		const auto exact       = std::ranges::any_of(observed->ExactReceipts, [&](const auto& r) { return r.ServerCommentId == aResult.Result->ServerCommentId; });
+		if (!exact) {
+			return aResult;
+		}
+		const auto logical   = digest_hex(publication_fingerprint(aRequest, Configuration));
+		const auto localBody = publication_body(request);
+		if (localBody && Lineage->complete(request, logical, *localBody, *aResult.Result)) {
+			aResult.Lineage = application::review_lineage_state::recorded;
+		}
+		return aResult;
+	}
+	auto review_mutation_session::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (!Recovery || !Lease || !Lease->active() || aRequest.Representation != core::review_publication_representation::native_line || !aRequest.Source || !aRequest.LiveBinding || !application::valid(*aRequest.LiveBinding) || aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity || aRequest.Proposal.ReplyToThread || !compile_review_comment_request(aRequest, Configuration.Target.ServerContract)) {
+				return publication_failure();
+			}
+			const auto fingerprint = publication_fingerprint(aRequest, Configuration);
+			auto       loaded      = Recovery->load_publication(digest_hex(fingerprint));
+			if (!loaded || !*loaded || (**loaded).Fingerprint != fingerprint || (**loaded).LegacyKey != aRequest.IdempotencyKey) {
+				return publication_failure();
+			}
+			return finish_lineage(aRequest, recover_publication(aRequest, **loaded, aStop), aStop);
+		} catch (...) {
+			return publication_failure();
+		}
 	}
 
 	auto review_mutation_session::submit_and_reconcile(
@@ -3339,6 +3393,9 @@ namespace bpr::adapters::github::detail {
 				return submission;
 			};
 
+			if (aRequest.Proposal.Durable && (!Lineage || !aRequest.Source || aRequest.Proposal.ReplyToThread || aRequest.Proposal.Durable->DraftRevision == 0 || std::ranges::all_of(aRequest.Proposal.Durable->Incarnation, [](auto b) { return b == 0; }))) {
+				return failure(application::review_mutation_failure::unavailable);
+			}
 			const auto loaded = Recovery->load(aRequest.IdempotencyKey);
 			if (!loaded.has_value()) {
 				return failure(application::review_mutation_failure::unavailable);
@@ -3347,7 +3404,7 @@ namespace bpr::adapters::github::detail {
 				return finishKnown(**loaded);
 			}
 			if (aRequest.Source && !aRequest.Proposal.ReplyToThread) {
-				return submit_publication(aRequest, aStop);
+				return finish_lineage(aRequest, submit_publication(aRequest, aStop), aStop);
 			}
 
 			// [[BPR-0879]]. A reply names a thread, and a thread identity says

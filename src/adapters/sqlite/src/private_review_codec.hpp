@@ -204,11 +204,14 @@ namespace bpr::adapters::sqlite::detail {
 	[[nodiscard]] auto encode_private(T aValue) -> std::optional<std::vector<std::uint8_t>>
 	{
 		private_codec codec;
-		std::uint64_t version = std::is_same_v<T, core::agent_run_provenance> ? 2 : 1;
+		std::uint64_t version = (std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record>) ? 2 : 1;
 		codec.value(version);
 		codec.value(aValue);
 		if constexpr (std::is_same_v<T, core::agent_run_provenance>) {
 			codec.value(aValue.OutputItemBytes);
+		}
+		if constexpr (std::is_same_v<T, application::private_publication_record>) {
+			codec.values(aValue.IdempotencyKey, aValue.ReceiptReserve, aValue.ActorNode, aValue.ActorDatabaseId, aValue.ActorLogin, aValue.Path, aValue.AcceptedHead);
 		}
 		if (!codec.Good || codec.Bytes.size() > 2U * 1024U * 1024U) {
 			return { };
@@ -226,7 +229,7 @@ namespace bpr::adapters::sqlite::detail {
 		codec.Input           = aBytes;
 		std::uint64_t version = 0;
 		codec.value(version);
-		if (version != 1 && !(std::is_same_v<T, core::agent_run_provenance> && version == 2)) {
+		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record>) && version == 2)) {
 			return { };
 		}
 		T result{ };
@@ -234,6 +237,11 @@ namespace bpr::adapters::sqlite::detail {
 		if constexpr (std::is_same_v<T, core::agent_run_provenance>) {
 			if (version == 2) {
 				codec.value(result.OutputItemBytes);
+			}
+		}
+		if constexpr (std::is_same_v<T, application::private_publication_record>) {
+			if (version == 2) {
+				codec.values(result.IdempotencyKey, result.ReceiptReserve, result.ActorNode, result.ActorDatabaseId, result.ActorLogin, result.Path, result.AcceptedHead);
 			}
 		}
 		if (!codec.Good || !codec.Input.empty()) {

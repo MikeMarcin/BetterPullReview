@@ -946,3 +946,35 @@ canary and architecture contract courses on the combined tree; all ten rows
 passed. M6's separate `WritingOnly` path and M5 provenance remain in the
 integrated source. No RFC-0023 criterion or authored milestone order changed;
 M7 starts from this integrated main.
+
+
+### M7 composition and publication implementation
+
+M7 implements the actual private-store composition owner, durable shared-draft
+acknowledgements, and separate publication join on the current schema 7/recovery
+5/tour 3 baseline. The join uses the existing logical provider journal, exact
+native/file prose and wire digests and canonical server identity; its explicit
+repair path performs no POST. Only private publication payload encoding advances
+to version 2, with version-1 reads retaining unknown new metadata. Source-pack
+bytes and all eighteen RFC criteria remain unchanged.
+
+The [M7 evidence and handoff](RFC-BPR-0023.md#m7-durable-handoff) distinguish
+BPR-0583 completion, BPR-0584 verified local implementation and pending external
+acceptance. Under mandate r2 and the coordinator's sequencing clarification,
+M7's local implementation may integrate and M8 may begin after that exact
+handoff. BPR-0584 stays nonterminal. Its original designated or signed-recorded
+evidence plus independent public-body/actor read is retained verbatim as an M9
+exit and still blocks RFC closeout and full AC-12/13 acceptance. BPR-0587's
+terminal-card prerequisite is replaced only by the exact integrated M7
+implementation prerequisite; its product/public-path requirements are intact.
+The plan amendment preserves all work selectors and exit obligations and was
+checked before publication; the M7 binding was renewed before acceptance.
+
+Production wiring must serialize the private store, invocation run port,
+composition operations and publication lineage effects on one effect lane.
+Store and lineage owners outlive all borrowing providers and drained effects.
+Decision-lane shared draft adoption consumes acknowledged durable values only;
+it cannot perform a synchronous store operation. M8 also owns recovery-request
+reconstruction from retained exact binding/source material and production
+read-only repair dispatch. These are integration obligations, not helper-level
+completion claims. Final independent review remains M10.

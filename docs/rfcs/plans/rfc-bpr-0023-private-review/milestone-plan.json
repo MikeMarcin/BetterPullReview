@@ -149,9 +149,9 @@
       "exit_criteria": [
         "All three composition modes retain sources and accept an exact candidate into the existing revisioned draft authority across restart with zero mutation.",
         "Separate Publish uses RFC-0008 and RFC-0022 logical recovery, preserves approved prose and wire digests, and repairs local lineage without another POST.",
-        "BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending."
+        "Local BPR-0584 implementation and recovery fixtures pass. Designated or signed recorded evidence plus independent body/actor read remains explicitly pending until supplied and blocks RFC closeout, but does not block M8 implementation."
       ],
-      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+      "boundary": "Integrate the verified local implementation with exact evidence even when BPR-0584 external acceptance remains pending. Keep that card nonterminal and report implementation-complete separately from criterion satisfaction; required external acceptance is never inferred."
     },
     {
       "id": "m8-public-ui",
@@ -168,14 +168,14 @@
         }
       ],
       "depends_on": [
-        "m7-compose-publish"
+        "m6-thread-host"
       ],
       "exit_criteria": [
         "The actual modality/drawer surfaces expose private history, qualified provenance, exact sources and distinct Accept as Draft and Publish actions.",
         "The production composition supports the full create/agent/restart/compose/accept/separate-publish course in native and file-permalink representations.",
         "Bounded updates, keyboard/accessibility, shutdown and configured dependency-boundary checks pass; helper-only behavior is insufficient."
       ],
-      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+      "boundary": "Start only after the coordinator integrates the verified M7 local implementation and its exact candidate evidence. Pending BPR-0584 external acceptance does not block this implementation milestone and still blocks RFC closeout. Return a durable quiescent handoff for integration to main."
     },
     {
       "id": "m9-acceptance",
@@ -193,7 +193,8 @@
       ],
       "exit_criteria": [
         "All required crash, migration, quota, security, exact-selection, remote-success/local-failure and performance claims have direct candidate-bound evidence.",
-        "Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied."
+        "Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied.",
+        "BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending."
       ],
       "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
     },

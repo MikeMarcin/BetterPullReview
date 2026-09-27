@@ -1,0 +1,14 @@
+{
+  "state": "amendment-checked",
+  "reason": "M7 implementation is independently verifiable; native or signed-record acceptance is scheduled at M9 and must not block M8 integration under mandate r2.",
+  "source_basis": "Owner requested review at RFC end; coordinator clarified M7 implementation-complete with BPR-0584 external gate retained pending and M8 allowed to continue. BPR-0584 completion evidence and RFC AC-12/13 are unchanged.",
+  "before_fingerprint": "sha256:ef863f0276dedb26ac96b81adf9c237d46d47175bbd2c774953c9bd1703f44f4",
+  "after_fingerprint": "sha256:774bd10c1b8f5278a357f1fa2777742e3cec0e0c9155016ac2bb415ae4a7ffea",
+  "affected_milestones": [
+    "m7-compose-publish",
+    "m8-public-ui",
+    "m9-acceptance"
+  ],
+  "semantic_coverage": "unknown",
+  "next": "reconcile affected assignments before publication"
+}

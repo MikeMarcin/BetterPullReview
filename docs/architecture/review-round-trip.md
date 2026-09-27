@@ -937,3 +937,37 @@ append only a proposal; a changed/deleted workspace or advanced source retains
 the run terminal without attaching a candidate. Accept and Publish remain
 separate operations. The store and private run port outlive all invocation
 claims and effects, as specified by the M6 lifecycle contract.
+
+
+### Separate durable publication join
+
+`private_publication_application_host` loads an already publishing draft into
+the existing core proposal. Its optional local identity binds the private ledger
+incarnation and exact draft revision into the idempotency key. Legacy proposals
+keep their existing keys. These local fields never enter a GitHub request body.
+A separate explicit Publish still traverses the existing coordinator, exact
+source/actor/target validation and RFC-BPR-0022 logical journal.
+
+Before a child is admitted, a storage-only lineage port commits the exact draft
+and composition revision, private binding, actor, logical ID, idempotency key,
+approved-prose digest and compiled wire-body digest. Native-to-file negotiation
+updates that same pending row. Pending rows are not successful publication.
+An exact server reread must agree with the receipt before the join and matching
+publishing draft are completed in one transaction. A failed local commit leaves
+the remote success visible with lineage pending.
+
+The provider's explicit `reconcile_publication` operation loads an existing
+logical journal and performs only reconciliation reads and local commits. It
+cannot admit or POST a child. A reopened caller supplies the retained exact
+original request and source endpoint; fresh text alone cannot reconstruct
+recovery authority. Repeated repair uses the original canonical server identity.
+The local host exposes bounded lineage pages by draft and duplicate-source/body/
+target advisories, with server IDs. An advisory cannot suppress intentional Publish.
+
+The store, lineage host and all borrowing providers must share one serialized
+effect lane and outlive its drained invocations. The existing mutation terminal
+carries lineage state to the decision lane; M8 owns production construction,
+recovery discovery and rendering. M7 fixture courses exercise the actual store,
+coordinator, provider and journal, but do not supply designated live-target or
+signed-recording acceptance. Public prose stays byte-preserved; the authorized
+file representation adds only its canonical visible permalink.

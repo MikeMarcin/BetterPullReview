@@ -113,6 +113,14 @@ namespace bpr::application {
 		std::string                                  Representation;
 		std::optional<std::string>                   ServerComment;
 		std::optional<std::string>                   ReconciledIdentity;
+		/// Version-two correlation; version-one rows retain unknown values.
+		std::string          IdempotencyKey  = { };
+		std::uint64_t        ReceiptReserve  = 0;
+		std::string          ActorNode       = { };
+		std::uint64_t        ActorDatabaseId = 0;
+		std::string          ActorLogin      = { };
+		std::string          Path            = { };
+		core::git_commit_oid AcceptedHead    = { };
 	};
 	struct private_publication_cursor
 	{
@@ -214,6 +222,8 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto load_draft(core::review_draft_id) -> private_store_result<private_draft_record> = 0;
 		/// \brief Loads the bounded collection of at most 64 durable drafts for reattachment.
 		[[nodiscard]] virtual auto list_drafts() -> private_store_result<std::vector<private_draft_record>> = 0;
+		/// \brief Exact indexed logical identity lookup, never a scan by body text.
+		[[nodiscard]] virtual auto lookup_publication(std::string_view) -> private_store_result<std::optional<private_publication_record>> { return std::unexpected(private_store_failure::unavailable); }
 		/// \brief Pages at most 64 local journal or receipt joins, optionally by server identity.
 		[[nodiscard]] virtual auto find_publication(std::optional<std::string> aServerComment = { }, std::optional<private_publication_cursor> aCursor = { }) -> private_store_result<private_publication_page> = 0;
 		/// \brief Deletes one expected thread version only when external retained references are absent.
