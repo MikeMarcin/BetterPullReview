@@ -1,0 +1,179 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m5-revision",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "native-closeout",
+    "definition_fingerprint": "sha256:c7da4e897378be3a34e93f18505b13be3b25e997ce6b516f3b1cb43583b194fa",
+    "obligations": [
+      {
+        "id": "BPR-1219:*",
+        "source": "BPR-1219",
+        "selector": null,
+        "source_fingerprint": "sha256:c3036d642f6febe3bb7ab5fb4b91c4af52295ab475d96b44d761d7024f8f5fcd"
+      },
+      {
+        "id": "BPR-0603:*",
+        "source": "BPR-0603",
+        "selector": null,
+        "source_fingerprint": "sha256:53b8b60900b00307d7cb2dc54bfd2f53200e8449697cf4f2da199272090895ba"
+      },
+      {
+        "id": "BPR-0601:*",
+        "source": "BPR-0601",
+        "selector": null,
+        "source_fingerprint": "sha256:83ddbcc7b745941c0514e18c8c6d8877b7ba59a7ced2aec938e8d4158061d5da"
+      },
+      {
+        "id": "RFC-BPR-0027:*",
+        "source": "RFC-BPR-0027",
+        "selector": null,
+        "source_fingerprint": "sha256:6a1d96a9960baad13669be0d0bcb1b2ea4ec6b45557c3996e32a12c781350be2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:ec00f5ac38d5705cec304897fd2295e8ddeed1af9b1380cb043334436bd7bbd5",
+    "exit_criteria": [
+      {
+        "id": "native-closeout:exit:1",
+        "text": "AC1: Run focused integration and native logging/lifecycle/control courses on each claimed platform; bind dependency and package provenance."
+      },
+      {
+        "id": "native-closeout:exit:2",
+        "text": "AC2: Prepare required attended review with exact candidates and pending decisions; no live sign-in without separate authority."
+      },
+      {
+        "id": "native-closeout:exit:3",
+        "text": "AC3: Reconcile BPR-0603 and BPR-0601, RFC/index and all full criteria, land accepted scope on main."
+      },
+      {
+        "id": "native-closeout:exit:4",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:446ee572255671ce2d8281024502029417d3f052c4727d3e89ec41eb7ea110ee",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "native-closeout",
+  "disposition": "human-pending",
+  "candidate_revision": "1b485d38d9047ddedcb4641aee7c05f1a9f7e8c3",
+  "handoff_ref": "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released",
+  "required_pending": [
+    "Attended revised BPR-1219-controls verdict at source0fb249a2",
+    "Attended revised BPR-1219-export verdict at source0fb249a2",
+    "Preserve original files acceptance; reconcile aggregate cards/RFC and land accepted M5 on main"
+  ],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md",
+    "docs/issues/40-parked/BPR-1219-native-closeout.md",
+    "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1219:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "BPR-0603:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "BPR-0601:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0027:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:4",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/40-parked/BPR-1219-native-closeout.md",
+        "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "wait",
+    "next_milestone": "native-closeout",
+    "reason": "pending-obligation",
+    "detail": "Engineering writer released; coordinator takes the same attended session c1565558e5fd3fdc277e62622604873b at cursor31 and server64739/PID8289. Original files accepted at cursor23; revised controls/export source0fb249a2 are protected and pending. Fresh engineering round interprets actual handback, reuses passing evidence and integrates accepted M5 on main. Binding renewed against current parked card and full obligations. Only transferred review server remains; native/build commands are complete."
+  },
+  "ownership": "quiescent"
+}
