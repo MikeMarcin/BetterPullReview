@@ -347,6 +347,38 @@ namespace bpr::application {
 	}
 
 	void review_tour_host::start() { Implementation->start(); }
+	auto review_tour_host::execute(const tour_service_request& aRequest) -> tour_service_result
+	{
+		auto&       self  = *Implementation;
+		const auto& state = self.State;
+		if (self.Closing || state.Loading || !state.Draft) {
+			return { tour_service_status::busy };
+		}
+		const auto& command  = aRequest.Command;
+		const auto  revision = state.Draft->Revision;
+		if (command.Owner != state.Draft->Owner || command.Draft != state.Draft->Id) {
+			return { tour_service_status::refused, core::tour_refusal::identity, revision };
+		}
+		if (command.ExpectedRevision != revision) {
+			return { tour_service_status::refused, core::tour_refusal::conflict, revision };
+		}
+		if (state.Failure) {
+			return { tour_service_status::storage_failure, core::tour_refusal::none, revision };
+		}
+		self.State.Refusal = core::tour_refusal::none;
+		switch (aRequest.Operation) {
+		case tour_service_operation::edit: self.dispatch(command); break;
+		case tour_service_operation::undo: self.restore(false); break;
+		case tour_service_operation::redo: self.restore(true); break;
+		case tour_service_operation::import_selected:
+			if (aRequest.ImportIndex >= self.Imports.size()) {
+				return { tour_service_status::refused, core::tour_refusal::invalid_command, revision };
+			}
+			self.import_selected(aRequest.ImportIndex);
+			break;
+		}
+		return { state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
+	}
 	void review_tour_host::dispatch(const core::tour_command& aCommand) { Implementation->dispatch(aCommand); }
 	void review_tour_host::undo() { Implementation->restore(false); }
 	void review_tour_host::redo() { Implementation->restore(true); }

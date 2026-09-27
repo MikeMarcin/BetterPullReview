@@ -6733,7 +6733,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 				if (!Closing && TourHost && current(DraftWindow)) {
 					aCommand.Attention = current_tour_attention();
-					TourHost->dispatch(aCommand);
+					static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 				} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the

@@ -108,6 +108,32 @@ int main()
 	host.dispatch(tests::tour_edit(*host.presentation().Draft, "after shutdown"));
 	expect(shared->Draft->Problem == "exception", "closed host refuses edits");
 	{
+		auto                          firstStore  = std::make_shared<store_state>();
+		auto                          secondStore = std::make_shared<store_state>();
+		application::review_tour_host desktop{ tests::review_tour_fixture(), std::make_unique<store>(firstStore), effects, decisions, { } };
+		application::review_tour_host terminal{ tests::review_tour_fixture(), std::make_unique<store>(secondStore), effects, decisions, { } };
+		desktop.start();
+		terminal.start();
+		effects.drain();
+		decisions.drain();
+		const auto command = tests::tour_edit(*desktop.presentation().Draft, "same literal author edit");
+		desktop.dispatch(command);
+		const auto result = terminal.execute({ .Command = command });
+		expect(result.Status == application::tour_service_status::accepted && result.Revision == command.ExpectedRevision + 1, "shared facade reports local admission, not publication");
+		effects.drain();
+		decisions.drain();
+		expect(firstStore->Draft == secondStore->Draft && terminal.presentation().SavedRevision == result.Revision, "desktop and terminal semantic commands persist identical parent tour bytes");
+		const auto saves = secondStore->Saves;
+		expect(terminal.execute({ .Command = command }).Refusal == core::tour_refusal::conflict, "stale terminal command refuses");
+		auto wrong          = tests::tour_edit(*terminal.presentation().Draft, "wrong owner");
+		wrong.Owner.Account = core::github_account_id{ wrong.Owner.Account.value() + 1 };
+		expect(terminal.execute({ .Command = wrong }).Refusal == core::tour_refusal::identity && secondStore->Saves == saves, "another client cannot redirect the exact target");
+		desktop.shutdown();
+		terminal.shutdown();
+		effects.drain();
+		decisions.drain();
+	}
+	{
 		auto empty = tests::review_tour_fixture();
 		empty.Problem.clear();
 		empty.Solution.clear();

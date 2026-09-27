@@ -8,6 +8,30 @@
 #include <functional>
 #include <memory>
 namespace bpr::application {
+	/// \brief Exact local service request, shared by desktop and terminal presentations.
+	/// Publication and assistance require their separate existing authority ports.
+	enum class tour_service_operation : std::uint8_t { edit,
+													   undo,
+													   redo,
+													   import_selected };
+	struct tour_service_request
+	{
+		core::tour_command     Command;
+		tour_service_operation Operation   = tour_service_operation::edit;
+		std::size_t            ImportIndex = 0;
+	};
+	enum class tour_service_status : std::uint8_t { accepted,
+													unchanged,
+													refused,
+													busy,
+													storage_failure };
+	/// \brief Admission result; accepted edits are durable only once SavedRevision catches up.
+	struct tour_service_result
+	{
+		tour_service_status Status   = tour_service_status::busy;
+		core::tour_refusal  Refusal  = core::tour_refusal::none;
+		std::uint64_t       Revision = 0;
+	};
 	/// \brief Decision-lane owner with coalesced off-lane persistence.
 	/// Store and queued work belong to this host. Shutdown drains final accepted edits;
 	/// completion delivery must remain live until is_quiescent(). No remote effects exist.
@@ -24,11 +48,12 @@ namespace bpr::application {
 		void observe_comparison(const core::diff_semantic_index&, const core::tour_code_destination&, const core::tour_code_destination&);
 		void observe_source(core::tour_code_destination aSource);
 		/// Accepted publication attribution is an observation, never an undoable remote action.
-		void observe_publication(core::review_tour aPublished);
-		void dispatch(const core::tour_command& aCommand);
-		void undo();
-		void redo();
-		void retry_save();
+		void               observe_publication(core::review_tour aPublished);
+		void               dispatch(const core::tour_command& aCommand);
+		[[nodiscard]] auto execute(const tour_service_request& aRequest) -> tour_service_result;
+		void               undo();
+		void               redo();
+		void               retry_save();
 		/// Explicitly discard local edits after a conflict; the caller presents both copies first.
 		void               use_saved_copy();
 		void               shutdown();
