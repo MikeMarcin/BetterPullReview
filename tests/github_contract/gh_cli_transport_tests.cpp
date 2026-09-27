@@ -1660,6 +1660,71 @@ namespace {
 		}
 	}
 
+	void test_staged_cli_catalog()
+	{
+		using operation = application::staged_review_operation;
+		const std::array rows{
+			std::pair{ operation::list_reviews, "GET" }, std::pair{ operation::read_review, "GET" }, std::pair{ operation::list_comments, "GET" },
+			std::pair{ operation::create_pending, "POST" }, std::pair{ operation::update_comment, "PATCH" }, std::pair{ operation::update_summary, "PUT" }, std::pair{ operation::submit_comment, "POST" }, std::pair{ operation::discard_pending, "DELETE" }, std::pair{ operation::update_description, "PATCH" }, std::pair{ operation::list_issue_comments, "GET" }, std::pair{ operation::create_issue_comment, "POST" }, std::pair{ operation::update_issue_comment, "PATCH" }
+		};
+		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
+			temporary_layout            layout;
+			const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+			const auto                  profile       = validate_github_host_profile(candidate);
+			successful_counting_process process;
+			gh_cli_transport            transport{ *profile, *configuration, process };
+			const auto                  base    = mutation_request_for(*profile);
+			const auto                  binding = *std::get<application::review_mutation_request>(base.Wire.Semantic).LiveBinding;
+			for (const auto& [operation, method] : rows) {
+				application::staged_review_request semantic{ .Binding = {binding.Target,binding.ActingIdentity}, .Operation = operation };
+				const std::string                  text = "Literal `$(touch /nope)`; & \"quoted\"\nsecond line";
+				if (operation == operation::read_review || operation == operation::list_comments || operation == operation::update_summary || operation == operation::submit_comment || operation == operation::discard_pending) {
+					semantic.Review = application::review_database_id{ 18446744073709551615ULL };
+				}
+				if (operation == operation::update_comment || operation == operation::update_issue_comment) {
+					semantic.Comment = 18446744073709551614ULL;
+				}
+				const bool write = std::string_view{ method } != "GET";
+				const bool body  = write && std::string_view{ method } != "DELETE";
+				if (body) {
+					semantic.Body = text;
+				}
+				if (operation == operation::create_pending) {
+					semantic.Lines.push_back({ { .Commit = binding.Target.Semantic.ExpectedHead, .Path = "file.cpp", .FirstLine = 2, .LastLine = 4 }, text });
+				}
+				const auto compiled = compile_staged_review_request(semantic);
+				expect(compiled.has_value(), "finite staged CLI operation compiles");
+				github_mutation_wire_request request{ .Context = base.Context, .Wire = *compiled };
+				const auto                   calls = process.Calls;
+				if (write) {
+					expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(request, { }, { })) && process.Calls == calls, "every staged write including DELETE requires witness");
+				}
+				std::size_t witnesses = 0;
+				const auto  witness   = [&] {++witnesses;return true; };
+				process.Result        = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n{\"id\":18446744073709551615}" };
+				const auto result     = transport.perform_review_mutation(request, { }, witness);
+				expect(std::holds_alternative<github_mutation_wire_success>(result) && witnesses == (write ? 1U : 0U), "finite staged verb dispatch consumes exact write witness");
+				const auto args = gh_arguments(*process.LastRequest);
+				expect(args[0] == "api" && args[3] == profile->hostname() && args[6] == method && process.LastRequest->StandardInput == compiled->Body, "CLI uses exact verb hostname and untouched stdin");
+				expect((std::ranges::find(args, "--input") != args.end()) == body, "only nonempty typed JSON uses --input -");
+				expect(std::ranges::none_of(args, [&](const auto& a) { return a.contains("touch /nope"); }), "shell metacharacters never enter argv or a shell");
+				expect(std::get<github_mutation_wire_success>(result).Response.Body == "{\"id\":18446744073709551615}", "normalization preserves all integer bytes");
+				for (const auto status : { 301, 401, 403, 422, 429, 503 }) {
+					process.Result    = github_cli_process_success{ .StandardOutput = "HTTP/2.0 " + std::to_string(status) + " status\r\n\r\n{}", .ExitCode = 1 };
+					const auto answer = transport.perform_review_mutation(request, { }, witness);
+					expect(std::holds_alternative<github_mutation_wire_success>(answer) && std::get<github_mutation_wire_success>(answer).Response.Status == status, "CLI preserves HTTP refusal for shared parser without redirect followup");
+				}
+				auto changed                      = request;
+				changed.Context.Authority.Account = core::github_account_id{ 999 };
+				const auto before                 = process.Calls;
+				expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(changed, { }, witness)) && process.Calls == before, "staged actor mismatch cannot launch");
+				std::stop_source stop;
+				stop.request_stop();
+				expect(std::holds_alternative<github_mutation_wire_cancelled>(transport.perform_review_mutation(request, stop.get_token(), witness)) && process.Calls == before, "cancelled staged operation never launches");
+			}
+		}
+	}
+
 	auto test_capability_probe_uses_closed_query_and_response() -> void
 	{
 		temporary_layout            layout;
@@ -1752,6 +1817,7 @@ auto main() -> int
 try {
 	test_cli_mutation_session_recovery();
 	test_mutation_closed_shapes_and_ambiguous_results();
+	test_staged_cli_catalog();
 	test_configuration_is_canonical_typed_and_closed();
 	test_all_operations_compile_to_exact_closed_invocations();
 	test_configuration_rejects_ambient_and_unsafe_candidates();
