@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1219"
 title: "Qualify structured diagnostics and reconcile RFC acceptance"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1218"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Prior native logging/lifecycle/package evidence retained at its exact revisions; revised UI passes Mac public/Qt/native inspection, Linux 2/2 at 0fb249a2 and Windows changed public courses at 41cce4ba. Tour serializer Mac storage passes; optional Windows tour-storage target has a pre-existing missing platform include and is not a pass. Exact results and package limits: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC2","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Original files accepted at cursor23, decision 413e836b-5898-4aeb-a48c-43b21595d54b at source7ab11993. Revised controls/export are protected at cursor31, source0fb249a2, SHA256 9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186; two actual new human verdicts required. No live sign-in."}},{"criterion":"AC3","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Full criteria reconciled in BPR-0601; BPR-0603 and RFC/index remain open. Required new attended verdicts and accepted M5 main landing pending under mandate r2."}}]
-parked_on: "human-review"
 ---
 
 # Qualify structured diagnostics and reconcile RFC acceptance
