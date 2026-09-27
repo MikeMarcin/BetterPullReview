@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1061"
 title: "Add bounded authenticated owner forwarding for tour commands"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1054", "BPR-1060"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-10","milestone":"same-machine-handoff","acceptance":["AC45-05","AC45-06"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
