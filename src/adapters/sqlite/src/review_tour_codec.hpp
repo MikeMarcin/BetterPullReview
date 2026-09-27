@@ -40,7 +40,7 @@ namespace bpr::adapters::sqlite::detail {
 				result = (result << 8U) | value;
 			}
 			if (Reading) {
-				if (result > std::numeric_limits<T>::max()) {
+				if (result > static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
 					Good = false;
 				}
 				aValue = static_cast<T>(result);
