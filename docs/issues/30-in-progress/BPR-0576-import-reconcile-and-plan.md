@@ -6,6 +6,7 @@ status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: []
 milestone: "Post-Pack v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
 
 # Import RFC-BPR-0023, re-audit the live tree, and bind the evidence plan
@@ -45,10 +46,24 @@ no-impact result for this slice.
 
 ## Import boundary
 
-Imported 2026-09-04; implementation is deferred by the user. This card remains
-Backlog. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
+Imported 2026-09-04 with implementation deferred at that time. Owner mandate
+r1 on 2026-09-26 now authorizes implementation, plan revision and milestone
+integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
+supersedes stale baseline assumptions; required acceptance is unchanged. Follow
+the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
 
 The pack retention, identity allocation, RFC/index import, and initial source
 reconciliation are complete in the import slice. Detailed implementation-readiness
-planning and evidence selection remain open; this card is not claimed Done.
+planning and evidence selection are completed by the live audit amendment.
+BPR-0577 retains detailed architecture allocation and independent review.
+
+## Execution record
+
+Mandate r1; milestone `m1-live-audit`. The
+[live audit](../../verification/RFC-BPR-0023-live-audit.md) records every imported
+source seam, baseline/dependency reconciliation, architecture/evidence ownership,
+schema/protocol matrix, designated-publication plan and documentation ledger.
+The adopted plan preserves all sixteen cards and eighteen canonical criteria.
+The verification ledger records exact commands, outcomes and the durable handoff.
+This card accepts planning only; no feature AC or required external review passes.

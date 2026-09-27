@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0580","BPR-0581"]
 milestone: "Post-Pack v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
 
 # Implement the private thread application host and durable side-chat/finding ingestion
@@ -46,6 +47,9 @@ no-impact result for this slice.
 
 ## Import boundary
 
-Imported 2026-09-04; implementation is deferred by the user. This card remains
-Backlog. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
+Imported 2026-09-04 with implementation deferred at that time. Owner mandate
+r1 on 2026-09-26 now authorizes implementation, plan revision and milestone
+integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
+supersedes stale baseline assumptions; required acceptance is unchanged. Follow
+the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.

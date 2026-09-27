@@ -1,12 +1,22 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **imported plan; implementation deferred; no criterion satisfied**
+Status: **implementation authorized under mandate r1; M1 live audit complete; feature criteria pending**
 
-RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
+Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
+
+Immutable implementation RFC_BASE_SHA: `899090f39304dca5a2c0b034c4684a50ca73605a`.
+
+Owner mandate r1 (2026-09-26) authorizes implementation, live-plan revision and
+coordinator integration of completed milestones to main. This supersedes the
+import-only deferral; it does not satisfy acceptance. The
+[live audit and evidence allocation](RFC-BPR-0023-live-audit.md) and
+[adopted plan](../rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json) govern
+execution. The protected imported issue-plan bytes remain unchanged.
 
 # Acceptance Traceability for RFC-BPR-0023
 
-This matrix is imported planning source. Checks are planned and have not run.
+This matrix retains all imported feature obligations. The live audit reconciles
+their current direct surfaces and evidence owners; feature checks have not run.
 
 | AC | Requirement summary | Primary live cards | Minimum direct evidence |
 |---|---|---|---|
@@ -91,3 +101,47 @@ digests. The quota course covers 1 MiB bodies through 512 KiB continuations.
 Only pack integrity, mapping/dependency/status consistency, documentation checks,
 and diff whitespace are verified by this import. No build, CTest, UI, migration,
 agent, GitHub, or GHES feature evidence was run. See [import record](../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md).
+
+## M1 — live audit and execution plan
+
+Assignment: BPR-0576, `m1-live-audit`, implementer `/root/rfc0023_m1`, mandate
+r1, branch `codex/rfc-bpr-0023`. Readiness commit `ff134d74`; MASK claim commit
+`02537bcaf836186c9c74dd14f7e58a0d699a9c02`. The planning candidate is the commit
+introducing the live audit and adopted plan; the completion/handoff below names
+its exact revision. The coordinator owns landing this milestone on main.
+
+| Check | Result and scope |
+|---|---|
+| `python3 scripts/verify_documentation.py --root .` | PASS, `DOCUMENTATION_OK`; live links, RFC/index and board structure. |
+| `python3 tests/scripts/verify_documentation_tests.py` | PASS, 64 tests; expected negative fixtures print errors. |
+| MASK `issue_board.py ... validate --rfc RFC-BPR-0023 --json` | PASS, valid across 1,208 indexed cards, scoped workflow errors empty. |
+| MASK plan prepare/adopt/inspect and checkpoint bind | PASS, ten milestones, sixteen whole-card obligations covered exactly once; M1 has BPR-0576 and four explicit exits. Semantic acceptance remains engineering judgment. |
+| Retained manifest / baseline comparison | PASS, all 26 listed payload hashes; retained pack and imported source-only issue plan unchanged against implementation base. |
+| Canonical acceptance comparison | PASS, all eighteen RFC criterion texts byte-identical to implementation base. |
+| `git diff --check` | PASS. |
+| Production public-path audit | Source trace completed for current chat, findings, revisioned shared drafts and logical publication. No runtime execution or feature acceptance claimed. |
+
+Self-review reconciled the ledger v6 and recovery v5 frontiers, volatile profile
+shared drafts, updater salvage, temporary finding-claim chat replies, existing
+Comments/Notes/Tour navigation and dedicated composition pages. It also exposed
+the current all-note expansion in chat and the missing named total encoded-input
+bound as explicit BPR-0577/0581/0582/0583 design obligations.
+
+The initial `move --to ready` was refused because the helper requires the exact
+lane `20-ready`; it changed nothing. The first claim after a successful move
+refused its already-dirty LIVE_IMPORT link. Committing only that readiness move
+and editable live link repaired the bookkeeping precondition; the repeated
+claim succeeded. Neither refusal weakened the protected-path guard.
+
+No product source, build, CTest, external agent, vault, GitHub/GHES mutation,
+push, PR or installed package action was performed. No configured build tree
+was inherited. BPR-0576 is planning acceptance only. All eighteen feature rows
+remain Not run, and BPR-0577/BPR-0591 independent review, later designated
+publication and rendered/native/human evidence remain pending where required.
+
+The new plan JSON/source receipt is a fresh adopted plan under the helper's
+required `docs/rfcs/plans/` location. Existing protected plan/pack bytes were not
+edited. Live audit, receipt, selection and checkpoint are retained in
+`docs/verification/`. Card amendments only activate the owner mandate, link the
+plan and correct stale schema facts; future card acceptance and dependencies
+remain intact.

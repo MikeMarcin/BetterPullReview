@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0580","BPR-0581","BPR-0582","BPR-0583","BPR-0584","BPR-0585","BPR-0586","BPR-0587"]
 milestone: "Post-Pack v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
 
 # Complete focused correctness, security, migration, crash, quota, and performance evidence
@@ -46,11 +47,16 @@ no-impact result for this slice.
 
 ## Import boundary
 
-Imported 2026-09-04; implementation is deferred by the user. This card remains
-Backlog. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
+Imported 2026-09-04 with implementation deferred at that time. Owner mandate
+r1 on 2026-09-26 now authorizes implementation, plan revision and milestone
+integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
+supersedes stale baseline assumptions; required acceptance is unchanged. Follow
+the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
 
 Resolve and test the live RFC's 1 MiB body versus 512 KiB page contract with
 explicit immutable body continuations, progress, and no silent truncation.
 Recheck total invocation-input bounds for selected compositions. Ledger schema
-5 and recovery schema 2 are separate authorities; reserve no version at import.
+6 and recovery schema 5 are now separate live authorities; recheck each frontier
+before allocation. Preserve exact v5 migration cases plus v6 note revision/CAS
+and high-water behavior.
