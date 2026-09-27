@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1003"
 title: "Implement minimal published-tour edit plans"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1002"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-13","milestone":"manual-maintenance","acceptance":["AC42-02","AC42-03","AC42-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
