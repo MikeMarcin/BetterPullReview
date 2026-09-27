@@ -5,6 +5,7 @@ title: "Anchor RFC-BPR-0022 verification and closeout"
 status: "Backlog"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0573","BPR-0574","BPR-0242"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
 ---
 
 # Anchor RFC-BPR-0022 verification and closeout
@@ -42,21 +43,21 @@ Planned cards: BPR-0561, BPR-0562, BPR-0563, BPR-0564, BPR-0565, BPR-0566, BPR-0
 
 | Criterion | Planned check | Result | Producing commit |
 |---|---|---|---|
-| Every materialized current/right source line in a text file already changed by the pull request exposes the ordinary comment gesture; file eligibility, exact head, path, line, and acting identity are revalidated before any write. | AC-01 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| A selected anchor accepted by the legacy line-comment operation publishes as one native line review comment on GitHub.com and GHES, independent of the off-hunk capability state. | AC-02 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| An off-hunk anchor on a repository whose exact operation is proven supported publishes as one native line review comment and records scoped positive evidence. | AC-03 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| An off-hunk anchor proven unsupported publishes as one ordinary file-level review comment whose first paragraph is the canonical immutable permalink and whose remaining prose is byte-preserved. | AC-04 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| An unknown capability or placement attempts the intended native write; only a fully received exact unsupported rejection can authorize fallback. | AC-05 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| Timeout, cancellation, connection loss, created-but-unparsed response, generic `422`, permission failure, rate limiting, malformed response, 5xx, or ambiguous reconciliation never starts a fallback POST. | AC-06 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| One logical publication produces at most one GitHub comment across retries, process death, schema migration, and restart; a possibly transmitted native attempt is reconciled GET-only and can never coexist with an eligible fallback POST. | AC-07 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| Capability evidence is repository-, actor-, profile-, server-contract-, operation-, API-, and classifier-revision scoped, freshness-bounded, and never inferred from host name, broad GHES version, readable comments, or status code alone. | AC-08 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| BetterPullReview retains both the semantic source anchor and the honest GitHub remote subject; it renders a valid compatibility thread at its source line without claiming GitHub stored a line subject. | AC-09 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| A GitHub-only collaborator can see the linked code, read the complete prose, reply through ordinary GitHub UI, and retain that conversation after BetterPullReview is uninstalled. | AC-10 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| Deleting the local database and refreshing from GitHub reconstructs a canonical compatibility anchor and reviewer prose; invalid, ambiguous, or foreign permalinks remain honestly file-level. | AC-11 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| External edits, replies, resolution changes, and deletion reconcile by canonical GitHub identity. Removing or changing the permalink updates or removes the semantic placement according to server truth and never revives stale local placement. | AC-12 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| A body requiring line-only semantics is not silently degraded through the file representation; it receives a typed incompatibility with no POST. | AC-13 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| The complete gesture follows Qt intent -> core decision -> application host -> mutation coordinator -> GitHub adapter -> durable recovery -> server refresh -> incremental Qt projection, with no provider/widget bypass. | AC-14 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
-| Automated tests cannot reach a non-designated live target, and live native and fallback evidence is produced only through the existing attended, identity-bound mutation authority. | AC-15 in RFC-BPR-0022 verification ledger | Not run; implementation deferred | None |
+| Every materialized current/right source line in a text file already changed by the pull request exposes the ordinary comment gesture; file eligibility, exact head, path, line, and acting identity are revalidated before any write. | AC-01 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| A selected anchor accepted by the legacy line-comment operation publishes as one native line review comment on GitHub.com and GHES, independent of the off-hunk capability state. | AC-02 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| An off-hunk anchor on a repository whose exact operation is proven supported publishes as one native line review comment and records scoped positive evidence. | AC-03 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| An off-hunk anchor proven unsupported publishes as one ordinary file-level review comment whose first paragraph is the canonical immutable permalink and whose remaining prose is byte-preserved. | AC-04 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| An unknown capability or placement attempts the intended native write; only a fully received exact unsupported rejection can authorize fallback. | AC-05 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| Timeout, cancellation, connection loss, created-but-unparsed response, generic `422`, permission failure, rate limiting, malformed response, 5xx, or ambiguous reconciliation never starts a fallback POST. | AC-06 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| One logical publication produces at most one GitHub comment across retries, process death, schema migration, and restart; a possibly transmitted native attempt is reconciled GET-only and can never coexist with an eligible fallback POST. | AC-07 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| Capability evidence is repository-, actor-, profile-, server-contract-, operation-, API-, and classifier-revision scoped, freshness-bounded, and never inferred from host name, broad GHES version, readable comments, or status code alone. | AC-08 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| BetterPullReview retains both the semantic source anchor and the honest GitHub remote subject; it renders a valid compatibility thread at its source line without claiming GitHub stored a line subject. | AC-09 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| A GitHub-only collaborator can see the linked code, read the complete prose, reply through ordinary GitHub UI, and retain that conversation after BetterPullReview is uninstalled. | AC-10 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| Deleting the local database and refreshing from GitHub reconstructs a canonical compatibility anchor and reviewer prose; invalid, ambiguous, or foreign permalinks remain honestly file-level. | AC-11 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| External edits, replies, resolution changes, and deletion reconcile by canonical GitHub identity. Removing or changing the permalink updates or removes the semantic placement according to server truth and never revives stale local placement. | AC-12 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| A body requiring line-only semantics is not silently degraded through the file representation; it receives a typed incompatibility with no POST. | AC-13 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| The complete gesture follows Qt intent -> core decision -> application host -> mutation coordinator -> GitHub adapter -> durable recovery -> server refresh -> incremental Qt projection, with no provider/widget bypass. | AC-14 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
+| Automated tests cannot reach a non-designated live target, and live native and fallback evidence is produced only through the existing attended, identity-bound mutation authority. | AC-15 in RFC-BPR-0022 verification ledger | Pending implementation and evidence | None |
 
 No acceptance criterion is satisfied by import. Reuse passing evidence only
 while its inputs are unchanged. Resume from the first planning card after a
@@ -64,6 +65,7 @@ later implementation request; re-read the live board and RFC dependencies.
 
 ## Import boundary
 
-Imported 2026-09-04; implementation is deferred by the user. This card remains
-Backlog. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
+Imported 2026-09-04 under an import-only direction. The 2026-09-26
+implementation mandate r1 activates RFC-BPR-0022; live dependencies and lanes
+remain authoritative. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.

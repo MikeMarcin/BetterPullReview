@@ -1,0 +1,6 @@
+{
+  "original_path": "docs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1/IMPLEMENTATION-ORDER.md",
+  "sha256": "eb522fff13cc9302b1c17b65921a56c4cc0727438d4789a744d638bf325ae789",
+  "discovery_alias": "IMPLEMENTATION_ORDER.md",
+  "reason": "The installed helper recognizes underscores only; this alias preserves the original bytes. Authored A-D grouping is unchanged; live cards and RFC supersede import-only wording."
+}

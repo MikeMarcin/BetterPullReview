@@ -5,6 +5,7 @@ title: "Prove RFC-BPR-0022 automated recovery and security invariants"
 status: "Backlog"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
 ---
 
 # Prove RFC-BPR-0022 automated recovery and security invariants
@@ -29,6 +30,7 @@ changes the shipped path.
 
 ## Import boundary
 
-Imported 2026-09-04; implementation is deferred by the user. This card remains
-Backlog. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
+Imported 2026-09-04 under an import-only direction. The 2026-09-26
+implementation mandate r1 activates RFC-BPR-0022; live dependencies and lanes
+remain authoritative. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
