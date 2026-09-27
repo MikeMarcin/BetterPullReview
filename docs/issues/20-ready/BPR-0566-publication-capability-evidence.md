@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0566"
 title: "Add repository-scoped off-hunk write capability evidence"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0565"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
