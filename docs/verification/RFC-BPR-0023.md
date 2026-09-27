@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r1; M1 complete; M2 architecture candidate awaits independent review; feature criteria pending**
+Status: **implementation authorized under mandate r2; M1 complete; M2 architecture accepted under amended review timing; final independent review and feature criteria pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -8,7 +8,12 @@ Immutable implementation RFC_BASE_SHA: `899090f39304dca5a2c0b034c4684a50ca73605a
 
 Owner mandate r1 (2026-09-26) authorizes implementation, live-plan revision and
 coordinator integration of completed milestones to main. This supersedes the
-import-only deferral; it does not satisfy acceptance. The
+import-only deferral; it does not satisfy acceptance. Owner amendment r2
+(2026-09-26) directs implementation to continue and moves M2's independent
+architecture review into one capability-critical review of the final integrated
+candidate at M10/BPR-0591. That final review is authorized and required before
+RFC closeout; it has not been supplied. The current r2 M2 completion appears at
+the end of this ledger. Earlier r1 handoffs remain historical observations. The
 [live audit and evidence allocation](RFC-BPR-0023-live-audit.md) and
 [adopted plan](../rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json) govern
 execution. The protected imported issue-plan bytes remain unchanged.
@@ -181,6 +186,12 @@ their existing cards. No extra acceptance waiver accompanies this handoff.
 
 ## M2 — architecture candidate
 
+**Historical r1 record.** This section describes candidate `b98ddfd4` and handoff
+`ba8cb88e`; its review wait is superseded only by the explicit r2 amendment below.
+The prior checkpoint/observation remain retrievable at commit
+`ba8cb88e942981ee925ef77a2d05d689fe8ae13f` under their recorded paths. Current
+checkpoint/observation links now carry the renewed r2 binding and completion.
+
 Assignment: BPR-0577 / `m2-architecture` / `/root/rfc0023_m2` / mandate r1,
 branch `codex/rfc-bpr-0023`. Starting M1/main candidate:
 `cb36559911d6cd4def1582a0121b527ed2f9edce`. Readiness commit `afb0507d`;
@@ -295,3 +306,89 @@ permission or waiver is inferred from this candidate-ready result.
 
 Architecture artifact SHA-256:
 `4ca9348710eeff300f5ebd5c8fffb268294b2fc65b6296b4b90bb670cfe66255`.
+
+
+## M2 — completed architecture under amendment r2
+
+Assignment remains BPR-0577 / `m2-architecture` / `/root/rfc0023_m2` on
+`codex/rfc-bpr-0023`. The owner amendment received 2026-09-26 is **r2**:
+continue implementation now and perform the independent review at the end of
+RFC-BPR-0023. This is an explicit change to review timing, not review acceptance.
+The original architecture candidate is `b98ddfd477962c4768ab291e646a3fecd4e1600e`;
+its pending handoff is `ba8cb88e942981ee925ef77a2d05d689fe8ae13f`.
+
+The adopted plan now gives M2 three architecture exits and carries its exact
+former review exit into M10. M10's existing capability-critical review exit and
+that carried exit are fulfilled by **one independent review of the final
+integrated candidate**, with every original review obligation preserved.
+BPR-0591 names the complete scope: creation, agent dispatch, composition,
+draft acceptance, separate publication, reconciliation, migration, cleanup and
+crash paths; source dispatch/edit/delete ordering; immutable lineage; single
+draft authority; account/window retirement; qualified metadata; input/body
+limits; and the ledger/remote-journal join. Material findings require correction
+and verification before closeout. M2 self-review cannot satisfy this final gate.
+No nested reviewer is dispatched now.
+
+The [amendment check receipt](RFC-BPR-0023.m2-amendment-r2.json) records the exact
+before/after plan fingerprints and user source basis. Its affected milestones
+are only M2 and M10. Every original work selector, dependency and exit text is
+preserved; the old M2 review exit moved rather than disappeared. The generated
+MILESTONES view was regenerated from the amended JSON. The original source-only
+issue plan, retained pack and adoption source receipt remain unchanged.
+
+### M2 r2 architecture acceptance
+
+| BPR-0577 final state | Evidence and judgment |
+|---|---|
+| Authoritative state and compact typed core/host/Qt contracts | PASS — live allocation names state ownership, intent/request/terminal algebra, exact identities, bounded staging and semantic deltas. |
+| One existing agent launch and GitHub mutation path | PASS — current-symbol/public source trace identifies chat/invocation/process and draft/mutation/coordinator routes; contracts add no second launcher or publisher. |
+| Current draft authority, targets and durable linkage | PASS — existing shared revisioned draft host owns policy/fan-out; same-ledger acceptance/CAS and exact composition/draft linkage are specified, with separate RFC-0008/0022 publication. |
+| Migration frontier, origins, sequences and one authority | PASS — ledger v6/recovery v5 distinguished; v1–v6 conversion, exact legacy/CAS/high-water preservation, no-dual-authority and reference-aware cleanup specified. |
+| Private/shared navigation and bounded query/projection | PASS — current modalities/tray/centre pages, stable models, focus/accessibility, cursor/body bounds and total input refusal specified. |
+| Every criterion has direct surface and evidence owner | PASS — all eighteen canonical criteria retain their matrix rows/cards and refined falsifiers; no feature row is marked passed. |
+| Review disposition under r2 | PASS — independent architecture review carried intact to BPR-0591/M10's one final review; final review itself remains pending. |
+
+M2 acceptance is architecture-only. Product source is unchanged, all eighteen
+feature criteria remain Not run, and no native/human/designated publication
+criterion is waived. The plan/mandate refinement does not certify feature
+behavior, external protocol support or independent review.
+
+### M2 r2 verification and continuation
+
+The affected documentation gate, scoped board validation, plan discovery,
+M2 rebind/check and exact requirement/integrity comparisons are rerun on the
+amended candidate. The documentation regression suite passed all 64 tests again. Unchanged
+source/public-path inspection remains evidence for the same implementation;
+the final candidate identity is recorded in the handoff.
+The bound checkpoint uses `mandate_revision: r2`, segment
+`m2-review-timing-r2`; the observation covers BPR-0577 and all amended M2 exits.
+Historical r1 fingerprints are preserved in Git and the amendment receipt.
+
+This same implementer resumed from a clean `ba8cb88e` after all previous commands
+and writers had stopped. No review protection/session/server existed. Only the
+explicitly assigned M2 documents, adopted plan/view, BPR-0591 carry-forward and
+current RFC/index narrative were edited. The r2 proposal/check used one
+TemporaryDirectory, removed when the command completed. No product process,
+build, external agent, live service, push, PR or main-branch action was performed.
+All task-owned commands must be quiescent at handoff; no command transfers.
+
+Next: coordinator integrates completed M2 to main and starts a fresh M3
+implementer for BPR-0578/BPR-0579. The final capability-critical independent
+review remains a required M10/BPR-0591 obligation under r2; the coordinator has
+authorization to obtain it at the end after implementation. Unavailable native,
+human and designated publication evidence remains on the existing later cards.
+
+
+| Amendment verification | Result |
+|---|---|
+| `milestone_plan.py check-amendment` | PASS; only M2/M10 affected, same scope/work/dependencies, all 26 original exit texts retained. Receipt linked above. |
+| `milestone_plan.py discover` and `milestone_checkpoint.py bind` | PASS; amended generated view matches the live plan; renewed M2/r2 binding names all three exits and BPR-0577. |
+| `python3 scripts/verify_documentation.py --root .` | PASS, `DOCUMENTATION_OK`. |
+| `python3 tests/scripts/verify_documentation_tests.py` | PASS, 64 tests; expected negative-fixture diagnostics. |
+| Scoped MASK board validation | PASS, 1,208 cards, no errors. |
+| Python exact comparison against `ba8cb88e` | PASS; 18 RFC criteria and dependencies unchanged; all original plan exits/work/dependencies/boundaries retained; 26 pack hashes; product source/tests and source-only plan/provenance unchanged. |
+| `git diff --check` | PASS. |
+
+The technical allocation remains the previously checked M2 design. Amendment
+edits change review timing and records only. There are no unresolved M2
+architecture obligations under r2; BPR-0591 retains the unsatisfied final review.

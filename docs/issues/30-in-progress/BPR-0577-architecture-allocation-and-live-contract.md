@@ -35,7 +35,7 @@ Turn the RFC into a live-tree-specific contract before types, schema, and UI div
 - Architecture allocation document or card attachment
 - Current-symbol/path inventory
 - Acceptance-to-card matrix
-- Independent review of authority boundaries
+- Documentation/board/plan checks and explicit carry-forward of the independent authority-boundary review to M10/BPR-0591 under owner amendment r2
 
 ## Documentation impact
 
@@ -60,9 +60,9 @@ before allocation. Preserve exact v5 migration cases plus v6 note revision/CAS
 and high-water behavior.
 
 
-## M2 candidate and remaining gate
+## M2 architecture acceptance under amendment r2
 
-Mandate r1; milestone `m2-architecture`; implementer `/root/rfc0023_m2`;
+Mandate r2; milestone `m2-architecture`; implementer `/root/rfc0023_m2`;
 M1 integration baseline `cb36559911d6cd4def1582a0121b527ed2f9edce`.
 Claim commit `20ff2732e4e6d11df333ccc2fffbf3069029f7e3`.
 
@@ -72,11 +72,19 @@ transaction and cancellation boundaries, schema/migration/CAS/retention,
 per-invocation provenance, exact selected context, encoded input limits,
 publication crash join and current modality/focus/accessibility allocation.
 It refines every AC's direct evidence owner in the existing ledger. No product
-source or imported plan is changed and no feature acceptance is claimed.
+source or imported source-only plan is changed and no feature acceptance is claimed.
 
 The [verification and durable handoff](../../verification/RFC-BPR-0023.md#m2--architecture-candidate)
-records the exact candidate, checks, command state and continuation. Required
-independent authority-boundary review remains **pending**. Self-review does not
-supply it. This card remains In Progress while the coordinator resolves that
-review; BPR-0578 is still dependency-ineligible. Do not finish this card or mark
-M2 accepted from documentation checks alone.
+records the exact candidate, checks, command state and continuation. On
+2026-09-26 the owner amended review timing: continue implementation now and
+perform the independent review at the end of the RFC. The adopted plan moves
+that obligation to M10/BPR-0591, whose one capability-critical independent review
+must inspect the final integrated candidate and these architecture boundaries
+before RFC closeout. The review is still required and has not occurred.
+
+M2 acceptance covers the six architecture final states above, their current
+source inventory, evidence ownership and focused documentation/board/plan checks.
+It does not accept the final product or satisfy the final independent review.
+The original pending candidate `b98ddfd477962c4768ab291e646a3fecd4e1600e` and
+handoff `ba8cb88e942981ee925ef77a2d05d689fe8ae13f` remain historical evidence.
+Completion under r2 permits the coordinator to land M2 and begin M3.

@@ -35,7 +35,7 @@ Live contracts ready for implementation
 
 - The allocation defines authoritative state, compact core observations and typed requests, ports, identities, deltas and Qt projections at the current seams.
 - Ledger migration, durable draft ownership, run identity, immutable body continuations, total input admission and private/shared navigation are settled.
-- Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied.
+- Every RFC criterion retains its direct evidence owner, and mandate r2 carries the authority-boundary review into the final integrated-candidate review at M10/BPR-0591.
 
 **Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
 
@@ -148,7 +148,7 @@ Focused failure, performance and rendered workflow evidence
 
 ## m10-closeout
 
-Documented and independently reviewed RFC acceptance
+Documented RFC acceptance with one capability-critical independent review of the final integrated candidate under mandate r2
 
 **Work:** `BPR-0590`, `BPR-0591`
 
@@ -158,6 +158,7 @@ Documented and independently reviewed RFC acceptance
 
 - Owning semantic/operator documents and the documentation ledger agree with the simplified implementation; affected checks pass.
 - Required independent capability-critical review is supplied and material findings are resolved.
+- Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied.
 - All sixteen cards and eighteen criteria, explicit RFC dependencies and pending decisions are satisfied before RFC/index Auto-Verified closeout.
 
 **Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.

@@ -18,6 +18,11 @@ RFC-BPR-0023, revise its plan for the evolved application, and land each accepte
 milestone on main. This supersedes the 2026-09-04 import-only deferral and is an
 authorization amendment, not acceptance evidence. Explicit RFC/card dependencies,
 native/human/independent evidence and designated mutation policy remain in force.
+Owner amendment r2 (2026-09-26) moves the independent architecture review from
+M2 to one capability-critical independent review of the final integrated candidate
+at M10/BPR-0591, and directs implementation to continue now. The final review must
+cover both the allocated authority boundaries and their implemented public paths;
+it remains a closeout requirement and is not satisfied by M2 self-review.
 All listed RFC dependencies are now Auto-Verified. No live GitHub/GHES mutation
 or release authority is inferred.
 
@@ -555,12 +560,13 @@ publication lineage.
 ## Architectural allocation
 
 The [M2 live architecture contract](../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
-binds this allocation to the current source under mandate r1. It specifies
+binds this allocation to the current source under mandate r2. It specifies
 request/terminal identities, per-window compact state, atomic draft acceptance,
 v1–v6 migration/CAS, retention and source-use admission, immutable body paging,
 8 MiB total encoded invocation input, protocol fact bases and the RFC-0022
-logical-publication join. These are implementation contracts awaiting the
-required independent authority review, not claims of shipped functionality.
+logical-publication join. These are implementation contracts, not claims of shipped functionality.
+Amendment r2 assigns their required independent authority review to the final
+integrated-candidate review at M10/BPR-0591.
 The eighteen acceptance criteria and all explicit dependencies remain unchanged.
 
 ### Functional core

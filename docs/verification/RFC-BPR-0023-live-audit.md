@@ -3,6 +3,10 @@
 BPR-0576 / milestone `m1-live-audit` / mandate `r1`, 2026-09-26.
 Source and tracker: `/Users/jaeger/.codex/worktrees/15a6/BetterPullReview`;
 branch `codex/rfc-bpr-0023`. The coordinator owns main integration.
+Current continuation uses owner amendment **r2** (2026-09-26): implement now,
+with one capability-critical independent review of the final integrated candidate
+at M10/BPR-0591, including the architecture boundaries formerly gated at M2.
+The original r1 evidence remains historical; no review has been supplied or waived.
 
 ## Authorization and baselines
 
@@ -55,9 +59,10 @@ and allocation gives this assignment its requested bounded first milestone.
 
 M1 ends when the audit, complete evidence ownership, plan adoption and focused
 documentation/bookkeeping checks pass. It adds no product feature. M2 owns
-BPR-0577's detailed signatures, transaction choices and navigation allocation,
-including its required independent authority-boundary review. That review is
-pending and cannot be self-certified. Subsequent owners claim only eligible
+BPR-0577's detailed signatures, transaction choices and navigation allocation.
+Under r2 its independent authority-boundary review is carried to the final
+integrated-candidate review at M10/BPR-0591. That review remains pending and
+cannot be self-certified. Subsequent owners claim only eligible
 cards; cards remain Backlog until their own dependencies permit readiness.
 
 `NEXT_ID` is BPR-1221 at this audit; existing imported IDs remain unique. No
@@ -127,8 +132,8 @@ reachable, rather than postponing every public-path check to the final UI card.
 The eighteen-row claim matrix in [RFC-BPR-0023.md](RFC-BPR-0023.md) remains the
 canonical acceptance ledger. No AC row passes in M1. BPR-0577 must refine this
 allocation into concrete contract signatures and transaction boundaries before
-implementation; its independent review and BPR-0591's final independent review
-remain separate required observations.
+implementation. Owner amendment r2 combines its authority-boundary review with
+BPR-0591's one required final capability-critical independent review.
 
 ## Schema and migration evidence matrix
 
@@ -202,8 +207,9 @@ Required rendered/native/human evidence is prepared only against a real feature
 candidate. Use the configured attended-review companion when a human criterion
 is ready, one Accept/Reject question per criterion, with absolute evidence paths,
 exact candidate identities and a loopback HTML handoff. M1 has no human decision
-ready and therefore starts no review session. BPR-0577 and BPR-0591 independent
-review are still pending; this leaf does not claim independence for its own audit.
+ready and therefore starts no review session. Under amendment r2, BPR-0591
+owns the one pending final independent review including BPR-0577's architecture
+boundaries; this leaf does not claim independence for its own audit.
 
 ## Documentation impact ledger
 
@@ -240,12 +246,14 @@ M1 evidence or substitutes for new private-thread/migration/public-path assertio
 
 ## M2 — live architecture contract
 
-BPR-0577 / `m2-architecture` / mandate `r1`, implementer
+BPR-0577 / `m2-architecture` / mandate `r2` (review timing amendment), implementer
 `/root/rfc0023_m2`. Re-audited against M1 integration
 `cb36559911d6cd4def1582a0121b527ed2f9edce`; source is unchanged from the
 implementation baseline. The contracts below are the implementation allocation,
 **not shipped feature claims**. Independent authority-boundary review is still
-required. Its exact candidate and disposition live in the verification ledger.
+required at M10/BPR-0591 on the final integrated candidate under owner amendment
+r2. M2 acceptance covers architecture allocation and its checks. Exact candidate,
+amendment and disposition records live in the verification ledger.
 No imported plan, criterion, dependency or M1 acceptance is superseded.
 
 Two M1 inventory details are corrected above from source: the fourth modality is
@@ -746,10 +754,13 @@ refine its direct evidence, without replacing any row or pending acceptance:
 | 17 — BPR-0580/0584/0588 | Unreferenced thread deletion, referenced deletion refusal and explicit dependency cleanup, scope purge and ledger recreation/incarnation; crash at each transaction/journal join; unchanged GitHub via independent read. |
 | 18 — BPR-0585/0586/0587/0589 | Real window from Overview to Private, create/ask/restart/select/compose/accept/separate Publish; shared sync still works; keyboard/a11y and 100/125/200% themes, no clipping or bounded-update reset. |
 
-M2's independent reviewer must attempt counterexamples for source-use admission
+The final M10/BPR-0591 independent reviewer must attempt counterexamples for source-use admission
 versus edit/delete, immutable lineage versus cleanup, exact legacy migration,
 draft single authority, account/window retirement, protocol fact overclaim,
 input/body bounds and the two-store publication crash join. Self-review and the
-documentation gate cannot satisfy that gate. No reviewer has been dispatched
-by this leaf; the coordinator owns obtaining separately authorized independent
-acceptance on the committed candidate before M3 becomes eligible.
+documentation gate cannot satisfy that final gate. Under owner amendment r2,
+one capability-critical independent review covers these architecture boundaries
+and their implementation on the final integrated candidate before RFC closeout.
+No reviewer has been dispatched by this leaf. M2 may be accepted and M3 started
+on its architecture criteria and checks; the coordinator retains the authorized
+final review obligation at M10/BPR-0591.

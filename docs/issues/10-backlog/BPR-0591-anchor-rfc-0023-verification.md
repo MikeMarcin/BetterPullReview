@@ -73,7 +73,7 @@ Planned cards: BPR-0576, BPR-0577, BPR-0578, BPR-0579, BPR-0580, BPR-0581, BPR-0
 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | AC-18 in RFC-BPR-0023 verification ledger | Not run; implementation authorized | None |
 
 No acceptance criterion is satisfied by import. Reuse passing evidence only
-while its inputs are unchanged. Continue the adopted live milestone plan under mandate r1; re-read the live
+while its inputs are unchanged. Continue the adopted live milestone plan under mandate r2; re-read the live
 board and RFC dependencies. The old baseline above remains import provenance;
 the immutable implementation RFC_BASE_SHA is recorded in the verification ledger.
 
@@ -85,3 +85,30 @@ integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
 supersedes stale baseline assumptions; required acceptance is unchanged. Follow
 the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
+
+
+## Owner amendment r2 — one independent review at final closeout
+
+On 2026-09-26 the owner instructed implementation to continue and moved the
+independent review from M2 to the end of RFC-BPR-0023. This card/M10 now owns one
+capability-critical independent review of the **final integrated candidate**,
+including the authority-boundary review previously allocated to BPR-0577. The
+adopted plan preserves the prior review exit at M10; the timing change neither
+waives review nor treats the M2 implementer's self-review as independent evidence.
+The reviewer is authorized for the end, after implementation; no reviewer is
+requested or dispatched during M2.
+
+In addition to every existing review requirement above, explicitly challenge the
+[live allocation](../../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
+against the implemented source-use admission/edit/delete race, immutable lineage
+and cleanup, v1–v6 migration/CAS, shared draft single authority, account/window
+retirement, qualified runtime metadata, total-input/body bounds, and the
+ledger/remote-journal publication crash join. Trace creation, agent dispatch,
+composition, draft acceptance, separate publication, reconciliation, deletion,
+and crash recovery through the public composition. Review is bound to an exact
+final source revision and its evidence; material findings require scoped
+correction and verification before closeout. The original final-state,
+independence and eighteen-criterion requirements remain intact.
+
+M2 architecture acceptance is not review acceptance. This review remains pending
+until supplied at M10, and prevents RFC/index Auto-Verified closeout while open.
