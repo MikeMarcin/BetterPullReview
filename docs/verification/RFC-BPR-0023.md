@@ -428,3 +428,62 @@ r1 check, current r2 files, execution quiescent and accepted M1) returned
 `fresh-context` for M3 on `8a11272be9eb629165113c58b4ab1e7d6cadb029`.
 The helper reports engineering acceptance as not evaluated; the explicit
 architecture judgments and owner timing amendment above supply that decision.
+
+## M3 — core policy implementation
+
+Assignment: `m3-core`, BPR-0578 then BPR-0579, `/root/rfc0023_m3`, mandate r2,
+branch `codex/rfc-bpr-0023`, integrated M2 baseline
+`1f964cfa86f1b69cf2233f024e2ba9c975c19b21`. The
+[M3 checkpoint](RFC-BPR-0023.m3-checkpoint.json) binds both whole-card
+obligations and the two milestone exits. The owner moved independent review
+to M10/BPR-0591; no review acceptance is inferred here.
+
+### BPR-0578 implementation and transition contract
+
+`private_review.hpp/.cpp` defines independent positive INT64-bounded IDs,
+profile/review/ledger-incarnation scope, immutable exact revision bindings and
+an explicit legacy binding with no invented OIDs. Subjects reuse RFC-0004
+identities. Diff subjects require the validated immutable semantic index;
+PR, shared-conversation and finding subjects are distinct alternatives.
+Shared/finding existence remains a store fact to revalidate in M4/M6.
+
+| Public core operation | Accepted change | Refusal examples |
+|---|---|---|
+| `create_private_thread` | Exact subject and first reviewer revision | Invalid IDs/binding, missing index, wrong comparison/epoch, invalid actor, oversize |
+| `migrate_private_thread` | Exact legacy bytes and unknown actor | Invented actor, invalid retained attachment, oversize |
+| `append_private_turn` | New revision and header version; optional exact reply | Archived/header CAS, wrong run/binding/completion, foreign source, backwards order |
+| `edit_private_revision` | Reviewer successor, exact predecessor and edit/adoption edge | Tip/header CAS, source digest, actor, missing explicit incomplete adoption, backwards order |
+| `set_private_lifecycle` | Open/resolved-locally/archived, idempotent same-state | Invalid enum/ID, old CAS, version exhaustion |
+| `observe_private_subject` | Current/stale/unplaceable fact only | Unknown legacy or unavailable subject stays unplaceable; no replacement anchor |
+| Request lane begin/finish | Checked generation; matching terminal consumed once | Wrong scope/incarnation/window/session/request/generation; duplicates and exhaustion |
+
+Bodies are bounded values in operation observations; the compact four-lane
+state holds identities only. SHA-256 covers exact body bytes. Complete output
+is eligible; incomplete/failed/cancelled agent output requires a new explicit
+reviewer adoption. The host remains responsible for transactional allocation,
+source existence, exact latest CAS observations and persisted publication of
+the returned proposal. No new persistence or user-visible application path is
+claimed by this core slice.
+
+Core tests instantiate no QApplication and directly compose the public create,
+reply, agent-result, edit, archive/reopen and stale-observation APIs with a real
+computed diff semantic index. They cover a 3-by-3 lifecycle table, repeated
+successor replay, invalid identities, byte limits, unknown migration,
+source/digest/CAS refusal and stale/duplicate terminals. Source and tests are
+linked exclusively to `BetterPullReview::Core` in the core-only preset.
+
+BPR-0578 verification: `cmake --preset core-only` and focused build
+`cmake --build --preset core-only --target test_private_review_core -j 6`
+passed on AppleClang 21 / arm64 macOS. `core_private_review`,
+`architecture_boundaries` and `architecture_boundary_contract` passed (3/3).
+The final high-water self-review correction reran the core test successfully;
+`python3 scripts/verify_documentation.py --root .` returned DOCUMENTATION_OK,
+scoped board validation passed (1,208 cards), and whitespace passed.
+
+Documentation impact for this slice: the owning domain/state document records
+the implemented core API. No user-visible UI, GitHub/GHES authority, acting
+identity, review semantics, local cache, credential, network isolation,
+packaging, accessibility or native behavior changes. Limits are core admission
+bounds only; storage quotas, paging, performance and full RFC criteria still
+require the assigned later milestones. No product-wide suite or live service
+was exercised. Build outputs remain ignored and no transient evidence is committed.

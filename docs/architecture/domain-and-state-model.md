@@ -614,3 +614,26 @@ The following normally stays in the Qt adapter rather than the core:
 - native menu/popup placement.
 
 The host may persist user settings, but that does not make the core or database the runtime owner of Qt mechanics.
+
+## Private review core foundation (RFC-BPR-0023 M3)
+
+`private_review.hpp` supplies deterministic local proposals; persistence and
+public application composition remain later RFC-0023 milestones. A durable
+private reference carries profile, ledger incarnation, host, account,
+repository and pull request. New threads retain exact base/head and epoch
+anchors; migrated notes use an explicit legacy variant and cannot acquire the
+currently displayed revision by restoration. Subjects reuse the immutable diff
+semantic index; no display coordinate or nearest-line fallback is accepted.
+
+Revisions are immutable values. Reply records an exact prior revision. Edit
+returns a reviewer successor and predecessor edge while retaining the original
+actor and body digest. Agent actors require an exact run observation; partial,
+failed and cancelled output is ineligible until explicitly adopted as reviewer
+text. Open, resolved-locally and archived govern only local lifecycle. Current,
+stale and unplaceable are observations and never replace the binding.
+
+The compact request state retains four fixed lanes and checked generations;
+terminal acceptance compares complete scope/session/window/request identities.
+The host must persist a proposed write atomically before projecting it and must
+supply authoritative allocation, latest-revision CAS and source-existence facts.
+This foundation has no database, invocation, publication or Qt capability.

@@ -22,6 +22,7 @@ add_library(
         src/cached_review_overview.cpp
         src/markdown_navigation.cpp
         src/model.cpp
+        src/private_review.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
         src/release_update.cpp
