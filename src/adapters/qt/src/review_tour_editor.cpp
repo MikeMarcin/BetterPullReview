@@ -99,17 +99,23 @@ namespace bpr::qt {
 		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
 		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish with compatibility comments (non-atomic)") });
 		previewLayout->addWidget(PublicationMode);
-		DescriptionEdit = new QCheckBox{ tr("Replace PR description after publishing"), previewPage };
+		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), previewPage };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
 		previewLayout->addWidget(DescriptionEdit);
-		previewLayout->addWidget(paragraph(tr("The optional description edit replaces it with Problem/Solution and a tour backlink. Compatibility comments become visible one at a time; interrupted publication may remain partial."), previewPage));
+		previewLayout->addWidget(paragraph(tr("The optional description edit updates mapped Problem/Solution sections, or inserts the brief at the beginning when neither section exists. Other description text is preserved. Inspect the exact preview. Compatibility comments become visible one at a time; interrupted publication may remain partial."), previewPage));
 		PublicationStatus = paragraph({ }, previewPage);
 		PublicationStatus->setObjectName(QStringLiteral("tourPublicationStatus"));
 		previewLayout->addWidget(PublicationStatus);
 		PublicationPreview = new markdown_body_view{ previewPage };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
 		previewLayout->addWidget(PublicationPreview, 1);
-		const auto button = [&](const QString& label, const QString& name, tour_editor_action action) {auto* b=new QPushButton{label,previewPage};b->setObjectName(name);connect(b,&QPushButton::clicked,this,[this,action]{trigger(action);});previewLayout->addWidget(b);return b; };
+		const auto button = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
+			auto* value = new QPushButton{ aLabel, previewPage };
+			value->setObjectName(aName);
+			connect(value, &QPushButton::clicked, this, [this, aAction] { trigger(aAction); });
+			previewLayout->addWidget(value);
+			return value;
+		};
 		button(tr("Prepare publication preview"), QStringLiteral("tourPreparePublication"), tour_editor_action::preview_publication);
 		PublishTour   = button(tr("Publish tour"), QStringLiteral("tourPublish"), tour_editor_action::publish_publication);
 		ResumeTour    = button(tr("Resume captured publication"), QStringLiteral("tourResume"), tour_editor_action::resume_publication);
@@ -271,6 +277,7 @@ namespace bpr::qt {
 			Conflict->setAccessibleName(tr("Baseline, my proposal and website versions"));
 		}
 		if (Shown.Conflict) {
+			Conflict->setAccessibleName(tr("Saved copy from another window"));
 			auto text = "## Problem\n" + Shown.Conflict->Problem + "\n\n## Solution\n" + Shown.Conflict->Solution;
 			for (const auto& stop : Shown.Conflict->Stops) {
 				text += "\n\n### " + stop.Title + "\n" + stop.Body;
@@ -461,7 +468,7 @@ namespace bpr::qt {
 		};
 		action(tr("Insert before selected"), QStringLiteral("tourInsertBefore"), QStringLiteral("Alt+Insert"), [this] { trigger(tour_editor_action::insert_before); });
 		MoveUp   = action(tr("Move stop up"), QStringLiteral("tourMoveUp"), QStringLiteral("Alt+Shift+Up"), [this] {if(Outline->currentRow()>0){structural(core::tour_command_kind::move,static_cast<std::size_t>(Outline->currentRow()-1));} });
-		MoveDown = action(tr("Move stop down"), QStringLiteral("tourMoveDown"), QStringLiteral("Alt+Shift+Down"), [this] {if(Outline->currentRow()+1<Outline->count()){structural(core::tour_command_kind::move,static_cast<std::size_t>(Outline->currentRow()+1));} });
+		MoveDown = action(tr("Move stop down"), QStringLiteral("tourMoveDown"), QStringLiteral("Alt+Shift+Down"), [this] {if(Outline->currentRow()+1<Outline->count()){structural(core::tour_command_kind::move,static_cast<std::size_t>(Outline->currentRow()) + 1U);} });
 		action(tr("Duplicate stop"), QStringLiteral("tourDuplicate"), QStringLiteral("Alt+D"), [this] { structural(core::tour_command_kind::duplicate); });
 		action(tr("Split at text cursor"), QStringLiteral("tourSplit"), QStringLiteral("Alt+S"), [this] { structural(core::tour_command_kind::split); });
 		action(tr("Merge with next stop"), QStringLiteral("tourMerge"), QStringLiteral("Alt+M"), [this] { structural(core::tour_command_kind::merge_next); });
@@ -588,7 +595,7 @@ namespace bpr::qt {
 			// Detach the native document before destroying another owner's private text.
 			auto* blank = new QTextDocument{ Body };
 			blank->setDocumentLayout(new QPlainTextDocumentLayout{ blank });
-			Body->setDocument(blank);
+			Body->bind_document(blank);
 			for (const auto& [id, document] : BodyDocuments) {
 				static_cast<void>(id);
 				delete document;
@@ -651,7 +658,7 @@ namespace bpr::qt {
 				document->setDocumentLayout(new QPlainTextDocumentLayout{ document });
 				document->setPlainText(QString::fromStdString(stop->Body));
 			}
-			Body->setDocument(document);
+			Body->bind_document(document);
 			Editing = stop->Id;
 		}
 		if (changed || Shown.Refusal == core::tour_refusal::none) {
@@ -746,7 +753,7 @@ namespace bpr::qt {
 		const auto  start   = current == stops.end() ? 0U : static_cast<std::size_t>(current - stops.begin() + 1);
 		for (std::size_t offset = 0; offset < stops.size(); ++offset) {
 			const auto index   = (start + offset) % stops.size();
-			const bool changed = std::ranges::any_of(Shown.Draft->ObservedChanges, [&](const auto& change) { return change.Stop == stops[index].Id && change.Kind != core::tour_change_kind::removed; });
+			const bool changed = std::ranges::any_of(Shown.Draft->ObservedChanges, [&](const auto& aChange) { return aChange.Stop == stops[index].Id && aChange.Kind != core::tour_change_kind::removed; });
 			if (changed) {
 				show_stops();
 				Outline->setCurrentRow(static_cast<int>(index));

@@ -89,6 +89,17 @@ namespace {
 
 	void reconciliation()
 	{
+		auto initial                   = bpr::tests::review_tour_fixture();
+		initial.Problem                = "New problem";
+		initial.Solution               = "New solution";
+		const std::string templateBody = "# Team template\r\n- [ ] Keep exact\r\n";
+		const auto        inserted     = propose_tour_description(initial, templateBody);
+		expect(inserted && inserted->ends_with(templateBody) && inserted->starts_with("## Problem\r\n"), "first brief inserts before unstructured template without losing bytes");
+		const std::string structured    = "Prefix\r\n\r\n## Problem\r\nOld problem\r\n\r\n## Solution\r\nOld solution\r\n\r\n## Testing\r\nKEEP\r\n";
+		const auto        mappedInitial = propose_tour_description(initial, structured);
+		expect(mappedInitial && mappedInitial->starts_with("Prefix\r\n\r\n") && mappedInitial->ends_with("## Testing\r\nKEEP\r\n") && !mappedInitial->contains("Old problem"), "first publication maps existing fields and preserves unrelated sections");
+		expect(!propose_tour_description(initial, "## Problem\nFirst\n## Problem\nSecond\n## Solution\nText\n"), "ambiguous first brief requires mapping rather than whole-body replacement");
+		expect(!propose_tour_description(initial, "## Problem\nOnly one mapped field\n"), "partial first brief cannot replace an unmapped description");
 		expect(merge_tour_text("α left / right", "α LEFT / right", "α left / RIGHT") == std::optional<std::string>{ "α LEFT / RIGHT" }, "nonoverlapping UTF-8 edits merge");
 		expect(!merge_tour_text("same", "local", "remote"), "overlap preserves explicit conflict");
 		auto base                     = published();

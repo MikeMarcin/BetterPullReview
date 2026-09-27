@@ -59,6 +59,12 @@ function(bpr_require_literal_count source_variable token expected description)
     endif()
 endfunction()
 
+# BPR-1015 qualification correction: reviewed from 2e2aca96 through this
+# recorded correction commit. Only review_submission_workflow.cpp changed inside
+# the production app manifest: initial and maintenance descriptions now share
+# core mapped-byte preservation. Initial backlink remains separately named and
+# journaled; no operation support/grant/actor/head/recovery boundary changed.
+# Full application and source-line mutation branch hashes are unchanged.
 # Resealing the pinned digests ([[BPR-0383]], [[BPR-0819]])
 #
 # The three digests below are review tripwires, not build products. A pin that
@@ -567,7 +573,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "71fa41698c1f8871b31dede13f2082fa65fa193b0e4601d27159e9ba9ad75070"
+        "b3a910a3bfb7675a519563fd0271720d30a3c0a6fa6e0c6ff7ba31b029b42260"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

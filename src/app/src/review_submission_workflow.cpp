@@ -442,20 +442,16 @@ namespace bpr::app {
 			std::erase_if(value.Stops, [&](const auto& stop) {const auto found=std::ranges::find(draft.Stops,stop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
 		}
 		if (Editor.description_publication()) {
-			if (draft.Remote) {
-				const auto desired = core::propose_tour_description(draft, Description);
-				if (!desired) {
-					Plan.reset();
-					Previewed = false;
-					Status    = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
-					present();
-					return;
-				}
-				if (*desired != Description) {
-					value.Description = application::staged_description_edit{ Description, *desired, false };
-				}
-			} else {
-				value.Description = application::staged_description_edit{ Description, value.Submission.Proposal.Body, true };
+			const auto desired = core::propose_tour_description(draft, Description);
+			if (!desired) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
+				present();
+				return;
+			}
+			if (*desired != Description || !draft.Remote) {
+				value.Description = application::staged_description_edit{ Description, *desired, !draft.Remote };
 			}
 		}
 		if (!application::valid(value)) {

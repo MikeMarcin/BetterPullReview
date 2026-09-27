@@ -31,3 +31,32 @@ Behavior-preserving review plus final relevant core/application/provider/SQLite/
 Milestone: **qualification-closeout**. Preserve “the core decides; the host performs; Qt presents.” Use the existing application, profile, provider, agent, storage and composition paths; no stand-alone demo that bypasses the actual product.
 
 Run focused tests for this change and record exact commands, results and producing revision. Tests use current isolated fixtures by default. A live company PR, real credentials, arbitrary external command, paid service call or remote publication is not authorized by this card. Designated live/native acceptance follows its existing separate authority path. Missing evidence remains explicit rather than converted into a passing mock or an invented verdict.
+
+## Candidate self-review and correction
+
+Reviewed the final tour seams from entry `2e2aca96` through the commit containing
+this record. The sole change inside the production app manifest is
+`review_submission_workflow.cpp`: initial description updates now reuse the same
+core byte-preserving proposal as maintenance, with an explicit beginning insertion
+preview when neither brief section exists. Ambiguous/partial sections refuse.
+The optional backlink still runs after confirmed publication under its separate
+journaled operation. No mutation grant, operation support, actor/head check,
+provider retry, recovery or ordinary source-line/summary behavior is broadened.
+The full application and production source-line mutation digests are unchanged;
+the production manifest pin is resealed with this review.
+
+The scoped prose editor now names its nonvirtual document-binding wrapper
+`bind_document`; the inherited setter is private to prevent bypassing capture
+invalidation. The two tour callers use that same path. Small scoped tidy fixes
+remove a needless baseline copy, reserve route storage and clarify Qt callbacks;
+native text history and bounded structural undo remain separate authorities.
+There is one existing staged publisher/journal, one profile tour store and no
+new schema/platform abstraction or temporary product adapter.
+
+Focused correction checks passed 5/5 in 51.31s: core description mapping and
+ambiguous/partial refusal, native undo, first publication, B/L/R reconciliation
+and complete manual lifecycle. The real publication course now requires every
+successful initial description to retain the original CRLF template bytes.
+Strict tidy passes on the affected reconciliation/editor/composition-test units.
+The final integration result and exact producing revision are in the
+[execution ledger](../../verification/RFC-BPR-0039-0043.md).

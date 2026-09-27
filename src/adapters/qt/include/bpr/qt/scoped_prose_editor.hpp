@@ -16,8 +16,9 @@ namespace bpr::qt {
 	public:
 		explicit scoped_prose_editor(QWidget* aParent = nullptr);
 		~scoped_prose_editor() override;
-		void                  present(std::string aRaw, bool aNewOwner = false);
-		void                  setDocument(QTextDocument* aDocument);
+		void present(std::string aRaw, bool aNewOwner = false);
+		/// \brief Bind native history and invalidate captured work when the document changes.
+		void                  bind_document(QTextDocument* aDocument);
 		[[nodiscard]] auto    raw() const -> const std::string&;
 		[[nodiscard]] auto    capture() const -> std::optional<prose_capture>;
 		[[nodiscard]] auto    apply(const core::writing_edit& aEdit) -> bool;
@@ -27,6 +28,7 @@ namespace bpr::qt {
 		void inputMethodEvent(QInputMethodEvent* aEvent) override;
 
 	private:
+		using QPlainTextEdit::setDocument;
 		struct rewrite_selection
 		{
 			int                     After = 0;

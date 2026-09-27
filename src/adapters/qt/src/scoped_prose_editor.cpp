@@ -63,7 +63,7 @@ namespace bpr::qt {
 		connect(doc, &QTextDocument::undoCommandAdded, this, [this, doc] { Documents.at(doc).NewCommand = true; });
 		connect(doc, &QObject::destroyed, this, [this, doc] { Documents.erase(doc); });
 	}
-	void scoped_prose_editor::setDocument(QTextDocument* aDocument)
+	void scoped_prose_editor::bind_document(QTextDocument* aDocument)
 	{
 		if (document() == aDocument) {
 			return;

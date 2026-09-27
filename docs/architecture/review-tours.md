@@ -227,7 +227,9 @@ mapped again from the fresh raw body. Unavailable or ambiguous observations keep
 local work visibly stale, and unresolved conflicts withhold publication. Store
 revision checks continue to serialize local windows independently of website
 conflicts. Description changes patch the mapped brief sections and preserve
-unrelated template bytes; imported custom stop layouts retain a whole-comment
+unrelated template bytes. For a first publication with neither section present,
+the explicit preview inserts the brief at the beginning while retaining every
+original byte; partial/duplicate sections require mapping. imported custom stop layouts retain a whole-comment
 editor. Reimport from a clean profile retains only shared identities and source
 addresses, without private preparation provenance or inferred viewing history.
 

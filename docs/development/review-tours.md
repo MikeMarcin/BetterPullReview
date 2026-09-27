@@ -64,8 +64,10 @@ that compatibility publication has several visible writes. Pending file-thread
 support is a separate qualification from standalone file comments. Unknown,
 denied or ambiguous outcomes do not authorize switching representation.
 
-A description edit changes only the body and preserves mapped unrelated template
-content. It is separate from review submission; failure can leave a published
+A description edit changes only the body and preserves unrelated template
+content. It updates mapped Problem/Solution sections, or previews inserting both
+at the beginning when neither exists. Partial or duplicate sections require
+mapping before publication. It is separate from review submission; failure can leave a published
 tour with a description update still needing attention. Opening or publishing a
 tour does not make a draft PR ready, assign reviewers, merge or close it.
 

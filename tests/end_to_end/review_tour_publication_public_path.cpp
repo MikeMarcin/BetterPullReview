@@ -30,6 +30,7 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTextBlock>
+#include <QTimer>
 #include <QToolButton>
 #include <iostream>
 #include <stdexcept>
@@ -107,14 +108,18 @@ auto main(int argc, char** argv) -> int
 	if (!dataRoot) {
 		return EXIT_FAILURE;
 	}
-	QTemporaryDir coldData;
-	auto          currentDataRoot = dataRoot;
-	auto          server          = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto          make            = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true},[&](auto result){terminal=true;if(result){started=std::move(*result);
+	QTemporaryDir     coldData;
+	auto              currentDataRoot  = dataRoot;
+	auto              server           = std::make_shared<app::detail::review_submission_fixture_state>();
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true},[&](auto result){terminal=true;if(result){started=std::move(*result);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
-	server->DraftPullRequest      = mode == "manual";
-	server->StagedQualified       = mode != "unsupported";
-	auto application              = make();
+	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
+	if (mode != "description") {
+		server->StagedDescription = originalTemplate;
+	}
+	server->DraftPullRequest = mode == "manual";
+	server->StagedQualified  = mode != "unsupported";
+	auto application         = make();
 	try {
 		open(*application);
 		auto&      window = application->window();
@@ -228,6 +233,7 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedComments.size() == 2 && server->StagedWrites == 5, "native app submits exactly one review after two navigation patches");
 			}
 			expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
+			expect(server->StagedDescription->contains(originalTemplate), "first publication preserves original template bytes including CRLF");
 		}
 		if (mode == "reconciliation") {
 			saved(editor);
@@ -257,6 +263,24 @@ auto main(int argc, char** argv) -> int
 			expect(beforeNavigation.Submissions == afterNavigation.Submissions && beforeNavigation.Resolutions == afterNavigation.Resolutions && !access::review_ledger_receipt_present(*application), "changed-stop navigation has no review-status effect");
 			expect(editor.findChild<QPlainTextEdit*>(QStringLiteral("tourConflict"))->toPlainText().contains("Website overlapping problem."), "editor exposes the exact remote conflict version");
 			saved(editor);
+			editor.show_problem();
+			window.resize(1440, 1000);
+			QApplication::processEvents();
+			if (argc > 2) {
+				expect(window.grab().save(QString::fromUtf8(argv[2]) + "-conflict.png"), "actual B/L/R conflict capture saved");
+			}
+			if (argc > 3 && std::string_view{ argv[3] } == "--attended") {
+				editor.show_problem();
+				window.resize(1440, 1000);
+				window.setWindowTitle(QStringLiteral("Review tour conflict — synthetic website — close to finish"));
+				QApplication::setQuitOnLastWindowClosed(true);
+				QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
+				std::cout << "review-tour-conflict-attended:ready\n"
+						  << std::flush;
+				const auto result = QApplication::exec();
+				shutdown(*application);
+				return result;
+			}
 			shutdown(*application);
 			application.reset();
 			application = make();
