@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0580"
 title: "Implement the next ledger schema, legacy-note migration, durable IDs, and paged private stores"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0578","BPR-0579"]
 milestone: "Post-Pack v2"
