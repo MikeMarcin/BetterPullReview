@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1015"
 title: "Simplify and run the focused final integration pass"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1012", "BPR-1014"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-25","milestone":"qualification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"Self-review and simplification","outcome":"pass","revision":"28622c5dfed8b1f5fbcb316da770e60863f0fa11","evidence":{"kind":"observation","detail":"Single existing publisher/journal/store retained. First description preserves raw template; cold-import same-raw manual span cannot invent website changes. No capability/authority expansion. Explicit document binding and scoped tidy. Pinned-scope reviews name 9b71342a,1d84e59c,1ef7a98c and5ca53796; source-line mutation digest unchanged."}},{"criterion":"Focused final core/application/provider/SQLite/Qt integration","outcome":"pass","revision":"28622c5dfed8b1f5fbcb316da770e60863f0fa11","evidence":{"kind":"command","detail":"5/5 correction51.31s; core/boundaries10/10 110.82s; final13 rows11passed initially, repaired pin1/1 14.27s and cold-import plus core/manual/reconciliation4/4 51.65s; finalcore1/1 .42s. Native targets rebuilt. Strict tidy5TUs, changed formatting, docs gate and64regressions pass. Ledger names every command and retained failed diagnosis. Unchanged prior provider24crash/process/storage evidence reused."}}]
 ---
 
 # BPR-1015: Simplify and run the focused final integration pass
