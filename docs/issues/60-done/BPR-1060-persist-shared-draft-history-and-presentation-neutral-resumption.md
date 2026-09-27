@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1060"
 title: "Persist shared draft history and presentation-neutral resumption"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1056", "BPR-1057"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-09","milestone":"same-machine-handoff","acceptance":["AC45-03","AC45-08"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC45-03","outcome":"pass","revision":"012edc856ddae35249721f6e995ce8ad73e1c545","evidence":{"kind":"command","detail":"Four focused public CLI/host/real-store courses pass; legacy migration, process COMMIT rollback, exact reopen, monotonic cross-host undo/redo, no-op/bounds/current conflicts and origin/resumption. Existing publication-journal and profile purge boundaries unchanged. DOCUMENTATION_OK."}},{"criterion":"AC45-08","outcome":"pass","revision":"012edc856ddae35249721f6e995ce8ad73e1c545","evidence":{"kind":"command","detail":"Four focused public CLI/host/real-store courses pass; legacy migration, process COMMIT rollback, exact reopen, monotonic cross-host undo/redo, no-op/bounds/current conflicts and origin/resumption. Existing publication-journal and profile purge boundaries unchanged. DOCUMENTATION_OK."}}]
 ---
 
 # BPR-1060: Persist shared draft history and presentation-neutral resumption
