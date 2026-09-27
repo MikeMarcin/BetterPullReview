@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1010"
 title: "Build bounded context and explicit per-field agent delivery"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1007", "BPR-1008", "BPR-1009"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-20","milestone":"scoped-ai","acceptance":["AC43-01","AC43-07","AC43-09","AC43-10"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
