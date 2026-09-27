@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1216"
 title: "Bound session diagnostic files and retention"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1215"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
