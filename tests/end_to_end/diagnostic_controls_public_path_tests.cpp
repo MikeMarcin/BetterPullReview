@@ -95,6 +95,8 @@ namespace {
 			until([this] { return Desktop->is_quiescent(); }, "controls and profile effects quiesce before destruction");
 			expect(Desktop->exit_code() == 0, "orderly shutdown succeeds");
 			Desktop.reset();
+			QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+			QApplication::processEvents();
 		}
 	};
 }
@@ -118,7 +120,7 @@ try {
 		until([&] { return app.Status->text().contains(QStringLiteral("Folder opening requested")); }, "host-selected folder handoff acknowledged");
 		{
 			std::lock_guard lock{ receiver.Mutex };
-			expect(receiver.Address.toLocalFile() == QString::fromStdU16String((root / "logs").u16string()), "Open targets exact admitted profile directory");
+			expect(std::filesystem::equivalent(app::native_filesystem_path(receiver.Address.toLocalFile()), root / "logs"), "Open targets exact admitted profile directory");
 		}
 		QDesktopServices::unsetUrlHandler(QStringLiteral("file"));
 		app.Window->home_landing()->primary_button()->click();
@@ -189,6 +191,7 @@ try {
 		app.stop();
 	}
 	expect(adapters::sqlite::load_diagnostic_preferences(root).Preferences == application::diagnostic_preferences{ }, "explicit repaired preference persists");
+	expect(e2e::remove_course_root(temporary), "native course removes its isolated profile after deferred cleanup");
 	return 0;
 }
 

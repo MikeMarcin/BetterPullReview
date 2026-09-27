@@ -20,7 +20,7 @@ namespace {
 		auto path = aParent / aName;
 		std::filesystem::create_directory(path);
 		expect(adapters::sqlite::make_storage_root_owner_private(path), "private root");
-		return path;
+		return std::filesystem::canonical(path);
 	}
 	void combinations(const std::filesystem::path& aParent)
 	{
