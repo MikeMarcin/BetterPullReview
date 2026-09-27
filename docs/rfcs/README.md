@@ -172,7 +172,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
 | [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Original technical closeout accepted at `e4096e05`; BPR-0934/AC-10 folder controls accepted at `a88c0d19` and landed on main by merge `0ddf929b`, with test-only correction `b6e14081`. RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and RFC-BPR-0029 are now closed, while RFC-BPR-0028 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
 | [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and canonical predecessors |
-| [RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md) | Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs | Proposed | Registered 2026-09-24 from the owner's decision on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md): ordered after RFC-BPR-0038 and before the review-tour pack, which builds on it; supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tabs; BPR-1129 to BPR-1134 are its slices and BPR-1135 owns the closeout. Owner amendment 2026-09-25: active now, ahead of canonical order ("The design session is complete, add RFC-BPR-0052 to the active work which should include BPR-1129 to BPR-1135"); decision `1d9104f8` still holds RFC-BPR-0039 to 0051 until RFC-BPR-0028 to 0038 close. [Milestone plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md): BPR-1129, 1131 and 1134, then 1130, 1132 and 1133, then 1201 to 1207 (owner-approved plan amendment, 2026-09-25), then the closeout. On 2026-09-25 the owner answered all fourteen macOS questions on the m2 build (session 06ad5734): AC-03 amended to file before change, the tab strip amended (the plus activates its tab; tabs fill, shrink, then scroll), the kept-draft page and the Findings name rejected, and seven follow-up slices BPR-1201 to 1207 added before closeout; BPR-1206's width floor decided under the owner's delegation (Xcode's tabs). Owner amendment the same day on the second tray tab: it is the reviewer's private space for non-public notes and AI conversations and review feedback, promoted to drafts in Comments; its name (Notes), the thread controls' form and Dif's placement were decided under the owner's delegation, and BPR-1208 to 1210 join m2b |
+| [RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md) | Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs | Proposed | Registered 2026-09-24 from the owner's decision on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md): ordered after RFC-BPR-0038 and before the review-tour pack, which builds on it; supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tabs; BPR-1129 to BPR-1134 are its slices and BPR-1135 owns the closeout. Owner amendment 2026-09-25: active now, ahead of canonical order ("The design session is complete, add RFC-BPR-0052 to the active work which should include BPR-1129 to BPR-1135"); decision `1d9104f8` originally held RFC-BPR-0039 to 0051 until RFC-BPR-0028 to 0038 close; the 2026-09-26 amendment below activates RFC-BPR-0039 to 0043 only. [Milestone plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md): BPR-1129, 1131 and 1134, then 1130, 1132 and 1133, then 1201 to 1207 (owner-approved plan amendment, 2026-09-25), then the closeout. On 2026-09-25 the owner answered all fourteen macOS questions on the m2 build (session 06ad5734): AC-03 amended to file before change, the tab strip amended (the plus activates its tab; tabs fill, shrink, then scroll), the kept-draft page and the Findings name rejected, and seven follow-up slices BPR-1201 to 1207 added before closeout; BPR-1206's width floor decided under the owner's delegation (Xcode's tabs). Owner amendment the same day on the second tray tab: it is the reviewer's private space for non-public notes and AI conversations and review feedback, promoted to drafts in Comments; its name (Notes), the thread controls' form and Dif's placement were decided under the owner's delegation, and BPR-1208 to 1210 join m2b |
 | [RFC-BPR-0039](RFC-BPR-0039-manual-first-review-tour-authoring.md) | Manual-First Review Tour Authoring | Proposed | Imported 2026-09-23 from the review-tour pack for later implementation; author prepares Problem, Solution and ordered tour stops without AI; RFC-BPR-0003, 0008, 0024, 0036 and 0037 |
 | [RFC-BPR-0040](RFC-BPR-0040-github-native-tour-format-import-and-navigation.md) | GitHub-Native Tour Format, Import, and Navigation | Proposed | Imported 2026-09-23; the published tour is ordinary GitHub comments with a Start here index and Previous/Next/overview links, re-importable without hidden metadata |
 | [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Proposed | Imported 2026-09-23; one native pending review staged, wired and submitted as COMMENT, with unknown outcomes reconciled rather than retried |
@@ -285,8 +285,10 @@ usable by reviewers who never open BPR. The manual lifecycle (RFC-BPR-0039 to
 0042) precedes the optional AI assistance of RFC-BPR-0043. Their [source pack and
 live ID mapping](assets/bpr-review-tour-v1.LIVE_IMPORT.md) and [adopted
 eight-milestone plan](plans/bpr-review-tour-v1/milestone-plan.json) retain the
-source and execution order. Import leaves all twenty-six cards in Backlog and all
-five RFCs Proposed; BPR-1016 owns the single ordered closeout.
+source and execution order. The original import left all twenty-six cards in
+Backlog and all five RFCs Proposed; BPR-1016 owns the single ordered closeout.
+The 2026-09-26 implementation mandate and current intake baseline are recorded
+in the [pack ledger](../verification/RFC-BPR-0039-0043.md).
 
 RFC-BPR-0044 through RFC-BPR-0046 are the imported pr-tour CLI extension pack,
 additive to the review-tour pack: a headless `bpr tour` terminal frontend, one
@@ -316,9 +318,18 @@ Owner decision, 2026-09-24 (attended session `cbd48b91000b00f1e72e1ad62c7c384c`,
 candidate `RFC-0039-0051-start-v001`, decision `1d9104f8`, 19:17:30Z): asked
 whether to start the imported packs now, RFC-BPR-0039 first and then in
 canonical order through RFC-BPR-0051, the owner selected, verbatim, "Not yet:
-finish RFC-0028 to RFC-0038 first", with an empty note. RFC-BPR-0039 to
-RFC-BPR-0051 stay Proposed with their cards in Backlog, and no pack is started
-until RFC-BPR-0028 through RFC-BPR-0038 are closed.
+finish RFC-0028 to RFC-0038 first", with an empty note. This held
+RFC-BPR-0039 to RFC-BPR-0051 in Backlog pending RFC-BPR-0028 through
+RFC-BPR-0038 closure.
+
+Owner amendment, 2026-09-26: "$implement-rfc RFC-BPR-0039–0043 and land it
+on main after each milestone". This authorizes the review-tour pack's feature
+work now and supersedes the start hold for RFC-BPR-0039 through RFC-BPR-0043
+only. Follow its eight authored milestones and integrate each accepted
+milestone on local main before assigning the next. The start hold still
+applies to RFC-BPR-0044 through RFC-BPR-0051. Formal dependency-ordered
+closure, required human/native/server evidence and the existing remote-effect
+boundary remain in force; this amendment supplies no acceptance verdict.
 
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
