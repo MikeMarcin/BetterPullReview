@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1221"
 title: "Show tour stop status before the number"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039"]
 depends_on: ["BPR-0995"]
 metadata: {"milestone":"qualification-closeout","milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"},"owner_amendment":"2026-09-27 hand-back 90: replace trailing em-dash Editing with a compact icon to the left of the number"}
