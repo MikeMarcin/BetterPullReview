@@ -47,6 +47,16 @@ an explicit retry; a conflicting save preserves both copies and never overwrites
 the other writer automatically. Local structural undo keeps at most 16 snapshots
 within 8 MiB per history direction; native text editors own text undo. Editing text
 clears structural history so a later structural undo cannot erase a newer edit.
+Qt routes standard Undo/Redo in the stop editor and outline to that history while
+available, then to native text editing. Each structural history entry also
+retains the current stable stop; a selection revision distinguishes a fresh
+Undo/Redo selection intent from an ordinary save acknowledgement. Right-click
+retains an existing selected group or selects the clicked stop. Ordered stable
+ID sets extend the existing core move, duplicate, merge and remove commands;
+validation refuses an invalid set atomically. Merge requires adjacent stops.
+An internal drag from the dotted handle emits one revision-bound semantic move;
+only the accepted projection reorders rows. Tab and Shift+Tab explicitly traverse
+visible enabled controls, including assistance buttons, in all three prose fields.
 
 Authored text and bounded raw remote baselines are explicit private retention
 classes, outside the metadata ledger. Baselines retain raw body, source span,
@@ -81,9 +91,13 @@ fetch destination.
 
 The Tour stops page retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
-Arrange offers insert, duplicate, split at the text cursor, merge with next,
-remove, move and bounded structural undo/redo. `Alt+Shift+Up/Down` reorders while
-keeping the stop selected; the existing `Alt+Up/Down` file gestures remain free.
+The context menu offers insert after, duplicate, merge selected adjacent stops,
+source replacement and remove. Add also inserts after the current stop and
+selects the new one. Command/Control+D and Delete act only with the outline
+focused, preserving native text editing in the fields. `Alt+Shift+Up/Down`
+reorders while keeping the selected group; the existing `Alt+Up/Down` file
+gestures remain free. The owner removed the separate Arrange and split controls
+at attended hand-back 70; the underlying split algebra remains tested.
 `Ready and next` (`Alt+Return`) marks only a complete, resolved stop Ready.
 An oversized edit remains in its native document for shortening, copying or Undo.
 Other fields and tour mutations wait until that edit fits, preventing a later
@@ -227,7 +241,9 @@ mapped again from the fresh raw body. Unavailable or ambiguous observations keep
 local work visibly stale, and unresolved conflicts withhold publication. Store
 revision checks continue to serialize local windows independently of website
 conflicts. Description changes patch the mapped brief sections and preserve
-unrelated template bytes; imported custom stop layouts retain a whole-comment
+unrelated template bytes. For a first publication with neither section present,
+the explicit preview inserts the brief at the beginning while retaining every
+original byte; partial/duplicate sections require mapping. imported custom stop layouts retain a whole-comment
 editor. Reimport from a clean profile retains only shared identities and source
 addresses, without private preparation provenance or inferred viewing history.
 

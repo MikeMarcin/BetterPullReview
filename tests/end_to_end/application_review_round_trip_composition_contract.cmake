@@ -1,3 +1,19 @@
+# BPR-1016 final integration reseal: reviewed main 93235bee plus tour 22763dc10.
+# The only additional production-manifest changes against main are 5ca53796a
+# (review_submission_workflow.cpp) and 54ba51bf8 (github_application.cpp).
+# Initial descriptions use the same core mapped-byte preservation as maintenance;
+# the separately previewed initial backlink retains its existing journal/grants.
+# Insert-after resolves the selected stable stop identity and supplies it to core
+# position validation. Neither change adds publication authority or private input.
+# Retain main's BPR-0587 private workflow inventory and recorded M8 source review;
+# WritingOnly still rejects private-run intent. Main's later M10 fixes 8cd73d96c
+# and d4404fc44 are also covered: their source and independent review are recorded
+# in RFC-BPR-0023.md. They restore interrupted runs and reconcile pending private
+# publications through the existing host with GET-only recovery and no new POST.
+# The mutation branch matches main exactly; reseal its stale M8 pin for the
+# already-reviewed repair_pending_publications() call added by 8cd73d96c.
+# Prior exact runtime/native evidence and the owner scope amendment are recorded
+# on BPR-1013/BPR-1016 and in the RFC-BPR-0039-0043 qualification ledger.
 # BPR-0587 reseal: scoped engineering self-review of 5b9080fb6..this M8 slice.
 # Intervening pinned-source commits 9b71342a0, 1d84e59c2 and 1ef7a98c3 retain
 # their recorded BPR-1007/BPR-1010/BPR-1011 writing acceptance; WritingOnly
@@ -70,6 +86,19 @@ function(bpr_require_literal_count source_variable token expected description)
     endif()
 endfunction()
 
+# BPR-1015 qualification correction: reviewed from 2e2aca96 through this
+# recorded correction commit. Only review_submission_workflow.cpp changed inside
+# the production app manifest: initial and maintenance descriptions now share
+# core mapped-byte preservation. Initial backlink remains separately named and
+# journaled; no operation support/grant/actor/head/recovery boundary changed.
+# Source-line mutation branch hash is unchanged. The final integration also
+# found the full-application pin still at the manual-maintenance revision.
+# Reviewed 5b9080fb..2e2aca96: 9b71342a, 1d84e59c, 1ef7a98c are the only
+# intervening manifest-source commits, all in github_application.cpp. Profile
+# hook restore, explicit bounded writing/cancel/delivery and visible per-stop
+# completion retain captured identity; no implicit inference or publish grant.
+# Prior scoped-AI/outline reviews and the final real-process course are recorded
+# on BPR-1015 and the pack ledger. Reseal their unchanged composed source here.
 # Resealing the pinned digests ([[BPR-0383]], [[BPR-0819]])
 #
 # The three digests below are review tripwires, not build products. A pin that
@@ -423,7 +452,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6956991679f7077b4c3c8ff177971461682e8ab4b9da1cc3a4fe3efbd24dd45f"
+		"4884ff615fde1cfe83618ad1cad03c189e7d2ad65104a0cf131afeb064bf66e6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -584,7 +613,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7b4b8b8247c4c01a3acac2fad74014eea48f75fbcdd2830bea423b083b134eb1"
+        "eba4260c511a8b8467855d7ec4531fe1549f022c45a745d6cd2ada79c5b0412b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -905,7 +934,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "c0546c9d349e8de83619d632aef4108a80b0b11bad375f410ef5dd103385fc78"
+        "0c1cf84fb9870f09816947fce6d9c59a214b85b81ba7eefcf6e5f16d3abfe6f7"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

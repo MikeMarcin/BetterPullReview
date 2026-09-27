@@ -114,6 +114,61 @@ namespace {
 		wrong.Owner.Account = github_account_id{ 12 };
 		expect(apply(tour, wrong).Refusal == tour_refusal::identity, "account replacement refused");
 	}
+	void check_selection_commands()
+	{
+		auto tour = draft();
+		for (std::uint32_t index = 0; index < 4; ++index) {
+			auto add     = command(tour, tour_command_kind::insert);
+			add.Position = tour.Stops.size();
+			add.Value    = { .Title = "Decision", .Body = std::to_string(index), .Original = source(index, index), .Mapping = tour_mapping::exact_original };
+			apply_ok(tour, add);
+		}
+		const auto before = tour;
+		auto       merge  = command(tour, tour_command_kind::merge_next);
+		for (const auto& selection : std::vector<std::vector<tour_stop_id>>{ { tour.Stops[0].Id }, { tour.Stops[0].Id, tour.Stops[2].Id }, { tour.Stops[1].Id, tour.Stops[0].Id }, { tour.Stops[0].Id, tour.Stops[0].Id }, { tour.Stops[0].Id, tour_stop_id{ 999 } } }) {
+			merge.Selection    = selection;
+			const auto refused = apply(tour, merge);
+			expect(refused.Refusal == tour_refusal::invalid_command && refused.Accepted == before, "merge rejects singleton, disjoint, reversed, duplicate and stale selections atomically");
+		}
+		merge.Selection   = { tour.Stops[0].Id, tour.Stops[1].Id, tour.Stops[2].Id };
+		const auto merged = apply_ok(tour, merge);
+		expect(tour.Stops.size() == 2 && tour.Stops.front().Body == "012" && tour.Stops.front().Related.size() == 2 && merged.Selected == before.Stops.front().Id, "one selected merge preserves route text, related sources and surviving identity");
+		tour = before;
+		for (std::size_t index = 0; index < 3; ++index) {
+			tour.Stops[index].Remote   = tour_remote_binding{ .Kind = tour_remote_kind::line_comment, .Entity = "remote" + std::to_string(index), .Own = true };
+			tour.Stops[index].Baseline = tour_field_baseline{ .Raw = "Exact website bytes " + std::to_string(index), .RemoteEntity = tour.Stops[index].Remote->Entity };
+		}
+		const auto published    = tour;
+		merge.ExpectedRevision  = tour.Revision;
+		const auto mergedRemote = apply_ok(tour, merge);
+		expect(tour.Retired.size() == 3 && tour.Retired[0] == published.Stops[0] && tour.Retired[1] == published.Stops[1] && tour.Retired[2] == published.Stops[2] && !tour.Stops.front().Remote && mergedRemote.Selected == tour.Stops.front().Id && mergedRemote.Selected.value() > published.LastStopId, "group merge retains exact retired website originals and selects its new local identity");
+		tour                   = before;
+		tour.Stops[1].Body     = std::string(maximum_tour_field_bytes, 'x');
+		merge.ExpectedRevision = tour.Revision;
+		const auto overflow    = apply(tour, merge);
+		expect(overflow.Refusal == tour_refusal::bounds && overflow.Accepted == tour, "merge exceeding prose bound retains every original stop");
+		tour            = before;
+		auto group      = command(tour, tour_command_kind::move);
+		group.Stop      = tour.Stops[2].Id;
+		group.Selection = { tour.Stops[0].Id, tour.Stops[2].Id };
+		group.Position  = 2;
+		auto moved      = apply_ok(tour, group);
+		expect(tour.Stops[2] == before.Stops[0] && tour.Stops[3] == before.Stops[2] && moved.Selected == group.Stop, "group move preserves selected order and current identity");
+		group             = command(tour, tour_command_kind::duplicate);
+		group.Selection   = { tour.Stops[2].Id, tour.Stops[3].Id };
+		const auto copied = apply_ok(tour, group);
+		expect(tour.Stops.size() == 6 && tour.Stops[3].Id == copied.Selected && tour.Stops[3].Body == "0" && tour.Stops[5].Body == "2" && tour.Stops[5].Id != before.Stops[2].Id, "duplicate selection allocates new identities after each selected stop");
+		group           = command(tour, tour_command_kind::remove);
+		group.Selection = { tour.Stops[3].Id, tour.Stops[5].Id };
+		apply_ok(tour, group);
+		expect(tour.Stops == moved.Accepted.Stops, "group removal preserves unselected stops exactly");
+		tour                 = before;
+		tour.LastStopId      = std::numeric_limits<std::uint64_t>::max() - 2;
+		group                = command(tour, tour_command_kind::duplicate);
+		group.Selection      = { tour.Stops[0].Id, tour.Stops[1].Id };
+		const auto exhausted = apply(tour, group);
+		expect(exhausted.Refusal == tour_refusal::bounds && exhausted.Accepted == tour, "late group failure does not retain partial duplicates");
+	}
 	void check_outline_attention()
 	{
 		auto tour       = draft();
@@ -247,6 +302,7 @@ namespace {
 int main()
 {
 	check_commands();
+	check_selection_commands();
 	check_outline_attention();
 	check_ranges_and_bounds();
 }

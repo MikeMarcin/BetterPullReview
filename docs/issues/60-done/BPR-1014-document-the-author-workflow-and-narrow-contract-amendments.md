@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1014"
 title: "Document the author workflow and narrow contract amendments"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1006", "BPR-1010", "BPR-1011"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-24","milestone":"qualification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"Operator and semantic documentation","outcome":"pass","revision":"a5c83a8b4cdca55f4482742a2a2dff2998c7cfbe","evidence":{"kind":"observation","detail":"Complete normal-control guide, body-only product amendment, domain/AI/security/Settings ownership; early unchanged public composition 1/1 in13.88s, prior unchanged manual and writing courses reused; DOCUMENTATION_OK and diff check. See final qualification ledger."}}]
 ---
 
 # BPR-1014: Document the author workflow and narrow contract amendments

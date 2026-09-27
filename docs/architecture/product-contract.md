@@ -215,9 +215,23 @@ returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
 
+## Review-tour preparation
+
+Authors can prepare and privately save Problem, Solution and an ordered source
+tour without AI. The [operator workflow](../development/review-tours.md) describes
+editing, exact source/fallback subjects, cold import, website conflicts and
+partial recovery. Explicit description updates are a narrow **body-only**
+extension; the original title, draft status and other PR-management state have
+no tour mutation operation. Production Tour writes remain unavailable until the
+exact connected operations are qualified.
+
+An explicit tour writing action may replace one captured local editor span as
+one native undo transaction. It grants no publication authority. Outline entries
+have no generated bodies and require visible per-stop author completion.
+
 ## Explicit non-goals
 
-- Creating, editing, merging, closing, or rebasing pull requests.
+- Creating, changing PR metadata other than the explicitly previewed description body, merging, closing, or rebasing pull requests.
 - Replacing GitHub notifications for all repository activity.
 - Running builds, tests, repository scripts, hooks, filters, or arbitrary code.
 - Maintaining a hosted BetterPullReview account or synchronization service.

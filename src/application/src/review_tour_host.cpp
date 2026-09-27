@@ -13,12 +13,17 @@ namespace bpr::application {
 		decision_executor&                       Decision;
 		publication                              Publish;
 		tour_presentation                        State;
-		std::deque<core::review_tour>            Undo;
-		std::deque<core::review_tour>            Redo;
-		std::uint64_t                            Request = 0;
-		bool                                     Active  = false;
-		bool                                     Started = false;
-		bool                                     Closing = false;
+		struct history_entry
+		{
+			core::review_tour  Draft;
+			core::tour_stop_id Selected;
+		};
+		std::deque<history_entry> Undo;
+		std::deque<history_entry> Redo;
+		std::uint64_t             Request = 0;
+		bool                      Active  = false;
+		bool                      Started = false;
+		bool                      Closing = false;
 		implementation(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 			: Seed{ std::move(aSeed) }
 			, Store{ std::move(aStore) }
@@ -143,9 +148,9 @@ namespace bpr::application {
 				return;
 			}
 			const auto& draft   = *State.Draft;
-			const auto  matches = std::ranges::count_if(Imports, [&](const auto& candidate) { return candidate.Draft.Remote && candidate.Draft.Remote->Entity == draft.Remote->Entity; });
+			const auto  matches = std::ranges::count_if(Imports, [&](const auto& aCandidate) { return aCandidate.Draft.Remote && aCandidate.Draft.Remote->Entity == draft.Remote->Entity; });
 			if (matches == 1) {
-				const auto found = std::ranges::find_if(Imports, [&](const auto& candidate) { return candidate.Draft.Remote && candidate.Draft.Remote->Entity == draft.Remote->Entity; });
+				const auto found = std::ranges::find_if(Imports, [&](const auto& aCandidate) { return aCandidate.Draft.Remote && aCandidate.Draft.Remote->Entity == draft.Remote->Entity; });
 				adopt_observation(core::reconcile_tour(draft, found->Draft));
 			} else {
 				auto retained         = draft;
@@ -224,15 +229,15 @@ namespace bpr::application {
 				State.Failure = tour_store_failure::unavailable;
 			}
 		}
-		void retain(std::deque<core::review_tour>& aHistory, const core::review_tour& aTour)
+		void retain(std::deque<history_entry>& aHistory, core::tour_stop_id aSelected)
 		{
-			aHistory.push_back(aTour);
+			aHistory.push_back({ *State.Draft, aSelected });
 			auto bytes = std::size_t{ 0 };
 			for (const auto& item : aHistory) {
-				bytes += core::retained_tour_bytes(item);
+				bytes += core::retained_tour_bytes(item.Draft);
 			}
 			while (aHistory.size() > 16 || bytes > 8U * 1024U * 1024U) {
-				bytes -= core::retained_tour_bytes(aHistory.front());
+				bytes -= core::retained_tour_bytes(aHistory.front().Draft);
 				aHistory.pop_front();
 			}
 		}
@@ -249,7 +254,8 @@ namespace bpr::application {
 					Undo.clear();
 					Redo.clear();
 				} else if (aCommand.Kind != core::tour_command_kind::visit) {
-					retain(Undo, *State.Draft);
+					retain(Undo, aCommand.Stop.value() ? aCommand.Stop : State.Selected);
+					++State.SelectionRevision;
 					Redo.clear();
 				}
 				State.Draft    = std::make_shared<core::review_tour>(outcome.Accepted);
@@ -265,11 +271,13 @@ namespace bpr::application {
 			if (Closing || !State.Draft || from.empty()) {
 				return;
 			}
-			core::tour_command command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = from.back() };
+			core::tour_command command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = from.back().Draft };
 			auto               outcome = core::apply(*State.Draft, command);
 			State.Refusal              = outcome.Refusal;
 			if (outcome.Changed) {
-				retain(to, *State.Draft);
+				retain(to, State.Selected);
+				State.Selected = from.back().Selected;
+				++State.SelectionRevision;
 				from.pop_back();
 				State.Draft = std::make_shared<core::review_tour>(std::move(outcome.Accepted));
 				pump();
@@ -292,13 +300,13 @@ namespace bpr::application {
 			state.notify();
 		}
 	}
-	void review_tour_host::observe_comparison(const core::diff_semantic_index& index, const core::tour_code_destination& left, const core::tour_code_destination& right)
+	void review_tour_host::observe_comparison(const core::diff_semantic_index& aIndex, const core::tour_code_destination& aLeft, const core::tour_code_destination& aRight)
 	{
 		auto& self = *Implementation;
 		if (self.Closing || self.State.Loading || !self.State.Draft) {
 			return;
 		}
-		self.adopt_observation(core::map_tour_revision(*self.State.Draft, index, left, right));
+		self.adopt_observation(core::map_tour_revision(*self.State.Draft, aIndex, aLeft, aRight));
 		self.notify();
 	}
 

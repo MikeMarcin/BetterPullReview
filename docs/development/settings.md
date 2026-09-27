@@ -186,6 +186,8 @@ that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
 the fix. The finding is not declared a false positive, and neither the Linux
 inventory-only pass nor the WSLg diagnosis course is a complete native course.
 
+### Review preparation writing hooks
+
 Review preparation instructions live under Agents & context → AI assistance.
 Problem statement, Solution summary, Tour outline and Tour-stop comment have
 separate profile overrides, Restore default, and effective source/version labels.
@@ -225,5 +227,6 @@ One accepted result is one native undo transaction. Undo restores raw Markdown
 and selection; redo uses received bytes and never runs the agent again. Private
 Recovered/Inferred/Unclear notes stay outside the tour body. A saved-hook test
 uses a synthetic sample bound to the open review and has no draft destination.
-The outline hook can be configured/tested here; insertion and per-stop completion
-requirements belong to the following outline milestone.
+The outline hook returns body-free suggestions. Insert selected skeleton stops
+from the Tour stops page, then visit and complete each current explanation against
+its source. See [Prepare and maintain a review tour](review-tours.md).

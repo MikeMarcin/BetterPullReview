@@ -82,7 +82,7 @@ namespace bpr::core {
 			const auto merged   = merge_tour_text(before, local, remote);
 			if (merged) {
 				local    = *merged;
-				baseline = observed;
+				baseline = std::move(observed);
 			} else {
 				aResult.Conflicts.push_back({ aProblem ? tour_conflict_field::problem : tour_conflict_field::solution, { }, before, local, remote, *observed });
 			}
@@ -90,6 +90,7 @@ namespace bpr::core {
 		auto route(const review_tour& aTour) -> std::vector<std::string>
 		{
 			std::vector<std::string> result;
+			result.reserve(aTour.Stops.size());
 			for (const auto& stop : aTour.Stops) {
 				result.push_back(stop.Remote ? stop.Remote->WebUrl : "local stop " + std::to_string(stop.Id.value()));
 			}
@@ -199,7 +200,7 @@ namespace bpr::core {
 			if (!stop.Remote) {
 				continue;
 			}
-			const auto remote = std::ranges::find_if(aRemote.Stops, [&](const auto& value) { return value.Remote && value.Remote->Entity == stop.Remote->Entity; });
+			const auto remote = std::ranges::find_if(aRemote.Stops, [&](const auto& aValue) { return aValue.Remote && aValue.Remote->Entity == stop.Remote->Entity; });
 			if (remote != aRemote.Stops.end()) {
 				reconcile_stop(result, stop, *remote);
 			}
@@ -212,7 +213,7 @@ namespace bpr::core {
 			if (local == before && remote != before) {
 				std::vector<tour_stop> stops;
 				for (auto stop : aRemote.Stops) {
-					const auto existing = std::ranges::find_if(result.Stops, [&](const auto& value) { return value.Remote && stop.Remote && value.Remote->Entity == stop.Remote->Entity; });
+					const auto existing = std::ranges::find_if(result.Stops, [&](const auto& aValue) { return aValue.Remote && stop.Remote && aValue.Remote->Entity == stop.Remote->Entity; });
 					if (existing != result.Stops.end()) {
 						stop = *existing;
 					} else {
@@ -220,7 +221,7 @@ namespace bpr::core {
 					}
 					stops.push_back(std::move(stop));
 				}
-				const bool lostEdit = std::ranges::any_of(result.Stops, [&](const auto& stop) { return stop.Remote && stop.Baseline && std::ranges::find(remote, stop.Remote->WebUrl) == remote.end() && propose_tour_stop_text(stop) != std::optional{ stop.Baseline->Raw }; });
+				const bool lostEdit = std::ranges::any_of(result.Stops, [&](const auto& aStop) { return aStop.Remote && aStop.Baseline && std::ranges::find(remote, aStop.Remote->WebUrl) == remote.end() && propose_tour_stop_text(aStop) != std::optional{ aStop.Baseline->Raw }; });
 				if (lostEdit) {
 					result.Conflicts.push_back({ tour_conflict_field::route, { }, aLocal.IndexBaseline->Raw, route_text(aLocal), aRemote.IndexBaseline->Raw, *aRemote.IndexBaseline });
 					result.IncomingRoute = aRemote.Stops;
@@ -228,7 +229,7 @@ namespace bpr::core {
 					result.Stops = std::move(stops);
 				}
 			}
-			if (std::ranges::none_of(result.Conflicts, [](const auto& c) { return c.Field == tour_conflict_field::route; })) {
+			if (std::ranges::none_of(result.Conflicts, [](const auto& aConflict) { return aConflict.Field == tour_conflict_field::route; })) {
 				if (result.IndexBaseline->Raw != aRemote.IndexBaseline->Raw) {
 					result.IndexBaseline = aRemote.IndexBaseline;
 				}
@@ -277,7 +278,7 @@ namespace bpr::core {
 		case tour_conflict_field::route:
 			if (aUseRemote) {
 				for (auto& stop : result.IncomingRoute) {
-					const auto old = std::ranges::find_if(result.Stops, [&](const auto& value) { return value.Remote && stop.Remote && value.Remote->Entity == stop.Remote->Entity; });
+					const auto old = std::ranges::find_if(result.Stops, [&](const auto& aValue) { return aValue.Remote && stop.Remote && aValue.Remote->Entity == stop.Remote->Entity; });
 					if (old == result.Stops.end()) {
 						stop.Id = tour_stop_id{ ++result.LastStopId };
 					} else {
@@ -308,6 +309,14 @@ namespace bpr::core {
 	}
 	auto propose_tour_description(const review_tour& aTour, std::string_view aRaw) -> std::optional<std::string>
 	{
+		if (!aTour.Remote) {
+			const auto mapped   = map_tour_markdown(aRaw);
+			const bool hasBrief = std::ranges::any_of(mapped.Sections, [](const auto& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; });
+			if (mapped.Bounded && !hasBrief) {
+				const auto newline = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
+				return insert_tour_brief(aRaw, 0, aTour.Problem, aTour.Solution, newline);
+			}
+		}
 		std::vector<tour_text_edit> edits;
 		for (const auto problem : { true, false }) {
 			const auto field = field_baseline(aRaw, problem ? "Problem" : "Solution", { });
@@ -324,8 +333,10 @@ namespace bpr::core {
 					return { };
 				}
 				const auto prefix = content.substr(0, position), suffix = content.substr(position + baseline->DraftText->size());
-				replacement = prefix + desired + suffix;
-			} else if (!desired.starts_with("\n") && !desired.starts_with("\r\n")) {
+				replacement = prefix;
+				replacement += desired;
+				replacement += suffix;
+			} else if (!desired.starts_with('\n') && !desired.starts_with("\r\n")) {
 				const auto nl = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
 				replacement   = std::string{ nl } + desired + nl + nl;
 			}

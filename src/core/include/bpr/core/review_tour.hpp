@@ -229,6 +229,9 @@ namespace bpr::core {
 		std::optional<tour_field_baseline> Baseline;
 		std::vector<tour_outline_entry>    Outline;
 		tour_attention                     Attention;
+		/// Ordered stable IDs for one atomic move, duplicate, merge or removal.
+		/// Merge requires at least two adjacent stops; an empty set uses Stop.
+		std::vector<tour_stop_id> Selection;
 	};
 	enum class tour_refusal : std::uint8_t { none,
 											 identity,
