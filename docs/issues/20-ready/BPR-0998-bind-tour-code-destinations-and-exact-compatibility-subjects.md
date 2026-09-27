@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0998"
 title: "Bind tour code destinations and exact compatibility subjects"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041"]
 depends_on: ["BPR-0996", "BPR-0997"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-08","milestone":"github-round-trip","acceptance":["AC39-04","AC40-06","AC41-06"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
