@@ -4,7 +4,7 @@
   "run_id": "bpr-pr-tour-cli-20260927",
   "segment_id": "publish-and-recover",
   "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
-  "status": "milestone-accepted-awaiting-local-main-fast-forward",
+  "status": "milestone-accepted-and-landed",
   "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
   "prior_main_revision": "37a90f0ba99d88ec15cf69d9e62afd4fa0cb6dd7",
   "publication_source_revision": "5341b12e8a2f0f250d7251501473e81197664430",
@@ -36,7 +36,8 @@
     "tests/CMakeLists.txt",
     "tests/application/tour_publication_cli_tests.cpp",
     "tests/end_to_end/review_tour_publication_public_path.cpp",
-    "tests/scripts/tour_cli_publication_tests.py"
+    "tests/scripts/tour_cli_publication_tests.py",
+    "docs/verification/RFC-BPR-0044-0046.publish-and-recover-handoff.json"
   ],
   "completed_cards": [
     "BPR-1059",
@@ -227,7 +228,7 @@
     "BPR-1068\u20131071 package/native/actual human/website/agent courses, independent review, documentation and RFC closure.",
     "Parent BPR-1222\u20131226 live GitHub/GHES/native/provider/original-gap follow-ups remain unchanged."
   ],
-  "next_action": "After local-main landing coordinator starts a fresh implementer for same-machine-handoff/BPR-1060; bind accepted intake, headless-manual and publish-and-recover. This owner stops at the milestone boundary.",
+  "next_action": "Coordinator starts a fresh implementer for same-machine-handoff/BPR-1060 under mandate r1-20260927-implement-and-land-each-milestone, binding accepted intake, headless-manual and publish-and-recover. This owner is released and stops at this boundary.",
   "next_eligible_milestone": "same-machine-handoff",
   "next_eligible_card": "BPR-1060",
   "operator_refusals": [
@@ -242,5 +243,12 @@
     "action": "fresh-context",
     "detail": "Publish-and-recover implementation exits accepted. Fast-forward local main, then a fresh implementer starts same-machine-handoff/BPR-1060 under the unchanged plan.",
     "engineering_acceptance": "not-evaluated"
+  },
+  "main_landing": {
+    "revision": "0c0920ddab0a578c1d76d4d63bf4d20ddd1f134c",
+    "method": "Fast-forward from clean local main at 37a90f0ba99d88ec15cf69d9e62afd4fa0cb6dd7. No push.",
+    "verified_on_main": true,
+    "result": "DOCUMENTATION_OK on landed main; source and main worktrees clean. All source evidence remains bound to 3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3.",
+    "handoff_upkeep": "The documentation-only commit carrying this landing record is also fast-forwarded to local main. Its final SHA is resolved from Git and reported to the coordinator."
   }
 }
