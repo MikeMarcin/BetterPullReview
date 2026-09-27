@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1004"
 title: "Merge website edits with local draft changes"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1003", "BPR-0997"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-14","milestone":"manual-maintenance","acceptance":["AC42-01","AC42-04","AC42-07"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
