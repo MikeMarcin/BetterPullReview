@@ -1,3 +1,40 @@
+if(BPR_BUILD_TOUR_CLI)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_cli.cpp)
+    add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
+    target_link_libraries(better_pull_review_tour_runtime PUBLIC BetterPullReview::Application
+        PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite Qt6::Core Qt6::Network)
+    target_include_directories(better_pull_review_tour_runtime PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src" "${PROJECT_SOURCE_DIR}/src/application/src")
+    target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
+    bpr_enable_hardening(better_pull_review_tour_runtime)
+    bpr_enable_warnings(better_pull_review_tour_runtime)
+    bpr_add_executable(app_bpr src/tour_main.cpp)
+    target_link_libraries(app_bpr PRIVATE BetterPullReview::TourRuntime Qt6::Core)
+    bpr_enable_hardening(app_bpr)
+    bpr_enable_warnings(app_bpr)
+    install(TARGETS app_bpr RUNTIME DESTINATION bin COMPONENT TourCLI)
+    if(TARGET tool_better_pull_review_agent_supervisor)
+        # The existing isolated Git engine uses this process supervisor.
+        install(TARGETS tool_better_pull_review_agent_supervisor RUNTIME DESTINATION bin COMPONENT TourCLI)
+    endif()
+    if(APPLE)
+        set_target_properties(app_bpr PROPERTIES INSTALL_RPATH "@executable_path/../lib")
+        get_target_property(bpr_tour_qt_core Qt6::Core IMPORTED_LOCATION_RELEASE)
+        get_filename_component(bpr_tour_qt_lib "${bpr_tour_qt_core}/../../../.." ABSOLUTE)
+        foreach(bpr_tour_framework IN ITEMS QtCore QtNetwork)
+            install(DIRECTORY "${bpr_tour_qt_lib}/${bpr_tour_framework}.framework"
+                DESTINATION lib COMPONENT TourCLI
+                PATTERN Headers EXCLUDE PATTERN Modules EXCLUDE PATTERN "*.prl" EXCLUDE)
+        endforeach()
+        install(FILES "${bpr_tour_qt_lib}/../plugins/tls/libqsecuretransportbackend.dylib"
+            DESTINATION lib/bpr/plugins/tls COMPONENT TourCLI)
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" "[Paths]\nPlugins=../lib/bpr/plugins\n")
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" DESTINATION bin RENAME qt.conf COMPONENT TourCLI)
+    else()
+        set_target_properties(app_bpr PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+    endif()
+endif()
+
 if(BPR_BUILD_QT)
     add_library(
         better_pull_review_composition

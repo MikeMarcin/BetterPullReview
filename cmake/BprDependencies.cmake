@@ -108,9 +108,13 @@ function(bpr_configure_dependencies)
         list(APPEND records "Python3|CMAKE_MODULE|Python3::Interpreter")
     endif()
 
-    if(BPR_BUILD_QT)
+    if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
+        set(bpr_qt_components Core Network)
+        if(BPR_BUILD_QT)
+            list(APPEND bpr_qt_components Gui Widgets)
+        endif()
         bpr_reject_dependency_redirect(Qt6)
-        foreach(component IN ITEMS Core Gui Widgets Network)
+        foreach(component IN LISTS bpr_qt_components)
             bpr_require_dependency_target_absent(
                 "Qt6::${component}"
                 "Qt6 ${component}"
@@ -132,26 +136,25 @@ function(bpr_configure_dependencies)
             ${qt_version_arguments}
             CONFIG
             QUIET
-            COMPONENTS Core Gui Widgets Network
+            COMPONENTS ${bpr_qt_components}
         )
         if(NOT Qt6_FOUND)
             if(BPR_QT_PROVIDER)
                 message(
                     FATAL_ERROR
                     "The pinned Qt ${BPR_QT_VERSION} provider produced "
-                    "'${bpr_qt_prefix}', but Qt6 with Core, Gui, Widgets, and "
-                    "Network did not resolve from it."
+                    "'${bpr_qt_prefix}', but Qt6 components ${bpr_qt_components} did not resolve from it."
                 )
             endif()
             message(
                 FATAL_ERROR
                 "BPR_QT_PROVIDER=OFF requires caller-installed Qt >= "
-                "${BPR_QT_MINIMUM_VERSION} with Core, Gui, Widgets, and Network. "
+                "${BPR_QT_MINIMUM_VERSION} with ${bpr_qt_components}. "
                 "Install a compatible Qt package and set Qt6_ROOT, Qt6_DIR, or "
                 "CMAKE_PREFIX_PATH, or re-enable the pinned provider."
             )
         endif()
-        foreach(component IN ITEMS Core Gui Widgets Network)
+        foreach(component IN LISTS bpr_qt_components)
             bpr_require_dependency_target("Qt6::${component}" "Qt6 ${component}")
             list(APPEND records "Qt6|CMAKE_CONFIG|Qt6::${component}")
         endforeach()
@@ -197,16 +200,18 @@ function(bpr_configure_dependencies)
             # [[BPR-1024]]. The composition's X11 activation host names one
             # atom on the connection Qt's xcb platform opened. libxcb is
             # already in the runtime closure of Qt's xcb platform plugin.
-            bpr_require_dependency_target_absent(PkgConfig::BPR_XCB xcb)
-            pkg_check_modules(
-                BPR_XCB
-                REQUIRED
-                IMPORTED_TARGET
-                GLOBAL
-                xcb
-            )
-            bpr_require_dependency_target(PkgConfig::BPR_XCB xcb)
-            list(APPEND records "XCB|PKG_CONFIG|PkgConfig::BPR_XCB")
+            if(BPR_BUILD_QT)
+                bpr_require_dependency_target_absent(PkgConfig::BPR_XCB xcb)
+                pkg_check_modules(
+                    BPR_XCB
+                    REQUIRED
+                    IMPORTED_TARGET
+                    GLOBAL
+                    xcb
+                )
+                bpr_require_dependency_target(PkgConfig::BPR_XCB xcb)
+                list(APPEND records "XCB|PKG_CONFIG|PkgConfig::BPR_XCB")
+            endif()
         endif()
 
         if(BUILD_TESTING)
@@ -251,11 +256,13 @@ function(bpr_configure_dependencies)
         bpr_require_dependency_target(glaze::glaze Glaze)
         list(APPEND records "Glaze|PINNED_ARCHIVE|glaze::glaze")
 
-        bpr_acquire_quill()
-        bpr_require_dependency_target(quill::quill Quill)
-        list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
+        if(BPR_BUILD_QT)
+            bpr_acquire_quill()
+            bpr_require_dependency_target(quill::quill Quill)
+            list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
 
-        bpr_acquire_syntax_highlighting()
+            bpr_acquire_syntax_highlighting()
+        endif()
     endif()
 
     set(audit "set(BPR_PRODUCT_DEPENDENCY_RECORDS\n")

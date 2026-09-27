@@ -52,6 +52,19 @@
       }
     },
     {
+      "name": "tour-cli",
+      "displayName": "Non-GUI tour terminal (tests disabled)",
+      "inherits": "_ninja-common",
+      "binaryDir": "${sourceDir}/build/tour-cli",
+      "cacheVariables": {
+        "BPR_BUILD_QT": "OFF",
+        "BPR_BUILD_TOUR_CLI": "ON",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TEST_BUILD_DEPENDS": "OFF"
+      }
+    },
+    {
       "name": "core-only",
       "displayName": "Qt-free core build",
       "inherits": "_ninja-common",
@@ -143,6 +156,12 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "tour-cli",
+      "inherits": "_build-common",
+      "configurePreset": "tour-cli",
+      "targets": ["app_bpr"]
+    },
     {
       "name": "_build-common",
       "hidden": true

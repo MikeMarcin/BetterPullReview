@@ -43,6 +43,7 @@ if(NOT PROJECT_IS_TOP_LEVEL)
 endif()
 
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
+option(BPR_BUILD_TOUR_CLI "Build the non-GUI bpr tour terminal frontend" OFF)
 option(
     BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE
     "Build the narrow tests-disabled macOS attended-review execution capsule"

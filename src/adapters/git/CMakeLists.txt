@@ -1,4 +1,4 @@
-if(BPR_BUILD_QT)
+if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
     add_library(
         better_pull_review_adapter_git
         STATIC

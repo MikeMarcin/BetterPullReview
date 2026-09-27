@@ -2,7 +2,7 @@
 # outside `src/adapters/qt` deliberately: that directory is an effect-free
 # region the architecture scan enforces, because presentation starts no
 # processes. `src/adapters/git` is the precedent.
-if(NOT BPR_BUILD_QT)
+if(NOT BPR_BUILD_QT AND NOT BPR_BUILD_TOUR_CLI)
     return()
 endif()
 

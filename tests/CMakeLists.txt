@@ -1,3 +1,8 @@
+if(BPR_BUILD_TOUR_CLI)
+    bpr_add_network_isolated_test(NAME tour_cli_public_entry
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_tests.py" "$<TARGET_FILE:app_bpr>")
+endif()
+
 bpr_add_executable(
     test_better_pull_review_designated_live_mutation_gate_tests
     "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_gate.cpp"
