@@ -26,15 +26,15 @@ this list and dependencies before closeout. Registration is not implementation.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| AC-01: Standard/Verbose, independent identifying-detail privacy, Off, Open logs, Clear and export controls are reachable while signed out; accepted settings survive restart without increasing disclosure on invalid data. | Composed Diagnostics controls, four detail/privacy combinations, restart and invalid-setting fixtures | Not run; implementation deferred | None |
-| AC-02: A composed failed GitHub sign-in yields a correlated local log with useful sanitized unknown GraphQL error detail, readable directly without UI copying, while UI wording and session/retry authority remain unchanged. | Credential-free native/provider-to-host-to-file failure fixture with unfamiliar code and useful sanitized message; compare UI/authority | Not run; implementation deferred | None |
-| AC-03: Forbidden credentials and review content never reach queues, sinks, recent context, exports or fallback output under any detail/privacy combination, including malformed provider data and sanitizer failure. | Secret/private-content canaries across all sinks, queues, ring, export and failure fallbacks | Not run; implementation deferred | None |
-| AC-04: Standard and Verbose retain their declared distinct detail; privacy changes, Off, Clear and sign-out honor acknowledged barriers and do not retain hidden transient context. | Manual-executor mode-change, Off, Clear, sign-out and queued-event transition cases | Not run; implementation deferred | None |
-| AC-05: Anonymized and identifying-detail exports use the exact previewed scope, preserve useful event joins, handle malformed records safely, disclose irreversible capture-time redaction and never upload automatically. | Preview/snapshot export course with joins, mixed modes, malformed lines and zero-network observation | Not run; implementation deferred | None |
-| AC-06: Event, queue, ring, file, aggregate and age bounds hold under overload, error storms, concurrent sessions, disk-full and rotation failures without blocking core decisions or Sign out. | Bounded overload/error-storm, concurrent-process, rotation, retention and disk-full fixture | Not run; implementation deferred | None |
-| AC-07: Startup, cancellation, shutdown, partial-tail recovery and logger failure produce truthful availability/loss status without claiming unflushed events survived a crash. | Startup/cancel/quiescence, partial final line and sink-failure course | Not run; implementation deferred | None |
-| AC-08: Core/host/adapter/Qt boundaries, explicit Quill lifetime, safe file ownership and scope separation hold through the shipped composition, with no raw logging bypass in protected transports. | Architecture guards, composed lifetime, fake filesystem attacks and profile-scope partition cases | Not run; implementation deferred | None |
-| AC-09: The selected Quill dependency is pinned with license/provenance and packaging evidence; each claimed platform has native file, lifecycle and diagnostic-control evidence. | Pinned dependency/license/packaging inspection plus native logging/UI lanes on each claimed platform | Not run; implementation deferred | None |
+| AC-01: Standard/Verbose, independent identifying-detail privacy, Off, Open logs, Clear and export controls are reachable while signed out; accepted settings survive restart without increasing disclosure on invalid data. | Composed Diagnostics controls, four detail/privacy combinations, restart and invalid-setting fixtures | Automated M3 controls/restart/invalid-value evidence passes; attended controls judgment pending | `75700f4d`, `92c98361` |
+| AC-02: A composed failed GitHub sign-in yields a correlated local log with useful sanitized unknown GraphQL error detail, readable directly without UI copying, while UI wording and session/retry authority remain unchanged. | Credential-free native/provider-to-host-to-file failure fixture with unfamiliar code and useful sanitized message; compare UI/authority | Composed unfamiliar-error failure reaches correlated JSONL; useful classified prose, unchanged UI failure and explicit retry pass; fixture only | `92c98361` |
+| AC-03: Forbidden credentials and review content never reach queues, sinks, recent context, exports or fallback output under any detail/privacy combination, including malformed provider data and sanitizer failure. | Secret/private-content canaries across all sinks, queues, ring, export and failure fallbacks | M1–M4 canary, fixed-capacity encoding, queue/ring/export and fail-closed parser checks pass within the exercised inputs | `ac64e5ad`, `75700f4d`, `3fd1224e` |
+| AC-04: Standard and Verbose retain their declared distinct detail; privacy changes, Off, Clear and sign-out honor acknowledged barriers and do not retain hidden transient context. | Manual-executor mode-change, Off, Clear, sign-out and queued-event transition cases | M3 barriers pass; M5 fixes deferred refresh and stamps captured epoch generation; native verification recorded below | `75700f4d`, `92c98361` |
+| AC-05: Anonymized and identifying-detail exports use the exact previewed scope, preserve useful event joins, handle malformed records safely, disclose irreversible capture-time redaction and never upload automatically. | Preview/snapshot export course with joins, mixed modes, malformed lines and zero-network observation | M4 frozen rich exports and final public preview course pass; attended disclosure judgment pending | `3fd1224e`, `189d24f9` |
+| AC-06: Event, queue, ring, file, aggregate and age bounds hold under overload, error storms, concurrent sessions, disk-full and rotation failures without blocking core decisions or Sign out. | Bounded overload/error-storm, concurrent-process, rotation, retention and disk-full fixture | M2 bounds/rotation/concurrency and M5 actual isolated macOS ENOSPC pass; native Windows courses pass | `3381a02c`, `92c98361`, `7ab11993` |
+| AC-07: Startup, cancellation, shutdown, partial-tail recovery and logger failure produce truthful availability/loss status without claiming unflushed events survived a crash. | Startup/cancel/quiescence, partial final line and sink-failure course | Startup/cancel/shutdown and partial-tail checks pass; native killed-process restart preserves only explicitly flushed records | `3381a02c`, `92c98361` |
+| AC-08: Core/host/adapter/Qt boundaries, explicit Quill lifetime, safe file ownership and scope separation hold through the shipped composition, with no raw logging bypass in protected transports. | Architecture guards, composed lifetime, fake filesystem attacks and profile-scope partition cases | Architecture and composed lifetime/ownership checks pass; M5 repairs tests-disabled state visibility and Windows active-file sharing | `189d24f9`, `7ab11993` |
+| AC-09: The selected Quill dependency is pinned with license/provenance and packaging evidence; each claimed platform has native file, lifecycle and diagnostic-control evidence. | Pinned dependency/license/packaging inspection plus native logging/UI lanes on each claimed platform | Pinned Quill/package proof and native macOS/Linux developer lanes pass; native Windows courses pass; attended acceptance pending; package limits below | `189d24f9`, `7ab11993` |
 
 ## Completion rules
 
@@ -66,14 +66,14 @@ no blocker remains in that subset. Opposite-family review was unavailable.
 The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
-authorized. BPR-1215–1219 are the required source-owned milestones. Current ownership:
-`/root/rfc0027_m5` is the sole M5 engineering writer in worktree `57ed`, branch
-`codex/rfc0027-advanced`, under mandate r2.
-Next milestone: `native-closeout`.
+authorized. BPR-1215–1219 are the required source-owned milestones. Current continuation: M5 is prepared for attended review under mandate r2.
+`/root/rfc0027_m5` releases sole engineering writer ownership at the checkpoint
+below; branch `codex/rfc0027-advanced`, worktree `57ed`, remains the candidate.
+Next milestone: resume `native-closeout` after recorded human input.
 
-Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
-rows describe their original not-run state; advanced acceptance stays pending
-until its own evidence is recorded.
+Historical foundation and BPR-0971 evidence remain preserved. The table now
+reconciles advanced evidence; attended and native qualification remains pending
+where stated, without rewriting the original milestone observations.
 
 ### M1 checkpoint
 
@@ -216,3 +216,61 @@ accepted, then promote/claim BPR-1219 under mandate r2. Preserve every pending
 native, package, crash and attended criterion; required human acceptance must
 be prepared through the configured attended-review companion rather than
 self-certified. No further M4 work is owed.
+
+
+### M5 checkpoint — human pending, writer released
+
+Mandate r2; assignment `/root/rfc0027_m5`, BPR-1219 / `native-closeout`.
+Final product candidate `7ab119933439878d858100410083080ab4d1ea7b`; prior source
+slices `92c98361` and `189d24f9`. [Binding](../../rfcs/plans/rfc-bpr-0027-advanced/m5-binding.json)
+and [full evidence](../../verification/RFC-BPR-0027.md) retain every result,
+failed intermediate course, package digest, command and qualification limit.
+
+Changed paths: diagnostic settings refresh, epoch context generation, Windows
+logging file sharing/deletion, host enum refusal, cache serializer comparison,
+production review-source state visibility; diagnostic/provider fixture and
+public/native failure tests; owning architecture/build docs and acceptance map.
+All edits are committed in explicit slices. The Mac source scope passes 17/17,
+then portability 5/5, then final affected 4/4; Linux native 15/15; Windows native
+logging/control 12/12 plus direct architecture. Windows AppContainer boundary
+launch failed, not counted as a pass. Actual macOS ENOSPC and abrupt native
+termination/restart pass within their stated limits. All seven touched product
+units pass tidy. The tests-disabled universal unpublished package and its
+separate corresponding-source, notices, SPDX and relocated launch pass at
+`189d24f9`; the later product correction is Windows-only. This does not qualify
+Windows installers, supported Linux package baselines, distribution trust,
+legal/source-offer approval or unflushed crash durability.
+
+BPR-1219 is parked for human review; BPR-0603/BPR-0601 and RFC/index remain open.
+M5 has not been accepted or landed on main. No human or independent acceptance
+has been invented. The next engineering round must interpret recorded decisions
+and then land accepted M5 under the user's mandate.
+
+Attended session `c1565558e5fd3fdc277e62622604873b`, cursor **19**, candidates
+`BPR-1219-controls`, `BPR-1219-files`, `BPR-1219-export`: one Accept/Reject
+criterion each. The copied signed-out review app is `7ab11993`, SHA-256
+`3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`, at
+`/Users/jaeger/.codex/worktrees/57ed/BetterPullReview/build/rfc0027-m5/review/BetterPullReview.app`.
+The manifest/identity/offline HTML are beside it. Every launch path is absolute;
+three separate owner-private test profiles keep the review independent of the
+owner's data. Prepared paths and the immutable copied app remain protected.
+
+Only the explicitly transferred loopback review server remains running:
+PID 8289, command session **64739**, port 63107. The complete token-bearing URL
+was sent to the coordinator. All engineering commands and task-owned native
+build workers are finished/stopped; the station's shared checkouts remain clean.
+The isolated Windows/Linux build clones and local ignored build/evidence/package
+paths remain available for inspection. There is no source writer to transfer.
+
+The coordinator arms the exact watch before ending its human-facing turn:
+
+```sh
+python3 -B /Users/jaeger/.codex/worktrees/57ed/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/.codex/worktrees/57ed/BetterPullReview wait --after 19 --kind handed-back --timeout 43200
+```
+
+On return, read `status --after 19`, preserve partial/skip decisions, and bind
+acceptance only to the recorded candidate. Source changes require the attended
+conflict/release workflow before editing protected material. Reuse passing
+unchanged evidence; main may advance independently and must be reconciled before
+any eventual non-force M5 integration/push. No live sign-in or PR mutation is
+authorized.

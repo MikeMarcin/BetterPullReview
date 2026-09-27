@@ -14,15 +14,19 @@ The owner reauthorized the full advanced phase on 2026-09-26. Mandate r2
 requires each accepted milestone to land on main. BPR-1215 through BPR-1219
 split the remaining work; no live sign-in or PR mutation is authorized.
 
-## Remaining scope
+## Implemented scope and remaining acceptance
 
-Implement RFC-BPR-0027's rotation/age/aggregate retention; typed identity
-anonymization; Standard/Verbose, privacy and Off controls; recent-context ring;
-previewed anonymized/identifying exports; Open logs and Clear UI; expanded
-operation coverage and applicable Settings/profile integration. Preserve the
-foundation's credential filtering and no-authentication-body rule. The logger now has POSIX and Windows file adapters; qualify the revised path
-on each claimed platform rather than inferring native support from source. The initial fixed log
-uses typed availability states without a UI indicator.
+M1–M4 landed structured JSONL, per-session bounded retention, typed identity
+anonymization, Standard/Verbose, privacy and Off controls, recent context,
+frozen anonymized/identifying exports, and signed-out Open logs/Clear UI.
+M5 qualifies native behavior and packaging, fixes observed portability and
+revocation gaps, and prepares attended review. The provider sanitizer and
+no-authentication-body rule are unchanged.
+
+The complete evidence map is [BPR-0601](BPR-0601-close-rfc-0027.md) and the
+[verification ledger](../../verification/RFC-BPR-0027.md). This aggregate card
+remains pending BPR-1219 and actual attended acceptance; no metadata-only
+completion is claimed.
 
 ## Acceptance and verification
 
