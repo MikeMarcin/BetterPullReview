@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0586"
 title: "Implement exact source selection, composition workspace, and separate draft/publish controls in Qt"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0023"]
-depends_on: ["BPR-0583","BPR-0584","BPR-0585"]
+depends_on: ["BPR-0583","BPR-0585"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
@@ -52,3 +52,11 @@ integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
 supersedes stale baseline assumptions; required acceptance is unchanged. Follow
 the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
+
+## M7 implementation prerequisite clarification (mandate r2)
+
+The integrated M7 implementation at `9d1c120a7c1becaa549bda15018e748a5cedcbe4`
+is the publication prerequisite, as recorded in the M7 plan amendment. The
+nonterminal BPR-0584 external evidence remains required at M9 and RFC closeout.
+This card uses the implemented lineage host now; it does not waive that evidence
+or infer an independent public-body/actor observation.
