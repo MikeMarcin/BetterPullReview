@@ -1,0 +1,56 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused core decision/transition tests and both architecture gates pass in dev and core-only (3/3 each); source contract documented in review-round-trip.md.",
+        "command": "ctest --preset core-only -R ^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$ --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused core decision/transition tests and both architecture gates pass in dev and core-only (3/3 each); source contract documented in review-round-trip.md.",
+        "command": "ctest --preset core-only -R ^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$ --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused core decision/transition tests and both architecture gates pass in dev and core-only (3/3 each); source contract documented in review-round-trip.md.",
+        "command": "ctest --preset core-only -R ^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$ --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused core decision/transition tests and both architecture gates pass in dev and core-only (3/3 each); source contract documented in review-round-trip.md.",
+        "command": "ctest --preset core-only -R ^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$ --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused core decision/transition tests and both architecture gates pass in dev and core-only (3/3 each); source contract documented in review-round-trip.md.",
+        "command": "ctest --preset core-only -R ^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$ --output-on-failure"
+      }
+    }
+  ]
+}
