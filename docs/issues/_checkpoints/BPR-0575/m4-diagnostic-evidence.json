@@ -1,0 +1,71 @@
+{
+  "schema": "rfc0022.diagnostic-evidence.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "base_revision": "e45f5d17",
+  "changes": "Preserve mutation HTTP status and typed native transport category; emit one bounded create-comment observation through profile-owned log. Closed vocabulary only; no raw provider text, request/prose/path/URL/IP/credential. Shared log lifetime and context generation retained. No classifier authority, grant, target, journal or negotiation changes.",
+  "first_live_attempt": "m4-profile-live-attempt.json preserves original unresolved text-line60 native witness; no retry or fallback.",
+  "checks": [
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(github_review_comment_permalink|quill_logging|quill_logging_content_policy)$",
+      "result": "permalink/privacy/authority and content-policy passed; initial logger test failed because it expected JSON from legacy metadata export; assertion corrected without export behavior change."
+    },
+    {
+      "command": "focused imported verify_native_https_transport default suite with only mutation-status-refusal",
+      "result": "PASS; real loopback HTTPS preserves typed status/source on non-success statuses, complete422 admission and truncated/redirecting refusals unchanged."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(application_review_round_trip_composition_contract|qt_composed_github_scale_100|quill_logging)$",
+      "result": "PASS3/3,23.22s after exact3digest source reseal."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^architecture_boundaries$",
+      "result": "PASS7.66s"
+    },
+    {
+      "command": "format_check.py all12changed C++ paths",
+      "result": "PASS clang-format23.1.1"
+    },
+    {
+      "command": "tidy.py strict five changed implementation units",
+      "result": "PASS; non-user/specified suppression only"
+    },
+    {
+      "command": "verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK"
+    }
+  ],
+  "logs": [
+    {
+      "path": "build/rfc0022/m4-diagnostic-final-build.log",
+      "sha256": "3694ee5db276c0e004d1585039bfac175d63cbdd9eeb527af9f8a163424e2885"
+    },
+    {
+      "path": "build/rfc0022/m4-diagnostic-contract-checks.log",
+      "sha256": "437b9e58a7da7246aa25c43412ef40a1bf07831fcdcfe1938fea7c80317ee636"
+    },
+    {
+      "path": "build/rfc0022/m4-diagnostic-public-checks.log",
+      "sha256": "3bdb58f69ee8cc45cbb750225b021ce899de4951ad1570e1e0e75564405bacf9"
+    },
+    {
+      "path": "build/rfc0022/m4-diagnostic-architecture.log",
+      "sha256": "0d1e1e68471fba32ad720357673e76995a337df8f5276b90e9bff7c6caf78b50"
+    },
+    {
+      "path": "build/rfc0022/m4-diagnostic-tidy.log",
+      "sha256": "864558c3d8f5e547ad53f9f023f9566ad1d78d5954509e729ecc5f422c5e05cb"
+    },
+    {
+      "path": "build/rfc0022/m4-diagnostic-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ],
+  "source_review": "Exact composition one-line delta supplies the existing profile diagnostic log; three app digests resealed after review, including earlier6526f525 supervisor profile selector. Diagnostic fields cannot feed fallback classifier. Failed/dropped logging does not affect publication. Unknown error fields remain omitted.",
+  "limits": [
+    "Original status cannot be recovered retroactively.",
+    "No production unsupported tuple admitted.",
+    "Diagnostic closed fields are observation only; unknown fields/empty values cannot establish complete exact rejection contract.",
+    "Further Markdown anchor publication must be independent and use fresh exact candidate/approval; original unresolved publication remains GET-only."
+  ]
+}

@@ -239,6 +239,7 @@ try {
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 47, .PagedOperation = application::diagnostic_paged_operation::get_repository, .GithubFailure = core::github_failure::permission, .TransportFailureSource = application::diagnostic_transport_failure_source::network_reply }) == status::available, "network denial has no fabricated HTTP status");
 		expect(log.record({ .GitStep = static_cast<application::git_smart_transport_step>(255U) }) == status::dropped, "unknown Git acquisition step never enters log");
 		expect(log.record({ .TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U) }) == status::dropped, "unknown source never enters log");
+		expect(log.record({ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 422 }) == status::available, "review comment status survives real logger vocabulary");
 		expect(log.record({ .HttpStatus = 600U }) == status::dropped, "invalid HTTP status never enters log");
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
@@ -334,6 +335,8 @@ try {
 	}
 	const auto first    = tests::read_diagnostic_logs(root);
 	const auto exported = application::prepare_release_diagnostics(first, core::release_maintenance_revision{ 1U });
+	expect(first.find("github.review_comment") != std::string::npos, "review comment operation retained locally");
+	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");
 	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
 		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");

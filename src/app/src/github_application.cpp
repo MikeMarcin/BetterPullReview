@@ -9203,7 +9203,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(lease),
 				selection->Target,
 				selection->ActingIdentity,
-				std::move(*recovery));
+				std::move(*recovery), DiagnosticLog);
 			if (provider.has_value()) {
 				InlineReviewBinding = *selection;
 				auto erased         = std::unique_ptr<application::review_mutation_port>{

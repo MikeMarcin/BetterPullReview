@@ -120,3 +120,25 @@ records50 capsule tests,67 manifest tests, focused architecture/counterexample
 checks, format/tidy, Release capsule preflight and the491-row configured graph
 with exactly one profile2 live lane. It also preserves the initially stale
 guard assertions and image-freshness refusal.
+
+### Profile2 actual publication and bounded diagnostic repair
+
+The capsule for source6526f525 opened the exact PR2 comparison under profile2
+as MikeMarcin. The ordinary gesture selected RIGHT line60 of
+`off_hunk_fixture.txt`; one Publish used the approved prose. The terminal UI
+reported unavailable. The digest-checked schema4 journal records
+`native_possibly_transmitted`, a native witness, no receipt, no fallback child
+and no fallback authorization. Two read-only service checks found no comments
+or reviews; absence does not resolve the witness. No retry or fallback occurred.
+Normal app exit and capsule detach passed681.78s, establishing lifecycle only.
+The exact evidence is [the profile2 attempt](../_checkpoints/BPR-0575/m4-profile-live-attempt.json).
+
+This exposed an evidence defect: transport HTTP status was discarded by the
+mutation result. The diagnostic repair preserves typed status/source/failure
+and records only closed create-comment vocabulary through the existing profile
+log. Unknown response text is omitted; the observation never enters classifier
+or recovery authority. [Focused evidence](../_checkpoints/BPR-0575/m4-diagnostic-evidence.json)
+includes privacy, no-fallback/replay, real HTTPS refusal, logger/export, public
+composition, format/tidy and documentation gates. A separately authorized
+Markdown line60 comment may run only under a fresh exact candidate and one-use
+approval; it is an independent anchor, not a retry of the unresolved text comment.

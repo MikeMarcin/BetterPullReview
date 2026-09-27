@@ -29,3 +29,14 @@ The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) tracks remaining live
 GitHub.com acceptance. Native GHES behavior is unobserved under the owner's
 GitHub.com-only amendment. Implementation and milestone integration do not
 mean the RFC has met canonical closeout order.
+
+## Diagnosing an unavailable publication
+
+The profile log records the create-comment operation, native/file representation,
+HTTP status when received, and typed transport failure. A complete bounded422
+response records only recognized resource/field/code/message words. Unknown
+service text, request prose, paths, URLs, tokens and IP addresses are omitted.
+These diagnostic observations do not authorize fallback. The durable journal
+still decides whether the attempt may only reconcile through GET; an empty GET
+result does not prove non-creation. A log capture can also be unavailable or
+truncated, so absent diagnostic data is not evidence that no request was sent.

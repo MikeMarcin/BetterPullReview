@@ -1,0 +1,58 @@
+{
+  "schema": "rfc0022.live-attempt.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "source_revision": "6526f525",
+  "source_sha256": "5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192",
+  "image_sha256": "1d6a157c5110207eca3824198815fb063ffc9b0d1b280a0a2f1234c6c4ed5a92",
+  "profile": 2,
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "actor": "MikeMarcin",
+  "interaction": "Ordinary source RIGHT line60 selected; toolbar said Comment on line60; one Publish with exact body. No further Publish or fallback.",
+  "terminal_ui": "Publication result is unavailable; retry is safe.",
+  "journal": {
+    "version": 1,
+    "key": "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2",
+    "legacy_key": "01412045accfc4df6d988e33fe6f3bbff5aa7c0c3c0cc0538b056bc94eeec807",
+    "fingerprint": "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2",
+    "parent_state": 2,
+    "authorization_source": 0,
+    "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "scope_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "generation": 0,
+    "observed_at": 0,
+    "expires_at": 0,
+    "native": {
+      "key": "af45f954739e36c344115dc885c8854ef15d77d948967fb9c7fe8648ebd4435b",
+      "request_fingerprint": "50b9526eaa9b4fa6bec623805389fda4305ba3b4bf159c596a776bb84eb0d278",
+      "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+      "body": "BetterPullReview semantic source-line verification at line 60.",
+      "path": "off_hunk_fixture.txt",
+      "comparison": "4b06fe46271be1ec6cde433f6b852ba642b30d91c6427ee795f685a6a20b538b",
+      "zero_based_line": 59,
+      "commit_algorithm": 1,
+      "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+      "transmission": 2,
+      "state": 0,
+      "baseline_ids": [],
+      "receipt_present": false
+    },
+    "fallback": null
+  },
+  "journal_interpretation": "native_possibly_transmitted, native witness, no receipt; fallback absent and authorization none. Digest verified by read-only SQLite decoding against owning codec.",
+  "http_observation": "Original HTTP status and structured response were not retained. No unsupported contract or noncreation conclusion.",
+  "get_observations": {
+    "review_comments": 0,
+    "reviews": 0,
+    "checks": "Two settled read-only API observations; absence cannot authorize another POST."
+  },
+  "lifecycle": {
+    "result": "PASS681.78s; normal quit, process38281 gone, capsule detached",
+    "command_session": 68427,
+    "log": "build/rfc0022/m4-profile-live-execution.log",
+    "log_sha256": "c70e0f50f16cd1965cc9c082d35173f22acdda6cecd4c2658b3a95fe80b1229b"
+  },
+  "approval": "Spent one-use profile2 subject; must not reuse.",
+  "next": "Retain original publication GET-only. Repair bounded diagnostics and use only separately authorized independent Markdown anchor if further live course proceeds."
+}

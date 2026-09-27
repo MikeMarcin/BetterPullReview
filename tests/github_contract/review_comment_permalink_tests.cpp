@@ -544,6 +544,51 @@ namespace {
 			expect(session.submit(request).has_value() && transport.Posts.size() == 6U, "a different anchor cannot borrow cached unsupported evidence");
 		}
 	}
+	class publication_log final : public application::diagnostic_log_port
+	{
+	public:
+		std::vector<application::diagnostic_event> Events;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			try {
+				Events.push_back(aEvent);
+			} catch (...) {
+				return application::diagnostic_log_status::dropped;
+			}
+			return application::diagnostic_log_status::available;
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		auto context_generation() const noexcept -> std::uint64_t override { return 7U; }
+	};
+	void test_publication_diagnostic_privacy_and_authority()
+	{
+		auto request              = publication_request(permalink_source());
+		request.Source->Placement = core::review_placement::off_hunk;
+		const auto wire           = *compile_review_comment_request(request, request.LiveBinding->Target.ServerContract);
+		auto       rejection      = fixture_rejection();
+		rejection.Body            = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"invalid","message":"line must be part of the diff"}]})";
+		const auto event          = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
+		expect(event.Operation == application::diagnostic_operation::review_comment && event.HttpStatus == 422U && event.Summary.text().find("resource=PullRequestReviewComment field=line code=invalid message=line must be part of the diff") != std::string_view::npos, "closed rejection fields survive as observation only");
+		for (const auto field : { "message", "resource", "field", "code" }) {
+			rejection.Body  = std::string{ R"({"message":"Validation Failed","errors":[{")" } + field + R"(":"private_repository/secret_source ghp_SYNTHETIC_CANARY https://private.test/ 127.0.0.1"}]})";
+			const auto safe = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
+			expect(safe.Summary.text().find("CANARY") == std::string_view::npos && safe.Summary.text().find("private") == std::string_view::npos && safe.Summary.text().find("127.0.0.1") == std::string_view::npos, "unknown reflected prose never enters diagnostics");
+		}
+		rejection.Body = std::string(4097U, 'x');
+		expect(review_comment_diagnostic(wire, github_mutation_wire_success{ rejection }).Summary.text().find("omitted_invalid_or_limit") != std::string_view::npos, "oversize body is not parsed or retained");
+		const auto failure = review_comment_diagnostic(wire, github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 503, .TransportFailureSource = application::diagnostic_transport_failure_source::http_response });
+		expect(failure.HttpStatus == 503U && failure.TransportFailureSource == application::diagnostic_transport_failure_source::http_response && failure.Summary.text().find("transmission=indeterminate") != std::string_view::npos, "typed HTTP failure metadata survives mutation mapping");
+		auto scratch           = tests::sqlite_contract::scratch_root{ "publication-diagnostic" };
+		auto transport         = publication_transport{ };
+		transport.RejectNative = true;
+		auto log               = std::make_shared<publication_log>();
+		auto session           = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), std::nullopt, log };
+		expect(!session.submit(request) && transport.Posts.size() == 1U && log->Events.size() == 1U, "diagnostic session does not activate synthetic rejection or fallback");
+		expect(log->Events.front().HttpStatus == 422U && log->Events.front().ContextGeneration == 7U, "real session emits one scoped POST observation");
+		static_cast<void>(session.submit(request));
+		expect(transport.Posts.size() == 1U && log->Events.size() == 1U, "recovery stays GET-only and creates no synthetic POST diagnostic");
+	}
+
 	void test_session_ambiguity_and_refusals()
 	{
 		for (unsigned course = 0U; course < 13U; ++course) {
@@ -855,6 +900,7 @@ namespace {
 
 auto main() -> int
 {
+	test_publication_diagnostic_privacy_and_authority();
 	test_server_truth_placement();
 	test_session_negotiation_and_cache();
 	test_session_ambiguity_and_refusals();

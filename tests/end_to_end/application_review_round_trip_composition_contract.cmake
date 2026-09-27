@@ -377,6 +377,11 @@ endfunction()
 # capture's exact 14-action assertion and its comment. No runtime, authority,
 # persistence or mutation code changes. Mutation branch unchanged. Record and
 # direct capture/focus evidence on BPR-1202.
+# RFC0022 D diagnostic reseal: reviewed e45f5d17..this candidate. The only
+# github_application.cpp change passes the profile-owned diagnostic log to the
+# existing production provider. Grant, target, source admission and journal
+# decisions are unchanged. The app manifest also includes the reviewed6526f525
+# exact profile selector. Three owning digests are recomputed from those bytes.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -395,7 +400,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"18744f6fab645b79825b44e03402b473d65150228de8487581591a864db31d95"
+		"84b8814f2198c1d248a378a9676b7568b1c9d4c7e8947a16a96e6dd6bf4c288f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -550,7 +555,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "dc51dd04ec09e35d9557d1bff07cf4973383d37a4be261c17b706bf41b5f182a"
+        "4ed2e63d8093d12c4316777926b6c8a5367ae0265fea03bf82ca8a716c8c9513"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -871,7 +876,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "83a7c809526a324ab4e730f7a58c23160f2a6813cc2de659d97ce13f4b056e5c"
+        "dac6b593b35c39e24a2aa108ef1a46450877ff08b932d0e420240d37423e3f66"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

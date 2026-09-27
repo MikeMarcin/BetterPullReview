@@ -6,6 +6,7 @@
 
 #include <QDateTime>
 #include <QString>
+#include <initializer_list>
 
 #include <glaze/json.hpp>
 
@@ -2237,14 +2238,92 @@ namespace bpr::adapters::github::detail {
 		live_review_mutation_configuration     aConfiguration,
 		application::review_mutation_transport aLease,
 		std::unique_ptr<application::review_mutation_recovery_port>
-													 aRecovery,
-		std::optional<off_hunk_unsupported_contract> aUnsupportedContract) noexcept
+														  aRecovery,
+		std::optional<off_hunk_unsupported_contract>      aUnsupportedContract,
+		std::shared_ptr<application::diagnostic_log_port> aLog) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
 		, UnsupportedContract{ std::move(aUnsupportedContract) }
+		, Log{ std::move(aLog) }
 	{
+	}
+
+	auto review_comment_diagnostic(const review_mutation_wire_request& aRequest, const github_mutation_wire_completion& aCompletion) noexcept -> application::diagnostic_event
+	{
+		auto event = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::failed };
+		try {
+			// Closed words are output literals. An unknown field, reflected credential,
+			// repository path, body, URL or other service prose is never copied.
+			const auto fixed = [](std::string_view aValue, std::initializer_list<std::string_view> aAllowed) -> std::string_view {
+				if (aValue.empty()) {
+					return "absent";
+				}
+				for (const auto word : aAllowed) {
+					if (aValue == word) {
+						return word;
+					}
+				}
+				return "omitted";
+			};
+			const auto* semantic = std::get_if<application::review_mutation_request>(&aRequest.Semantic);
+			auto        detail   = std::string{ "create_review_comment representation=" };
+			detail += semantic && semantic->Representation == core::review_publication_representation::file_comment_with_permalink ? "file" : "native";
+			if (const auto* success = std::get_if<github_mutation_wire_success>(&aCompletion)) {
+				const auto& response         = success->Response;
+				event.HttpStatus             = response.Status >= 100 && response.Status <= 599 ? static_cast<std::uint16_t>(response.Status) : 0U;
+				event.Outcome                = application::diagnostic_outcome::response_received;
+				event.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
+				detail += response_headers_valid(response) ? " metadata=valid" : " metadata=invalid";
+				if (response.Status == 422) {
+					auto parsed = unsupported_response_json{ };
+					if (response.Body.size() > 4096U || !json_preflight{ response.Body }.run()
+						|| glz::read<review_json_options{ }>(parsed, response.Body) || parsed.Errors.size() > 8U) {
+						detail += " rejection=omitted_invalid_or_limit";
+					} else {
+						detail += " envelope=";
+						detail += fixed(parsed.Message, { "Validation Failed" });
+						detail += " errors=" + std::to_string(parsed.Errors.size());
+						for (const auto& error : parsed.Errors) {
+							detail += " resource=";
+							detail += fixed(error.Resource, { "PullRequestReviewComment", "PullRequestReviewThread", "PullRequestReview" });
+							detail += " field=";
+							detail += fixed(error.Field, { "line", "position", "path", "commit_id", "side", "subject_type" });
+							detail += " code=";
+							detail += fixed(error.Code, { "invalid", "missing", "missing_field", "custom", "unprocessable", "already_exists" });
+							detail += " message=";
+							detail += fixed(error.Message, { "line must be part of the diff", "Line must be part of the diff", "line must be part of the diff.", "Line must be part of the diff.", "pull_request_review_thread.line must be part of the diff", "pull_request_review_thread.line must be part of the diff." });
+						}
+					}
+				}
+			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&aCompletion)) {
+				event.HttpStatus             = error->HttpStatus;
+				event.TransportFailureSource = error->TransportFailureSource;
+				detail += " failure=";
+				detail += application::name(error->Failure);
+				constexpr std::array<std::string_view, 15> causes{ "authentication", "permission", "network", "api_version", "unsupported_capability", "rate_limit", "certificate", "redirect", "timeout", "process_startup", "cli_unavailable", "vault", "malformed_response", "response_limit", "unavailable" };
+				if (error->ProviderFailure) {
+					const auto index = static_cast<std::size_t>(*error->ProviderFailure);
+					detail += " provider_failure=";
+					detail += index < causes.size() ? causes[index] : "invalid";
+				}
+				detail += error->Transmission == github_mutation_transmission::indeterminate ? " transmission=indeterminate" : " transmission=not_sent";
+			} else {
+				event.Outcome = application::diagnostic_outcome::cancelled;
+				detail += " cancelled";
+			}
+			if (detail.size() > event.Summary.Text.size()) {
+				event.Summary.State = application::diagnostic_summary_state::omitted_limit;
+				return event;
+			}
+			std::ranges::copy(detail, event.Summary.Text.begin());
+			event.Summary.Size  = static_cast<std::uint16_t>(detail.size());
+			event.Summary.State = application::diagnostic_summary_state::sanitized;
+		} catch (...) {
+			event.Summary = { .State = application::diagnostic_summary_state::omitted_failure };
+		}
+		return event;
 	}
 
 	auto review_mutation_session::perform(
@@ -2260,13 +2339,19 @@ namespace bpr::adapters::github::detail {
 			|| !valid(Configuration)) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
-		auto completion = Transport->perform_review_mutation(
-			github_mutation_wire_request{
-				.Context = Configuration.CredentialContext,
-				.Wire    = std::move(aRequest),
-			},
-			aStop,
-			std::move(aWitness));
+		const auto operation         = aRequest.Operation;
+		const auto contextGeneration = Log ? Log->context_generation() : 0U;
+		const auto wireRequest       = github_mutation_wire_request{
+			.Context = Configuration.CredentialContext,
+			.Wire    = std::move(aRequest),
+		};
+		auto completion = Transport->perform_review_mutation(wireRequest, aStop, std::move(aWitness));
+		if (Log && operation == review_mutation_operation::create_review_comment) {
+			auto event              = review_comment_diagnostic(wireRequest.Wire, completion);
+			event.Request           = Configuration.CredentialContext.Request.value();
+			event.ContextGeneration = contextGeneration;
+			static_cast<void>(Log->record(event));
+		}
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}

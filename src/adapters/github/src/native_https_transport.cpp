@@ -2130,8 +2130,11 @@ namespace bpr::adapters::github::detail {
 			}
 			if (auto* error = std::get_if<application::github_provider_error>(&aResult)) {
 				return github_mutation_wire_error{
-					.Failure      = mutation_failure(error->Failure),
-					.Transmission = aTransmission,
+					.Failure                = mutation_failure(error->Failure),
+					.Transmission           = aTransmission,
+					.ProviderFailure        = error->Failure,
+					.HttpStatus             = error->HttpStatus,
+					.TransportFailureSource = error->TransportFailureSource,
 				};
 			}
 			if (std::holds_alternative<hop_cancelled>(aResult)) {

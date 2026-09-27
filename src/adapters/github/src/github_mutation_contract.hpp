@@ -3,7 +3,9 @@
 
 #include "github_read_contract.hpp"
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/review_publication_capability_cache.hpp"
@@ -365,6 +367,9 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_failure Failure = application::review_mutation_failure::unavailable;
 		github_mutation_transmission         Transmission
 			= github_mutation_transmission::definitely_not_sent;
+		std::optional<application::github_provider_failure> ProviderFailure;
+		std::uint16_t                                       HttpStatus             = 0;
+		application::diagnostic_transport_failure_source    TransportFailureSource = application::diagnostic_transport_failure_source::none;
 
 		auto operator==(const github_mutation_wire_error&) const -> bool = default;
 	};
@@ -383,6 +388,9 @@ namespace bpr::adapters::github::detail {
 		github_mutation_wire_success,
 		github_mutation_wire_error,
 		github_mutation_wire_cancelled>;
+
+	/// \brief Observation only: fixed vocabulary and numeric status; never response prose or mutation authority.
+	[[nodiscard]] auto review_comment_diagnostic(const review_mutation_wire_request& aRequest, const github_mutation_wire_completion& aCompletion) noexcept -> application::diagnostic_event;
 
 	class github_mutation_wire_transport
 	{
@@ -428,8 +436,9 @@ namespace bpr::adapters::github::detail {
 			live_review_mutation_configuration     aConfiguration,
 			application::review_mutation_transport aLease,
 			std::unique_ptr<application::review_mutation_recovery_port>
-														 aRecovery,
-			std::optional<off_hunk_unsupported_contract> aUnsupportedContract = std::nullopt) noexcept;
+															  aRecovery,
+			std::optional<off_hunk_unsupported_contract>      aUnsupportedContract = std::nullopt,
+			std::shared_ptr<application::diagnostic_log_port> aLog                 = { }) noexcept;
 
 		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -481,6 +490,7 @@ namespace bpr::adapters::github::detail {
 		std::mutex                                                  Mutex;
 		std::optional<off_hunk_unsupported_contract>                UnsupportedContract;
 		application::review_publication_capability_cache            PublicationCapabilities;
+		std::shared_ptr<application::diagnostic_log_port>           Log;
 	};
 } // namespace bpr::adapters::github::detail
 

@@ -124,7 +124,7 @@ namespace bpr::application {
 			if (!fields || ((*fields)[0] != "2" && (*fields)[0] != "3")) {
 				return std::nullopt;
 			}
-			constexpr std::array<std::string_view, 5> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch" };
+			constexpr std::array<std::string_view, 6> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment" };
 			constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 			constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 			const auto&                               values  = *fields;
@@ -142,7 +142,7 @@ namespace bpr::application {
 			if (aLine.starts_with('{')) {
 				return classify_json(aLine);
 			}
-			constexpr std::array<std::string_view, 5> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch" };
+			constexpr std::array<std::string_view, 6> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment" };
 			constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 			constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 			if (aLine.size() > 8192U) {
