@@ -1,0 +1,157 @@
+{
+  "run_id": "rfc0022-20260926",
+  "segment_id": "m4-final-after-continuity",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0022-off-hunk-comments",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json",
+    "milestone_id": "d-evidence-closeout",
+    "definition_fingerprint": "sha256:a6a46d1edc9eb85f9cff2cc622414c67bbe2d829e360e5eef9a0a2de9d87e0d1",
+    "obligations": [
+      {
+        "id": "BPR-0573:*",
+        "source": "BPR-0573",
+        "selector": null,
+        "source_fingerprint": "sha256:483f0d07134b32ce3352c93e64b85c6c7e42a2ee4020adbe88250f92a3fc6516"
+      },
+      {
+        "id": "BPR-0574:*",
+        "source": "BPR-0574",
+        "selector": null,
+        "source_fingerprint": "sha256:52f526cc9b370773d7679b92b5e38239dcff6e1c06f509d04345ecbfb3b51e7d"
+      },
+      {
+        "id": "BPR-0575:*",
+        "source": "BPR-0575",
+        "selector": null,
+        "source_fingerprint": "sha256:739a4e0ba25ff5f68357e504481f4eb541ceaf8f31465d825c12acfe640ebee2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:12407994be9bf85f296c6551ee2d45da9e9058e06a9582554d6a80faed76b0e3",
+    "exit_criteria": [
+      {
+        "id": "d-evidence-closeout:exit:1",
+        "text": "Designated GitHub.com and GHES or explicitly approved recorded-contract evidence establishes exact native/fallback behavior and GitHub-only usability."
+      },
+      {
+        "id": "d-evidence-closeout:exit:2",
+        "text": "Owning architecture, product, UX, security and verification documents agree with the simplified implementation."
+      },
+      {
+        "id": "d-evidence-closeout:exit:3",
+        "text": "All fifteen canonical criteria have direct final-candidate evidence, all cards are accepted, RFC dependencies and canonical closeout order permit closure, and documentation/whitespace gates pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:8cc96376772ebd176c9e6925ece730ab0865ffb2498254492795444577173e41",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "d-evidence-closeout",
+  "disposition": "human-pending",
+  "candidate_revision": "db801a1e7cadaf847eadc912b5dd295163b06dbc",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-0575/m4-final-handoff.json",
+  "required_pending": [
+    "AC10 literal uninstall evidence or explicitly accepted amendment",
+    "Separately supplied independent acceptance or explicitly accepted waiver"
+  ],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0573:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    },
+    {
+      "id": "BPR-0574:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    },
+    {
+      "id": "BPR-0575:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    },
+    {
+      "id": "d-evidence-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    },
+    {
+      "id": "d-evidence-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    },
+    {
+      "id": "d-evidence-closeout:exit:3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0574-acceptance.json",
+        "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "wait",
+    "next_milestone": "d-evidence-closeout",
+    "reason": "pending-obligation",
+    "detail": "Two prepared owner decisions remain pending. After hand-back the coordinator starts a fresh engineering round, reconciles exact verdicts and protections, and closes only satisfied scope."
+  },
+  "ownership": "quiescent"
+}
