@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0588"
 title: "Complete focused correctness, security, migration, crash, quota, and performance evidence"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0023"]
-depends_on: ["BPR-0580","BPR-0581","BPR-0582","BPR-0583","BPR-0584","BPR-0585","BPR-0586","BPR-0587"]
+depends_on: ["BPR-0580","BPR-0581","BPR-0582","BPR-0583","BPR-0585","BPR-0586","BPR-0587"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
@@ -60,3 +60,15 @@ Recheck total invocation-input bounds for selected compositions. Ledger schema
 6 and recovery schema 5 are now separate live authorities; recheck each frontier
 before allocation. Preserve exact v5 migration cases plus v6 note revision/CAS
 and high-water behavior.
+
+## M9 local-evidence prerequisite clarification (mandate r2)
+
+BPR-0584's verified local publication implementation is integrated on main;
+its designated or signed recording and independent public body/actor read remain
+human-pending. This card may collect and complete local correctness, failure,
+security and performance evidence against that integrated implementation. The
+required final state permits a precise blocker for unavailable external proof;
+it does not count that blocker as RFC AC-12/13/17 or BPR-0584 acceptance.
+M9 reports the external exit as pending until a qualifying target and readback
+exist, and RFC closeout remains blocked. This changes only the board's terminal
+status prerequisite, preserving every evidence and safety requirement.

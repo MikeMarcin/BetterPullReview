@@ -1531,3 +1531,14 @@ M9/BPR-0588 and BPR-0589 are next. BPR-0584 still awaits a qualifying designated
 or signed publication target and an independent public body/actor read. M10 owns
 the single independent review at the end, as the owner requested; neither gate
 is counted as M8 acceptance.
+
+## M9 local-evidence sequencing amendment
+
+The integrated M7 publication implementation and M8 public path are sufficient
+for BPR-0588's local crash, migration, quota, security and performance courses.
+Its BPR-0584 terminal-status dependency is removed from the live board so this
+work can start. The card's required final state still demands either qualifying
+designated evidence or a precise live blocker. A blocker can complete that local
+evidence card but cannot satisfy BPR-0584, RFC AC-12/13/17 or the external M9
+exit. BPR-0589 proceeds independently with rendered/native presentation work.
+No source-pack criterion or independent final-review requirement is removed.
