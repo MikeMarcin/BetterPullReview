@@ -1538,3 +1538,22 @@ endpoint. A larger reported total is accepted only when that endpoint
 returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
+
+## Semantic source-line publication allocation
+
+RFC-BPR-0022 uses the existing publication pipeline. Core
+`review_publication_policy` owns representation and legal durable transitions.
+The mutation host supplies exact admitted source and actor facts, then the
+serialized GitHub session owns bounded write-capability observations and the
+SQLite logical journal, retained by the current schema-5 store. The adapter owns the canonical permalink and
+exact wire classifier. Application `review_comment_placement` decodes changed
+FILE roots against sealed source, caches by root identity/body and source, and
+projects semantic anchors separately from remote subjects. Qt renders the
+projection and indexes accepted anchors; it performs no provider work or link
+parsing on paint, hover or scroll.
+
+The [owning round-trip contract](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
+defines the single state machine, limits, migration and cancellation rules.
+Its successful receipt selects the exact server comment only after an ordinary
+accepted refresh and source material are available. No widget capability,
+second mutation lane, or full model reset is introduced.

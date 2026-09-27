@@ -1,0 +1,44 @@
+{
+  "schema": "rfc0022.r3-classifier-evidence.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "start": "136456320af921282513ed2da6bfb2954fef0657",
+  "result": "Prospective classifier2 implemented; actual live fallback and human/independent acceptance pending.",
+  "tests": "Five integration selectors passed29.89s; corrected final valid extra-error counterexample replay passed;29 complete negative protocol/restart courses, positive native\u2192one FILE, old-witness GET-only.",
+  "earlier_failures": [
+    "Initial compile used nonexistent generic OID parse helper; corrected to existing typed parsers.",
+    "New classifier2 cache key exposed hardcoded revision1 validator; cache now validates nonzero revisions and exact-key equality prevents cross-revision reuse.",
+    "One build target spelling was invalid; corrected to test_review_publication_capability_cache."
+  ],
+  "self_review": "Scoped current identity selected by adapter; approved immutable base/head/path/blob/complete-patch proof revalidated against sealed endpoint and bounds, independent of Qt geometry. No source authority or journal migration changes. Revision changes only capability scope, not logical publication fingerprint. Complete native transport is prerequisite; exact closed response and full nonexhausted core metadata required. Synthetic fixtures remain explicit inputs. This self-review is not independent acceptance.",
+  "logs": [
+    {
+      "path": "build/rfc0022/m4-r3-build.log",
+      "sha256": "99a08d950af3a032ac19fd19f53efbc30ef1b48d3cfb6dcde04189cce2c0e4d1"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-integrated-build.log",
+      "sha256": "8ed2025e54f928180189631d59a9371f3b3d7058b750cb6efd8b0bbfeb773c6f"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-checks.log",
+      "sha256": "572fb5d1245cb154c00fa29c03c85acdb0bb22eaabb938f19942299ec021ae6b"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-final-contract.log",
+      "sha256": "d9efe4c3c6f293007c9d52331d638a08076d4c3ee2bdcf68b43de0400c607adf"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-tidy.log",
+      "sha256": "20b4e4751f290dadb417012cab9c5bf812bab1346b0190c43b6ad7a806ed5e2e"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-format.log",
+      "sha256": "59407344633a0a4752767111caab9ee795efeff6a66cd599bb4b1093b1297aab"
+    },
+    {
+      "path": "build/rfc0022/m4-r3-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ]
+}

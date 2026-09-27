@@ -910,13 +910,36 @@ permalink codec and send only body, commit_id, path and subject_type=file.
 Receipts keep the actual remote subject and selected representation; exact path,
 commit, public body and actor must agree before a response confirms creation.
 
-The revision-one unsupported classifier is an exact operation/server/API contract
-matcher. It accepts only a completed 422 with the pinned structured tuple and
-rejects generic validation, spam, rate, malformed and other-status answers.
-**No production unsupported tuple is admitted yet.** The GitHub.com and GHES
-synthetic fixtures prove classifier mechanics, not that either server emits that
-answer. BPR-0573 must record and approve the exact live contract before production
-fallback can be enabled. Hostname, version and status alone provide no evidence.
+The designated live file comment returned `subject_type=file` with synthetic
+`line=1`, `original_line=1`, `side=RIGHT`, and null range fields. Receipt parsing
+and GET-only recovery admit that bounded metadata shape as well as absent line
+metadata. They retain the file subject and derive semantic placement only from
+the validated immutable permalink. Other numeric positions, incomplete placeholder
+shapes, ranges and replies cannot confirm a file publication. This does not alter
+unsupported classification or permit a new POST for a possibly transmitted child.
+GraphQL FILE threads may likewise carry `line=1`, `originalLine=1`,
+`diffSide=RIGHT`, or both null coordinates. Both read paths discard those thread
+positions before producing typed records. FILE comments still require null
+coordinates on every page; the immutable body link supplies the source line.
+
+Classifier revision2 accepts the owner-approved recorded contract only for
+MikeMarcin/BPR-Test PR2, exact base/head/refs and database/node identities,
+MikeMarcin's exact actor identity, and desktop profile2. Every classification
+revalidates the sealed endpoint, exact Markdown/text blob and80-line bounds
+against the recorded complete RIGHT7–13 provider patch. Other identities,
+changed blobs and hunk lines cannot borrow this immutable proof.
+
+The complete bounded422 must have exactly message, documentation_url, string
+status and one errors entry, with the exact approved resource/field/custom/
+`could not be resolved` tuple. Unknown/duplicate members, other strings/types,
+Retry-After, Location, invalid or duplicate metadata and exhausted/invalid core
+rate budgets refuse. Native HTTPS must first establish complete transport and
+valid framing. The recorded message has an owner-accepted interpretation risk;
+it establishes no blanket service capability. The
+[mandate r3 decision](../issues/_checkpoints/BPR-0575/m4-r3-amendments.md)
+is distinct from live observation. Historical unresolved publications stay
+GET-only under revision2. Synthetic GitHub.com/GHES fixtures retain their own
+explicit contracts and grant no production authority.
 
 The write evidence cache is separate from the existing read/schema cache. It has
 128 entries and a maximum 300-second observed lifetime. Profile/revision, host,
@@ -924,13 +947,14 @@ server contract, complete actor, repository database/node identity, operation,
 API/classifier revision and freshness generation are exact key components.
 Expiry and a backward monotonic observation yield unknown. Only verified native
 success, definitive rejection, or an explicitly admitted recorded contract can
-supply an evidence entry. Session ownership and production wiring are completed
-with BPR-0568; the cache itself is not mutation or recovery authority.
+supply an evidence entry. The serialized session owns this cache. Keys also bind exact head, path and
+line; an observation cannot establish support at a different anchor. The cache
+itself is not mutation or recovery authority.
 
 The native HTTPS root-comment exchange now retains a complete bounded HTTP 422
 as response data for the exact classifier. This does not mark it a successful
 publication. TLS, response limits, framing/completeness, rate metadata,
 cancellation and redirect checks still apply; incomplete or network-failed
 responses remain failures. Other review operations retain their existing status
-contracts. The serialized session tests configure an explicitly synthetic
-unsupported tuple; the production provider constructor configures none.
+contracts. The serialized session selects the recorded contract from its own
+validated configuration. Tests also retain explicitly synthetic contracts.

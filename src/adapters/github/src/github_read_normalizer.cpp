@@ -171,7 +171,9 @@ namespace bpr::adapters::github::detail {
 		// validates skipped JSON and decodes integers without a floating-point step.
 		struct normalization_json_options : glz::opts
 		{
-			bool validate_skipped             = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
 			bool validate_trailing_whitespace = true;
 			constexpr normalization_json_options()
 			{
@@ -1266,8 +1268,8 @@ namespace bpr::adapters::github::detail {
 							thread.Id },
 						.Subject                   = review_thread_subject(thread.SubjectType),
 						.Path                      = thread.Path,
-						.Line                      = thread.Line,
-						.OriginalLine              = thread.OriginalLine,
+						.Line                      = thread.SubjectType == "FILE" ? std::nullopt : thread.Line,
+						.OriginalLine              = thread.SubjectType == "FILE" ? std::nullopt : thread.OriginalLine,
 						.DiffSide                  = *side,
 						.Resolved                  = thread.IsResolved,
 						.Outdated                  = thread.IsOutdated,

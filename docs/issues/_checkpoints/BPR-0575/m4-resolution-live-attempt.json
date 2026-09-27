@@ -1,0 +1,79 @@
+{
+  "schema": "rfc0022.live-attempt.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "source_revision": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
+  "source_sha256": "1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405",
+  "image_sha256": "aaab34bc17c675594c99615ff1c0d57195cb144e8aed73f895b59b5c1f6e59d5",
+  "profile": 2,
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "actor": "MikeMarcin",
+  "interaction": "Independent Markdown RIGHT61 selected through ordinary user line gesture; AX verified Comment on line61. Exact target/head/body confirmed. One ordinary AX Publish at app elapsed06:06, within15-minute authority. No retry or fallback.",
+  "terminal_ui": "Publication result is unavailable; retry is safe.",
+  "journal": {
+    "record": {
+      "version": 1,
+      "key": "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2",
+      "legacy_key": "dacdd2641d4e863818e8f544fc6b424bfa05f0f23b3be5053dbfbe5d68bc12ab",
+      "fingerprint": "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2",
+      "parent_state": 2,
+      "authorization_source": 0,
+      "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "scope_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "generation": 0,
+      "observed_at": 0,
+      "expires_at": 0,
+      "native": {
+        "key": "763bf0757016b3097c36f9e0b8f2a358ad76e267446c53a4021301782a41dafc",
+        "request_fingerprint": "b0ebc34d8cf033798cefdb6859a59fdcb2e30f0120c1f30b65d8cd8d8c8dc0b1",
+        "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+        "body": "BetterPullReview Markdown source-line verification at line 61.",
+        "path": "off_hunk_fixture.md",
+        "comparison": "84287b3a695ed39a562f3d827dae553fe372766e5d5566e153b5971296df7cc1",
+        "zero_based_line": 60,
+        "commit_algorithm": 1,
+        "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+        "transmission": 2,
+        "state": 0,
+        "baseline_ids": [],
+        "receipt_present": false
+      },
+      "fallback": null
+    },
+    "record_sha256": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "bytes": 649
+  },
+  "prior_journal_digests_unchanged": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172"
+  },
+  "diagnostic": {
+    "event": "github.review_comment.response_received",
+    "sequence": 47,
+    "utc_ms": 1790484508671,
+    "http_status": 422,
+    "detail": "create_review_comment representation=native metadata=valid envelope=Validation Failed envelope_unknown=0 documentation_url=https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request status=422 errors=1 error_unknown=0 resource=PullRequestReviewComment field=pull_request_review_thread.line code=custom message=could not be resolved",
+    "transport_source": "http_response"
+  },
+  "interpretation": "Complete bounded422 body retained as closed typed vocabulary: exact line-resolution literal is not alone proof of off-hunk unsupported. Production contract disabled, all four witnesses GET-only. No Retry-After absence attestation is made from this diagnostic.",
+  "get_observations": {
+    "review_comments": 0,
+    "reviews": 0,
+    "limitation": "Empty GET observations are not non-creation proof."
+  },
+  "eligibility": "m4-live-anchor-eligibility.json",
+  "lifecycle": {
+    "result": "PASS; normal quit, app67980 exited, capsule detached",
+    "command_session": 85366,
+    "log": "build/rfc0022/m4-resolution-fresh-live-execution.log",
+    "log_sha256": "cf56c580bfecd6f06289ac60705f3b40097abbe63a8920a8110af3719bd228c7",
+    "seconds": 397.54
+  },
+  "approval": {
+    "id": "a046811b219bea8a3e9814049785f3f40c633a75d60a2102c51487ab93b16723",
+    "result": "Spent one-use subject; must not reuse.",
+    "prior_no_post_run": "m4-resolution-expired-attempt.json"
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "schema": "rfc0022.milestone-evidence.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "run_id": "rfc0022-20260926",
+  "milestone": "d-evidence-closeout",
+  "start_revision": "dc1a836b55c718040a6e467245afc8ee6600d4f9",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "production_candidate": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
+  "manifest_candidate": "bd9eb897",
+  "commands": [
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^application_review_round_trip_composition_contract$",
+      "result": "PASS early13.86s",
+      "evidence": "Direct tool result at starting candidate; exec session24518 completed0."
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review [designated bootstrap/observer/gate/runner targets] -j4",
+      "result": "PASS",
+      "log": "build/rfc0022/m4-designated-build.log",
+      "sha256": "48c891bc48cf0df998afbfc3cdaf15be54ddbf01ed909ce0c6738b9ec278da81"
+    },
+    {
+      "command": "ctest --preset dev -R designated authority/observer/architecture selectors",
+      "result": "4/5 initially; two stale test expected strings corrected, bootstrap recheck PASS33.50s",
+      "log": "build/rfc0022/m4-target-checks.log",
+      "sha256": "cb6ed4802702f62120f75470c8e5be6de86448cd5e8c3545081723b51b5cff05"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^application_designated_review_authority_bootstrap$",
+      "result": "PASS after correction",
+      "log": "build/rfc0022/m4-bootstrap-recheck.log",
+      "sha256": "1dc5534de552d1ffed6f630e82833ecd496d292e12e00f9554936650a6509f4c"
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_gh_cli_git_smart_transport_tests -j4",
+      "result": "PASS",
+      "log": "build/rfc0022/m4-final-dev-build.log",
+      "sha256": "65976eb985841ae5a7429ad09f66cd1f7536a3d360bd7355c4bad8c4848a4ff3"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(application_review_round_trip_composition_contract|qt_composed_github_scale_100)$",
+      "result": "PASS2/2;17.79s",
+      "log": "build/rfc0022/m4-final-public-checks.log",
+      "sha256": "18ed1d7cb993f2f3bac4a86e579f5172e7f677225f7c20fce373bbed1e261943"
+    },
+    {
+      "command": "cmake --preset app-release -DBPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE=ON; cmake --build --preset app-release --target designated_live_macos_capsule -j4",
+      "result": "PASS Release BUILD_TESTING=OFF; signed inventory, image and mounted preflight; detached",
+      "log": "build/rfc0022/m4-final-capsule-build.log",
+      "sha256": "bb8b00477b1a90a1aad13b5ef5f71fea12cd3e2905369a94e51e3b012d8e9c86"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(designated_live_macos_capsule_contract|test_network_isolation_manifest|live_mutation_isolation_contract|application_review_round_trip_composition_contract)$",
+      "result": "3/4 initially; inherited manifest count and unbuilt fixture caused manifest failure only, repaired below",
+      "log": "build/rfc0022/m4-integration-checks.log",
+      "sha256": "c352fb3c1e4839174a3c5ae95360d3691659a8eaaf994f41e2ae671d02ea7f1f"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^test_network_isolation_manifest$",
+      "result": "PASS after explicit pending inventory, no measured Windows allowlist changes",
+      "log": "build/rfc0022/m4-manifest-final.log",
+      "sha256": "7ea45aa0a7f44c758c745d8c05882ce7f2b5e2ccd947b540f648fb175484d211"
+    },
+    {
+      "command": "python3 tests/scripts/verify_test_network_isolation_tests.py",
+      "result": "PASS66; pending inventory cannot authorize a Windows configured exception",
+      "log": "build/rfc0022/m4-manifest-validator-tests.log",
+      "sha256": "dce6f141a419fb023727b1489a743b1c720246cd9f6b5a7e533def633a9fecc0"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^test_network_isolation_structure_contract$",
+      "result": "PASS",
+      "log": "build/rfc0022/m4-manifest-structure-final.log",
+      "sha256": "157275d9271f97f617880264c7e4e8e881d91ddf138378114ffa1b281e7d3888"
+    },
+    {
+      "command": "python3 scripts/verify_live_mutation_isolation.py --root . --manifest build/rfc0022/m3-changed-executables.txt",
+      "result": "PASS full source inventory plus17 relevant executables, positive control; reuse unchanged set",
+      "log": "build/rfc0022/m4-isolation-final.log",
+      "sha256": "66b98fa214868bcddfb8f623e21c88046147150c64340d97ada2241d9a35783f"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py --root . [7 changed C++ paths]",
+      "result": "PASS; inherited touched-TU tour formatting mechanically corrected",
+      "log": "build/rfc0022/m4-format-final.log",
+      "sha256": "3aa0eeaaa1da2705d45e71e4c45b57e10b281be6881171ec47af1116b3d2f482"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/application/src/designated_review_authority_bootstrap.cpp src/adapters/github/src/designated_live_public_observer.cpp",
+      "result": "PASS both units",
+      "log": "build/rfc0022/m4-tidy-final.log",
+      "sha256": "e41bb72deb8b7d8f11845651f305023e561ab0cd5dba5f0e9e1398399f9a3a76"
+    },
+    {
+      "command": "cmake --preset dev -B build/rfc0022/m4-live-manifest [exact argument array in runtime log]",
+      "result": "PASS;491 registered rows, exactly1 live label/lane,1800s timeout, fixed stage-zero command",
+      "log": "build/rfc0022/m4-live-configure.log",
+      "sha256": "0c82a867a3ffb11e4356d3acd7e2bc803857c348c50de5f3eb4945d79cae60d2"
+    },
+    {
+      "command": "ctest --test-dir build/rfc0022/m4-live-manifest --output-on-failure -R ^test_network_isolation_manifest$",
+      "result": "PASS491-row graph with exactly1live lane;1.14s",
+      "log": "build/rfc0022/m4-live-manifest-check.log",
+      "sha256": "162d8aa87fa5e3e48e51ef9e481b4067f9161f10af158c99392b35283fb8699d"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK",
+      "log": "build/rfc0022/m4-docs-final.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "PASS64 tests;2.032s",
+      "log": "build/rfc0022/m4-doc-validator-tests.log",
+      "sha256": "96caa0049de764096cb50973775cb1ca0381e81cd4967e95622d8fa05311677d"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(application_review_round_trip_composition_contract|qt_composed_github_scale_100)$",
+      "result": "PASS2/2;18.11s; exact final source699c921c",
+      "log": "build/rfc0022/m4-final-candidate-public.log",
+      "sha256": "8173815d3bf28b2d5431724d59a03dfc03939fffb9a2b6b1d9ecd0f7eb2b10db"
+    },
+    {
+      "command": "ctest --test-dir build/rfc0022/m4-live-manifest --output-on-failure -R ^test_network_isolation_manifest$",
+      "log": "build/rfc0022/m4-resolution-fresh-manifest-check.log",
+      "result": "PASS491 rows; exactly1 profile2 attended lane",
+      "sha256": "049907cd9f96e03edb73626dbd22786f11f8374946e6a6bcba8801e965e05182"
+    },
+    {
+      "command": "ctest --test-dir build/rfc0022/m4-live-manifest --output-on-failure -V -R ^live_review_mutation_designated_target$",
+      "log": "build/rfc0022/m4-resolution-fresh-live-execution.log",
+      "result": "PASS lifecycle397.54s; complete422 is not product publication success",
+      "sha256": "cf56c580bfecd6f06289ac60705f3b40097abbe63a8920a8110af3719bd228c7"
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review",
+      "result": "PASS final source699c921c, incremental candidate current",
+      "log": "build/rfc0022/m4-handoff-app-build.log",
+      "sha256": "c2ed93ffd93c840755c0e91392ae593b1b52de9b7aaf6c208123feaceb1dde2e"
+    },
+    {
+      "command": "python3 -B scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK after final evidence/card parking",
+      "log": "build/rfc0022/m4-handoff-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ],
+  "source_review": "PR2 target0ff88046; audited pending Windows source inventorybd9eb897; exact profile selector6526f525; typed bounded diagnostics3a517b86; exact closed shape0eee1f45 and message literals699c921c. No authority/classifier/journal bypass. Self-review and focused checks are not independent acceptance.",
+  "simplification": "Reviewed core policy, session/SQLite boundary, cached source-normalization and Qt incremental projection; no new behavior refactor warranted. Removed stale preparatory docs and linked one owning state-machine/codec contract.",
+  "reuse": "M1/M2/M3 evidence retains unchanged policy, wire, journal, normalization and3-scale3-theme claims; D reran affected real composition and exact authority.",
+  "limits": [
+    "Production unsupported classifier has no admitted tuple; synthetic tuple is test-only.",
+    "GHES automated fixtures retained; no native GHES per owner amendment.",
+    "66 durable boundary interruptions are deterministic, not actual OS kills/power loss. Fresh-host reconstruction is not actual uninstall.",
+    "23 pre-existing Windows source registration patterns remain unqualified; source-count inventory grants no configured Windows exception.",
+    "Canonical0020/0021 remain Deferred; no sequencing amendment yet."
+  ],
+  "live": "Default no-POST cache refusal preserved. Profile2 TXT60, Markdown60, TXT61 and Markdown61 each used one independently approved ordinary Publish and remain unresolved native witnesses, without receipt, fallback or fallback authorization. Three complete422 observations; final MD61 captures exact resource/field/custom/could not be resolved tuple, canonical documentation/status, one error and zero unknown members. Prior journals unchanged. Initial MD61 authority expired before Publish and was closed with no POST; fresh same-capsule approval completed one Publish at elapsed06:06 and normal exit/detach397.54s. GET comments/reviews empty; not non-creation proof. All launch commands quiescent.",
+  "prior_production_candidate": "0ff88046",
+  "profile_selector_candidate": "6526f525",
+  "supplementary_evidence": [
+    "m4-default-live-attempt.json",
+    "m4-profile-control-evidence.json",
+    "m4-profile-capsule-identities.json",
+    "m4-profile-live-attempt.json",
+    "m4-diagnostic-evidence.json",
+    "m4-diagnostic-live-attempt.json",
+    "m4-shape-evidence.json",
+    "m4-shape-live-attempt.json",
+    "m4-live-anchor-eligibility.json",
+    "m4-resolution-capsule-identities.json",
+    "m4-contract-basis.md",
+    "m4-resolution-expired-attempt.json",
+    "m4-resolution-fresh-capsule-identities.json",
+    "m4-resolution-live-attempt.json",
+    "m4-owner-contract.md",
+    "m4-owner-native-scope.md",
+    "m4-owner-order.md",
+    "m4-review-handoff.json",
+    "m4-review-manifest.json",
+    "m4-binding-final.json"
+  ],
+  "historical_counter_sync": {
+    "from": "BPR-1220",
+    "to": "BPR-1221",
+    "owning_commit": "36d535eb",
+    "reason": "Shared branch history advanced during the run; documentation refused rewind. Counter-only historical synchronization authorized by coordinator; no new allocation, invented receipt or unrelated28-path import. Owning commit exposes no1220receipt.",
+    "before": "DOCUMENTATION_OK before shared history advance; later failed historical high-water check.",
+    "after": "DOCUMENTATION_OK after observed high-water synchronization."
+  },
+  "pending": [
+    "Owner exact recorded-contract decision; production classifier remains disabled.",
+    "Owner native off-hunk live-course scope amendment or actual supported native target.",
+    "Actual live fallback and GitHub-only collaborator continuity.",
+    "Required independent acceptance.",
+    "Owner canonical closeout-order amendment or earlier RFC completion.",
+    "Final15-criterion replay and all-card acceptance before RFC Auto-Verified."
+  ]
+}

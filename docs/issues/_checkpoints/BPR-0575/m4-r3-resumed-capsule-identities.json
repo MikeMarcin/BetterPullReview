@@ -1,0 +1,63 @@
+{
+  "schema": "rfc0022.r3-capsule-identities.v1",
+  "utc": "2026-09-27T19:20:47.067929+00:00",
+  "source_revision": "bbf0b23eb3f767d9864813f14781630b419de8f7",
+  "source_sha256": "8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "ca85ec92f65e299f9368a9d2576915056019c9e1b78991e1f2cd7c6d2b037631",
+      "bytes": 16607920
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "3df753e47c695f26e2f2dd55ba7796c3bf00b335bcb442beb56f1f1e7e26ac51",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda/capsule.inventory",
+      "sha256": "ebe433d36afe6b319243d1b7b62ac1a7ce9bcb122e7cbb1e6fc73c499b0ec7bd",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda/capsule.dmg",
+      "sha256": "3ffb12a8120c145f21c4b3f14541cf275edbe4089da06478d85d433de49d4bcd",
+      "bytes": 35580934
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda/source-manifest.txt",
+      "sha256": "8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda",
+      "bytes": 7085
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "ef417c517bc68a5d553f074544f1abb535e3d593c0d45f1963933e8b3d205fb6",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-resumed-approval-j1uqsg21/approval.txt",
+  "subject_sha256": "b0b8955de79f1a8412a08cf66a26c8a184d660ee091076fee04fcb6263346bf4",
+  "profile": 2,
+  "pre_course_journal_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "a45573028fe695a43efad239661e27c44a89a6ac1335ceb4af86f6c106b10f66": "fc540ec5a55b7fd2bfe6515930e4372478308d2a3b5ab0dd1c5ed9295db052ef"
+  },
+  "intended_independent_publication": {
+    "path": "off_hunk_fixture.md",
+    "side": "RIGHT",
+    "line": 62,
+    "body": "Please verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub."
+  },
+  "authority": "Standing mandate r3 approved PR2 writes; same profile and replay namespace, fresh exact capsule and one-use nonce.",
+  "previous_retained_mount_detached": true,
+  "fresh_actor": "MikeMarcin",
+  "fresh_target": {
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "comments": 0
+  }
+}

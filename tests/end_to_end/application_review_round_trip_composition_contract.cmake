@@ -1,3 +1,19 @@
+# BPR-0573 r3 storage compatibility merge: reviewed 829291bec plus main89f23eeec.
+# Main's schema5 recovery, durable draft/lineage and tour semantics are preserved.
+# Against main, github_application.cpp changes only the exact approved PR2 target
+# constants and passes the existing diagnostic logger after the private lineage
+# port. The provider retains both independent dependencies; diagnostics confer
+# no authority. Off-hunk classifier2 and its exact scope remain unchanged.
+# These three pins bind that reviewed composition. RFC0022 r4 records owner
+# acceptance without an independent report.
+# Main 90b79f0 adds the GitHub CLI runtime and tour sources to this inventory;
+# the full application and source-tree digests below bind the merged files.
+# BPR-0573: reviewed dc1a836b..this bounded target reassignment. Only the
+# compiled attended target changes from PR1 to owner-designated PR2; application,
+# bootstrap and independent observer agree on exact IDs, refs and OIDs. No grant,
+# transport, classifier or production mutation-branch change. The touched TU also
+# receives mechanical format of inherited tour fields/branches. Card records review.
+
 # BPR-1016 final integration reseal: reviewed main 93235bee plus tour 22763dc10.
 # The only additional production-manifest changes against main are 5ca53796a
 # (review_submission_workflow.cpp) and 54ba51bf8 (github_application.cpp).
@@ -434,6 +450,11 @@ endfunction()
 # capture's exact 14-action assertion and its comment. No runtime, authority,
 # persistence or mutation code changes. Mutation branch unchanged. Record and
 # direct capture/focus evidence on BPR-1202.
+# RFC0022 D diagnostic reseal: reviewed e45f5d17..this candidate. The only
+# github_application.cpp change passes the profile-owned diagnostic log to the
+# existing production provider. Grant, target, source admission and journal
+# decisions are unchanged. The app manifest also includes the reviewed6526f525
+# exact profile selector. Three owning digests are recomputed from those bytes.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -452,7 +473,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4884ff615fde1cfe83618ad1cad03c189e7d2ad65104a0cf131afeb064bf66e6"
+		"fa135765d0db82b976eca4b3a770f61f2614de9456bb35cfc7c1e039e7265e6f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -557,6 +578,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
+        "src/github_cli_runtime.cpp"
+        "src/github_cli_runtime.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
         "src/installed_resources.cpp"
@@ -583,6 +606,22 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
+		"src/tour_cancellation.cpp"
+		"src/tour_cancellation.hpp"
+		"src/tour_cli.cpp"
+		"src/tour_cli.hpp"
+		"src/tour_decisions.hpp"
+		"src/tour_editor.cpp"
+		"src/tour_editor.hpp"
+		"src/tour_main.cpp"
+		"src/tour_observation.hpp"
+		"src/tour_publication_plan.cpp"
+		"src/tour_publication_plan.hpp"
+		"src/tour_remote.cpp"
+		"src/tour_runtime.cpp"
+		"src/tour_runtime.hpp"
+		"src/tour_text_input.cpp"
+		"src/tour_text_input.hpp"
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
@@ -613,7 +652,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "eba4260c511a8b8467855d7ec4531fe1549f022c45a745d6cd2ada79c5b0412b"
+        "f2410e626eeb6a044f8f5d883d1ab619642e54fbb33b78da1529d8c15367af09"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -934,7 +973,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "0c1cf84fb9870f09816947fce6d9c59a214b85b81ba7eefcf6e5f16d3abfe6f7"
+        "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

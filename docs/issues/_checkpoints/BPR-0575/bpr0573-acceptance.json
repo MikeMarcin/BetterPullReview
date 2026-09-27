@@ -1,0 +1,56 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "One actual production fallback at Markdown62/root4116623474; exact signed app and journal recovery evidence retained.",
+        "path": "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Mandates r2/r3 approve GitHub.com exact recorded rejection contract and native fixture substitution; live GHES/native success remain unobserved.",
+        "path": "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact human Accept520a36a8 and public GET root/reply identity checks; signed app read-only refresh rendered reply4116804415 at semanticline62.",
+        "path": "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Only public designated fixture metadata and digest summaries retained; no extra publication or disposable probe; all six journals byte-identical.",
+        "path": "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Producing source0f3188093/image522e446a and exact immutable PR2/head/path/line/root/reply IDs bound by m4-final-continuity.json.",
+        "path": "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"
+      }
+    }
+  ]
+}

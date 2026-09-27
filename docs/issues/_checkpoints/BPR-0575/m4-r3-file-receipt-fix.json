@@ -1,0 +1,45 @@
+{
+  "schema": "rfc0022.r3-file-receipt-fix.v1",
+  "mandate_revision": "r3",
+  "reason": "Live file comment4116623474 returned explicit file subject and synthetic line1/original_line1/RIGHT. Existing parser rejected presence of Line; no retry occurred.",
+  "change": "Shared bounded file metadata predicate in immediate receipt parsing and cold GET-only lineage reconciliation. No change to classifier2, authority, journal fingerprints, POST eligibility or semantic anchor. Range and reply metadata refused.",
+  "evidence": "All fallback fixture responses now use actual placeholder shape,9 negative shape substitutions plus absent-line compatibility, unchanged semantic line assertion, existing66 interruption courses and new pending-file cold-lineage repair mode11 with zero-new-POST assertion. Initial mode11 fixture hid baseline after native rejection; corrected hiding to begin only after a remote comment exists.",
+  "verification": [
+    "App and fixture builds PASS.",
+    "github_review_comment_permalink final PASS.",
+    "application_review_round_trip_composition_contract PASS12.68s with exact product fix.",
+    "Strict tidy production TU PASS; format and documentation PASS."
+  ],
+  "launch_preparation_correction": "Two2.78s-class no-UI/no-POST launches refused because generated approval omitted required subject_sha256 trailer. Approval remained unconsumed; images detached. Harmless signed probe PASS; complete approval encoding corrected before sole successful one-Publish course.",
+  "logs": {
+    "m4-r3-file-receipt-build.log": {
+      "sha256": "003809055752602298f89cc93f9a22f3638a6cb0aa6490590b921f40c03aaa66",
+      "bytes": 1705
+    },
+    "m4-r3-file-receipt-test-build.log": {
+      "sha256": "6cf747770833009d9987525a037bb20ac2a41bcab59acba8628ba78cb1f1e676",
+      "bytes": 297
+    },
+    "m4-r3-file-receipt-check.log": {
+      "sha256": "c379720da7690a005629654418da3ee2c024f365c835352de36af04662f6ef36",
+      "bytes": 332
+    },
+    "m4-r3-file-receipt-tidy.log": {
+      "sha256": "eafb97db7e79e1e4c30a7cbc199b5dc2a652a364c65f64dd18919ab3062b6802",
+      "bytes": 853
+    },
+    "m4-r3-resumed-live-execution.log": {
+      "sha256": "c40b31772e8c09f43ff6743750feb8fd130b433f8efc1f3743b7f59a66b5c24c",
+      "bytes": 4497
+    },
+    "m4-r3-resumed-live-retry-execution.log": {
+      "sha256": "cd048922d3b5badbcb88b9c4fb712819faab3bc1c3c7f26ab99f41b4144f8664",
+      "bytes": 4497
+    },
+    "m4-r3-resumed-probe.log": {
+      "sha256": "43d45e0760d40f3498166eb49dead6f70da2c72e97906b7b62cc45d99132990c",
+      "bytes": 184
+    }
+  },
+  "pending": "Rebuilt signed capsule GET-only recovery of existing file comment, rendered app placement, GitHub-only collaborator acceptance, independent acceptance."
+}

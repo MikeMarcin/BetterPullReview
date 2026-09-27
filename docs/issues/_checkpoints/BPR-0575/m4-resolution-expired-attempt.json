@@ -1,0 +1,17 @@
+{
+  "source_revision": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
+  "capsule": "m4-resolution-capsule-identities.json",
+  "approval_id": "74a4b2d8d354a09ee999e2705c40d4724310df617aae9a17139235d26abaad15",
+  "result": "No Publish: draft prepared, expiry observed at elapsed 16:22; normal quit and detach.",
+  "native_post_count": 0,
+  "journal_count": 3,
+  "all_prior_journals_unchanged": true,
+  "lifecycle_seconds": 1010.55,
+  "lifecycle_exit_code": 0,
+  "human_actions": [
+    "OS prompt completed",
+    "Markdown RIGHT61 selected"
+  ],
+  "draft_body": "BetterPullReview Markdown source-line verification at line 61.",
+  "fresh_approval_required": true
+}

@@ -60,7 +60,7 @@ namespace bpr::adapters::github {
 			application::review_mutation_acting_identity aActingIdentity,
 			std::unique_ptr<application::review_mutation_recovery_port>
 														  aRecovery,
-			application::review_publication_lineage_port* aLineage) noexcept
+			application::review_publication_lineage_port* aLineage, std::shared_ptr<application::diagnostic_log_port> aLog) noexcept
 			-> std::expected<
 				std::unique_ptr<live_review_mutation_provider>,
 				application::review_mutation_failure>;
@@ -71,7 +71,7 @@ namespace bpr::adapters::github {
 			detail::live_review_mutation_configuration aConfiguration,
 			std::unique_ptr<application::review_mutation_recovery_port>
 														  aRecovery,
-			application::review_publication_lineage_port* aLineage) noexcept;
+			application::review_publication_lineage_port* aLineage, std::shared_ptr<application::diagnostic_log_port> aLog) noexcept;
 
 		detail::review_mutation_session Session;
 	};
@@ -83,7 +83,7 @@ namespace bpr::adapters::github {
 		application::review_mutation_acting_identity aActingIdentity,
 		std::unique_ptr<application::review_mutation_recovery_port>
 													  aRecovery,
-		application::review_publication_lineage_port* aLineage = nullptr) noexcept
+		application::review_publication_lineage_port* aLineage = nullptr, std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>;

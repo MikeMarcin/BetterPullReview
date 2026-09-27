@@ -1,0 +1,59 @@
+{
+  "schema": "rfc0022.r3-live-attempt.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "recorded_utc": "2026-09-27T05:32:30.514148+00:00",
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "image_sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+  "approval_id": "c7839d55d4b409864b654652d3e11bff904686ace71bc2ae5287bbd294a71084",
+  "approval_path_retired": true,
+  "approval_cleanup": "Launcher consumed the approval file; implementer removed its empty task-owned temporary parent after shutdown.",
+  "profile": 2,
+  "intended_independent_publication": {
+    "path": "off_hunk_fixture.md",
+    "side": "RIGHT",
+    "line": 62,
+    "body": "Please verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub."
+  },
+  "command": "m4-r3-live-command.json",
+  "command_session": 46905,
+  "elapsed_seconds": 767.34,
+  "exit_code": 8,
+  "result": "Aborted no-POST course: operating-system unlock prerequisite was pending; no UI action, draft preparation or Publish occurred.",
+  "cua_observation": "The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing.",
+  "prerequisite": "Coordinator asked for manual unlock; no answer or acceptance was inferred from elapsed time. This course closed before the 15-minute approval expiry.",
+  "cleanup": {
+    "stage_zero_pid": 82528,
+    "signal": 15,
+    "application_pid": 82635,
+    "supervisor_pid": 82541,
+    "all_task_processes_stopped": true,
+    "mount_root_removed": true,
+    "image_detached": true,
+    "normal_lifecycle_pass_claimed": false
+  },
+  "journal": {
+    "record_count": 4,
+    "all_four_historic_records_byte_identical": true,
+    "observed_record_sha256": {
+      "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+      "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+      "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+      "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985"
+    },
+    "new_publication_records": 0
+  },
+  "log": {
+    "path": "build/rfc0022/m4-r3-live-execution.log",
+    "sha256": "73fa45ba3267cc4be28fdeeb61ce36e9bf3e6bfedb0daa103c5ec5ba0608ca68",
+    "bytes": 4481
+  },
+  "claim_boundary": "Interrupted launch is not a passing live feature or normal-exit test. Existing four possibly-transmitted witnesses remain GET-only; empty service reads never prove their non-creation.",
+  "pending": [
+    "Fresh one-use exact capsule launch after explicit unlock; ordinary UI source-line publication.",
+    "Actual fallback receipt and GitHub-only collaborator continuity.",
+    "Separately supplied independent acceptance.",
+    "Final criterion/card closeout and coordinator main integration."
+  ]
+}

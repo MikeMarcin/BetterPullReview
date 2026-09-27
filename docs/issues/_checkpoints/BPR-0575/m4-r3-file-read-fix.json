@@ -1,0 +1,44 @@
+{
+  "schema": "rfc0022.r3-file-read-fix.v1",
+  "mandate_revision": "r3",
+  "previous_receipt_candidate": "24b7f66aacc00f918d806ea02a886963c81da942",
+  "change": "Fixture and paged read parsers admit FILE thread null/null or exact1/1/RIGHT; typed normalization always clears file thread coordinates. FILE comment coordinates remain null, including continuation pages. No mutation/classifier/authority change.",
+  "verification": [
+    "App plus read fixture builds PASS.",
+    "Four focused read/paged/permalink/public-composition checks PASS20.57s.",
+    "Final read tests after mechanical tidy fixes PASS.",
+    "Strict tidy on three production units PASS; format/docs PASS."
+  ],
+  "tidy_upkeep": "Existing Glaze option names require localized identifier naming suppressions because the library selects those exact names; keys.emplace_back replaces converting push_back in touched paged unit.",
+  "logs": {
+    "m4-r3-file-read-build.log": {
+      "sha256": "bc79e0ee51979148a0c6c317551b35258578c7a34cd5c34ba4ad8ef16d1251f7",
+      "bytes": 10005
+    },
+    "m4-r3-file-read-build-final.log": {
+      "sha256": "74b5f02bcd598e9665750587957cebb446c8a79c10658400cca91bdbd2dc5ab2",
+      "bytes": 9718
+    },
+    "m4-r3-file-read-check.log": {
+      "sha256": "2e35e8439503527c31dd15439e0f9f9bf999f05c5c6b60d8ef644531da87363d",
+      "bytes": 760
+    },
+    "m4-r3-file-read-check-final.log": {
+      "sha256": "2ff674f74f8d8a66e30453772e361c5f686f4d59b0c9c681428fc35f2ec4bc3e",
+      "bytes": 425
+    },
+    "m4-r3-file-read-tidy.log": {
+      "sha256": "702e7788546a52da2f884df15c855e99471b19883afbf877c2d0dbdffd1508d2",
+      "bytes": 4937
+    },
+    "m4-r3-file-read-tidy-final.log": {
+      "sha256": "50bd4f0b5a6903fa768e3cecc8d242d0e0613e6a81b331f4e9bd20eed6dfe29c",
+      "bytes": 2206
+    },
+    "m4-r3-file-read-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "bytes": 17
+    }
+  },
+  "pending": "New signed capsule GET-only reopen and reconciliation; collaborator and independent acceptance."
+}

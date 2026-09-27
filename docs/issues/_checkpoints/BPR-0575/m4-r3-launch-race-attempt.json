@@ -1,0 +1,59 @@
+{
+  "schema": "rfc0022.r3-live-attempt.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "utc": "2026-09-27T18:05:01.636770+00:00",
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "image_sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+  "approval_id": "043f5e0af2227bc8933004cedbf1fa264039bcb99d3cdc3ee1fd5d4220d58a26",
+  "approval_consumed": true,
+  "temporary_approval_directory_removed": true,
+  "profile": 2,
+  "prelaunch": {
+    "full_attended_app_process_inventory_empty": true,
+    "all_artifact_digests_match": true,
+    "exact_open_pr2_head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "review_comments": 0,
+    "all_historic_journal_hashes_match": true
+  },
+  "launch": {
+    "session": 95094,
+    "stage_zero_pid": 72939,
+    "supervisor_pid": 72958,
+    "application_pid": 73063,
+    "mount": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-mount-parent/mount-944544f5d07b50b2",
+    "elapsed_seconds": 30.36,
+    "exit_code": 8
+  },
+  "result": "No-POST interruption after another task independently launched a new attended app about four seconds after ours; no CUA app selection, UI action, draft or Publish.",
+  "other_task": {
+    "checkout": "/Users/jaeger/.codex/worktrees/15a6/BetterPullReview",
+    "supervisor_pid": 73090,
+    "application_pid": 73185,
+    "left_running_and_untouched": true
+  },
+  "cleanup": {
+    "signal_to_own_stage_zero": 15,
+    "own_processes_stopped": true,
+    "image_detached": true,
+    "mount_root_removed": true,
+    "normal_lifecycle_or_feature_success_claimed": false
+  },
+  "journal": {
+    "record_count": 4,
+    "all_historic_records_byte_identical": true,
+    "new_publication_records": 0,
+    "record_hashes": {
+      "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+      "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+      "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+      "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985"
+    }
+  },
+  "log": {
+    "path": "build/rfc0022/m4-r3-unlocked-live-execution.log",
+    "sha256": "d41390f6e5033d76930ab4dab8b5cb46bdc3dc1ffc17de380a3b80116a3560ad"
+  },
+  "next_action": "Coordinator awaits explicit user authorization for cross-task UI coordination. Do not relaunch from a natural-exit gap; require a handoff. Next launch needs fresh one-use approval. Actual fallback, collaborator continuity and independent acceptance remain pending."
+}

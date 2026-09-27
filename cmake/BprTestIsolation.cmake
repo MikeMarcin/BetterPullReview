@@ -55,6 +55,7 @@ set(
     CACHE PATH
     "Absolute build directory that produced the designated shipped application"
 )
+set(BPR_DESIGNATED_LIVE_MUTATION_PROFILE "" CACHE STRING "Optional existing profile ID; approval must bind its exact replay namespace")
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     if(NOT APPLE OR NOT BPR_BUILD_QT)
         message(
@@ -922,6 +923,7 @@ function(bpr_add_designated_live_mutation_test)
         MOUNT_PARENT "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
         SOURCE_SHA256 "${bpr_designated_live_source_identity}"
         APPROVAL "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        PROFILE "${BPR_DESIGNATED_LIVE_MUTATION_PROFILE}"
     )
     add_test(
         NAME live_review_mutation_designated_target

@@ -1,0 +1,59 @@
+{
+  "schema": "rfc0022.r3-capsule-identities.v1",
+  "utc": "2026-09-27T19:36:15.457992+00:00",
+  "source_revision": "24b7f66aacc00f918d806ea02a886963c81da942",
+  "source_sha256": "71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "383246bc2cecf58d5f9c144dc5a0019512bfcb01a686efbb3bb3d119f0fa16d4",
+      "bytes": 16607920
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "70e5d6d1f53e8b742a67cabde197190dc5d99f1771870add5e2146ab3f91057e",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule.inventory",
+      "sha256": "45f0bc1111b146928a449e67ad1d82aff08f513209589dc23f3226a24af778ce",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule.dmg",
+      "sha256": "aef37eb88e5a9f8a3765daf330022eb89f1bb0a0a6eb9228c4d532f677a9fc59",
+      "bytes": 35580817
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/source-manifest.txt",
+      "sha256": "71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e",
+      "bytes": 7085
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "c1d89387445cf8b906be3763bd2c3d5fcd4a01e06815f968efc3e686fabf3949",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-recovery-approval-bvumwu2g/approval.txt",
+  "subject_sha256": "6a29642940e273511dbca225197f322b0ffb09b5d256da18fb291bb89b67867c",
+  "profile": 2,
+  "pre_course_journal_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "a45573028fe695a43efad239661e27c44a89a6ac1335ceb4af86f6c106b10f66": "fc540ec5a55b7fd2bfe6515930e4372478308d2a3b5ab0dd1c5ed9295db052ef",
+    "e34ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653": "5b306e90835c985e0d3e27de728010ff96484fde0caa1dfc3189eaded2de2778"
+  },
+  "authority": "Standing mandate r3 approved PR2 writes; same profile and replay namespace, fresh exact capsule and one-use nonce.",
+  "previous_retained_mount_detached": true,
+  "fresh_actor": "MikeMarcin",
+  "fresh_target": {
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "issue_comments": 0
+  },
+  "course": "GET-only recovery and rendered placement of existing comment4116623474. Do not click Publish or Retry. No new logical publication."
+}

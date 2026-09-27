@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0575-uninstall-evidence-scope",
+      "title": "Decide the uninstall evidence scope",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "criteria": [
+        "Accept the observed app-closed GitHub continuity and fresh-host reconstruction as RFC0022 AC10 evidence, while recording actual desktop uninstall as unobserved."
+      ],
+      "content": "# Proposed owner amendment: uninstall evidence for RFC-0022\n\nPending decision. Mandate r3 remains in force until explicitly amended.\nCandidate source `0f3188093c846cbbb43f624dd48c817e0ea4eec4`; signed capsule\nimage `522e446ad4d34f233daccf45dfcd949654344c9293871305ed83f905444ebd42`.\n\nAC-10 currently requires: \u201cA GitHub-only collaborator can see the linked code,\nread the complete prose, reply through ordinary GitHub UI, and retain that\nconversation after BetterPullReview is uninstalled.\u201d\n\nThe accepted GitHub-only course proved code, prose, attribution and ordinary\nreply continuity with BetterPullReview closed and its temporary capsule detached.\nPublic GET found root4116623474 and reply4116804415 under the same parent, file\nand immutable head. The unchanged signed app subsequently displayed that reply\nat Markdown line62. All six journal digests and both remote records stayed\nunchanged; no Publish or Retry occurred. Fresh-host fixtures independently\nreconstruct the canonical anchor and prose without a local database or receipt.\n\nNo installed desktop application was uninstalled and no user profile was erased.\nThe native install/remove matrix remains outside this evidence under RFC-0038.\n\nAccept changes only RFC-0022's required evidence for the last clause of AC-10:\nthe observed GitHub-only course with the app closed/capsule detached, plus the\nexisting fresh-host/no-database reconstruction fixtures, suffice for RFC-0022\ncloseout. The product invariant that uninstall preserves GitHub content remains.\nThe ledger must continue to say actual desktop uninstall is unobserved; this\ndecision supplies no installation, purge, credential-removal or release approval.\n\nReject retains the literal uninstall evidence requirement. Record a requested\nchange in the note. Independent-review disposition is a separate decision.\n\nEvidence: `m4-final-continuity.json`, `m4-r3-get-recovery-success.json`,\n`m3-evidence.json`, and the fifteen-row RFC-0022 verification ledger.\n",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-uninstall-proposal.md",
+        "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-r3-get-recovery-success.json"
+      ],
+      "resources": []
+    },
+    {
+      "id": "BPR-0575-independent-acceptance-scope",
+      "title": "Decide the independent-review requirement",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "criteria": [
+        "Explicitly waive the separate independent-review requirement for the exact verified RFC0022 candidate and substitute owner acceptance; no independent report is claimed."
+      ],
+      "content": "# Proposed owner amendment: independent acceptance for RFC-0022\n\nPending decision. Mandate r3's separately required independent acceptance remains\nopen. No independent reviewer report has been supplied. The selected execution\nrecipe forbids extra reviewer agents; the implementing engineer's self-review\nand passing tests cannot satisfy independence.\n\nAccept explicitly waives the separate independent-review acceptance requirement\nfor RFC-0022 at production source\n`0f3188093c846cbbb43f624dd48c817e0ea4eec4`, and substitutes the owner's acceptance\nof the disclosed engineering evidence below. This is an owner amendment, never\nan independent technical report. It does not waive any other pending criterion,\nthe uninstall decision, a known critical defect, or final documentation gates.\n\nThe implemented path uses one ordinary source-line comment gesture and publication\nlane. Its durable journal admits fallback only after exact unsupported evidence;\nambiguous historical native attempts stay GET-only. The owner-approved classifier2\nis restricted to PR2's exact base/head, actor/profile2 and revalidated source/patch\nfacts. It accepts a bounded message dependency whose interpretation risk remains;\nthis supplies no general GitHub or GHES capability guarantee.\n\nEvidence includes native/file wire and refusal fixtures; 66 deterministic\ninterruption/restart courses; canonical permalink and fresh-host reconstruction;\nthree-scale/three-theme Qt evidence; production public composition; strict tidy\nand format; and configured mutation-isolation gates. D's actual signed app created\none FILE root4116623474, then exposed receipt/read placeholder mismatches. Narrow\nfixes24b7f66aa/0f3188093 retain honest FILE subjects and remove synthetic line1\nbefore semantic reconstruction. Signed GET-only reopening recovered the existing\nreceipt without a second Publish. The human accepted ordinary GitHub continuity;\na final signed read displayed reply4116804415 under that root at line62. All six\njournal digests and both remote records remained unchanged.\n\nThe final focused read/paged/permalink/public-composition checks pass. No native\noff-hunk success, live GHES, Windows qualification, actual installed-app uninstall,\nOS-kill/power-loss matrix, package trust or complete release qualification is\nclaimed. Relevant earlier evidence is reused only where its source is unchanged.\n\nReject retains the independent-review requirement; it needs a separately authorized\nreview course under a reconciled execution plan. Record a requested change in the\nnote. No code is approved for another repository or target by this decision.\n\nEvidence: `m1-evidence.json`, `m2-evidence.json`, `m3-evidence.json`,\n`m4-r3-classifier-evidence.json`, `m4-r3-schema-integration.md`,\n`m4-r3-file-receipt-fix.json`, `m4-r3-file-read-fix.json`,\n`m4-final-continuity.json`, and the fifteen-row RFC-0022 verification ledger.\n",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-independent-proposal.md",
+        "src/adapters/github/src/github_mutation_contract.cpp",
+        "src/adapters/github/src/github_read_contract.cpp",
+        "src/adapters/github/src/github_read_normalizer.cpp",
+        "src/adapters/github/src/github_paged_read.cpp"
+      ],
+      "resources": []
+    }
+  ]
+}

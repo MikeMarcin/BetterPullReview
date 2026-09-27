@@ -1030,3 +1030,21 @@ permanent error.
 Owner hand-back 49 amends the review bar's last width yield: when compact
 positions still cannot fit, their numbers yield into the tooltips. File and
 Changes remain before their arrows, joined by a separate accent rail.
+
+## Source-line comments outside a hunk
+
+Use the same line gesture, draft editor, Publish control and pending announcement
+on changed and unchanged current/right lines of a changed text file. Publication
+selects the canonical returned conversation at its exact semantic source line
+after refresh. The reviewer does not select a representation. A required file
+fallback for line-only suggestion syntax reports typed incompatibility before
+any file POST; it does not silently remove suggestion semantics.
+
+A compatibility conversation normally shows reviewer prose. Its collapsed
+**Support details** explains that GitHub stores a file review comment and the
+visible code link supplies placement. The disclosure is keyboard operable and
+accessible; expanded text can require scrolling in a narrow drawer. Native and
+file subjects use the same focus and selection behavior. Three-scale, three-theme
+rendered evidence is in the [RFC-0022 ledger](../verification/RFC-BPR-0022.md).
+Production fallback remains unavailable until an exact unsupported response
+contract is admitted; the UI does not infer support from host name or version.

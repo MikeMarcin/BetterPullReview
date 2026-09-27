@@ -39,7 +39,8 @@ namespace bpr::application {
 													 viewer,
 													 capability,
 													 pull_request,
-													 epoch };
+													 epoch,
+													 review_comment };
 	enum class diagnostic_paged_operation : std::uint8_t {
 		none,
 		get_viewer_identity,

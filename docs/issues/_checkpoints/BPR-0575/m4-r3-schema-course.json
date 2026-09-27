@@ -1,0 +1,42 @@
+{
+  "schema": "rfc0022.r3-live-attempt.v1",
+  "utc": "2026-09-27T18:58:53.811747+00:00",
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "image_sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+  "approval_id": "c99166904b24cb66c0d11f152e19afc7f19414d92dc1ba16af63ef908eaf712e",
+  "profile": 2,
+  "session": 13334,
+  "application_pid": 81911,
+  "supervisor_pid": 81817,
+  "interaction": "Exact mounted app, profile2, ordinary Use GitHub CLI accepted MikeMarcin; opened PR2; visible exact base/head confirmed. Start review, shared scrollbar and ordinary right-source click selected Markdown62. Comment action disabled: No editable draft is available. No editor/body/Publish.",
+  "observation": "Shared profile2 recovery storage user_version5; immutable capsule initializes/supports schema4. UI also reports unavailable private progress/layout; workbench schema11 is newer than capsule. Other task record preserved.",
+  "result": "Normal UI quit; no-POST course. All five pre-course journals byte-identical.",
+  "normal_exit_log": {
+    "path": "build/rfc0022/m4-r3-handoff-live-execution.log",
+    "sha256": "4841193c02f781599452ceed52910a45af7a9350aa81feaba43c3db50350c874",
+    "tail": [
+      "The following tests passed:",
+      "\tlive_review_mutation_designated_target",
+      "",
+      "100% tests passed out of 1",
+      "",
+      "Label Time Summary:",
+      "bpr_live_mutation    = 121.21 sec*proc (1 test)",
+      "",
+      "Total Test time (real) = 121.23 sec"
+    ]
+  },
+  "mount_removed": true,
+  "approval_consumed_and_parent_removed": true,
+  "journal_schema": 5,
+  "record_count": 5,
+  "record_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "a45573028fe695a43efad239661e27c44a89a6ac1335ceb4af86f6c106b10f66": "fc540ec5a55b7fd2bfe6515930e4372478308d2a3b5ab0dd1c5ed9295db052ef"
+  },
+  "next": "Coordinator authorizes merge current local main for schema compatibility, retaining exact PR2 target/classifier and all existing state. Reverify focused gates, rebuild signed capsule, fresh one-use approval."
+}

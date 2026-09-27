@@ -47,3 +47,18 @@ Each live RFC must expand its rows into the repository verification ledger with 
 | PREVIEW-1 | Anonymous authority never invents identity or sends forbidden reads | Core/provider/host contracts | `core_anonymous_public_read`, `github_anonymous_read_contract`, `application_anonymous_read_host` | Distinct GraphQL/viewer/GHES refusals, typed rate/404 behavior, empty viewer, zero credential effects | 0017 |
 | PREVIEW-2 | Public selected-file diff uses an isolated authority | Native smart HTTP, installed Git, SQLite and composed window | `git_anonymous_public_read`, `sqlite_anonymous_epoch_authority`, `application_anonymous_diff_authority`, `application_anonymous_public_preview_public_path` | Exact content and identities, migration/restart, no authenticated namespace reuse, mode invalidation | 0017 |
 | PREVIEW-3 | Presentation and shipped platform selection remain truthful | Qt scale courses and tests-disabled artifact | `qt_anonymous_public_preview_scale_100`, `_125`, `_200`; `verify_rfc0017_platform_course.py` with explicit platform/expected selection | Explicit unavailable states, no fabricated review authority, macOS enabled and GHES refused, other platforms unavailable, zero activation requests and Release seam absence | 0017 |
+
+## Semantic source-line comments
+
+RFC-BPR-0022's [fifteen-row ledger](RFC-BPR-0022.md) is the owning acceptance
+matrix for semantic admission, native/file wire forms, exact unsupported
+classification, logical recovery, GitHub-truth rehydration, ordinary UX and
+mutation isolation. Automated native/fallback composition and hostile courses
+pass. Exact designated GitHub.com fallback publication, GET-only recovery,
+GitHub-only human acceptance and signed-app reply refresh are observed.
+RFC-0022 is Auto-Verified under r4: app-closed continuity plus fresh-host
+reconstruction satisfy AC-10, and owner acceptance substitutes for separate
+independent review of source `0f3188093`. Actual installed uninstall remains
+unobserved. Production classifier2 retains only its owner-approved exact PR2
+contract; native off-hunk success, native GHES and Windows qualification remain
+unobserved.

@@ -39,8 +39,11 @@ namespace bpr::adapters::github::detail {
 
 		struct read_request_json_options : glz::opts
 		{
-			bool escape_control_characters    = true;
-			bool validate_skipped             = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
+			bool escape_control_characters = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
 			bool validate_trailing_whitespace = true;
 			constexpr read_request_json_options()
 			{
@@ -1530,7 +1533,9 @@ namespace bpr::adapters::github::detail {
 						json_is_null(originalLine)
 						|| valid_line(originalLine))
 					|| (fileSubject
-						&& (!json_is_null(line) || !json_is_null(originalLine)))
+						&& !(json_is_null(line) && json_is_null(originalLine))
+						&& !(json_uint(line) == 1U && json_uint(originalLine) == 1U
+							 && json_text(diffSide) == "RIGHT"))
 					|| (lineSubject
 						&& !json_bool(json_member(thread, "isOutdated"))
 						&& json_is_null(line) && !json_is_null(originalLine))
