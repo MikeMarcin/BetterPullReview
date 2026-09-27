@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0568"
 title: "Implement native-first off-hunk negotiation and fallback"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0566","BPR-0567"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
