@@ -1,0 +1,70 @@
+{
+  "schema": "rfc0022.live-attempt.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "source_revision": "3a517b866f5c8a5fe461167eb044890e50b61a12",
+  "source_sha256": "66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565",
+  "image_sha256": "0ca4ac5e267ee906c9b07b07e1c79ab5ae923d93b9e73d72029ac81acc41f162",
+  "profile": 2,
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "actor": "MikeMarcin",
+  "interaction": "Independent Markdown RIGHT line60 selected; toolbar confirmed Comment on line60; one ordinary Publish. No retry or fallback.",
+  "terminal_ui": "Publication result is unavailable; retry is safe.",
+  "journal": {
+    "record": {
+      "version": 1,
+      "key": "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b",
+      "legacy_key": "0d0f6b7d7c6cc5b473522f145a0a6b4414ed0769fcbc3e1bad5b0fd92759f9a3",
+      "fingerprint": "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b",
+      "parent_state": 2,
+      "authorization_source": 0,
+      "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "scope_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "generation": 0,
+      "observed_at": 0,
+      "expires_at": 0,
+      "native": {
+        "key": "c04684ddea4729cf449aef001b731448a3f983d8cfaf91b88c872e302149d358",
+        "request_fingerprint": "ae905fc7591ca18df625d4cdd770ead6a03f31d8ea675f5b23d941ffdd0c6cc3",
+        "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+        "body": "BetterPullReview Markdown source-line verification at line 60.",
+        "path": "off_hunk_fixture.md",
+        "comparison": "84287b3a695ed39a562f3d827dae553fe372766e5d5566e153b5971296df7cc1",
+        "zero_based_line": 59,
+        "commit_algorithm": 1,
+        "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+        "transmission": 2,
+        "state": 0,
+        "baseline_ids": [],
+        "receipt_present": false
+      },
+      "fallback": null
+    },
+    "record_sha256": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "bytes": 649
+  },
+  "original_text_journal_unchanged": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+  "diagnostic": {
+    "http_status": 422,
+    "transport_source": "http_response",
+    "event": "github.review_comment.response_received",
+    "sequence": 47,
+    "utc_ms": 1790481979103,
+    "detail": "create_review_comment representation=native metadata=valid envelope=Validation Failed errors=1 resource=PullRequestReviewComment field=omitted code=custom message=omitted"
+  },
+  "interpretation": "Complete bounded422 observed, but field and message were outside the closed vocabulary. No exact unsupported contract or noncreation conclusion. Both publications retain native possible-transmission witnesses and no fallback authority.",
+  "get_observations": {
+    "review_comments": 0,
+    "reviews": 0,
+    "meaning": "Settled GET-only observation; absence does not authorize another POST."
+  },
+  "lifecycle": {
+    "result": "PASS211.74s; normal quit, process46946 gone, capsule detached",
+    "command_session": 48581,
+    "log": "build/rfc0022/m4-diagnostic-live-execution.log",
+    "log_sha256": "420f22e14d77dd9082d89ffeb8af922f17abdbb7f22a861d9623b32264a0caaf"
+  },
+  "approval": "Spent one-use subject; must not reuse.",
+  "next": "Both line60 publications remain GET-only. Narrow structured diagnostic distinctions before independent approved TXT line61 course."
+}

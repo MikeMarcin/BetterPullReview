@@ -569,6 +569,22 @@ namespace {
 		rejection.Body            = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"invalid","message":"line must be part of the diff"}]})";
 		const auto event          = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
 		expect(event.Operation == application::diagnostic_operation::review_comment && event.HttpStatus == 422U && event.Summary.text().find("resource=PullRequestReviewComment field=line code=invalid message=line must be part of the diff") != std::string_view::npos, "closed rejection fields survive as observation only");
+		for (const auto message : { "pull_request_review_thread.line must be part of the diff", "`pull_request_review_thread.line` must be part of the diff.", "'pull_request_review_thread.line' is not part of the diff" }) {
+			rejection.Body      = std::string{ R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"pull_request_review_thread.line","code":"custom","message":")" } + message + R"("}],"documentation_url":"https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422"})";
+			const auto observed = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
+			expect(observed.Summary.text().find(std::string{ "message=" } + message) != std::string_view::npos && observed.Summary.text().find("field=pull_request_review_thread.line code=custom") != std::string_view::npos && observed.Summary.text().find("envelope_unknown=0") != std::string_view::npos, "exact recognized spelling survives without granting authority");
+		}
+		for (const auto& [member, expected] : std::array<std::pair<std::string_view, std::string_view>, 5>{ { { "", "absent" }, { R"("field":null,)", "null" }, { R"("field":"",)", "empty" }, { R"("field":42,)", "non_string" }, { R"("field":"unknown",)", "omitted" } } }) {
+			rejection.Body      = std::string{ R"({"message":"Validation Failed","errors":[{)" } + std::string{ member } + R"("code":"custom","private_name":"private_value"}],"private_name":"private_value"})";
+			const auto observed = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
+			expect(observed.Summary.text().find(std::string{ "field=" } + std::string{ expected }) != std::string_view::npos && observed.Summary.text().find("envelope_unknown=1") != std::string_view::npos && observed.Summary.text().find("error_unknown=1") != std::string_view::npos && observed.Summary.text().find("private") == std::string_view::npos, "missing, null, empty, unknown and extra members remain distinct without disclosing content");
+		}
+		for (const auto body : { R"({"errors":null})", R"({"errors":{}})", R"({})", R"({"errors":[{},{}]})", R"({"errors":[],"errors":[]})" }) {
+			rejection.Body      = body;
+			const auto observed = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });
+			expect(observed.Summary.State == application::diagnostic_summary_state::sanitized && observed.Summary.text().find("errors=1") == std::string_view::npos, "invalid or absent error envelope cannot masquerade as one exact error");
+		}
+
 		for (const auto field : { "message", "resource", "field", "code" }) {
 			rejection.Body  = std::string{ R"({"message":"Validation Failed","errors":[{")" } + field + R"(":"private_repository/secret_source ghp_SYNTHETIC_CANARY https://private.test/ 127.0.0.1"}]})";
 			const auto safe = review_comment_diagnostic(wire, github_mutation_wire_success{ rejection });

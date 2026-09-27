@@ -34,8 +34,12 @@ mean the RFC has met canonical closeout order.
 
 The profile log records the create-comment operation, native/file representation,
 HTTP status when received, and typed transport failure. A complete bounded422
-response records only recognized resource/field/code/message words. Unknown
-service text, request prose, paths, URLs, tokens and IP addresses are omitted.
+response records only recognized resource/field/code/message words, fixed public
+GitHub documentation metadata, and counts of unknown members. Missing, null,
+empty, non-string and unrecognized values remain distinct. Recognized message
+variants retain exact spelling; they are never normalized into an authority
+claim. Unknown service text, request prose, paths, private URLs, tokens and IP
+addresses are omitted.
 These diagnostic observations do not authorize fallback. The durable journal
 still decides whether the attempt may only reconcile through GET; an empty GET
 result does not prove non-creation. A log capture can also be unavailable or

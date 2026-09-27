@@ -19,6 +19,7 @@
 #include <concepts>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
@@ -1203,6 +1204,88 @@ namespace bpr::adapters::github::detail {
 			std::size_t      Values   = 0U;
 		};
 
+		using diagnostic_json_object = std::map<std::string, glz::raw_json_view, std::less<>>;
+
+		// Only constructed public vocabulary leaves this parser. Missing, null,
+		// empty, non-string and unknown values remain distinct observations.
+		[[nodiscard]] auto diagnostic_text(const diagnostic_json_object& aObject, const std::string_view aKey, std::initializer_list<std::string_view> aAllowed) -> std::string
+		{
+			const auto found = aObject.find(aKey);
+			if (found == aObject.end()) {
+				return "absent";
+			}
+			if (found->second.str == "null") {
+				return "null";
+			}
+			auto value = std::string{ };
+			if (glz::read<review_json_options{ }>(value, found->second.str)) {
+				return "non_string";
+			}
+			if (value.empty()) {
+				return "empty";
+			}
+			for (const auto word : aAllowed) {
+				if (value == word) {
+					return std::string{ word };
+				}
+			}
+			if (aKey == "message") {
+				for (const auto subject : { "line", "Line", "pull_request_review_thread.line" }) {
+					for (const auto quote : { "", "'", "\"", "`" }) {
+						for (const auto predicate : { " must be part of the diff", " must be a part of the diff", " is not part of the diff", " is not a part of the diff" }) {
+							for (const auto period : { "", "." }) {
+								auto recognized = std::string{ quote } + subject + quote + predicate + period;
+								if (value == recognized) {
+									return recognized;
+								}
+							}
+						}
+					}
+				}
+			}
+			return "omitted";
+		}
+
+		[[nodiscard]] auto unknown_diagnostic_members(const diagnostic_json_object& aObject, std::initializer_list<std::string_view> aKnown) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(aObject, [&](const auto& aMember) { return std::ranges::find(aKnown, aMember.first) == aKnown.end(); }));
+		}
+
+		[[nodiscard]] auto rejection_diagnostic(const std::string& aBody) -> std::string
+		{
+			auto envelope = diagnostic_json_object{ };
+			if (aBody.size() > 4096U || !json_preflight{ aBody }.run() || glz::read<review_json_options{ }>(envelope, aBody)) {
+				return " rejection=omitted_invalid_or_limit";
+			}
+			auto result = std::string{ " envelope=" } + diagnostic_text(envelope, "message", { "Validation Failed" });
+			result += " envelope_unknown=" + std::to_string(unknown_diagnostic_members(envelope, { "message", "errors", "documentation_url", "status" }));
+			result += " documentation_url=" + diagnostic_text(envelope, "documentation_url", { "https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request", "https://docs.github.com/en/rest/pulls/comments#create-a-review-comment-for-a-pull-request" });
+			result += " status=" + diagnostic_text(envelope, "status", { "422" });
+			const auto found = envelope.find("errors");
+			if (found == envelope.end()) {
+				return result + " errors=absent";
+			}
+			if (found->second.str == "null") {
+				return result + " errors=null";
+			}
+			auto errors = std::vector<diagnostic_json_object>{ };
+			if (glz::read<review_json_options{ }>(errors, found->second.str)) {
+				return result + " errors=invalid_shape";
+			}
+			if (errors.size() > 8U) {
+				return result + " errors=omitted_limit";
+			}
+			result += " errors=" + std::to_string(errors.size());
+			for (const auto& error : errors) {
+				result += " error_unknown=" + std::to_string(unknown_diagnostic_members(error, { "resource", "field", "code", "message" }));
+				result += " resource=" + diagnostic_text(error, "resource", { "PullRequestReviewComment", "PullRequestReviewThread", "PullRequestReview" });
+				result += " field=" + diagnostic_text(error, "field", { "line", "position", "path", "commit_id", "side", "subject_type", "pull_request_review_thread", "pull_request_review_thread.line", "pull_request_review_thread.start_line" });
+				result += " code=" + diagnostic_text(error, "code", { "invalid", "missing", "missing_field", "custom", "unprocessable", "already_exists" });
+				result += " message=" + diagnostic_text(error, "message", { });
+			}
+			return result;
+		}
+
 		template <typename T>
 		[[nodiscard]] auto document(const review_mutation_wire_response& aResponse) -> std::optional<T>
 		{
@@ -2254,19 +2337,6 @@ namespace bpr::adapters::github::detail {
 	{
 		auto event = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::failed };
 		try {
-			// Closed words are output literals. An unknown field, reflected credential,
-			// repository path, body, URL or other service prose is never copied.
-			const auto fixed = [](std::string_view aValue, std::initializer_list<std::string_view> aAllowed) -> std::string_view {
-				if (aValue.empty()) {
-					return "absent";
-				}
-				for (const auto word : aAllowed) {
-					if (aValue == word) {
-						return word;
-					}
-				}
-				return "omitted";
-			};
 			const auto* semantic = std::get_if<application::review_mutation_request>(&aRequest.Semantic);
 			auto        detail   = std::string{ "create_review_comment representation=" };
 			detail += semantic && semantic->Representation == core::review_publication_representation::file_comment_with_permalink ? "file" : "native";
@@ -2277,25 +2347,7 @@ namespace bpr::adapters::github::detail {
 				event.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
 				detail += response_headers_valid(response) ? " metadata=valid" : " metadata=invalid";
 				if (response.Status == 422) {
-					auto parsed = unsupported_response_json{ };
-					if (response.Body.size() > 4096U || !json_preflight{ response.Body }.run()
-						|| glz::read<review_json_options{ }>(parsed, response.Body) || parsed.Errors.size() > 8U) {
-						detail += " rejection=omitted_invalid_or_limit";
-					} else {
-						detail += " envelope=";
-						detail += fixed(parsed.Message, { "Validation Failed" });
-						detail += " errors=" + std::to_string(parsed.Errors.size());
-						for (const auto& error : parsed.Errors) {
-							detail += " resource=";
-							detail += fixed(error.Resource, { "PullRequestReviewComment", "PullRequestReviewThread", "PullRequestReview" });
-							detail += " field=";
-							detail += fixed(error.Field, { "line", "position", "path", "commit_id", "side", "subject_type" });
-							detail += " code=";
-							detail += fixed(error.Code, { "invalid", "missing", "missing_field", "custom", "unprocessable", "already_exists" });
-							detail += " message=";
-							detail += fixed(error.Message, { "line must be part of the diff", "Line must be part of the diff", "line must be part of the diff.", "Line must be part of the diff.", "pull_request_review_thread.line must be part of the diff", "pull_request_review_thread.line must be part of the diff." });
-						}
-					}
+					detail += rejection_diagnostic(response.Body);
 				}
 			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&aCompletion)) {
 				event.HttpStatus             = error->HttpStatus;
