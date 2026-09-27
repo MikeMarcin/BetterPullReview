@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1055"
 title: "Add precise open, import, show and capability commands"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1054"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-04","milestone":"headless-manual","acceptance":["AC44-05"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
