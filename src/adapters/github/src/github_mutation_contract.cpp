@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cctype>
 #include <charconv>
+#include <chrono>
 #include <concepts>
 #include <iterator>
 #include <limits>
@@ -717,8 +718,12 @@ namespace bpr::adapters::github::detail {
 
 		struct review_json_options : glz::opts
 		{
-			bool escape_control_characters    = true;
-			bool validate_skipped             = true;
+			// Glaze discovers these overrides by their exact library-defined names.
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool escape_control_characters = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
 			bool validate_trailing_whitespace = true;
 
 			constexpr review_json_options()
@@ -1977,7 +1982,7 @@ namespace bpr::adapters::github::detail {
 			|| !bounded_text(aContract.Code, 128U) || !bounded_text(aContract.Message, 512U)) {
 			return false;
 		}
-		if (!json_preflight{ aResponse.Body }.run() || aResponse.Body.size() > 4096U) {
+		if (aResponse.Body.size() > 4096U || !json_preflight{ aResponse.Body }.run()) {
 			return false;
 		}
 		auto           parsed  = unsupported_response_json{ };
@@ -2232,11 +2237,13 @@ namespace bpr::adapters::github::detail {
 		live_review_mutation_configuration     aConfiguration,
 		application::review_mutation_transport aLease,
 		std::unique_ptr<application::review_mutation_recovery_port>
-			aRecovery) noexcept
+													 aRecovery,
+		std::optional<off_hunk_unsupported_contract> aUnsupportedContract) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
+		, UnsupportedContract{ std::move(aUnsupportedContract) }
 	{
 	}
 
@@ -2445,6 +2452,340 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 	}
+	namespace {
+		using publication_state = core::review_publication_state;
+		using representation    = core::review_publication_representation;
+		[[nodiscard]] auto publication_failure(const application::review_mutation_failure aFailure = application::review_mutation_failure::unavailable) -> application::review_mutation_submission
+		{
+			return { .Result = std::unexpected(aFailure) };
+		}
+		[[nodiscard]] auto publication_now() -> std::uint64_t
+		{
+			return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+		}
+		[[nodiscard]] auto text_digest(const std::string_view aText) -> std::array<std::uint8_t, 32>
+		{
+			return core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
+		}
+		[[nodiscard]] auto digest_hex(const std::array<std::uint8_t, 32>& aDigest) -> std::string
+		{
+			constexpr std::string_view digits = "0123456789abcdef";
+			std::string                result;
+			result.reserve(64U);
+			for (const auto byte : aDigest) {
+				result.push_back(digits[byte >> 4U]);
+				result.push_back(digits[byte & 15U]);
+			}
+			return result;
+		}
+		[[nodiscard]] auto capability_key(const live_review_mutation_configuration& aConfig, const application::review_mutation_request& aRequest) -> application::review_publication_capability_key
+		{
+			const auto& authority = aConfig.CredentialContext.Authority;
+			auto        anchor    = std::string{ "bpr-capability-anchor-v1" };
+			append_fingerprint_text(anchor, digest_hex(canonical_authority_fingerprint(*aRequest.LiveBinding)));
+			append_fingerprint_text(anchor, aRequest.LiveBinding->Anchor.Path);
+			append_fingerprint_integer(anchor, aRequest.LiveBinding->Anchor.Semantic.Line);
+			append_fingerprint_oid(anchor, aRequest.LiveBinding->Anchor.Commit);
+			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
+		}
+		[[nodiscard]] auto publication_fingerprint(const application::review_mutation_request& aRequest, const live_review_mutation_configuration& aConfig) -> std::array<std::uint8_t, 32>
+		{
+			auto material = std::string{ "bpr-logical-publication-v1" };
+			append_fingerprint_text(material, aRequest.IdempotencyKey);
+			append_fingerprint_text(material, digest_hex(canonical_authority_fingerprint(*aRequest.LiveBinding)));
+			append_fingerprint_text(material, digest_hex(canonical_write_fingerprint(*compile_review_comment_request(aRequest, aConfig.Target.ServerContract))));
+			append_fingerprint_integer(material, aConfig.CredentialContext.Authority.Profile.value());
+			append_fingerprint_integer(material, aConfig.CredentialContext.Authority.ProfileRevision.value());
+			append_fingerprint_integer(material, aConfig.CredentialContext.Authority.BprProfile.value());
+			return text_digest(material);
+		}
+		[[nodiscard]] auto capability_scope_digest(const application::review_mutation_request& aRequest, const live_review_mutation_configuration& aConfig) -> std::array<std::uint8_t, 32>
+		{
+			auto material = std::string{ "bpr-off-hunk-evidence-v1" };
+			append_fingerprint_text(material, digest_hex(canonical_authority_fingerprint(*aRequest.LiveBinding)));
+			append_fingerprint_integer(material, aConfig.CredentialContext.Authority.Profile.value());
+			append_fingerprint_integer(material, aConfig.CredentialContext.Authority.ProfileRevision.value());
+			append_fingerprint_integer(material, aConfig.CredentialContext.IdentityGeneration.value());
+			append_fingerprint_integer(material, 20221128U);
+			append_fingerprint_integer(material, off_hunk_classifier_revision);
+			append_fingerprint_text(material, digest_hex(capability_key(aConfig, aRequest).AnchorDigest));
+			return text_digest(material);
+		}
+		[[nodiscard]] auto prepared_child(const application::review_mutation_request& aRequest, const std::string& aParent, const review_mutation_server_reconciliation& aBaseline) -> application::review_mutation_recovery_record
+		{
+			const auto wire = compile_review_comment_request(aRequest, aRequest.LiveBinding->Target.ServerContract);
+			return { .IdempotencyKey          = application::review_publication_child_key(aParent, aRequest.Representation),
+					 .RequestFingerprint      = canonical_write_fingerprint(*wire),
+					 .AuthorityFingerprint    = canonical_authority_fingerprint(*aRequest.LiveBinding),
+					 .Body                    = *publication_body(aRequest),
+					 .Anchor                  = aRequest.LiveBinding->Anchor,
+					 .BaselineExactCommentIds = exact_comment_ids(aBaseline),
+					 .Transmission            = application::review_mutation_recovery_transmission::prepared };
+		}
+		[[nodiscard]] auto file_child_state(const publication_state aState) -> bool
+		{
+			return aState == publication_state::fallback_prepared || aState == publication_state::fallback_possibly_transmitted || aState == publication_state::succeeded_fallback;
+		}
+		[[nodiscard]] auto selected_request(application::review_mutation_request aRequest, const application::review_publication_recovery_record& aRecord) -> application::review_mutation_request
+		{
+			aRequest.Representation = file_child_state(aRecord.State) ? representation::file_comment_with_permalink : representation::native_line;
+			return aRequest;
+		}
+		[[nodiscard]] auto child_matches(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord) -> bool
+		{
+			const auto  wire  = compile_review_comment_request(aRequest, aRequest.LiveBinding->Target.ServerContract);
+			const auto& child = file_child_state(aRecord.State) ? aRecord.Fallback : aRecord.Native;
+			return wire && child && child->RequestFingerprint == canonical_write_fingerprint(*wire)
+				&& child->AuthorityFingerprint == canonical_authority_fingerprint(*aRequest.LiveBinding)
+				&& child->Body == publication_body(aRequest) && child->Anchor == aRequest.LiveBinding->Anchor;
+		}
+		[[nodiscard]] auto resolved_publication(application::review_publication_recovery_record aRecord, application::review_mutation_receipt aReceipt) -> application::review_publication_recovery_record
+		{
+			const bool file         = file_child_state(aRecord.State);
+			auto&      child        = file ? aRecord.Fallback : aRecord.Native;
+			aReceipt.Representation = file ? representation::file_comment_with_permalink : representation::native_line;
+			child->State            = application::review_mutation_recovery_state::succeeded;
+			child->Receipt          = std::move(aReceipt);
+			aRecord.State           = file ? publication_state::succeeded_fallback : publication_state::succeeded_native;
+			return aRecord;
+		}
+	}
+
+	auto review_mutation_session::recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, const std::stop_token aStop) -> application::review_mutation_submission
+	{
+		const auto request = selected_request(aRequest, aRecord);
+		if (!child_matches(request, aRecord)) {
+			return publication_failure();
+		}
+		const auto& child = file_child_state(aRecord.State) ? aRecord.Fallback : aRecord.Native;
+		if (child->Receipt) {
+			auto receipt      = *child->Receipt;
+			receipt.Duplicate = true;
+			return { .Result = receipt };
+		}
+		if (child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+			return publication_failure();
+		}
+		if (const auto exact = observe_exact(aStop); !exact) {
+			return publication_failure(exact.error());
+		}
+		const auto observed = reconcile(request, aStop);
+		if (!observed) {
+			return publication_failure(observed.error());
+		}
+		auto result  = application::review_mutation_submission{ .Reconciliation = observed->Projection };
+		auto receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
+		if (!receipt) {
+			return result;
+		}
+		receipt->Duplicate  = true;
+		const auto resolved = resolved_publication(aRecord, *receipt);
+		if (Recovery->advance_publication(aRecord, resolved)) {
+			result.Result = *(file_child_state(resolved.State) ? resolved.Fallback : resolved.Native)->Receipt;
+		}
+		return result;
+	}
+
+	auto review_mutation_session::execute_publication_child(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, const std::stop_token aStop) -> application::review_mutation_submission
+	{
+		const auto request = selected_request(aRequest, aRecord);
+		if (!child_matches(request, aRecord)) {
+			return publication_failure();
+		}
+		if (const auto exact = observe_exact(aStop); !exact) {
+			return publication_failure(exact.error());
+		}
+		if (aStop.stop_requested()) {
+			return publication_failure(application::review_mutation_failure::cancelled);
+		}
+		const auto wire      = compile_review_comment_request(request, Configuration.Target.ServerContract);
+		auto       result    = application::review_mutation_submission{ .MutationAttempted = true };
+		auto       witnessed = std::make_shared<std::atomic_bool>(false);
+		const auto response  = perform(*wire, aStop, [this, aRecord, witnessed] {
+			if (witnessed->exchange(true, std::memory_order_acq_rel)) {
+				return false;
+			}
+			auto       next                                    = aRecord;
+			const bool file                                    = file_child_state(next.State);
+			(file ? next.Fallback : next.Native)->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+			next.State                                         = file ? publication_state::fallback_possibly_transmitted : publication_state::native_possibly_transmitted;
+			return Recovery->advance_publication(aRecord, next).has_value();
+		});
+		const auto loaded    = Recovery->load_publication(aRecord.Key);
+		if (!loaded || !*loaded) {
+			return result;
+		}
+		const auto& current = **loaded;
+		const bool  file    = file_child_state(current.State);
+		const auto& child   = file ? current.Fallback : current.Native;
+		if (!child || child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+			return result;
+		}
+		if (!file && response && UnsupportedContract && aRequest.Source->Placement != core::review_placement::legacy_line
+			&& definitive_off_hunk_unsupported(*response, *wire, *UnsupportedContract)) {
+			auto rejected          = current;
+			rejected.State         = publication_state::native_definitively_unsupported;
+			rejected.Authorization = { .Source         = application::review_fallback_authorization_source::native_rejection,
+									   .ContractDigest = text_digest(response->Body),
+									   .ScopeDigest    = capability_scope_digest(aRequest, Configuration) };
+			if (!Recovery->advance_publication(current, rejected)) {
+				return result;
+			}
+			const auto now = publication_now();
+			static_cast<void>(PublicationCapabilities.record(capability_key(Configuration, aRequest), { .State = core::off_hunk_creation_capability::unsupported, .Source = application::review_publication_evidence_source::observed_definitive_unsupported, .ContractDigest = rejected.Authorization.ContractDigest, .ObservedAt = now, .ExpiresAt = now + application::review_publication_capability_cache::maximum_lifetime_seconds }, now));
+			return result;
+		}
+		std::optional<application::review_mutation_receipt> receipt;
+		if (response) {
+			const auto parsed = parse_review_comment_response(*response, request);
+			if (parsed) {
+				receipt = parsed->Receipt;
+			} else {
+				result.Result = std::unexpected(map_contract_failure(parsed.error()));
+			}
+		} else {
+			result.Result = std::unexpected(response.error());
+		}
+		// A witnessed write reconciles once even when the gesture was cancelled.
+		const auto observed = reconcile(request, { });
+		if (observed) {
+			result.Reconciliation = observed->Projection;
+		}
+		if (receipt && std::ranges::binary_search(*child->BaselineExactCommentIds, receipt->ServerCommentId)) {
+			receipt.reset();
+		}
+		if (!receipt && observed) {
+			receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
+		}
+		if (!receipt) {
+			return result;
+		}
+		const auto resolved = resolved_publication(current, *receipt);
+		if (!Recovery->advance_publication(current, resolved)) {
+			return result;
+		}
+		result.Result = *(file ? resolved.Fallback : resolved.Native)->Receipt;
+		if (!file && aRequest.Source->Placement == core::review_placement::off_hunk) {
+			const auto now = publication_now();
+			static_cast<void>(PublicationCapabilities.record(capability_key(Configuration, aRequest), { .State = core::off_hunk_creation_capability::supported, .Source = application::review_publication_evidence_source::observed_native_success, .ContractDigest = child->RequestFingerprint, .ObservedAt = now, .ExpiresAt = now + application::review_publication_capability_cache::maximum_lifetime_seconds }, now));
+		}
+		return result;
+	}
+
+	auto review_mutation_session::submit_publication(const application::review_mutation_request& aRequest, const std::stop_token aStop) -> application::review_mutation_submission
+	{
+		const auto& source    = *aRequest.Source;
+		const auto& authority = Configuration.CredentialContext.Authority;
+		if (!source.Endpoint || source.Placement > core::review_placement::off_hunk
+			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
+			|| source.Comparison.Authority.Account != authority.Account || source.Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
+			|| !compile_review_permalink_body({ .Target = Configuration.Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, aRequest.Proposal.Anchor, "Source validation")) {
+			return publication_failure(application::review_mutation_failure::undesignated_target);
+		}
+		const auto fingerprint = publication_fingerprint(aRequest, Configuration);
+		const auto key         = digest_hex(fingerprint);
+		auto       loaded      = Recovery->load_publication(key);
+		if (!loaded) {
+			return publication_failure();
+		}
+		auto current = *loaded;
+		if (current && (current->Fingerprint != fingerprint || current->LegacyKey != aRequest.IdempotencyKey)) {
+			return publication_failure();
+		}
+		auto result       = publication_failure();
+		bool ownsPrepared = false;
+		// At most one native child and one fallback child. Every resume reloads durable authority.
+		for (unsigned step = 0U; step < 4U; ++step) {
+			if (aStop.stop_requested()) {
+				result.Result = std::unexpected(application::review_mutation_failure::cancelled);
+				return result;
+			}
+			const auto evidence    = PublicationCapabilities.lookup(capability_key(Configuration, aRequest), publication_now());
+			const auto observation = core::review_publication_observation{ .Placement         = source.Placement,
+																		   .Capability        = evidence ? evidence->State : core::off_hunk_creation_capability::unknown,
+																		   .Body              = core::classify_review_body(aRequest.Proposal.Body),
+																		   .State             = current ? current->State : publication_state::initial,
+																		   .Eligible          = true,
+																		   .CapabilityCurrent = evidence.has_value() };
+			const auto plan        = core::plan_review_publication(observation);
+			using action           = core::review_publication_action;
+			if (plan.Action == action::refuse) {
+				result.Result = std::unexpected(plan.Diagnostic == core::review_publication_diagnostic::incompatible_body ? application::review_mutation_failure::incompatible_body : application::review_mutation_failure::unsupported);
+				return result;
+			}
+			if (plan.Action == action::already_succeeded || plan.Action == action::reconcile_native || plan.Action == action::reconcile_fallback) {
+				return recover_publication(aRequest, *current, aStop);
+			}
+			if (!current) {
+				if (const auto exact = observe_exact(aStop); !exact) {
+					return publication_failure(exact.error());
+				}
+				auto next = application::review_publication_recovery_record{ .Key = key, .LegacyKey = aRequest.IdempotencyKey, .Fingerprint = fingerprint };
+				if (plan.Action == action::admit_unsupported_evidence) {
+					next.State         = publication_state::unsupported_evidence_admitted;
+					next.Authorization = { .Source = application::review_fallback_authorization_source::scoped_evidence, .ContractDigest = evidence->ContractDigest, .ScopeDigest = capability_scope_digest(aRequest, Configuration), .Generation = capability_key(Configuration, aRequest).FreshnessGeneration, .ObservedAt = evidence->ObservedAt, .ExpiresAt = evidence->ExpiresAt };
+				} else {
+					const auto baseline = reconcile(aRequest, aStop);
+					if (!baseline) {
+						return publication_failure(baseline.error());
+					}
+					next.State  = publication_state::native_prepared;
+					next.Native = prepared_child(aRequest, key, *baseline);
+				}
+				const auto saved = Recovery->advance_publication(std::nullopt, next);
+				if (!saved) {
+					return publication_failure();
+				}
+				current      = *saved;
+				ownsPrepared = next.State == publication_state::native_prepared;
+				if (!ownsPrepared) {
+					continue;
+				}
+			} else if (plan.Action == action::fallback_attempt && (current->State == publication_state::native_definitively_unsupported || current->State == publication_state::unsupported_evidence_admitted)) {
+				if (const auto exact = observe_exact(aStop); !exact) {
+					result.Result = std::unexpected(exact.error());
+					return result;
+				}
+				auto request           = aRequest;
+				request.Representation = representation::file_comment_with_permalink;
+				if (!compile_review_comment_request(request, Configuration.Target.ServerContract)) {
+					result.Result = std::unexpected(application::review_mutation_failure::incompatible_body);
+					return result;
+				}
+				const auto baseline = reconcile(request, aStop);
+				if (!baseline) {
+					result.Result = std::unexpected(baseline.error());
+					return result;
+				}
+				auto next        = *current;
+				next.State       = publication_state::fallback_prepared;
+				next.Fallback    = prepared_child(request, key, *baseline);
+				const auto saved = Recovery->advance_publication(current, next);
+				if (!saved) {
+					return result;
+				}
+				current      = *saved;
+				ownsPrepared = true;
+			}
+			if (!ownsPrepared) {
+				return result;
+			}
+			const auto attempted       = execute_publication_child(aRequest, *current, aStop);
+			const bool previousAttempt = result.MutationAttempted;
+			result                     = attempted;
+			result.MutationAttempted   = result.MutationAttempted || previousAttempt;
+			loaded                     = Recovery->load_publication(key);
+			if (!loaded || !*loaded) {
+				return result;
+			}
+			current      = **loaded;
+			ownsPrepared = false;
+			if (current->State != publication_state::native_definitively_unsupported) {
+				return result;
+			}
+		}
+		return result;
+	}
 
 	auto review_mutation_session::submit_and_reconcile(
 		const application::review_mutation_request& aRequest,
@@ -2466,6 +2807,7 @@ namespace bpr::adapters::github::detail {
 			}
 			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
 				|| !application::valid(*aRequest.LiveBinding)
+				|| aRequest.Representation != core::review_publication_representation::native_line
 				|| aRequest.LiveBinding->Target != Configuration.Target
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return failure(application::review_mutation_failure::undesignated_target);
@@ -2539,6 +2881,9 @@ namespace bpr::adapters::github::detail {
 			}
 			if (loaded->has_value()) {
 				return finishKnown(**loaded);
+			}
+			if (aRequest.Source && !aRequest.Proposal.ReplyToThread) {
+				return submit_publication(aRequest, aStop);
 			}
 
 			// [[BPR-0879]]. A reply names a thread, and a thread identity says

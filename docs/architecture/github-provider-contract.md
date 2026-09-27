@@ -918,3 +918,11 @@ Expiry and a backward monotonic observation yield unknown. Only verified native
 success, definitive rejection, or an explicitly admitted recorded contract can
 supply an evidence entry. Session ownership and production wiring are completed
 with BPR-0568; the cache itself is not mutation or recovery authority.
+
+The native HTTPS root-comment exchange now retains a complete bounded HTTP 422
+as response data for the exact classifier. This does not mark it a successful
+publication. TLS, response limits, framing/completeness, rate metadata,
+cancellation and redirect checks still apply; incomplete or network-failed
+responses remain failures. Other review operations retain their existing status
+contracts. The serialized session tests configure an explicitly synthetic
+unsupported tuple; the production provider constructor configures none.

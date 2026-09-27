@@ -10,6 +10,7 @@ namespace bpr::application {
 				&& valid(aKey.Actor) && aKey.RepositoryDatabaseId != 0U && !aKey.RepositoryNodeId.empty()
 				&& aKey.RepositoryNodeId.size() <= 256U
 				&& std::ranges::all_of(aKey.RepositoryNodeId, [](const unsigned char aByte) { return aByte >= 0x21U && aByte <= 0x7eU; })
+				&& std::ranges::any_of(aKey.AnchorDigest, [](const auto aByte) { return aByte != 0U; })
 				&& aKey.Operation == review_publication_operation::create_off_hunk_line
 				&& aKey.ApiRevision == 20221128U && aKey.ClassifierRevision == 1U && aKey.FreshnessGeneration != 0U
 				&& (aKey.ServerContract == github_server_contract::github_com_2022_11_28 || aKey.ServerContract == github_server_contract::ghes_3_18_2022_11_28);

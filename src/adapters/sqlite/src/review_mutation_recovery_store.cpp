@@ -721,7 +721,7 @@ namespace bpr::adapters::sqlite {
 				if (!decoded || decoded->Key != aKey || decoded->LegacyKey != *legacy || ::sqlite3_step(query->Value) != SQLITE_DONE) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				return std::optional{ std::move(*decoded) };
+				return decoded;
 			}
 
 			[[nodiscard]] auto load_locked(const std::string& aIdempotencyKey)
@@ -1150,7 +1150,7 @@ namespace bpr::adapters::sqlite {
 				std::scoped_lock lock{ Mutex };
 				return transaction<std::vector<record>>([&]() -> std::expected<std::vector<record>, failure> {
 					auto query = detail::prepare(Database, "SELECT idempotency_key FROM submission_attempt WHERE scope_id = ?1 AND state = 0 ORDER BY idempotency_key LIMIT ?2");
-					if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || ::sqlite3_bind_int64(query->Value, 2, static_cast<std::int64_t>(application::maximum_review_mutation_recovery_records + 1U)) != SQLITE_OK) {
+					if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || ::sqlite3_bind_int64(query->Value, 2, static_cast<std::int64_t>(application::maximum_review_mutation_recovery_records) + 1) != SQLITE_OK) {
 						return std::unexpected(failure::unavailable);
 					}
 					std::vector<record> records;

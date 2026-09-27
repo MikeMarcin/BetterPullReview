@@ -20,11 +20,13 @@ namespace bpr::application {
 		review_mutation_acting_identity Actor;
 		std::uint64_t                   RepositoryDatabaseId = 0U;
 		std::string                     RepositoryNodeId;
-		review_publication_operation    Operation                                                   = review_publication_operation::create_off_hunk_line;
-		std::uint32_t                   ApiRevision                                                 = 20221128U;
-		std::uint32_t                   ClassifierRevision                                          = 1U;
-		std::uint64_t                   FreshnessGeneration                                         = 0U;
-		auto                            operator<=>(const review_publication_capability_key&) const = default;
+		review_publication_operation    Operation           = review_publication_operation::create_off_hunk_line;
+		std::uint32_t                   ApiRevision         = 20221128U;
+		std::uint32_t                   ClassifierRevision  = 1U;
+		std::uint64_t                   FreshnessGeneration = 0U;
+		// Observations prove this exact commit/path/line, never repository-wide support.
+		std::array<std::uint8_t, 32U> AnchorDigest{ };
+		auto                          operator<=>(const review_publication_capability_key&) const = default;
 	};
 	enum class review_publication_evidence_source : std::uint8_t {
 		recorded_contract,

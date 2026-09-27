@@ -520,6 +520,7 @@ namespace bpr::adapters::github::detail {
 				.Query                   = { },
 				.Headers                 = aRequest.Wire.Headers,
 				.Body                    = aRequest.Wire.Body,
+				.AdmittedContractStatus  = aRequest.Wire.Operation == review_mutation_operation::create_review_comment ? 422 : 0,
 				.SuccessfulStatus        = aExchange.SuccessfulStatus,
 			};
 		}
@@ -3782,7 +3783,8 @@ namespace bpr::adapters::github::detail {
 			}
 			if (error != QNetworkReply::NoError
 				&& !(admittedStatus
-					 && error == QNetworkReply::ProtocolInvalidOperationError)) {
+					 && (error == QNetworkReply::ProtocolInvalidOperationError
+						 || (state.Status == 422 && error == QNetworkReply::UnknownContentError)))) {
 				auto result                   = provider_error(network_failure(error));
 				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
 				result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;

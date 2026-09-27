@@ -13,7 +13,7 @@ namespace {
 	}
 	[[nodiscard]] auto key() -> application::review_publication_capability_key
 	{
-		return { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = core::git_host_id{ 2 }, .Hostname = application::github_canonical_hostname{ "github.com" }, .Actor = { .Account = core::github_account_id{ 3 }, .DatabaseId = 4, .NodeId = "U_4", .Login = "fixture" }, .RepositoryDatabaseId = 5, .RepositoryNodeId = "R_5", .FreshnessGeneration = 1 };
+		return { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = core::git_host_id{ 2 }, .Hostname = application::github_canonical_hostname{ "github.com" }, .Actor = { .Account = core::github_account_id{ 3 }, .DatabaseId = 4, .NodeId = "U_4", .Login = "fixture" }, .RepositoryDatabaseId = 5, .RepositoryNodeId = "R_5", .FreshnessGeneration = 1, .AnchorDigest = { 1 } };
 	}
 }
 int main()
@@ -26,7 +26,7 @@ int main()
 	expect(!cache.lookup(key(), 100), "empty is unknown");
 	expect(cache.record(key(), evidence, 100) && cache.lookup(key(), 399)->State == state::unsupported, "exact current evidence retained");
 	expect(!cache.lookup(key(), 400) && !cache.lookup(key(), 99), "expired and backward clock become unknown");
-	for (int field = 0; field < 12; ++field) {
+	for (int field = 0; field < 13; ++field) {
 		auto changed = key();
 		switch (field) {
 		case 0:  changed.Profile = core::host_profile_id{ 2 }; break;
@@ -41,6 +41,7 @@ int main()
 		case 9:  changed.ApiRevision = 20221129; break;
 		case 10: changed.ClassifierRevision = 2; break;
 		case 11: changed.FreshnessGeneration = 2; break;
+		case 12: changed.AnchorDigest[0] = 2; break;
 		}
 		expect(!cache.lookup(changed, 100), "changed authority/operation/revision never borrows evidence");
 	}

@@ -32,6 +32,7 @@ namespace bpr::application {
 		target_unavailable,
 		/// The server response could not be decoded under the operation contract.
 		malformed_response,
+		incompatible_body,
 	};
 
 	/// \brief Returns the stable name for the supplied value.

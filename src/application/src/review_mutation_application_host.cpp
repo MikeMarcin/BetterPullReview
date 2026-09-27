@@ -305,18 +305,20 @@ namespace bpr::application {
 	{
 		struct request_record final
 		{
-			review_mutation_request_context     Context;
-			review_mutation_publication_request Request;
-			review_mutation_anchor_binding      Anchor;
-			std::stop_source                    Stop;
-			bool                                Superseded = false;
-			bool                                Refusal    = false;
+			review_mutation_request_context               Context;
+			review_mutation_publication_request           Request;
+			review_mutation_anchor_binding                Anchor;
+			std::optional<review_mutation_source_binding> Source;
+			std::stop_source                              Stop;
+			bool                                          Superseded = false;
+			bool                                          Refusal    = false;
 		};
 
 		struct validated_publication final
 		{
-			review_mutation_anchor_binding  Anchor;
-			review_mutation_execution_scope Scope;
+			review_mutation_anchor_binding                Anchor;
+			review_mutation_execution_scope               Scope;
+			std::optional<review_mutation_source_binding> Source;
 		};
 
 		// [[BPR-0657]]. One thread resolution in flight: its own record and
@@ -518,6 +520,7 @@ namespace bpr::application {
 			return validated_publication{
 				.Anchor = std::move(anchor),
 				.Scope  = scope,
+				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = *source->Material.RightLines, .Placement = source->Placement },
 			};
 		}
 
@@ -595,7 +598,7 @@ namespace bpr::application {
 								  record->Request.Proposal,
 								  record->Anchor,
 								  record->Request.Acknowledged,
-								  record->Stop.get_token())
+								  record->Stop.get_token(), record->Source)
 							: review_mutation_submission{
 								  .Result = Coordinator.publish(
 									  record->Request.Proposal,
@@ -847,6 +850,7 @@ namespace bpr::application {
 				return record->Context;
 			}
 			record->Anchor = std::move(validated->Anchor);
+			record->Source = std::move(validated->Source);
 
 			if (const auto failure = queue_effect(
 					record, grant, validated->Scope);

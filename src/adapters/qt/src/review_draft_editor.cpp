@@ -754,6 +754,10 @@ namespace bpr::qt {
 			Members.MutationStatus->setText(QStringLiteral(
 				"Publication was refused because the pull request head moved."));
 			break;
+		case application::review_mutation_failure::incompatible_body:
+			Members.MutationStatus->setText(QStringLiteral(
+				"This comment needs an inline line anchor; it cannot be published as a file comment."));
+			break;
 		case application::review_mutation_failure::unsupported:
 			Members.MutationStatus->setText(QStringLiteral(
 				"Publication is unavailable for this target. Your draft text is kept."));

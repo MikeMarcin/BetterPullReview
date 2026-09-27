@@ -2204,6 +2204,13 @@ namespace {
 			expect(refusedAfterPost(answered) && answered.Consulted == (row.Admit.has_value() ? 1U : 0U),
 				   row.Name);
 		}
+		const auto  rejected  = perform(comment, true);
+		const auto* rejection = std::get_if<github_mutation_wire_success>(&rejected.Completion);
+		expect(rejection && rejection->Response.Status == 422 && rejection->Response.Body == R"({"message":"Validation Failed"})" && rejected.Consulted == 1U,
+			   "complete bounded REST comment 422 reaches the exact classifier as data");
+		expect(refusedAfterPost(perform(review, true)), "whole-review 422 remains a refusal");
+		const auto truncated = perform(comment, true);
+		expect(std::holds_alternative<github_mutation_wire_error>(truncated.Completion) && truncated.Consulted == 1U, "truncated comment 422 cannot reach classifier as a complete response");
 	}
 
 	void run_fixture(const fixture_scenario aScenario,

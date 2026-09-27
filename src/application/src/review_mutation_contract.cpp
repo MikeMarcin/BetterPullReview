@@ -148,6 +148,8 @@ namespace bpr::application {
 			return "cancelled";
 		case review_mutation_failure::target_unavailable:
 			return "target_unavailable";
+		case review_mutation_failure::incompatible_body:
+			return "incompatible_body";
 		case review_mutation_failure::malformed_response:
 			return "malformed_response";
 		}
