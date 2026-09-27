@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1001"
 title: "Support the admitted gh api transport for tour operations"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0999", "BPR-1000"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-11","milestone":"staged-publication","acceptance":["AC41-04","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
