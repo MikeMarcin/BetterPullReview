@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0563"
 title: "Bind exact off-hunk anchor eligibility and placement observations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0561","BPR-0562"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
