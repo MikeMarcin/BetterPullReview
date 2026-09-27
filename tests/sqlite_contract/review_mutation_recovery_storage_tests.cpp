@@ -248,6 +248,144 @@ namespace {
 #endif
 	}
 
+	[[nodiscard]] auto publication() -> application::review_publication_recovery_record
+	{
+		application::review_publication_recovery_record value{
+			.Key = std::string(64U, 'b'), .LegacyKey = std::string(64U, 'c'), .Fingerprint = { 1 }, .State = core::review_publication_state::native_prepared, .Native = record()
+		};
+		value.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
+		return value;
+	}
+	[[nodiscard]] auto fallback_child(const application::review_publication_recovery_record& aParent) -> application::review_mutation_recovery_record
+	{
+		auto child           = record();
+		child.IdempotencyKey = application::review_publication_child_key(aParent.Key, core::review_publication_representation::file_comment_with_permalink);
+		child.Body           = "https://github.com/example/repository/blob/immutable/file#L13\n\nPlease rename this.";
+		child.RequestFingerprint.fill(0x55U);
+		return child;
+	}
+	void test_logical_publication_transitions_and_restart()
+	{
+		using state = core::review_publication_state;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "logical journal opens");
+		auto value = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "native parent and child admitted atomically");
+		expect(!(*store)->advance_publication(std::nullopt, value), "duplicate admission cannot grant a second POST");
+		auto next     = value;
+		next.State    = state::fallback_prepared;
+		next.Fallback = fallback_child(value);
+		expect(!(*store)->advance_publication(value, next), "prepared native cannot authorize fallback");
+		next                      = value;
+		next.State                = state::native_possibly_transmitted;
+		next.Native->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, next).has_value(), "native witness commits");
+		value              = next;
+		next.State         = state::fallback_prepared;
+		next.Fallback      = fallback_child(value);
+		next.Authorization = { .Source = application::review_fallback_authorization_source::scoped_evidence, .ContractDigest = { 1 }, .ScopeDigest = { 2 }, .Generation = 1, .ObservedAt = 100, .ExpiresAt = 400 };
+		expect(!(*store)->advance_publication(value, next), "cached evidence cannot bypass indeterminate native");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == value, "restart keeps exact native witness and baseline");
+		next               = value;
+		next.State         = state::native_definitively_unsupported;
+		next.Authorization = { .Source = application::review_fallback_authorization_source::native_rejection, .ContractDigest = { 1 }, .ScopeDigest = { 2 } };
+		expect((*store)->advance_publication(value, next).has_value(), "exact rejection resolves witness durably");
+		value         = next;
+		next.State    = state::fallback_prepared;
+		next.Fallback = fallback_child(value);
+		expect((*store)->advance_publication(value, next).has_value(), "authorized parent admits fallback child atomically");
+		value = next;
+		expect(!(*store)->advance_publication(value, publication()), "fallback never reopens native");
+		next.State                  = state::fallback_possibly_transmitted;
+		next.Fallback->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, next).has_value(), "fallback witness commits");
+		value                  = next;
+		next.State             = state::succeeded_fallback;
+		next.Fallback->State   = application::review_mutation_recovery_state::succeeded;
+		next.Fallback->Receipt = application::review_mutation_receipt{ .ServerCommentId = "PRRC_fixture_40", .Representation = core::review_publication_representation::file_comment_with_permalink };
+		expect(!(*store)->advance_publication(value, next), "baseline identity cannot become new receipt");
+		next.Fallback->Receipt->ServerCommentId = "PRRC_new";
+		expect((*store)->advance_publication(value, next).has_value(), "fallback success and receipt commit together");
+		value = next;
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == value, "restart retains representation and canonical receipt");
+		auto legacy           = record();
+		legacy.IdempotencyKey = value.LegacyKey;
+		expect(!(*store)->admit(legacy), "legacy alias cannot start another write");
+		execute_sql(database_path(directory), "UPDATE logical_publication SET record_digest=zeroblob(32)");
+		expect(!(*store)->load_publication(value.Key), "corruption refuses entire parent including child baselines");
+	}
+	void test_evidence_admission_and_legacy_conflicts()
+	{
+		using state = core::review_publication_state;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		auto                value = publication();
+		value.Native.reset();
+		value.State         = state::unsupported_evidence_admitted;
+		value.Authorization = { .Source = application::review_fallback_authorization_source::scoped_evidence, .ContractDigest = { 1 }, .ScopeDigest = { 2 }, .Generation = 1, .ObservedAt = 100, .ExpiresAt = 400 };
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "fresh scoped evidence admits parent with no invented native attempt");
+		auto next     = value;
+		next.State    = state::fallback_prepared;
+		next.Fallback = fallback_child(value);
+		expect((*store)->advance_publication(value, next).has_value(), "first attempt evidence permits fallback");
+		auto conflict                   = next;
+		conflict.Fingerprint[0]         = 9U;
+		conflict.State                  = state::fallback_possibly_transmitted;
+		conflict.Fallback->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect(!(*store)->advance_publication(next, conflict), "fingerprint cannot change mid-publication");
+		auto legacy = record();
+		expect((*store)->admit(legacy).has_value(), "legacy fixture admitted");
+		value                        = publication();
+		value.Key                    = std::string(64U, 'd');
+		value.LegacyKey              = legacy.IdempotencyKey;
+		value.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
+		expect(!(*store)->advance_publication(std::nullopt, value), "old unresolved native row bars a new parent");
+	}
+	void test_logical_capacity_and_stale_compare_exchange()
+	{
+		temporary_directory directory;
+		auto                store   = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		auto                sibling = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto          value   = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "parent admitted");
+		auto next                 = value;
+		next.State                = core::review_publication_state::native_possibly_transmitted;
+		next.Native->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, next).has_value() && !(*sibling)->advance_publication(value, next), "exact CAS grants only one transmission witness across connections");
+		for (std::size_t index = 1; index < application::maximum_review_mutation_recovery_records; ++index) {
+			auto candidate                   = publication();
+			candidate.Key                    = application::review_publication_child_key(std::to_string(index), core::review_publication_representation::native_line);
+			candidate.LegacyKey              = application::review_publication_child_key(std::to_string(index), core::review_publication_representation::file_comment_with_permalink);
+			candidate.Native->IdempotencyKey = application::review_publication_child_key(candidate.Key, core::review_publication_representation::native_line);
+			expect((*store)->advance_publication(std::nullopt, candidate).has_value(), "bounded logical rows admitted");
+		}
+		auto extra                   = publication();
+		extra.Key                    = std::string(64U, 'e');
+		extra.LegacyKey              = std::string(64U, 'f');
+		extra.Native->IdempotencyKey = application::review_publication_child_key(extra.Key, core::review_publication_representation::native_line);
+		const auto refused           = (*store)->advance_publication(std::nullopt, extra);
+		expect(!refused && refused.error() == application::review_mutation_recovery_failure::capacity, "logical capacity refuses before publication");
+		expect(!(*store)->admit(record()), "logical and legacy rows share one capacity bound");
+	}
+
+	void test_version_three_keeps_both_journals()
+	{
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store && user_version(database_path(directory)) == 4 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
+		expect(submission.has_value(), "whole-review journal remains compatible after migration");
+	}
+
 	void test_durable_unresolved_and_success_reopen()
 	{
 		auto directory = temporary_directory{ };
@@ -367,7 +505,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 4",
+				   "PRAGMA user_version = 5",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -411,8 +549,13 @@ namespace {
 				   && refused.error()
 					   == application::review_mutation_recovery_failure::conflict,
 			   "baseline-incomplete migrated rows cannot be resolved");
-		expect(user_version(database_path(directory)) == 3,
-			   "version-one migration commits schema version three");
+		for (const char alias : { 'a', 'b' }) {
+			auto candidate      = publication();
+			candidate.LegacyKey = std::string(64U, alias);
+			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
+		}
+		expect(user_version(database_path(directory)) == 4,
+			   "version-one migration commits schema version four");
 	}
 
 	void test_version_two_migration_preserves_anchored_rows()
@@ -423,11 +566,11 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 3, "submission factory migrates exact v2 database to v3");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 4, "submission factory migrates exact v2 database to v4");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(anchored.has_value(), "source-line factory opens shared v3 schema");
+		expect(anchored.has_value(), "source-line factory opens shared v4 schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
 		expect(loaded && *loaded && **loaded == expected, "v2 anchored data preserved through sibling migration");
 	}
@@ -531,6 +674,10 @@ namespace {
 
 auto main() -> int
 try {
+	test_logical_publication_transitions_and_restart();
+	test_evidence_admission_and_legacy_conflicts();
+	test_version_three_keeps_both_journals();
+	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();
 	test_version_one_migration_preserves_success_and_guards_unresolved();

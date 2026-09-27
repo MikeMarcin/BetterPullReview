@@ -144,20 +144,22 @@ namespace bpr::application {
 	}
 
 	auto review_mutation_coordinator::publish_attempt(
-		const core::review_publication_proposal& aProposal,
-		review_mutation_anchor_binding           aAnchor,
-		const bool                               aAcknowledged,
-		const std::stop_token                    aStop)
+		const core::review_publication_proposal&      aProposal,
+		review_mutation_anchor_binding                aAnchor,
+		const bool                                    aAcknowledged,
+		const std::stop_token                         aStop,
+		std::optional<review_mutation_source_binding> aSource)
 		-> review_mutation_submission
 	{
-		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged, aStop);
+		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged, aStop, std::move(aSource));
 	}
 
 	auto review_mutation_coordinator::publish_bound(
 		const core::review_publication_proposal&      aProposal,
 		std::optional<review_mutation_anchor_binding> aAnchor,
 		const bool                                    aAcknowledged,
-		const std::stop_token                         aStop)
+		const std::stop_token                         aStop,
+		std::optional<review_mutation_source_binding> aSource)
 		-> review_mutation_submission
 	{
 		const auto failed = [](const review_mutation_failure aFailure) {
@@ -220,6 +222,7 @@ namespace bpr::application {
 															 .ActingIdentity = ActingIdentity,
 															 .IdempotencyKey = idempotency_key_for(aProposal, Designated),
 															 .LiveBinding    = std::move(liveBinding),
+															 .Source         = std::move(aSource),
 														 },
 														 aStop);
 		if (!submission.Result) {

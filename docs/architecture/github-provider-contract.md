@@ -892,3 +892,37 @@ The build and packaging records must nevertheless report the adapter's actual
 Qt Network and platform-vault compile, link, and runtime dependencies.
 RFC-BPR-0014 owns delivered-package signing and distribution certification; it
 does not defer accurate dependency accounting from RFC-BPR-0002.
+
+## Off-hunk publication wire contracts (RFC-0022 milestone B)
+
+The comment request retains reviewer prose separately from its selected wire
+representation. Native requests keep the existing body/commit/line/path/side
+bytes. File requests compile the validated retained endpoint through the canonical
+permalink codec and send only body, commit_id, path and subject_type=file.
+Receipts keep the actual remote subject and selected representation; exact path,
+commit, public body and actor must agree before a response confirms creation.
+
+The revision-one unsupported classifier is an exact operation/server/API contract
+matcher. It accepts only a completed 422 with the pinned structured tuple and
+rejects generic validation, spam, rate, malformed and other-status answers.
+**No production unsupported tuple is admitted yet.** The GitHub.com and GHES
+synthetic fixtures prove classifier mechanics, not that either server emits that
+answer. BPR-0573 must record and approve the exact live contract before production
+fallback can be enabled. Hostname, version and status alone provide no evidence.
+
+The write evidence cache is separate from the existing read/schema cache. It has
+128 entries and a maximum 300-second observed lifetime. Profile/revision, host,
+server contract, complete actor, repository database/node identity, operation,
+API/classifier revision and freshness generation are exact key components.
+Expiry and a backward monotonic observation yield unknown. Only verified native
+success, definitive rejection, or an explicitly admitted recorded contract can
+supply an evidence entry. Session ownership and production wiring are completed
+with BPR-0568; the cache itself is not mutation or recovery authority.
+
+The native HTTPS root-comment exchange now retains a complete bounded HTTP 422
+as response data for the exact classifier. This does not mark it a successful
+publication. TLS, response limits, framing/completeness, rate metadata,
+cancellation and redirect checks still apply; incomplete or network-failed
+responses remain failures. Other review operations retain their existing status
+contracts. The serialized session tests configure an explicitly synthetic
+unsupported tuple; the production provider constructor configures none.

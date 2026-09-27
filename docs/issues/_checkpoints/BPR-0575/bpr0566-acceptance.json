@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "complete-scope",
+      "outcome": "pass",
+      "revision": "df611ce678acade351aabcb557e45155bd477dbd",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_publication_capability_cache passes: each key dimension, conclusive evidence pairing, expiry/backward clock, capacity and lifetime bounds. Production ownership is BPR-0568; read/schema cache unchanged."
+      }
+    },
+    {
+      "criterion": "conclusive-evidence",
+      "outcome": "pass",
+      "revision": "df611ce678acade351aabcb557e45155bd477dbd",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_publication_capability_cache passes: each key dimension, conclusive evidence pairing, expiry/backward clock, capacity and lifetime bounds. Production ownership is BPR-0568; read/schema cache unchanged."
+      }
+    },
+    {
+      "criterion": "no-inference",
+      "outcome": "pass",
+      "revision": "df611ce678acade351aabcb557e45155bd477dbd",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_publication_capability_cache passes: each key dimension, conclusive evidence pairing, expiry/backward clock, capacity and lifetime bounds. Production ownership is BPR-0568; read/schema cache unchanged."
+      }
+    },
+    {
+      "criterion": "expiry-unknown",
+      "outcome": "pass",
+      "revision": "df611ce678acade351aabcb557e45155bd477dbd",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_publication_capability_cache passes: each key dimension, conclusive evidence pairing, expiry/backward clock, capacity and lifetime bounds. Production ownership is BPR-0568; read/schema cache unchanged."
+      }
+    },
+    {
+      "criterion": "read-cache-separate",
+      "outcome": "pass",
+      "revision": "df611ce678acade351aabcb557e45155bd477dbd",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_publication_capability_cache passes: each key dimension, conclusive evidence pairing, expiry/backward clock, capacity and lifetime bounds. Production ownership is BPR-0568; read/schema cache unchanged."
+      }
+    }
+  ]
+}

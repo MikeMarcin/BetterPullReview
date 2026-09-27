@@ -520,6 +520,7 @@ namespace bpr::adapters::github::detail {
 				.Query                   = { },
 				.Headers                 = aRequest.Wire.Headers,
 				.Body                    = aRequest.Wire.Body,
+				.AdmittedContractStatus  = aRequest.Wire.Operation == review_mutation_operation::create_review_comment ? 422 : 0,
 				.SuccessfulStatus        = aExchange.SuccessfulStatus,
 			};
 		}
@@ -1537,6 +1538,8 @@ namespace bpr::adapters::github::detail {
 
 			if (contentTypeCount > 1U || contentLengthCount > 1U
 				|| contentEncodingCount != 0U || linkCount > 1U || locationCount > 1U
+				|| (locationCount != 0U && aState.Status == 422
+					&& aState.Operation->Request.AdmittedContractStatus == 422)
 				|| retryAfterCount > 1U || rateLimitCount > 1U
 				|| rateRemainingCount > 1U || rateResetCount > 1U
 				|| rateResourceCount > 1U
@@ -3782,7 +3785,8 @@ namespace bpr::adapters::github::detail {
 			}
 			if (error != QNetworkReply::NoError
 				&& !(admittedStatus
-					 && error == QNetworkReply::ProtocolInvalidOperationError)) {
+					 && (error == QNetworkReply::ProtocolInvalidOperationError
+						 || (state.Status == 422 && error == QNetworkReply::UnknownContentError)))) {
 				auto result                   = provider_error(network_failure(error));
 				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
 				result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;

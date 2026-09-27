@@ -687,6 +687,13 @@ namespace {
 					   == target().ExpectedHead,
 			   "the production-bound path uses the exact resolved right path and head");
 
+		expect(observed->Submitted.front().Source
+				   && observed->Submitted.front().Source->Endpoint == publication_request().SelectedDiff.RightEndpoint
+				   && observed->Submitted.front().Source->Comparison == projection.Source->Material.Key
+				   && observed->Submitted.front().Source->LineCount == *projection.Source->Material.RightLines
+				   && observed->Submitted.front().Source->Placement == projection.Source->Placement,
+			   "the provider receives the exact retained source and placement accepted by the host");
+
 		const auto retry = host.publish(publication_request());
 		effects.run_next();
 		decisions.run_next();

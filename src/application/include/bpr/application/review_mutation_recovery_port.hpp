@@ -61,6 +61,38 @@ namespace bpr::application {
 		bool                            Inserted = false;
 	};
 
+	enum class review_fallback_authorization_source : std::uint8_t { none,
+																	 native_rejection,
+																	 scoped_evidence };
+	/// \brief Durable proof of non-creation or first-attempt scoped evidence admission.
+	struct review_fallback_authorization
+	{
+		review_fallback_authorization_source Source = review_fallback_authorization_source::none;
+		std::array<std::uint8_t, 32>         ContractDigest{ };
+		std::array<std::uint8_t, 32>         ScopeDigest{ };
+		std::uint64_t                        Generation                                              = 0U;
+		std::uint64_t                        ObservedAt                                              = 0U;
+		std::uint64_t                        ExpiresAt                                               = 0U;
+		auto                                 operator<=>(const review_fallback_authorization&) const = default;
+	};
+	/// \brief One parent and at most two deterministic, representation-bound attempts.
+	struct review_publication_recovery_record
+	{
+		std::string                                    Key;
+		std::string                                    LegacyKey;
+		std::array<std::uint8_t, 32>                   Fingerprint{ };
+		core::review_publication_state                 State = core::review_publication_state::initial;
+		review_fallback_authorization                  Authorization;
+		std::optional<review_mutation_recovery_record> Native;
+		std::optional<review_mutation_recovery_record> Fallback;
+		auto                                           operator<=>(const review_publication_recovery_record&) const = default;
+	};
+	/// \brief Domain-separated SHA-256 child identity; revision one binds native wire or permalink/body/file wire.
+	[[nodiscard]] auto review_publication_child_key(std::string_view aParent, core::review_publication_representation aRepresentation) -> std::string;
+	[[nodiscard]] auto valid(const review_publication_recovery_record& aRecord) noexcept -> bool;
+	/// \brief Checks an exact one-step parent/child transition before the store commits it.
+	[[nodiscard]] auto valid_publication_transition(const std::optional<review_publication_recovery_record>& aExpected, const review_publication_recovery_record& aNext) -> bool;
+
 	/// \brief Durable admission and resolution for one exact mutation attempt.
 	class review_mutation_recovery_port
 	{
@@ -74,6 +106,22 @@ namespace bpr::application {
 		review_mutation_recovery_port(review_mutation_recovery_port&&) = delete;
 		auto operator=(review_mutation_recovery_port&&)
 			-> review_mutation_recovery_port& = delete;
+
+		/// \brief Loads the exact digest-protected logical journal; legacy APIs retain old native rows.
+		[[nodiscard]] virtual auto load_publication(const std::string& aKey)
+			-> std::expected<std::optional<review_publication_recovery_record>, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
+		/// \brief Commits parent, authorization and child witness/receipt atomically by exact compare-and-swap.
+		[[nodiscard]] virtual auto advance_publication(const std::optional<review_publication_recovery_record>& aExpected, const review_publication_recovery_record& aNext)
+			-> std::expected<review_publication_recovery_record, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aExpected);
+			static_cast<void>(aNext);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
 
 		[[nodiscard]] virtual auto load(const std::string& aIdempotencyKey)
 			-> std::expected<
