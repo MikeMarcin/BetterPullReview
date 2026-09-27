@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 class QAction;
+class QComboBox;
 class QListWidget;
 class QLineEdit;
 class QTextDocument;
@@ -14,7 +15,8 @@ class QLabel;
 class QPushButton;
 namespace bpr::qt {
 	class markdown_body_view;
-	enum class tour_editor_action : std::uint8_t { retry_save,
+	enum class tour_editor_action : std::uint8_t { import_selected,
+												   retry_save,
 												   use_saved_copy,
 												   map_problem,
 												   map_solution,
@@ -33,6 +35,7 @@ namespace bpr::qt {
 		void               set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction);
 		void               present(const application::tour_presentation& aProjection);
 		void               show_problem();
+		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_stops();
 		void               trigger(tour_editor_action aAction);
@@ -56,6 +59,8 @@ namespace bpr::qt {
 		void                                         edit_stop();
 		void                                         structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
 		void                                         next_stop(int aOffset);
+		QComboBox*                                   Imports       = nullptr;
+		QPushButton*                                 Import        = nullptr;
 		QListWidget*                                 Outline       = nullptr;
 		QListWidget*                                 Related       = nullptr;
 		QLineEdit*                                   Title         = nullptr;

@@ -5,6 +5,7 @@
 #include "bpr/application/github_read_progress.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/cached_review_overview.hpp"
+#include "bpr/core/diff_model.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 
@@ -196,6 +197,8 @@ namespace bpr::application {
 		left,
 		right,
 	};
+	enum class github_conversation_remote_subject : std::uint8_t { line,
+																   file };
 
 	enum class github_conversation_anchor_availability : std::uint8_t {
 		current,
@@ -225,6 +228,11 @@ namespace bpr::application {
 		bool                           Resolved    = false;
 		bool                           Outdated    = false;
 		bool                           Deleted     = false;
+		/// Remote subject stays honest; Line is the displayed location when SemanticAnchor is present.
+		github_conversation_remote_subject   RemoteSubject = github_conversation_remote_subject::line;
+		std::optional<core::source_line_ref> SemanticAnchor;
+		/// Body remains authoritative server content. Only a validated root has a prose projection.
+		std::optional<std::string> ReviewerProse;
 
 		auto operator<=>(const github_conversation_projection&) const = default;
 	};

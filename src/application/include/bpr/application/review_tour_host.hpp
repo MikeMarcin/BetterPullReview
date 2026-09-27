@@ -3,6 +3,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/application/review_tour_store.hpp"
+#include "bpr/core/review_tour_import.hpp"
 #include <functional>
 #include <memory>
 namespace bpr::application {
@@ -16,6 +17,9 @@ namespace bpr::application {
 		review_tour_host(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish);
 		~review_tour_host();
 		void start();
+		void observe_imports(std::vector<core::tour_import_candidate> aCandidates);
+		void import_selected(std::size_t aIndex);
+		void observe_source(core::tour_code_destination aSource);
 		void dispatch(const core::tour_command& aCommand);
 		void undo();
 		void redo();

@@ -1,8 +1,10 @@
 #include "github_public_path_fixture.hpp"
 #include "large_review_fixture.hpp"
 
+#include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "github_capability_probe.hpp"
 #include "github_device_authorization_contract.hpp"
+#include "github_mutation_contract.hpp"
 #include "github_read_contract.hpp"
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -530,6 +532,76 @@ namespace bpr::app::detail {
 				repository.insert(QStringLiteral("pullRequest"), pull);
 				data.insert(QStringLiteral("repository"), repository);
 				body.insert(QStringLiteral("data"), data);
+				document = QJsonDocument{ body };
+			} else {
+				return;
+			}
+			aBody = document.toJson(QJsonDocument::Compact).toStdString();
+		}
+
+		void overlay_review_tour(std::string& aBody, read_operation aOperation, const fixture_descriptor& aDescriptor)
+		{
+			const auto prefix   = QStringLiteral("https://github.com/octo-org/review-repository/pull/17");
+			auto       document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
+			if (aOperation == read_operation::get_pull_request) {
+				auto pull = document.object();
+				pull.insert("body", "Preface α\r\n\r\n## Problem\r\n\r\n**Keep raw** problem.\r\n\r\n## Solution\r\n\r\nSmall exact solution.\r\n\r\n## Testing\r\n\r\nUntouched <details>notes</details>.\r\n\r\n[Tour](" + prefix + "#pullrequestreview-4001)\r\n");
+				document = QJsonDocument{ pull };
+			} else if (aOperation == read_operation::list_reviews) {
+				auto review = document.array().first().toObject();
+				review.insert("body", "## A hand-authored route\r\n\r\n1. [same](" + prefix + "#discussion_r71002)\r\n1. [same](" + prefix + "#discussion_r71001)\r\n1. [Historical](" + prefix + "#issuecomment-71003)\r\n");
+				review.insert("html_url", prefix + "#pullrequestreview-4001");
+				review.insert("updated_at", "2026-09-26T00:00:00Z");
+				document = QJsonDocument{ QJsonArray{ review } };
+			} else if (aOperation == read_operation::list_issue_comments) {
+				const auto body = QStringLiteral("https://github.com/octo-org/review-repository/blob/1111111111111111111111111111111111111111/entirely-unchanged.md?plain=1#L1-L2\r\n\r\nHistorical explanation remains visible.");
+				document        = QJsonDocument{ QJsonArray{ QJsonObject{ { "id", 71003 }, { "node_id", "IC_tour_history" }, { "body", body }, { "html_url", prefix + "#issuecomment-71003" }, { "user", QJsonObject{ { "node_id", "U_fixture_viewer" }, { "login", "octo-reviewer" } } } } } };
+			} else if (aOperation == read_operation::list_review_threads) {
+				auto body    = document.object();
+				auto data    = body["data"].toObject();
+				auto repo    = data["repository"].toObject();
+				auto pull    = repo["pullRequest"].toObject();
+				auto threads = pull["reviewThreads"].toObject();
+				auto nodes   = threads["nodes"].toArray();
+				for (qsizetype i = 0; i < nodes.size(); ++i) {
+					auto thread   = nodes[i].toObject();
+					auto comments = thread["comments"].toObject();
+					auto comment  = comments["nodes"].toArray().first().toObject();
+					comment.insert("body", "### Author's tour · 8 — same\r\n\r\n**Raw** explanation " + QString::number(i) + ".\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n");
+					comment.insert("url", prefix + "#discussion_r" + QString::number(71001 + i));
+					comment.insert("fullDatabaseId", QString::number(71001 + i));
+					comment.insert("updatedAt", "2026-09-26T00:00:00Z");
+					comment.insert("commit", QJsonObject{ { "oid", QString::fromUtf8(aDescriptor.HeadOneOid.data(), static_cast<qsizetype>(aDescriptor.HeadOneOid.size())) } });
+					comment.insert("originalCommit", comment["commit"]);
+					comment.insert("line", 4);
+					comment.insert("originalLine", 4);
+					comment.insert("startLine", 2);
+					comment.insert("originalStartLine", 2);
+					thread.insert("line", 4);
+					thread.insert("originalLine", 4);
+					if (i == 0) {
+						const auto permalink = "https://github.com/octo-org/review-repository/blob/" + QString::fromUtf8(aDescriptor.HeadOneOid.data(), static_cast<qsizetype>(aDescriptor.HeadOneOid.size())) + "/review.cpp#L2-L4";
+						comment.insert("body", permalink + "\r\n\r\n" + comment["body"].toString());
+						thread.insert("subjectType", "FILE");
+						thread.insert("line", QJsonValue::Null);
+						thread.insert("originalLine", QJsonValue::Null);
+						comment.insert("line", QJsonValue::Null);
+						comment.insert("originalLine", QJsonValue::Null);
+						comment.insert("startLine", QJsonValue::Null);
+						comment.insert("originalStartLine", QJsonValue::Null);
+					}
+
+					comment.insert("pullRequestReview", QJsonObject{ { "id", "PRR_fixture_1" } });
+					comment.insert("author", QJsonObject{ { "id", "U_fixture_viewer" }, { "login", "octo-reviewer" } });
+					comments.insert("nodes", QJsonArray{ comment });
+					thread.insert("comments", comments);
+					nodes[i] = thread;
+				}
+				threads.insert("nodes", nodes);
+				pull.insert("reviewThreads", threads);
+				repo.insert("pullRequest", pull);
+				data.insert("repository", repo);
+				body.insert("data", data);
 				document = QJsonDocument{ body };
 			} else {
 				return;
@@ -1199,6 +1271,7 @@ namespace bpr::app::detail {
 			// kept, so a course that reads them still reads the truth.
 			bool                                        RepeatSessions           = false;
 			bool                                        LargeReviewForeignPosts  = false;
+			bool                                        ReviewTourCourse         = false;
 			bool                                        LargeReviewRepeatReads   = false;
 			bool                                        CliEnabled               = false;
 			bool                                        RefuseFirstSmartAcquire  = false;
@@ -1232,6 +1305,7 @@ namespace bpr::app::detail {
 				std::optional<std::string>                       RootBody;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
+			std::vector<QJsonObject>              CreatedReviewThreads;
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
@@ -1642,7 +1716,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] auto overlay_review_threads(
 			const std::string&                                                    aBody,
 			const std::map<std::string, fixture_recording_state::thread_overlay>& aOverlays,
-			const bool                                                            aForeignPosts)
+			const bool                                                            aForeignPosts,
+			const std::vector<QJsonObject>&                                       aCreated)
 			-> std::string
 		{
 			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
@@ -1715,6 +1790,10 @@ namespace bpr::app::detail {
 				node.insert(QStringLiteral("comments"), comments);
 				nodes.replace(index, node);
 			}
+			for (const auto& created : aCreated) {
+				nodes.append(created);
+			}
+			threads.insert(QStringLiteral("totalCount"), threads.value(QStringLiteral("totalCount")).toInt() + static_cast<int>(aCreated.size()));
 			threads.insert(QStringLiteral("nodes"), nodes);
 			pullRequest.insert(QStringLiteral("reviewThreads"), threads);
 			repository.insert(QStringLiteral("pullRequest"), pullRequest);
@@ -1856,6 +1935,9 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (State->ReviewTourCourse) {
+					overlay_review_tour(response->Body, aRequest.Wire.Operation, State->Descriptor);
+				}
 
 				// [[BPR-0978]]. A second profile's account is a different actor
 				// entirely: database id, node id and login all change together, so
@@ -1902,8 +1984,8 @@ namespace bpr::app::detail {
 					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
-					&& (!State->ThreadOverlays.empty() || State->LargeReviewForeignPosts)) {
-					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays, State->LargeReviewForeignPosts);
+					&& (!State->ThreadOverlays.empty() || State->LargeReviewForeignPosts || !State->CreatedReviewThreads.empty())) {
+					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays, State->LargeReviewForeignPosts, State->CreatedReviewThreads);
 				}
 				return github_wire_success{
 					.Correlation = aRequest.Correlation,
@@ -3267,6 +3349,140 @@ namespace bpr::app::detail {
 			return std::move(*material);
 		}
 
+		// [[BPR-0571]]. The ordinary fixture provider delegates root publication
+		// to the same session as production. Only HTTP answers and its lease are
+		// synthetic; request compilation, observations, negotiation and SQLite
+		// durability all run through the product implementation.
+		class fixture_publication_journal final : public application::review_mutation_recovery_port
+		{
+		public:
+			using failure     = application::review_mutation_recovery_failure;
+			using record      = application::review_mutation_recovery_record;
+			using publication = application::review_publication_recovery_record;
+			fixture_publication_journal(std::unique_ptr<application::review_mutation_recovery_port> aInner, std::string& aKey)
+				: Inner{ std::move(aInner) }
+				, Key{ aKey }
+			{ }
+			auto load(const std::string& aKey) -> std::expected<std::optional<record>, failure> override { return Inner->load(aKey); }
+			auto admit(const record& aRecord) -> std::expected<application::review_mutation_recovery_admission, failure> override { return Inner->admit(aRecord); }
+			auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<record, failure> override { return Inner->mark_possibly_transmitted(aKey, aFingerprint); }
+			auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_mutation_receipt& aReceipt) -> std::expected<record, failure> override { return Inner->resolve(aKey, aFingerprint, aReceipt); }
+			auto load_publication(const std::string& aKey) -> std::expected<std::optional<publication>, failure> override
+			{
+				Key = aKey;
+				return Inner->load_publication(aKey);
+			}
+			auto advance_publication(const std::optional<publication>& aExpected, const publication& aNext) -> std::expected<publication, failure> override { return Inner->advance_publication(aExpected, aNext); }
+
+		private:
+			std::unique_ptr<application::review_mutation_recovery_port> Inner;
+			std::string&                                                Key;
+		};
+		class fixture_publication_lease final : public application::review_mutation_transport_lease
+		{ };
+		class fixture_publication_wire final : public adapters::github::detail::github_mutation_wire_transport
+		{
+		public:
+			fixture_publication_wire(std::shared_ptr<fixture_recording_state>  aState,
+									 application::review_mutation_live_binding aBinding, review_mutation_fixture_evidence& aEvidence)
+				: State{ std::move(aState) }
+				, Binding{ std::move(aBinding) }
+				, Evidence{ aEvidence }
+			{ }
+			auto perform_review_mutation(const adapters::github::detail::github_mutation_wire_request& aRequest,
+										 const std::stop_token aStop, adapters::github::detail::github_mutation_transmission_witness aWitness)
+				-> adapters::github::detail::github_mutation_wire_completion override
+			{
+				using namespace adapters::github::detail;
+				using operation  = review_mutation_operation;
+				const auto& wire = aRequest.Wire;
+				if (aStop.stop_requested() || !validate_outbound_review_mutation_request(wire)) {
+					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unsupported };
+				}
+				auto        response = review_mutation_wire_response{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } } };
+				const auto& target   = Binding.Target;
+				const auto& actor    = Binding.ActingIdentity;
+				const auto  text     = [](const std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
+				const auto  user     = QJsonObject{ { "id", static_cast<qint64>(actor.DatabaseId) }, { "node_id", text(actor.NodeId) }, { "login", text(actor.Login) } };
+				QJsonObject object;
+				if (wire.Operation == operation::observe_viewer) {
+					object = user;
+				} else if (wire.Operation == operation::observe_pull_request) {
+					object = { { "id", static_cast<qint64>(target.PullRequestDatabaseId) }, { "node_id", text(target.PullRequestNodeId) }, { "number", static_cast<qint64>(target.Number.value()) }, { "state", "open" }, { "base", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) }, { "ref", text(target.BaseRef) }, { "repo", QJsonObject{ { "id", static_cast<qint64>(target.RepositoryDatabaseId) }, { "node_id", text(target.RepositoryNodeId) }, { "full_name", text(target.Repository.Owner + "/" + target.Repository.Name) } } } } }, { "head", QJsonObject{ { "sha", text(core::canonical_hex(target.Semantic.ExpectedHead).view()) }, { "ref", text(target.HeadRef) } } } };
+				} else if (wire.Operation == operation::observe_review_comments) {
+					if (HideReads) {
+						return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
+					}
+					response.Body = QJsonDocument{ Comments }.toJson(QJsonDocument::Compact).toStdString();
+					return github_mutation_wire_success{ .Response = std::move(response) };
+				} else if (wire.Operation == operation::create_review_comment) {
+					if (!aWitness || !aWitness() || aWitness()) {
+						return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
+					}
+					const auto& request = std::get<application::review_mutation_request>(wire.Semantic);
+					const auto  file    = request.Representation == core::review_publication_representation::file_comment_with_permalink;
+					if (file) {
+						++Evidence.FilePosts;
+					} else {
+						++Evidence.NativePosts;
+					}
+					if (!file && request.Proposal.Body == "BPR-0571 off-hunk publication.") {
+						return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" } };
+					}
+					object        = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+					const auto id = QStringLiteral("PRRC_composed_%1").arg(Comments.size() + 1);
+					object.insert("id", Comments.size() + 100);
+					object.insert("node_id", id);
+					object.insert("user", user);
+					Comments.append(object);
+					Evidence.StoredComments = static_cast<std::size_t>(Comments.size());
+					const auto line         = file ? QJsonValue{ QJsonValue::Null } : object.value("line");
+					const auto post         = QJsonObject{ { "id", id }, { "body", object.value("body") }, { "bodyText", object.value("body") }, { "path", object.value("path") }, { "line", line }, { "originalLine", line }, { "outdated", false }, { "author", QJsonObject{ { "id", text(actor.NodeId) }, { "login", text(actor.Login) } } }, { "replyTo", QJsonValue{ QJsonValue::Null } } };
+					const auto thread       = QJsonObject{ { "id", QStringLiteral("PRRT_composed_%1").arg(Comments.size()) },
+														   { "isResolved", false },
+														   { "isOutdated", false },
+														   { "viewerCanResolve", true },
+														   { "viewerCanUnresolve", false },
+														   { "subjectType", file ? "FILE" : "LINE" },
+														   { "path", object.value("path") },
+														   { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },
+														   { "line", line },
+														   { "originalLine", line },
+														   { "comments", QJsonObject{ { "totalCount", 1 }, { "nodes", QJsonArray{ post } }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "composed-end" } } } } } };
+					{
+						const std::scoped_lock lock{ State->Mutex };
+						State->CreatedReviewThreads.push_back(thread);
+					}
+					response.Status = 201;
+					if (!Evidence.LostResult) {
+						Evidence.LostResult = true;
+						HideReads           = true;
+						return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate };
+					}
+				} else {
+					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unsupported };
+				}
+				response.Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				return github_mutation_wire_success{ .Response = std::move(response) };
+			}
+			void               allow_reads() { HideReads = false; }
+			[[nodiscard]] auto projections() const -> std::vector<application::review_comment_projection>
+			{
+				auto result = std::vector<application::review_comment_projection>{ };
+				for (const auto& comment : Comments) {
+					result.push_back({ .ServerId = comment.toObject().value("node_id").toString().toStdString(), .Body = comment.toObject().value("body").toString().toStdString(), .EditVersion = 1U });
+				}
+				return result;
+			}
+
+		private:
+			std::shared_ptr<fixture_recording_state>  State;
+			application::review_mutation_live_binding Binding;
+			review_mutation_fixture_evidence&         Evidence;
+			QJsonArray                                Comments;
+			bool                                      HideReads = false;
+		};
+
 		class fixture_review_mutation_provider final
 			: public application::review_mutation_port
 		{
@@ -3274,8 +3490,11 @@ namespace bpr::app::detail {
 			explicit fixture_review_mutation_provider(
 				const bool                               aLoseFirst,
 				std::shared_ptr<fixture_recording_state> aState           = { },
-				const bool                               aResolvesThreads = false) noexcept
-				: LoseFirst{ aLoseFirst }
+				const bool                               aResolvesThreads = false,
+				std::filesystem::path                    aStorageRoot     = { }) noexcept
+				: RealPublication{ aLoseFirst }
+				, StorageRoot{ std::move(aStorageRoot) }
+				, LoseFirst{ aLoseFirst }
 				, ResolvesThreads{ aResolvesThreads }
 				, State{ std::move(aState) }
 			{
@@ -3283,12 +3502,14 @@ namespace bpr::app::detail {
 
 			void prepare(core::review_mutation_target aTarget)
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				Designated = std::move(aTarget);
 				Reported   = Designated;
 			}
 
 			void report(core::review_mutation_target aTarget)
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				Reported = std::move(aTarget);
 			}
 
@@ -3296,6 +3517,7 @@ namespace bpr::app::detail {
 				core::review_mutation_target,
 				application::review_mutation_failure> override
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				++Evidence.TargetObservations;
 				return Reported;
 			}
@@ -3305,11 +3527,15 @@ namespace bpr::app::detail {
 					application::review_mutation_receipt,
 					application::review_mutation_failure> override
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				++Evidence.Submissions;
 				if (aRequest.Target != Designated) {
 					return std::unexpected{
 						application::review_mutation_failure::undesignated_target
 					};
+				}
+				if (RealPublication && !aRequest.Proposal.ReplyToThread) {
+					return submit_publication(aRequest);
 				}
 				const auto known = Identifiers.find(aRequest.IdempotencyKey);
 				if (known != Identifiers.end()) {
@@ -3361,6 +3587,7 @@ namespace bpr::app::detail {
 					application::review_thread_resolution_receipt,
 					application::review_mutation_failure> override
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				++Evidence.Resolutions;
 				if (!ResolvesThreads) {
 					return std::unexpected{ application::review_mutation_failure::unsupported };
@@ -3392,16 +3619,68 @@ namespace bpr::app::detail {
 			[[nodiscard]] auto comments() const
 				-> std::vector<application::review_comment_projection>
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				return Comments;
 			}
 
 			[[nodiscard]] auto evidence() const noexcept
 				-> review_mutation_fixture_evidence
 			{
+				const std::scoped_lock providerLock{ Mutex };
 				return Evidence;
 			}
 
 		private:
+			auto submit_publication(const application::review_mutation_request& aRequest)
+				-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
+			{
+				using namespace adapters::github::detail;
+				if (!aRequest.LiveBinding || !aRequest.Source) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				const auto& binding       = *aRequest.LiveBinding;
+				const auto  configuration = adapters::sqlite::review_mutation_recovery_configuration{
+					.StorageRoot = StorageRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
+				};
+				if (!Wire) {
+					Wire = std::make_unique<fixture_publication_wire>(State, binding, Evidence);
+				}
+				Wire->allow_reads();
+				if (!Session) {
+					auto recovery = adapters::sqlite::make_review_mutation_recovery_store(configuration);
+					if (!recovery) {
+						return std::unexpected{ application::review_mutation_failure::unavailable };
+					}
+					const auto& authority = aRequest.Source->Comparison.Authority;
+					auto        config    = live_review_mutation_configuration{
+						.CredentialContext = { .Request = core::request_id{ 1U }, .ApplicationSession = core::application_session_id{ 1U }, .Authority = { .Profile = authority.Profile, .ProfileRevision = application::github_profile_revision{ authority.ProfileRevision.value() }, .Host = binding.Target.Semantic.Host, .Hostname = binding.Target.Hostname, .Account = binding.ActingIdentity.Account, .ServerContract = binding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1U } }, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity
+					};
+					Session = std::make_unique<review_mutation_session>(*Wire, config, std::make_shared<fixture_publication_lease>(), std::make_unique<fixture_publication_journal>(std::move(*recovery), PublicationKey),
+																		off_hunk_unsupported_contract{ .Server = binding.Target.ServerContract, .Resource = "PullRequestReviewComment", .Field = "line", .Code = "fixture_off_hunk_unsupported", .Message = "Fixture: no comment created for off-hunk line" });
+					++Evidence.SessionConstructions;
+				}
+				auto result                = Session->submit(aRequest);
+				Comments                   = Wire->projections();
+				Evidence.DuplicateReturned = Evidence.DuplicateReturned || (result && result->Duplicate);
+				// A second connection reads what the product session committed.
+				auto       reopened = adapters::sqlite::make_review_mutation_recovery_store(configuration);
+				const auto stored   = reopened ? (*reopened)->load_publication(PublicationKey) : std::expected<std::optional<application::review_publication_recovery_record>, application::review_mutation_recovery_failure>{ std::unexpected{ application::review_mutation_recovery_failure::unavailable } };
+				if (!stored || !*stored) {
+					return std::unexpected{ application::review_mutation_failure::unavailable };
+				}
+				++Evidence.DurableJournalReads;
+				if (!result) {
+					Session.reset(); // retry must recover with a fresh session
+				}
+				return result;
+			}
+			mutable std::mutex                                                 Mutex;
+			bool                                                               RealPublication = false;
+			std::filesystem::path                                              StorageRoot;
+			std::string                                                        PublicationKey;
+			std::unique_ptr<fixture_publication_wire>                          Wire;
+			std::unique_ptr<adapters::github::detail::review_mutation_session> Session;
+
 			core::review_mutation_target                        Designated;
 			core::review_mutation_target                        Reported;
 			std::map<std::string, std::string>                  Identifiers;
@@ -3500,9 +3779,10 @@ namespace bpr::app::detail {
 			Recording->RepeatSessions              = aOptions.DeviceRefreshCourse
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
-			Recording->RepeatReads             = aOptions.RepeatReadSessions;
+			Recording->RepeatReads             = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
+			Recording->ReviewTourCourse        = aOptions.ReviewTourCourse;
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
@@ -3551,7 +3831,7 @@ namespace bpr::app::detail {
 					aOptions.OfflineDeviceRefresh,
 					aOptions.DeviceAuthorizationPending);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
-				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
+				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads, aOptions.ApplicationDataRoot.value_or(std::filesystem::path{ }));
 
 			if (!aOptions.ApplicationDataRoot) {
 				throw std::runtime_error{ "fixture requires admitted storage root" };

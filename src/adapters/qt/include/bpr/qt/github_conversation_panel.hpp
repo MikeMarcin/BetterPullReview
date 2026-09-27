@@ -8,6 +8,7 @@
 
 #include <map>
 #include <optional>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -104,7 +105,8 @@ namespace bpr::qt {
 		/// needs.
 		void set_anchor_file(std::optional<core::file_identity> aFile);
 		/// \brief Restricts the drawer to the exact selected diff side and line.
-		void set_anchor_line(std::optional<core::source_line_ref> aLine);
+		void               set_anchor_line(std::optional<core::source_line_ref> aLine);
+		[[nodiscard]] auto has_semantic_anchor(const core::source_line_ref& aLine) const -> bool;
 		/// \brief States which selected endpoints expose current PR-diff coordinates.
 		///
 		/// \details A GitHub current line is meaningful only against the current
@@ -187,12 +189,15 @@ namespace bpr::qt {
 		void refresh_body(bool aAdmitted);
 		void arrange_discuss();
 
-		QLabel*                                                     AvailabilityLabel = nullptr;
-		QToolButton*                                                RevealButton      = nullptr;
-		QStackedWidget*                                             Stack             = nullptr;
-		QTreeView*                                                  View              = nullptr;
-		QWidget*                                                    DetailPane        = nullptr;
-		markdown_body_view*                                         Body              = nullptr;
+		QLabel*                                                     AvailabilityLabel  = nullptr;
+		QToolButton*                                                RevealButton       = nullptr;
+		QStackedWidget*                                             Stack              = nullptr;
+		QTreeView*                                                  View               = nullptr;
+		QWidget*                                                    DetailPane         = nullptr;
+		markdown_body_view*                                         Body               = nullptr;
+		QToolButton*                                                SupportDetails     = nullptr;
+		QLabel*                                                     SupportDescription = nullptr;
+		std::string                                                 SupportPost;
 		std::function<void(const std::string&, const std::string&)> LinkDispatch;
 		github_conversation_model*                                  Model = nullptr;
 		/// The Treeverse-style reply-structure map [[BPR-0418]] adds beside the
@@ -226,6 +231,7 @@ namespace bpr::qt {
 		bool                                         DetailAdmitted = false;
 		std::unordered_map<std::string, std::size_t> ShownPositions;
 		std::unordered_set<std::string>              VisibleRoots;
+		std::set<core::source_line_ref>              SemanticAnchors;
 		std::string                                  DiscussSelection;
 		int                                          DiscussReadingOffset = 0;
 		cards_scope                                  DiscussScope         = cards_scope::whole_pull_request;

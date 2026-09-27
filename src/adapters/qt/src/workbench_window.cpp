@@ -1552,7 +1552,7 @@ namespace bpr::qt {
 							: RightConversationEndpointCurrent);
 				const auto line            = aInteractive && aSelection.has_value()
 						&& aSelection->Kind == core::semantic_selection_kind::line
-						&& endpointIsCurrent
+						&& (endpointIsCurrent || ConversationPanel->has_semantic_anchor(aSelection->PreferredLine))
 					? std::optional<core::source_line_ref>{ aSelection->PreferredLine }
 					: std::nullopt;
 				ApplyingConversationAnchor = true;
@@ -4801,10 +4801,15 @@ namespace bpr::qt {
 				application::github_conversation_anchor_availability::missing_side);
 			return;
 		}
+		const auto semantic = ConversationPanel->model()->semantic_anchor(root);
+		if (semantic && semantic->Comparison != core::comparison_digest(context->Key)) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
 		const auto endpointIsCurrent = *side == core::diff_side::left
 			? LeftConversationEndpointCurrent
 			: RightConversationEndpointCurrent;
-		if (!endpointIsCurrent) {
+		if (!semantic && !endpointIsCurrent) {
 			ComparisonSurface->clear_conversation_anchor();
 			return;
 		}

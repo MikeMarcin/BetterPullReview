@@ -1,9 +1,11 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_REVIEW_COMMENT_PERMALINK_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_REVIEW_COMMENT_PERMALINK_HPP
 
+#include "bpr/application/review_comment_placement.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 
+#include "bpr/core/review_tour.hpp"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -13,19 +15,17 @@ namespace bpr::adapters::github::detail {
 	/// \brief Exact retained source, supplied by the host after changed-file membership
 	/// and text-material validation. The endpoint seals commit/path/blob authority;
 	/// LineCount is observed from that blob, never inferred from the remote body.
-	struct review_permalink_source
-	{
-		application::review_mutation_target_binding                  Target;
-		std::optional<application::workbench_selected_diff_endpoint> Endpoint;
-		core::file_comparison_key                                    Comparison;
-		std::uint32_t                                                LineCount = 0U;
-	};
+	using review_permalink_source = application::review_permalink_source;
+	using parsed_review_permalink = application::parsed_review_permalink;
 
-	struct parsed_review_permalink
+	/// Bounded read-only address codec; this scope and these source facts grant no write authority.
+	struct tour_permalink_scope
 	{
-		core::source_line_ref Anchor;
-		std::string           Prose;
+		std::string              Hostname;
+		core::repository_locator Repository;
 	};
+	[[nodiscard]] auto compile_tour_permalink(const tour_permalink_scope& aScope, const core::tour_code_destination& aSource) -> std::optional<std::string>;
+	[[nodiscard]] auto parse_tour_permalink(const tour_permalink_scope& aScope, std::string_view aBody) -> std::optional<core::tour_code_destination>;
 
 	/// \brief Compile only current-head right-side publication, including the 64 KiB
 	/// wire-body bound. A second code permalink in the prose is ambiguous.

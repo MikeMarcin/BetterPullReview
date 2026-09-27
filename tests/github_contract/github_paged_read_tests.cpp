@@ -1,4 +1,6 @@
 #include "../../src/application/src/github_projection_mapping.hpp"
+#include "../support/review_tour_fixture.hpp"
+#include "bpr/application/review_tour_import.hpp"
 #include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
@@ -3606,10 +3608,61 @@ namespace {
 		}
 	}
 
+	void test_raw_tour_import()
+	{
+		const std::string prefix    = "https://github.com/octo-org/review-repository/pull/17";
+		auto              transport = paged_fixture_transport{ fixture_scenario::success };
+		transport.RewriteResponse   = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation == read_operation::list_reviews) {
+				const auto body = "1. [same](" + prefix + "#discussion_r101)\r\n1. [same](" + prefix + "#discussion_r18446744073709551615)\r\n";
+				aResponse.Body  = fixture_json(fixture_array{ fixture_object{
+					{ "body", body }, { "commit_id", std::string{ head_oid } }, { "id", 4001 }, { "node_id", "R_review" }, { "state", "COMMENTED" }, { "html_url", prefix + "#pullrequestreview-4001" }, { "user", rest_actor("U_viewer", "octo-reviewer") } } });
+			}
+			if (aRequest.Wire.Operation == read_operation::list_review_threads) {
+				expect(aRequest.Wire.Body.find("body url updatedAt fullDatabaseId") != std::string::npos, "production query selects raw body and real identity");
+				for (std::size_t index = 0; index < 101; ++index) {
+					const auto id       = index == 0 ? "18446744073709551615" : std::to_string(index + 1);
+					const auto raw      = "### Author's tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
+					const auto existing = "\"bodyText\":\"comment " + std::to_string(index) + "\"";
+					const auto added    = existing + ",\"body\":" + fixture_json(raw) + ",\"url\":" + fixture_json(prefix + "#discussion_r" + id)
+						+ ",\"fullDatabaseId\":\"" + id + "\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}";
+					replace_raw(aResponse.Body, existing, added);
+				}
+				replace_raw(aResponse.Body, "\"author\":null", "\"author\":{\"id\":\"U_viewer\",\"login\":\"octo-reviewer\"}");
+			}
+		};
+		const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+		expect(result.has_value(), "raw tour pages accepted");
+		const auto& comments = result->ReviewThreads.front().Comments;
+		expect(comments.size() == 101 && comments[0].Body == "comment 0" && comments[100].Body == "comment 100", "all pages exhausted and existing display prose unchanged");
+		expect(comments[0].Observation.DatabaseId == std::numeric_limits<std::uint64_t>::max() && comments[100].Observation.RawBody->find("**raw** 100\r\n") != std::string::npos, "full uint64 and raw CRLF Markdown survive pages");
+		auto seed              = tests::review_tour_fixture();
+		seed.Owner.Host        = result->Host;
+		seed.Owner.Account     = result->Account;
+		seed.Owner.Repository  = result->Repository.Repository;
+		seed.Owner.PullRequest = result->PullRequest.PullRequest;
+		seed.Stops.clear();
+		seed.LastStopId = 0;
+		seed.Problem.clear();
+		seed.Solution.clear();
+		seed.ProblemBaseline.reset();
+		seed.SolutionBaseline.reset();
+		const auto calls    = transport.Requests.size();
+		const auto imported = application::observe_review_tours(seed, *result, "github.com");
+		expect(imported.size() == 1 && imported[0].Draft.Stops.size() == 2 && !imported[0].Draft.ReadOnly, "real paged snapshot cold imports without private IDs or AI");
+		expect(imported[0].Draft.Stops[0].Remote->DatabaseId == 101 && imported[0].Draft.Stops[1].Remote->DatabaseId == std::numeric_limits<std::uint64_t>::max(), "index order crosses comment pages and server order");
+		auto foreign                                              = *result;
+		foreign.ReviewThreads[0].Comments[100].Observation.WebUrl = "https://evil.invalid/steal";
+		expect(application::observe_review_tours(seed, foreign, "github.com")[0].Draft.ReadOnly && transport.Requests.size() == calls, "foreign links never fetch or forward credentials");
+		auto malformed            = paged_fixture_transport{ fixture_scenario::success };
+		malformed.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {if(aRequest.Wire.Operation==read_operation::list_review_threads){replace_raw(aResponse.Body,"\"bodyText\":\"comment 0\"","\"bodyText\":\"comment 0\",\"body\":42");} };
+		expect(!perform_paged_github_read(malformed, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { }), "malformed raw data fails atomically");
+	}
 }
 
 auto main() -> int
 {
+	test_raw_tour_import();
 	test_paged_response_observation();
 	test_timeline_read();
 	test_timeline_atomic_failures();

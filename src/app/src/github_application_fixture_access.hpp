@@ -159,6 +159,7 @@ namespace bpr::app::detail {
 		bool                      LargeReviewHistory = false;
 		/// BPR-0972: the synthetic large-review posts belong to another fixture actor.
 		bool LargeReviewForeignPosts = false;
+		bool ReviewTourCourse        = false;
 		/// BPR-0972: each read session of the paged large review replays its
 		/// complete script from the repository read, as the strict scripts do
 		/// with `RepeatReadSessions`, so a sibling window can load it again.
@@ -333,11 +334,15 @@ namespace bpr::app::detail {
 
 	struct review_mutation_fixture_evidence
 	{
-		std::size_t TargetObservations = 0U;
-		std::size_t Submissions        = 0U;
-		std::size_t StoredComments     = 0U;
-		bool        LostResult         = false;
-		bool        DuplicateReturned  = false;
+		std::size_t TargetObservations   = 0U;
+		std::size_t Submissions          = 0U;
+		std::size_t StoredComments       = 0U;
+		std::size_t NativePosts          = 0U;
+		std::size_t FilePosts            = 0U;
+		std::size_t SessionConstructions = 0U;
+		std::size_t DurableJournalReads  = 0U;
+		bool        LostResult           = false;
+		bool        DuplicateReturned    = false;
 		/// [[BPR-0657]]. Replies published under a thread and thread
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;

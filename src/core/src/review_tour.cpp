@@ -23,9 +23,17 @@ namespace bpr::core {
 		{
 			return !aValue || (field_ok(aValue->Raw) && aValue->RemoteEntity.size() <= 1024U && aValue->ObservedVersion.size() <= 1024U && (!aValue->SourceSpan || (aValue->SourceSpan->first <= aValue->SourceSpan->second && aValue->SourceSpan->second <= aValue->Raw.size())));
 		}
+		auto remote_bytes(const std::optional<tour_remote_binding>& aValue) noexcept -> std::size_t
+		{
+			return aValue ? 64U + aValue->Entity.size() + aValue->Actor.size() + aValue->WebUrl.size() + aValue->Review.size() : 1U;
+		}
+		auto remote_ok(const std::optional<tour_remote_binding>& aValue) noexcept -> bool
+		{
+			return !aValue || (aValue->Kind <= tour_remote_kind::conversation_comment && aValue->Entity.size() <= 1024U && aValue->Actor.size() <= 1024U && aValue->Review.size() <= 1024U && aValue->WebUrl.size() <= maximum_tour_path_bytes);
+		}
 		auto stop_bytes(const tour_stop& aStop) noexcept -> std::size_t
 		{
-			auto size = 64U + aStop.Title.size() + aStop.Body.size() + baseline_bytes(aStop.Baseline);
+			auto size = (aStop.Destination ? 192U + aStop.Destination->Path.size() : 1U) + 64U + aStop.Title.size() + aStop.Body.size() + baseline_bytes(aStop.Baseline) + remote_bytes(aStop.Remote);
 			if (aStop.Original) {
 				size += source_bytes(*aStop.Original);
 			}
@@ -39,10 +47,10 @@ namespace bpr::core {
 		}
 		auto stop_refusal(const tour_stop& aStop) noexcept -> tour_refusal
 		{
-			if (!field_ok(aStop.Title) || !field_ok(aStop.Body) || !baseline_ok(aStop.Baseline) || aStop.Related.size() > maximum_tour_related_sources) {
+			if (!field_ok(aStop.Title) || !field_ok(aStop.Body) || !baseline_ok(aStop.Baseline) || !remote_ok(aStop.Remote) || aStop.Related.size() > maximum_tour_related_sources) {
 				return tour_refusal::bounds;
 			}
-			if ((aStop.Original && !valid(*aStop.Original)) || (aStop.Mapped && !valid(*aStop.Mapped))
+			if ((aStop.Destination && !valid(*aStop.Destination)) || (aStop.Original && !valid(*aStop.Original)) || (aStop.Mapped && !valid(*aStop.Mapped))
 				|| !std::ranges::all_of(aStop.Related, [](const auto& aSource) { return valid(aSource); })) {
 				return tour_refusal::invalid_source;
 			}
@@ -88,6 +96,7 @@ namespace bpr::core {
 			auto copy = aTour.Stops[aIndex];
 			copy.Id   = new_id(aTour);
 			copy.Baseline.reset();
+			copy.Remote.reset();
 			copy.Preparation = tour_preparation::editing;
 			if (aCommand.Kind == tour_command_kind::split) {
 				if (!utf8_boundary(copy.Body, aCommand.SplitByte)) {
@@ -139,7 +148,7 @@ namespace bpr::core {
 			aSelected        = found->Id;
 			switch (aCommand.Kind) {
 			case tour_command_kind::edit_stop:
-				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline) {
+				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || aCommand.Value.Destination != found->Destination || (found->Remote && !found->Remote->Own)) {
 					return tour_refusal::identity;
 				}
 				*found             = aCommand.Value;
@@ -173,8 +182,24 @@ namespace bpr::core {
 		auto mutate(review_tour& aTour, const tour_command& aCommand, tour_stop_id& aSelected) -> tour_refusal
 		{
 			switch (aCommand.Kind) {
-			case tour_command_kind::problem:  aTour.Problem = aCommand.Text; return tour_refusal::none;
-			case tour_command_kind::solution: aTour.Solution = aCommand.Text; return tour_refusal::none;
+			case tour_command_kind::problem:
+			case tour_command_kind::solution: {
+				auto& field    = aCommand.Kind == tour_command_kind::problem ? aTour.Problem : aTour.Solution;
+				auto& baseline = aCommand.Kind == tour_command_kind::problem ? aTour.ProblemBaseline : aTour.SolutionBaseline;
+				if (aCommand.Baseline) {
+					const auto& observed = *aCommand.Baseline;
+					if (!baseline_ok(observed) || !observed.SourceSpan) {
+						return tour_refusal::invalid_command;
+					}
+					const auto [begin, end] = *observed.SourceSpan;
+					if (!utf8_boundary(observed.Raw, begin) || !utf8_boundary(observed.Raw, end) || observed.Raw.substr(begin, end - begin) != aCommand.Text) {
+						return tour_refusal::invalid_command;
+					}
+					baseline = observed;
+				}
+				field = aCommand.Text;
+				return tour_refusal::none;
+			}
 			case tour_command_kind::insert:   return insert_stop(aTour, aCommand, aSelected);
 			case tour_command_kind::observe_head:
 				if (!aCommand.Head.valid()) {
@@ -204,6 +229,35 @@ namespace bpr::core {
 			}
 		}
 	}
+	auto valid(const tour_code_destination& aSource) noexcept -> bool
+	{
+		if (!aSource.Commit.valid() || (aSource.Blob && (!aSource.Blob->valid() || aSource.Blob->algorithm() != aSource.Commit.algorithm()))
+			|| aSource.Path.empty() || aSource.Path.size() > maximum_tour_path_bytes || aSource.Path.front() == '/'
+			|| aSource.Side > diff_side::right || aSource.LastLine < aSource.FirstLine || aSource.LastLine == std::numeric_limits<std::uint32_t>::max()) {
+			return false;
+		}
+		if (std::ranges::any_of(aSource.Path, [](unsigned char aByte) { return aByte < 0x20 || aByte == 0x7f || aByte == '\\'; })) {
+			return false;
+		}
+		std::size_t at = 0;
+		while (at <= aSource.Path.size()) {
+			const auto end     = aSource.Path.find('/', at);
+			const auto segment = std::string_view{ aSource.Path }.substr(at, end == std::string::npos ? end : end - at);
+			if (segment.empty() || segment == "." || segment == "..") {
+				return false;
+			}
+			if (end == std::string::npos) {
+				break;
+			}
+			at = end + 1;
+		}
+		return true;
+	}
+	auto destination_of(const tour_source_range& aSource) -> tour_code_destination
+	{
+		return { aSource.Commit, aSource.Blob, aSource.Path, aSource.First.Side, aSource.First.Line, aSource.Last.Line };
+	}
+
 	auto valid(const tour_owner& aOwner) noexcept -> bool
 	{
 		return aOwner.Profile.value() && aOwner.Host.value() && aOwner.HostAuthority.valid() && aOwner.Account.value() && aOwner.Repository.value() && aOwner.PullRequest.value();
@@ -218,7 +272,7 @@ namespace bpr::core {
 	}
 	auto retained_tour_bytes(const review_tour& aTour) noexcept -> std::size_t
 	{
-		auto size = 256U + aTour.Problem.size() + aTour.Solution.size() + baseline_bytes(aTour.ProblemBaseline) + baseline_bytes(aTour.SolutionBaseline);
+		auto size = 256U + aTour.Problem.size() + aTour.Solution.size() + baseline_bytes(aTour.ProblemBaseline) + baseline_bytes(aTour.SolutionBaseline) + baseline_bytes(aTour.IndexBaseline) + remote_bytes(aTour.Remote) + aTour.ImportNotice.size();
 		for (const auto& stop : aTour.Stops) {
 			size += stop_bytes(stop);
 		}
@@ -235,6 +289,7 @@ namespace bpr::core {
 			return tour_refusal::identity;
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
+			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
 			|| aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}
@@ -266,6 +321,10 @@ namespace bpr::core {
 		}
 		if (const auto refusal = validate(aTour); refusal != tour_refusal::none) {
 			result.Refusal = refusal;
+			return result;
+		}
+		if (aTour.ReadOnly && aCommand.Kind != tour_command_kind::observe_head) {
+			result.Refusal = tour_refusal::incomplete;
 			return result;
 		}
 		auto candidate = aTour;

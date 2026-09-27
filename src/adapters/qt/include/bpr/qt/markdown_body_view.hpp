@@ -13,6 +13,9 @@ class QPushButton;
 class QStackedWidget;
 class QTextEdit;
 
+#include <optional>
+#include <utility>
+
 namespace bpr::qt {
 	class markdown_text_view;
 
@@ -46,6 +49,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto fallback_reason() const -> QString;
 		[[nodiscard]] auto rendered_view() const noexcept -> QTextEdit*;
 		[[nodiscard]] auto source_view() const noexcept -> QPlainTextEdit*;
+		/// Exact raw UTF-8 byte span for the native source selection; refuses a changed display.
+		[[nodiscard]] auto selected_source_bytes() const -> std::optional<std::pair<std::size_t, std::size_t>>;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	protected:

@@ -373,10 +373,15 @@ namespace {
 		auto load_publication(const std::string& aKey) -> std::expected<std::optional<journal_record>, recovery_failure> override { return Inner->load_publication(aKey); }
 		auto advance_publication(const std::optional<journal_record>& aExpected, const journal_record& aNext) -> std::expected<journal_record, recovery_failure> override
 		{
+			if (InterruptBefore == aNext.State) {
+				Interrupted = true;
+				throw std::runtime_error{ "simulated process interruption before durable commit" };
+			}
 			auto saved = Inner->advance_publication(aExpected, aNext);
 			if (saved) {
 				Saved.push_back(*saved);
 				if (InterruptAfter == saved->State) {
+					Interrupted = true;
 					throw std::runtime_error{ "simulated process interruption after durable commit" };
 				}
 			}
@@ -385,6 +390,8 @@ namespace {
 		std::unique_ptr<application::review_mutation_recovery_port> Inner;
 		std::vector<journal_record>                                 Saved;
 		std::optional<journal_state>                                InterruptAfter;
+		std::optional<journal_state>                                InterruptBefore;
+		bool                                                        Interrupted = false;
 	};
 	class publication_lease final : public application::review_mutation_transport_lease
 	{
@@ -403,6 +410,7 @@ namespace {
 	public:
 		auto perform_review_mutation(const github_mutation_wire_request& aRequest, const std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			boundary();
 			using operation  = review_mutation_operation;
 			const auto& wire = aRequest.Wire;
 			expect(validate_outbound_review_mutation_request(wire).has_value(), "session emits canonical request");
@@ -431,9 +439,11 @@ namespace {
 				expect(wire.Operation == operation::create_review_comment, "only root write in publication fixture");
 				expect(!aStop.stop_requested(), "cancellation checked before POST");
 				expect(Operations.size() >= 3U && Operations[Operations.size() - 2U] == operation::observe_pull_request && Operations[Operations.size() - 3U] == operation::observe_viewer, "viewer then exact target immediately precede each POST");
+				boundary();
 				if (!aWitness || !aWitness()) {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
 				}
+				boundary();
 				expect(!aWitness(), "transmission witness cannot be consumed twice");
 				Posts.push_back(wire);
 				const bool file = std::get<application::review_mutation_request>(wire.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
@@ -457,8 +467,19 @@ namespace {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate };
 				}
 			}
+			boundary();
 			return github_mutation_wire_success{ .Response = std::move(response) };
 		}
+		void boundary()
+		{
+			++Boundaries;
+			if (InterruptAt == Boundaries) {
+				InterruptAt.reset();
+				throw std::runtime_error{ "simulated process interruption at wire boundary" };
+			}
+		}
+		std::size_t                               Boundaries = 0U;
+		std::optional<std::size_t>                InterruptAt;
 		std::vector<review_mutation_operation>    Operations;
 		std::vector<review_mutation_wire_request> Posts;
 		std::vector<std::string>                  Comments;
@@ -616,6 +637,93 @@ namespace {
 		expect(recovered && recovered->Duplicate && transport.Posts.size() == 1U, "restart reconciles exact native receipt with zero POST");
 	}
 
+	void test_interruption_boundaries()
+	{
+		std::size_t courses = 0U;
+		for (const bool fallback : { false, true }) {
+			auto request              = publication_request(permalink_source());
+			request.Source->Placement = core::review_placement::off_hunk;
+			const auto configuration  = session_configuration(request);
+			const auto contract       = fixture_contract(request.LiveBinding->Target.ServerContract);
+			// Count the actual protocol course, then interrupt on both sides of
+			// every read/response and every transmission witness in that course.
+			auto baselineRoot         = tests::sqlite_contract::scratch_root{ "boundary-baseline" };
+			auto baselineWire         = publication_transport{ };
+			baselineWire.RejectNative = fallback;
+			{
+				auto session = review_mutation_session{ baselineWire, configuration, std::make_shared<publication_lease>(), open_journal(baselineRoot.path()), contract };
+				expect(session.submit_and_reconcile(request).Result.has_value(), "boundary census follows successful native or fallback course");
+			}
+			const auto resume = [&](publication_transport& aWire, const std::filesystem::path& aRoot) {
+				for (unsigned restart = 0U; restart < 3U; ++restart) {
+					auto session = review_mutation_session{ aWire, configuration, std::make_shared<publication_lease>(), open_journal(aRoot), contract };
+					static_cast<void>(session.submit_and_reconcile(request));
+					expect(aWire.Comments.size() <= 1U, "interruption and repeated restart leave at most one remote candidate");
+					const auto files = std::ranges::count_if(aWire.Posts, [](const auto& aPost) {
+						return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+					});
+					expect(files <= 1 && aWire.Posts.size() - static_cast<std::size_t>(files) <= 1U, "neither child is blindly retransmitted after restart");
+				}
+			};
+			for (std::size_t point = 1U; point <= baselineWire.Boundaries; ++point) {
+				auto scratch      = tests::sqlite_contract::scratch_root{ "wire-boundary" };
+				auto wire         = publication_transport{ };
+				wire.RejectNative = fallback;
+				wire.InterruptAt  = point;
+				{
+					auto session = review_mutation_session{ wire, configuration, std::make_shared<publication_lease>(), open_journal(scratch.path()), contract };
+					static_cast<void>(session.submit_and_reconcile(request));
+				}
+				expect(!wire.InterruptAt, "every counted wire interruption was reached");
+				resume(wire, scratch.path());
+				++courses;
+			}
+			const auto states = fallback
+				? std::vector{ journal_state::native_prepared, journal_state::native_possibly_transmitted, journal_state::native_definitively_unsupported, journal_state::fallback_prepared, journal_state::fallback_possibly_transmitted, journal_state::succeeded_fallback }
+				: std::vector{ journal_state::native_prepared, journal_state::native_possibly_transmitted, journal_state::succeeded_native };
+			for (const auto state : states) {
+				for (const bool before : { false, true }) {
+					auto scratch      = tests::sqlite_contract::scratch_root{ "journal-boundary" };
+					auto wire         = publication_transport{ };
+					wire.RejectNative = fallback;
+					{
+						auto journal                                                  = open_journal(scratch.path());
+						(before ? journal->InterruptBefore : journal->InterruptAfter) = state;
+						auto* observed                                                = journal.get();
+						auto  session                                                 = review_mutation_session{ wire, configuration, std::make_shared<publication_lease>(), std::move(journal), contract };
+						static_cast<void>(session.submit_and_reconcile(request));
+						expect(observed->Interrupted, "every before/after journal interruption was reached");
+					}
+					resume(wire, scratch.path());
+					++courses;
+				}
+			}
+		}
+		for (const bool before : { false, true }) {
+			auto request              = publication_request(permalink_source());
+			request.Source->Placement = core::review_placement::off_hunk;
+			auto scratch              = tests::sqlite_contract::scratch_root{ "cached-boundary" };
+			auto wire                 = publication_transport{ };
+			wire.RejectNative         = true;
+			{
+				auto  journal  = open_journal(scratch.path());
+				auto* observed = journal.get();
+				auto  session  = review_mutation_session{ wire, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal), fixture_contract(request.LiveBinding->Target.ServerContract) };
+				expect(session.submit(request).has_value(), "first logical publication establishes scoped cache evidence");
+				next_draft(request);
+				(before ? observed->InterruptBefore : observed->InterruptAfter) = journal_state::unsupported_evidence_admitted;
+				static_cast<void>(session.submit(request));
+				expect(observed->Interrupted && wire.Comments.size() == 1U, "cached admission boundary is reached before any new write");
+			}
+			for (unsigned restart = 0U; restart < 3U; ++restart) {
+				auto session = review_mutation_session{ wire, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(request.LiveBinding->Target.ServerContract) };
+				expect(session.submit(request).has_value() && wire.Comments.size() == 2U, "cached admission restart leaves exactly one candidate for each logical publication");
+			}
+			++courses;
+		}
+		std::cout << "publication-interruption-courses:" << courses << '\n';
+	}
+
 	void test_evidence_admission_restart_and_legacy_aliases()
 	{
 		auto request              = publication_request(permalink_source());
@@ -658,13 +766,142 @@ namespace {
 		}
 	}
 
+	std::size_t        placementDecodes = 0U;
+	[[nodiscard]] auto counted_decode(const review_permalink_source& aSource, const std::string_view aBody)
+		-> std::optional<parsed_review_permalink>
+	{
+		++placementDecodes;
+		return parse_review_permalink_body(aSource, aBody);
+	}
+
+	void test_server_truth_placement()
+	{
+		const auto  source    = permalink_source();
+		const auto& authority = source.Endpoint->request().WorkbenchAuthority;
+		const auto  path      = source.Endpoint->path().generic_string();
+		const auto  body      = *compile_review_permalink_body(source, permalink_anchor(source), "Root prose.\nSecond line.");
+		auto        snapshot  = application::github_pull_request_snapshot{
+			.Profile = authority.Profile, .Host = authority.Host, .Account = authority.Account, .Repository = { .Repository = authority.Repository, .Owner = source.Target.Repository.Owner, .Name = source.Target.Repository.Name }, .PullRequest = { .PullRequest = authority.PullRequest, .Number = source.Target.Number, .HeadOid = application::commit_oid{ std::string{ core::canonical_hex(source.Target.Semantic.ExpectedHead).view() } } }, .Files = { { .Path = path } }, .ReviewThreadsAvailability = application::github_collection_availability::available, .ReviewThreads = { { .Thread = application::github_thread_id{ "T_file" }, .Subject = application::github_review_thread_subject::file, .Path = path, .Comments = { { .Comment = application::github_comment_id{ "C_root" }, .Body = body, .Path = path }, { .Comment = application::github_comment_id{ "C_reply" }, .ReplyTo = application::github_comment_id{ "C_root" }, .Body = "https://foreign.example/elsewhere/blob/main/file#L90\n\nReply prose", .Path = path } } } }
+		};
+		auto& raw       = snapshot.ReviewThreads.front().Comments.front().Observation.RawBody;
+		raw             = body;
+		auto       host = application::review_comment_placement{ counted_decode };
+		const auto node = [](const auto& aProjection, const std::string_view aIdentity) -> const auto& {
+			const auto found = std::ranges::find(aProjection.Conversations, aIdentity, &application::github_conversation_projection::Id);
+			expect(found != aProjection.Conversations.end(), "canonical conversation identity survives projection");
+			return *found;
+		};
+		auto projected = host.project(snapshot, source);
+		expect(node(projected, "review-thread:T_file").RemoteSubject == application::github_conversation_remote_subject::file
+				   && node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source),
+			   "file remote subject and semantic source anchor coexist");
+		expect(node(projected, "review-comment:C_root").Body == body
+				   && node(projected, "review-comment:C_root").ReviewerProse == "Root prose.\nSecond line.",
+			   "raw GitHub body and byte-preserved prose coexist");
+		expect(node(projected, "review-comment:C_reply").SemanticAnchor == permalink_anchor(source)
+				   && !node(projected, "review-comment:C_reply").ReviewerProse,
+			   "reply inherits root and never parses its own foreign link");
+		snapshot.ReviewThreads.front().Comments.front().Body = "Rendered display without the source URL.";
+		projected                                            = host.project(snapshot, source);
+		expect(node(projected, "review-comment:C_root").Body == "Rendered display without the source URL."
+				   && node(projected, "review-comment:C_root").ReviewerProse == "Root prose.\nSecond line.",
+			   "raw Markdown drives placement while bodyText remains display text");
+		const auto decoded = placementDecodes;
+		projected          = host.project(snapshot, source);
+		expect(placementDecodes == decoded, "unchanged root is not decoded again");
+		snapshot.ReviewThreads.front().Resolved = true;
+		projected                               = host.project(snapshot, source);
+		expect(node(projected, "review-comment:C_reply").Resolved && placementDecodes == decoded, "resolution is current server truth without root reparse");
+		raw       = *compile_review_permalink_body(source, permalink_anchor(source, 60U), "Edited prose.");
+		projected = host.project(snapshot, source);
+		expect(node(projected, "review-comment:C_root").ReviewerProse == "Edited prose."
+				   && node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source, 60U),
+			   "external valid link and prose edits remap the same canonical thread");
+		for (const auto& invalid : { std::string{ "No link now." }, body + "\nhttps://github.com/other/repo/blob/main/file#L1", std::string{ "https://foreign.example/path#L13\n\nProse" } }) {
+			raw       = invalid;
+			projected = host.project(snapshot, source);
+			expect(!node(projected, "review-thread:T_file").SemanticAnchor
+					   && !node(projected, "review-comment:C_root").ReviewerProse
+					   && !node(projected, "review-comment:C_reply").Line
+					   && node(projected, "review-thread:T_file").AnchorAvailability == application::github_conversation_anchor_availability::file_level,
+				   "removed, ambiguous or foreign root degrades; cached placement never returns");
+		}
+		raw       = body;
+		projected = host.project(snapshot, source);
+		raw.reset();
+		snapshot.ReviewThreads.front().Comments.front().Body = body;
+		projected                                            = host.project(snapshot, source);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor,
+			   "missing raw Markdown cannot reuse an anchor or infer one from rendered display");
+		auto closedSource        = source;
+		closedSource.Target.Open = false;
+		expect(parse_review_permalink_body(closedSource, body).has_value()
+				   && !compile_review_permalink_body(closedSource, permalink_anchor(source), "Cannot publish"),
+			   "closed PR content can rehydrate without opening mutation authority");
+		raw        = body;
+		auto fresh = application::review_comment_placement{ counted_decode };
+		projected  = fresh.project(snapshot, source);
+		expect(node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source), "fresh host without database reconstructs only ordinary public content");
+		projected = host.project(snapshot, std::nullopt);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "unavailable retained commit cannot place a file comment");
+		auto foreign                   = source;
+		foreign.Target.Repository.Name = "other";
+		projected                      = host.project(snapshot, foreign);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "foreign source authority cannot place");
+		snapshot.Files.clear();
+		projected = host.project(snapshot, source);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "file absent from changed catalogue cannot place");
+		snapshot.Files.push_back({ .Path = path });
+		snapshot.ReviewThreads.front().Comments.front().Deleted = true;
+		projected                                               = host.project(snapshot, source);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "deleted root cannot retain placement through a reply");
+		snapshot.ReviewThreads.clear();
+		projected = host.project(snapshot, source);
+		expect(projected.Conversations.empty(), "server deletion removes the shared conversation");
+		snapshot.ReviewThreads.push_back({ .Thread = application::github_thread_id{ "T_native" }, .Path = path, .Line = 4U, .DiffSide = application::github_diff_side::right });
+		projected = host.project(snapshot, source);
+		expect(node(projected, "review-thread:T_native").RemoteSubject == application::github_conversation_remote_subject::line
+				   && node(projected, "review-thread:T_native").Line == 4U && !node(projected, "review-thread:T_native").SemanticAnchor,
+			   "ordinary native mapping remains distinct; general historical identity is not inferred");
+	}
+
 } // namespace
+
+void tour_ranges()
+{
+	using namespace bpr;
+	using namespace bpr::adapters::github::detail;
+	const auto scope  = tour_permalink_scope{ "github.com", { "octo-org", "review-repository" } };
+	auto       source = core::tour_code_destination{ .Commit = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .Path = "old/Unicode α #%.md", .Side = core::diff_side::left, .FirstLine = 1, .LastLine = 3 };
+	const auto link   = compile_tour_permalink(scope, source);
+	expect(link && link->ends_with("old/Unicode%20%CE%B1%20%23%25.md?plain=1#L2-L4"), "range/historical/plain-view shares canonical RFC0022 path escaping");
+	const auto parsed = parse_tour_permalink(scope, *link + "\r\n\r\n### Author's tour · 1 — Why\r\n");
+	expect(parsed && parsed->Commit == source.Commit && parsed->Path == source.Path && parsed->FirstLine == 1 && parsed->LastLine == 3, "cold body retains historical range without retained comparison fabrication");
+	auto foreign            = scope;
+	foreign.Repository.Name = "other";
+	expect(!parse_tour_permalink(foreign, *link + "\n\nbody"), "cross-repository source rejected");
+	auto altered = *link;
+	altered.replace(altered.find("#L2-L4"), 7, "#L4-L2");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "reversed range refused");
+	altered = *link;
+	altered.replace(altered.find("?plain=1"), 8, "");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "Markdown rendered page is not canonical source");
+	altered = *link;
+	altered.replace(altered.find("1111111111111111111111111111111111111111"), 40, "main");
+	expect(!parse_tour_permalink(scope, altered + "\n\nbody"), "branch links never stand for immutable source");
+	source.Path      = "entirely-unchanged.cpp";
+	source.FirstLine = source.LastLine = 0;
+	expect(compile_tour_permalink(scope, source)->ends_with("#L1"), "unchanged and single-line destinations retain exact source");
+}
 
 auto main() -> int
 {
+	tour_ranges();
+	test_server_truth_placement();
 	test_session_negotiation_and_cache();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();
+	test_interruption_boundaries();
 	test_evidence_admission_restart_and_legacy_aliases();
 	test_canonical_permalink_round_trip_and_bounds();
 	test_wire_representations_and_classifier();

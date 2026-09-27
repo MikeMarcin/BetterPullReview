@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0997"
 title: "Read and reconstruct tours from paged GitHub objects"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0040"]
 depends_on: ["BPR-0996"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-07","milestone":"github-round-trip","acceptance":["AC40-02","AC40-03","AC40-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC40-02","outcome":"pass","revision":"f44c95dd","evidence":{"kind":"command","detail":"Paged 101-comment raw course, core adversarial import and actual cold-profile editor/SQLite reconstruction passed; preserves identities/index order/raw spans and refuses foreign/partial/ambiguous write ownership. See milestone ledger exact commands and diagnostic corrections. No live/native qualification claimed."}},{"criterion":"AC40-03","outcome":"pass","revision":"f44c95dd","evidence":{"kind":"command","detail":"Paged 101-comment raw course, core adversarial import and actual cold-profile editor/SQLite reconstruction passed; preserves identities/index order/raw spans and refuses foreign/partial/ambiguous write ownership. See milestone ledger exact commands and diagnostic corrections. No live/native qualification claimed."}},{"criterion":"AC40-05","outcome":"pass","revision":"f44c95dd","evidence":{"kind":"command","detail":"Paged 101-comment raw course, core adversarial import and actual cold-profile editor/SQLite reconstruction passed; preserves identities/index order/raw spans and refuses foreign/partial/ambiguous write ownership. See milestone ledger exact commands and diagnostic corrections. No live/native qualification claimed."}}]
 ---
 
 # BPR-0997: Read and reconstruct tours from paged GitHub objects

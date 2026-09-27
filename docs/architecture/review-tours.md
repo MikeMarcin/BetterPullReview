@@ -1,4 +1,4 @@
-# Private review-tour authoring
+# Review-tour authoring and GitHub import
 
 RFC-BPR-0039's manual-authoring milestone adds a purpose-specific core aggregate
 in `review_tour.hpp`. A draft belongs to one application profile, accepted host
@@ -32,8 +32,8 @@ local drafts, including an empty brief or skeleton stop, are valid saved state.
 Persistence, workbench composition, public navigation and remote publication are
 separate acceptance surfaces. The core tests alone do not establish any of them.
 
-The admitted profile-private `state/v1/review-tours.sqlite3` stores version 1
-records under application ID `0x42505254`. The exact owner and local draft ID
+The admitted profile-private `state/v1/review-tours.sqlite3` keeps database schema 1 and writes version 3
+payload records under application ID `0x42505254`. The exact owner and local draft ID
 form the primary key. Payloads are bounded binary records with an integrity
 digest; unknown schemas or corrupt payloads refuse rather than pretending that
 the draft is absent. At most 128 drafts are retained with no automatic eviction.
@@ -53,7 +53,8 @@ classes, outside the metadata ledger. Baselines retain raw body, source span,
 remote identity/version and local generation; they confer no current remote
 truth or mutation authority. Profile purge includes the exact tour store and
 admitted sidecars. Local loss can lose unsent work; it never deletes shared
-GitHub comments. Cold import and remote update recovery remain later milestones.
+GitHub comments. Cold import uses the published objects described below; remote
+update recovery belongs to the publication and maintenance milestones.
 
 Prepare review tour is available from Overview and the Pull Request menu
 (`Alt+T`). It opens the Tour page alongside the current Comments and Notes tray.
@@ -97,6 +98,66 @@ line as a substitute. The ordinary opt-in “mark read when fully seen” trigge
 suppressed while Tour is shown. Neither readiness nor visiting a stop creates a
 review receipt, resolution, approval, remote mutation or agent invocation.
 
-The current preview is private and lists the brief, ordered explanations and
-source relationships. GitHub import, compatibility planning and publication are
-the following milestones, not capabilities of this preparation surface.
+The preview is private and lists the brief, ordered explanations, exact source
+links and compatibility requirements. Remote publication has its own later
+explicit Preview/Publish and recovery boundary.
+
+## Raw Markdown and cold import
+
+The existing paged provider reads raw comment bodies separately from display
+prose, with returned IDs, web addresses, actors, review membership, versions and
+available source coordinates. Numeric identities preserve the full uint64 range.
+Pagination must finish before an accepted snapshot is complete. Missing raw
+observations in an older recording leave a candidate read-only.
+
+The core enumerates ordinary ordered lists in review summaries and PR comments.
+An explicit description link prioritizes a candidate; multiple roots/lists require
+selection. Index order, local stop IDs and displayed comment numbering remain
+separate. Missing, repeated, malformed, foreign, self and mixed-author entries
+remain visible; none grants mutation authority. Links are compared to exact
+returned same-PR destinations and are never recursively fetched. Import refuses
+to overwrite an existing private draft.
+
+The bounded Markdown scanner excludes fences, quotes, nested lists and HTML
+regions from top-level mapping. It preserves ambiguous sections/lists for manual
+selection. Every editable section retains the complete raw baseline and a byte
+span. Native selection translates UTF-16 positions and CRLF normalization back
+to exact UTF-8 boundaries; a changed display or split surrogate is refused.
+Disjoint edits validate expected span bytes and preserve all untouched material.
+A custom stop body is retained whole unless its generated heading and final
+navigation paragraph are confidently recognized.
+
+Payload v2 added remote attribution, index baselines and read-only state. Payload
+v3 adds a comparison-independent source destination. Versions 1 and 2 remain
+readable without rewriting their content; the next save uses v3. The database
+schema and private-root contract are unchanged.
+
+## Exact source and compatibility
+
+An imported destination retains commit, optional blob, path, side and inclusive
+zero-based range. It has no invented comparison digest. Native right-side
+comments prefer the original commit/range. Missing original left-side source
+facts remain unavailable. File/PR comment fallbacks use the provider's canonical
+commit-pinned first-line permalink. The explicit tour codec extends the existing
+single-line codec with ranges and historical commits, sharing canonical path
+escaping and Markdown `?plain=1` handling. Parsing establishes an address;
+workbench navigation checks the actual admitted commit, blob, path and side before
+constructing current comparison line references. Unavailable source retains its
+explanation and visible source link.
+
+| Intended subject | Required exact operation | Publication boundary |
+|---|---|---|
+| Current diff line/range | Pending line batch | One pending review only when qualified |
+| Current off-hunk range | Pending off-hunk batch | Separately qualified from standalone line creation |
+| Changed-file permalink fallback | Pending file-thread operation | Joins the pending review only with exact support |
+| Standalone file fallback | Standalone file-comment operation | Explicit compatibility plan |
+| Historical/base/unchanged source | Tour PR-comment operation | Explicit compatibility plan |
+
+Unknown, denied, throttled and indeterminate outcomes do not authorize another
+representation. Exact unsupported evidence and exact fallback support are
+separate facts. Suggestion bodies cannot silently become file/PR permalink prose.
+The capability key separates operations and exact source digests in addition to
+host, actor, repository, API/classifier revision and freshness. Existing
+standalone evidence never qualifies pending file staging. The preparation host
+has no live-qualified pending-operation observation and displays that limit;
+loading source or importing an own comment does not create write authority.

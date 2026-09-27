@@ -1,6 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -44,6 +45,15 @@ namespace bpr::qt {
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(8, 8, 8, 8);
 		layout->addWidget(paragraph(tr("Private review tour. Nothing here publishes."), this));
+		Imports = new QComboBox{ this };
+		Imports->setObjectName(QStringLiteral("tourImportChoices"));
+		Imports->setAccessibleName(tr("GitHub tour index and list"));
+		Imports->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		Import = new QPushButton{ tr("Load selected GitHub tour"), this };
+		Import->setObjectName(QStringLiteral("tourImport"));
+		connect(Import, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::import_selected); });
+		layout->addWidget(Imports);
+		layout->addWidget(Import);
 		Roadmap = new QTabWidget{ this };
 		Roadmap->setObjectName(QStringLiteral("tourRoadmap"));
 		Roadmap->setAccessibleName(tr("Review tour sections"));
@@ -59,6 +69,7 @@ namespace bpr::qt {
 			editor->setMinimumHeight(130);
 			column->addWidget(editor, 1);
 			auto* map = new QPushButton{ tr("Use selected description text"), page };
+			map->setObjectName(aName + QStringLiteral("Map"));
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
 			column->addWidget(map);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
@@ -101,6 +112,7 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 		Action   = std::move(aAction);
 	}
+	auto review_tour_editor::import_choice() const -> std::size_t { return static_cast<std::size_t>(Imports->currentIndex()); }
 	void review_tour_editor::edit(core::tour_command_kind aKind, const QString& aText)
 	{
 		if (Applying || !Shown.Draft || !Dispatch) {
@@ -119,8 +131,19 @@ namespace bpr::qt {
 		if (aProjection.Selected != Shown.Selected && aProjection.Selected.value()) {
 			Selected = aProjection.Selected;
 		}
+		if (Shown.ImportChoices != aProjection.ImportChoices) {
+			const auto block = QSignalBlocker{ Imports };
+			Imports->clear();
+			for (const auto& choice : aProjection.ImportChoices) {
+				Imports->addItem(QString::fromStdString(choice));
+			}
+			// Multiple plausible roots require an explicit choice, even when a link is preferred.
+			Imports->setCurrentIndex(Imports->count() == 1 ? 0 : -1);
+		}
+		Imports->setVisible(!aProjection.ImportChoices.empty());
+		Import->setVisible(!aProjection.ImportChoices.empty());
 		Shown               = aProjection;
-		const bool editable = Shown.Draft && !Shown.Loading;
+		const bool editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly;
 		const bool bounded  = same && Shown.Refusal == core::tour_refusal::bounds;
 		Problem->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::problem));
 		Solution->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::solution));
@@ -146,6 +169,12 @@ namespace bpr::qt {
 		} else if (Shown.Draft) {
 			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally. Nothing published.")
 																										 : tr("Private draft. Nothing published.");
+		}
+		if (Shown.Draft && !Shown.Draft->ImportNotice.empty()) {
+			status += " " + QString::fromStdString(Shown.Draft->ImportNotice);
+		}
+		if (!Shown.ImportNotice.empty()) {
+			status += " " + QString::fromStdString(Shown.ImportNotice);
 		}
 		Status->setText(status);
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);
@@ -174,8 +203,26 @@ namespace bpr::qt {
 			body += "\n### " + std::to_string(i + 1) + " — " + stop.Title + "\n\n" + stop.Body + "\n\n";
 			if (stop.Original) {
 				body += "Source: " + stop.Original->Path + " · " + (stop.Original->First.Side == core::diff_side::left ? "base" : "head") + " lines " + std::to_string(stop.Original->First.Line + 1U) + "–" + std::to_string(stop.Original->Last.Line + 1U) + "\n\n";
-			} else {
+			} else if (!stop.Destination) {
 				body += "Source unavailable.\n\n";
+			}
+			if (stop.Destination && !stop.Original) {
+				const auto& source = *stop.Destination;
+				body += "Pinned source: " + source.Path + " · " + std::string{ core::canonical_hex(source.Commit).view() } + " · lines " + std::to_string(source.FirstLine + 1U) + "–" + std::to_string(source.LastLine + 1U) + "\n\n";
+			}
+			const auto plan = std::ranges::find(Shown.Destinations, stop.Id, &application::tour_stop_destination::Stop);
+			if (plan != Shown.Destinations.end()) {
+				if (!plan->SourceLink.empty()) {
+					body += "[Original source](" + plan->SourceLink + ")\n\n";
+				}
+				if (plan->Plan.IncompatibleBody) {
+					body += "Publication requires a native line subject for this suggestion.\n\n";
+				} else if (plan->Plan.RequiresCompatibility) {
+					body += "This destination requires an explicit compatibility publication plan. It cannot join one pending review.\n\n";
+				}
+				if (plan->Plan.NeedsQualification) {
+					body += "Publication support for this exact source and operation is not yet qualified.\n\n";
+				}
 			}
 			for (const auto& related : stop.Related) {
 				body += "Related: " + related.Path + " · lines " + std::to_string(related.First.Line + 1U) + "–" + std::to_string(related.Last.Line + 1U) + "\n\n";
@@ -424,6 +471,10 @@ namespace bpr::qt {
 		}
 		const auto label = [](const core::tour_source_range& aSource) { return QStringLiteral("%1 · %2:%3–%4 · %5").arg(QString::fromStdString(aSource.Path), aSource.First.Side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("head")).arg(aSource.First.Line + 1U).arg(aSource.Last.Line + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(aSource.Commit).view() }).left(12)); };
 		Source->setText(stop->Original ? label(*stop->Original) : tr("Source unavailable — your text remains editable."));
+		if (!stop->Original && stop->Destination) {
+			const auto& destination = *stop->Destination;
+			Source->setText(QStringLiteral("%1 · %2–%3 · %4").arg(QString::fromStdString(destination.Path)).arg(destination.FirstLine + 1U).arg(destination.LastLine + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(destination.Commit).view() }).left(12)));
+		}
 		if (stop->Mapping != core::tour_mapping::exact_original && stop->Mapping != core::tour_mapping::unchanged_material) {
 			Source->setText(Source->text() + tr("\nSource needs attention; original destination is retained."));
 		}

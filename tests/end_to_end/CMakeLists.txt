@@ -3233,3 +3233,10 @@ target_compile_definitions(test_diagnostic_controls_public_path PRIVATE BPR_BUIL
 bpr_enable_hardening(test_diagnostic_controls_public_path)
 bpr_enable_warnings(test_diagnostic_controls_public_path)
 bpr_add_network_isolated_test(NAME application_diagnostic_controls_public_path WINDOWS_UNCONTAINED COMMAND test_diagnostic_controls_public_path)
+
+bpr_add_network_isolated_test(NAME application_review_tour_cold_import_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path --cold)
+set_tests_properties(application_review_tour_cold_import_public_path PROPERTIES
+    TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "review-tour-cold-import:pass")

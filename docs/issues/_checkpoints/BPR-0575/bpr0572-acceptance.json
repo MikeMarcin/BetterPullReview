@@ -1,0 +1,60 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Nine placement/capability cells; every durable state refuses ineligibility, four illegal observation enum domains and unknown events. Core policy and integrated host tests pass. See BPR-0572 card and m3-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "66 reached before/after wire/witness/journal/cached-admission interruptions, each followed by3 fresh real-SQLite sessions; at most1 remote candidate per logical publication and no child retransmission. Deterministic interruption simulation, not OS kill/power loss. See BPR-0572 card and m3-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Generic422/403/429/503, ambiguous loss, cancellation and incompatible body session courses retain zero unauthorized fallback; strict classifier/wire tests pass; production classifier remains disabled. See BPR-0572 card and m3-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Fresh placement host uses no local DB/receipt; ordinary content reconstructs anchors and handles mixed-client edits/replies/resolution/deletion, invalid links and unavailable source. No actual uninstall claimed. See BPR-0572 card and m3-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Fallback-only rogue implementation/factory and fallback submission symbol rejected;24 guard counterexample tests; complete source inventory plus17 rebuilt nonproduction binaries pass positive-controlled scan. See BPR-0572 card and m3-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC6",
+      "outcome": "pass",
+      "revision": "2311209476dd8d87cd10d07b7d33a934e5188046",
+      "evidence": {
+        "kind": "observation",
+        "detail": "20/20 integrated focused selectors43.09s at final source, including full public native/fallback gesture/session/SQLite/server-refresh/selected-conversation course13.57s; exact production build passes. See BPR-0572 card and m3-evidence.json."
+      }
+    }
+  ]
+}

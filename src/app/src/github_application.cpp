@@ -5,6 +5,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -39,6 +40,7 @@
 #include "github_provider.hpp"
 #include "live_review_mutation_provider.hpp"
 #include "native_https_transport.hpp"
+#include "review_comment_permalink.hpp"
 
 #if defined(_WIN32)
 	#include "windows_title_row_host.hpp"
@@ -6578,7 +6580,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	NotePaths.reset();
 	DefectThreadNames.reset();
 }
-					Window->publish(aUpdate.Presentation);
+					publish_review_conversations(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
@@ -7296,6 +7298,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 								SelectedDiffPublication->Request.Diff.Comparison,
 								core::diff_side::right));
 					}
+					refresh_review_conversations();
 					// Before the ledger observation, because it is about the
 					// panes rather than about the review, and because
 					// `observe_selected_material` returns early for reasons
@@ -8668,12 +8671,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host>        RetiredTourHosts;
-		std::optional<core::tour_owner>        TourOwner;
-		core::git_commit_oid                   TourHead;
-		core::git_commit_oid                   TourAttentionHead;
-		std::optional<core::tour_source_range> PendingTourSource;
-		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
+		std::vector<retained_tour_host>            RetiredTourHosts;
+		std::optional<core::tour_owner>            TourOwner;
+		core::git_commit_oid                       TourHead;
+		core::git_commit_oid                       TourAttentionHead;
+		std::optional<core::tour_code_destination> PendingTourSource;
+		auto                                       selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
 			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
@@ -8715,7 +8718,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto& p      = *SelectedDiffPublication;
-			const bool  left   = source.First.Side == core::diff_side::left;
+			const bool  left   = source.Side == core::diff_side::left;
 			const auto& commit = left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit;
 			const auto& blob   = left ? p.Key.LeftBlob : p.Key.RightBlob;
 			const auto& path   = left ? p.LeftPath : p.RightPath;
@@ -8725,15 +8728,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->tour_editor()->show_notice(QStringLiteral("The original source revision is not in this comparison. The stop and its pinned destination are retained; choose its revision to inspect it."));
 				return;
 			}
-			auto first = source.First;
-			auto last  = source.Last;
+			auto first = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.FirstLine };
+			auto last  = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.LastLine };
 			// Restart changes runtime scope. Reuse lines only after the immutable
 			// commit, blob, path and side match the newly admitted material.
 			first.Comparison = last.Comparison = core::comparison_digest(p.Key);
 			const bool placed                  = surface->restore_source_range(first, last);
+			if (placed) {
+				auto observed = source;
+				observed.Blob = blob;
+				TourHost->observe_source(std::move(observed));
+			}
 			Window->tour_editor()->show_notice(placed ? QStringLiteral("Tour source selected. Visiting a stop does not mark code reviewed.") : QStringLiteral("Source lines unavailable. The explanation and original destination are retained."));
 		}
-		void navigate_tour_source(const std::optional<core::tour_source_range>& aSource)
+		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource)
 		{
 			Window->open_review_tour();
 			Window->tour_editor()->show_stops();
@@ -8787,6 +8795,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TourHead = aHandoff.Head;
 			if (TourOwner == owner && TourHost) {
 				observe_tour_head();
+				refresh_tour_imports();
 				return;
 			}
 			suspend_review_tour();
@@ -8813,11 +8822,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																			   return;
 																		   }
-																		   Window->tour_editor()->present(aProjection);
+																		   auto projected = aProjection;
+																		   if (projected.Draft && WindowRead->accepted_snapshot()) {
+																			   const auto& snapshot = *WindowRead->accepted_snapshot();
+																			   if (const auto* profile = find_profile(snapshot.Profile)) {
+																				   const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+																				   for (auto& destination : projected.Destinations) {
+																					   const auto stop = std::ranges::find(projected.Draft->Stops, destination.Stop, &core::tour_stop::Id);
+																					   if (stop == projected.Draft->Stops.end()) {
+																						   continue;
+																					   }
+																					   auto source = stop->Destination;
+																					   if (stop->Original) {
+																						   source = core::destination_of(*stop->Original);
+																					   }
+																					   if (source) {
+																						   destination.SourceLink = adapters::github::detail::compile_tour_permalink(scope, *source).value_or(std::string{ });
+																					   }
+																				   }
+																			   }
+																		   }
+																		   Window->tour_editor()->present(projected);
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
 			TourHost->start();
+			refresh_tour_imports();
+		}
+		void refresh_tour_imports()
+		{
+			if (!TourHost || !WindowRead->accepted_snapshot() || !TourOwner) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto* profile  = find_profile(snapshot.Profile);
+			const auto  base     = core::parse_git_commit_oid(snapshot.PullRequest.BaseOid.value());
+			const auto  head     = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			if (!profile || !base || !head) {
+				return;
+			}
+			const auto seed  = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname(), [scope, seed](std::string_view aBody) {
+				auto source = adapters::github::detail::parse_tour_permalink(scope, aBody);
+				if (source && source->Commit == seed.Base) {
+					source->Side = core::diff_side::left;
+				}
+				return source;
+			}));
 		}
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
@@ -8825,19 +8877,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
-			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
-			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
-			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
-			case qt::tour_editor_action::navigate_stop:  {
-				const auto* stop = Window->tour_editor()->selected_stop();
-				navigate_tour_source(stop ? (stop->Mapped ? stop->Mapped : stop->Original) : std::nullopt);
+			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
+			case qt::tour_editor_action::retry_save:      TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy:  TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::undo_structure:  TourHost->undo(); return;
+			case qt::tour_editor_action::redo_structure:  TourHost->redo(); return;
+			case qt::tour_editor_action::navigate_stop:   {
+				const auto*                                stop = Window->tour_editor()->selected_stop();
+				std::optional<core::tour_code_destination> source;
+				if (stop) {
+					source = stop->Destination;
+					if (stop->Mapped || stop->Original) {
+						source = core::destination_of(stop->Mapped ? *stop->Mapped : *stop->Original);
+					}
+				}
+				navigate_tour_source(source);
 				return;
 			}
-			case qt::tour_editor_action::navigate_related: navigate_tour_source(Window->tour_editor()->selected_related()); return;
+			case qt::tour_editor_action::navigate_related: {
+				const auto related = Window->tour_editor()->selected_related();
+				navigate_tour_source(related ? std::optional{ core::destination_of(*related) } : std::nullopt);
+				return;
+			}
 			case qt::tour_editor_action::add_stop:
 			case qt::tour_editor_action::insert_before:
-			case qt::tour_editor_action::add_related:      {
+			case qt::tour_editor_action::add_related:   {
 				const auto source = selected_tour_source();
 				const auto draft  = TourHost->presentation().Draft;
 				if (!draft) {
@@ -8877,12 +8941,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!draft) {
 					return;
 				}
-				const auto selected = Window->overview_page()->body_view()->source_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
-				if (selected.isEmpty()) {
+				const auto* view     = Window->overview_page()->body_view();
+				const auto  span     = view->selected_source_bytes();
+				const auto& snapshot = WindowRead->accepted_snapshot();
+				if (!span || !snapshot || view->original_body() != snapshot->PullRequest.Body) {
 					Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
 					return;
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = selected.toUtf8().toStdString() });
+				const auto& raw = view->original_body();
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = raw.substr(span->first, span->second - span->first), .Baseline = core::tour_field_baseline{ .Raw = raw, .RemoteEntity = std::string{ snapshot->PullRequest.Node.value() }, .SourceSpan = span } });
 				return;
 			}
 			}
@@ -9018,6 +9085,72 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto       outcome    = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
+			}
+		}
+
+		[[nodiscard]] auto conversation_source() const -> std::optional<application::review_permalink_source>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot() || !LastAcceptedHandoff
+				|| !SelectedDiffPublication || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
+				|| ReviewSourceMaterial->Key != SelectedDiffPublication->Key || !EpochHost
+				|| EpochHost->context(SelectedDiffPublication->Request.WorkbenchAuthority)
+					!= std::optional{ SelectedDiffPublication->Request.Diff }) {
+				return std::nullopt;
+			}
+			const auto& handoff  = *LastAcceptedHandoff;
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			return application::review_permalink_source{
+				.Target = {
+					.Semantic = review_mutation_target(handoff), .Hostname = handoff.Hostname, .ServerContract = handoff.ServerContract, .Repository = handoff.Locator, .Number = handoff.Number, .RepositoryDatabaseId = snapshot.Repository.Repository.value(), .RepositoryNodeId = std::string{ snapshot.Repository.Node.value() }, .PullRequestDatabaseId = snapshot.PullRequest.PullRequest.value(), .PullRequestNodeId = std::string{ snapshot.PullRequest.Node.value() }, .BaseRepositoryDatabaseId = snapshot.PullRequest.Repository.value(), .BaseOid = handoff.Base, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Open = snapshot.PullRequest.State == application::github_pull_request_state::open },
+				.Endpoint   = SelectedDiffPublication->RightEndpoint,
+				.Comparison = SelectedDiffPublication->Key,
+				.LineCount  = *ReviewSourceMaterial->RightLines
+			};
+		}
+
+		void select_published_conversation()
+		{
+			if (!PendingPublishedConversation || !Window || !WindowRead || !LastAcceptedHandoff
+				|| !WindowRead->accepted_snapshot() || !SelectedDiffPublication) {
+				return;
+			}
+			const auto  observed = select_observed_review_mutation(*LastAcceptedHandoff, *WindowRead->accepted_snapshot());
+			const auto& pending  = *PendingPublishedConversation;
+			if (!observed || observed->Target != pending.Target || observed->ActingIdentity != pending.Actor
+				|| core::comparison_digest(SelectedDiffPublication->Key) != pending.Anchor.Comparison) {
+				PendingPublishedConversation.reset();
+				return;
+			}
+			// A refreshed snapshot can arrive before its selected source is
+			// republished. Wait for that exact material before selecting the post.
+			if (!conversation_source()) {
+				return;
+			}
+			const auto identity = "review-comment:" + pending.Comment;
+			if (Window->conversation_model()->index_for_id(identity).isValid()
+				&& Window->reveal_conversation(identity)) {
+				PendingPublishedConversation.reset();
+			}
+		}
+
+		void publish_review_conversations(application::github_presentation_update aUpdate)
+		{
+			if (aUpdate.PullRequest && WindowRead && WindowRead->accepted_snapshot()) {
+				aUpdate.PullRequest = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
+			}
+			Window->publish(aUpdate);
+			select_published_conversation();
+		}
+
+		void refresh_review_conversations()
+		{
+			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
+				Window->publish(application::github_presentation_update{
+					.PullRequest              = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source()),
+					.PreserveWindowNavigation = true });
+				select_published_conversation();
+			} else {
+				ReviewCommentPlacement.clear();
 			}
 		}
 
@@ -9730,6 +9863,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
+				if (InlineReviewBinding) {
+					PendingPublishedConversation = published_conversation_selection{
+						.Target = InlineReviewBinding->Target, .Actor = InlineReviewBinding->ActingIdentity, .Anchor = ReviewDraft->Anchor, .Comment = aTerminal.Result->ServerCommentId
+					};
+					// The accepted server snapshot supplies the thread identity,
+					// raw body and placement. A receipt never fabricates a post.
+					QTimer::singleShot(0, Window.get(), [this] {
+						if (!Closing && Window && PendingPublishedConversation) {
+							if (auto* refresh = Window->github_refresh_action(); refresh && refresh->isEnabled()) {
+								refresh->trigger();
+							}
+						}
+					});
+				}
 			} else {
 				editor->present(aTerminal.Result.error());
 			}
@@ -12869,6 +13016,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
+			ReviewSourceMaterial.reset();
+			refresh_review_conversations();
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}
@@ -13878,14 +14027,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
 
-		decltype(github_profile_runtime::Profiles)&                 Profiles                = Profile->Profiles;
-		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions          = Profile->ProfileOptions;
-		decltype(github_profile_runtime::ProviderEffects)&          ProviderEffects         = Profile->ProviderEffects;
-		decltype(github_profile_runtime::VaultEffects)&             VaultEffects            = Profile->VaultEffects;
-		decltype(github_profile_runtime::ReviewMutationEffects)&    ReviewMutationEffects   = Profile->ReviewMutationEffects;
-		decltype(github_profile_runtime::ReviewSubmissionEffects)&  ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
+		struct published_conversation_selection
+		{
+			application::review_mutation_target_binding  Target;
+			application::review_mutation_acting_identity Actor;
+			core::source_line_ref                        Anchor;
+			std::string                                  Comment;
+		};
+		std::optional<published_conversation_selection> PendingPublishedConversation;
+
+		application::review_comment_placement                       ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
+
+		decltype(github_profile_runtime::Profiles)&                Profiles                = Profile->Profiles;
+		decltype(github_profile_runtime::ProfileOptions)&          ProfileOptions          = Profile->ProfileOptions;
+		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
+		decltype(github_profile_runtime::VaultEffects)&            VaultEffects            = Profile->VaultEffects;
+		decltype(github_profile_runtime::ReviewMutationEffects)&   ReviewMutationEffects   = Profile->ReviewMutationEffects;
+		decltype(github_profile_runtime::ReviewSubmissionEffects)& ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
@@ -14093,6 +14253,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_lost_effect,
 				awaiting_deferred_terminal,
 				awaiting_retry,
+				awaiting_native_conversation,
+				awaiting_fallback_conversation,
 				passed,
 				failed,
 			};
@@ -14101,6 +14263,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			phase                                                Phase = phase::awaiting_editor;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait                Wait;
+			bool                                      NativeLineChosen = false;
+			std::optional<core::source_line_ref>      OffHunkAnchor;
 			std::optional<core::semantic_selection>   PublishingSelection;
 			std::optional<core::semantic_selection>   DeferredSelection;
 			std::optional<core::review_comment_draft> PublishingDraft;
@@ -21484,6 +21648,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// the run's shutdown would wait for it until the harness killed the
 		// process, and the verdict would never print.
 		const auto fail = [&probe, implementation] {
+			const auto counts = implementation->Fixture ? implementation->Fixture->review_mutation_evidence() : detail::review_mutation_fixture_evidence{ };
+			QTextStream{ stdout } << "SEMANTIC_COMMENT_PROBE_FAILED phase=" << static_cast<int>(probe.Phase)
+								  << " submissions=" << counts.Submissions << " native=" << counts.NativePosts << " file=" << counts.FilePosts
+								  << " stored=" << counts.StoredComments << " duplicate=" << counts.DuplicateReturned << " durable=" << counts.DurableJournalReads
+								  << " sessions=" << counts.SessionConstructions << " draft=" << (implementation->ReviewDraft ? static_cast<int>(implementation->ReviewDraft->State) : -1) << '\n';
+
 			probe.Phase = state_type::phase::failed;
 			if (implementation->ReviewMutationDecisionGate != nullptr) {
 				implementation->ReviewMutationDecisionGate->release();
@@ -21521,6 +21691,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return "awaiting_deferred_terminal";
 			case state_type::phase::awaiting_retry:
 				return "awaiting_retry";
+			case state_type::phase::awaiting_native_conversation:
+				return "awaiting_native_conversation";
+			case state_type::phase::awaiting_fallback_conversation:
+				return "awaiting_fallback_conversation";
 			case state_type::phase::passed:
 				return "passed";
 			case state_type::phase::failed:
@@ -21583,6 +21757,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!block.isValid()) {
 				return false;
 			}
+			pane->setTextCursor(QTextCursor{ block });
+			pane->ensureCursorVisible();
 			const auto point = pane->cursorRect(QTextCursor{ block }).center();
 			auto       press = QMouseEvent{
 				QEvent::MouseButtonPress,
@@ -21606,6 +21782,85 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QCoreApplication::sendEvent(pane->viewport(), &release);
 			return true;
 		};
+
+		if (probe.Phase == state_type::phase::awaiting_native_conversation
+			|| probe.Phase == state_type::phase::awaiting_fallback_conversation) {
+			const bool fallback = probe.Phase == state_type::phase::awaiting_fallback_conversation;
+			const auto id       = fallback ? "review-comment:PRRC_composed_2" : "review-comment:PRRC_composed_1";
+			const auto index    = implementation->Window->conversation_model()->index_for_id(id);
+			const auto evidence = implementation->Fixture->review_mutation_evidence();
+			if (!index.isValid() || implementation->Window->conversation_model()->id_for_index(implementation->Window->conversation_view()->currentIndex()) != id
+				|| implementation->PendingPublishedConversation) {
+				return wait("SEMANTIC_COMMENT_SERVER_REFRESH_STALLED", [&](QTextStream& aStream) {
+					aStream << "fallback=" << fallback << " post=" << index.isValid() << " pending_selection=" << implementation->PendingPublishedConversation.has_value()
+							<< " native_posts=" << evidence.NativePosts << " file_posts=" << evidence.FilePosts << " stored=" << evidence.StoredComments
+							<< " snapshot=" << implementation->WindowRead->accepted_snapshot().has_value();
+				});
+			}
+			if (fallback) {
+				const auto  anchor   = implementation->Window->conversation_model()->semantic_anchor(index);
+				const auto& snapshot = *implementation->WindowRead->accepted_snapshot();
+				const auto  root     = std::ranges::find_if(snapshot.ReviewThreads, [](const auto& aThread) { return aThread.Thread.value() == "PRRT_composed_2"; });
+				QTextStream{ stdout } << "SEMANTIC_COMMENT_READBACK anchor=" << anchor.has_value() << " exact=" << (anchor == probe.OffHunkAnchor)
+									  << " source=" << implementation->conversation_source().has_value() << " root=" << (root != snapshot.ReviewThreads.end())
+									  << " body=" << (index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("BPR-0571 off-hunk publication.")) << '\n';
+				if (evidence.NativePosts != 2U || evidence.FilePosts != 1U || evidence.StoredComments != 2U
+					|| evidence.SessionConstructions != 2U || evidence.DurableJournalReads != 3U
+					|| anchor != probe.OffHunkAnchor || root == snapshot.ReviewThreads.end()
+					|| root->Subject != application::github_review_thread_subject::file || root->Line
+					|| index.data(qt::github_conversation_model::body_role).toString() != QStringLiteral("BPR-0571 off-hunk publication.")) {
+					return fail();
+				}
+				QTextStream{ stdout } << "SEMANTIC_COMMENT_COMPOSITION_OK:native-posts=2,file-posts=1,stored=2,journal-reopens=3,session-constructions=2\n";
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			if (evidence.NativePosts != 1U || evidence.FilePosts != 0U || evidence.DurableJournalReads != 2U
+				|| evidence.SessionConstructions != 2U || implementation->Window->conversation_model()->semantic_anchor(index)) {
+				return fail();
+			}
+			probe.Evidence.RetryIdempotent = evidence.Submissions == 2U && evidence.StoredComments == 1U && evidence.DuplicateReturned;
+			const auto& observed           = *implementation->WindowRead->accepted_snapshot();
+			const auto  native             = std::ranges::find_if(observed.ReviewThreads, [](const auto& aThread) { return aThread.Thread.value() == "PRRT_composed_1"; });
+			probe.Evidence.ServerAuthority = native != observed.ReviewThreads.end()
+				&& native->Subject == application::github_review_thread_subject::line && native->Comments.size() == 1U
+				&& native->Comments.front().Body == "BPR-0229 fixture publication.";
+			probe.Evidence.TypedQtProjection = index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("BPR-0229 fixture publication.")
+				&& !implementation->Window->conversation_model()->semantic_anchor(index);
+			if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority || !probe.Evidence.TypedQtProjection) {
+				return fail();
+			}
+			implementation->Window->choose_modality(qt::review_modality::review);
+			auto* const       comparison = implementation->Window->comparison_surface();
+			const auto* const left       = comparison->left_pane()->document();
+			const auto* const right      = comparison->right_pane()->document();
+			// An unchanged line with four unchanged neighbours on each side is
+			// outside the synthetic provider's three-line patch context.
+			for (int line = 4; line + 4 < std::min(left->blockCount(), right->blockCount()); ++line) {
+				bool unchanged = true;
+				for (int neighbour = line - 4; neighbour <= line + 4; ++neighbour) {
+					unchanged = unchanged && left->findBlockByNumber(neighbour).text() == right->findBlockByNumber(neighbour).text();
+				}
+				if (!unchanged || right->findBlockByNumber(line).text().isEmpty()) {
+					continue;
+				}
+				if (!clickRightLine(static_cast<std::uint32_t>(line)) || !comparison->selection()) {
+					return fail();
+				}
+				probe.OffHunkAnchor = comparison->selection()->PreferredLine;
+				break;
+			}
+			if (!probe.OffHunkAnchor || !editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
+				|| implementation->ReviewDraft->State != core::review_draft_state::drafting) {
+				return fail();
+			}
+			editor->body_editor()->setPlainText(QStringLiteral("BPR-0571 off-hunk publication."));
+			editor->publish_action()->trigger();
+			if (!implementation->ReviewDraft || implementation->ReviewDraft->State != core::review_draft_state::publishing) {
+				return fail();
+			}
+			return advance(state_type::phase::awaiting_fallback_conversation);
+		}
 
 		// The draft is anchored where the comparison's selection is, and the
 		// course needs it on the right side.
@@ -21654,6 +21909,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::sendEvent(pane->viewport(), &press);
 				QCoreApplication::sendEvent(pane->viewport(), &release);
 				return wait("REVIEW_ROUND_TRIP_EDITOR_SELECTION_STALLED", selectionFacts);
+			}
+			if (!probe.NativeLineChosen) {
+				const auto* left  = comparison->left_pane()->document();
+				const auto* right = comparison->right_pane()->document();
+				for (int line = 0; line < std::min(left->blockCount(), right->blockCount()); ++line) {
+					if (left->findBlockByNumber(line).text() != right->findBlockByNumber(line).text()
+						&& !right->findBlockByNumber(line).text().isEmpty()) {
+						probe.NativeLineChosen = clickRightLine(static_cast<std::uint32_t>(line));
+						break;
+					}
+				}
+				if (!probe.NativeLineChosen) {
+					return fail();
+				}
 			}
 			probe.Evidence.ExactDesignatedTarget
 				= implementation->ReviewMutationHost->designated() == designated;
@@ -21930,36 +22199,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return advance(state_type::phase::awaiting_retry);
 		}
 
-		const auto provider            = implementation->Fixture->review_mutation_evidence();
-		const auto statistics          = implementation->ReviewMutationHost->statistics();
-		probe.Evidence.RetryIdempotent = provider.Submissions == 2U
-			&& provider.StoredComments == 1U && provider.DuplicateReturned
-			&& statistics.EffectsQueued == 3U
-			&& statistics.TerminalsPublished == 3U
-			&& !implementation->RetryableReviewDraft.has_value()
-			&& implementation->ReviewDraft->State
-				== core::review_draft_state::published;
-		probe.Evidence.ServerAuthority
-			= implementation->ReviewProjection
-				== implementation->Fixture->review_comments()
-			&& implementation->ReviewProjection.size() == 1U
-			&& implementation->ReviewProjection.front().Body
-				== "BPR-0229 fixture publication.";
-		probe.Evidence.TypedQtProjection
-			= editor->shown_draft() == implementation->ReviewDraft
-			&& editor->mutation_status_text().contains(QStringLiteral("safe retry"))
-			&& editor->statistics().MutationUpdates >= 3U;
-		if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority
-			|| !probe.Evidence.TypedQtProjection
-			|| !probe.Evidence.SelectionDeferred
-			|| !probe.Evidence.LatestSelectionWins
-			|| !probe.Evidence.PendingCleared
-			|| !probe.Evidence.DeferredDraftExact
-			|| !probe.Evidence.StaleTerminalWithheld) {
+		// The receipt initiates a server refresh. That refresh can retire the
+		// editor's publication state before this observer runs, so the result
+		// is checked on the selected accepted conversation below.
+		const auto provider = implementation->Fixture->review_mutation_evidence();
+		if (provider.Submissions != 2U || provider.StoredComments != 1U || !provider.DuplicateReturned
+			|| provider.NativePosts != 1U || provider.FilePosts != 0U) {
 			return fail();
 		}
-		probe.Phase = state_type::phase::passed;
-		return result::passed;
+
+		return advance(state_type::phase::awaiting_native_conversation);
 	}
 
 	auto detail::github_application_fixture_access::exercise_threaded_reply(

@@ -799,6 +799,14 @@ Markdown renderer](https://github.com/github/markup/blob/master/lib/github/marku
 observed on 2026-09-26. Provider publication, recovery and read normalization
 connect this codec in the subsequent authored milestones.
 
+The review-tour extension (BPR-0998) calls the same canonical path/prefix builder
+through a separate read-only codec. It admits full commit-pinned single lines or
+inclusive `#Lfirst-Llast` ranges, LF/CRLF first-line separation and historical
+source. The old single-line publication parser retains its existing contract.
+Tour parsing has no retained blob or comparison authority: the host binds the
+address to exact admitted material before selecting source lines. See
+[review tours](review-tours.md#exact-source-and-compatibility).
+
 ### RFC-0022 logical journal (schema 4)
 
 Schema 4 adds `logical_publication` transactionally after exact validation of
@@ -865,3 +873,39 @@ legacy/logical alias protection, cancellation and lost-response recovery.
 refusal. These are synthetic evidence. Production still supplies no admitted
 unsupported-response contract; BPR-0573 must establish any such exact tuple
 before production fallback is enabled.
+
+### File subjects and selected source placement (RFC-BPR-0022)
+
+The accepted read model retains GitHub's `FILE` or `LINE` subject. The
+application's `review_comment_placement` adds a separate semantic anchor only
+for a file thread with one undeleted root whose visible canonical permalink
+matches the selected, sealed retained text endpoint and changed-file catalogue.
+It decodes the retained raw Markdown observation and keeps display text and
+byte-preserved reviewer prose separate. Missing raw Markdown leaves the thread
+at file level; rendered `bodyText` cannot establish or retain an anchor.
+Replies inherit root placement without decoding their own bodies. Closed pull
+requests remain readable, while the permalink publication compiler still
+requires an open target.
+
+The per-window decoder cache is bound to the complete selected source and each
+root's canonical identity/raw body. Refresh starts from server truth: link edits
+remap or remove placement, deletion removes the thread, and missing source
+material leaves file-level placement. No local database or publication journal
+is required to reconstruct the link. The Qt model preserves canonical IDs and
+checks a compatibility anchor's exact comparison before revealing its line.
+Native historical revision mapping remains RFC-BPR-0021's obligation.
+
+The normal conversation reader presents reviewer prose for an admitted semantic
+file comment. Its optional, collapsed Support details explains the remote file
+subject and code-link placement. The selected source and conversation preserve
+one identity across refresh, including retained endpoints that have an exact
+semantic anchor but no native current-diff coordinate. Qt indexes those admitted
+anchors for reverse selection; it does not decode a permalink or decide a
+publication representation.
+
+A successful root publication requests an ordinary pull-request refresh. The
+receipt supplies only the identity to select once the accepted snapshot names
+that post. Selection is bound to the exact target, acting identity and retained
+comparison and is abandoned on a mismatch. Both native and file-subject
+publications use this path; the server read owns the remote subject, body and
+canonical thread identity.
