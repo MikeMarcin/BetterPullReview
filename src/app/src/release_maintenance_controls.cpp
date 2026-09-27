@@ -204,6 +204,12 @@ namespace bpr::app {
 		}
 	}
 	void release_maintenance_controls::attach(qt::settings_window& aSettings, const std::string& aLabel) { Impl->attach(aSettings, aLabel); }
+	void release_maintenance_controls::open_export(core::diagnostic_export_policy aPolicy)
+	{
+		if (Impl->Panel && !Impl->Closing) {
+			Impl->Panel->open_export(aPolicy);
+		}
+	}
 	void release_maintenance_controls::retain_settings(std::unique_ptr<qt::settings_window> aSettings, const std::string& aLabel, std::function<void()> aUnmount)
 	{
 		Impl->Transferring = true;

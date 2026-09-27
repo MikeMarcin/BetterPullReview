@@ -137,26 +137,25 @@ per-thread Quill queues can drop earlier. These are bounds, not delivery promise
 
 ## Preview and export diagnostics
 
-1. Open **Help → Diagnostics** or **Settings → Storage & privacy** for the
-   intended profile. Choose all retained sessions or the current session. Recent
-   sanitized context is excluded unless its checkbox is selected.
-2. Choose **Preview anonymized diagnostics**. The host flushes accepted records
-   and freezes a bounded selection. The preview names its scope, session count,
-   UTC range, categories, record/byte totals and omissions, and shows the exact
-   file text. Session, request and window joins receive fresh opaque labels for
-   this export. Recognized sanitized explanations, build/timing and closed
-   operation/failure facts remain; these can still reveal context.
-3. Choose **Export anonymized preview…** and a new local filename. Existing files
-   are refused. Later appends are excluded and original files remain intact.
-   Changing the session or recent-context choice cancels the old preview.
-4. For retained numeric request/window identities, use **Preview with identifying
-   details…**, inspect it, then **Export with identifying details…**. A separate
-   default-Cancel disclosure precedes the save chooser. Export cannot recover
-   identities removed when the event was recorded. Current producers do not admit
-   names, paths, credentials or review content even in this mode.
+1. Choose **Help → Export anonymized diagnostics…**, available while signed out.
+   The same action is in **Settings → Storage & privacy**. It automatically
+   freezes a bounded selection of retained logs for this profile and opens the
+   preview. Session, request and window joins receive fresh opaque labels.
+2. Inspect the scope, time range, categories, size and omissions. **Show records**
+   expands the exact file text. Recognized sanitized explanations and operational
+   facts remain; these can still reveal context.
+3. Choose **Save…** and a new local filename, or **Cancel**. Existing files are
+   refused. Later appends are excluded; original files remain intact.
+4. **Export options** offers current-session selection and optional recent
+   sanitized context (excluded by default). Changing an option cancels the old
+   snapshot; **Update preview** freezes the revised selection before Save enables.
+5. **Help → Export with identifying details…** uses the same short flow with
+   an explicit disclosure and **Save with identifying details…** confirmation.
+   Cancel is the default. Export cannot recover identities removed during
+   recording. Credentials and review content are excluded in either mode.
 
 Every export is a local write. No upload, support message, repository attachment
-or transmission to an agent occurs. Closing Settings cancels its preview. A
+or transmission to an agent occurs. Closing the export dialog or its Settings window cancels its preview. A
 frozen preview can contain explicitly selected recent context until cancelled or
 consumed; it receives no new records after preparation.
 

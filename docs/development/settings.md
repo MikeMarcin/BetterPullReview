@@ -138,14 +138,19 @@ comparison unavailable. These operations do not change GitHub or a developer
 working copy. They are separate from resetting preferences.
 
 Help → Diagnostics raises this page while signed out. Profile capture controls
-own On/Off, Standard/Verbose and independent identifying-detail privacy.
-**Preview anonymized diagnostics** selects retained or current-session files
-and optional recent context. It displays exact frozen bytes, range, categories,
-counts and omissions. **Export anonymized preview…** saves those bytes locally.
-**Preview with identifying details…** has a separate identifying export action
-and confirmation; capture-time redaction cannot be reversed. Neither mode admits
-credentials, review content or crash memory, and nothing is uploaded. See the
+show Standard/Verbose and independent Anonymized/Include locally choices as
+paired buttons. On/Off and the accepted Open logs/Clear controls remain nearby;
+About local diagnostics explains recent context and recording limits.
+
+Help also offers **Export anonymized diagnostics…** and **Export with identifying
+details…** directly, without opening Settings. Each opens a compact frozen
+preview with **Save…** and **Cancel**. Export options and exact records expand
+on request. The identifying preview discloses irreversible capture omissions;
+**Save with identifying details…** confirms that policy before choosing a file.
+Nothing is uploaded. See the
 [diagnostics guide](storage-and-diagnostics.md#preview-and-export-diagnostics).
+
+Expand **Profile maintenance** for the destructive preparation controls below.
 
 **Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
 the selected profile and all its producers will stop before an exact inventory

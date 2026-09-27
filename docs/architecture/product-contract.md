@@ -114,7 +114,9 @@ explicit diagnostic cleanup/profile purge. Diagnostic export saves only the
 exact previewed classified metadata to a new local file; it uploads nothing.
 The readable log and external OS crash reports have separate privacy limits.
 
-Help → Diagnostics opens the same profile Settings while signed out. Recording
+Help → Diagnostics opens the same profile Settings while signed out. Help also
+offers anonymized and identifying export actions directly. Each presents a
+frozen preview with Save and Cancel, without requiring Settings navigation. Recording
 starts On, Standard and Anonymized. Detail and identity privacy are separate
 persistent choices, with an explicit disclosure before Include locally. Off
 stops new records and recent context after acknowledgement, preserving existing

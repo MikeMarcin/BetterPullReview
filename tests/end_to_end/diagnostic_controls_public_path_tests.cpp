@@ -11,8 +11,8 @@
 #include "private_data_root.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
-#include <QComboBox>
 #include <QDesktopServices>
 #include <QElapsedTimer>
 #include <QLabel>
@@ -59,8 +59,8 @@ namespace {
 		qt::settings_window*                  Settings = nullptr;
 		qt::diagnostic_settings_panel*        Panel    = nullptr;
 		QCheckBox*                            Enabled  = nullptr;
-		QComboBox*                            Detail   = nullptr;
-		QComboBox*                            Privacy  = nullptr;
+		QButtonGroup*                         Detail   = nullptr;
+		QButtonGroup*                         Privacy  = nullptr;
 		QLabel*                               Status   = nullptr;
 		explicit running(const std::filesystem::path& aRoot)
 		{
@@ -83,8 +83,8 @@ namespace {
 			Panel = dynamic_cast<qt::diagnostic_settings_panel*>(Settings->findChild<QWidget*>(QStringLiteral("diagnosticSettingsPanel")));
 			expect(Panel && Panel->isVisible(), "real diagnostics panel rendered");
 			Enabled = Panel->findChild<QCheckBox*>(QStringLiteral("diagnosticEnabled"));
-			Detail  = Panel->findChild<QComboBox*>(QStringLiteral("diagnosticDetail"));
-			Privacy = Panel->findChild<QComboBox*>(QStringLiteral("diagnosticPrivacy"));
+			Detail  = Panel->findChild<QButtonGroup*>(QStringLiteral("diagnosticDetail"));
+			Privacy = Panel->findChild<QButtonGroup*>(QStringLiteral("diagnosticPrivacy"));
 			Status  = Panel->findChild<QLabel*>(QStringLiteral("diagnosticStatus"));
 			until([this] { return Enabled->isEnabled(); }, "settings persistence admitted independently of sign-in");
 			expect(!Settings->grab().isNull(), "full Settings paints with controls");
@@ -110,10 +110,10 @@ try {
 	expect(!root.empty(), "private data root");
 	{
 		running app{ root };
-		expect(app.Enabled->isChecked() && app.Detail->currentIndex() == 0 && app.Privacy->currentIndex() == 0, "public default On Standard Anonymized");
-		app.Detail->setCurrentIndex(1);
-		until([&] { return app.Enabled->isEnabled() && app.Detail->currentIndex() == 1; }, "public Verbose accepted");
-		expect(app.Privacy->currentIndex() == 0, "Verbose does not increase identity disclosure");
+		expect(app.Enabled->isChecked() && app.Detail->checkedId() == 0 && app.Privacy->checkedId() == 0, "public default On Standard Anonymized");
+		app.Detail->button(1)->click();
+		until([&] { return app.Enabled->isEnabled() && app.Detail->checkedId() == 1; }, "public Verbose accepted");
+		expect(app.Privacy->checkedId() == 0, "Verbose does not increase identity disclosure");
 		folder_receiver receiver;
 		QDesktopServices::setUrlHandler(QStringLiteral("file"), &receiver, "open");
 		app.Panel->findChild<QPushButton*>(QStringLiteral("diagnosticOpen"))->click();
@@ -140,17 +140,17 @@ try {
 		app.Window->findChild<QAction*>(QStringLiteral("openDiagnosticsAction"))->trigger();
 		until([&] { return app.Status->text().contains(QStringLiteral("Recent context: 0 events")); }, "real Sign out discards profile transient context without waiting for logger I/O");
 		until([&] { return app.Enabled->isEnabled(); }, "diagnostic controls remain reachable signed out");
-		app.Privacy->setCurrentIndex(1);
+		app.Privacy->button(1)->click();
 		auto* consent = app.Panel->findChild<QMessageBox*>(QStringLiteral("diagnosticPrivacyConfirmation"));
-		expect(consent && consent->isVisible() && app.Privacy->currentIndex() == 0, "identity choice waits for disclosure and accepted state");
+		expect(consent && consent->isVisible() && app.Privacy->checkedId() == 0, "identity choice waits for disclosure and accepted state");
 		consent->done(QMessageBox::Cancel);
-		expect(app.Privacy->currentIndex() == 0, "cancel retains anonymization");
+		expect(app.Privacy->checkedId() == 0, "cancel retains anonymization");
 		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-		app.Privacy->setCurrentIndex(1);
+		app.Privacy->button(1)->click();
 		consent = app.Panel->findChild<QMessageBox*>(QStringLiteral("diagnosticPrivacyConfirmation"));
 		expect(consent && consent->isVisible(), "explicit second privacy choice");
 		consent->done(QMessageBox::Yes);
-		until([&] { return app.Enabled->isEnabled() && app.Privacy->currentIndex() == 1; }, "include locally accepted after confirmation");
+		until([&] { return app.Enabled->isEnabled() && app.Privacy->checkedId() == 1; }, "include locally accepted after confirmation");
 		app.Enabled->click();
 		until([&] { return app.Enabled->isEnabled() && !app.Enabled->isChecked(); }, "Off acknowledged");
 		auto* siblingAction = app.Window->findChild<QAction*>(QStringLiteral("newBprWindowAction"));
@@ -173,7 +173,7 @@ try {
 	}
 	{
 		running app{ root };
-		expect(!app.Enabled->isChecked() && app.Detail->currentIndex() == 1 && app.Privacy->currentIndex() == 1, "restart preserves accepted Off and independent choices");
+		expect(!app.Enabled->isChecked() && app.Detail->checkedId() == 1 && app.Privacy->checkedId() == 1, "restart preserves accepted Off and independent choices");
 		expect(tests::read_diagnostic_logs(root).empty(), "Off at restart emits no startup or hidden context");
 		app.stop();
 	}
@@ -184,7 +184,7 @@ try {
 	sqlite3_close(db);
 	{
 		running app{ root };
-		expect(!app.Enabled->isChecked() && app.Detail->currentIndex() == 0 && app.Privacy->currentIndex() == 0, "unknown schema safely preserves Off and defaults detail/privacy");
+		expect(!app.Enabled->isChecked() && app.Detail->checkedId() == 0 && app.Privacy->checkedId() == 0, "unknown schema safely preserves Off and defaults detail/privacy");
 		expect(app.Status->text().contains(QStringLiteral("safe defaults")), "migration refusal visible on public UI");
 		app.Enabled->click();
 		until([&] { return app.Enabled->isEnabled() && app.Enabled->isChecked(); }, "explicit choice repairs compatible invalid preferences");

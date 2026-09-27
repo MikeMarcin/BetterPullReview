@@ -438,7 +438,8 @@ The legacy metadata classifier and API above remain supported. The shipped panel
 now requests the richer `bpr-diagnostics-v2` JSONL document. Core options bind
 Anonymized/Identifying, retained/current sessions and Include recent to the exact
 request and descriptor. A mismatched prepared policy is refused. Identifying save
-requires an additional explicit confirmation, and consumes that exact preview.
+requires explicit confirmation through the identifying preview’s Save action,
+and consumes that exact preview.
 Generic raw summary/identity field flags remain forbidden; rich fields have
 separate classified-detail, correlation and captured-identity classes.
 
@@ -469,3 +470,16 @@ compare preview/output bytes after later appends, confirm/cancel identifying sav
 select current/retained/ring scope and exercise content canaries. They run under
 network isolation. Native Windows/Linux, packaged and human judgments remain M5
 obligations in the [RFC-0027 ledger](../verification/RFC-BPR-0027.md).
+
+
+### M5 owner UI amendment
+
+The 2026-09-27 attended feedback uses AllTheThings’ segmented settings and
+Help exports as the reference. Qt displays paired capture choices and direct
+Help export actions. The profile owner composes the same maintenance host on
+demand; Settings need not be visible. The export dialog automatically requests
+a frozen preview. Expandable options invalidate that selection when changed;
+Save remains disabled until a new preview is accepted. The identifying dialog
+names the retained-identity risk and defaults to Cancel. Its explicit Save action
+carries the existing core confirmation bit for that exact descriptor. No new
+capture, classification, destination, mutation or network authority is added.

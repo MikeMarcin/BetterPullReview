@@ -4043,6 +4043,21 @@ namespace bpr::app {
 				Diagnostics->attach(*Settings);
 			}
 		}
+		void present_diagnostic_export(core::bpr_window_context aContext, core::diagnostic_export_policy aPolicy)
+		{
+			if (!current_window(aContext)) {
+				return;
+			}
+			if (!Settings) {
+				Settings = std::make_unique<qt::settings_window>();
+				Settings->set_profile_label(QString::fromStdString(Admission.Label));
+			}
+			if (!Maintenance) {
+				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement, std::dynamic_pointer_cast<application::diagnostic_control_port>(DiagnosticLog));
+			}
+			Maintenance->attach(*Settings, Admission.Label);
+			Maintenance->open_export(aPolicy);
+		}
 		std::optional<core::bpr_window_context> Focused;
 		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
 		void                                    publish(const application::queue_landing_projection& aProjection) override;
@@ -6607,6 +6622,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				cancel_restoration(false);
 				if (!WindowRead->accepted_snapshot()) {
 					Window->choose_home(true);
+				}
+			});
+			Window->set_diagnostic_exporter([this, weak](core::diagnostic_export_policy aPolicy) {
+				if (!weak.expired() && !Closing) {
+					Profile->present_diagnostic_export(DraftWindow, aPolicy);
 				}
 			});
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);

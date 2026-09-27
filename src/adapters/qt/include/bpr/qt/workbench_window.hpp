@@ -13,6 +13,7 @@
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/release_maintenance.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
@@ -900,6 +901,8 @@ namespace bpr::qt {
 		/// \brief Shows the Settings window on a page; a no-op before composition.
 		/// \brief Lets the profile owner route every Settings gesture to its single shell.
 		void set_settings_presenter(std::function<void(settings_page)> aPresenter);
+		/// \brief Routes direct Help exports to the profile-owned maintenance host.
+		void set_diagnostic_exporter(std::function<void(core::diagnostic_export_policy)> aExporter);
 		/// \brief Mounts this live window's pages into a profile-owned shell.
 		/// \details The shell must outlive this mount; unmount its previous session first.
 		/// Destruction restores pages before destroying their callback-owning workbench.
@@ -1669,6 +1672,8 @@ namespace bpr::qt {
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
 		bool                                               HasCachedOverview      = false;
+
+		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::string                                                                  MarkdownAuthority;

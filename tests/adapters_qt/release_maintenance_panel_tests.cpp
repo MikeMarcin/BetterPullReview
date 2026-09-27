@@ -20,6 +20,7 @@
 #include <QStackedWidget>
 #include <QTextCursor>
 #include <QThread>
+#include <QToolButton>
 
 #include <cstdlib>
 #include <iostream>
@@ -279,6 +280,8 @@ namespace {
 		auto* preview = test.Panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"));
 		expect(preview && preview->isReadOnly() && preview->toPlainText().contains(QStringLiteral("bpr-diagnostics-v2")) && !preview->toPlainText().contains(QStringLiteral("CANARY")), "rendered preview contains only classified frozen metadata");
 		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceSummary"))->text().contains(QStringLiteral("1 records omitted")), "omission count visible");
+		test.Panel->findChild<QToolButton*>(QStringLiteral("diagnosticExportRecords"))->setChecked(true);
+		QApplication::processEvents();
 		auto cursor = preview->textCursor();
 		cursor.setPosition(2);
 		cursor.setPosition(10, QTextCursor::KeepAnchor);

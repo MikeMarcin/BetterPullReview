@@ -33,3 +33,23 @@ Three attended criteria are prepared in session
 full RFC remain unaccepted, so main integration remains pending. Source ownership
 is released to the coordinator after the committed checkpoint; only the handed
 off local review server remains active.
+
+
+## Attended hand-back and UI revision
+
+At cursor 23 the owner accepted `BPR-1219-files` (decision `413e836b`, source
+`7ab11993`, binary SHA-256 `3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`).
+Controls were rejected with “Settings should look more like the AllTheThings
+settings selectors.” Export was rejected with “This seems much more complicated
+than necessary, see the simplicity of the AllTheThings Help options”. The two
+controls images and one Help-menu image were inspected locally. The reference
+checkout was read only at `2ba1b33c9886a3e20865801581a26b5ba73f2700`.
+
+Assignment `/root/rfc0027_m5_revision`, mandate r2, owns the bounded repair.
+Paired capture buttons and direct Help export actions retain the existing
+barriers and exact frozen selection. New controls/export acceptance remains
+pending. The original files candidate and copied app are preserved. The shared
+panel path caused `resume-development` to release its protection flag as well
+as controls (the tool combines paths and candidate selectors); its verdict and
+identity were unchanged. The old app remains reserved by this handoff and is
+not overwritten; replacement candidates use a separate copy.

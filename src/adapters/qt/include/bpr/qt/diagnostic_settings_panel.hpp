@@ -4,7 +4,7 @@
 #include <QWidget>
 #include <functional>
 class QCheckBox;
-class QComboBox;
+class QButtonGroup;
 class QPushButton;
 class QLabel;
 namespace bpr::qt {
@@ -28,8 +28,8 @@ namespace bpr::qt {
 		diagnostic_settings_dispatch                Dispatch;
 		application::diagnostic_settings_projection Projection;
 		QCheckBox*                                  Enabled    = nullptr;
-		QComboBox*                                  Detail     = nullptr;
-		QComboBox*                                  Privacy    = nullptr;
+		QButtonGroup*                               Detail     = nullptr;
+		QButtonGroup*                               Privacy    = nullptr;
 		QPushButton*                                Clear      = nullptr;
 		QPushButton*                                Open       = nullptr;
 		QLabel*                                     Status     = nullptr;

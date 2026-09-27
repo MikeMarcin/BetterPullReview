@@ -346,3 +346,17 @@ after each accepted milestone. This supersedes the earlier advanced-phase
 deferral, preserves all full acceptance criteria and the BPR-0971 sanitizer
 clarification, and grants no live sign-in or PR mutation. BPR-1215–1219 bind
 the remaining work and native/attended acceptance.
+
+
+## M5 attended UI amendment — 2026-09-27
+
+Under mandate r2, the owner accepted Open logs/Clear for source `7ab11993`
+and requested two presentation changes in session
+`c1565558e5fd3fdc277e62622604873b`, hand-back cursor 23: Settings should resemble
+AllTheThings’ visible paired selectors, and exports should follow its simple
+Help actions. This authorizes the compact Settings rows and direct Help export
+dialog, retaining the same frozen preview, privacy and local-write boundaries.
+The identifying dialog’s explicit Save confirms the displayed scope and policy;
+Cancel remains the default. This amendment changes presentation, waives no
+acceptance criterion, and requires new controls/export judgments. The accepted
+files decision remains bound to its unchanged copied candidate.

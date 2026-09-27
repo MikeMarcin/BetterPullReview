@@ -316,7 +316,9 @@ on the effect lane. Native storage reads only admitted profile files; current-se
 selection filters filenames before reading. Application classification rebuilds
 bounded JSONL, validates every field and known explanation, and gives each export
 fresh opaque session/request/window joins. The core requires separate confirmation
-for identifying export. Preview and the native exclusive local writer consume the
+for identifying export, supplied by the explicit Save action in its disclosure
+dialog. Direct Help exports use the same profile host without opening Settings.
+Preview and the native exclusive local writer consume the
 same digest-bound bytes; neither path composes a network capability.
 
 The entry point also owns one bounded terminal service before Qt startup and
