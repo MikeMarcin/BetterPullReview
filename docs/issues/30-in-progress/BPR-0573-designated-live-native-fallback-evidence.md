@@ -241,3 +241,20 @@ occurred. [Held launch evidence](../_checkpoints/BPR-0575/m4-r3-unlocked-preflig
 and [exact command](../_checkpoints/BPR-0575/m4-r3-unlocked-live-command.json)
 preserve a ready continuation when UI ownership is free. The coordinator handles
 the external coordination; milestone acceptance remains pending.
+
+### Launch race after natural exit
+
+After the other task's app exited, a full process inventory found no attended
+app. Exact source/image/inventory/approval/profile, open PR2 head and four historic
+journals were revalidated, and our fresh profile2 course launched. Another task
+independently launched its RFC0023 app about four seconds later. No CUA app
+selection or UI action occurred. Only our captured stage-zero72939 was signaled;
+our app73063/supervisor72958 stopped and our image detached. The other task's
+app73185/supervisor73090 was left untouched. Command95094 exited8 after30.36s;
+this is a no-POST interruption, not live feature acceptance. All four historic
+records remain byte-identical. The consumed approval's empty parent was removed.
+
+[Race evidence](../_checkpoints/BPR-0575/m4-r3-launch-race-attempt.json) records
+the exact course. Natural-exit polling cannot guarantee UI ownership. The
+coordinator awaits explicit user authorization for cross-task coordination;
+no further launch occurs before a handoff, and fresh one-use authority is needed.

@@ -98,3 +98,23 @@ PR2 head and journal hashes, then launch our exact configured lane. Do not reuse
 another task's UI or stop its process. No further code or broad gate is needed.
 This continuation releases writing ownership after its held-state commit;
 BPR-0573 is again Parked awaiting-live-github and no milestone acceptance is claimed.
+
+## Latest course — launch race, coordination pending
+
+Following natural exit, the full app inventory was empty. Exact capsule and
+source/inventory digests, unused approval/profile2, open PR2 head and the four
+historic journal hashes were revalidated. Our fresh app launched, then RFC0023
+independently launched another app about four seconds later. No CUA app selection
+or other UI action occurred. Coordinator agreed to close only our course.
+Stage-zero72939 received SIGTERM, app73063/supervisor72958 stopped, image detached
+and mount removed; session95094 exited8 after30.36s. The other app73185 and
+supervisor73090 remain untouched. Our consumed approval parent is removed.
+All four historic records remain byte-identical; no new publication exists.
+See [race evidence](m4-r3-launch-race-attempt.json).
+
+The earlier held preflight is historical and its approval is now consumed.
+Do not launch from another natural-exit gap. Coordinator awaits user authority
+to coordinate the other task's UI ownership. After a concrete handoff, prepare
+a fresh nonce for the unchanged signed capsule. Actual fallback, collaborator
+continuity and independent acceptance remain pending. All task-owned commands
+are finished except inherited review server72886/session52232.
