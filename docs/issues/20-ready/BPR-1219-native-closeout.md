@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1219"
 title: "Qualify structured diagnostics and reconcile RFC acceptance"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1218"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"Native macOS/Windows/Linux developer logging, lifecycle and controls pass; universal Mac unpublished package, Quill provenance, explicit installer/container/crash limits in docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC2","outcome":"pending","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"Three protected exact-source attended candidates prepared at cursor19; actual human verdicts remain required. No live sign-in."}},{"criterion":"AC3","outcome":"pending","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"All nine criteria reconciled in BPR-0601; RFC/index remain open and accepted M5 main landing awaits actual acceptance."}}]
 ---
 
