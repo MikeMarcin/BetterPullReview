@@ -80,7 +80,7 @@ visible palette-derived outline. Physical Tab/Shift+Tab and composed narrow-wind
 checks pass; the owner verdict remains pending.
 
 The owner also requested compact status icons before the number, implemented by
-[BPR-1221](BPR-1221-show-tour-stop-status-before-the-number.md).
+[BPR-1221](../60-done/BPR-1221-show-tour-stop-status-before-the-number.md).
 That explicitly affected ordinary-layout candidate is re-prepared alongside
 keyboard; the other five current accepted candidates retain their fingerprints,
 decisions and protection. The historical ordinary-layout accept stays recorded.
