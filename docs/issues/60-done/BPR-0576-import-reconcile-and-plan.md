@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0576"
 title: "Import RFC-BPR-0023, re-audit the live tree, and bind the evidence plan"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: []
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"M1-01","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"Immutable pack, import commit and LIVE_IMPORT mapping retained; all 26 manifest payload hashes pass.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}},{"criterion":"M1-02","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"Live RFC/index Proposed under owner mandate r1; protected original plan unchanged; adopted ten-milestone plan linked.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}},{"criterion":"M1-03","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"All sixteen allocated cards and dependencies retained; scoped board validates and no IDs allocated.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}},{"criterion":"M1-04","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"Live audit covers every imported source surface, including ledger v6, recovery v5, shared drafts, temporary chat and protocol metadata.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}},{"criterion":"M1-05","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"Live audit and canonical ledger allocate architecture, all eighteen acceptance claims, documentation, schema/migration, protocol and designated-publication evidence.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}},{"criterion":"M1-06","outcome":"pass","revision":"920bb62b526d900c049415b8ea88910c033fe1f3","evidence":{"kind":"observation","detail":"Documentation gate PASS, 64 documentation regressions PASS, scoped board and plan binding PASS, protected-source/AC comparison PASS and whitespace PASS.","artifact":"docs/verification/RFC-BPR-0023-live-audit.md"}}]
 ---
 
 # Import RFC-BPR-0023, re-audit the live tree, and bind the evidence plan

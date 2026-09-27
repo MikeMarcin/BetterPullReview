@@ -145,3 +145,35 @@ edited. Live audit, receipt, selection and checkpoint are retained in
 `docs/verification/`. Card amendments only activate the owner mandate, link the
 plan and correct stale schema facts; future card acceptance and dependencies
 remain intact.
+
+## M1 durable handoff
+
+Accepted planning candidate: `920bb62b526d900c049415b8ea88910c033fe1f3`.
+This candidate contains all audit/plan/card/RFC changes; the succeeding MASK
+finish commit changes BPR-0576 to Done, repairs its editable LIVE_IMPORT link
+and stores this completion record. Source behavior is unchanged from
+`899090f3`. No product acceptance is attached to this candidate.
+
+The [bound checkpoint](RFC-BPR-0023.m1-checkpoint.json) and
+[completion observation](RFC-BPR-0023.m1-observation.json) bind mandate r1,
+segment `m1-initial`, BPR-0576 and all four M1 exits. The observation's candidate
+is the accepted planning commit above, before completion bookkeeping.
+
+Changed paths: sixteen RFC-0023 cards; live RFC/index; the existing verification
+ledger; new live audit, adopted plan/derived view/source receipt, normalization
+receipt, resolved strategy, checkpoint and observation; editable LIVE_IMPORT
+link repair only. Original imported issue plan and retained pack are unchanged.
+No source, tests, build configuration, binary or unrelated work is included.
+
+Verification is complete for this planning scope. All task-owned commands have
+finished; there are no background builds, child agents, review servers or
+external writers owned by this milestone. The sole transient preparation root
+is removed before return. No native/human candidate or protection lease is held.
+The branch is released to the coordinator after the completion commit.
+
+Next action: integrate accepted M1 into main, then dispatch a fresh implementer
+for `m2-architecture` / BPR-0577. That card becomes dependency-eligible after
+BPR-0576 is Done and remains Backlog until explicitly readied/claimed. Required
+independent architecture review stays pending; later external publication,
+rendered/native/human evidence and the final independent review remain owned by
+their existing cards. No extra acceptance waiver accompanies this handoff.
