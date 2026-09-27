@@ -71,6 +71,14 @@ namespace bpr::core {
 	[[nodiscard]] auto permitted_agent_environment_name(
 		std::string_view aName) noexcept -> bool;
 
+	/// \brief Explicit settings; absence never derives a value from a profile label.
+	struct agent_setting_facts
+	{
+		std::optional<std::string> Model;
+		std::optional<std::string> Effort;
+		auto                       operator<=>(const agent_setting_facts&) const = default;
+	};
+
 	/// \brief One separately installed agent tool BetterPullReview may launch.
 	///
 	/// \details **There is no field here a credential could occupy.** Not a
@@ -102,6 +110,7 @@ namespace bpr::core {
 		/// inheritance: a host that passed the reviewer's whole environment
 		/// would pass every secret in it.
 		std::vector<std::string> AllowedEnvironment;
+		agent_setting_facts      DefaultSettings;
 
 		auto operator<=>(const agent_profile&) const = default;
 	};

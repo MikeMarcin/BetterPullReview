@@ -645,7 +645,11 @@ namespace bpr::application {
 					aInvocation);
 				return;
 			}
-			auto launch = build_agent_launch(aProfile, aSupplement, Environment, aRequest.WritingOnly);
+			auto launch = build_agent_launch(
+				aProfile, aSupplement, Environment,
+				{ .Requested   = aRequest.RequestedSettings,
+				  .EntryPoint  = aRequest.Context.EntryPoint,
+				  .WritingOnly = aRequest.WritingOnly });
 			if (!launch.has_value() || !workspace.has_value()) {
 				complete(
 					{ .Session = aInvocation->Identity.Session.Id,

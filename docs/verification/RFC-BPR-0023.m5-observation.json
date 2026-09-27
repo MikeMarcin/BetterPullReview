@@ -1,0 +1,124 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m5-protocol-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m5-protocol",
+    "definition_fingerprint": "sha256:93cfc3e2eb3f7e063caecef54238810019de5aaea04e0c9b8adaeadf4b23d986",
+    "obligations": [
+      {
+        "id": "BPR-0581:*",
+        "source": "BPR-0581",
+        "selector": null,
+        "source_fingerprint": "sha256:94cd0e2a0babaa704ff8473b96c75dda7f80c413f071d28bbf7b692c3cd47d42"
+      }
+    ],
+    "obligation_fingerprint": "sha256:2a83e321b7e7421d198e5e0d403b651f49744d58fe6a398f0614dcae5045fcad",
+    "exit_criteria": [
+      {
+        "id": "m5-protocol:exit:1",
+        "text": "Requested/configured/reported/self-reported facts remain separate and every invocation has its own durable run identity contract."
+      },
+      {
+        "id": "m5-protocol:exit:2",
+        "text": "All current protocol paths preserve bounded full/partial/conflicting/unknown facts and process isolation; unsupported facts stay absent."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:2441eb30e3b04de20cd373f665c11e894013a9b210796de576d2986640b38b15",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m5-protocol",
+  "disposition": "milestone-complete",
+  "candidate_revision": "8e20e9e850c6f185e1107280a175b3fd8f9cec29",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m5-durable-handoff",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023-live-audit.md",
+    "docs/architecture/ai-agent-boundary.md",
+    "tests/application/agent_launch_tests.cpp",
+    "tests/application/agent_protocol_loop_tests.cpp",
+    "tests/application/agent_invocation_host_tests.cpp",
+    "tests/adapters_qt/agent_launch_canary_tests.cpp",
+    "tests/sqlite_contract/private_review_storage_tests.cpp"
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m6-thread-host",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates accepted M5 into local main, preserving ledger v7 and recovery v5/tour codec v3, then starts a fresh M6/BPR-0582 segment for persisted run/prompt admission, exact source revalidation and complete assistant/terminal retention through the existing invocation path. M9 native/designated-publication obligations and the final M10/BPR-0591 independent review remain pending under mandate r2."
+  },
+  "ownership": "quiescent",
+  "acceptance_records": [
+    {
+      "id": "BPR-0581:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "tests/application/agent_launch_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/application/agent_invocation_host_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp"
+      ]
+    },
+    {
+      "id": "m5-protocol:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "tests/application/agent_launch_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/application/agent_invocation_host_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp"
+      ]
+    },
+    {
+      "id": "m5-protocol:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "tests/application/agent_launch_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/application/agent_invocation_host_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp"
+      ]
+    }
+  ]
+}

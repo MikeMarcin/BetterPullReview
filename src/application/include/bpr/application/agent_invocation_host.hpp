@@ -66,6 +66,7 @@ namespace bpr::application {
 		/// `stale_or_mismatched_agent_context` exactly as before.
 		std::optional<core::agent_session> ContinuedSession;
 		bool                               WritingOnly = false;
+		core::agent_setting_facts          RequestedSettings;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
