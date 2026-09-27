@@ -1,3 +1,12 @@
+# BPR-1002 staged-publication merge reseal: reviewed f1e0c652..ef05b58c.
+# Pinned-scope commits: 36d535eb, 505c942d, 189d24f9, e0a870b3,
+# 0fb249a2 and ef05b58c. Tour preview freezes the exact plan and grants
+# bounded child operations through the existing host/journal; pending live
+# operations remain unavailable until qualified. Diagnostic Help exports use
+# the existing current-window/profile maintenance owner. Production lambda
+# capture repairs preserve the fixture branch. Five changed manifest paths
+# are reviewed on BPR-1002 and in the RFC-BPR-0039-0043 merged checkpoint.
+# No new source inventory entry; ordinary mutation-branch pin is unchanged.
 # BPR-0998 github-round-trip integration: reviewed dc1a836b..18c23cdd,
 # pinned-scope product commits f44c95dd and 757e8b9b, plus this merge resolution.
 # Raw tour imports and exact commit/path/side/range navigation retain existing
@@ -398,7 +407,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3e4694ec6ededc527d617f11261bcbacc7bc3820bbee8127d5fe10e8c18e1576"
+		"1ef4372eec769003fedae24b1ef9cb5cefcc122647b1f17dfcc75e79717ace54"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -553,7 +562,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "452e4eeee30054dd75c2f9fa9110484dc93304a20a7c2b9552eeac18b5039a60"
+        "c0c6f27cc9793ca190e0388a5c38d749a470281ab5e0384b4907dcf70aa14756"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
