@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1057"
 title: "Integrate trusted external editors and local undo redo"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1056"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-06","milestone":"headless-manual","acceptance":["AC44-07"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-07","outcome":"pass","revision":"3c82ef7248240f11751a1a130b9070805cb52cc3","evidence":{"kind":"command","detail":"ctest --preset dev --output-on-failure -R ^(tour_cli_composition|tour_cli_process_commands|application_review_tour_host|sqlite_review_tour_storage|architecture_boundaries)$: 5/5 pass; editor argv/private projection/CAS/recovery and durable exact undo tests; documentation gate pass"}}]
 ---
 
 # BPR-1057: Integrate trusted external editors and local undo redo
