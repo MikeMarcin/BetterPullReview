@@ -1,4 +1,5 @@
 #include "bpr/core/review_tour_destination.hpp"
+#include "bpr/core/review_tour_update.hpp"
 #include <algorithm>
 namespace bpr::core {
 	auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness
@@ -27,6 +28,33 @@ namespace bpr::core {
 		return state::single_review;
 	}
 
+	auto assess_tour_update(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, tour_operation_support aBodyEdits) -> tour_publication_readiness
+	{
+		using state = tour_publication_readiness;
+		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || aDestinations.size() != aTour.Stops.size()) {
+			return state::incomplete;
+		}
+		if (aBodyEdits != tour_operation_support::supported) {
+			return state::unavailable;
+		}
+		review_tour fresh = aTour;
+		fresh.Remote.reset();
+		fresh.Stops.clear();
+		fresh.Retired.clear();
+		std::vector<tour_destination_plan> destinations;
+		for (std::size_t i = 0; i < aTour.Stops.size(); ++i) {
+			const auto& stop = aTour.Stops[i];
+			if (needs_tour_destination(stop)) {
+				auto added = stop;
+				added.Remote.reset();
+				fresh.Stops.push_back(added);
+				destinations.push_back(aDestinations[i]);
+			} else if (!stop.Remote->Own || !stop.Baseline || stop.Preparation == tour_preparation::needs_attention) {
+				return state::incomplete;
+			}
+		}
+		return fresh.Stops.empty() ? (aCompatibility ? state::compatibility_comments : state::single_review) : assess_tour_publication(fresh, destinations, aCompatibility);
+	}
 	auto plan_tour_destination(const tour_destination_observation& aObservation) noexcept -> tour_destination_plan
 	{
 		using support        = tour_operation_support;

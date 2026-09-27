@@ -36,6 +36,7 @@ add_library(
         src/review_tour_import.cpp
         src/review_tour_destination.cpp
         src/review_tour_markdown.cpp
+        src/review_tour_update.cpp
         src/review_tour.cpp
         src/review_round_trip.cpp
     src/review_publication_policy.cpp

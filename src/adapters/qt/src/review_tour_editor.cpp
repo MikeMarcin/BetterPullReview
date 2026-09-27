@@ -333,6 +333,7 @@ namespace bpr::qt {
 		action(tr("Duplicate stop"), QStringLiteral("tourDuplicate"), QStringLiteral("Alt+D"), [this] { structural(core::tour_command_kind::duplicate); });
 		action(tr("Split at text cursor"), QStringLiteral("tourSplit"), QStringLiteral("Alt+S"), [this] { structural(core::tour_command_kind::split); });
 		action(tr("Merge with next stop"), QStringLiteral("tourMerge"), QStringLiteral("Alt+M"), [this] { structural(core::tour_command_kind::merge_next); });
+		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QStringLiteral("Alt+R"), [this] { trigger(tour_editor_action::retarget_stop); });
 		action(tr("Remove stop"), QStringLiteral("tourRemove"), QStringLiteral("Alt+Delete"), [this] { structural(core::tour_command_kind::remove); });
 		menu->addSeparator();
 		UndoStructure = action(tr("Undo arrangement"), QStringLiteral("tourUndo"), QStringLiteral("Ctrl+Alt+Z"), [this] { trigger(tour_editor_action::undo_structure); });

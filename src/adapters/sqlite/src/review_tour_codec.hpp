@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 3;
+		std::uint8_t                  Version = 4;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -204,7 +204,7 @@ namespace bpr::adapters::sqlite::detail {
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2 && Version != 3) {
+			if (Version != 1 && Version != 2 && Version != 3 && Version != 4) {
 				Good = false;
 				return;
 			}
@@ -224,6 +224,9 @@ namespace bpr::adapters::sqlite::detail {
 				optional(aTour.IndexBaseline, [&](auto& aValue) { baseline(aValue); });
 				text(aTour.ImportNotice);
 				number(aTour.ReadOnly);
+			}
+			if (Version >= 4) {
+				list(aTour.Retired, core::maximum_tour_stops, [&](auto& value) { stop(value); });
 			}
 		}
 	};

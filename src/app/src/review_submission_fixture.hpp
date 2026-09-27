@@ -16,6 +16,9 @@ namespace bpr::app::detail {
 		std::mutex                                          Mutex;
 		std::condition_variable_any                         StagedWait;
 		std::optional<application::staged_review_entity>    StagedReview;
+		std::vector<application::staged_review_entity>      PreviousReviews;
+		std::vector<application::staged_review_comment>     PreviousComments;
+		std::vector<std::string>                            StagedWritePaths;
 		std::vector<application::staged_review_comment>     StagedComments, CompatibilityComments;
 		std::optional<std::string>                          StagedDescription;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;

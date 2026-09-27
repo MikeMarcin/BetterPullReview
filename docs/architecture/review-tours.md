@@ -191,3 +191,29 @@ private recovery database. Unknown writes are reconciled by complete reads and
 are never blindly repeated. Stop/restart retains receipts and requires explicit
 Resume for further writes. Live pending mutation endpoints stay unavailable
 until their separate qualification is recorded.
+
+## Published maintenance
+
+An explicit update preview freezes the observed owned root, original stop bodies
+and desired route in the existing staged-publication journal. New destinations
+use a later pending batch; confirmed IDs survive Stop and restart. Body-only
+edits preserve original threads and replies. Derived navigation changes only
+where its bytes change, and the original root index is updated last. Every stop
+retains an overview link through a partial update. Retirement removes membership,
+not the shared discussion. Explicit source replacement creates a linked new
+comment and preserves the old source binding. Published split/merge operations
+retain the original discussions and prepare local replacements.
+
+The Tour payload reads versions 1–3 and writes version 4, adding bounded retired
+stop baselines. The existing recovery database retains its schema; staged payload
+version 3 additionally stores the frozen maintenance draft and confirmed edit
+prefix, while still reading versions 1–2. Existing profile purge and private-store
+retention cover these bounded prose records; no shared object is deleted by purge.
+
+Before each write the session reads exact actor/head, current owned bodies and
+relevant review memberships. Website replies are preserved. A changed baseline
+stops the plan and retains its desired text. These endpoints provide no evidenced
+conditional body write: preflight and reconciliation cannot eliminate a concurrent
+website edit between them. No operation is qualified merely by these fixture
+results; production Tour writes remain unavailable until the exact operation's
+live qualification.

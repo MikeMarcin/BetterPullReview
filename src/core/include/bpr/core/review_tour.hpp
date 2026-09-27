@@ -63,7 +63,8 @@ namespace bpr::core {
 											 changed_material,
 											 ambiguous,
 											 missing,
-											 unavailable };
+											 unavailable,
+											 author_selected };
 	enum class tour_preparation : std::uint8_t { suggested,
 												 editing,
 												 ready,
@@ -102,17 +103,17 @@ namespace bpr::core {
 	/// \brief A local thought with immutable original source and a separate current mapping.
 	struct tour_stop
 	{
-		tour_stop_id                       Id;
-		std::string                        Title;
-		std::string                        Body;
-		std::optional<tour_source_range>   Original;
-		std::optional<tour_source_range>   Mapped;
-		tour_mapping                       Mapping = tour_mapping::unavailable;
-		std::vector<tour_source_range>     Related;
-		tour_preparation                   Preparation = tour_preparation::editing;
-		std::optional<tour_field_baseline> Baseline;
-		std::optional<tour_remote_binding> Remote;
-		auto                               operator==(const tour_stop&) const -> bool = default;
+		tour_stop_id                         Id;
+		std::string                          Title;
+		std::string                          Body;
+		std::optional<tour_source_range>     Original;
+		std::optional<tour_source_range>     Mapped;
+		tour_mapping                         Mapping = tour_mapping::unavailable;
+		std::vector<tour_source_range>       Related;
+		tour_preparation                     Preparation = tour_preparation::editing;
+		std::optional<tour_field_baseline>   Baseline;
+		std::optional<tour_remote_binding>   Remote;
+		auto                                 operator==(const tour_stop&) const -> bool = default;
 		std::optional<tour_code_destination> Destination;
 	};
 
@@ -128,13 +129,15 @@ namespace bpr::core {
 		std::optional<tour_field_baseline> ProblemBaseline;
 		std::optional<tour_field_baseline> SolutionBaseline;
 		std::vector<tour_stop>             Stops;
-		std::uint64_t                      Revision                                     = 1;
-		std::uint64_t                      LastStopId                                   = 0;
+		std::uint64_t                      Revision   = 1;
+		std::uint64_t                      LastStopId = 0;
 		std::optional<tour_remote_binding> Remote;
 		std::optional<tour_field_baseline> IndexBaseline;
 		std::string                        ImportNotice;
-		bool                               ReadOnly                                     = false;
-		auto                               operator==(const review_tour&) const -> bool = default;
+		bool                               ReadOnly = false;
+		/// Published removals retain their original bodies until an explicit update completes.
+		std::vector<tour_stop> Retired;
+		auto                   operator==(const review_tour&) const -> bool = default;
 	};
 
 	enum class tour_command_kind : std::uint8_t { problem,
@@ -152,17 +155,17 @@ namespace bpr::core {
 	/// \brief Exact revision command. Insert/split/duplicate allocate IDs from the draft high-water mark.
 	struct tour_command
 	{
-		tour_draft_id              Draft;
-		tour_owner                 Owner;
-		std::uint64_t              ExpectedRevision = 0;
-		tour_command_kind          Kind             = tour_command_kind::problem;
-		tour_stop_id               Stop;
-		std::string                Text;
-		tour_stop                  Value;
-		std::size_t                Position  = 0;
-		std::size_t                SplitByte = 0;
-		git_commit_oid             Head;
-		std::optional<review_tour> Restore;
+		tour_draft_id                      Draft;
+		tour_owner                         Owner;
+		std::uint64_t                      ExpectedRevision = 0;
+		tour_command_kind                  Kind             = tour_command_kind::problem;
+		tour_stop_id                       Stop;
+		std::string                        Text;
+		tour_stop                          Value;
+		std::size_t                        Position  = 0;
+		std::size_t                        SplitByte = 0;
+		git_commit_oid                     Head;
+		std::optional<review_tour>         Restore;
 		std::optional<tour_field_baseline> Baseline;
 	};
 	enum class tour_refusal : std::uint8_t { none,

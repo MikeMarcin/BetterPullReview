@@ -219,6 +219,110 @@ auto main(int argc, char** argv) -> int
 			}
 			expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
 		}
+		if (mode == "maintenance") {
+			saved(editor);
+			editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				auto             reply = server->StagedComments.front();
+				reply.Id               = 699;
+				reply.NodeId           = "reply699";
+				reply.WebUrl           = reply.WebUrl.substr(0, reply.WebUrl.find('#')) + "#discussion_r699";
+				reply.Body             = "Website reviewer discussion must survive.";
+				reply.Reply            = true;
+				server->StagedComments.push_back(reply);
+			}
+			editor.outline()->setCurrentRow(1);
+			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(editor);
+			button("tourPreparePublication")->click();
+			expect(button("tourPublish")->isEnabled(), "published reorder offers explicit update preview");
+			expect(preview->original_body().contains("non-atomic"), "maintenance preview is honest about separate writes");
+			button("tourPublish")->click();
+			wait([&] { return status->text().startsWith(QStringLiteral("Published:")); }, "published reorder completes");
+			saved(editor);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 8 && server->StagedCreates == 1 && server->StagedSubmits == 1, "pure reorder only edits two bodies and original root");
+				expect(server->StagedComments.size() == 3 && server->StagedComments.back().Body == "Website reviewer discussion must survive.", "replies retain identity and bytes");
+				expect(server->StagedWritePaths.back().ends_with("/reviews/501"), "root update occurs last");
+			}
+			button("tourPreparePublication")->click();
+			expect(!button("tourPublish")->isEnabled() && status->text().contains("No published changes"), "equal-body update offers no writes");
+			select_file(window, "review.cpp");
+			select_range(window, core::diff_side::right, 2, 4);
+			window.add_tour_stop_action()->trigger();
+			editor.stop_title()->setText("Later batch insertion");
+			editor.stop_body()->setPlainText("A later idea preserves the original discussion.");
+			saved(editor);
+			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(editor);
+			button("tourPreparePublication")->click();
+			expect(button("tourPublish")->isEnabled(), "later insertion has an explicit publication preview");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->StagedBlockNext = true;
+			}
+			button("tourPublish")->click();
+			wait([&] {std::scoped_lock lock{server->Mutex};return server->StagedBlocked; }, "new batch creation reaches durable witness");
+			button("tourStop")->click();
+			wait([&] { return !button("tourStop")->isEnabled(); }, "maintenance stop drains effects");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 9 && server->StagedCreates == 2, "new destination created once before interruption");
+			}
+			shutdown(*application);
+			application.reset();
+			application = make();
+			open(*application);
+			auto& restored       = *application->window().tour_editor();
+			auto* restoredStatus = restored.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
+			wait([&] { return restoredStatus->text().contains("Staged on GitHub"); }, "restart reconciles insertion read-only");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 9, "restart does not resume writes");
+			}
+			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			auto* resume = restored.findChild<QPushButton*>(QStringLiteral("tourResume"));
+			expect(resume->isEnabled(), "captured maintenance can explicitly resume");
+			resume->click();
+			wait([&] { return restoredStatus->text().startsWith("Published:"); }, "maintenance resume finishes original index");
+			saved(restored);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedCreates == 2 && server->StagedSubmits == 2 && server->StagedWrites == 14, "insertion creates one later batch then minimum navigation and original root edits");
+				expect(server->PreviousReviews.size() == 1 && server->PreviousReviews.front().Body.contains("Later batch insertion") && server->StagedWritePaths.back().ends_with("/reviews/501"), "route spans reviews and original index remains authoritative");
+				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 699 && c.Body == "Website reviewer discussion must survive."; }), "interruption preserves existing reply");
+			}
+			auto& restoredWindow = application->window();
+			restored.outline()->setCurrentRow(0);
+			select_file(restoredWindow, "review.cpp");
+			select_range(restoredWindow, core::diff_side::right, 2, 4);
+			restored.findChild<QAction*>(QStringLiteral("tourRetarget"))->trigger();
+			saved(restored);
+			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "explicit source replacement can publish a new native subject");
+			restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
+			wait([&] { return restoredStatus->text().startsWith("Published:"); }, "source replacement completes");
+			saved(restored);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedCreates == 3 && server->StagedSubmits == 3 && server->StagedWrites == 20, "retarget creates only one replacement and minimal old-route edits");
+				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 602 && c.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
+			}
+			restored.outline()->setCurrentRow(2);
+			restored.findChild<QAction*>(QStringLiteral("tourRemove"))->trigger();
+			saved(restored);
+			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
+			wait([&] { return restoredStatus->text().startsWith("Published:"); }, "replied-to retirement completes");
+			saved(restored);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3, "retirement edits membership/navigation without remote deletion");
+				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 699 && c.Body == "Website reviewer discussion must survive."; }), "retiring root comment preserves its website reply");
+			}
+		}
 		if (mode == "native" || mode == "compat") {
 			saved(*application->window().tour_editor());
 			shutdown(*application);

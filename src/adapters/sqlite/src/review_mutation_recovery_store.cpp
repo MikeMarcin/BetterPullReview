@@ -1179,9 +1179,9 @@ namespace bpr::adapters::sqlite {
 		}
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
-			std::uint64_t version = 2;
+			std::uint64_t version = 3;
 			aCodec.number(version);
-			if (version != 1 && version != 2) {
+			if (version != 1 && version != 2 && version != 3) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1230,6 +1230,11 @@ namespace bpr::adapters::sqlite {
 			aCodec.number(aRecord.PossiblyTransmitted);
 			if (version >= 2) {
 				aCodec.optional(aRecord.Index, [&](auto& index) { staged_comment_codec(aCodec, index); });
+			}
+			if (version >= 3) {
+				aCodec.optional(aRecord.Plan.Update, [&](auto& value) { aCodec.tour(value); });
+				aCodec.number(aRecord.Updated);
+				aCodec.number(aRecord.DestinationsPublished);
 			}
 		}
 		auto encode_staged_record(const application::staged_publication_record& aRecord) -> std::vector<std::uint8_t>

@@ -6,6 +6,9 @@ namespace bpr::application {
 		auto initial_navigation(const staged_review_plan& aPlan) -> std::vector<core::tour_markdown_link>
 		{
 			const auto& target = aPlan.Submission.LiveBinding->Target;
+			if (aPlan.Update) {
+				return { { "Tour overview", aPlan.Update->Remote->WebUrl } };
+			}
 			return { { "Tour overview", "https://" + std::string{ target.Hostname.value() } + "/" + target.Repository.Owner + "/" + target.Repository.Name + "/pull/" + std::to_string(target.Number.value()) } };
 		}
 		auto initial_stop_body(const staged_review_plan& aPlan, std::size_t aIndex) -> std::optional<std::string>
@@ -24,12 +27,34 @@ namespace bpr::application {
 	}
 	auto valid(const staged_review_plan& aPlan) -> bool
 	{
-		if (!valid(aPlan.Submission) || !aPlan.Submission.LiveBinding || !core::valid(aPlan.Owner) || !aPlan.Generation || aPlan.Stops.empty() || aPlan.Stops.size() > maximum_staged_review_comments || aPlan.Submission.Proposal.Disposition != core::review_disposition::comment) {
+		if (!valid(aPlan.Submission) || !aPlan.Submission.LiveBinding || !core::valid(aPlan.Owner) || !aPlan.Generation || (aPlan.Stops.empty() && !aPlan.Update) || aPlan.Stops.size() > maximum_staged_review_comments || aPlan.Submission.Proposal.Disposition != core::review_disposition::comment) {
 			return false;
 		}
 		const auto& target = aPlan.Submission.LiveBinding->Target;
 		if (aPlan.Owner.Host != target.Semantic.Host || aPlan.Owner.Repository != target.Semantic.Repository || aPlan.Owner.PullRequest != target.Semantic.PullRequest || aPlan.Owner.Account != aPlan.Submission.LiveBinding->ActingIdentity.Account) {
 			return false;
+		}
+		if (aPlan.Update) {
+			const auto& draft = *aPlan.Update;
+			if (core::validate(draft) != core::tour_refusal::none || draft.Owner != aPlan.Owner || draft.Revision != aPlan.Generation || !draft.Remote || !draft.Remote->Own || !draft.IndexBaseline || draft.ReadOnly || draft.Stops.empty()) {
+				return false;
+			}
+			std::size_t count = 0;
+			for (const auto& stop : draft.Stops) {
+				if (core::needs_tour_destination(stop)) {
+					const auto found  = std::ranges::find(aPlan.Stops, stop.Id, &staged_tour_stop::Id);
+					const auto source = stop.Mapped ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
+					if (found == aPlan.Stops.end() || found->Title != stop.Title || found->Narrative != stop.Body || !source || found->Source != *source) {
+						return false;
+					}
+					++count;
+				} else if (!stop.Remote->Own || !stop.Baseline) {
+					return false;
+				}
+			}
+			if (count != aPlan.Stops.size()) {
+				return false;
+			}
 		}
 		std::vector<core::tour_stop_id> ids;
 		std::size_t                     bytes = aPlan.Submission.Proposal.Body.size();
@@ -54,6 +79,10 @@ namespace bpr::application {
 		if (!valid(aPlan)) {
 			return std::nullopt;
 		}
+		if (aPlan.Update && aPlan.Stops.empty()) {
+			staged_publication_record record{ .Plan = aPlan };
+			return staged_update_request(record);
+		}
 		if (aPlan.Compatibility) {
 			return staged_review_request{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aPlan, 0) };
 		}
@@ -72,6 +101,21 @@ namespace bpr::application {
 	}
 	auto staged_final_bodies(const staged_publication_record& aRecord) -> std::optional<std::pair<std::string, std::vector<std::string>>>
 	{
+		if (aRecord.Plan.Update) {
+			const auto bodies = staged_update_bodies(aRecord);
+			if (!bodies) {
+				return { };
+			}
+			std::vector<std::string> created;
+			for (const auto& stop : aRecord.Plan.Stops) {
+				const auto found = std::ranges::find(aRecord.Plan.Update->Stops, stop.Id, &core::tour_stop::Id);
+				if (found == aRecord.Plan.Update->Stops.end()) {
+					return { };
+				}
+				created.push_back(bodies->StopBodies[static_cast<std::size_t>(found - aRecord.Plan.Update->Stops.begin())]);
+			}
+			return std::pair{ bodies->Index, std::move(created) };
+		}
 		if (!valid(aRecord.Plan) || (!aRecord.Plan.Compatibility && !aRecord.Review) || aRecord.Comments.size() != aRecord.Plan.Stops.size()) {
 			return std::nullopt;
 		}
@@ -107,8 +151,11 @@ namespace bpr::application {
 		if (aRecord.Plan.Compatibility && aRecord.Comments.size() < aRecord.Plan.Stops.size()) {
 			return staged_review_request{ .Binding = *aRecord.Plan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aRecord.Plan, aRecord.Comments.size()) };
 		}
-		if (!aRecord.Review && !aRecord.Plan.Compatibility) {
+		if (!aRecord.Review && !aRecord.Plan.Compatibility && !aRecord.Plan.Stops.empty()) {
 			return staged_initial_request(aRecord.Plan);
+		}
+		if (aRecord.Plan.Update) {
+			return staged_update_request(aRecord);
 		}
 		const auto bodies = staged_final_bodies(aRecord);
 		if (!bodies) {
@@ -138,6 +185,12 @@ namespace bpr::application {
 	{
 		if (!valid(aRecord.Plan) || !aRecord.Revision || aRecord.BaselineIds.size() > maximum_staged_review_pages * 100U || !std::ranges::is_sorted(aRecord.BaselineIds) || std::ranges::adjacent_find(aRecord.BaselineIds) != aRecord.BaselineIds.end() || std::ranges::find(aRecord.BaselineIds, 0U) != aRecord.BaselineIds.end()
 			|| aRecord.Comments.size() > aRecord.Plan.Stops.size() || aRecord.Patched > aRecord.Comments.size() || (aRecord.PossiblyTransmitted && !aRecord.Pending) || (aRecord.DescriptionDone && (!aRecord.Published || !aRecord.Plan.Description))) {
+			return false;
+		}
+		if (aRecord.Plan.Update) {
+			return valid_staged_update(aRecord);
+		}
+		if (aRecord.Updated || aRecord.DestinationsPublished) {
 			return false;
 		}
 		if (aRecord.Plan.Compatibility) {
@@ -206,7 +259,7 @@ namespace bpr::application {
 			return false;
 		}
 		if (!aBefore) {
-			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.Index && aAfter.Comments.empty() && !aAfter.PossiblyTransmitted && aAfter.Pending == staged_initial_request(aAfter.Plan);
+			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.Index && aAfter.Comments.empty() && !aAfter.PossiblyTransmitted && !aAfter.Updated && !aAfter.DestinationsPublished && aAfter.Pending == staged_initial_request(aAfter.Plan);
 		}
 		if (!valid(*aBefore) || aBefore->Plan != aAfter.Plan || aBefore->Revision == std::numeric_limits<std::uint64_t>::max() || aAfter.Revision != aBefore->Revision + 1 || aBefore->BaselineIds != aAfter.BaselineIds || aBefore->Patched > aAfter.Patched || aAfter.Patched > aBefore->Patched + 1 || (aBefore->Published && !aAfter.Published) || (aBefore->DescriptionDone && !aAfter.DescriptionDone)) {
 			return false;
@@ -228,6 +281,13 @@ namespace bpr::application {
 			expected.Revision++;
 			expected.Pending.reset();
 			expected.PossiblyTransmitted = false;
+			if (aBefore->Plan.Update && aBefore->Pending->Operation != staged_review_operation::create_pending && aBefore->Pending->Operation != staged_review_operation::create_issue_comment) {
+				expected = confirm_staged_update(*aBefore);
+				expected.Revision++;
+				expected.Pending.reset();
+				expected.PossiblyTransmitted = false;
+				return expected == aAfter;
+			}
 			switch (aBefore->Pending->Operation) {
 			case staged_review_operation::create_pending:
 				if (!aAfter.Review || std::ranges::binary_search(aBefore->BaselineIds, aAfter.Review->Id.value())) {
@@ -271,6 +331,6 @@ namespace bpr::application {
 			}
 			return expected == aAfter;
 		}
-		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Index == aAfter.Index && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone;
+		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Index == aAfter.Index && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone && aBefore->Updated == aAfter.Updated && aBefore->DestinationsPublished == aAfter.DestinationsPublished;
 	}
 }

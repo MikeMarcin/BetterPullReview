@@ -37,6 +37,22 @@ def main():
                 finally:
                     connection.close()
                 print(f"staged-kill:{step}:{boundary}:pass")
+        for step in range(3):
+            for boundary in ("prepared", "witnessed", "applied"):
+                root = Path(raw) / f"update-{step}-{boundary}"
+                root.mkdir(mode=0o700)
+                run(executable, "--init-update", root)
+                kill_at_checkpoint(executable, f"--update-kill-{step}-{boundary}", root)
+                trace = root / "server-writes"
+                before = trace.read_bytes()
+                run(executable, "--update-recover", root)
+                if trace.read_bytes() != before:
+                    raise RuntimeError("Maintenance recovery emitted a write")
+                if boundary != "witnessed":
+                    run(executable, "--update-resume", root)
+                    if len(trace.read_text().splitlines()) != 8:
+                        raise RuntimeError("Maintenance resume duplicated or omitted an edit")
+                print(f"maintenance-kill:{step}:{boundary}:pass")
     return 0
 if __name__ == "__main__":
     raise SystemExit(main())

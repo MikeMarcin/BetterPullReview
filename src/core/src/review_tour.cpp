@@ -54,7 +54,7 @@ namespace bpr::core {
 				|| !std::ranges::all_of(aStop.Related, [](const auto& aSource) { return valid(aSource); })) {
 				return tour_refusal::invalid_source;
 			}
-			if (aStop.Mapping > tour_mapping::unavailable || aStop.Preparation > tour_preparation::needs_attention) {
+			if (aStop.Mapping > tour_mapping::author_selected || aStop.Preparation > tour_preparation::needs_attention) {
 				return tour_refusal::invalid_command;
 			}
 			if (aStop.Mapping == tour_mapping::exact_original && (!aStop.Original || aStop.Mapped)) {
@@ -90,7 +90,7 @@ namespace bpr::core {
 		}
 		auto duplicate_or_split(review_tour& aTour, const tour_command& aCommand, std::size_t aIndex, tour_stop_id& aSelected) -> tour_refusal
 		{
-			if (aTour.Stops.size() >= maximum_tour_stops || aTour.LastStopId == std::numeric_limits<std::uint64_t>::max()) {
+			if (aTour.Stops.size() >= maximum_tour_stops || aTour.LastStopId >= std::numeric_limits<std::uint64_t>::max() - 1) {
 				return tour_refusal::bounds;
 			}
 			auto copy = aTour.Stops[aIndex];
@@ -101,6 +101,12 @@ namespace bpr::core {
 			if (aCommand.Kind == tour_command_kind::split) {
 				if (!utf8_boundary(copy.Body, aCommand.SplitByte)) {
 					return tour_refusal::invalid_command;
+				}
+				if (aTour.Stops[aIndex].Remote) {
+					aTour.Retired.push_back(aTour.Stops[aIndex]);
+					aTour.Stops[aIndex].Remote.reset();
+					aTour.Stops[aIndex].Baseline.reset();
+					aTour.Stops[aIndex].Id = new_id(aTour);
 				}
 				copy.Body = copy.Body.substr(aCommand.SplitByte);
 				aTour.Stops[aIndex].Body.resize(aCommand.SplitByte);
@@ -134,7 +140,23 @@ namespace bpr::core {
 			for (const auto& related : next.Related) {
 				retain_source(stop, related);
 			}
+			if (stop.Remote) {
+				auto original = stop;
+				original.Body.resize(original.Body.size() - next.Body.size());
+				aTour.Retired.push_back(original);
+			}
+			if (stop.Remote || next.Remote) {
+				if (aTour.LastStopId == std::numeric_limits<std::uint64_t>::max()) {
+					return tour_refusal::bounds;
+				}
+				stop.Id = new_id(aTour);
+				stop.Remote.reset();
+				stop.Baseline.reset();
+			}
 			stop.Preparation = tour_preparation::editing;
+			if (next.Remote) {
+				aTour.Retired.push_back(next);
+			}
 			aTour.Stops.erase(aTour.Stops.begin() + static_cast<std::ptrdiff_t>(aIndex + 1U));
 			return tour_refusal::none;
 		}
@@ -167,6 +189,9 @@ namespace bpr::core {
 			case tour_command_kind::split:      return duplicate_or_split(aTour, aCommand, index, aSelected);
 			case tour_command_kind::merge_next: return merge_next(aTour, index);
 			case tour_command_kind::remove:
+				if (found->Remote) {
+					aTour.Retired.push_back(*found);
+				}
 				aTour.Stops.erase(found);
 				aSelected = aTour.Stops.empty() ? tour_stop_id{ } : aTour.Stops[std::min(index, aTour.Stops.size() - 1U)].Id;
 				return tour_refusal::none;
@@ -200,7 +225,7 @@ namespace bpr::core {
 				field = aCommand.Text;
 				return tour_refusal::none;
 			}
-			case tour_command_kind::insert:   return insert_stop(aTour, aCommand, aSelected);
+			case tour_command_kind::insert: return insert_stop(aTour, aCommand, aSelected);
 			case tour_command_kind::observe_head:
 				if (!aCommand.Head.valid()) {
 					return tour_refusal::invalid_source;
@@ -276,12 +301,14 @@ namespace bpr::core {
 		for (const auto& stop : aTour.Stops) {
 			size += stop_bytes(stop);
 		}
+		for (const auto& stop : aTour.Retired) {
+			size += stop_bytes(stop);
+		}
 		return size;
 	}
 	auto ready(const tour_stop& aStop) noexcept -> bool
 	{
-		return nonblank(aStop.Title) && nonblank(aStop.Body) && aStop.Original && valid(*aStop.Original)
-			&& (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && aStop.Mapped && valid(*aStop.Mapped)));
+		return nonblank(aStop.Title) && nonblank(aStop.Body) && ((aStop.Mapping == tour_mapping::author_selected && aStop.Mapped && valid(*aStop.Mapped)) || (aStop.Original && valid(*aStop.Original) && (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && aStop.Mapped && valid(*aStop.Mapped)))));
 	}
 	auto validate(const review_tour& aTour) noexcept -> tour_refusal
 	{
@@ -290,7 +317,7 @@ namespace bpr::core {
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
 			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
-			|| aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
+			|| aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}
 		for (std::size_t index = 0; index < aTour.Stops.size(); ++index) {
@@ -300,6 +327,11 @@ namespace bpr::core {
 			}
 			if (const auto refusal = stop_refusal(stop); refusal != tour_refusal::none) {
 				return refusal;
+			}
+		}
+		for (const auto& stop : aTour.Retired) {
+			if (!stop.Remote || stop_refusal(stop) != tour_refusal::none) {
+				return tour_refusal::invalid_command;
 			}
 		}
 		return tour_refusal::none;

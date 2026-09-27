@@ -2,7 +2,7 @@
 #define BPR_APPLICATION_STAGED_REVIEW_PUBLICATION_HPP
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/staged_review_contract.hpp"
-#include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/review_tour_update.hpp"
 #include <functional>
 namespace bpr::application {
 	struct staged_tour_stop
@@ -27,7 +27,9 @@ namespace bpr::application {
 		std::vector<staged_tour_stop>          Stops;
 		bool                                   Compatibility = false;
 		std::optional<staged_description_edit> Description;
-		auto                                   operator==(const staged_review_plan&) const -> bool = default;
+		/// Exact observed root/owned baselines and desired route for a non-atomic maintenance plan.
+		std::optional<core::review_tour> Update;
+		auto                             operator==(const staged_review_plan&) const -> bool = default;
 	};
 	/// One durable current step plus confirmed ordered identities. Cleared steps stay
 	/// confirmed in the body/identity prefix. A witness cannot be reset or replayed.
@@ -44,6 +46,8 @@ namespace bpr::application {
 		bool                                 DescriptionDone = false;
 		std::optional<staged_review_request> Pending;
 		bool                                 PossiblyTransmitted                                        = false;
+		std::size_t                          Updated                                                    = 0;
+		bool                                 DestinationsPublished                                      = false;
 		auto                                 operator==(const staged_publication_record&) const -> bool = default;
 	};
 	/// Exact next-step authorization is consumed at the transport witness.
@@ -61,6 +65,11 @@ namespace bpr::application {
 		staged_publication_state                 State = staged_publication_state::unavailable;
 		std::optional<staged_publication_record> Record;
 	};
+	[[nodiscard]] auto staged_update_bodies(const staged_publication_record&) -> std::optional<core::tour_update_bodies>;
+	[[nodiscard]] auto staged_update_request(const staged_publication_record&) -> std::optional<staged_review_request>;
+	[[nodiscard]] auto valid_staged_update(const staged_publication_record&) -> bool;
+	[[nodiscard]] auto confirm_staged_update(const staged_publication_record&) -> staged_publication_record;
+	[[nodiscard]] auto published_tour(const staged_publication_record&, const core::review_tour&) -> std::optional<core::review_tour>;
 	[[nodiscard]] auto valid(const staged_review_plan& aPlan) -> bool;
 	[[nodiscard]] auto valid(const staged_publication_record& aRecord) -> bool;
 	[[nodiscard]] auto valid_staged_transition(const std::optional<staged_publication_record>& aBefore, const staged_publication_record& aAfter) -> bool;

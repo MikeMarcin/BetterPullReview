@@ -193,6 +193,9 @@ namespace bpr::app::detail {
 					} else {
 						result += ",\"issue_url\":" + json_text(api() + repository() + "/issues/" + std::to_string(Binding.Target.Number.value()));
 					}
+					if (c.Reply) {
+						result += ",\"in_reply_to_id\":601";
+					}
 					result += "}";
 				}
 				return result + "]";
@@ -216,7 +219,20 @@ namespace bpr::app::detail {
 							application::staged_review_entity existing{ application::review_database_id{ 99 }, "PRR_99", root() + "#pullrequestreview-99", actor(), Binding.Target.Semantic.ExpectedHead, "Existing website review", application::staged_review_state::pending };
 							return success("[" + review_json(existing) + "]");
 						}
-						return success(State->StagedReview ? "[" + review_json(*State->StagedReview) + "]" : "[]");
+						std::string all = "[";
+						for (const auto& review : State->PreviousReviews) {
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(review);
+						}
+						if (State->StagedReview) {
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(*State->StagedReview);
+						}
+						return success(all + "]");
 					}
 					if (State->StagedReview) {
 						const auto r = pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value());
@@ -225,6 +241,21 @@ namespace bpr::app::detail {
 						}
 						if (w.Path == r + "/comments?per_page=100&page=1") {
 							return success(comments_json(State->StagedComments));
+						}
+					}
+					for (const auto& review : State->PreviousReviews) {
+						const auto path = pull() + "/reviews/" + std::to_string(review.Id.value());
+						if (w.Path == path) {
+							return success(review_json(review));
+						}
+						if (w.Path == path + "/comments?per_page=100&page=1") {
+							std::vector<application::staged_review_comment> comments;
+							for (const auto& c : State->PreviousComments) {
+								if (c.Review == review.Id) {
+									comments.push_back(c);
+								}
+							}
+							return success(comments_json(comments));
 						}
 					}
 					if (w.Path == issuePath + "?per_page=100&page=1") {
@@ -241,12 +272,16 @@ namespace bpr::app::detail {
 				const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(w.Body)).object();
 				const auto body   = object["body"].toString().toStdString();
 				if (w.Method == wire::http_method::post && w.Path == pull() + "/reviews" && !object.contains("event")) {
+					if (State->StagedReview) {
+						State->PreviousReviews.push_back(*State->StagedReview);
+						State->PreviousComments.insert(State->PreviousComments.end(), State->StagedComments.begin(), State->StagedComments.end());
+					}
 					const auto id       = 501 + State->StagedCreates;
 					State->StagedReview = application::staged_review_entity{ application::review_database_id{ id }, "PRR_" + std::to_string(id), root() + "#pullrequestreview-" + std::to_string(id), actor(), Binding.Target.Semantic.ExpectedHead, body, application::staged_review_state::pending };
 					State->StagedComments.clear();
 					for (const auto& entry : object["comments"].toArray()) {
 						const auto c     = entry.toObject();
-						const auto cid   = 601 + State->StagedComments.size();
+						const auto cid   = 601 + State->PreviousComments.size() + State->StagedComments.size();
 						const auto left  = c["side"] == "LEFT";
 						const auto last  = static_cast<std::uint32_t>(c["line"].toInt() - 1);
 						const auto first = c.contains("start_line") ? static_cast<std::uint32_t>(c["start_line"].toInt() - 1) : last;
@@ -257,6 +292,21 @@ namespace bpr::app::detail {
 					State->StagedReview->Body  = body;
 					State->StagedReview->State = application::staged_review_state::commented;
 					++State->StagedSubmits;
+				} else if (w.Method == wire::http_method::put) {
+					bool found = false;
+					if (State->StagedReview && w.Path == pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value())) {
+						State->StagedReview->Body = body;
+						found                     = true;
+					}
+					for (auto& review : State->PreviousReviews) {
+						if (w.Path == pull() + "/reviews/" + std::to_string(review.Id.value())) {
+							review.Body = body;
+							found       = true;
+						}
+					}
+					if (!found) {
+						return wire::github_mutation_wire_error{ };
+					}
 				} else if (w.Method == wire::http_method::post && w.Path == issuePath) {
 					const auto id = 701 + State->CompatibilityComments.size();
 					State->CompatibilityComments.push_back({ id, "IC_" + std::to_string(id), root() + "#issuecomment-" + std::to_string(id), actor(), { }, { }, body, false });
@@ -265,6 +315,12 @@ namespace bpr::app::detail {
 				} else if (w.Method == wire::http_method::patch) {
 					bool found = false;
 					for (auto& c : State->StagedComments) {
+						if (w.Path == repository() + "/pulls/comments/" + std::to_string(c.Id)) {
+							c.Body = body;
+							found  = true;
+						}
+					}
+					for (auto& c : State->PreviousComments) {
 						if (w.Path == repository() + "/pulls/comments/" + std::to_string(c.Id)) {
 							c.Body = body;
 							found  = true;
@@ -282,6 +338,7 @@ namespace bpr::app::detail {
 				} else {
 					return wire::github_mutation_wire_error{ };
 				}
+				State->StagedWritePaths.push_back(w.Path);
 				++State->StagedWrites;
 				if (State->StagedBlockNext) {
 					State->StagedBlockNext = false;

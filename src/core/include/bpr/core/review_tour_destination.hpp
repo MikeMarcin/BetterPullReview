@@ -48,6 +48,7 @@ namespace bpr::core {
 														   compatibility_choice,
 														   single_review,
 														   compatibility_comments };
+	[[nodiscard]] auto assess_tour_update(const review_tour&, std::span<const tour_destination_plan>, bool, tour_operation_support) -> tour_publication_readiness;
 	[[nodiscard]] auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness;
 	[[nodiscard]] auto plan_tour_destination(const tour_destination_observation& aObservation) noexcept -> tour_destination_plan;
 }

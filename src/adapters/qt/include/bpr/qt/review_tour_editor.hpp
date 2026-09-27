@@ -24,6 +24,7 @@ namespace bpr::qt {
 												   add_stop,
 												   insert_before,
 												   add_related,
+												   retarget_stop,
 												   navigate_stop,
 												   navigate_related,
 												   undo_structure,

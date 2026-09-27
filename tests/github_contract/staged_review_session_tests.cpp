@@ -160,6 +160,7 @@ namespace {
 	}
 	struct server final : github_mutation_wire_transport
 	{
+		bool                                               Maintenance = false;
 		bool                                               Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
 		std::string                                        Summary, Description = "Original description.";
@@ -303,7 +304,7 @@ namespace {
 				++Creates;
 				Summary = json["body"].toString().toStdString();
 			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/601" || wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/602")) {
-				expect(Created && !Submitted && json.size() == 1, "only pending owned body is edited");
+				expect(Created && (!Submitted || Maintenance) && json.size() == 1, "only owned body is edited under exact pending or maintenance plan");
 				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
 				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
@@ -315,6 +316,9 @@ namespace {
 				expect(Summary.contains("#discussion_r601") && Summary.contains("#discussion_r602") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
 				Submitted = true;
 				++Submits;
+			} else if (wire.Method == http_method::put && wire.Path == std::string{ Pull } + "/reviews/501") {
+				expect(Maintenance && Submitted && json.size() == 1, "maintenance only updates exact submitted root body");
+				Summary = json["body"].toString().toStdString();
 			} else if (wire.Method == http_method::patch && wire.Path == Pull) {
 				expect((Submitted || IssueBodies.size() == 3) && json.size() == 1, "description update is separate and follows publication");
 				Description = json["body"].toString().toStdString();
@@ -467,6 +471,67 @@ namespace {
 		}
 	}
 
+	auto maintenance_plan(const application::staged_publication_record& aPublished) -> application::staged_review_plan
+	{
+		const auto        original = plan();
+		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = original.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = original.Generation, .LastStopId = 2 };
+		for (const auto& stop : original.Stops) {
+			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
+		}
+		draft = *application::published_tour(aPublished, draft);
+		std::swap(draft.Stops[0], draft.Stops[1]);
+		++draft.Revision;
+		auto result                        = original;
+		result.Submission.IdempotencyKey   = "maintenance-1";
+		result.Submission.Proposal.Attempt = core::review_submission_attempt_id{ 8 };
+		result.Generation                  = draft.Revision;
+		result.Stops.clear();
+		result.Description.reset();
+		result.Update = draft;
+		expect(application::valid(result), "maintenance plan retains exact root and original stop identities");
+		return result;
+	}
+	void test_maintenance_sessions()
+	{
+		for (std::size_t lost = 0; lost < 3; ++lost) {
+			scratch    root;
+			server     remote;
+			auto       provider = session(remote, root.Path);
+			const auto original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(original.Record.has_value(), "initial publication exists");
+			const auto update  = maintenance_plan(*original.Record);
+			remote.Maintenance = true;
+			remote.LoseAt      = 5 + lost;
+			const auto partial = provider->publish_tour(update, { }, [](const auto&) { return true; });
+			expect(partial.State == publication_state::outcome_unknown && remote.Writes == 6 + lost, "maintenance lost response retains exact desired body and witness");
+			provider.reset();
+			remote.ReadFailure = false;
+			remote.LoseAt.reset();
+			provider            = session(remote, root.Path);
+			const auto observed = provider->reconcile_tour(update);
+			expect(observed.Record && observed.State != publication_state::outcome_unknown && remote.Writes == 6 + lost, "maintenance restart only reads confirmed body prefixes");
+			expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8 && remote.Creates == 1 && remote.Submits == 1, "maintenance Resume preserves identities without another review");
+		}
+		for (int race = 0; race < 3; ++race) {
+			scratch    root;
+			server     remote;
+			auto       provider = session(remote, root.Path);
+			const auto initial  = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			const auto update   = maintenance_plan(*initial.Record);
+			remote.Maintenance  = true;
+			if (race == 0) {
+				remote.Bodies[0] += "website text";
+			}
+			if (race == 1) {
+				remote.WrongActor = true;
+			}
+			if (race == 2) {
+				remote.WrongHead = true;
+			}
+			const auto result = provider->publish_tour(update, { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 5, "remote body/actor/head drift refuses maintenance before write");
+		}
+	}
 	void checkpoint(const std::filesystem::path& aRoot, const std::string& aPhase)
 	{
 		{
@@ -489,7 +554,23 @@ try {
 		remote.Root = root;
 		remote.load();
 		auto provider = session(remote, root);
-		if (phase.starts_with("--kill-")) {
+		if (phase == "--init-update") {
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published, "initialize published tour");
+		} else if (phase.starts_with("--update-")) {
+			remote.Maintenance  = true;
+			const auto baseline = storage(root)->load_staged(plan().Submission.IdempotencyKey);
+			expect(baseline && *baseline, "original durable publication is retained");
+			const auto update = maintenance_plan(**baseline);
+			if (phase.starts_with("--update-kill-")) {
+				remote.Boundary = [&](std::size_t i, std::string_view boundary) {if(phase=="--update-kill-"+std::to_string(i)+"-"+std::string{boundary}){checkpoint(root,phase);} };
+				static_cast<void>(provider->publish_tour(update, { }, [](const auto&) { return true; }));
+				expect(false, "maintenance kill boundary reached");
+			} else if (phase == "--update-recover") {
+				expect(provider->reconcile_tour(update).Record.has_value() && remote.Writes == 0, "maintenance cold recovery is read-only");
+			} else if (phase == "--update-resume") {
+				expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published, "maintenance cold Resume completes remaining operations");
+			}
+		} else if (phase.starts_with("--kill-")) {
 			remote.Boundary = [&](std::size_t i, std::string_view boundary) {if(phase=="--kill-"+std::to_string(i)+"-"+std::string{boundary}){checkpoint(root,phase);
 } };
 			static_cast<void>(provider->publish_tour(plan(), { }, [](const auto&) { return true; }));
@@ -506,6 +587,7 @@ try {
 	} else {
 		test_staged_sessions();
 		test_compatibility_sessions();
+		test_maintenance_sessions();
 		std::cout << "staged-review-session-tests:pass\n";
 	}
 	return EXIT_SUCCESS;

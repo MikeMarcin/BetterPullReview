@@ -369,7 +369,7 @@ namespace bpr::app {
 	void review_tour_publication_workflow::observe(const application::tour_presentation& aDraft)
 	{
 		Draft                          = aDraft;
-		const auto publishedEntity     = Record && Record->Published ? (Record->Index ? Record->Index->NodeId : Record->Review->NodeId) : std::string{ };
+		const auto publishedEntity     = Record && Record->Published ? (Record->Plan.Update ? Record->Plan.Update->Remote->Entity : (Record->Index ? Record->Index->NodeId : Record->Review->NodeId)) : std::string{ };
 		const bool observedPublication = aDraft.Draft && aDraft.Draft->Remote && !publishedEntity.empty() && aDraft.Draft->Remote->Entity == publishedEntity;
 		if (Plan && aDraft.Draft && !observedPublication && (Plan->Owner != aDraft.Draft->Owner || Plan->Generation != aDraft.Draft->Revision)) {
 			if (Context && Host) {
@@ -393,6 +393,10 @@ namespace bpr::app {
 			Status    = "Resolve the refused edit or saved-copy conflict before previewing publication.";
 			present();
 			return;
+		}
+		if (Record && Record->Published && State == application::staged_publication_state::published) {
+			Record.reset();
+			Plan.reset();
 		}
 		if (Record) {
 			Plan      = Record->Plan;
@@ -421,7 +425,7 @@ namespace bpr::app {
 			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ Binding->Target.Hostname.value() }, Binding->Target.Repository }, *source);
 			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
 		}
-		const auto readiness = core::assess_tour_publication(draft, decisions, compatibility);
+		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, FixtureQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
 		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
 			Previewed = false;
 			Plan.reset();
@@ -432,6 +436,10 @@ namespace bpr::app {
 		}
 		application::review_submission_request submission{ .Proposal = { .Draft = core::review_submission_draft_id{ draft.Id.value() }, .Attempt = core::review_submission_attempt_id{ draft.Revision }, .Target = Binding->Target.Semantic, .ActingAccount = Binding->ActingIdentity.Account, .Body = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution, .Disposition = core::review_disposition::comment }, .IdempotencyKey = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision), .LiveBinding = *Binding };
 		application::staged_review_plan        value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
+		if (draft.Remote) {
+			value.Update = draft;
+			std::erase_if(value.Stops, [&](const auto& stop) {const auto found=std::ranges::find(draft.Stops,stop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
+		}
 		if (Editor.description_publication()) {
 			value.Description = application::staged_description_edit{ Description, value.Submission.Proposal.Body, true };
 		}
@@ -442,10 +450,28 @@ namespace bpr::app {
 			present();
 			return;
 		}
+		if (value.Update && value.Stops.empty()) {
+			const auto bodies = application::staged_update_bodies({ .Plan = value });
+			if (!bodies) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "The website layout needs explicit mapping before this update.";
+				present();
+				return;
+			}
+			if (bodies->Edits.empty() && !value.Description) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "No published changes. Existing comments and discussions are unchanged.";
+				present();
+				return;
+			}
+		}
 		Plan      = std::move(value);
 		Previewed = true;
 		State     = application::staged_publication_state::ready;
-		Status    = compatibility ? "Preview ready: visible compatibility comments, then index and navigation. This is non-atomic." : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
+		Status    = draft.Remote ? "Preview ready: non-atomic update. New destinations first, affected comments next, original index last. Website concurrent writes cannot be locked; conflicts retain your proposed text." : compatibility ? "Preview ready: visible compatibility comments, then index and navigation. This is non-atomic."
+																																																											 : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
 		present();
 	}
 	void review_tour_publication_workflow::dispatch(qt::tour_editor_action aAction)
@@ -553,7 +579,9 @@ namespace bpr::app {
 	{
 		application::tour_publication_presentation view{ .Status = Status };
 		if (Plan) {
-			view.Markdown = "### " + std::string{ Plan->Compatibility ? "Compatibility comments — non-atomic" : "One COMMENT review" } + "\n\nHost: " + std::string{ Plan->Submission.LiveBinding->Target.Hostname.value() } + " · Actor: " + Plan->Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(Plan->Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(Plan->Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + Plan->Submission.Proposal.Body;
+			view.Markdown = "### " + std::string{ Plan->Update ? "Update existing tour — non-atomic" : Plan->Compatibility ? "Compatibility comments — non-atomic"
+																														   : "One COMMENT review" }
+				+ "\n\nHost: " + std::string{ Plan->Submission.LiveBinding->Target.Hostname.value() } + " · Actor: " + Plan->Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(Plan->Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(Plan->Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + Plan->Submission.Proposal.Body;
 			for (const auto& stop : Plan->Stops) {
 				view.Markdown += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
 			}

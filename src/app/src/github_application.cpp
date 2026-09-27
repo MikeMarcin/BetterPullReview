@@ -6784,15 +6784,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 #endif
 			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
-                if(!TourHost){return;
-}const auto draft=TourHost->presentation().Draft;
-                if(!draft || draft->Owner!=record.Plan.Owner || draft->Revision!=record.Plan.Generation || draft->Stops.size()!=record.Comments.size()){return;
-}
-                auto published=*draft;
-                const auto root=record.Index?core::tour_remote_binding{.Kind=core::tour_remote_kind::conversation_comment,.DatabaseId=record.Index->Id,.Entity=record.Index->NodeId,.Actor=record.Index->Actor.Login,.WebUrl=record.Index->WebUrl,.Own=true}:core::tour_remote_binding{.Kind=core::tour_remote_kind::review,.DatabaseId=record.Review->Id.value(),.Entity=record.Review->NodeId,.Actor=record.Review->Actor.Login,.WebUrl=record.Review->WebUrl,.Own=true};
-                published.Remote=root;published.IndexBaseline=core::tour_field_baseline{.Raw=record.Index?record.Index->Body:record.Review->Body,.RemoteEntity=root.Entity};
-                for(std::size_t i=0;i<published.Stops.size();++i){const auto& c=record.Comments[i];published.Stops[i].Remote=core::tour_remote_binding{.Kind=record.Plan.Compatibility?core::tour_remote_kind::conversation_comment:core::tour_remote_kind::line_comment,.DatabaseId=c.Id,.Entity=c.NodeId,.Actor=c.Actor.Login,.WebUrl=c.WebUrl,.Review=record.Review?record.Review->NodeId:std::string{},.Own=true};published.Stops[i].Baseline=core::tour_field_baseline{.Raw=c.Body,.RemoteEntity=c.NodeId};}
-                TourHost->observe_publication(std::move(published)); });
+                if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
+                if(!draft){return;}
+                if(auto published=application::published_tour(record,*draft)){TourHost->observe_publication(std::move(*published));} });
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
@@ -8933,6 +8927,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			case qt::tour_editor_action::add_stop:
 			case qt::tour_editor_action::insert_before:
+			case qt::tour_editor_action::retarget_stop:
 			case qt::tour_editor_action::add_related:   {
 				const auto source = selected_tour_source();
 				const auto draft  = TourHost->presentation().Draft;
@@ -8945,13 +8940,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Window->tour_editor()->show_notice(QStringLiteral("Select a line or contiguous range in an available source pane, then add it to the tour. Your draft remains saved."));
 					return;
 				}
-				if (aAction == qt::tour_editor_action::add_related) {
+				if (aAction == qt::tour_editor_action::add_related || aAction == qt::tour_editor_action::retarget_stop) {
 					const auto* selected = Window->tour_editor()->selected_stop();
 					if (!selected) {
 						return;
 					}
 					auto value = *selected;
-					value.Related.push_back(*source);
+					if (aAction == qt::tour_editor_action::retarget_stop) {
+						value.Mapped  = *source;
+						value.Mapping = core::tour_mapping::author_selected;
+					} else {
+						value.Related.push_back(*source);
+					}
 					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
 					return;
 				}
