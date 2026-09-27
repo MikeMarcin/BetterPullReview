@@ -2,6 +2,10 @@
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_composition_application_host.hpp"
+#include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/review_submission_port.hpp"
+#include "bpr/application/shared_draft_application_host.hpp"
 #include "scratch_root.hpp"
 #include <functional>
 #include <iostream>
@@ -133,8 +137,41 @@ namespace {
 		}
 		void private_refused(const agent_invocation_projection_identity&, const private_run_error& aError) override { Errors.push_back(aError); }
 	};
+	// Every shared write capability lives beside the local composition. No local
+	// operation receives one. Counters make an accidental join observable.
+	struct mutation_canary : review_mutation_port, review_submission_port
+	{
+		using review_mutation_port::submit_and_reconcile;
+		std::size_t Inline = 0, Resolve = 0, WholeReview = 0, Tour = 0;
+		auto        observe_target() -> std::expected<review_mutation_target, review_mutation_failure> override { return std::unexpected(review_mutation_failure::unavailable); }
+		auto        capabilities() const -> review_provider_capabilities override { return { }; }
+		auto        submit(const review_mutation_request&) -> std::expected<review_mutation_receipt, review_mutation_failure> override
+		{
+			++Inline;
+			return std::unexpected(review_mutation_failure::unavailable);
+		}
+		auto resolve_thread(const review_thread_resolution_request&, std::stop_token) -> std::expected<review_thread_resolution_receipt, review_mutation_failure> override
+		{
+			++Resolve;
+			return std::unexpected(review_mutation_failure::unavailable);
+		}
+		auto pending(std::stop_token) -> std::expected<std::vector<review_submission_request>, review_mutation_failure> override { return std::vector<review_submission_request>{ }; }
+		auto submit_and_reconcile(const review_submission_request& aRequest, std::stop_token) -> review_submission_result override
+		{
+			++WholeReview;
+			return { .Request = aRequest };
+		}
+		auto reconcile(const review_submission_request& aRequest, std::stop_token) -> review_submission_result override { return { .Request = aRequest }; }
+		auto publish_tour(const staged_review_plan&, std::stop_token, staged_child_authorizer) -> staged_publication_result override
+		{
+			++Tour;
+			return { };
+		}
+		void assert_unused() const { expect(Inline == 0 && Resolve == 0 && WholeReview == 0 && Tour == 0, "all inline/resolve/whole-review/tour mutation capabilities receive zero calls"); }
+	};
 	struct fixture
 	{
+		mutation_canary                            Mutations;
 		tests::sqlite_contract::scratch_root       Scratch{ "private-host" };
 		private_review_configuration               Config{ { Scratch.path(), "github.com", "octo", "example", 5 }, bpr_profile_id{ 1 }, git_host_id{ 2 }, github_account_id{ 3 }, repository_id{ 4 }, pull_request_id{ 5 } };
 		std::unique_ptr<private_review_store_port> Store  = std::move(*make_private_review_store(Config));
@@ -155,7 +192,7 @@ namespace {
 		{
 			Binding.Scope   = Store->frontier()->Scope;
 			Sessions.Ledger = Ledger.get();
-			Authority       = { .Profile = host_profile_id{ 1 }, .ProfileRevision = github_profile_revision{ 1 }, .Host = Binding.Scope.Host, .HostAuthority = Binding.HostAuthority, .Account = Binding.Scope.Account, .Viewer = github_viewer_actor_id{ 3 }, .Repository = Binding.Scope.Repository, .Cache = private_review_fixture::opaque<repository_cache_scope_id>(), .PullRequest = Binding.Scope.PullRequest, .Number = pull_request_number{ 5 }, .Scope = Binding.LeftAnchor.Authority };
+			Authority       = { .Profile = host_profile_id{ 1 }, .ProfileRevision = core::github_profile_revision{ 1 }, .Host = Binding.Scope.Host, .HostAuthority = Binding.HostAuthority, .Account = Binding.Scope.Account, .Viewer = github_viewer_actor_id{ 3 }, .Repository = Binding.Scope.Repository, .Cache = private_review_fixture::opaque<repository_cache_scope_id>(), .PullRequest = Binding.Scope.PullRequest, .Number = pull_request_number{ 5 }, .Scope = Binding.LeftAnchor.Authority };
 			Host            = std::make_unique<agent_invocation_host>(Profiles, std::vector<agent_host_policy>{ built_in_agent_policy(Binding.Scope.Host, built_in_agent_host_kind::github_com) }, Scratch.path(), Sessions, Workspace, Process, [](const std::string&) -> std::optional<std::string> { return { }; }, Effects, Decisions, Projection, &Private);
 			Host->observe(application_session_id{ 1 }, Authority, Binding.Revision);
 		}
@@ -163,6 +200,7 @@ namespace {
 		{
 			return { .ApplicationSession = application_session_id{ 1 }, .Authority = Authority, .Profile = Profiles.front().Id, .Context = { .ApplicationSession = application_session_id{ 1 }, .Binding = Binding.Revision, .PullRequestUrl = "https://github.com/example/repo/pull/5", .ChatMessage = std::move(aPrompt) }, .PrivateRun = private_run_intent{ .Binding = Binding } };
 		}
+		~fixture() { Mutations.assert_unused(); }
 		void drain()
 		{
 			for (unsigned i = 0; i < 20 && (Effects.pending() || Decisions.pending()); ++i) {
@@ -405,9 +443,136 @@ namespace {
 			expect(f.Process.Starts == 0, "unchecked/deleted/edited/duplicate/cross-review/overlimit source never launches");
 		}
 	}
+	void local_compositions()
+	{
+		fixture f;
+		auto    index                              = private_review_fixture::index();
+		f.Binding.Comparison                       = index.diff().Alignment.Digest;
+		auto                                target = *make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 1 }, index);
+		auto                                source = f.seeded("Exact copy\r\nα");
+		auto                                ref    = source_of(source.Revision);
+		review_composition_application_host compositions(f.Fault);
+		auto                                blank = compositions.create({ f.Binding, review_composition_mode::reviewer_authored, { { ref, ref.Key, false } }, target, { } });
+		expect(blank && !blank->State.Candidate && compositions.revise(blank->State.Id, blank->Version, "Written by reviewer").has_value(), "manual workspace opens empty then stores reviewer prose without an agent");
+		auto copied = compositions.create({ f.Binding, review_composition_mode::exact_copy, { { ref, ref.Key, false } }, target, { } });
+		expect(copied.has_value(), "exact copy creates persisted workspace and candidate");
+		expect(f.Store->load_candidate(*copied->State.Candidate)->Body == source.Revision.Body, "exact copy preserves every byte");
+		auto edited = compositions.revise(copied->State.Id, copied->Version, "Reviewed prose\r\nα");
+		expect(edited.has_value(), "reviewer edit creates successor");
+		auto candidate = *f.Store->load_candidate(*edited->State.Candidate);
+		expect(std::holds_alternative<private_reviewer_actor>(candidate.Actor) && candidate.Derivation.front().Source == *copied->State.Candidate, "edit retains immutable predecessor provenance");
+		std::array requests{ review_composition_acceptance{ edited->State.Id, edited->Version, candidate.Identity } };
+		f.Fault.FailCommit = true;
+		expect(!compositions.accept(requests, f.Binding, index, review_draft_scope_id{ 9 }) && f.Store->list_drafts()->empty(), "failed acceptance stores neither accepted state nor draft");
+		expect(f.Store->load_composition(edited->State.Id)->State.Lifecycle == review_composition_lifecycle::editing, "workspace remains editable after failure");
+		f.Fault.FailCommit = false;
+		auto accepted      = compositions.accept(requests, f.Binding, index, review_draft_scope_id{ 9 });
+		expect(accepted && accepted->records().size() == 1, "accept atomically creates existing revisioned draft");
+		auto draft = accepted->records().front().Draft;
+		expect(draft.Composition && draft.Draft.Body == candidate.Body && draft.Scope.value() == 0 && draft.Draft.State == review_draft_state::drafting, "durable draft retains exact linkage and no runtime scope");
+		expect(!compositions.accept(requests, f.Binding, index, review_draft_scope_id{ 9 }), "duplicate acceptance does not create second draft");
+		auto                                reopened = std::move(*make_private_review_store(f.Config));
+		review_composition_application_host restart(*reopened);
+		auto                                restored = restart.restore();
+		expect(restored && restored->records().front().Draft == draft, "restart recovers exact accepted draft");
+		struct contexts : shared_draft_context_port
+		{
+			auto current(const bpr_window_context&) const noexcept -> bool override { return true; }
+		} current;
+		shared_draft_authority        authority{ .BprProfile = f.Binding.Scope.Profile, .ProfileAuthority = { .Profile = host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = f.Binding.Scope.Host, .Hostname = github_canonical_hostname{ "github.com" }, .ProbeContractRevision = github_probe_contract_revision{ 1 } }, .HostAuthority = f.Binding.HostAuthority, .Session = application_session_id{ 1 }, .Generation = github_identity_generation{ 1 }, .Account = f.Binding.Scope.Account, .Mode = github_access_mode::authenticated, .Target = { f.Binding.Scope.Host, f.Binding.Scope.Repository, f.Binding.Scope.PullRequest, f.Binding.Revision.HeadOid } };
+		shared_draft_application_host shared(authority, review_draft_scope_id{ 9 }, current);
+		std::size_t                   publications = 0;
+		auto                          consumer     = *shared.attach(authority, { f.Binding.Scope.Profile, bpr_window_id{ 1 }, bpr_window_generation{ 1 } }, [&](const auto& d) { ++publications; expect(reopened->load_draft(d.Draft.Id)->Draft.Revision == d.Revision, "persistence precedes shared draft projection"); });
+		expect(shared.adopt(authority, *restored).has_value() && publications == 1, "existing draft owner reattaches and fans out durable value");
+		auto command = revisioned_review_draft_command{ { draft.Draft.Id, review_draft_command_kind::edit, "Final reviewer edit" }, draft.Revision, false, { }, review_draft_scope_id{ 9 } };
+		expect(shared.apply(consumer, command).Failure == shared_draft_failure::durable_required, "volatile path cannot overwrite durable draft");
+		auto changed = restart.change_draft(command);
+		expect(changed && shared.adopt(authority, *changed).has_value(), "linked edit commits reviewer successor before adoption");
+		expect(changed->records().front().Draft.Composition->Revision > draft.Composition->Revision, "linked draft edit advances immutable candidate identity");
+		expect(!shared.adopt(authority, *restored), "late old restore cannot overwrite edited draft");
+		expect(reopened->load_candidate(candidate.Identity)->Body == candidate.Body && reopened->read_revision_body({ ref, 0 })->Bytes == source.Revision.Body, "accept/edit/restart preserve exact source and prior candidate bytes");
+		expect(f.Process.Starts == 0 && f.Store->find_publication()->Records.empty(), "manual copy edit accept restart dispatch no agent or publication");
+	}
+	void agent_composition()
+	{
+		fixture f;
+		auto    source = f.seeded();
+		(void)f.seeded("UNSELECTED_PRIVATE");
+		auto                                ref = source_of(source.Revision);
+		review_composition_application_host compositions(f.Fault);
+		auto                                workspace = compositions.create({ f.Binding, review_composition_mode::agent_assisted, { { ref, ref.Key, false } }, { }, { } });
+		expect(workspace && !workspace->State.Candidate, "agent composition creation never auto invokes");
+		auto request               = f.request("");
+		request.Context.EntryPoint = agent_entry_point::workshop_comment;
+		request.PrivateRun         = *compositions.agent_intent(workspace->State.Id, workspace->Version);
+		f.Process.OnStart          = [&](const auto& launch) { expect(launch.DeferredContext.find("SELECTED_CANARY") != std::string::npos && launch.DeferredContext.find("UNSELECTED_PRIVATE") == std::string::npos, "squash uses exact selected input through existing invocation"); };
+		f.send(request);
+		auto saved = f.Store->load_composition(workspace->State.Id);
+		expect(f.Process.Starts == 1 && saved && saved->State.Candidate && saved->State.Lifecycle == review_composition_lifecycle::editing && f.Store->list_drafts()->empty(), "one explicit run produces only an unaccepted proposal");
+		auto candidate = f.Store->load_candidate(*saved->State.Candidate);
+		expect(candidate && std::get<private_agent_actor>(candidate->Actor).Run == f.Process.Last.Run && candidate->Body == "Full answer: detail beyond a finding\r\nα", "proposal retains complete output and exact run actor");
+		expect(f.Projection.Deltas.back().Candidate == saved->State.Candidate, "terminal delta names immutable candidate only");
+		expect(!compositions.agent_intent(saved->State.Id, workspace->Version), "stale invocation intent refused");
+	}
+
+	void composition_adversaries()
+	{
+		fixture f;
+		auto    index        = private_review_fixture::index();
+		f.Binding.Comparison = index.diff().Alignment.Digest;
+		std::vector<private_source_selection> sources;
+		for (std::uint32_t line = 0; line < 2; ++line) {
+			auto next = f.Store->frontier()->NextIdentity;
+			auto row  = *create_private_thread(private_review_thread_id{ next }, { f.Binding, source_line_ref{ *f.Binding.Comparison, diff_side::right, line } }, { private_review_turn_id{ next + 1 }, private_review_turn_revision_id{ next + 2 }, private_vertex_order{ next + 2 }, private_reviewer_actor{ }, "partition source" }, &index);
+			expect(f.Store->commit({ .ExpectedNextIdentity = next, .Threads = { { row.Thread, 0 } }, .Revisions = { row.Revision } }).has_value(), "seed two exact line targets");
+			auto source = source_of(row.Revision);
+			sources.push_back({ source, source.Key, false });
+		}
+		auto local = f.seeded("unanchored");
+		auto ref   = source_of(local.Revision);
+		sources.push_back({ ref, ref.Key, false });
+		review_composition_application_host host(f.Fault);
+		review_composition_request          request{ f.Binding, review_composition_mode::reviewer_authored, sources, { }, "manual proposal" };
+		auto                                ambiguous = host.create(request);
+		expect(ambiguous && !ambiguous->State.Target, "mixed and unanchored sources never guess target");
+		std::array unresolved{ review_composition_acceptance{ ambiguous->State.Id, ambiguous->Version, *ambiguous->State.Candidate } };
+		expect(!host.accept(unresolved, f.Binding, index, review_draft_scope_id{ 1 }), "ambiguous workspace cannot become draft");
+		auto partitions = host.split(request);
+		expect(partitions && partitions->Compositions.size() == 2 && partitions->Unassigned.size() == 1, "split names both exact targets and every unassigned source");
+		std::vector<review_composition_acceptance> accept;
+		for (const auto& c : partitions->Compositions) {
+			accept.push_back({ c.State.Id, c.Version, *c.State.Candidate });
+		}
+		++accept.back().ExpectedVersion;
+		expect(!host.accept(accept, f.Binding, index, review_draft_scope_id{ 1 }) && f.Store->list_drafts()->empty(), "one stale split member refuses the entire batch");
+		--accept.back().ExpectedVersion;
+		auto accepted = host.accept(accept, f.Binding, index, review_draft_scope_id{ 1 });
+		expect(accepted && accepted->records().size() == 2, "exact split accepts both drafts in one transaction");
+		expect(f.Store->read_revision_body({ sources[0].Source, 0 })->Bytes == "partition source", "split does not consume source");
+		auto target = *make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 2 }, index);
+		expect(host.target(ambiguous->State.Id, ambiguous->Version, target, index).has_value(), "explicit exact target resolves otherwise unanchored workspace");
+		auto changed                = f.Binding;
+		changed.Revision.RightEpoch = epoch_ordinal{ 99 };
+		unresolved[0].ExpectedVersion++;
+		expect(!host.accept(unresolved, changed, index, review_draft_scope_id{ 1 }), "changed current source binding refuses draft acceptance");
+		request.Mode = review_composition_mode::agent_assisted;
+		request.Body.clear();
+		request.Sources               = { sources.back() };
+		auto agent                    = host.create(request);
+		auto invocation               = f.request("");
+		invocation.Context.EntryPoint = agent_entry_point::workshop_comment;
+		invocation.PrivateRun         = *host.agent_intent(agent->State.Id, agent->Version);
+		f.Process.OnStart             = [&](const auto& launch) { launch.PrivateInputClaim->release(); expect(f.edit(local).has_value(), "source advances after input delivery"); };
+		f.send(invocation);
+		expect(!f.Store->load_composition(agent->State.Id)->State.Candidate && f.Store->load_run_details(std::array{ f.Process.Last.Run })->front().Outcome == private_run_outcome::succeeded, "late source edit retains terminal run but refuses candidate");
+	}
+
 }
 int main()
 {
+	composition_adversaries();
+	local_compositions();
+	agent_composition();
 	composition_and_ordering();
 	refusals_and_lifecycle();
 	source_refusals();

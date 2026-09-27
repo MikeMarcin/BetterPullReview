@@ -909,3 +909,31 @@ that post. Selection is bound to the exact target, acting identity and retained
 comparison and is abandoned on a mismatch. Both native and file-subject
 publications use this path; the server read owns the remote subject, body and
 canonical thread identity.
+
+## Durable composition drafts (RFC-BPR-0023 M7)
+
+`review_composition_application_host` performs bounded local operations on the
+private store's serialized effect lane. It reloads exact selected identities,
+creates reviewer/copy candidates, returns exact target partitions and unassigned
+sources, and accepts a selected batch in one transaction. Accepted candidates
+are the body authority for the existing `revisioned_review_draft`; an edit adds
+an immutable reviewer successor and advances the draft CAS in the same commit.
+No mutation or process port is available to this host.
+
+A `durable_draft_commit` is the store acknowledgement passed to
+`shared_draft_application_host::adopt` on the decision lane. The existing shared
+owner binds the runtime scope, validates profile/account/PR/head and ledger
+incarnation, then fans out accepted revisions. It refuses stale acknowledgements,
+volatile edits and volatile allocation once durable storage is selected. New
+ordinary inline drafts use `allocate_draft` on the same monotonic store frontier.
+Storage refusal produces no accepted acknowledgement or projection. Restore
+reattaches exact durable values; a `publishing` value remains pending and carries
+no execution grant. M8 owns asynchronous production wiring and UI translation.
+
+Agent-assisted composition obtains an exact workspace intent and uses the one
+`agent_invocation_host`. Admission revalidates workspace version, source set and
+revision binding before retaining the run. A correlated complete output can
+append only a proposal; a changed/deleted workspace or advanced source retains
+the run terminal without attaching a candidate. Accept and Publish remain
+separate operations. The store and private run port outlive all invocation
+claims and effects, as specified by the M6 lifecycle contract.

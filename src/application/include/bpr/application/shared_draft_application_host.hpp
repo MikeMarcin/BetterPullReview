@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SHARED_DRAFT_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SHARED_DRAFT_APPLICATION_HOST_HPP
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
 #include <expected>
@@ -30,7 +31,8 @@ namespace bpr::application {
 													 unknown_draft,
 													 conflict,
 													 policy,
-													 closing };
+													 closing,
+													 durable_required };
 	struct shared_draft_result
 	{
 		std::optional<core::revisioned_review_draft> Accepted = { };
@@ -61,6 +63,9 @@ namespace bpr::application {
 		[[nodiscard]] auto apply(shared_draft_consumer aConsumer, const core::revisioned_review_draft_command& aCommand) -> shared_draft_result;
 		/// Host-only exact terminal path; it does not depend on an editor remaining attached.
 		[[nodiscard]] auto complete(const shared_draft_authority& aAuthority, core::review_draft_id aDraft, std::uint64_t aPublishingRevision, bool aSuccess) -> shared_draft_result;
+		/// \brief Adopts an acknowledged store transaction on the decision lane, then fans out.
+		/// Durable records can only change through storage; ordinary synchronous apply refuses them.
+		[[nodiscard]] auto adopt(const shared_draft_authority&, const durable_draft_commit&) -> std::expected<void, shared_draft_failure>;
 		void               shutdown();
 		[[nodiscard]] auto authority() const noexcept -> const shared_draft_authority&;
 		/// \brief Captures retained private drafts for an orderly update; grants no publication authority.

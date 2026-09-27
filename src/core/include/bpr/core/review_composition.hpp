@@ -279,6 +279,8 @@ namespace bpr::core {
 	/// \brief Applies a durable acceptance acknowledgement only for the exact current candidate.
 	[[nodiscard]] auto acknowledge_composition_draft(const review_composition_state& aState,
 													 const private_source_reference& aAcceptedCandidate) -> std::expected<review_composition_state, private_review_refusal>;
+	/// \brief Starts a reviewer successor while preserving previously accepted immutable candidates.
+	[[nodiscard]] auto reopen_review_composition(const review_composition_state&) -> std::expected<review_composition_state, private_review_refusal>;
 	[[nodiscard]] auto abandon_review_composition(const review_composition_state& aState)
 		-> std::expected<review_composition_state, private_review_refusal>;
 	struct composition_publication_observation

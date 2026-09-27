@@ -50,6 +50,7 @@ add_library(
         src/agent_launch.cpp
 		src/agent_invocation_host.cpp
         src/private_review_application_host.cpp
+    src/review_composition_application_host.cpp
         src/agent_realignment.cpp
         src/agent_workspace.cpp
         src/mcp_context_helper_supervisor.cpp
