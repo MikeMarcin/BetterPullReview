@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0564"
 title: "Implement the canonical immutable code-permalink representation"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0562","BPR-0563"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
