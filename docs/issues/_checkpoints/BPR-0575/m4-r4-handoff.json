@@ -1,0 +1,105 @@
+{
+  "schema": "rfc0022.r4-closeout-handoff.v1",
+  "assignment": "/root/rfc0022_m4_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0022-20260926",
+  "segment_id": "m4-r4-closeout",
+  "milestone": "d-evidence-closeout",
+  "repository": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "branch": "codex/rfc0022-semantic-comments",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "start_revision": "847fcf7769ac8480184502f28decc5382f86de82",
+  "production_candidate": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "acceptance_candidate": "3f36e11c51e66dc39f00bb8e0989e01ec9878285",
+  "checkpoint_commit": "The commit containing this handoff extends acceptance_candidate with only checkpoint records; exact final SHA is returned to coordinator.",
+  "issue_commits": {
+    "owner_r4": "6289d10d6",
+    "claim": "c52cb035060bea491a9a6a9c39fe0740b1f84e53",
+    "BPR0575_done": "3f36e11c51e66dc39f00bb8e0989e01ec9878285"
+  },
+  "result": "All15 canonical RFC criteria and all15 cards accepted under exact r2/r3/r4 owner amendments. RFC0022/index Auto-Verified. All three authored D exits accepted; no remaining milestone acceptance obligation. Final main integration is coordinator-owned and still pending.",
+  "review": {
+    "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+    "hand_back_cursor": 29,
+    "reconciled_cursor": 31,
+    "all_decisions": "Six accepted; empty notes on final two; exact proposal bytes retained.",
+    "final_candidates": [
+      {
+        "id": "BPR-0575-uninstall-evidence-scope",
+        "fingerprint": "b8b6cb6e7a40f1657a04aad97ce2722422f595ae7fdd8934db4292eb07427fc8",
+        "decision": "4ca166d2-2c9c-4995-8a49-8d3d0f927f2b"
+      },
+      {
+        "id": "BPR-0575-independent-acceptance-scope",
+        "fingerprint": "cfcd8a6dc4aa9d452cf21ca4f3b5f59701e1572a972d4e381be5d1f27986fed6",
+        "decision": "74582934-e6ce-4101-83fd-bbd547de167c"
+      }
+    ],
+    "protected_candidates": [],
+    "pending_decisions": [],
+    "server": "Stopped PID35411; command45982 no longer registered; no live review URL needed."
+  },
+  "verification": {
+    "public": "4/4 read,paged,permalink,public composition;19.47s at unchanged accepted production inputs.",
+    "documentation": "DOCUMENTATION_OK before and after finish/link repair.",
+    "validator_tests": "64/64;1.780s; expected negative fixtures.",
+    "board": "Scoped validation valid; final queue15 selected/15Done/0open.",
+    "whitespace": "pass",
+    "reuse": "Unchanged A-C/D focused authority,recovery,rendered,capsule,strict tidy/format and configured manifest evidence retained.",
+    "canonical_criteria": "All15 original numbered criteria unchanged and exactly present in completed card.",
+    "binding_renewal": "Initial r4 binding preserved; final binding renews only appended evidence/card acceptance/status bytes. Definition, prerequisites and original criterion sections unchanged."
+  },
+  "changed_paths": [
+    "M\tREADME.md",
+    "M\tdocs/development/source-line-comments.md",
+    "D\tdocs/issues/40-parked/BPR-0575-anchor-rfc-0022-verification.md",
+    "A\tdocs/issues/60-done/BPR-0575-anchor-rfc-0022-verification.md",
+    "A\tdocs/issues/_checkpoints/BPR-0575/bpr0575-acceptance.json",
+    "A\tdocs/issues/_checkpoints/BPR-0575/m4-r4-amendments.md",
+    "A\tdocs/issues/_checkpoints/BPR-0575/m4-r4-binding.json",
+    "A\tdocs/issues/_checkpoints/BPR-0575/m4-r4-public-evidence.json",
+    "A\tdocs/issues/_checkpoints/BPR-0575/m4-r4-review-decisions.json",
+    "A\tdocs/issues/_checkpoints/BPR-0575/m4-r4-verification.json",
+    "M\tdocs/rfcs/README.md",
+    "M\tdocs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+    "M\tdocs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md",
+    "M\tdocs/security/foundation-security.md",
+    "M\tdocs/verification/RFC-BPR-0022.md",
+    "M\tdocs/verification/fixture-catalog.md",
+    "M\tdocs/verification/master-verification-matrix.md",
+    "M\tdocs/verification/release-gates.md"
+  ],
+  "checkpoint_paths": [
+    "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r4-binding-final.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r4-observation.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r4-check.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r4-handoff.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-frontier.md"
+  ],
+  "ownership_and_commands": {
+    "writer": "Exclusive checkout writer released after the checkpoint commit. No children/reviewers created. Other worktree/main writers remain coordinator-owned.",
+    "finished": [
+      "public check36239",
+      "documentation validator83291",
+      "all board/doc/reconciliation commands",
+      "inherited review server35411 stopped"
+    ],
+    "retained": [],
+    "temporary_work": "No new task-owned mounts, approvals, installations or profiles created; no temporary scripts retained. Existing evidence/build outputs preserved.",
+    "remote_effects": "No reads,writes,Publish or Retry this round. Four historical native witnesses stay GET-only; fifth older journal and succeeded fallback sixth retain latest exact observations."
+  },
+  "continuation": {
+    "owner": "coordinator /root",
+    "action": "Merge/push accepted D to main, preserving later main changes. Verify only affected integration paths if merge changes them; no new PR2 write or repeated human review is required for unchanged relevant inputs.",
+    "gate_helper": "Final checkpoint observation names acceptance_candidate. For a metadata-only checkpoint extension, copy observation to ignored build location and set candidate_revision to actual HEAD before check; never rewrite original acceptance history.",
+    "pending_milestone_obligations": []
+  },
+  "limits": [
+    "Classifier2 only exact owner-approved PR2/base/head/actor/profile2/source/patch; bounded message interpretation risk remains.",
+    "Native off-hunk success fixture-substituted by r3; native GHES unobserved under r2; Windows qualification gaps unchanged.",
+    "Actual desktop uninstall unobserved; r4 accepts app-closed GitHub continuity plus fresh-host/no-database reconstruction for AC10 only.",
+    "No independent report; r4 explicitly substitutes owner acceptance for exact production candidate.",
+    "66 deterministic interruptions are not OS-kill/power-loss evidence. No package trust or release qualification."
+  ]
+}

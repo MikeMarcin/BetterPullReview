@@ -104,7 +104,8 @@
       "tests/sqlite_contract/review_mutation_recovery_storage_tests.cpp",
       "tests/sqlite_contract/review_submission_recovery_storage_tests.cpp"
     ],
-    "baseline_audit": "Trace uses owned issue commits and first-parent non-merge D commits, excluding unrelated main-merge changes. Previous implementation reviews and exact producing evidence are retained; this round reviews documentation/acceptance only."
+    "baseline_audit": "Trace uses owned issue commits and first-parent non-merge D commits, excluding unrelated main-merge changes. Previous implementation reviews and exact producing evidence are retained; this round reviews documentation/acceptance only.",
+    "canonical_rows": "All15 numbered canonical criteria unchanged byte-for-byte from assigned HEAD and exactly present in completed card in order. Initial use of the original-pack bullet-only extraction helper refused the numbered list; direct numbered-section comparison passed. No verifier or criterion edit."
   },
   "public_check": "m4-r4-public-evidence.json",
   "reused_evidence": [
@@ -174,6 +175,18 @@
       "result": "pass",
       "revision": "c52cb035060bea491a9a6a9c39fe0740b1f84e53",
       "scope": "prepared closeout working tree"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "revision": "3f36e11c51e66dc39f00bb8e0989e01ec9878285",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK after finish/link repair"
     }
   ],
   "limits": [
@@ -184,7 +197,7 @@
     "66 deterministic interruptions are not OS-kill/power-loss evidence. No package trust or release qualification."
   ],
   "command_state": {
-    "review_server": "PID35411 stopped through companion stop; inherited server command owned by coordinator.",
+    "review_server": "Companion stop succeeded; ps reports PID35411 absent. Inherited command45982 is no longer registered (write_stdin Unknown process id); no review command remains to poll.",
     "task_background_commands": [],
     "review_protections": "All six accepted and released; two final releases30/31.",
     "other_worktrees": "Other branches and concurrent main writers preserved; root coordinates main integration.",

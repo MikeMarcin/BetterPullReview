@@ -1,5 +1,9 @@
 # RFC-0022 milestone D frontier
 
+Current: **D accepted under mandate r4; RFC Auto-Verified; coordinator main
+integration pending**. See [final r4 handoff](m4-r4-handoff.json). Earlier
+rounds below retain their original observations and pending states as history.
+
 Assignment `/root/rfc0022_m4_after_review`, mandate r3, run `rfc0022-20260926`,
 segment `m4-after-review`, milestone `d-evidence-closeout`. Exclusive checkout
 `/Users/jaeger/.codex/worktrees/6264/BetterPullReview`, branch
@@ -246,3 +250,28 @@ verdict and release only its relevant protections. Accepted proposals become an
 explicit mandate amendment; rejected or skipped proposals remain obligations.
 Only then finish0575/RFC/index if all requirements pass. Root owns final D main
 integration/push, preserving later main changes. No further PR2 write is needed.
+
+## Final accepted closeout — mandate r4
+
+Assignment `/root/rfc0022_m4_closeout`, start `847fcf7769`; production source
+`0f3188093` unchanged. Hand-back 29 accepted both exact final proposals;
+[mandate r4](m4-r4-amendments.md) records AC-10 app-closed/fresh-host evidence
+substitution and the explicit independent-review waiver. Actual desktop uninstall
+remains unobserved and no independent report is claimed. Protections released
+individually at 30/31; all six verdicts preserved. Review server 35411 stopped.
+
+BPR-0575 completed at `3f36e11c51e66dc39f00bb8e0989e01ec9878285`; all15 cards are Done and all15
+canonical criteria pass under their recorded amendments. RFC/index Auto-Verified;
+0004/0005/0008 dependencies satisfied. Four focused public/read checks pass19.47s,
+documentation passes before/after finish,64 validator tests pass, scoped board
+validation and whitespace pass. The canonical criteria and authored plan remain
+unchanged. [Verification](m4-r4-verification.json) records source/evidence reuse,
+exact scope, limitations and the corrected optional bullet-only audit attempt.
+
+All task commands are finished; no review server, app, mount, approval or child
+is retained. No live request or retry occurred. The final checkpoint commit
+releases this checkout's exclusive writer to the coordinator. D engineering is
+complete; root now merges/pushes this milestone to main while preserving later
+work. No next feature milestone or human decision remains. Native off-hunk
+success, native GHES, Windows, installed removal and OS-kill/power-loss limits
+remain explicit. Exact classifier2 scope and its interpretation risk are retained.
