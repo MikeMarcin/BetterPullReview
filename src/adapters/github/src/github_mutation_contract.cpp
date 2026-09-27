@@ -333,8 +333,10 @@ namespace bpr::adapters::github::detail {
 			std::string                  NodeId;
 			std::string                  Path;
 			std::string                  CommitId;
+			std::optional<std::string>   OriginalCommitId;
 			std::optional<std::string>   Side;
 			std::optional<std::uint64_t> Line;
+			std::optional<std::uint64_t> OriginalLine;
 			std::optional<std::string>   SubjectType;
 			std::optional<std::uint64_t> StartLine;
 			std::optional<std::string>   StartSide;
@@ -347,8 +349,10 @@ namespace bpr::adapters::github::detail {
 					"node_id", &comment_response_json::NodeId,
 					"path", &comment_response_json::Path,
 					"commit_id", &comment_response_json::CommitId,
+					"original_commit_id", &comment_response_json::OriginalCommitId,
 					"side", &comment_response_json::Side,
 					"line", &comment_response_json::Line,
+					"original_line", &comment_response_json::OriginalLine,
 					"subject_type", &comment_response_json::SubjectType,
 					"start_line", &comment_response_json::StartLine,
 					"start_side", &comment_response_json::StartSide,
@@ -3370,10 +3374,15 @@ namespace bpr::adapters::github::detail {
 				bool                                                ambiguous = false;
 				for (const auto& comment : *comments) {
 					const bool fileComment = comment.SubjectType == "file";
-					if (comment.NodeId.empty() || comment.Id == 0 || comment.Path != row.Path || comment.CommitId != commit.view()
+					const auto currentLine = comment.CommitId == commit.view() && comment.Line
+						&& *comment.Line == static_cast<std::uint64_t>(row.Target.Line.Line) + 1U;
+					const auto originalLine = !comment.Line && comment.OriginalCommitId == commit.view()
+						&& comment.OriginalLine && *comment.OriginalLine == static_cast<std::uint64_t>(row.Target.Line.Line) + 1U;
+					if (comment.NodeId.empty() || comment.Id == 0 || comment.Path != row.Path
 						|| comment.Body != child->Body || comment.User.Id != row.ActorDatabaseId
 						|| comment.User.NodeId != row.ActorNode || comment.User.Login != row.ActorLogin || fileComment != file
-						|| (!file && (!comment.Line || *comment.Line != static_cast<std::uint64_t>(row.Target.Line.Line) + 1U || comment.Side != expectedSide))
+						|| (!file && (!(currentLine || originalLine) || comment.Side != expectedSide))
+						|| (file && comment.CommitId != commit.view())
 						|| (file && (comment.Line || comment.StartLine || comment.StartSide))
 						|| (child->BaselineExactCommentIds && std::ranges::binary_search(*child->BaselineExactCommentIds, comment.NodeId))) {
 						continue;

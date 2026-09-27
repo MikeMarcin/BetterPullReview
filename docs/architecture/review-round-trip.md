@@ -965,6 +965,7 @@ Production also queues a read-only pending-join pass when the live mutation host
 opens or reports pending lineage. It reads the current PR and viewer identity,
 then the bounded comment collection. Each historical pending row must match its
 own journal child, wire digest, actor, path, accepted commit, subject and line;
+an outdated line can use the server's exact original commit and original line;
 an unresolved child also needs its pre-write comment baseline. This pass may
 finish a local join after the PR head advances. Missing, ambiguous or mismatched
 observations leave the join pending, and the pass has no POST branch.

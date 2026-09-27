@@ -1033,6 +1033,12 @@ namespace {
 			if (mode == 3) {
 				transport.StaleAtTarget              = 1;
 				current.Target.Semantic.ExpectedHead = *core::parse_git_commit_oid("1212121212121212121212121212121212121212");
+				auto&      comment                   = transport.Comments.front();
+				const auto line                      = "\"line\":" + std::to_string(request.Proposal.Anchor.Line + 1U);
+				const auto at                        = comment.find(line);
+				expect(at != std::string::npos, "native fixture exposes original line before head movement");
+				comment.replace(at, line.size(), "\"line\":null");
+				comment.insert(comment.size() - 1U, ",\"original_commit_id\":\"1111111111111111111111111111111111111111\",\"original_line\":" + std::to_string(request.Proposal.Anchor.Line + 1U));
 			}
 			auto recovered = review_mutation_session{ transport, current, std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &recoveredLineage };
 			if (mode == 2 || mode == 3) {
