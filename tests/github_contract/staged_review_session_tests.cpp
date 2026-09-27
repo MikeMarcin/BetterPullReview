@@ -160,7 +160,9 @@ namespace {
 	}
 	struct server final : github_mutation_wire_transport
 	{
-		bool                                               Maintenance = false;
+		bool                                               Maintenance   = false;
+		bool                                               PagedComments = false, FailSecondPage = false, ForeignNext = false;
+		std::size_t                                        PageTwoReads = 0;
 		bool                                               Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
 		std::string                                        Summary, Description = "Original description.";
@@ -250,7 +252,18 @@ namespace {
 					return ok(review_json());
 				}
 				if (wire.Path == std::string{ Pull } + "/reviews/501/comments?per_page=100&page=1") {
+					if (PagedComments) {
+						const auto origin = ForeignNext ? "https://credential-canary@foreign.invalid" : "https://api.github.com";
+						return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = { { "Link", "<" + std::string{ origin } + Pull + "/reviews/501/comments?per_page=100&page=2>; rel=\"next\"" } }, .Body = "[" + comment_json(1) + "]" } };
+					}
 					return ok("[" + comment_json(1) + "," + comment_json(0) + (Extra ? "," + comment_json(0) : "") + "]");
+				}
+				if (PagedComments && wire.Path == std::string{ Pull } + "/reviews/501/comments?per_page=100&page=2") {
+					++PageTwoReads;
+					if (FailSecondPage) {
+						return github_mutation_wire_error{ };
+					}
+					return ok("[" + comment_json(0) + "]");
 				}
 				if (Duplicate && wire.Path == std::string{ Pull } + "/reviews/502/comments?per_page=100&page=1") {
 					return ok("[" + comment_json(1, 502) + "," + comment_json(0, 502) + "]");
@@ -377,6 +390,21 @@ namespace {
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->pending_tours()->empty() && provider->reconcile_tour(plan()).State == publication_state::published && remote.Writes == 5, "fresh session reads exact completed journal");
+		}
+		for (int mode = 0; mode < 3; ++mode) {
+			scratch root;
+			server  remote;
+			remote.PagedComments  = true;
+			remote.FailSecondPage = mode == 1;
+			remote.ForeignNext    = mode == 2;
+			auto       provider   = session(remote, root.Path);
+			const auto result     = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			if (mode == 0) {
+				expect(result.State == publication_state::published && remote.Writes == 5 && remote.Creates == 1 && remote.Submits == 1 && remote.PageTwoReads > 0, "complete multi-page membership authorizes only the exact remaining plan");
+			} else {
+				expect(result.State != publication_state::published && remote.Writes == 1 && remote.Creates == 1 && remote.Submits == 0, "partial or credential-bearing foreign continuation cannot authorize navigation or submit");
+				expect(mode == 1 ? remote.PageTwoReads > 0 : remote.PageTwoReads == 0, "foreign continuation is rejected before dispatch; failed owned page stays partial");
+			}
 		}
 		for (std::size_t lost = 0; lost < 5; ++lost) {
 			scratch root;

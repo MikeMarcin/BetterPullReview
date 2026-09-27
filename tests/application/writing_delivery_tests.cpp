@@ -42,6 +42,26 @@ int main()
 	const auto duplicateSources = std::vector{ sources.front(), sources.front() };
 	const auto validOutline     = outlinePrefix + "}]}";
 	expect(!application::decode_writing_result(validOutline, core::writing_hook::outline, duplicateSources, false), "duplicate supplied IDs cannot resolve ambiguously");
+	for (std::size_t index = 0; index < validOutline.size(); ++index) {
+		expect(!application::decode_writing_result(std::string_view{ validOutline }.substr(0, index), core::writing_hook::outline, sources, false), "every truncated outline is refused atomically");
+		auto mutated   = validOutline;
+		mutated[index] = '\0';
+		expect(!application::decode_writing_result(mutated, core::writing_hook::outline, sources, false), "embedded-control mutations cannot alter outline authority");
+	}
+	for (const auto& bad : { prefix + "\"" + std::string(16385, 'x') + R"(","notes":[]})", prefix + R"("\ud800","notes":[]})", prefix + R"("\u0000","notes":[]})", std::string(100, '[') + "0" + std::string(100, ']') }) {
+		expect(!decode(bad), "decoded field bounds, invalid scalar and nesting budget refuse");
+	}
+	const auto outline = [&](std::size_t count, std::size_t titleBytes) {
+		std::string json = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[)";
+		for (std::size_t i = 0; i < count; ++i) {
+			if (i) {
+				json += ',';
+			}
+			json += R"({"title":")" + std::string(titleBytes, 't') + R"(","anchor_ref":"pr-description","reason":"why","author_question":"","related_refs":[]})";
+		}
+		return application::decode_writing_result(json + "]}", core::writing_hook::outline, sources, false);
+	};
+	expect(outline(24, 180).has_value() && !outline(25, 180) && !outline(1, 181), "outline count and title admit boundary and refuse boundary plus one");
 	core::writing_request request;
 	request.Raw           = "Selected text";
 	request.Selection.End = request.Raw.size();
