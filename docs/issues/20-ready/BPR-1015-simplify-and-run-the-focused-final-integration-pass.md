@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1015"
 title: "Simplify and run the focused final integration pass"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1012", "BPR-1014"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-25","milestone":"qualification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
