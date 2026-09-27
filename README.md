@@ -344,6 +344,7 @@ compatibility path retains a visible code permalink and canonical GitHub IDs,
 with fallback admitted only for the owner-approved exact PR2/source/actor/profile
 contract. A signed app publication and subsequent GitHub-only reply have been
 verified; broader native success and installed-removal acceptance remain unobserved.
+RFC-BPR-0022 is Auto-Verified under the owner’s r4 evidence amendments.
 See [source-line comments](docs/development/source-line-comments.md) for behavior
 and current evidence limits.
 

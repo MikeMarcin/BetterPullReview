@@ -27,10 +27,12 @@ GitHub-only code/prose/author/reply course, and the signed app subsequently read
 the external reply at the same semantic line. Actual desktop uninstall remains
 unobserved.
 
-The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) tracks the remaining
-uninstall evidence disposition and independent acceptance. Native GHES behavior
-is unobserved under the owner's GitHub.com-only amendment. RFC closeout remains
-pending under its explicit dependencies and accepted criteria.
+The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) records Auto-Verified
+closeout under the owner's r4 amendments. App-closed GitHub continuity and
+fresh-host reconstruction satisfy its amended AC-10 evidence; actual installed
+uninstall remains unobserved. Owner acceptance substitutes for separate
+independent review of the exact candidate. Native off-hunk success, native GHES
+and Windows qualification remain unobserved.
 
 ## Diagnosing an unavailable publication
 

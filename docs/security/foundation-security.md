@@ -212,4 +212,6 @@ sealed exact-source validation grants a presentation anchor only. It cannot
 start a network read, import history, acquire credentials or publish a comment.
 The [round-trip contract](../architecture/review-round-trip.md#immutable-permalink-codec-bpr-0564)
 owns URL/body bounds; the [RFC-0022 ledger](../verification/RFC-BPR-0022.md)
-separates synthetic recovery/isolation evidence from pending live acceptance.
+separates fixture recovery/isolation evidence, actual designated fallback and
+GitHub-only acceptance, explicit owner amendments, and unobserved platform/
+installed-removal qualification.

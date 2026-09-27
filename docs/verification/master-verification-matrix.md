@@ -54,7 +54,11 @@ RFC-BPR-0022's [fifteen-row ledger](RFC-BPR-0022.md) is the owning acceptance
 matrix for semantic admission, native/file wire forms, exact unsupported
 classification, logical recovery, GitHub-truth rehydration, ordinary UX and
 mutation isolation. Automated native/fallback composition and hostile courses
-pass; designated GitHub.com publication and collaborator judgments remain
-pending. Production classifier2 is restricted to the owner-approved exact PR2
-contract. GHES fixtures are retained with native
-GHES explicitly unobserved under the owner's amendment.
+pass. Exact designated GitHub.com fallback publication, GET-only recovery,
+GitHub-only human acceptance and signed-app reply refresh are observed.
+RFC-0022 is Auto-Verified under r4: app-closed continuity plus fresh-host
+reconstruction satisfy AC-10, and owner acceptance substitutes for separate
+independent review of source `0f3188093`. Actual installed uninstall remains
+unobserved. Production classifier2 retains only its owner-approved exact PR2
+contract; native off-hunk success, native GHES and Windows qualification remain
+unobserved.

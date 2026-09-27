@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0022"
 title: "Semantic Source-Line Comments and Off-Hunk Publication Compatibility"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0008"]
@@ -47,10 +47,17 @@ Actual fallback publication and GET-only receipt recovery are observed in the
 [verification ledger](../verification/RFC-BPR-0022.md). GitHub-only collaborator
 continuity is accepted for the exact review candidate; the signed app's subsequent
 read-only refresh displayed the external reply at the original semantic line.
-Actual desktop uninstall and independent acceptance remain unresolved.
-RFC0022 may close ahead of Deferred0020/0021 only
-after its remaining accepted requirements pass. The canonical criterion text
-below is retained with these explicit evidence-scope amendments.
+Mandate r4 accepts the [two final owner amendments](../issues/_checkpoints/BPR-0575/m4-r4-amendments.md)
+for production source `0f3188093c846cbbb43f624dd48c817e0ea4eec4`: AC-10 uses
+observed app-closed GitHub continuity plus fresh-host reconstruction; actual
+installed desktop uninstall remains unobserved. The owner explicitly waived
+separate independent review for that candidate and accepted the disclosed
+evidence; no independent report is claimed. The uninstall invariant remains.
+RFC-0022 is Auto-Verified on 2026-09-27 under these amendments and its satisfied
+explicit dependencies. All fifteen rows and cards are reconciled in the ledger.
+The canonical criterion text below remains intact. The r3 exception for closure
+ahead of Deferred RFC-0020/0021 remains recorded; index position is not a gate.
+The coordinator retains Milestone D integration to main.
 
 ## Product decision
 

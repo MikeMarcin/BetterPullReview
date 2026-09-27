@@ -1,0 +1,306 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "RFC-AC-01",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS automated/rendered; final composed candidate confirms native and file selection",
+        "criterion_text": "Every materialized current/right source line in a text file already changed by the pull request exposes the ordinary comment gesture; file eligibility, exact head, path, line, and acting identity are revalidated before any write.",
+        "surface": "real line gesture + exact host admission",
+        "command_or_interaction": "core_review_round_trip; application_review_mutation_application_host; qt_composed_github_scale_100; application_review_round_trip_composition_contract",
+        "expected": "Eligible right lines expose one gesture; invalid target/head/path/line/actor refuse before POST",
+        "gate_class": "automated+rendered",
+        "producing": "M1/M3; D public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-02",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS fixtures; native GHES unobserved per owner amendment",
+        "criterion_text": "A selected anchor accepted by the legacy line-comment operation publishes as one native line review comment on GitHub.com and GHES, independent of the off-hunk capability state.",
+        "surface": "policy + exact GitHub/GHES wire/session",
+        "command_or_interaction": "core_review_round_trip; github_mutation_contract; github_review_comment_permalink",
+        "expected": "Legacy accepted line remains native for every off-hunk capability state",
+        "gate_class": "automated",
+        "producing": "M1/M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-03",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS supported-path fixtures under r3; native success unobserved; four earlier witnesses remain GET-only",
+        "criterion_text": "An off-hunk anchor on a repository whose exact operation is proven supported publishes as one native line review comment and records scoped positive evidence.",
+        "surface": "supported-path fixture under accepted r3 substitution",
+        "command_or_interaction": "github_review_comment_permalink; application_review_round_trip_composition_contract",
+        "expected": "One exact native comment and positive scoped evidence",
+        "gate_class": "automated + accepted scope amendment",
+        "producing": "M2/M3; D r3 classifier/public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-04",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS fixtures and actual signed-app file comment4116623474 at RIGHT62; exact prefix/prose verified",
+        "criterion_text": "An off-hunk anchor proven unsupported publishes as one ordinary file-level review comment whose first paragraph is the canonical immutable permalink and whose remaining prose is byte-preserved.",
+        "surface": "exact synthetic rejection + real session/journal/file wire",
+        "command_or_interaction": "github_review_comment_permalink; application_review_round_trip_composition_contract",
+        "expected": "One FILE comment, canonical prefix, byte-identical prose",
+        "gate_class": "automated+external-authority",
+        "producing": "M2/M3; D public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-05",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS r3 exact production selection and 29 refusal/restart courses; historic live witnesses remain GET-only",
+        "criterion_text": "An unknown capability or placement attempts the intended native write; only a fully received exact unsupported rejection can authorize fallback.",
+        "surface": "policy/response classifier/serialized session",
+        "command_or_interaction": "core_review_round_trip; github_mutation_contract; github_review_comment_permalink",
+        "expected": "Unknown starts native; only exact complete non-creation can authorize file",
+        "gate_class": "automated",
+        "producing": "M1/M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-06",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS bounded hostile courses including r3 metadata/shape uncertainty; historic live indeterminate journals have no fallback",
+        "criterion_text": "Timeout, cancellation, connection loss, created-but-unparsed response, generic `422`, permission failure, rate limiting, malformed response, 5xx, or ambiguous reconciliation never starts a fallback POST.",
+        "surface": "wire/host/recovery counterexamples",
+        "command_or_interaction": "github_mutation_contract; github_review_comment_permalink; native_https_transport_fixture",
+        "expected": "Ambiguous, generic422, permission/rate/network/malformed outcomes cause zero fallback POSTs",
+        "gate_class": "automated",
+        "producing": "M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-07",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS66 deterministic interruptions plus actual created-but-unparsed FILE recovery via GET-only reopen; sole remote root retained; no OS-kill/power-loss claim",
+        "criterion_text": "One logical publication produces at most one GitHub comment across retries, process death, schema migration, and restart; a possibly transmitted native attempt is reconciled GET-only and can never coexist with an eligible fallback POST.",
+        "surface": "schema4 CAS journal and fresh-session recovery",
+        "command_or_interaction": "sqlite_review_mutation_recovery_storage; github_review_comment_permalink; live_review_mutation_restart_recovery",
+        "expected": "At most one server candidate after durable interruptions and restart; preserve legacy and whole-review rows",
+        "gate_class": "automated",
+        "producing": "M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-08",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS scoped invalidation/admission, classifier revision2 cache and exact PR2/actor/profile/source refusal tests",
+        "criterion_text": "Capability evidence is repository-, actor-, profile-, server-contract-, operation-, API-, and classifier-revision scoped, freshness-bounded, and never inferred from host name, broad GHES version, readable comments, or status code alone.",
+        "surface": "session-owned exact-anchor cache",
+        "command_or_interaction": "application_review_publication_capability_cache; github_review_comment_permalink",
+        "expected": "Exact authority/revisions/generation/head/path/line,128 entries,maximum300s; stale means unknown",
+        "gate_class": "automated",
+        "producing": "M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-09",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS final composed replay and actual recovered FILE thread mapped to Markdown62;3 scales/3 themes retained from M3",
+        "criterion_text": "BetterPullReview retains both the semantic source anchor and the honest GitHub remote subject; it renders a valid compatibility thread at its source line without claiming GitHub stored a line subject.",
+        "surface": "read normalization + incremental thread map",
+        "command_or_interaction": "qt_composed_github_scale_100; application_review_round_trip_composition_contract",
+        "expected": "Remote FILE stays FILE; validated exact semantic anchor selects source",
+        "gate_class": "automated+rendered",
+        "producing": "M3; D public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-10",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS GitHub-only inspection/reply, signed-app refresh and fresh-host fixtures under accepted r4 evidence substitution; actual desktop uninstall unobserved",
+        "criterion_text": "A GitHub-only collaborator can see the linked code, read the complete prose, reply through ordinary GitHub UI, and retain that conversation after BetterPullReview is uninstalled.",
+        "surface": "ordinary GitHub web UI",
+        "command_or_interaction": "Existing PR2 comment4116623474 followed by GitHub-only inspection/reply",
+        "expected": "Visible code, full prose, author and ordinary reply continuity without local database/app",
+        "gate_class": "external-authority + accepted scope amendment",
+        "producing": "m4-final-continuity.json; M3; m4-r4-amendments.md",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-11",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS fresh-host fixture with no DB or receipt; not an actual uninstall",
+        "criterion_text": "Deleting the local database and refreshing from GitHub reconstructs a canonical compatibility anchor and reviewer prose; invalid, ambiguous, or foreign permalinks remain honestly file-level.",
+        "surface": "fresh host without journal/receipt",
+        "command_or_interaction": "qt_github_conversation_panel; github_review_comment_permalink",
+        "expected": "Canonical link reconstructs exact anchor; foreign/invalid/ambiguous stays file-level",
+        "gate_class": "automated",
+        "producing": "M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-12",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS automated normalization/selection fixtures plus signed-app read of exact external reply4116804415 under original root at line62",
+        "criterion_text": "External edits, replies, resolution changes, and deletion reconcile by canonical GitHub identity. Removing or changing the permalink updates or removes the semantic placement according to server truth and never revives stale local placement.",
+        "surface": "canonical IDs plus edited-root source cache",
+        "command_or_interaction": "qt_github_conversation_panel; qt_composed_github_scale_100",
+        "expected": "Edits/removal/remap/replies/deletion follow server truth, no stale resurrection",
+        "gate_class": "automated",
+        "producing": "M3; D public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-13",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS typed incompatibility and no-write assertions",
+        "criterion_text": "A body requiring line-only semantics is not silently degraded through the file representation; it receives a typed incompatibility with no POST.",
+        "surface": "body policy + actual editor/session",
+        "command_or_interaction": "core_review_round_trip; github_review_comment_permalink; qt_review_draft_editor",
+        "expected": "Line-only constructs refuse required FILE fallback without POST",
+        "gate_class": "automated",
+        "producing": "M1/M2/M3",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-14",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS public fixture composition plus actual ordinary Publish and fresh signed GET-only rehydration",
+        "criterion_text": "The complete gesture follows Qt intent -> core decision -> application host -> mutation coordinator -> GitHub adapter -> durable recovery -> server refresh -> incremental Qt projection, with no provider/widget bypass.",
+        "surface": "public application native/file course",
+        "command_or_interaction": "application_review_round_trip_composition_contract",
+        "expected": "Real gesture through coordinator/session/SQLite/restart/refresh selects canonical post",
+        "gate_class": "automated+rendered",
+        "producing": "M3; D public replay",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "RFC-AC-15",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "PASS guards, exact attended fallback write and GET-only recovery; Windows gaps retained",
+        "criterion_text": "Automated tests cannot reach a non-designated live target, and live native and fallback evidence is produced only through the existing attended, identity-bound mutation authority.",
+        "surface": "network guard, exact target bootstrap, signed mounted capsule",
+        "command_or_interaction": "test_network_isolation_manifest; test_network_isolation_structure_contract; live_mutation_isolation_contract; designated_live_public_observer_fixture; application_designated_review_authority_bootstrap",
+        "expected": "No ordinary test can publish; live lane bound to exact PR2/build/actor/one-use grant",
+        "gate_class": "security+external-authority",
+        "producing": "M3; D authority/manifest/capsule",
+        "ledger": "docs/verification/RFC-BPR-0022.md",
+        "closeout": "docs/issues/_checkpoints/BPR-0575/m4-r4-verification.json"
+      }
+    },
+    {
+      "criterion": "independent-acceptance",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner Accept74582934-e6ce-4101-83fd-bbd547de167c explicitly waives separate independent review and substitutes owner acceptance for exact production0f3188093; no independent report claimed. See m4-r4-amendments.md and unchanged proposal."
+      }
+    },
+    {
+      "criterion": "implementation-cards",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "All14 predecessor implementation cards0561..0574 are Done; full evidence and amended acceptance reviewed, not inferred from lanes alone."
+      }
+    },
+    {
+      "criterion": "explicit-dependencies",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "RFC0004/0005/0008 Auto-Verified; r3 ordering decision preserved; current consumer rules use explicit dependencies."
+      }
+    },
+    {
+      "criterion": "critical-findings",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "No unresolved in-scope critical defect. Exact classifier message risk and all unobserved qualifications remain disclosed; no fallback for historical unresolved native witnesses."
+      }
+    },
+    {
+      "criterion": "documentation-and-gates",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Prepared RFC/index/ledger/README/operator/security/master/fixture/release documents agree; documentation gate,64 validator tests,scoped board validation and whitespace pass; final helper move receives post-finish link validation."
+      }
+    }
+  ]
+}

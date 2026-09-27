@@ -89,7 +89,11 @@ closeout gates; this section is not release approval.
 RFC-BPR-0022 fixture success does not authorize a production unsupported
 classifier. Any enabled tuple requires exact observed or explicitly approved
 recorded non-creation evidence for the operation/server/API/classifier revision.
-Current production supplies none. The owner narrowed live qualification to
-GitHub.com; GHES fixture coverage remains mandatory and native GHES must be
-reported unobserved. Required live publication and GitHub-only collaborator
-judgments remain pending until supplied on the [exact RFC-0022 candidate](RFC-BPR-0022.md).
+Production classifier2 admits only the owner-approved PR2/base/head/actor/profile2
+contract with exact sealed-source and patch validation; other scopes stay unknown.
+The [exact RFC-0022 candidate](RFC-BPR-0022.md) has observed fallback publication,
+GET-only recovery and accepted GitHub-only continuity. The r4 owner amendment
+accepts app-closed continuity plus fresh-host reconstruction for AC-10 and waives
+separate independent review for source `0f3188093`. Native off-hunk success, native
+GHES, Windows qualification and actual installed desktop uninstall remain
+unobserved. RFC closeout grants no package trust or release approval.

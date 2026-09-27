@@ -1793,9 +1793,12 @@ and cached unavailable publications. BPR-0626 records the passing Mac result.
 and illegal observations. `github_review_comment_permalink` composes the real
 serialized session and SQLite journal for native, file, exact-anchor cache,
 legacy alias and 66 reached interruption courses; each course restarts three
-fresh sessions. The unsupported tuple is explicitly synthetic. No fixture
-proves that GitHub.com or GHES emits it. `sqlite_review_mutation_recovery_storage`
-covers schema 1–3 migration into schema 4 with whole-review state preserved.
+fresh sessions. The original unsupported tuple is explicitly synthetic. The
+later classifier2 fixtures exercise the separately owner-approved exact PR2
+contract and its refusal cases; fixture success supplies no broader service
+capability evidence. `sqlite_review_mutation_recovery_storage` covers schema
+1–3 migration into schema 4 with whole-review state preserved; D integration
+retains these records in the current schema-5 store.
 
 `application_review_round_trip_composition_contract` begins with the real Qt
 line gesture and ends with canonical server-post selection after durable

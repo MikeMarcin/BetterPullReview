@@ -50,7 +50,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-12 | [BPR-0572](../../issues/60-done/BPR-0572-automated-security-recovery-verification.md) |
 | PACK-BPR-0022-13 | [BPR-0573](../../issues/60-done/BPR-0573-designated-live-native-fallback-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0574](../../issues/60-done/BPR-0574-documentation-and-simplification.md) |
-| PACK-BPR-0022-15 | [BPR-0575](../../issues/30-in-progress/BPR-0575-anchor-rfc-0022-verification.md) |
+| PACK-BPR-0022-15 | [BPR-0575](../../issues/60-done/BPR-0575-anchor-rfc-0022-verification.md) |
 
 The allocator claimed BPR-0561 through BPR-0591 in one operation and advanced
 `docs/issues/NEXT_ID` from BPR-0561 to BPR-0592. No reservation or schema number
