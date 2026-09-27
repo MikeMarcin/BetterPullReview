@@ -21,6 +21,7 @@
 #include <span>
 #include <vector>
 
+class QAction;
 class QHBoxLayout;
 class QLabel;
 class QPaintEvent;
@@ -226,6 +227,8 @@ namespace bpr::qt {
 
 		/// \brief Continue review or Start review.
 		void set_entry_dispatch(overview_entry_dispatch aDispatch);
+		/// \brief Presents the window-owned private tour action from Overview.
+		void set_prepare_tour_action(QAction* aAction);
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
 

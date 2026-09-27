@@ -1,0 +1,113 @@
+#include "../support/review_tour_fixture.hpp"
+#include "../support/test_expectation.hpp"
+#include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_tour_host.hpp"
+#include <stdexcept>
+namespace {
+	using namespace bpr;
+	using tests::expect;
+	struct store_state
+	{
+		std::optional<core::review_tour> Draft;
+		bool                             Fail  = false;
+		bool                             Throw = false;
+		unsigned                         Saves = 0;
+	};
+	class store final : public application::review_tour_store
+	{
+	public:
+		std::shared_ptr<store_state> State;
+		explicit store(std::shared_ptr<store_state> aState)
+			: State{ std::move(aState) }
+		{ }
+		auto load(const core::tour_owner&, core::tour_draft_id, std::stop_token) -> application::tour_store_result<std::optional<core::review_tour>> override { return State->Draft; }
+		auto save(const core::review_tour& aDraft, std::uint64_t aExpected, std::stop_token) -> application::tour_store_result<core::review_tour> override
+		{
+			++State->Saves;
+			if (State->Throw) {
+				throw std::runtime_error{ "fixture" };
+			}
+			if (State->Fail) {
+				return std::unexpected(application::tour_store_error{ });
+			}
+			if ((State->Draft ? State->Draft->Revision : 0) != aExpected) {
+				return std::unexpected(application::tour_store_error{ application::tour_store_failure::conflict, State->Draft });
+			}
+			State->Draft = aDraft;
+			return aDraft;
+		}
+	};
+}
+int main()
+{
+	auto                          shared = std::make_shared<store_state>();
+	application::manual_executor  effects, decisions;
+	unsigned                      publications = 0;
+	std::function<void()>         feedback;
+	application::review_tour_host host{ tests::review_tour_fixture(), std::make_unique<store>(shared), effects, decisions, [&](const auto&) {++publications;if(feedback){auto action=std::move(feedback);feedback={};action();} } };
+	host.start();
+	expect(host.presentation().Loading && !host.presentation().Draft, "load asynchronous");
+	effects.drain();
+	decisions.drain();
+	feedback = [&] { host.dispatch(tests::tour_edit(*host.presentation().Draft, "reentrant final")); };
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "first"));
+	expect(shared->Saves == 0 && effects.pending() == 1, "edits enqueue effects only");
+	effects.drain();
+	decisions.drain();
+	effects.drain();
+	decisions.drain();
+	expect(shared->Saves == 2 && shared->Draft->Problem == "reentrant final", "coalesced reentrant final text saved");
+	shared->Fail = true;
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "unsaved"));
+	effects.drain();
+	decisions.drain();
+	expect(host.presentation().Failure && host.presentation().SavedRevision < host.presentation().Draft->Revision, "save failure visible and never durable success");
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "still editable"));
+	expect(effects.pending() == 0, "failed save is not a retry spin");
+	shared->Fail = false;
+	host.retry_save();
+	effects.drain();
+	decisions.drain();
+	expect(shared->Draft->Problem == "still editable", "explicit retry retains last edits");
+	++shared->Draft->Revision;
+	shared->Draft->Problem = "other window";
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "my conflict"));
+	effects.drain();
+	decisions.drain();
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, std::string(core::maximum_tour_field_bytes + 1U, 'x')));
+	expect(host.presentation().Conflict && host.presentation().Refusal == core::tour_refusal::bounds, "conflicted editor also retains a refused oversized candidate");
+	host.use_saved_copy();
+	expect(!host.presentation().Conflict && host.presentation().Refusal == core::tour_refusal::none && host.presentation().Draft->Problem == "other window", "explicit discard adopts the saved copy and clears the old refusal");
+	shared->Throw = true;
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "exception"));
+	effects.drain();
+	decisions.drain();
+	expect(host.is_quiescent() && host.presentation().Failure, "throw produces terminal failure");
+	shared->Throw = false;
+	host.retry_save();
+	const auto before = publications;
+	host.shutdown();
+	effects.drain();
+	decisions.drain();
+	expect(host.is_quiescent() && publications == before && shared->Draft->Problem == "exception", "shutdown drains without late projection");
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "after shutdown"));
+	expect(shared->Draft->Problem == "exception", "closed host refuses edits");
+	{
+		auto empty = tests::review_tour_fixture();
+		empty.Problem.clear();
+		empty.Solution.clear();
+		empty.Stops.clear();
+		empty.ProblemBaseline.reset();
+		empty.SolutionBaseline.reset();
+		empty.Revision                          = 1;
+		auto                          untouched = std::make_shared<store_state>();
+		application::review_tour_host observer{ empty, std::make_unique<store>(untouched), effects, decisions, { } };
+		observer.start();
+		effects.drain();
+		decisions.drain();
+		observer.shutdown();
+		effects.drain();
+		decisions.drain();
+		expect(observer.is_quiescent() && untouched->Saves == 0, "opening a PR without authoring does not consume a durable tour slot");
+	}
+}

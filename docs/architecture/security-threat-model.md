@@ -1268,6 +1268,16 @@ and selected-file diff tests cover separate boundaries. The successful bounded
 Mac live read proves its recorded target and source only; it authorizes no
 credential operation or mutation. Linux/Windows public preview remains unavailable.
 
+## Private review-tour text
+
+[Review-tour drafts](review-tours.md) retain authored Markdown and bounded remote
+body baselines for editing/recovery in an admitted profile-private store. They
+are outside the metadata ledger and diagnostics export. Records bind the exact
+profile, host fingerprint, account, repository and PR; save CAS prevents silent
+multiwindow replacement. Profile purge owns the exact database and its sidecars.
+This retention does not provide encryption, secure erasure, backup removal or
+remote-edit authority. Shared tour comments are unaffected by local purge.
+
 ## Structured diagnostic framing
 
 BPR-1215 retains the credential-owner sanitizer and the typed diagnostic port.

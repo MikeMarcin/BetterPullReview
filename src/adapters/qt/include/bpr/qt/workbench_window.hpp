@@ -81,6 +81,7 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class review_tour_editor;
 	enum class dif_clip_id : std::size_t;
 	class dif_catalog_provider;
 	class dif_cue_router;
@@ -554,6 +555,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1129]]. Compose review: Option-R (Alt+R), window-owned,
 		/// marked while a review draft is kept.
 		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
+		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
+		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
+		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
+		void               open_review_tour();
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
 		///
 		/// \details [[BPR-1133]]. It answers the selected review thread when
@@ -1491,6 +1496,9 @@ namespace bpr::qt {
 		bool                                   RightConversationEndpointCurrent = false;
 		agent_launch_panel*                    AgentPanel                       = nullptr;
 		private_notes_panel*                   PrivateNotes                     = nullptr;
+		review_tour_editor*                    TourEditor                       = nullptr;
+		QAction*                               PrepareTourAction                = nullptr;
+		QAction*                               AddTourStopAction                = nullptr;
 		side_chat_panel*                       SideChat                         = nullptr;
 		finding_queue_view*                    FindingQueue                     = nullptr;
 		review_draft_editor*                   ReviewEditor                     = nullptr;

@@ -1,4 +1,5 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include <QAction>
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -1806,6 +1807,17 @@ namespace bpr::qt {
 	auto pull_request_overview_page::colours() const noexcept -> const overview_colours&
 	{
 		return Colours;
+	}
+
+	void pull_request_overview_page::set_prepare_tour_action(QAction* aAction)
+	{
+		auto* button = new QPushButton{ tr("Prepare review tour"), Entry->parentWidget() };
+		button->setObjectName(QStringLiteral("overviewPrepareTour"));
+		button->setAccessibleDescription(tr("Write a private problem statement, solution and source tour."));
+		Entry->parentWidget()->layout()->addWidget(button);
+		button->setEnabled(aAction->isEnabled());
+		connect(button, &QPushButton::clicked, aAction, &QAction::trigger);
+		connect(aAction, &QAction::changed, button, [button, aAction] { button->setEnabled(aAction->isEnabled()); });
 	}
 
 	void pull_request_overview_page::set_entry_dispatch(overview_entry_dispatch aDispatch)
