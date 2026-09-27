@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0575"
 title: "Anchor RFC-BPR-0022 verification and closeout"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0573","BPR-0574","BPR-0242"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
