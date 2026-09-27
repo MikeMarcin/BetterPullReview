@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1060"
 title: "Persist shared draft history and presentation-neutral resumption"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1056", "BPR-1057"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-09","milestone":"same-machine-handoff","acceptance":["AC45-03","AC45-08"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
