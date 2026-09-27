@@ -67,8 +67,8 @@ The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
 authorized. BPR-1215–1219 are the required source-owned milestones. Current owner:
-`/root/rfc0027_m3`, sole writer in worktree `57ed`, branch
-`codex/rfc0027-advanced`; current milestone `diagnostic-controls`.
+`/root/rfc0027_m4`, sole writer in worktree `57ed`, branch
+`codex/rfc0027-advanced`; current milestone `diagnostic-export`.
 
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
 rows describe their original not-run state; advanced acceptance stays pending
@@ -171,3 +171,35 @@ cache, bind `diagnostic-export` with M1/M2/M3 accepted, and promote/claim BPR-12
 The new recent-context/control ports are available to M4; current metadata
 preview still reads files only and excludes all prose/identities. No source
 writer, command, review server or protected candidate is transferred.
+
+### M4 checkpoint
+
+Mandate r2; assignment `/root/rfc0027_m4`, BPR-1218 / `diagnostic-export`.
+Source candidate `3fd1224ebe72e9f2f22707eadb04cacb5586d466`; merged candidate
+`9a46ddd802423c4749836a4e6094986452ea5092` preserves concurrent accepted
+review-tour main `80a9551c`. Claim `d234a24f`; immutable RFC base unchanged.
+[Binding](../../rfcs/plans/rfc-bpr-0027-advanced/m4-binding.json) and
+[evidence/commands](../../verification/RFC-BPR-0027.md) define this checkpoint.
+
+Changed paths: core maintenance policy/options/confirmation; application rich
+snapshot classifier and logger capture port; native file scope/flush/freeze;
+Quill frozen session/ring capture; Qt selection/preview/disclosure; composition
+wiring; core/parser/Qt/public tests; owning architecture/operator documentation.
+The legacy metadata exporter remains compatible. No dependency version change.
+
+Dev integration passed 9/9, core-only/boundary checks 6/6 before the final
+preview corrections, final core/parser 2/2 and final Qt/public 4/4. All 18 C++
+files pass format and seven product TUs have clean tidy. Documentation plus 64
+regression tests pass. The ledger preserves actual failures/fixes and precise
+claim limits. M4 implements full-RFC AC-05's export behavior and adds relevant
+AC-01/03/08 evidence; M5 must reconcile the complete criteria without inferring
+native, packaged, human or crash acceptance. No live service was used.
+
+The next scope after accepted main landing is BPR-1219 / `native-closeout` for a
+fresh sole engineering writer. Retain all M1–M4 evidence, mandate r2, native
+Windows/Linux/package/crash limitations and the required human acceptance.
+
+The exact merged-source rebuild passed and integration passed 5/5 in 26.45
+seconds at `9a46ddd8`. No product edit followed verification. BPR-1218 acceptance
+is bound to that candidate. All task-owned build/test/tidy commands are finished;
+there is no attended review URL, session, cursor, protected candidate or server.

@@ -318,3 +318,111 @@ BPR-1217 is Done. Source behavior is `75700f4d`; tested merged composition is
 contains documentation only and releases the sole M3 writer. All owned commands
 are complete; no review server/session/protected candidate remains. Next: fresh
 BPR-1218 / diagnostic-export, with full native and human gaps preserved.
+
+## M4 — frozen diagnostic export (BPR-1218)
+
+Assignment `/root/rfc0027_m4`, sole engineering writer in worktree `57ed`,
+`diagnostic-export`, mandate r2. Immutable RFC base remains
+`55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`; claim `d234a24f` follows the preserved
+M4 binding. Source/merged/accepted identities are recorded below after integration.
+
+### Behavior and direct evidence
+
+Profile Storage & privacy now prepares either anonymized or identifying previews
+from retained sessions or the current session, with an explicit opt-in for the
+bounded recent sanitized context. Preview flushes the profile logger, captures
+its session/sequence cutoff and selected ring, then reads owner-admitted files.
+The host freezes classified bytes, exact options, byte/record counts, time range,
+category/session counts and capture-time omission counts. Saving consumes those
+same bytes. Changing scope cancels preparation; later appends cannot enter the
+saved selection. Files are local, exclusive new outputs; originals are unchanged.
+
+Each export receives a fresh random namespace. Session/request/window joins are
+remapped consistently. Anonymized output excludes original join identities;
+identifying output can retain only numeric identities/session already present
+at capture, requires a separate cancel-default disclosure, and cannot restore
+capture-time omissions. Core rejects identifying export without the confirmation
+and rejects prepared options that differ from the request.
+
+Every selected field is parsed and classified again. JSONL v2/v3 operational
+strings have field-specific fixed vocabularies; sanitized detail is admitted only
+through the recognized explanation/code grammar and public query vocabulary.
+Unknown prose gets an explicit omission marker. Invalid records and partial
+tails count as omissions. Legacy v1 contributes classified numeric metadata
+only. The old metadata-only API and `bpr-diagnostics-v1` format remain supported.
+No opaque summary, source, comment, credential or arbitrary string is copied
+through, including in identifying mode. The 16 MiB/65,536 input and
+1,024-record/256 KiB output bounds remain; included ring input also has the
+512-event/2 MiB bound. Duplicate file/ring records are counted once.
+
+The public desktop fixture exercises signed-out reachability, two capture modes,
+anonymized and identifying preview/export, cancel and accept of the additional
+disclosure, session filtering, scope invalidation, explicit actual logger-ring
+selection, hostile legacy input, later file mutation, byte-exact saves to new
+Unicode paths, existing-path refusal and preservation of original files. It uses
+credential-free fixture sign-in for the existing signed-in maintenance course;
+there is no live sign-in, service request, upload or PR mutation. Direct tests
+add field-by-field poison strings, useful unfamiliar-code detail, v2/v3 sessions,
+epoch-zero range, fresh mappings and retained joins, cutoff/duplicate handling,
+rich output bounds, unknown enums and mandatory core confirmation.
+
+### Commands and results
+
+```sh
+ctest --preset dev --output-on-failure -R '^(application_release_maintenance_public_path|application_diagnostic_controls_public_path)$'
+cmake --build --preset dev --target test_release_maintenance_core test_release_maintenance_host test_release_maintenance_files test_release_maintenance_panel test_release_maintenance_public_path test_quill_logging -j 8
+ctest --preset dev --output-on-failure -R '^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|qt_release_maintenance.*|application_release_maintenance_public_path|quill_logging|architecture_boundaries)$'
+cmake --preset core-only -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache -DBPR_DEPENDENCY_OFFLINE=ON
+cmake --build --preset core-only --target test_release_maintenance_core test_release_maintenance_host -j 8
+ctest --preset core-only --output-on-failure -R '^(core_release_maintenance|application_release_maintenance|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/application/src/release_diagnostic_snapshot.cpp src/core/src/release_maintenance.cpp src/adapters/logging/src/quill_log.cpp src/adapters/sqlite/src/release_maintenance_files.cpp src/adapters/qt/src/release_maintenance_panel.cpp src/app/src/release_maintenance_controls.cpp src/app/src/github_application.cpp
+python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
+git diff --check
+```
+
+The unchanged shortest public composition passed 2/2 before edits. Candidate
+integration passed 9/9 in 34.91 seconds. Core-only build and six focused boundary,
+parser and core gates passed in 114.59 seconds before the final factual-preview
+corrections; subsequent dev core/parser checks passed 2/2 in 0.67 seconds.
+All 18 changed C++ files passed `format.py --dry-run` with clang-format 23.1.1.
+The documentation gate and its 64 tests passed. Final-source public/Qt and merged
+integration results follow below. Passing unchanged units are reused.
+
+Initial compilation exposed default aggregate members and an accidental extra
+lifecycle constructor argument; both were corrected. Initial parser testing used
+a source session equal to part of the build fingerprint, producing a false
+identity-leak assertion; the fixture now distinguishes them. An initial public
+identifying test changed capture privacy before flushing its seeded event, so
+the acknowledged privacy barrier correctly dropped it; the fixture now flushes
+before that transition. Tidy found one local identifier spelling, corrected to
+`pagedOperations`; parser/core tidy then passed. These intermediate failures are
+not acceptance evidence.
+
+Self-review checked source-field classification, escaped detail handling,
+immutable option/byte binding, native file admission and shared logger lifetime.
+It corrected legacy-only category reporting and the exact minimum for timestamp
+zero, with focused regression assertions. Named field masks replace numeric
+literals in the new core/host policy. The preview intentionally retains its
+explicit frozen selection until cancelled or consumed; live recent-ring expiry
+and control barriers remain separate. No native Windows/Linux, packaged,
+human-control or crash-survival acceptance is claimed. M5 retains those required
+full-RFC obligations and must not infer them from the automated macOS fixture.
+
+Final source candidate: `3fd1224ebe72e9f2f22707eadb04cacb5586d466`.
+The final Qt/public run passed **4/4** in 20.85 seconds after the factual-preview
+corrections; final panel tidy passed, completing clean evidence for all seven
+product translation units. Main's accepted review-tour work `80a9551c` merged
+without conflict as `9a46ddd802423c4749836a4e6094986452ea5092`, preserving its
+composition, maintenance inventory and storage documentation additions.
+The merged documentation gate passed. Integration commands:
+
+```sh
+cmake --build --preset dev --target test_release_maintenance_core test_release_maintenance_host test_release_maintenance_files test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|application_release_maintenance_public_path|architecture_boundaries)$'
+```
+
+Merged-source build passed; all **5/5** integration checks passed in 26.45
+seconds at `9a46ddd8`, including native file maintenance and the full public
+export course. Scoped board validation passed. No product edit followed that
+verification. All task-owned build/test/tidy commands completed.
