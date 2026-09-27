@@ -677,3 +677,19 @@ must supply transaction durability, source-use claims, protocol mappings,
 encoded-input bounds and the public host paths before end-to-end feature
 acceptance. The raw selected-private run budget is 2 MiB; its separate 8 MiB
 encoded process-input limit belongs to the later invocation boundary.
+
+## Review-tour identities and local authority
+
+`tour_draft_id` and `tour_stop_id` are stable local identities, scoped to the exact
+profile, host fingerprint, account, repository and PR. A stop retains its original
+comparison/commit/blob/path/side and contiguous inclusive source interval separately
+from a suggested later mapping and any GitHub comment binding. Vector order is the
+conceptual route; a title, visible ordinal or painted row is never identity.
+
+The bounded tour aggregate belongs to its dedicated host, outside the compact
+global interaction state. Host effects persist revision-checked drafts and raw
+baseline/local/website versions. The core decides edit/refusal/readiness and
+captured AI-result scope; Qt owns native text history and focus. Preparation and
+reading progress confer no review correctness, receipt or shared mutation state.
+The [tour contract](review-tours.md) specifies ranges, budgets, persistence,
+publication grants and migration versions.

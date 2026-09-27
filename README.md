@@ -272,6 +272,16 @@ does not certify a signed, notarized, or installable package. RFC-BPR-0020's
 [foundation closeout](docs/verification/RFC-BPR-0020.md) reconciles its original
 criteria with those accepted successor requirements and placement decisions.
 
+## Review tours
+
+Use **Prepare review tour** in Overview or the Pull Request menu to write a
+Problem, Solution and ordered source explanations without AI. The
+[operator guide](docs/development/review-tours.md) covers native editing, optional
+writing hooks, cold import and partial maintenance. Production Tour writes remain
+unavailable until exact server/transport qualification; the
+[execution ledger](docs/verification/RFC-BPR-0039-0043.md) distinguishes tested
+composition from pending native, website and installed-model acceptance.
+
 ## Installation, privacy and release status
 
 The [package guide](docs/development/release-packages.md) covers per-user

@@ -1087,3 +1087,21 @@ carry a zero run until that integration. This compatibility path supplies no
 private source bodies and is not evidence of completed durable conversation
 admission. Storage schema 7 already persists the typed facts; no schema or
 mutation-recovery change is introduced by M5.
+
+## Review-tour writing boundary
+
+An explicit tour field button captures one raw-text interval and permits one
+local undoable replacement. This purpose-specific contract does not change the
+ordinary comment workshop's separate acceptance flow. The selected approved
+Claude stream JSON route disables tools, MCP, hooks, repository settings and
+session persistence and rejects protocol frames that violate that mode. Other
+unqualified protocols refuse writing assistance. This application contract and
+its deterministic process canaries do not attest an installed vendor binary or
+model's semantic quality.
+
+Only bounded admitted context accompanies the request; credentials, general
+private notes, unrelated drafts and linked-ticket retrieval are excluded. Current
+editor/owner/hook/source generations must still match at delivery. Outline output
+contains no comment bodies, Ready flags or publication authority; retained entries
+need individual visible author completion. See the [settings contract](../development/settings.md)
+and [tour operator guide](../development/review-tours.md) for exact limits and undo.
