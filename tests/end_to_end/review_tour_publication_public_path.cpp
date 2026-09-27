@@ -241,6 +241,12 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return editor.shown().Draft && editor.shown().Draft->Conflicts.size() == 1; }, "website/local overlap arrives through real snapshot parser");
 			expect(editor.problem_editor()->toPlainText() == "Local overlapping problem." && editor.solution_editor()->toPlainText().contains("Website revised solution."), "conflict preserves local problem and adopts unrelated website solution");
 			expect(editor.shown().Draft->Stops.front().Remote->DatabaseId == 602 && editor.shown().Draft->Stops.back().Baseline->Raw.starts_with("Website raw prefix."), "website index reorders stable comments and raw prefix survives");
+			expect(editor.shown().Draft->HasPriorObservation && !editor.shown().Draft->ObservedChanges.empty() && editor.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("Reordered"), "actual website observation exposes retained revision differences");
+			const auto beforeNavigation = access::review_mutation_evidence(*application);
+			editor.findChild<QPushButton*>(QStringLiteral("tourNextChanged"))->click();
+			expect(editor.selected_stop() != nullptr, "changed-stop action navigates actual outline");
+			const auto afterNavigation = access::review_mutation_evidence(*application);
+			expect(beforeNavigation.Submissions == afterNavigation.Submissions && beforeNavigation.Resolutions == afterNavigation.Resolutions && !access::review_ledger_receipt_present(*application), "changed-stop navigation has no review-status effect");
 			expect(editor.findChild<QPlainTextEdit*>(QStringLiteral("tourConflict"))->toPlainText().contains("Website overlapping problem."), "editor exposes the exact remote conflict version");
 			saved(editor);
 			shutdown(*application);
@@ -276,6 +282,7 @@ auto main(int argc, char** argv) -> int
 			cold.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
 			wait([&] { return cold.shown().Draft && cold.shown().Draft->Remote; }, "explicit cold import fills editors");
 			expect(cold.shown().Draft->Problem.contains("Website overlapping problem.") && !cold.shown().Draft->Problem.contains("Local overlapping problem.") && cold.shown().Draft->Stops.front().Remote->DatabaseId == 602, "cold import uses website truth and authoritative route");
+			expect(!cold.shown().Draft->HasPriorObservation && cold.shown().Draft->ObservedChanges.empty() && cold.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("No prior local"), "clean profile explicitly has unknown private tour history");
 			expect(!cold.shown().Draft->Stops.front().Original && cold.shown().Draft->Stops.front().Destination && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::editing, "cold profile fabricates no private preparation provenance");
 			saved(cold);
 			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "cold reconstruction uses no inference");
@@ -293,8 +300,21 @@ auto main(int argc, char** argv) -> int
 			cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
 			wait([&] { return cold.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "cold-profile body update preserves imported actor and source binding");
 			saved(cold);
-			std::scoped_lock lock{ server->Mutex };
-			expect(server->StagedWrites == 7 && server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedDescription->starts_with("Website template preface.") && server->StagedDescription->ends_with("Keep website template tail.\n"), "two narrow cold-profile edits preserve template and every comment identity");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 7 && server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedDescription->starts_with("Website template preface.") && server->StagedDescription->ends_with("Keep website template tail.\n"), "two narrow cold-profile edits preserve template and every comment identity");
+			}
+			const auto originalStops = cold.shown().Draft->Stops;
+			expect(access::reaccept_fixture_revision(*application, true), "changed-head fixture enters actual accepted-revision path");
+			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; }, "changed head exposes explanation attention");
+			cold.outline()->setCurrentRow(0);
+			cold.findChild<QPushButton*>(QStringLiteral("tourReaffirm"))->click();
+			saved(cold);
+			expect(cold.shown().Draft->Stops.front().ReaffirmedHead == cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Remote == originalStops.front().Remote && cold.shown().Draft->Stops.front().Destination == originalStops.front().Destination, "explicit reaffirmation preserves original imported subject and comment");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 7, "head attention and reaffirmation issue zero remote writes");
+			}
 		}
 
 		if (mode == "maintenance") {
@@ -420,7 +440,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {
 		std::cerr << "publication-status: " << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().toStdString() << "\n";
-        std::cerr << "read-status: " << application->window().github_status_text() << " writes=" << server->StagedWrites << "\n";
+		std::cerr << "read-status: " << application->window().github_status_text() << " writes=" << server->StagedWrites << "\n";
 		std::cerr << "review-tour-publication:fail " << error.what() << '\n';
 		shutdown(*application);
 		return EXIT_FAILURE;

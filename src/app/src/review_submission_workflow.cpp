@@ -412,12 +412,12 @@ namespace bpr::app {
 		std::vector<application::staged_tour_stop> stops;
 		for (const auto& stop : draft.Stops) {
 			const auto found  = std::ranges::find(Draft.Destinations, stop.Id, &application::tour_stop_destination::Stop);
-			auto       source = stop.Mapped ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
+			auto       source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
 			if (found == Draft.Destinations.end() || !source) {
 				decisions.push_back({ });
 				continue;
 			}
-			core::tour_destination_observation observed{ .Source = *source, .Subject = source->Commit == (source->Side == core::diff_side::right ? draft.Head : draft.Base) ? core::tour_subject::current_diff : core::tour_subject::historical, .SourceAvailable = source->Blob.has_value(), .Body = core::classify_review_body(stop.Body), .CompatibilityRequested = compatibility };
+			core::tour_destination_observation observed{ .Source = *source, .Subject = source->Commit == (source->Side == core::diff_side::right ? draft.ObservedHead.value_or(draft.Head) : draft.Base) ? core::tour_subject::current_diff : core::tour_subject::historical, .SourceAvailable = source->Blob.has_value(), .Body = core::classify_review_body(stop.Body), .CompatibilityRequested = compatibility };
 			if (FixtureQualified) {
 				observed.PendingLineBatch = core::tour_operation_support::supported;
 				observed.Conversation     = core::tour_operation_support::supported;
@@ -600,7 +600,7 @@ namespace bpr::app {
 			for (const auto& stop : Plan->Stops) {
 				view.Markdown += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
 			}
-			view.Markdown += Plan->Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + Plan->Description->Desired + "\n\nThe returned tour index URL will be appended." : "\n\nThe PR description will not be edited.";
+			view.Markdown += Plan->Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + Plan->Description->Desired + (Plan->Description->AppendIndexLink ? "\n\nThe returned tour index URL will be appended." : "") : "\n\nThe PR description will not be edited.";
 			if (Record) {
 				const auto bodies = application::staged_final_bodies(*Record);
 				if (bodies) {

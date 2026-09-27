@@ -292,6 +292,16 @@ namespace bpr::application {
 			state.notify();
 		}
 	}
+	void review_tour_host::observe_comparison(const core::diff_semantic_index& index, const core::tour_code_destination& left, const core::tour_code_destination& right)
+	{
+		auto& self = *Implementation;
+		if (self.Closing || self.State.Loading || !self.State.Draft) {
+			return;
+		}
+		self.adopt_observation(core::map_tour_revision(*self.State.Draft, index, left, right));
+		self.notify();
+	}
+
 	void review_tour_host::observe_publication(core::review_tour aPublished)
 	{
 		auto& state = *Implementation;

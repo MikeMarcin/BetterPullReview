@@ -132,7 +132,9 @@ namespace bpr::application {
 		if (!aRecord.Published || aDraft.Owner != aRecord.Plan.Owner || aDraft.Revision != aRecord.Plan.Generation) {
 			return { };
 		}
-		auto result = aDraft;
+		auto result                = aDraft;
+		result.HasPriorObservation = true;
+		result.ObservedChanges.clear();
 		if (aRecord.Plan.Update) {
 			const auto bodies = staged_update_bodies(aRecord);
 			if (!bodies) {

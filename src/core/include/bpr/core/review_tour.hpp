@@ -116,6 +116,7 @@ namespace bpr::core {
 		std::optional<tour_remote_binding>   Remote;
 		auto                                 operator==(const tour_stop&) const -> bool = default;
 		std::optional<tour_code_destination> Destination;
+		std::optional<git_commit_oid>        ReaffirmedHead = std::nullopt;
 	};
 
 	enum class tour_conflict_field : std::uint8_t { problem,
@@ -130,6 +131,18 @@ namespace bpr::core {
 		std::string         Baseline, Local, Remote;
 		tour_field_baseline Observation;
 		auto                operator==(const tour_edit_conflict&) const -> bool = default;
+	};
+	enum class tour_change_kind : std::uint8_t { added,
+												 removed,
+												 reordered,
+												 text,
+												 source };
+	struct tour_observed_change
+	{
+		tour_change_kind Kind = tour_change_kind::text;
+		tour_stop_id     Stop;
+		std::string      Title;
+		auto             operator==(const tour_observed_change&) const -> bool = default;
 	};
 	/// \brief A private draft; vector order is conceptual route order, never file or title order.
 	struct review_tour
@@ -150,11 +163,14 @@ namespace bpr::core {
 		std::string                        ImportNotice;
 		bool                               ReadOnly = false;
 		/// Published removals retain their original bodies until an explicit update completes.
-		std::vector<tour_stop>          Retired;
-		std::vector<tour_edit_conflict> Conflicts;
-		std::vector<tour_stop>          IncomingRoute;
-		bool                            RemoteStale                                  = false;
-		auto                            operator==(const review_tour&) const -> bool = default;
+		std::vector<tour_stop>            Retired;
+		std::vector<tour_edit_conflict>   Conflicts;
+		std::vector<tour_stop>            IncomingRoute;
+		bool                              RemoteStale = false;
+		std::optional<git_commit_oid>     ObservedHead;
+		bool                              HasPriorObservation = false;
+		std::vector<tour_observed_change> ObservedChanges;
+		auto                              operator==(const review_tour&) const -> bool = default;
 	};
 
 	enum class tour_command_kind : std::uint8_t { problem,
@@ -168,7 +184,8 @@ namespace bpr::core {
 												  remove,
 												  complete,
 												  observe_head,
-												  restore };
+												  restore,
+												  reaffirm };
 	/// \brief Exact revision command. Insert/split/duplicate allocate IDs from the draft high-water mark.
 	struct tour_command
 	{

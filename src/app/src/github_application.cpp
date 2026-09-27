@@ -7320,6 +7320,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
 					finish_tour_navigation();
+					observe_tour_comparison();
 					correlate_defects();
 					retain_reading_position();
 					schedule_reading_restoration();
@@ -8716,6 +8717,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto       source = core::tour_source_range{ range->first, range->second, left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit, blob, std::string{ bytes.begin(), bytes.end() } };
 			return core::valid(source) ? std::optional{ std::move(source) } : std::nullopt;
 		}
+		void observe_tour_comparison()
+		{
+			if (!TourHost || !TourOwner || !SelectedDiffPublication) {
+				return;
+			}
+			const auto* surface = Window->comparison_surface();
+			const auto& p       = *SelectedDiffPublication;
+			const auto  index   = surface->current_semantic_index();
+			if (!index || !surface->current_context() || surface->current_context()->Key != p.Key || !p.LeftPath || !p.RightPath || !p.Key.LeftBlob || !p.Key.RightBlob) {
+				return;
+			}
+			const auto& owner = p.Request.WorkbenchAuthority;
+			if (owner.Host != TourOwner->Host || owner.HostAuthority != TourOwner->HostAuthority || owner.Account != TourOwner->Account || owner.Repository != TourOwner->Repository || owner.PullRequest != TourOwner->PullRequest) {
+				return;
+			}
+			const auto left = p.LeftPath->generic_u8string(), right = p.RightPath->generic_u8string();
+			TourHost->observe_comparison(*index, { p.Request.Diff.Comparison.Left.Commit, p.Key.LeftBlob, std::string{ left.begin(), left.end() }, core::diff_side::left, 0, 0 }, { p.Request.Diff.Comparison.Right.Commit, p.Key.RightBlob, std::string{ right.begin(), right.end() }, core::diff_side::right, 0, 0 });
+		}
+
 		void finish_tour_navigation()
 		{
 			if (!PendingTourSource || !TourHost || !TourOwner || Closing || !WorkbenchHost) {
@@ -8778,7 +8798,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto draft = TourHost->presentation().Draft;
-			if (draft && draft->Head != TourHead && TourAttentionHead != TourHead) {
+			if (draft && draft->ObservedHead.value_or(draft->Head) != TourHead && TourAttentionHead != TourHead) {
 				TourAttentionHead = TourHead;
 				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::observe_head, .Head = TourHead });
 			}
@@ -8955,6 +8975,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (aAction == qt::tour_editor_action::retarget_stop) {
 						value.Mapped  = *source;
 						value.Mapping = core::tour_mapping::author_selected;
+						value.ReaffirmedHead = draft->ObservedHead.value_or(draft->Head);
 					} else {
 						value.Related.push_back(*source);
 					}
@@ -8968,7 +8989,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						position         = static_cast<std::size_t>(found - draft->Stops.begin());
 					}
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
 				Window->open_review_tour();
 				Window->tour_editor()->show_stops();
 				return;

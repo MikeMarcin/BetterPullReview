@@ -56,7 +56,11 @@ namespace {
 		original.RemoteStale                = true;
 		original.ProblemBaseline->DraftText = "exact editor baseline";
 		original.Conflicts.push_back({ core::tour_conflict_field::problem, { }, "old raw α\r\n", "local desired α\r\n", "website raw α\r\n", *original.ProblemBaseline });
-		original.IncomingRoute = original.Stops;
+		original.IncomingRoute           = original.Stops;
+		original.ObservedHead            = original.Head;
+		original.Stops[0].ReaffirmedHead = original.Head;
+		original.HasPriorObservation     = true;
+		original.ObservedChanges         = { { core::tour_change_kind::reordered, original.Stops[0].Id, "Observed website change" } };
 
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };
 		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);

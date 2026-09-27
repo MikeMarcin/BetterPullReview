@@ -1,4 +1,5 @@
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <algorithm>
 namespace bpr::core {
@@ -180,6 +181,11 @@ namespace bpr::core {
 			result.RemoteStale  = true;
 			result.ImportNotice = "Partial or unresolved website observation. Retained text is stale; resolve the saved versions and refresh.";
 			return result;
+		}
+		const auto changes = observed_tour_changes(aLocal, aRemote);
+		if (!changes.empty()) {
+			result.HasPriorObservation = true;
+			result.ObservedChanges     = changes;
 		}
 		result.RemoteStale  = false;
 		result.ImportNotice = aRemote.ImportNotice;

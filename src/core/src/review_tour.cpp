@@ -54,13 +54,16 @@ namespace bpr::core {
 				|| !std::ranges::all_of(aStop.Related, [](const auto& aSource) { return valid(aSource); })) {
 				return tour_refusal::invalid_source;
 			}
+			if (aStop.ReaffirmedHead && !aStop.ReaffirmedHead->valid()) {
+				return tour_refusal::invalid_source;
+			}
 			if (aStop.Mapping > tour_mapping::author_selected || aStop.Preparation > tour_preparation::needs_attention) {
 				return tour_refusal::invalid_command;
 			}
 			if (aStop.Mapping == tour_mapping::exact_original && (!aStop.Original || aStop.Mapped)) {
 				return tour_refusal::invalid_source;
 			}
-			if (aStop.Mapping == tour_mapping::unchanged_material && (!aStop.Original || !aStop.Mapped)) {
+			if (aStop.Mapping == tour_mapping::unchanged_material && ((!aStop.Original && !aStop.Destination) || !aStop.Mapped)) {
 				return tour_refusal::invalid_source;
 			}
 			if (aStop.Preparation == tour_preparation::ready && !ready(aStop)) {
@@ -195,6 +198,13 @@ namespace bpr::core {
 				aTour.Stops.erase(found);
 				aSelected = aTour.Stops.empty() ? tour_stop_id{ } : aTour.Stops[std::min(index, aTour.Stops.size() - 1U)].Id;
 				return tour_refusal::none;
+			case tour_command_kind::reaffirm:
+				if (!nonblank(found->Title) || !nonblank(found->Body) || (!found->Original && !(found->Remote && found->Destination))) {
+					return tour_refusal::incomplete;
+				}
+				found->ReaffirmedHead = aTour.ObservedHead.value_or(aTour.Head);
+				found->Preparation    = tour_preparation::editing;
+				return tour_refusal::none;
 			case tour_command_kind::complete:
 				if (!ready(*found)) {
 					return tour_refusal::incomplete;
@@ -230,9 +240,11 @@ namespace bpr::core {
 				if (!aCommand.Head.valid()) {
 					return tour_refusal::invalid_source;
 				}
-				if (aCommand.Head != aTour.Head) {
+				if (aCommand.Head != aTour.ObservedHead.value_or(aTour.Head)) {
+					aTour.ObservedHead = aCommand.Head;
 					// Authored Head and source never change merely because a new head was observed.
 					for (auto& stop : aTour.Stops) {
+						stop.ReaffirmedHead.reset();
 						stop.Preparation = tour_preparation::needs_attention;
 						stop.Mapping     = tour_mapping::unavailable;
 						stop.Mapped.reset();
@@ -310,11 +322,19 @@ namespace bpr::core {
 		for (const auto& conflict : aTour.Conflicts) {
 			size += 64 + conflict.Baseline.size() + conflict.Local.size() + conflict.Remote.size() + baseline_bytes(conflict.Observation);
 		}
+		for (const auto& change : aTour.ObservedChanges) {
+			size += 64 + change.Title.size();
+		}
 		return size;
 	}
 	auto ready(const tour_stop& aStop) noexcept -> bool
 	{
-		return nonblank(aStop.Title) && nonblank(aStop.Body) && ((aStop.Mapping == tour_mapping::author_selected && aStop.Mapped && valid(*aStop.Mapped)) || (aStop.Original && valid(*aStop.Original) && (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && aStop.Mapped && valid(*aStop.Mapped)))));
+		const bool original   = aStop.Original && valid(*aStop.Original);
+		const bool proposed   = aStop.Mapped && valid(*aStop.Mapped);
+		const bool reaffirmed = aStop.ReaffirmedHead && (original || (aStop.Remote && aStop.Destination && valid(*aStop.Destination)));
+		const bool mapped     = aStop.Mapping == tour_mapping::author_selected && proposed;
+		const bool retained   = original && (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && proposed));
+		return nonblank(aStop.Title) && nonblank(aStop.Body) && (reaffirmed || mapped || retained);
 	}
 	auto validate(const review_tour& aTour) noexcept -> tour_refusal
 	{
@@ -323,7 +343,7 @@ namespace bpr::core {
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
 			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
-			|| aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
+			|| (aTour.ObservedHead && !aTour.ObservedHead->valid()) || aTour.ObservedChanges.size() > maximum_tour_stops * 4 + 2 || aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}
 		for (std::size_t index = 0; index < aTour.Stops.size(); ++index) {
@@ -343,6 +363,11 @@ namespace bpr::core {
 		for (const auto& stop : aTour.IncomingRoute) {
 			if (stop_refusal(stop) != tour_refusal::none) {
 				return tour_refusal::invalid_command;
+			}
+		}
+		for (const auto& change : aTour.ObservedChanges) {
+			if (change.Kind > tour_change_kind::source || !field_ok(change.Title)) {
+				return tour_refusal::bounds;
 			}
 		}
 		for (const auto& conflict : aTour.Conflicts) {

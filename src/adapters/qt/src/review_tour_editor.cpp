@@ -115,6 +115,15 @@ namespace bpr::qt {
 		layout->addWidget(Roadmap, 1);
 		Status = paragraph(tr("Open a pull request with an accepted account to prepare a private tour."), this);
 		Status->setObjectName(QStringLiteral("tourSaveStatus"));
+		RevisionChanges = new QLabel{ this };
+		RevisionChanges->setObjectName(QStringLiteral("tourRevisionChanges"));
+		RevisionChanges->setWordWrap(true);
+		layout->addWidget(RevisionChanges);
+		NextChanged = new QPushButton{ tr("Next changed stop"), this };
+		NextChanged->setObjectName(QStringLiteral("tourNextChanged"));
+		layout->addWidget(NextChanged);
+		connect(NextChanged, &QPushButton::clicked, this, [this] { next_changed_stop(); });
+
 		Status->setAccessibleName(tr("Tour save status"));
 		layout->addWidget(Status);
 		Conflict = new QPlainTextEdit{ this };
@@ -221,6 +230,23 @@ namespace bpr::qt {
 			status += " " + QString::fromStdString(Shown.ImportNotice);
 		}
 		Status->setText(status);
+		QString changes = tr("No prior local tour version.");
+		if (Shown.Draft && Shown.Draft->HasPriorObservation) {
+			changes = tr("Changes at the last differing local website observation:");
+			if (Shown.Draft->ObservedChanges.empty()) {
+				changes = tr("No website differences recorded locally.");
+			}
+			for (const auto& change : Shown.Draft->ObservedChanges) {
+				const auto kind = change.Kind == core::tour_change_kind::added ? tr("Added") : change.Kind == core::tour_change_kind::removed ? tr("Removed")
+					: change.Kind == core::tour_change_kind::reordered                                                                        ? tr("Reordered")
+					: change.Kind == core::tour_change_kind::source                                                                           ? tr("Source changed")
+																																			  : tr("Text changed");
+				changes += "\n" + kind + ": " + QString::fromStdString(change.Title);
+			}
+		}
+		RevisionChanges->setText(changes);
+		NextChanged->setEnabled(Shown.Draft && !Shown.Draft->ObservedChanges.empty());
+
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);
 		UseSaved->setVisible(static_cast<bool>(Shown.Conflict));
 		const bool remoteConflict = Shown.Draft && !Shown.Draft->Conflicts.empty();
@@ -413,6 +439,11 @@ namespace bpr::qt {
 		auto* complete = new QPushButton{ tr("Save and next"), page };
 		complete->setObjectName(QStringLiteral("tourComplete"));
 		complete->setShortcut(QKeySequence{ QStringLiteral("Alt+Return") });
+		auto* reaffirm = new QPushButton{ tr("Reaffirm explanation for current head"), page };
+		reaffirm->setObjectName(QStringLiteral("tourReaffirm"));
+		column->addWidget(reaffirm);
+		connect(reaffirm, &QPushButton::clicked, this, [this] { structural(core::tour_command_kind::reaffirm); });
+
 		column->addWidget(complete);
 		connect(complete, &QPushButton::clicked, this, [this] {structural(core::tour_command_kind::complete); if(const auto* stop=selected_stop();stop && stop->Preparation==core::tour_preparation::ready){next_stop(1);} });
 		connect(Title, &QLineEdit::textEdited, this, [this] { edit_stop(); });
@@ -523,10 +554,23 @@ namespace bpr::qt {
 			Body->setTextCursor(cursor);
 		}
 		const auto label = [](const core::tour_source_range& aSource) { return QStringLiteral("%1 · %2:%3–%4 · %5").arg(QString::fromStdString(aSource.Path), aSource.First.Side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("head")).arg(aSource.First.Line + 1U).arg(aSource.Last.Line + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(aSource.Commit).view() }).left(12)); };
-		Source->setText(stop->Original ? label(*stop->Original) : tr("Source unavailable — your text remains editable."));
+		Source->setText(stop->Original ? tr("Original: ") + label(*stop->Original) : tr("Source unavailable — your text remains editable."));
 		if (!stop->Original && stop->Destination) {
 			const auto& destination = *stop->Destination;
 			Source->setText(QStringLiteral("%1 · %2–%3 · %4").arg(QString::fromStdString(destination.Path)).arg(destination.FirstLine + 1U).arg(destination.LastLine + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(destination.Commit).view() }).left(12)));
+		}
+		if (stop->Mapped) {
+			Source->setText(Source->text() + tr("\nProposed mapping: ") + label(*stop->Mapped));
+		}
+		const auto mapping = stop->Mapping == core::tour_mapping::exact_original ? tr("Exact original") : stop->Mapping == core::tour_mapping::unchanged_material ? tr("Moved with unchanged selected material")
+			: stop->Mapping == core::tour_mapping::changed_material                                                                                               ? tr("Changed material")
+			: stop->Mapping == core::tour_mapping::ambiguous                                                                                                      ? tr("Ambiguous")
+			: stop->Mapping == core::tour_mapping::missing                                                                                                        ? tr("Missing")
+			: stop->Mapping == core::tour_mapping::author_selected                                                                                                ? tr("Author-selected replacement")
+																																								  : tr("Source unavailable");
+		Source->setText(Source->text() + "\n" + mapping);
+		if (Shown.Draft->ObservedHead && stop->ReaffirmedHead != Shown.Draft->ObservedHead) {
+			Source->setText(Source->text() + tr("\nHead or surrounding contract changed. Reaffirm or revise the explanation before publishing; identical selected bytes are not proof."));
 		}
 		if (stop->Mapping != core::tour_mapping::exact_original && stop->Mapping != core::tour_mapping::unchanged_material) {
 			Source->setText(Source->text() + tr("\nSource needs attention; original destination is retained."));
@@ -573,6 +617,25 @@ namespace bpr::qt {
 		}
 		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Stop = Selected, .Position = aPosition, .SplitByte = static_cast<std::size_t>(Body->toPlainText().left(Body->textCursor().position()).toUtf8().size()) });
 	}
+	void review_tour_editor::next_changed_stop()
+	{
+		if (!Shown.Draft) {
+			return;
+		}
+		const auto& stops   = Shown.Draft->Stops;
+		const auto  current = std::ranges::find(stops, Selected, &core::tour_stop::Id);
+		const auto  start   = current == stops.end() ? 0U : static_cast<std::size_t>(current - stops.begin() + 1);
+		for (std::size_t offset = 0; offset < stops.size(); ++offset) {
+			const auto index   = (start + offset) % stops.size();
+			const bool changed = std::ranges::any_of(Shown.Draft->ObservedChanges, [&](const auto& change) { return change.Stop == stops[index].Id && change.Kind != core::tour_change_kind::removed; });
+			if (changed) {
+				show_stops();
+				Outline->setCurrentRow(static_cast<int>(index));
+				return;
+			}
+		}
+	}
+
 	void review_tour_editor::next_stop(int aOffset)
 	{
 		const auto row = Outline->currentRow() + aOffset;

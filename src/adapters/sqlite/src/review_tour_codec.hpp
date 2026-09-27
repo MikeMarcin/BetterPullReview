@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 5;
+		std::uint8_t                  Version = 6;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -203,11 +203,14 @@ namespace bpr::adapters::sqlite::detail {
 			if (Version >= 3) {
 				optional(aStop.Destination, [this](auto& aValue) { destination(aValue); });
 			}
+			if (Version >= 6) {
+				optional(aStop.ReaffirmedHead, [&](auto& value) { oid(value); });
+			}
 		}
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5) {
+			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5 && Version != 6) {
 				Good = false;
 				return;
 			}
@@ -235,6 +238,11 @@ namespace bpr::adapters::sqlite::detail {
 				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& conflict) {enumeration(conflict.Field);id(conflict.Stop);text(conflict.Baseline);text(conflict.Local);text(conflict.Remote);baseline(conflict.Observation); });
 				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& value) { stop(value); });
 				number(aTour.RemoteStale);
+			}
+			if (Version >= 6) {
+				optional(aTour.ObservedHead, [&](auto& value) { oid(value); });
+				number(aTour.HasPriorObservation);
+				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& value) {enumeration(value.Kind);id(value.Stop);text(value.Title); });
 			}
 		}
 	};

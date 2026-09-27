@@ -6,7 +6,7 @@ namespace bpr::core {
 	{
 		using state      = tour_publication_readiness;
 		const auto blank = [](std::string_view value) { return value.find_first_not_of(" \r\n\t") == std::string_view::npos; };
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [](const auto& s) { return !ready(s); })) {
+		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& s) { return !ready(s) || s.Preparation == tour_preparation::needs_attention || (aTour.ObservedHead && s.ReaffirmedHead != aTour.ObservedHead); })) {
 			return state::incomplete;
 		}
 		if (aDestinations.size() != aTour.Stops.size() || std::ranges::any_of(aDestinations, [](const auto& d) { return d.NeedsQualification || d.IncompatibleBody || d.Representation == tour_representation::unresolved; })) {
@@ -44,6 +44,9 @@ namespace bpr::core {
 		std::vector<tour_destination_plan> destinations;
 		for (std::size_t i = 0; i < aTour.Stops.size(); ++i) {
 			const auto& stop = aTour.Stops[i];
+			if (aTour.ObservedHead && stop.ReaffirmedHead != aTour.ObservedHead) {
+				return state::incomplete;
+			}
 			if (needs_tour_destination(stop)) {
 				auto added = stop;
 				added.Remote.reset();

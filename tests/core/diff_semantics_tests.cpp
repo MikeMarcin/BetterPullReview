@@ -1,4 +1,7 @@
+#include "../support/review_tour_fixture.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/review_tour_revision.hpp"
+#include "bpr/core/review_tour_update.hpp"
 
 #include <algorithm>
 #include <array>
@@ -708,10 +711,61 @@ namespace {
 			}
 		}
 	}
+	void test_tour_revision_mapping()
+	{
+		const auto oldCommit = *parse_git_commit_oid("1111111111111111111111111111111111111111");
+		const auto newCommit = *parse_git_commit_oid("2222222222222222222222222222222222222222");
+		const auto check     = [&](const computed_file_diff& diff, std::uint32_t first, std::uint32_t last, tour_mapping mapping, std::optional<std::uint32_t> destination) {
+			auto        tour         = bpr::tests::review_tour_fixture();
+			const auto& a            = diff.Alignment.Key.Authority;
+			tour.Owner.Host          = a.Host;
+			tour.Owner.HostAuthority = a.HostAuthority;
+			tour.Owner.Account       = a.Account;
+			tour.Owner.Repository    = a.Repository;
+			tour.Owner.PullRequest   = a.PullRequest;
+			tour.Stops[0].Original   = tour_source_range{ line(diff, diff_side::left, first), line(diff, diff_side::left, last), oldCommit, diff.Alignment.Key.LeftBlob, "old.cpp" };
+			tour.Stops[0].Remote     = tour_remote_binding{ .DatabaseId = 601, .Entity = "original601", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#discussion_r601", .Own = true };
+			const auto original      = tour.Stops[0].Original;
+			tour                     = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::observe_head, .Head = newCommit }).Accepted;
+			const auto index         = build_diff_semantic_index(std::make_shared<const computed_file_diff>(diff));
+			expect(index.has_value(), "tour comparison index");
+			const tour_code_destination left{ oldCommit, diff.Alignment.Key.LeftBlob, "old.cpp", diff_side::left, 0, 0 }, right{ newCommit, diff.Alignment.Key.RightBlob, "renamed.cpp", diff_side::right, 0, 0 };
+			const auto                  mapped = map_tour_revision(tour, *index, left, right);
+			expect(mapped.Stops[0].Mapping == mapping, "tour classifies admitted correspondence");
+			expect(mapped.Stops[0].Original == original && mapped.Head == oldCommit && mapped.Stops[0].Remote == tour.Stops[0].Remote && !needs_tour_destination(mapped.Stops[0]), "proposal preserves original anchor and remote identity without replacement writes");
+			expect(mapped.Stops[0].Preparation == tour_preparation::needs_attention && !mapped.Stops[0].ReaffirmedHead, "changed context requires explanation reaffirmation even with identical selected bytes");
+			expect(destination ? mapped.Stops[0].Mapped && mapped.Stops[0].Mapped->First.Line == *destination && mapped.Stops[0].Mapped->Path == "renamed.cpp" : !mapped.Stops[0].Mapped, "mapped range has admitted new path/lines or remains absent");
+			auto affirmed = apply(mapped, { .Draft = mapped.Id, .Owner = mapped.Owner, .ExpectedRevision = mapped.Revision, .Kind = tour_command_kind::reaffirm, .Stop = mapped.Stops[0].Id });
+			expect(affirmed.Refusal == tour_refusal::none && affirmed.Accepted.Stops[0].ReaffirmedHead == newCommit && affirmed.Accepted.Stops[0].Original == original, "explicit explanation reaffirmation retains original source");
+			auto foreign          = tour;
+			foreign.Owner.Account = github_account_id{ 999 };
+			expect(map_tour_revision(foreign, *index, left, right) == foreign, "foreign comparison cannot map tour");
+			auto unknown   = left;
+			unknown.Commit = *parse_git_commit_oid("3333333333333333333333333333333333333333");
+			expect(map_tour_revision(tour, *index, unknown, right) == tour, "never-retained original epoch stays unavailable");
+			auto imported                 = tour;
+			imported.Stops[0].Destination = destination_of(*original);
+			imported.Stops[0].Original.reset();
+			const auto cold = map_tour_revision(imported, *index, left, right);
+			expect(!cold.Stops[0].Original && !cold.HasPriorObservation, "cold profile mapping invents no private original/history");
+		};
+		check(run("contract old\nsame snippet\n", "contract new\nsame snippet\n"), 1, 1, tour_mapping::unchanged_material, 1);
+		check(run("prefix alpha suffix\n", "prefix beta suffix\n"), 0, 0, tour_mapping::changed_material, 0);
+		check(run("keep\ndeleted\nend\n", "keep\nend\n"), 1, 1, tour_mapping::missing, { });
+		auto options  = diff_options{ };
+		options.Moves = move_detection_policy::deterministic_exact;
+		check(run("move one\nmove two\nstay one\nstay two\nstay three\n", "stay one\nstay two\nstay three\nmove one\nmove two\n", options), 0, 1, tour_mapping::unchanged_material, 3);
+		options.Pairing                     = pairing_policy::disabled;
+		options.SimilarityThresholdPermille = 0;
+		check(run("abc\n", "xyz\n", options), 0, 0, tour_mapping::ambiguous, { });
+		check(run("retained\n", std::nullopt), 0, 0, tour_mapping::unavailable, { });
+	}
+
 } // namespace
 
 int main()
 {
+	test_tour_revision_mapping();
 	test_exact_and_one_sided_mapping();
 	test_pair_span_and_unequal_tail_mapping();
 	test_projection_navigation_and_identity();

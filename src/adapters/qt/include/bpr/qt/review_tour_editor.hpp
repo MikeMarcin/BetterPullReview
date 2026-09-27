@@ -72,6 +72,7 @@ namespace bpr::qt {
 		void                                         edit_stop();
 		void                                         structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
 		void                                         next_stop(int aOffset);
+		void                                         next_changed_stop();
 		QComboBox*                                   PublicationMode    = nullptr;
 		QCheckBox*                                   DescriptionEdit    = nullptr;
 		QLabel*                                      PublicationStatus  = nullptr;
@@ -105,6 +106,8 @@ namespace bpr::qt {
 		QPlainTextEdit*                              Conflict          = nullptr;
 		QTabWidget*                                  Roadmap           = nullptr;
 		markdown_body_view*                          Preview           = nullptr;
+		QLabel*                                      RevisionChanges   = nullptr;
+		QPushButton*                                 NextChanged       = nullptr;
 		QLabel*                                      Status            = nullptr;
 		QPushButton*                                 Retry             = nullptr;
 		QPushButton*                                 UseSaved          = nullptr;

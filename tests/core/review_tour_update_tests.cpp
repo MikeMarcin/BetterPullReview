@@ -1,5 +1,6 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <algorithm>
 #include <cstdlib>
@@ -44,6 +45,47 @@ namespace {
 		draft.IndexBaseline = tour_field_baseline{ .Raw = "Preserve this custom orientation.\n\n" + *render_tour_index(entries) + "\nUnrelated tail.\n", .RemoteEntity = "review9" };
 		return draft;
 	}
+	void website_deltas()
+	{
+		const auto base     = published();
+		auto       local    = base;
+		local.Stops[0].Body = "private draft only";
+		std::reverse(local.Stops.begin(), local.Stops.end());
+		local.Retired.push_back(local.Stops.back());
+		local.Stops.pop_back();
+		auto privateStop = local.Stops.front();
+		privateStop.Id   = tour_stop_id{ 6 };
+		privateStop.Remote.reset();
+		privateStop.Baseline.reset();
+		local.Stops.push_back(privateStop);
+		local.LastStopId = 6;
+		expect(observed_tour_changes(local, base).empty(), "private text/reorder/removal/insertion is never website history");
+		auto remote = base;
+		remote.Stops[0].Baseline->Raw += "website edit";
+		remote.Stops[1].Destination = destination_of(*remote.Stops[1].Original);
+		remote.Stops[1].Original.reset();
+		remote.Stops[1].Destination->Path = "renamed.cpp";
+		remote.Stops.erase(remote.Stops.begin() + 2);
+		auto added           = remote.Stops.back();
+		added.Id             = tour_stop_id{ 7 };
+		added.Remote->Entity = "new601";
+		added.Remote->WebUrl = "https://github.com/o/r/pull/7#discussion_r601";
+		remote.Stops.push_back(added);
+		std::reverse(remote.Stops.begin(), remote.Stops.end());
+		std::vector<tour_markdown_link> entries;
+		for (const auto& stop : remote.Stops) {
+			entries.push_back({ stop.Title, stop.Remote->WebUrl });
+		}
+		remote.IndexBaseline->Raw = *render_tour_index(entries);
+		const auto changes        = observed_tour_changes(base, remote);
+		for (const auto kind : { tour_change_kind::added, tour_change_kind::removed, tour_change_kind::reordered, tour_change_kind::text, tour_change_kind::source }) {
+			expect(std::ranges::any_of(changes, [&](const auto& c) { return c.Kind == kind; }), "locally retained raw observations distinguish every website delta");
+		}
+		auto cold = base;
+		cold.IndexBaseline.reset();
+		expect(observed_tour_changes(cold, remote).empty(), "absent prior raw version does not infer history");
+	}
+
 	void reconciliation()
 	{
 		expect(merge_tour_text("α left / right", "α LEFT / right", "α left / RIGHT") == std::optional<std::string>{ "α LEFT / RIGHT" }, "nonoverlapping UTF-8 edits merge");
@@ -106,6 +148,7 @@ namespace {
 }
 int main()
 {
+	website_deltas();
 	reconciliation();
 	auto draft = published();
 	auto plan  = plan_tour_update(draft, { });
@@ -134,7 +177,7 @@ int main()
 	draft                       = published();
 	draft.Stops[0].Mapped       = draft.Stops[0].Original;
 	draft.Stops[0].Mapped->Path = "moved.cpp";
-	draft.Stops[0].Mapping      = tour_mapping::unchanged_material;
+	draft.Stops[0].Mapping      = tour_mapping::author_selected;
 	auto replacement            = created;
 	replacement.Stop            = draft.Stops[0].Id;
 	plan                        = plan_tour_update(draft, std::vector{ replacement });

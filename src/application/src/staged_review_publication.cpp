@@ -43,7 +43,7 @@ namespace bpr::application {
 			for (const auto& stop : draft.Stops) {
 				if (core::needs_tour_destination(stop)) {
 					const auto found  = std::ranges::find(aPlan.Stops, stop.Id, &staged_tour_stop::Id);
-					const auto source = stop.Mapped ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
+					const auto source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
 					if (found == aPlan.Stops.end() || found->Title != stop.Title || found->Narrative != stop.Body || !source || found->Source != *source) {
 						return false;
 					}
