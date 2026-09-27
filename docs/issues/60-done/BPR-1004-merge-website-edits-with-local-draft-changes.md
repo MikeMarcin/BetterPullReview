@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1004"
 title: "Merge website edits with local draft changes"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1003", "BPR-0997"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-14","milestone":"manual-maintenance","acceptance":["AC42-01","AC42-04","AC42-07"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC42-01","outcome":"pass","revision":"9a7ba459c3d8e3c2b53b36ce29aaaf1a5ecd8f57","evidence":{"kind":"observation","detail":"Actual app raw website refresh and explicit B/L/R conflict course passes without AI; repeated local-window CAS evidence remains valid. See docs/verification/RFC-BPR-0039-0043.md BPR-1004; live/native qualification remains pending."}},{"criterion":"AC42-04","outcome":"pass","revision":"9a7ba459c3d8e3c2b53b36ce29aaaf1a5ecd8f57","evidence":{"kind":"observation","detail":"Core span/nonoverlap/heading-drift checks and app narrow root/description update preserve template bytes; exact-session preflight, detected-race and post-read completion checks pass. See docs/verification/RFC-BPR-0039-0043.md BPR-1004; live/native qualification remains pending."}},{"criterion":"AC42-07","outcome":"pass","revision":"9a7ba459c3d8e3c2b53b36ce29aaaf1a5ecd8f57","evidence":{"kind":"observation","detail":"Cold private profile discovers actual published root/comments and source addresses, retains unknown preparation provenance and explicitly edits original identities; zero extra creation/submission. See docs/verification/RFC-BPR-0039-0043.md BPR-1004; live/native qualification remains pending."}}]
 ---
 
 # BPR-1004: Merge website edits with local draft changes
