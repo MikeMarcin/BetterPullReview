@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0603"
 title: "Add advanced diagnostic retention privacy and controls"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1215", "BPR-1216", "BPR-1217", "BPR-1218", "BPR-1219"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
