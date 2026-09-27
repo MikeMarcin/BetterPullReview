@@ -3943,6 +3943,7 @@ namespace bpr::app {
 		worker_executor                                         AppearanceEffects;
 		worker_executor                                         QueueEffects;
 		worker_executor                                         ReviewMutationEffects;
+		private_review_recovery_registry                        PrivateRecovery;
 		worker_executor                                         ReviewSubmissionEffects;
 		qt::event_loop_executor                                 DecisionLane;
 		std::shared_ptr<application::github_read_admission>     ReadAdmission = std::make_shared<application::github_read_admission>();
@@ -6953,7 +6954,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
-			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
+			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
 					if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
 						return false;
 					}
@@ -9915,6 +9916,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					DecisionLane,
 					*this,
 					this);
+				ReviewMutationHost->repair_pending_publications();
 			} else {
 				LiveReviewMutationGrant.reset();
 			}
@@ -10546,6 +10548,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void publish(
 			const application::review_mutation_terminal& aTerminal) override
 		{
+			if (!Closing && aTerminal.Lineage == application::review_lineage_state::pending && ReviewMutationHost) {
+				ReviewMutationHost->repair_pending_publications();
+			}
 			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
 				if (aTerminal.Result && Window && Window->review_editor()) {
 					Window->review_editor()->acknowledge_published_body(*PublishingDraft);

@@ -2,6 +2,22 @@
 
 Status: **implementation authorized under mandate r2; M1–M9 local work integrated; external publication evidence and final independent review pending**
 
+### M10 preliminary finding repairs
+
+An early read-only review of the M10 candidate found four changed-surface
+issues. The Qt agent transport now retains the selected-source claim until
+queued process input has drained, and stops the child on timeout, cancellation
+or write failure. The composition dialog disables Accept as Draft while its
+body differs from the saved candidate. A profile-shared recovery registry
+reconciles admitted private runs once after restart on the serialized store
+lane, without interrupting an active sibling window. The live mutation host
+queues a read-only pending-lineage pass at construction and after a pending
+terminal; it joins an exact historical comment even if the PR head advanced,
+using the original journal child and private publication record. It cannot
+admit or resend a publication. Focused agent, Qt, application and GitHub
+contract checks are recorded in the M10 handoff. These repairs do not count as
+the owner's requested final independent review, which follows the live course.
+
 ### BPR-0590 documentation and simplification
 
 M10 updated the operator path in

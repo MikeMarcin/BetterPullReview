@@ -246,6 +246,8 @@ namespace bpr::application {
 			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
 		void cancel(review_mutation_request_context aContext) noexcept;
+		/// Queues a read-only repair pass on the serialized mutation effect lane.
+		void repair_pending_publications();
 		void shutdown() noexcept;
 
 		[[nodiscard]] auto designated() const noexcept

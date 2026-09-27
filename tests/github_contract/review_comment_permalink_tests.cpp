@@ -1029,9 +1029,23 @@ namespace {
 			transport.HideAfterPost                       = false;
 			auto                                 reopened = std::move(*adapters::sqlite::make_private_review_store(config));
 			private_publication_application_host recoveredLineage(*reopened);
-			auto                                 recovered = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &recoveredLineage };
-			auto                                 repaired  = recovered.reconcile_publication(request);
-			expect(repaired.Result && repaired.Lineage == review_lineage_state::recorded && transport.Posts.size() == posts, "restart repairs only through reads and one local transaction with zero new POST");
+			auto                                 current = session_configuration(request);
+			if (mode == 3) {
+				transport.StaleAtTarget              = 1;
+				current.Target.Semantic.ExpectedHead = *core::parse_git_commit_oid("1212121212121212121212121212121212121212");
+			}
+			auto recovered = review_mutation_session{ transport, current, std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &recoveredLineage };
+			if (mode == 2 || mode == 3) {
+				transport.WrongActor = true;
+				recovered.repair_pending_publications();
+				expect(!reopened->lookup_publication(row.LogicalPublication)->value().ServerComment && transport.Posts.size() == posts, "wrong viewer cannot repair pending lineage or post");
+				transport.WrongActor = false;
+				recovered.repair_pending_publications();
+				expect(reopened->lookup_publication(row.LogicalPublication)->value().ServerComment == result.Result->ServerCommentId && transport.Posts.size() == posts, "pending lineage repairs by read after restart and head advance without another POST");
+				transport.StaleAtTarget = 0;
+			}
+			auto repaired = recovered.reconcile_publication(request);
+			expect((mode == 3 || (repaired.Result && repaired.Lineage == review_lineage_state::recorded)) && transport.Posts.size() == posts, "restart repairs only through reads and one local transaction with zero new POST");
 			auto lookup = reopened->lookup_publication(row.LogicalPublication);
 			expect(lookup && *lookup && (**lookup).ServerComment == result.Result->ServerCommentId && (**lookup).ReconciledIdentity == result.Result->ServerCommentId && (**lookup).ReceiptReserve == 0, "exact canonical server join survives reopen");
 			expect(reopened->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::published, "draft terminal and lineage commit atomically");
@@ -1046,7 +1060,12 @@ namespace {
 			wrongRequest.LiveBinding->ActingIdentity.NodeId = "foreign";
 			expect(!recovered.reconcile_publication(wrongRequest).Result && transport.Posts.size() == posts, "wrong actor cannot repair lineage");
 			expect(reopened->find_publication(result.Result->ServerCommentId)->Records.size() == 1, "lineage lookup by server ID resolves same draft");
-			expect(recovered.reconcile_publication(request).Lineage == review_lineage_state::recorded && transport.Posts.size() == posts, "repeated repair is idempotent and read-only");
+			if (mode == 3) {
+				recovered.repair_pending_publications();
+				expect(transport.Posts.size() == posts, "repeated advanced-head repair remains read-only");
+			} else {
+				expect(recovered.reconcile_publication(request).Lineage == review_lineage_state::recorded && transport.Posts.size() == posts, "repeated repair is idempotent and read-only");
+			}
 			expect(recoveredLineage.for_draft(draft.Draft.Id)->Records.size() == 1, "bounded draft lookup returns canonical logical row");
 			expect(recoveredLineage.duplicates(workspace->State.Id)->Records.size() == 1, "duplicate source body target remains an advisory with server identity");
 			expect(reopened->read_revision_body({ ref, 0 })->Bytes == note.Revision.Body, "publication preserves private source bytes");

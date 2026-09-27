@@ -961,6 +961,13 @@ logical journal and performs only reconciliation reads and local commits. It
 cannot admit or POST a child. A reopened caller supplies the retained exact
 original request and source endpoint; fresh text alone cannot reconstruct
 recovery authority. Repeated repair uses the original canonical server identity.
+Production also queues a read-only pending-join pass when the live mutation host
+opens or reports pending lineage. It reads the current PR and viewer identity,
+then the bounded comment collection. Each historical pending row must match its
+own journal child, wire digest, actor, path, accepted commit, subject and line;
+an unresolved child also needs its pre-write comment baseline. This pass may
+finish a local join after the PR head advances. Missing, ambiguous or mismatched
+observations leave the join pending, and the pass has no POST branch.
 The local host exposes bounded lineage pages by draft and duplicate-source/body/
 target advisories, with server IDs. An advisory cannot suppress intentional Publish.
 

@@ -105,6 +105,7 @@ namespace bpr::qt {
 		button(tr("Ask selected agent to compose"), QStringLiteral("privateCompositionAsk"), application::private_composition_action::ask_agent);
 		Accept = button(tr("Accept as Draft · save locally"), QStringLiteral("privateCompositionAccept"), application::private_composition_action::accept);
 		button(tr("Cancel composition view"), QStringLiteral("privateCompositionCancel"), application::private_composition_action::cancel);
+		connect(Body, &QPlainTextEdit::textChanged, this, [this] { if (!Applying) { update_accept(); } });
 		connect(Workspace, &QComboBox::activated, this, [this] { dispatch(application::private_composition_action::select); });
 		connect(this, &QDialog::rejected, this, [this] { dispatch(application::private_composition_action::cancel); });
 	}
@@ -166,12 +167,21 @@ namespace bpr::qt {
 			Actor->setText(tr("No candidate yet. Create one using the chosen mode."));
 		}
 		setEnabled(!aProjection.Busy);
-		Accept->setEnabled(!aProjection.Busy && aProjection.Candidate && aProjection.Current && aProjection.Current->Target && aProjection.Current->Lifecycle == core::review_composition_lifecycle::editing);
+		update_accept();
 		Applying = false;
+	}
+	void private_composition_editor::update_accept()
+	{
+		const auto pendingEdit = Shown.Candidate && Body->toPlainText().toStdString() != Shown.Candidate->Body;
+		Accept->setEnabled(!Shown.Busy && Shown.Candidate && Shown.Current && Shown.Current->Target && Shown.Current->Lifecycle == core::review_composition_lifecycle::editing && !pendingEdit);
+		Status->setText(pendingEdit ? tr("Save reviewer revision before Accept as Draft. Your visible edit is still local to this editor.") : text(Shown.Status));
 	}
 	void private_composition_editor::dispatch(application::private_composition_action aAction)
 	{
 		if (Applying || !Dispatch || Shown.Busy) {
+			return;
+		}
+		if (aAction == application::private_composition_action::accept && !Accept->isEnabled()) {
 			return;
 		}
 		auto intent = application::private_composition_intent{ .Action = aAction, .Generation = Shown.Generation, .Mode = static_cast<core::review_composition_mode>(Mode->currentIndex()), .Composition = Shown.Current ? std::optional{ Shown.Current->Id } : std::nullopt, .ExpectedVersion = Shown.Version, .Candidate = Shown.Candidate ? std::optional{ Shown.Candidate->Identity } : std::nullopt, .Profile = core::agent_profile_id{ Profile->currentData().toULongLong() }, .Body = Body->toPlainText().toStdString() };

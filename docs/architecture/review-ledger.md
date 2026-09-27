@@ -475,5 +475,7 @@ receipt and advances the exact publishing draft; later quota growth cannot
 strand that bounded receipt. The indexed logical-ID lookup returns one row;
 server-ID and draft/advisory views remain cursor-bounded pages. A failed local
 commit is repairable from the existing remote journal and exact server reread,
-without another POST. Purge and lineage retention still obey the existing
+including after a head advance, without another POST. Missing, ambiguous or
+mismatched viewer, PR, journal, body or comment identity leaves the join pending.
+Purge and lineage retention still obey the existing
 producer-quiescence and dependency rules.

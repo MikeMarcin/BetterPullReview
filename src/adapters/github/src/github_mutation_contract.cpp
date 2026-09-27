@@ -2305,6 +2305,20 @@ namespace bpr::adapters::github::detail {
 			.Body      = { },
 		};
 	}
+	auto compile_review_comment_collection_request(const application::review_mutation_target_binding& aTarget, const application::github_server_contract aServer) -> review_mutation_request_result
+	{
+		if (!valid_server(aServer) || !application::valid(aTarget) || aTarget.ServerContract != aServer) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aTarget,
+			.Server    = aServer,
+			.Operation = review_mutation_operation::observe_review_comments,
+			.Method    = http_method::get,
+			.Path      = pull_request_path(aTarget, aServer) + "/comments?per_page=100",
+			.Headers   = common_headers(),
+		};
+	}
 
 	auto validate_outbound_review_mutation_request(
 		const review_mutation_wire_request& aRequest)
@@ -2317,7 +2331,9 @@ namespace bpr::adapters::github::detail {
 				[&canonical, &aRequest](const auto& aSemantic) {
 					using semantic_type = std::remove_cvref_t<decltype(aSemantic)>;
 					if constexpr (std::same_as<semantic_type, application::review_mutation_target_binding>) {
-						canonical = compile_target_observation_request(aSemantic, aRequest.Server);
+						canonical = aRequest.Operation == review_mutation_operation::observe_review_comments
+							? compile_review_comment_collection_request(aSemantic, aRequest.Server)
+							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::staged_review_request>) {
@@ -3302,6 +3318,85 @@ namespace bpr::adapters::github::detail {
 			return finish_lineage(aRequest, recover_publication(aRequest, **loaded, aStop), aStop);
 		} catch (...) {
 			return publication_failure();
+		}
+	}
+	void review_mutation_session::repair_pending_publications(const std::stop_token aStop)
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (!Lineage || !Recovery || !Lease || !Lease->active() || !valid(Configuration) || aStop.stop_requested()) {
+				return;
+			}
+			auto rows = Lineage->pending(Configuration.Target.Semantic, Configuration.ActingIdentity.Account);
+			if (rows.empty() || !observe_exact(aStop)) {
+				return;
+			}
+			auto wire = compile_review_comment_collection_request(Configuration.Target, Configuration.Target.ServerContract);
+			if (!wire) {
+				return;
+			}
+			auto response = perform(*wire, aStop);
+			if (!response || response->Status != 200 || !response_headers_valid(*response) || has_header(*response, "Link")) {
+				return;
+			}
+			auto comments = document<std::vector<comment_response_json>>(*response);
+			if (!comments || comments->size() > 100U) {
+				return;
+			}
+			for (const auto& row : rows) {
+				const auto& scope = row.Target.Binding.Scope;
+				if (scope.Host != Configuration.Target.Semantic.Host || scope.Repository != Configuration.Target.Semantic.Repository
+					|| scope.PullRequest != Configuration.Target.Semantic.PullRequest || row.Actor != Configuration.ActingIdentity.Account
+					|| row.ActorNode != Configuration.ActingIdentity.NodeId || row.ActorDatabaseId != Configuration.ActingIdentity.DatabaseId
+					|| row.ActorLogin != Configuration.ActingIdentity.Login || row.ServerComment) {
+					continue;
+				}
+				auto loaded = Recovery->load_publication(row.LogicalPublication);
+				if (!loaded || !*loaded || (**loaded).Key != row.LogicalPublication || (**loaded).LegacyKey != row.IdempotencyKey) {
+					continue;
+				}
+				const auto& journal = **loaded;
+				const bool  file    = file_child_state(journal.State);
+				const auto& child   = file ? journal.Fallback : journal.Native;
+				if (!child || row.WireBodyDigest != core::private_digest(child->Body)
+					|| (file ? row.Representation != "file_comment_with_permalink" : row.Representation != "native_line")
+					|| (child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted && !child->Receipt)
+					|| (!child->Receipt && !child->BaselineExactCommentIds)) {
+					continue;
+				}
+				const auto                                          commit       = core::canonical_hex(row.AcceptedHead);
+				const auto                                          expectedSide = row.Target.Line.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+				std::optional<application::review_mutation_receipt> observed;
+				bool                                                ambiguous = false;
+				for (const auto& comment : *comments) {
+					const bool fileComment = comment.SubjectType == "file";
+					if (comment.NodeId.empty() || comment.Id == 0 || comment.Path != row.Path || comment.CommitId != commit.view()
+						|| comment.Body != child->Body || comment.User.Id != row.ActorDatabaseId
+						|| comment.User.NodeId != row.ActorNode || comment.User.Login != row.ActorLogin || fileComment != file
+						|| (!file && (!comment.Line || *comment.Line != static_cast<std::uint64_t>(row.Target.Line.Line) + 1U || comment.Side != expectedSide))
+						|| (file && (comment.Line || comment.StartLine || comment.StartSide))
+						|| (child->BaselineExactCommentIds && std::ranges::binary_search(*child->BaselineExactCommentIds, comment.NodeId))) {
+						continue;
+					}
+					if (observed) {
+						ambiguous = true;
+						break;
+					}
+					observed = application::review_mutation_receipt{ .ServerCommentId = comment.NodeId, .Duplicate = true, .Representation = file ? representation::file_comment_with_permalink : representation::native_line };
+				}
+				if (ambiguous || !observed || (child->Receipt && child->Receipt->ServerCommentId != observed->ServerCommentId)) {
+					continue;
+				}
+				if (!child->Receipt) {
+					auto resolved = resolved_publication(journal, *observed);
+					if (!Recovery->advance_publication(journal, resolved)) {
+						continue;
+					}
+				}
+				static_cast<void>(Lineage->complete_observed(row, child->Body, *observed));
+			}
+		} catch (...) {
+			// A later read can repair the same pending row; this path never writes remotely.
 		}
 	}
 

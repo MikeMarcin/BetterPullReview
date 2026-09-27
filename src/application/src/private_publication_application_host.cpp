@@ -27,6 +27,28 @@ namespace bpr::application {
 			require(aRecord.Target.Line == aRequest.Proposal.Anchor && aRecord.Target.Binding.Scope.Host == aRequest.Target.Host && aRecord.Target.Binding.Scope.Repository == aRequest.Target.Repository && aRecord.Target.Binding.Scope.PullRequest == aRequest.Target.PullRequest && aRecord.Target.Binding.Revision.HeadOid == aRequest.Target.ExpectedHead && aRecord.AcceptedHead == aRequest.LiveBinding->Anchor.Commit && aRecord.Path == aRequest.LiveBinding->Anchor.Path);
 			require(aRecord.Actor == aRequest.ActingIdentity && aRecord.ActorNode == aRequest.LiveBinding->ActingIdentity.NodeId && aRecord.ActorDatabaseId == aRequest.LiveBinding->ActingIdentity.DatabaseId && aRecord.ActorLogin == aRequest.LiveBinding->ActingIdentity.Login);
 		}
+		void commit_receipt(private_review_store_port& aStore, private_publication_record aRecord, const review_mutation_receipt& aReceipt)
+		{
+			auto f = take(aStore.frontier());
+			if (aRecord.ServerComment) {
+				require(*aRecord.ServerComment == aReceipt.ServerCommentId && aRecord.ReconciledIdentity == aRecord.ServerComment);
+				return;
+			}
+			aRecord.ServerComment      = aReceipt.ServerCommentId;
+			aRecord.ReconciledIdentity = aReceipt.ServerCommentId;
+			aRecord.ReceiptReserve     = 0;
+			private_store_write write{ .ExpectedNextIdentity = f.NextIdentity, .Publications = { aRecord } };
+			auto                draft = take(aStore.load_draft(aRecord.Draft));
+			if (draft.Draft.Revision == aRecord.DraftRevision && draft.Draft.Draft.State == core::review_draft_state::publishing) {
+				draft.Draft.Scope = core::review_draft_scope_id{ 1 };
+				auto changed      = core::apply(draft.Draft, { { aRecord.Draft, core::review_draft_command_kind::complete_publish, { } }, aRecord.DraftRevision, false, { }, draft.Draft.Scope });
+				require(changed.Refusal == core::revisioned_draft_refusal::none && changed.Changed);
+				draft.Draft       = changed.Accepted;
+				draft.Draft.Scope = { };
+				write.Drafts.push_back({ draft, aRecord.DraftRevision });
+			}
+			take(aStore.commit(write));
+		}
 	}
 	auto private_publication_application_host::proposal(core::review_draft_id aId, std::uint64_t aExpectedRevision) -> private_run_result<core::review_publication_proposal>
 	{
@@ -69,34 +91,50 @@ namespace bpr::application {
 	auto private_publication_application_host::complete(const review_mutation_request& aRequest, std::string_view aLogical, std::string_view aWireBody, const review_mutation_receipt& aReceipt) -> bool
 	{
 		auto result = attempt([&] {
-			auto f     = take(Store.frontier());
 			auto prior = take(Store.lookup_publication(aLogical));
 			require(prior.has_value());
 			match(*prior, aRequest, aLogical);
 			require(aReceipt.Representation == aRequest.Representation && prior->Representation == representation(aReceipt.Representation) && prior->WireBodyDigest == core::private_digest(aWireBody) && !aReceipt.ServerCommentId.empty());
-			if (prior->ServerComment) {
-				require(*prior->ServerComment == aReceipt.ServerCommentId && prior->ReconciledIdentity == prior->ServerComment);
-				return true;
-			}
-			prior->ServerComment      = aReceipt.ServerCommentId;
-			prior->ReconciledIdentity = aReceipt.ServerCommentId;
-			prior->ReceiptReserve     = 0;
-			private_store_write write{ .ExpectedNextIdentity = f.NextIdentity, .Publications = { *prior } };
-			auto                draft = take(Store.load_draft(prior->Draft));
-			// A later local edit must not be completed by this old receipt.
-			if (draft.Draft.Revision == prior->DraftRevision && draft.Draft.Draft.State == core::review_draft_state::publishing) {
-				draft.Draft.Scope = core::review_draft_scope_id{ 1 };
-				auto changed      = core::apply(draft.Draft, { { prior->Draft, core::review_draft_command_kind::complete_publish, { } }, prior->DraftRevision, false, { }, draft.Draft.Scope });
-				require(changed.Refusal == core::revisioned_draft_refusal::none && changed.Changed);
-				draft.Draft       = changed.Accepted;
-				draft.Draft.Scope = { };
-				write.Drafts.push_back({ draft, prior->DraftRevision });
-			}
-			take(Store.commit(write));
+			commit_receipt(Store, *prior, aReceipt);
 			return true;
 		});
 		Error       = result ? std::nullopt : std::optional{ result.error() };
 		return result.has_value();
+	}
+	auto private_publication_application_host::complete_observed(const private_publication_record& aRecord, std::string_view aWireBody, const review_mutation_receipt& aReceipt) -> bool
+	{
+		auto result = attempt([&] {
+			auto prior = take(Store.lookup_publication(aRecord.LogicalPublication));
+			require(prior && *prior == aRecord && !aReceipt.ServerCommentId.empty()
+					&& prior->WireBodyDigest == core::private_digest(aWireBody)
+					&& prior->Representation == representation(aReceipt.Representation));
+			commit_receipt(Store, *prior, aReceipt);
+			return true;
+		});
+		Error       = result ? std::nullopt : std::optional{ result.error() };
+		return result.has_value();
+	}
+	auto private_publication_application_host::pending(const core::review_mutation_target& aTarget, core::github_account_id aActor) -> std::vector<private_publication_record>
+	{
+		auto result = attempt([&] {
+			std::vector<private_publication_record>   rows;
+			std::optional<private_publication_cursor> cursor;
+			for (;;) {
+				auto page = take(Store.find_publication({ }, cursor));
+				for (auto& row : page.Records) {
+					const auto& scope = row.Target.Binding.Scope;
+					if (!row.ServerComment && scope.Host == aTarget.Host && scope.Repository == aTarget.Repository
+						&& scope.PullRequest == aTarget.PullRequest && row.Actor == aActor) {
+						rows.push_back(std::move(row));
+					}
+				}
+				if (!page.Next || rows.size() > maximum_private_drafts) {
+					return rows;
+				}
+				cursor = page.Next;
+			}
+		});
+		return result ? std::move(*result) : std::vector<private_publication_record>{ };
 	}
 	auto private_publication_application_host::for_draft(core::review_draft_id aDraft, std::optional<private_publication_cursor> aCursor) -> private_run_result<private_publication_page>
 	{

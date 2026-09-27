@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QListView>
 #include <QPalette>
 #include <QPersistentModelIndex>
@@ -158,6 +159,13 @@ int main(int argc, char** argv)
 	composition.Current->Target = *target;
 	editor.present(composition);
 	expect(accept->isEnabled(), "exact candidate and target allow distinct local acceptance");
+	auto* candidateBody = editor.findChild<QPlainTextEdit*>(QStringLiteral("privateCompositionBody"));
+	candidateBody->setPlainText(QStringLiteral("Unsaved reviewer change"));
+	expect(!accept->isEnabled() && editor.findChild<QLabel*>(QStringLiteral("privateCompositionStatus"))->text().contains(QStringLiteral("Save reviewer revision")), "unsaved visible candidate text cannot be silently discarded by Accept");
+	accept->click();
+	expect(compositionIntents.back().Action == application::private_composition_action::split, "disabled Accept dispatches no stale candidate");
+	candidateBody->setPlainText(QStringLiteral("Reviewed prose"));
+	expect(accept->isEnabled(), "restoring exact persisted candidate re-enables Accept");
 	accept->click();
 	expect(compositionIntents.back().Action == application::private_composition_action::accept && compositionIntents.back().Candidate == source && compositionIntents.back().ExpectedVersion == 3, "Accept carries exact candidate and CAS, with no publish action");
 	for (auto* button : editor.findChildren<QPushButton*>()) {

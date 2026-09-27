@@ -18,6 +18,8 @@ namespace bpr::application {
 		[[nodiscard]] auto proposal(core::review_draft_id, std::uint64_t aExpectedRevision) -> private_run_result<core::review_publication_proposal>;
 		[[nodiscard]] auto prepare(const review_mutation_request&, std::string_view, std::string_view) -> bool override;
 		[[nodiscard]] auto complete(const review_mutation_request&, std::string_view, std::string_view, const review_mutation_receipt&) -> bool override;
+		[[nodiscard]] auto complete_observed(const private_publication_record&, std::string_view, const review_mutation_receipt&) -> bool override;
+		[[nodiscard]] auto pending(const core::review_mutation_target&, core::github_account_id) -> std::vector<private_publication_record> override;
 		[[nodiscard]] auto for_draft(core::review_draft_id, std::optional<private_publication_cursor> = { }) -> private_run_result<private_publication_page>;
 		/// \brief One bounded advisory page; returned lineage names canonical server IDs.
 		[[nodiscard]] auto duplicates(core::review_composition_id, std::optional<private_publication_cursor> = { }) -> private_run_result<private_publication_page>;

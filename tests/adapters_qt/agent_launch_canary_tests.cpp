@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -426,6 +427,36 @@ namespace {
 					   && event_values(result, "stdin-fnv1a") == std::vector{ fnv1a_hex(launched.Input) },
 				   "the child received the whole request, byte for byte");
 		}
+	}
+
+	void test_private_claim_waits_for_buffered_input_delivery()
+	{
+		struct observed_claim final : application::agent_input_claim
+		{
+			std::atomic_bool   Released = false;
+			[[nodiscard]] auto permitted() const noexcept -> bool override { return !Released.load(); }
+			void               release() noexcept override { Released.store(true); }
+		};
+		QTemporaryDir directory;
+		expect(directory.isValid(), "private input drain scratch directory");
+		const auto marker   = (std::filesystem::path{ directory.path().toStdString() } / "child-started").string();
+		auto       launched = request(core::agent_protocol::codex_jsonl_exec, std::string(12U * 1024U, 'p'));
+		launched.Input.append(512U * 1024U, 'x');
+		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", marker, "--stderr-before-input", "--delay-input-ms", "400" });
+		auto claim                 = std::make_shared<observed_claim>();
+		launched.PrivateInputClaim = claim;
+		adapters::agent::agent_process_launcher      launcher;
+		std::optional<application::agent_run_result> result;
+		auto                                         child = std::jthread{ [&] { result = launcher.run(launched, 20'000); } };
+		for (int attempt = 0; attempt < 100 && !std::filesystem::exists(marker); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+		}
+		expect(std::filesystem::exists(marker), "child reaches delayed-input checkpoint");
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+		expect(claim->permitted(), "source claim remains held while Qt has queued private input for a backpressured child");
+		child.join();
+		expect(result && result->Outcome == application::agent_run_outcome::success && !claim->permitted(), "child receives all input and claim releases after pipe drain");
+		expect(event_values(*result, "stdin-bytes") == std::vector{ std::to_string(launched.Input.size()) }, "backpressured child receives complete private input");
 	}
 
 	void test_real_child_receives_no_parent_credential_or_context_in_argv()
@@ -1194,6 +1225,7 @@ try {
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_output_before_input_does_not_stall_the_request();
+	test_private_claim_waits_for_buffered_input_delivery();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();
 	test_independent_agent_identity_alone_controls_canary_authority();
 	test_every_terminal_condition_is_typed_and_failed_runs_publish_no_result();
