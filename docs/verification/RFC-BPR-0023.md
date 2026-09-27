@@ -254,7 +254,7 @@ unknown legacy fields, referenced deletion refusal, stale versus incomplete
 output, whole-body versus displayed chunks, and ledger versus remote-journal
 commit points. No independent review is claimed.
 
-No task-owned command remains running. No process/build/render was started,
+No task-owned command remains running. No product process, build or render was started,
 no descendant agent or review server exists, and no review protection is held.
 The only test temporaries were owned and removed by the regression harness;
 no task-owned temporary directory was retained. The sole repository writer was
@@ -265,3 +265,33 @@ followed by any scoped correction and BPR-0577 acceptance. Only then may the
 coordinator land M2 on main and start M3. All eighteen feature rows remain Not run;
 later native/human/designated publication and final independent review gates
 remain unchanged.
+
+
+Candidate-ready architecture revision:
+`b98ddfd477962c4768ab291e646a3fecd4e1600e`.
+Its review range starts at M1/main
+`cb36559911d6cd4def1582a0121b527ed2f9edce` and includes readiness/claim plus the
+allocation commit. This final handoff commit adds only the observation and this
+completion record; it does not revise the architecture artifact or claim M2
+acceptance. Review the allocation and live RFC/card at the candidate above.
+
+The [M2 observation](RFC-BPR-0023.m2-observation.json) binds the exact candidate,
+mandate r1, segment `m2-initial`, the whole-card obligation and all three exits.
+`milestone_checkpoint.py check --repo-root ROOT --checkpoint
+docs/verification/RFC-BPR-0023.m2-checkpoint.json --observation
+docs/verification/RFC-BPR-0023.m2-observation.json --execution quiescent
+--accepted-milestone m1-live-audit --json` returned **pending** on that exact
+HEAD, with engineering acceptance explicitly not evaluated. A later handoff-only
+HEAD differs from its candidate field by design; any renewed engineering round
+must reconcile/rebind rather than treating that identity mismatch as acceptance.
+
+Changed paths across M2 are the BPR-0577 move from Backlog through Ready to
+In Progress; editable LIVE_IMPORT link; live RFC; existing audit and ledger;
+new M2 checkpoint and observation. No other card or code path changed.
+The leaf releases repository writer ownership on return. There are no handed-off
+commands or retained temporary files. Review server/session/cursor: none.
+Required decision: independent authority-boundary review only. No user acceptance,
+permission or waiver is inferred from this candidate-ready result.
+
+Architecture artifact SHA-256:
+`4ca9348710eeff300f5ebd5c8fffb268294b2fc65b6296b4b90bb670cfe66255`.
