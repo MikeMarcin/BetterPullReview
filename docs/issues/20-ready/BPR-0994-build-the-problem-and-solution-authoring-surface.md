@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0994"
 title: "Build the Problem and Solution authoring surface"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039"]
 depends_on: ["BPR-0992", "BPR-0993"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-04","milestone":"manual-authoring","acceptance":["AC39-01","AC39-02","AC39-06","AC39-07"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
