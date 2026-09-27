@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1014"
 title: "Document the author workflow and narrow contract amendments"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1006", "BPR-1010", "BPR-1011"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-24","milestone":"qualification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
