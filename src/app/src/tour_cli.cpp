@@ -95,7 +95,7 @@ namespace bpr::app {
 			std::optional<core::tour_attention> WalkAttention;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
-		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview" }; }
+		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover" }; }
 		auto local_edit(const QString& aCommand) -> bool { return QStringList{ "edit", "move", "remove", "ready", "add", "undo", "redo" }.contains(aCommand); }
 		auto service_operation(const QString& aCommand) -> application::tour_service_operation
 		{
@@ -146,8 +146,8 @@ namespace bpr::app {
 			if (aArguments.size() > 80) {
 				return refuse("input_too_large", "Too many command arguments.");
 			}
-			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source" };
-			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines" };
+			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description" };
+			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt" };
 			QStringList       words;
 			for (qsizetype i = 0; i < aArguments.size(); ++i) {
 				const auto& value = aArguments[i];
@@ -203,8 +203,20 @@ namespace bpr::app {
 			if (result.Command == "open") {
 				allowed.append({ "--repo", "--transport", "--root", "--offline", "--cursor" });
 			}
-			if (result.Command == "status" || result.Command == "show" || local_edit(result.Command) || result.Command == "walk" || result.Command == "preview") {
+			if (result.Command == "status" || result.Command == "show" || local_edit(result.Command) || result.Command == "walk" || result.Command == "preview" || result.Command == "publish" || result.Command == "recover") {
 				allowed.append("--draft");
+			}
+			if (result.Command == "preview" || result.Command == "publish" || result.Command == "recover") {
+				allowed.append({ "--transport", "--compatibility", "--description" });
+			}
+			if (result.Command == "preview") {
+				allowed.append("--refresh");
+			}
+			if (result.Command == "publish") {
+				allowed.append("--resume");
+			}
+			if (result.Command == "recover") {
+				allowed.append("--attempt");
 			}
 			if (result.Command == "status" || result.Command == "preview") {
 				allowed.append("--cursor");
@@ -282,6 +294,8 @@ namespace bpr::app {
 			QJsonObject Data;
 			QString     Human;
 			QJsonArray  Warnings;
+			QString     Status = "ok";
+			int         Exit   = 0;
 		};
 		auto render_snapshot(const command_options& aOptions, const tour_local_snapshot& aSnapshot) -> tour_cli_result<presentation>
 		{
@@ -498,6 +512,113 @@ namespace bpr::app {
 			}
 			return presentation{ data, human, { } };
 		}
+
+		auto render_publication(const tour_publication_preview& aPreview) -> tour_cli_result<presentation>
+		{
+			presentation result{ identities(aPreview.Snapshot), text(aPreview.Status) + "\n", { } };
+			auto&        data                 = result.Data;
+			data["publication_status"]        = text(aPreview.Status);
+			data["publication_authorized"]    = false;
+			data["pending_server_candidates"] = QString::number(aPreview.PendingServerReviews);
+			data["private_history"]           = "local only; unknown after profile loss";
+			data["resume_required"]           = aPreview.Resume;
+			data["plan_available"]            = aPreview.Plan.has_value();
+			if (aPreview.Plan) {
+				const auto markdown = tour_plan_markdown(*aPreview.Plan);
+				if (markdown.size() > 400000) {
+					return refuse("preview_too_large", "The exact plan exceeds the terminal preview bound. Reduce the publication before confirming.");
+				}
+				data["attempt_id"]       = text(aPreview.Plan->Submission.IdempotencyKey);
+				data["markdown"]         = text(markdown);
+				data["description_edit"] = aPreview.Plan->Description.has_value();
+				data["compatibility"]    = aPreview.Plan->Compatibility;
+				result.Human += "Attempt " + text(aPreview.Plan->Submission.IdempotencyKey) + "\n" + text(markdown) + "\n";
+			}
+			if (const auto& record = aPreview.Result.Record) {
+				data["journal_revision"]     = QString::number(record->Revision);
+				data["published"]            = record->Published;
+				data["possibly_transmitted"] = record->PossiblyTransmitted;
+				if (record->Review) {
+					data["review_id"] = QString::number(record->Review->Id.value());
+				}
+				QJsonArray comments;
+				for (const auto& comment : record->Comments) {
+					comments.append(QJsonObject{ { "id", QString::number(comment.Id) }, { "url", text(comment.WebUrl) } });
+				}
+				data["confirmed_comments"] = comments;
+				if (record->Index) {
+					data["index_id"] = QString::number(record->Index->Id);
+				}
+			}
+			using state = application::staged_publication_state;
+			if (aPreview.Result.State == state::outcome_unknown) {
+				result.Status = "uncertain";
+				result.Exit   = 6;
+			}
+			if (aPreview.Result.State == state::partial || aPreview.Result.State == state::description_attention) {
+				result.Status = "partial";
+				result.Exit   = 6;
+			}
+			if (aPreview.Result.State == state::conflict) {
+				result.Status = "conflict";
+				result.Exit   = 4;
+			}
+			return result;
+		}
+		auto publication_command(const command_options& aOptions, const tour_local_snapshot& aSnapshot, std::unique_ptr<tour_runtime>& aRuntime, const QString& aBase, tour_reader_factory aReaders, bool aGh) -> tour_cli_result<presentation>
+		{
+			const auto token = tour_runtime::draft_token(aSnapshot.Target);
+			if (aOptions.Command == "publish" && !aOptions.Interactive) {
+				auto    quote   = [](QString aValue) { aValue.replace("'", "'\\''"); return "'" + aValue + "'"; };
+				QString command = "bpr tour publish --data-root " + quote(aBase) + " --profile " + QString::number(aSnapshot.Target.Owner.Profile.value()) + " --draft " + text(token) + " --transport " + (aGh ? "gh" : "native");
+				for (const auto& flag : QStringList{ "--description", "--compatibility" }) {
+					if (aOptions.Values.contains(flag)) {
+						command += " " + flag;
+					}
+				}
+				if (aOptions.Values.contains("--resume")) {
+					command += " --resume " + quote(aOptions.Values["--resume"]);
+				}
+				return refuse("interaction_required", "Run in a terminal: " + command.toStdString() + "\nJSON, readiness, stdin yes and plan files do not authorize writes.", 3);
+			}
+			const auto attempt  = aOptions.Values.value(aOptions.Command == "publish" ? "--resume" : "--attempt").toStdString();
+			auto       prepared = aRuntime->prepare_publication(token, aGh, { aOptions.Values.contains("--compatibility"), aOptions.Values.contains("--description") }, attempt, aOptions.Command == "recover");
+			if (!prepared) {
+				return std::unexpected(prepared.error());
+			}
+			auto rendered = render_publication(*prepared);
+			if (!rendered || aOptions.Command != "publish") {
+				return rendered;
+			}
+			if (!prepared->Plan) {
+				return refuse("publication_unavailable", prepared->Status, 5);
+			}
+			if (prepared->Resume && attempt.empty() && prepared->Result.State != application::staged_publication_state::published) {
+				return refuse("resume_required", "Run publish --resume " + prepared->Plan->Submission.IdempotencyKey + " with this exact --profile and --draft to preview the captured attempt.", 3);
+			}
+			if (prepared->Result.State == application::staged_publication_state::outcome_unknown || prepared->Result.State == application::staged_publication_state::conflict || prepared->Result.State == application::staged_publication_state::published) {
+				return rendered;
+			}
+			// A human prompt never retains the profile lease or a provider capability.
+			aRuntime.reset();
+			std::cout << terminal_text(rendered->Human).toUtf8().constData();
+			std::cout << "Type publish to authorize exactly this finite plan, or press Enter to cancel: " << std::flush;
+			auto answer = read_tour_terminal_line();
+			if (!answer || *answer != "publish") {
+				return refuse("cancelled", "Publication cancelled; no writes were authorized.", 130);
+			}
+			aRuntime       = std::make_unique<tour_runtime>(native_filesystem_path(aBase), std::to_string(aSnapshot.Target.Owner.Profile.value()), std::move(aReaders));
+			auto completed = aRuntime->publish(*prepared, aGh);
+			if (!completed) {
+				return std::unexpected(completed.error());
+			}
+			auto output = render_publication(*completed);
+			if (output && completed->Result.State != application::staged_publication_state::published && output->Exit == 0) {
+				output->Status = "partial";
+				output->Exit   = 6;
+			}
+			return output;
+		}
 		auto walk(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
 
 		auto perform(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
@@ -506,7 +627,7 @@ namespace bpr::app {
 				return walk(aOptions, std::move(aReaders));
 			}
 			if (aOptions.Command == "capabilities" || aOptions.Command == "help") {
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "standalone; busy refusal for another owner" }, { "approval_modes", QJsonArray{ } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview\nNo GUI or AI provider required.\n", { } };
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "standalone; busy refusal for another owner" }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover\nNo GUI or AI provider required.\n", { } };
 			}
 			const auto transport = aOptions.Values.value("--transport", "native");
 			if (transport != "native" && transport != "gh") {
@@ -544,6 +665,9 @@ namespace bpr::app {
 			auto result = pr ? runtime->open(pr->Host, pr->Repository, pr->Number, transport == "gh", aOptions.Values.value("--root").toStdString(), aOptions.Values.contains("--offline")) : runtime->load(aOptions.Values.value("--draft").toStdString(), !aOptions.Interactive);
 			if (!result) {
 				return std::unexpected(result.error());
+			}
+			if (aOptions.Command == "publish" || aOptions.Command == "recover" || (aOptions.Command == "preview" && aOptions.Values.contains("--refresh"))) {
+				return publication_command(aOptions, *result, runtime, base, aReaders, transport == "gh");
 			}
 			if (aOptions.Command == "preview") {
 				return preview(aOptions, *result);
@@ -779,7 +903,7 @@ namespace bpr::app {
 			try {
 				return options ? perform(*options, std::move(aReaders)) : tour_cli_result<presentation>{ std::unexpected(options.error()) };
 			} catch (...) {
-				return refuse("operation_failed", "The operation failed; no completion is claimed. Reopen the exact draft to inspect retained state.", 7);
+				return command == "publish" ? refuse("outcome_unknown", "Publication stopped without a completion claim. Recover the exact draft before another write.", 6) : refuse("operation_failed", "The operation failed; no completion is claimed. Reopen the exact draft to inspect retained state.", 7);
 			}
 		}();
 		if (json) {
@@ -787,7 +911,7 @@ namespace bpr::app {
 			if (!result) {
 				error = QJsonObject{ { "code", text(result.error().Code) }, { "message", text(result.error().Message) }, { "recoverable", true } };
 			}
-			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", QUuid::createUuid().toString(QUuid::WithoutBraces) }, { "status", result ? "ok" : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
+			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", QUuid::createUuid().toString(QUuid::WithoutBraces) }, { "status", result ? result->Status : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
 			std::cout << QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).constData() << '\n';
 		} else if (result) {
 			std::cout << terminal_text(result->Human).toUtf8().constData();
@@ -797,6 +921,6 @@ namespace bpr::app {
 		} else {
 			std::cerr << safe_terminal(text(result.error().Message)).toUtf8().constData() << '\n';
 		}
-		return result ? 0 : result.error().Exit;
+		return result ? result->Exit : result.error().Exit;
 	}
 }

@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
@@ -10,9 +11,11 @@
 #include "github_cli_runtime.hpp"
 #include "github_device_authorization_transport.hpp"
 #include "github_provider.hpp"
+#include "live_review_submission_provider.hpp"
 #include "native_https_transport.hpp"
 #include "platform_credential_vault.hpp"
 #include "tour_cancellation.hpp"
+#include "tour_decisions.hpp"
 #include "tour_runtime.hpp"
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -28,34 +31,6 @@ namespace bpr::app {
 	namespace {
 		using namespace adapters::github;
 		using namespace adapters::github::detail;
-		class terminal_decisions final : public application::decision_executor
-		{
-		public:
-			void post(std::function<void()> aTask) override
-			{
-				const std::lock_guard lock{ Mutex };
-				Tasks.push_back(std::move(aTask));
-			}
-			void drain()
-			{
-				for (;;) {
-					std::function<void()> task;
-					{
-						const std::lock_guard lock{ Mutex };
-						if (Tasks.empty()) {
-							return;
-						}
-						task = std::move(Tasks.front());
-						Tasks.pop_front();
-					}
-					task();
-				}
-			}
-
-		private:
-			std::mutex                        Mutex;
-			std::deque<std::function<void()>> Tasks;
-		};
 		class terminal_timer final : public application::device_authorization_timer_port
 		{
 		public:
@@ -156,6 +131,39 @@ namespace bpr::app {
 				const auto&                    h = *Handoff;
 				application::tour_saved_target target{ .Owner = { Profile, h.Host, h.HostAuthority, h.Account, h.Repository, h.PullRequest }, .Draft = core::tour_draft_id{ 1 }, .HostProfile = h.Profile, .Hostname = std::string{ h.Hostname.value() }, .Repository = h.Locator, .Number = h.Number, .Base = h.Base, .Head = h.Head };
 				return tour_remote_read{ std::move(target), *Host->accepted_snapshot() };
+			}
+
+			auto publication() -> tour_cli_result<tour_publication_context> override
+			{
+				if (!Handoff || !Host || !Host->accepted_snapshot()) {
+					return refuse("publication_unavailable", "Refresh this exact PR before publication.", 5);
+				}
+				const auto&                                 h = *Handoff;
+				const auto&                                 s = *Host->accepted_snapshot();
+				application::review_submission_live_binding binding{
+					.Target         = { .Semantic = { h.Host, h.Repository, h.PullRequest, h.Head }, .Hostname = h.Hostname, .ServerContract = h.ServerContract, .Repository = h.Locator, .Number = h.Number, .RepositoryDatabaseId = s.Repository.Repository.value(), .RepositoryNodeId = std::string{ s.Repository.Node.value() }, .PullRequestDatabaseId = s.PullRequest.PullRequest.value(), .PullRequestNodeId = std::string{ s.PullRequest.Node.value() }, .BaseRepositoryDatabaseId = s.PullRequest.Repository.value(), .BaseOid = h.Base, .BaseRef = s.PullRequest.BaseRef, .HeadRef = s.PullRequest.HeadRef, .Open = s.PullRequest.State == application::github_pull_request_state::open },
+					.ActingIdentity = { .Account = h.Account, .DatabaseId = h.Account.value(), .NodeId = std::string{ s.Viewer.Actor.value() }, .Login = s.Viewer.Login }
+				};
+				auto acceptedLease = Host->accepted_review_mutation_transport();
+				if (!application::valid(binding) || !acceptedLease) {
+					return refuse("publication_unavailable", "The current account, PR or mutation transport is unavailable.", 5);
+				}
+				const adapters::sqlite::review_mutation_recovery_configuration configuration{
+					.StorageRoot = Root, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
+				};
+				application::review_submission_provider_factory factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+					auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+					if (!store) {
+						return std::unexpected(application::review_mutation_failure::unavailable);
+					}
+					auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store));
+					if (!provider) {
+						return std::unexpected(provider.error());
+					}
+					return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
+				};
+				// Tour operations still require the parent's exact host/transport qualification.
+				return tour_publication_context{ std::move(binding), std::move(factory), Session, false };
 			}
 
 			auto source(const core::tour_code_destination& aSource) -> tour_cli_result<tour_source_material> override

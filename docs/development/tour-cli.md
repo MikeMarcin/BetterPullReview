@@ -25,7 +25,7 @@ distribution are tracked by the extension's later verification milestone.
 Capability discovery reports implemented commands explicitly. Human text is the
 default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Unsupported options
 refuse before command execution. Available commands include `connect`, `open`, `status`, `show`, `edit`, `add`,
-`move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, and `capabilities`.
+`move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, `publish`, `recover`, and `capabilities`.
 `open` accepts a full HTTPS PR URL from any directory, or a decimal PR number
 with `--repo HOST/OWNER/REPO`. Multiple roots require `--root` with a returned
 candidate label or a unique review URL/ID. `open --offline` uses one exact saved
@@ -118,8 +118,8 @@ source or JSON never sets a visit or readiness decision.
 `preview` pages the local narrative: Problem, Solution, then one stop per page.
 Follow `--cursor` for each next page. It uses the parent Markdown label and
 readiness/destination policies, reports incomplete or unqualified publication,
-and performs no provider reads or writes. The exact qualified publication plan
-and its approval are part of the later publish-and-recover milestone.
+and performs no provider reads or writes. `preview --refresh` explicitly reads
+the current PR and the existing publication journal to present the exact plan.
 
 Terminal text has no ANSI color. `--no-color` is accepted; `COLUMNS` controls
 plain wrapping from 20 to 240 columns (80 by default). Control/escape and bidi
@@ -133,3 +133,40 @@ Local commands have no model or remote-mutation capability. Source reads use the
 existing epoch actor, retained Git objects, exact commit/blob/path/side and typed
 source lines. Added, left, historical and unchanged files follow the same path;
 a dirty checkout cannot supply replacement text.
+
+## Publication and read-first recovery
+
+`publish` refreshes the exact profile/account/PR and previews the shared desktop
+plan. `--description` selects the separately named PR body edit; `--compatibility`
+selects visible non-atomic comments where qualified. The preview names the actor,
+host, repository, head, text, source links and operations. Type `publish` in the
+terminal to authorize that finite plan. The profile lease and provider session
+are released during the prompt. A fresh owner then rechecks the draft revision,
+full plan and live authority before the existing application host issues its
+one-use child grants. An intervening edit or account/head change refuses.
+
+Machine/JSON publication returns `interaction_required` (exit 3). There is no
+agent approval bridge or `--yes` flag. Readiness, a saved plan ID, piped input and
+an agent's prose cannot authorize publication. Preview/recovery/local edits make
+zero GitHub writes. Refused or oversized exact previews authorize nothing.
+
+`recover [--attempt ID]` discovers and reconciles the existing durable journal.
+It retains actual review/comment identities and reports staged author-only data,
+unknown outcomes, partial updates, conflicts and completed publication separately.
+`publish --resume ID` requires a fresh terminal preview and confirmation for the
+remaining captured operations. An ambiguous possibly-transmitted write is never
+retried. A newer local draft is preserved for explicit reopen/reconciliation;
+a publication receipt cannot replace newer local wording.
+
+Terminal SIGINT/SIGTERM drains the publication host; uncertain or incomplete
+writes report exit 6 and retained status. After abrupt process death, recover
+before resuming. A server pending review without a matching local attempt is a
+candidate only: it grants no adoption, edit, deletion or submit authority. Private
+unsent text/history and lost approval cannot be reconstructed from it.
+
+Production Tour operations retain the parent's unqualified host/transport gate.
+The native and admitted gh provider compositions exist, but fixture acceptance
+does not enable live Tour writes. Unsupported vaults, platforms and authority
+remain typed refusals. Live host, native package and actual human/agent
+qualification remain later acceptance work. The current exact-plan preview is
+bounded to 400,000 UTF-8 bytes; larger plans refuse before prompting.

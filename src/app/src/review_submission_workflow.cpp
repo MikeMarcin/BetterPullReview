@@ -1,8 +1,8 @@
 #include "review_submission_workflow.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "tour_publication_plan.hpp"
 
 #include "bpr/application/review_submission_recovery_port.hpp"
-#include "review_comment_permalink.hpp"
 
 #include <QUuid>
 #include <algorithm>
@@ -406,85 +406,16 @@ namespace bpr::app {
 			present();
 			return;
 		}
-		const auto&                                draft         = *Draft.Draft;
-		const bool                                 compatibility = Editor.compatibility_publication();
-		std::vector<core::tour_destination_plan>   decisions;
-		std::vector<application::staged_tour_stop> stops;
-		for (const auto& stop : draft.Stops) {
-			const auto found  = std::ranges::find(Draft.Destinations, stop.Id, &application::tour_stop_destination::Stop);
-			auto       source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
-			if (found == Draft.Destinations.end() || !source) {
-				decisions.push_back({ });
-				continue;
-			}
-			core::tour_destination_observation observed{ .Source = *source, .Subject = source->Commit == (source->Side == core::diff_side::right ? draft.ObservedHead.value_or(draft.Head) : draft.Base) ? core::tour_subject::current_diff : core::tour_subject::historical, .SourceAvailable = source->Blob.has_value(), .Body = core::classify_review_body(stop.Body), .CompatibilityRequested = compatibility };
-			if (FixtureQualified) {
-				observed.PendingLineBatch = core::tour_operation_support::supported;
-				observed.Conversation     = core::tour_operation_support::supported;
-			}
-			decisions.push_back(core::plan_tour_destination(observed));
-			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ Binding->Target.Hostname.value() }, Binding->Target.Repository }, *source);
-			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
+		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication() }, FixtureQualified);
+		Plan                = prepared.Plan;
+		Previewed           = Plan.has_value();
+		if (Plan) {
+			State = application::staged_publication_state::ready;
 		}
-		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, FixtureQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
-		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
-			Previewed = false;
-			Plan.reset();
-			Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "This route needs visible compatibility comments. Keep one review by relocating destinations, or explicitly choose compatibility comments."
-																																																													 : "Publication is unavailable for these destinations on this host and transport. Keep preparing locally; operation qualification is still required.";
-			present();
-			return;
-		}
-		application::review_submission_request submission{ .Proposal = { .Draft = core::review_submission_draft_id{ draft.Id.value() }, .Attempt = core::review_submission_attempt_id{ draft.Revision }, .Target = Binding->Target.Semantic, .ActingAccount = Binding->ActingIdentity.Account, .Body = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution, .Disposition = core::review_disposition::comment }, .IdempotencyKey = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision), .LiveBinding = *Binding };
-		application::staged_review_plan        value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
-		if (draft.Remote) {
-			value.Update = draft;
-			std::erase_if(value.Stops, [&](const auto& stop) {const auto found=std::ranges::find(draft.Stops,stop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
-		}
-		if (Editor.description_publication()) {
-			const auto desired = core::propose_tour_description(draft, Description);
-			if (!desired) {
-				Plan.reset();
-				Previewed = false;
-				Status    = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
-				present();
-				return;
-			}
-			if (*desired != Description || !draft.Remote) {
-				value.Description = application::staged_description_edit{ Description, *desired, !draft.Remote };
-			}
-		}
-		if (!application::valid(value)) {
-			Status = "The publication exceeds an operation limit or has an invalid destination. Edit the draft and preview again.";
-			Plan.reset();
-			Previewed = false;
-			present();
-			return;
-		}
-		if (value.Update && value.Stops.empty()) {
-			const auto bodies = application::staged_update_bodies({ .Plan = value });
-			if (!bodies) {
-				Plan.reset();
-				Previewed = false;
-				Status    = "The website layout needs explicit mapping before this update.";
-				present();
-				return;
-			}
-			if (bodies->Edits.empty() && !value.Description) {
-				Plan.reset();
-				Previewed = false;
-				Status    = "No published changes. Existing comments and discussions are unchanged.";
-				present();
-				return;
-			}
-		}
-		Plan      = std::move(value);
-		Previewed = true;
-		State     = application::staged_publication_state::ready;
-		Status    = draft.Remote ? "Preview ready: non-atomic update. New destinations first, affected comments next, original index last. Website concurrent writes cannot be locked; conflicts retain your proposed text." : compatibility ? "Preview ready: visible compatibility comments, then index and navigation. This is non-atomic."
-																																																											 : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
+		Status = prepared.Status;
 		present();
 	}
+
 	void review_tour_publication_workflow::dispatch(qt::tour_editor_action aAction)
 	{
 		using action = qt::tour_editor_action;
@@ -590,13 +521,7 @@ namespace bpr::app {
 	{
 		application::tour_publication_presentation view{ .Status = Status };
 		if (Plan) {
-			view.Markdown = "### " + std::string{ Plan->Update ? "Update existing tour — non-atomic" : Plan->Compatibility ? "Compatibility comments — non-atomic"
-																														   : "One COMMENT review" }
-				+ "\n\nHost: " + std::string{ Plan->Submission.LiveBinding->Target.Hostname.value() } + " · Actor: " + Plan->Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(Plan->Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(Plan->Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + Plan->Submission.Proposal.Body;
-			for (const auto& stop : Plan->Stops) {
-				view.Markdown += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
-			}
-			view.Markdown += Plan->Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + Plan->Description->Desired + (Plan->Description->AppendIndexLink ? "\n\nThe returned tour index URL will be appended." : "") : "\n\nThe PR description will not be edited.";
+			view.Markdown = tour_plan_markdown(*Plan);
 			if (Record) {
 				const auto bodies = application::staged_final_bodies(*Record);
 				if (bodies) {

@@ -8,7 +8,11 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/sha256.hpp"
+#include "review_submission_execution_authority.hpp"
+#include "tour_cancellation.hpp"
+#include "tour_decisions.hpp"
 #include <QCoreApplication>
+#include <QThread>
 #include <algorithm>
 #include <future>
 namespace bpr::app {
@@ -20,6 +24,92 @@ namespace bpr::app {
 			return failure(aResult.error().Failure == application::tour_store_failure::conflict ? "revision_conflict" : "storage_unavailable", "Private tour storage refused the operation; retained work was not reset.", aResult.error().Failure == application::tour_store_failure::conflict ? 4 : 7);
 		}
 	}
+	namespace {
+		class submission_runner final : public application::review_submission_projection_port
+		{
+		public:
+			explicit submission_runner(const tour_publication_context& aContext)
+				: Host{ aContext.Factory, aContext.Binding, aContext.Session, core::request_generation{ 1 }, Effects, Decisions, *this }
+			{ }
+			~submission_runner() override
+			{
+				Host.shutdown();
+				drain();
+				Effects.close_and_drain();
+			}
+			void publish(const application::review_submission_host_terminal& aTerminal) override { Terminal = aTerminal; }
+			auto discover() -> application::staged_review_discovery
+			{
+				Terminal.reset();
+				if (!Host.discover_tours()) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				drain();
+				if (Terminal) {
+					if (const auto* value = std::get_if<application::staged_review_discovery>(&Terminal->Outcome)) {
+						return *value;
+					}
+				}
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			auto execute(const application::staged_review_plan& aPlan, application::review_submission_execution_grant aGrant = { }) -> application::staged_publication_result
+			{
+				Terminal.reset();
+				const auto request = aGrant ? Host.publish_tour(aPlan, std::move(aGrant)) : Host.reconcile_tour(aPlan);
+				if (!request) {
+					return { };
+				}
+				drain();
+				if (Terminal) {
+					if (const auto* value = std::get_if<application::staged_publication_result>(&Terminal->Outcome)) {
+						return *value;
+					}
+				}
+				return { };
+			}
+
+		private:
+			void drain()
+			{
+				while (!Host.is_quiescent()) {
+					if (tour_cancelled()) {
+						Host.shutdown();
+					}
+					Decisions.drain();
+					QCoreApplication::processEvents();
+					if (!Host.is_quiescent()) {
+						QThread::msleep(1);
+					}
+				}
+				Decisions.drain();
+			}
+			worker_executor                                             Effects;
+			terminal_decisions                                          Decisions;
+			std::optional<application::review_submission_host_terminal> Terminal;
+			application::review_submission_application_host             Host;
+		};
+		auto publication_status(application::staged_publication_state aState) -> std::string
+		{
+			using state = application::staged_publication_state;
+			switch (aState) {
+			case state::ready:                 return "Prepared locally; preview and explicitly resume the captured plan.";
+			case state::staged:                return "Staged on GitHub; author-only pending review. Preview and explicitly resume.";
+			case state::published:             return "Published; confirmed identities and navigation retained.";
+			case state::outcome_unknown:       return "Outcome unknown; recover before any further write. No ambiguous send is repeated.";
+			case state::conflict:              return "Publication conflict; actor, head, body or pending review changed. No further writes.";
+			case state::partial:               return "Partially updated; confirmed visible comments retained. Preview before resuming.";
+			case state::description_attention: return "Tour published; separate description update needs attention.";
+			case state::unavailable:           return "Publication unavailable; private draft retained.";
+			}
+			return "Publication unavailable.";
+		}
+		auto resumable(application::staged_publication_state aState) -> bool
+		{
+			using state = application::staged_publication_state;
+			return aState == state::ready || aState == state::staged || aState == state::partial || aState == state::description_attention;
+		}
+	}
+
 	struct tour_runtime::implementation
 	{
 		worker_executor                                     Effects;
@@ -55,7 +145,7 @@ namespace bpr::app {
 				Failure = tour_cli_error{ "profile_unavailable", "The private profile registry could not be opened.", 7 };
 				return;
 			}
-			const auto matches = [&](const auto& entry) { return aProfile.empty() ? entry.Profile.Id == core::default_bpr_profile_id : aProfile == std::to_string(entry.Profile.Id.value()) || aProfile == entry.Profile.Label; };
+			const auto matches = [&](const auto& aEntry) { return aProfile.empty() ? aEntry.Profile.Id == core::default_bpr_profile_id : aProfile == std::to_string(aEntry.Profile.Id.value()) || aProfile == aEntry.Profile.Label; };
 			if (std::ranges::count_if(loaded->Profiles, matches) > 1) {
 				Failure = tour_cli_error{ "profile_ambiguous", "The profile label is ambiguous; select its numeric ID.", 2 };
 				return;
@@ -85,6 +175,27 @@ namespace bpr::app {
 			Lease = std::move(*lease);
 			Store = adapters::sqlite::make_review_tour_store(Root, Profile);
 		}
+		auto observe_receipt(const application::tour_saved_target& aTarget, const core::review_tour& aDraft, const application::staged_publication_record& aRecord) -> bool
+		{
+			const auto published = application::published_tour(aRecord, aDraft);
+			// A newer local draft is preserved for the importer; a receipt cannot overwrite it.
+			if (!published) {
+				return true;
+			}
+			application::manual_executor  effects, decisions;
+			application::review_tour_host host{ aDraft, adapters::sqlite::make_review_tour_store(Root, Profile), effects, decisions, { } };
+			host.start();
+			effect([&] { effects.drain(); });
+			decisions.drain();
+			host.observe_publication(*published);
+			host.shutdown();
+			while (!host.is_quiescent()) {
+				effect([&] { effects.drain(); });
+				decisions.drain();
+			}
+			return !host.presentation().Failure && host.presentation().Draft->Owner == aTarget.Owner;
+		}
+
 		auto snapshot(const application::tour_saved_target& aTarget) -> tour_cli_result<tour_local_snapshot>
 		{
 			auto value = effect([&] { return Store->load_state(aTarget.Owner, aTarget.Draft, { }); });
@@ -113,8 +224,8 @@ namespace bpr::app {
 		constexpr char hex[]  = "0123456789abcdef";
 		std::string    result;
 		for (auto byte : digest) {
-			result.push_back(hex[byte >> 4]);
-			result.push_back(hex[byte & 15]);
+			result.push_back(hex[byte >> 4U]);
+			result.push_back(hex[byte & 15U]);
 		}
 		return result;
 	}
@@ -140,7 +251,7 @@ namespace bpr::app {
 		if (!targets) {
 			return store_failure(targets);
 		}
-		std::erase_if(*targets, [&](const auto& target) { return !aDraft.empty() && draft_token(target) != aDraft; });
+		std::erase_if(*targets, [&](const auto& aTarget) { return !aDraft.empty() && draft_token(aTarget) != aDraft; });
 		if (targets->size() != 1) {
 			return failure("target_ambiguous", "Select one exact --draft returned by open; no global last-opened PR is used.", 2);
 		}
@@ -157,7 +268,7 @@ namespace bpr::app {
 			if (!targets) {
 				return store_failure(targets);
 			}
-			std::erase_if(*targets, [&](const auto& t) { return t.Hostname != aHostname || t.Repository != aRepository || t.Number != aNumber; });
+			std::erase_if(*targets, [&](const auto& aTarget) { return aTarget.Hostname != aHostname || aTarget.Repository != aRepository || aTarget.Number != aNumber; });
 			if (targets->size() != 1 || !aRoot.empty()) {
 				return failure("target_ambiguous", "Offline open requires one previously observed target. Use its explicit draft_id.", 2);
 			}
@@ -284,4 +395,151 @@ namespace bpr::app {
 		}
 		return tour_local_snapshot{ loaded->Target, *state.Draft, state.UndoLabel, state.RedoLabel };
 	}
+	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
+	{
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return std::unexpected(loaded.error());
+		}
+		auto&       self   = *Implementation;
+		auto        reader = self.Readers(self.Root, self.Profile);
+		const auto& target = loaded->Target;
+		auto        read   = reader->open(target.Hostname, target.Repository, target.Number, aGh);
+		if (!read) {
+			return std::unexpected(read.error());
+		}
+		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
+			return failure("identity_changed", "The current account or PR differs from the saved draft.", 4);
+		}
+		auto context = reader->publication();
+		if (!context) {
+			return std::unexpected(context.error());
+		}
+		tour_publication_preview preview{ .Snapshot = *loaded, .Options = aOptions };
+		preview.PendingServerReviews = static_cast<std::size_t>(std::ranges::count(read->Snapshot.Reviews, application::github_review_state::pending, &application::github_review_record::State));
+		submission_runner runner{ *context };
+		auto              pending = runner.discover();
+		if (!pending) {
+			return failure("recovery_unavailable", "The existing publication journal could not be read; no new attempt is allowed.", 7);
+		}
+		std::erase_if(*pending, [&](const auto& aPlan) { return aPlan.Owner != target.Owner || aPlan.Submission.Proposal.Draft.value() != target.Draft.value(); });
+		if (!aAttempt.empty() && !pending->empty()) {
+			std::erase_if(*pending, [&](const auto& aPlan) { return aPlan.Submission.IdempotencyKey != aAttempt; });
+			if (pending->empty()) {
+				return failure("attempt_unknown", "Another journaled attempt is unresolved. Recover its exact attempt ID before preparing new writes.", 4);
+			}
+		}
+		if (pending->size() > 1) {
+			return failure("target_ambiguous", "Several journaled attempts exist; select --attempt with an exact attempt ID.", 2);
+		}
+		if (!pending->empty()) {
+			preview.Plan   = pending->front();
+			preview.Result = runner.execute(*preview.Plan);
+			preview.Resume = true;
+			preview.Status = publication_status(preview.Result.State);
+		} else {
+			const auto prepared = prepare_tour_plan(loaded->Draft, context->Binding, read->Snapshot.PullRequest.Body, aOptions, context->Qualified);
+			preview.Plan        = prepared.Plan;
+			preview.Status      = prepared.Status;
+			if (read->Target.Head != loaded->Draft.ObservedHead.value_or(loaded->Draft.Head)) {
+				preview.Plan.reset();
+				preview.Status = "The PR head changed. Reopen this exact draft and review its source attention before publication.";
+			}
+			if (preview.Plan && (aAttempt.empty() || preview.Plan->Submission.IdempotencyKey == aAttempt)) {
+				// A completed journal may outlive a crash before local attribution.
+				auto recovered = runner.execute(*preview.Plan);
+				if (recovered.Record) {
+					preview.Result = std::move(recovered);
+					preview.Resume = true;
+					preview.Status = publication_status(preview.Result.State);
+				}
+			} else if (!aAttempt.empty()) {
+				return failure("attempt_unknown", "This attempt is absent from the admitted local journal. Remote pending material is not authorization.", 4);
+			}
+			if (!preview.Result.Record) {
+				preview.Result.State = preview.Plan ? application::staged_publication_state::ready : application::staged_publication_state::unavailable;
+				if (aRecover) {
+					preview.Plan.reset();
+					preview.Status = "No matching local publication receipt. Published content can be reopened from GitHub; private WIP and authorization are not recoverable from pending reviews.";
+				}
+				if (preview.PendingServerReviews) {
+					preview.Plan.reset();
+					preview.Status = "Pending server review candidates exist without this attempt's receipt. No automatic adoption, edit, deletion or submission is permitted.";
+				}
+			}
+		}
+		if (preview.Result.Record && preview.Result.Record->Published) {
+			if (!self.observe_receipt(target, loaded->Draft, *preview.Result.Record)) {
+				return failure("receipt_save_failed", "GitHub publication was observed but local attribution could not be saved. Recover again; do not republish.", 6);
+			}
+			auto refreshed = self.snapshot(target);
+			if (!refreshed) {
+				return std::unexpected(refreshed.error());
+			}
+			preview.Snapshot = *refreshed;
+			if (preview.Result.Record->Plan.Generation != loaded->Draft.Revision) {
+				preview.Status += " Newer local text is retained; reopen to reconcile website changes.";
+			}
+		}
+		return preview;
+	}
+
+	auto tour_runtime::publish(const tour_publication_preview& aPreview, bool aGh) -> tour_cli_result<tour_publication_preview>
+	{
+		if (!aPreview.Plan) {
+			return failure("publication_unavailable", "There is no exact qualified plan to authorize.", 5);
+		}
+		const auto token   = draft_token(aPreview.Snapshot.Target);
+		auto       current = prepare_publication(token, aGh, aPreview.Options, aPreview.Resume ? aPreview.Plan->Submission.IdempotencyKey : std::string_view{ });
+		if (!current) {
+			return current;
+		}
+		if (current->Snapshot.Draft.Revision != aPreview.Snapshot.Draft.Revision || current->Plan != aPreview.Plan) {
+			return failure("preview_changed", "The draft or publication plan changed during confirmation. Preview and confirm again.", 4);
+		}
+		if (current->Result.State == application::staged_publication_state::published) {
+			return current;
+		}
+		if (!resumable(current->Result.State)) {
+			return failure("recovery_required", current->Status, 6);
+		}
+		auto&       self   = *Implementation;
+		auto        reader = self.Readers(self.Root, self.Profile);
+		const auto& target = current->Snapshot.Target;
+		auto        read   = reader->open(target.Hostname, target.Repository, target.Number, aGh);
+		if (!read) {
+			return std::unexpected(read.error());
+		}
+		auto context = reader->publication();
+		if (!context) {
+			return std::unexpected(context.error());
+		}
+		if (read->Target.Owner != target.Owner || !context->Qualified || context->Binding != *current->Plan->Submission.LiveBinding) {
+			return failure("authority_changed", "The exact account, head or qualified transport changed. No writes are authorized.", 4);
+		}
+		application::review_submission_execution_grant grant;
+#if defined(BPR_BUILD_TESTING)
+		grant = application::make_review_submission_testing_grant(context->Session, core::request_generation{ 1 }, *current->Plan);
+#else
+		grant = application::detail::review_submission_user_authority_issuer::issue(context->Session, core::request_generation{ 1 }, *current->Plan);
+#endif
+		if (!grant) {
+			return failure("interaction_required", "Exact-plan publication authority is unavailable.", 3);
+		}
+		submission_runner runner{ *context };
+		current->Result = runner.execute(*current->Plan, std::move(grant));
+		current->Status = publication_status(current->Result.State);
+		if (current->Result.Record && current->Result.Record->Published) {
+			if (!self.observe_receipt(target, current->Snapshot.Draft, *current->Result.Record)) {
+				return failure("receipt_save_failed", "Publication was observed; recover its saved journal before another action.", 6);
+			}
+			auto refreshed = self.snapshot(target);
+			if (!refreshed) {
+				return std::unexpected(refreshed.error());
+			}
+			current->Snapshot = *refreshed;
+		}
+		return current;
+	}
+
 }

@@ -1,6 +1,9 @@
 if(BPR_BUILD_TOUR_CLI)
-    add_library(better_pull_review_tour_runtime STATIC src/tour_editor.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
+    if(BUILD_TESTING)
+        target_compile_definitions(better_pull_review_tour_runtime PRIVATE BPR_BUILD_TESTING=1)
+    endif()
     target_link_libraries(better_pull_review_tour_runtime PUBLIC BetterPullReview::Application
         PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::Platform Qt6::Core Qt6::Network)
     target_include_directories(better_pull_review_tour_runtime PRIVATE
@@ -48,6 +51,7 @@ if(BPR_BUILD_QT)
             src/diagnostic_controls.cpp
             src/release_update_desktop.cpp
             src/review_submission_workflow.cpp
+            src/tour_publication_plan.cpp
             src/private_review_workflow.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp

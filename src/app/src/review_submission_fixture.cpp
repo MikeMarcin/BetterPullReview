@@ -263,8 +263,14 @@ namespace bpr::app::detail {
 					}
 					return wire::github_mutation_wire_error{ };
 				}
+				if (State->Boundary) {
+					State->Boundary(State->StagedWrites, "prepared");
+				}
 				if (!witness || !witness()) {
 					return wire::github_mutation_wire_error{ };
+				}
+				if (State->Boundary) {
+					State->Boundary(State->StagedWrites, "witnessed");
 				}
 				if (w.Path == pull() && State->StagedRejectDescription) {
 					return wire::github_mutation_wire_success{ .Response = { .Status = 403, .Body = "{}" } };
@@ -340,6 +346,9 @@ namespace bpr::app::detail {
 				}
 				State->StagedWritePaths.push_back(w.Path);
 				++State->StagedWrites;
+				if (State->Boundary) {
+					State->Boundary(State->StagedWrites - 1, "applied");
+				}
 				if (State->StagedBlockNext) {
 					State->StagedBlockNext = false;
 					State->StagedBlocked   = true;

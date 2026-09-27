@@ -451,8 +451,9 @@ auto main(int argc, char** argv) -> int
 			}
 			auto& restoredWindow = application->window();
 			restored.outline()->setCurrentRow(0);
-			select_file(restoredWindow, mode == "manual" ? "secondary.cpp" : "review.cpp");
-			select_range(restoredWindow, core::diff_side::right, mode == "manual" ? 1 : 2, mode == "manual" ? 3 : 4);
+			const auto replacedId = restored.shown().Draft->Stops.front().Remote->DatabaseId;
+			select_file(restoredWindow, "secondary.cpp");
+			select_range(restoredWindow, core::diff_side::right, 1, 3);
 			restored.findChild<QAction*>(QStringLiteral("tourRetarget"))->trigger();
 			saved(restored);
 			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
@@ -463,7 +464,7 @@ auto main(int argc, char** argv) -> int
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedCreates == 3 && server->StagedSubmits == 3 && server->StagedWrites == 20, "retarget creates only one replacement and minimal old-route edits");
-				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 602 && c.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
+				expect(std::ranges::any_of(server->PreviousComments, [replacedId](const auto& c) { return c.Id == replacedId && c.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
 			}
 			restored.outline()->setCurrentRow(2);
 			restored.findChild<QAction*>(QStringLiteral("tourRemove"))->trigger();
