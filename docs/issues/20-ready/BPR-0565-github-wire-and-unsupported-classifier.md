@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0565"
 title: "Add native and file-subject GitHub wire contracts"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0563","BPR-0564"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
