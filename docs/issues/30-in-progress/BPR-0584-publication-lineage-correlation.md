@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0584"
 title: "Correlate separate RFC-BPR-0008 publication with local composition and server identity"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0580","BPR-0583","BPR-0568","BPR-0569"]
 milestone: "Post-Pack v2"
