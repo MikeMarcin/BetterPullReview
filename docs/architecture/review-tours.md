@@ -54,3 +54,16 @@ remote identity/version and local generation; they confer no current remote
 truth or mutation authority. Profile purge includes the exact tour store and
 admitted sidecars. Local loss can lose unsent work; it never deletes shared
 GitHub comments. Cold import and remote update recovery remain later milestones.
+
+Prepare review tour is available from Overview and the Pull Request menu
+(`Alt+T`). It opens the Tour page alongside the current Comments and Notes tray.
+Problem and Solution use independent native plain-text documents; coaching never
+becomes source. Their safe Markdown preview states its HTML/disclosure limits.
+Section changes and preview perform no remote operation or agent launch.
+
+The composition binds the store to the admitted application data root and exact
+accepted owner. Identity invalidation clears the displayed copy. Pending or failed
+private copies remain associated with that owner and can be resumed by reopening
+the pull request. At most eight such suspended copies are retained per window;
+further new tours are refused with a recovery explanation rather than evicting
+unsaved prose. Clean saved copies are reconstructed from the private store.

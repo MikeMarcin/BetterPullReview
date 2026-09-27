@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_adapter_qt
     STATIC
+        src/review_tour_editor.cpp
         src/release_maintenance_panel.cpp
         src/release_update_panel.cpp
         src/release_update_recovery_dialog.cpp

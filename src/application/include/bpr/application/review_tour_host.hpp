@@ -1,24 +1,11 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_HOST_HPP
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_tour_projection.hpp"
 #include "bpr/application/review_tour_store.hpp"
 #include <functional>
 #include <memory>
 namespace bpr::application {
-	/// \brief Local save facts and conflict copies, with no provider or agent capability.
-	struct tour_presentation
-	{
-		std::shared_ptr<const core::review_tour> Draft;
-		std::shared_ptr<const core::review_tour> Conflict;
-		std::optional<tour_store_failure>        Failure;
-		core::tour_refusal                       Refusal = core::tour_refusal::none;
-		core::tour_stop_id                       Selected;
-		std::uint64_t                            SavedRevision = 0;
-		bool                                     Loading       = false;
-		bool                                     Saving        = false;
-		bool                                     CanUndo       = false;
-		bool                                     CanRedo       = false;
-	};
 	/// \brief Decision-lane owner with coalesced off-lane persistence.
 	/// Store and queued work belong to this host. Shutdown drains final accepted edits;
 	/// completion delivery must remain live until is_quiescent(). No remote effects exist.

@@ -1,16 +1,9 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_STORE_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_STORE_HPP
-#include "bpr/core/review_tour.hpp"
+#include "bpr/application/review_tour_projection.hpp"
 #include <expected>
 #include <stop_token>
 namespace bpr::application {
-	enum class tour_store_failure : std::uint8_t { unavailable,
-												   cancelled,
-												   corrupt,
-												   schema_mismatch,
-												   conflict,
-												   bounds,
-												   wrong_profile };
 	struct tour_store_error
 	{
 		tour_store_failure               Failure = tour_store_failure::unavailable;

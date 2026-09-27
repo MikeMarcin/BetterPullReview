@@ -1,7 +1,11 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/review_tour_host.hpp"
 #include "bpr/logging/quill_log.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
@@ -6660,6 +6664,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				nullptr,
 				aConfig.DifCatalog);
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
+			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {if(!Closing && TourHost && current(DraftWindow)){TourHost->dispatch(aCommand);} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -8614,6 +8619,108 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 		}
 
+		std::unique_ptr<application::review_tour_host> TourHost;
+		struct retained_tour_host
+		{
+			core::tour_owner                               Owner;
+			std::unique_ptr<application::review_tour_host> Host;
+		};
+		std::vector<retained_tour_host> RetiredTourHosts;
+		std::optional<core::tour_owner> TourOwner;
+		core::git_commit_oid            TourHead;
+		core::git_commit_oid            TourAttentionHead;
+		void                            observe_tour_head()
+		{
+			if (!TourHost) {
+				return;
+			}
+			const auto draft = TourHost->presentation().Draft;
+			if (draft && draft->Head != TourHead && TourAttentionHead != TourHead) {
+				TourAttentionHead = TourHead;
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::observe_head, .Head = TourHead });
+			}
+		}
+		void suspend_review_tour()
+		{
+			if (TourHost && TourOwner) {
+				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
+			}
+			TourOwner.reset();
+			// Clean, drained copies can be reconstructed. Keep failed or pending
+			// copies reachable by their immutable owner when that PR is reopened.
+			std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
+				const auto p = aRetained.Host->presentation();
+				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && p.SavedRevision == p.Draft->Revision;
+			});
+			Window->prepare_tour_action()->setEnabled(false);
+			Window->tour_editor()->present({ });
+		}
+		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
+		{
+			const auto owner = core::tour_owner{ DraftWindow.Profile, aHandoff.Host, aHandoff.HostAuthority, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
+			if (!core::valid(owner)) {
+				return;
+			}
+			TourHead = aHandoff.Head;
+			if (TourOwner == owner && TourHost) {
+				observe_tour_head();
+				return;
+			}
+			suspend_review_tour();
+			if (const auto found = std::ranges::find(RetiredTourHosts, owner, &retained_tour_host::Owner); found != RetiredTourHosts.end()) {
+				TourHost = std::move(found->Host);
+				RetiredTourHosts.erase(found);
+				TourOwner         = owner;
+				TourAttentionHead = { };
+				Window->tour_editor()->present(TourHost->presentation());
+				Window->prepare_tour_action()->setEnabled(static_cast<bool>(TourHost->presentation().Draft));
+				observe_tour_head();
+				return;
+			}
+			if (RetiredTourHosts.size() >= 8U) {
+				Window->tour_editor()->show_notice(QStringLiteral("Eight earlier tours still have unsaved edits. Reopen one of those pull requests and retry its local save before starting another tour."));
+				return;
+			}
+			TourOwner         = owner;
+			TourAttentionHead = { };
+			auto       seed   = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
+			const auto weak   = std::weak_ptr<const int>{ WindowLifetime };
+			TourHost          = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
+																				[this, weak, owner](const application::tour_presentation& aProjection) {
+																		   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
+																			   return;
+																		   }
+																		   Window->tour_editor()->present(aProjection);
+																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
+																		   observe_tour_head();
+																				});
+			TourHost->start();
+		}
+		void dispatch_tour_action(qt::tour_editor_action aAction)
+		{
+			if (Closing || !TourHost || !current(DraftWindow)) {
+				return;
+			}
+			switch (aAction) {
+			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::map_problem:
+			case qt::tour_editor_action::map_solution:   {
+				const auto draft = TourHost->presentation().Draft;
+				if (!draft) {
+					return;
+				}
+				const auto selected = Window->overview_page()->body_view()->source_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
+				if (selected.isEmpty()) {
+					Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
+					return;
+				}
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = selected.toUtf8().toStdString() });
+				return;
+			}
+			}
+		}
+
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
@@ -10257,6 +10364,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				compose_review_mutation(aHandoff);
 				compose_review_submission(aHandoff);
+				compose_review_tour(aHandoff);
 				EpochHost->accept(std::move(aHandoff));
 			}
 		}
@@ -10299,6 +10407,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 			if (ReviewSubmission) {
 				ReviewSubmission->invalidate(aInvalidation);
+			}
+			if (TourOwner && TourOwner->Host == aInvalidation.Host && TourOwner->Account == aInvalidation.Account && TourOwner->Repository == aInvalidation.Repository && TourOwner->PullRequest == aInvalidation.PullRequest) {
+				suspend_review_tour();
 			}
 			if (retiresLedger) {
 				retire_review_ledger();
@@ -13293,6 +13404,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			if (TourHost) {
+				TourHost->shutdown();
+			}
+			for (auto& retained : RetiredTourHosts) {
+				retained.Host->shutdown();
+			}
 #if defined(BPR_BUILD_TESTING)
 			if (ReviewSubmissionDecisionGate) {
 				ReviewSubmissionDecisionGate->release();
@@ -13365,6 +13482,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
+				|| (TourHost && !TourHost->is_quiescent())
+				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
 				|| std::ranges::any_of(
 					RetiredReviewMutationHosts,

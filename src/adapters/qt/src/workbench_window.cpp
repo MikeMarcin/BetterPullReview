@@ -1,4 +1,5 @@
 #include "bpr/qt/github_thread_map.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -1154,6 +1155,13 @@ namespace bpr::qt {
 		PullRequestMenu->addSeparator();
 		PullRequestMenu->addAction(ComposeReviewAction);
 		PullRequestMenu->addAction(CommentAction);
+		PrepareTourAction = new QAction{ tr("Prepare review &tour"), this };
+		PrepareTourAction->setObjectName(QStringLiteral("prepareReviewTourAction"));
+		PrepareTourAction->setShortcut(QKeySequence{ QStringLiteral("Alt+T") });
+		PrepareTourAction->setEnabled(false);
+		addAction(PrepareTourAction);
+		PullRequestMenu->addAction(PrepareTourAction);
+		connect(PrepareTourAction, &QAction::triggered, this, [this] { open_review_tour(); });
 		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
@@ -1295,6 +1303,7 @@ namespace bpr::qt {
 												&& (!result || result->Alignment.Content != core::diff_content_state::text));
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
+		OverviewPage->set_prepare_tour_action(PrepareTourAction);
 		OverviewPage->set_entry_dispatch(
 			[this](const application::overview_entry_kind aEntry, const QString& aPath) {
 				enter_overview_at(aEntry, aPath);
@@ -1828,7 +1837,7 @@ namespace bpr::qt {
 		notesPageLayout->addWidget(ConversationScroll, 1);
 
 		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
-		// (RFC-BPR-0039's Tour joins them when it exists). The drawer still
+		// and Tour. The drawer still
 		// opens on Comments. Choosing Notes is RFC-BPR-0031's explicit move
 		// into the AI tools, the action that cues compare_glance in the corner; it
 		// dispatches no agent or review action and never opens the drawer.
@@ -1840,13 +1849,15 @@ namespace bpr::qt {
 		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
-			"Comments, and Notes: your private notes, AI conversations and review feedback. Nothing in Notes is published."));
+			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
 		TrayTabs->setDocumentMode(true);
 		TrayTabs->setExpanding(false);
 		TrayTabs->setDrawBase(true);
 		TrayTabs->setFocusPolicy(Qt::StrongFocus);
 		TrayTabs->addTab(tr("Comments"));
 		TrayTabs->addTab(tr("Notes"));
+		TrayTabs->addTab(tr("Tour"));
+		TrayTabs->setAccessibleTabName(2, tr("Tour"));
 		TrayTabs->setAccessibleTabName(1, tr("Notes"));
 		TrayTabs->setTabToolTip(0, tr("The pull request's conversations, with their scope and filters"));
 		TrayTabs->setTabToolTip(1, tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
@@ -1858,6 +1869,8 @@ namespace bpr::qt {
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
 		TrayPages->addWidget(notesPage);
+		TourEditor = new review_tour_editor{ conversationShell };
+		TrayPages->addWidget(makeTabColumn(TourEditor, QStringLiteral("workbenchTourScroll")));
 		conversationShellLayout->addWidget(TrayTabs);
 		conversationShellLayout->addWidget(TrayPages, 1);
 		AiToolsAction = new QAction{ tr("Notes"), this };
@@ -1867,16 +1880,15 @@ namespace bpr::qt {
 			tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
-			AiToolsAction->setChecked(aIndex == tray_findings_tab);
-		});
-		connect(AiToolsAction, &QAction::toggled, this, [this](const bool aSelected) {
-			AiToolsSelected = aSelected;
-			TrayTabs->setCurrentIndex(aSelected ? tray_findings_tab : tray_comments_tab);
+			const auto blocker = QSignalBlocker{ AiToolsAction };
+			AiToolsSelected    = aIndex == tray_findings_tab;
+			AiToolsAction->setChecked(AiToolsSelected);
 			update_dif_presentation();
-			if (aSelected && showing_ai_tools()) {
+			if (AiToolsSelected && showing_ai_tools()) {
 				play_dif_cue(DifCues->reveal_findings(DifCueClock->elapsed()));
 			}
 		});
+		connect(AiToolsAction, &QAction::toggled, this, [this](bool aSelected) { TrayTabs->setCurrentIndex(aSelected ? tray_findings_tab : tray_comments_tab); });
 		Drawers[1].Panel->set_content_widget(
 			conversationShell, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[2].Panel);
@@ -5447,6 +5459,20 @@ namespace bpr::qt {
 	auto workbench_window::updates_line_open() const noexcept -> bool
 	{
 		return UpdatesLineState.State == core::workbench_updates_line::open;
+	}
+
+	auto workbench_window::prepare_tour_action() const noexcept -> QAction* { return PrepareTourAction; }
+	auto workbench_window::tour_editor() const noexcept -> review_tour_editor* { return TourEditor; }
+	void workbench_window::open_review_tour()
+	{
+		close_review_composition();
+		choose_home(false);
+		choose_modality(review_modality::read);
+		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			conversations_drawer_toggle_action()->trigger();
+		}
+		TrayTabs->setCurrentIndex(2);
+		TourEditor->show_problem();
 	}
 
 	auto workbench_window::compose_review_action() const noexcept -> QAction*
