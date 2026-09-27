@@ -1,0 +1,124 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m3-core-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m3-core",
+    "definition_fingerprint": "sha256:d3d7b4a325fa7144f114080b85c855a11368bbdec6517f87c232c39549520768",
+    "obligations": [
+      {
+        "id": "BPR-0578:*",
+        "source": "BPR-0578",
+        "selector": null,
+        "source_fingerprint": "sha256:30bb824ae1e7e2529ede092b24c842148db9697854897de0286781bc4e52f975"
+      },
+      {
+        "id": "BPR-0579:*",
+        "source": "BPR-0579",
+        "selector": null,
+        "source_fingerprint": "sha256:99e502d09cf0d5ad7cc91682c8e2c4afd82ded74e637108cd589ab6318927132"
+      }
+    ],
+    "obligation_fingerprint": "sha256:12857850684ac0563430eee1942113fe9c9ff15ce63ecfe411bcd2e1df03cf6f",
+    "exit_criteria": [
+      {
+        "id": "m3-core:exit:1",
+        "text": "Both core cards satisfy all required final states with focused replay, provenance, lineage, target-partition and forbidden-dependency evidence."
+      },
+      {
+        "id": "m3-core:exit:2",
+        "text": "Authorship and source identity stay immutable; composition has no direct publication transition."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:0ef81b4ecfcc31447475112012fad13bd09dcf556ed9c9d024712c358df8ace2",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m3-core",
+  "disposition": "milestone-complete",
+  "candidate_revision": "1acd8821187e77321862df7e26e1f4013d633b4f",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m3-durable-handoff",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/architecture/domain-and-state-model.md",
+    "tests/core/private_review_tests.cpp",
+    "tests/core/review_composition_tests.cpp"
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m4-storage",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates M3 into current main, preserving additive tour registrations, then starts a fresh M4 implementer. M5 is dependency-eligible after M3 but authored order selects M4. Final independent review remains M10/BPR-0591 under mandate r2."
+  },
+  "ownership": "quiescent",
+  "acceptance_records": [
+    {
+      "id": "BPR-0578:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/architecture/domain-and-state-model.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/core/review_composition_tests.cpp"
+      ]
+    },
+    {
+      "id": "BPR-0579:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/architecture/domain-and-state-model.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/core/review_composition_tests.cpp"
+      ]
+    },
+    {
+      "id": "m3-core:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/architecture/domain-and-state-model.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/core/review_composition_tests.cpp"
+      ]
+    },
+    {
+      "id": "m3-core:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/architecture/domain-and-state-model.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/core/review_composition_tests.cpp"
+      ]
+    }
+  ]
+}
