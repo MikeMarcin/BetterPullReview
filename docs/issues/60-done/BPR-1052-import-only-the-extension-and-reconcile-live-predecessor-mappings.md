@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1052"
 title: "Import only the extension and reconcile live predecessor mappings"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: []
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-01","milestone":"intake","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"BPR-1052:direct","outcome":"pass","revision":"e8236e5d0cec457802e380d2398363512c3533e3","evidence":{"kind":"artifact","detail":"Live source/ID/asset and canonical AgentSkills mappings recorded; parent files preserved, no product implementation or installation claimed.","path":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"intake:exit:1","outcome":"pass","revision":"e8236e5d0cec457802e380d2398363512c3533e3","evidence":{"kind":"artifact","detail":"Parent manifest and all 82 parent payload hashes match; all 26 parent cards resolve Done and remain unchanged; execution and historical import bases recorded.","path":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"intake:exit:2","outcome":"pass","revision":"e8236e5d0cec457802e380d2398363512c3533e3","evidence":{"kind":"artifact","detail":"All 20 extension IDs, nine support links, 62 payload hashes and six adopted milestone groups verified; installed helper discovery/bind resolves live plan.","path":"docs/verification/RFC-BPR-0044-0046.md"}}]
 ---
 
 # BPR-1052: Import only the extension and reconcile live predecessor mappings
