@@ -279,7 +279,13 @@ excluded from core-only builds. BPR-1215 frames those same admitted fields as bo
 receives them, with adapter-owned clocks, opaque per-logger session, sequence,
 closed severity/category and source/toolchain build identity. Existing metadata
 export admits canonical v2 and legacy v1 while discarding every free-text or
-identity field. Rotation and advanced controls remain RFC-BPR-0027 follow-ups.
+identity field. BPR-1216 adds the adapter-owned native session-file owner:
+exclusive creation, current-file lifetime locks, a shared retention transaction,
+5 MiB segments, 50 MiB aggregate, 64 files and 30-day inactive age retention.
+Only backend work performs inventory/pruning/writes. Producer contention and
+backend lock contention drop with counters; I/O failure stays local. Maintenance
+recognizes the same closed filenames, separates incomplete file tails and leaves
+the coordination inode in place. Advanced controls remain RFC-BPR-0027 follow-ups.
 
 The entry point also owns one bounded terminal service before Qt startup and
 after producer quiescence. Its 64 slots hold at most 2 KiB each; ingress drops

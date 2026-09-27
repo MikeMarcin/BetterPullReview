@@ -2978,17 +2978,17 @@ provider verifies the archive hash and size, stages its headers, and does not
 execute upstream tests, examples or install rules. The core-only graph does not
 acquire Quill. License and bundled fmt notices are in `third_party/quill/`.
 
-The Mac app appends to:
+The Mac app writes separate session segments beneath:
 
 ```text
-~/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log
+~/Library/Application Support/BetterPullReview/BetterPullReview/logs/
 ```
 
 Read it directly while diagnosing a run; UI error copying is unnecessary for
 these events:
 
 ```sh
-tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log"
+tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/"session-*.jsonl
 ```
 
 BPR-1215 writes one version-two JSON object per line. `event` is the closed
@@ -3099,17 +3099,26 @@ MCP helper separately caps its content-free startup record at 512 bytes and
 owns/cancels/joins its writer. See the
 [BPR-0971 completion evidence](../verification/bpr0971-completion.md).
 
-One owner-only file survives quit and appends across launches. The 16 MiB cap
-stops further recording; automatic rotation is not implemented. RFC-0014 extends
-the same Quill sink with Windows private ACL/handle support and composes explicit
-diagnostic cleanup under the profile retirement barrier. Symlinked,
-shared-permission or already-locked targets are refused. Implementation and
-component evidence do not complete the native package/logging matrix.
+BPR-1216 writes owner-only `session-<session>-<segment>.jsonl` files and
+coordinates retention with a persistent private `.retention.lock`. Defaults are
+5 MiB per new segment, 50 MiB per profile, 64 files and 30 days since the last
+write for inactive history. Startup and backend writes prune inactive files;
+active current files are never removed by another session. Completed segments
+can be reclaimed under pressure. A bounded directory inventory refuses unknown,
+linked, shared-permission or replaced entries. The native transaction uses
+nonblocking locks on writes, counting contention as loss; startup makes at most
+100 one-millisecond retry waits before reporting busy. Native writes have no
+userspace stdio buffer; partial writes report unavailable and remain separate
+from the next session. No filesystem latency or crash-durability guarantee is
+made. See [storage and diagnostics](storage-and-diagnostics.md) for scope,
+legacy compatibility, preview bounds and the retained coordination lock.
+Mac native fixtures cover these changes. Windows and Linux native retention
+qualification remains pending in RFC-BPR-0027's final milestone.
 
 Summary storage is capped at 2,048 bytes. Each admitted producer has a dropping
 64 KiB queue, with at most 16 admitted thread identities and bounded backend
-transit buffers. Normal backend flushing uses Quill's 200 ms minimum interval;
-ordinary shutdown drains after producer quiescence. This is not crash durability
+transit buffers. The backend writes each admitted event directly; ordinary shutdown drains after
+producer quiescence. This is not crash durability
 or a hard filesystem-latency guarantee. Full/unavailable/drop states are exposed
 through the typed logging port. Storage & privacy now offers bounded preview,
 local export, clear and profile purge through a separate typed maintenance host.

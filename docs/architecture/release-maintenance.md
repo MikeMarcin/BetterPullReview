@@ -402,3 +402,22 @@ diagnostic-only clear, full populated-profile purge, preserved external export,
 lease release and corrupt-receipt startup refusal. The native vault is composed;
 real persistent credential/crash continuity and all-target acceptance remain
 M8/M9 evidence, not inferred from the fixture's synthetic sign-in.
+
+## RFC-BPR-0027 session retention integration
+
+BPR-1216 replaces the fixed-file sink with coordinated per-session segments.
+The application contract owns their closed leaf-name grammar so the logging and
+maintenance adapters agree without an adapter dependency. Preview enumerates
+only recognized private files under its existing 16 MiB/65,536-record bounds;
+unknown entries fail closed. An incomplete tail is made unparseable before the
+next file is considered and contributes one omission. The exact frozen metadata
+preview and local export authority remain unchanged.
+
+Clear/purge captures all recognized segments and the legacy file after producer
+retirement. It preserves `logs/.retention.lock` and the containing directory so
+another cooperating owner cannot acquire a replacement coordination inode.
+Regular session retention protects active current files, rechecks private native
+identities and bounds directory inspection to 128 entries. Tests cover separate
+processes, native write failure, rotation obstruction, age, capacity, public
+startup cancellation and ordinary shutdown. These Mac results do not supply
+Windows/Linux native acceptance, crash durability or later diagnostic controls.

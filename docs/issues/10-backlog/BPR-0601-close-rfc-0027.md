@@ -67,8 +67,8 @@ The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
 authorized. BPR-1215–1219 are the required source-owned milestones. Current owner:
-`/root/rfc0027_m1`, sole writer in worktree `57ed`, branch
-`codex/rfc0027-advanced`; current milestone `structured-events`.
+`/root/rfc0027_m2`, sole writer in worktree `57ed`, branch
+`codex/rfc0027-advanced`; current milestone `session-retention`.
 
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
 rows describe their original not-run state; advanced acceptance stays pending
@@ -104,3 +104,30 @@ The appended handoff commit carries documentation only. The next engineer can
 reuse this worktree and its offline `build/dev` cache, promote/claim BPR-1216,
 and bind `session-retention` with `structured-events` accepted. Preserve the
 full RFC criteria, mandate r2 and the existing BPR-0971 privacy boundary.
+
+### M2 checkpoint — accepted, landing pending
+
+Mandate r2; assignment `/root/rfc0027_m2`, BPR-1216 / `session-retention`.
+Source candidate: `3381a02c5a78f4611fd7ab593cc0f6086ec32208`. Main `6e8ca8a8`
+was synchronized before claim `fb27f251`; immutable RFC base is unchanged.
+[Binding](../../rfcs/plans/rfc-bpr-0027-advanced/m2-binding.json) and
+[evidence/commands](../../verification/RFC-BPR-0027.md) bind this result.
+
+Changed paths: logging adapter/CMake (native session files and limits), shared
+pure filename grammar, SQLite maintenance enumeration, logger/retention and
+public logging/profile/maintenance tests, registrations/support, and owning
+architecture/operator docs. The provider sanitizer and core policy are unchanged.
+
+Final exact-source integration passed 15/15, format 15/15, all three touched
+product units passed tidy, and the documentation gate plus 64 tests passed.
+The evidence ledger retains actual failures and fixes, partial-tail/resource
+boundary self-review, and scope limits. BPR-1216 supplies the M2 retention and
+lifecycle subset; all full-RFC criteria above remain pending later milestones.
+No live service was used. Native Windows/Linux, packaged and human acceptance
+remain open; the real native write failure uses RLIMIT_FSIZE, not a filled disk.
+
+All owned build/test/tidy commands finished. There is no review URL/session,
+event cursor, protected candidate or server. This writer owns final tracker
+commit and main landing only, then releases ownership. Next eligible scope is
+BPR-1217 / `diagnostic-controls` for a fresh implementer. Preserve mandate r2,
+M1/M2 evidence and the full native/human criteria.

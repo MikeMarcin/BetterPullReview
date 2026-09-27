@@ -95,3 +95,89 @@ M1 integration: `857d93624aa3acb1e7f590969ae25aecf93a8993` fast-forwarded the
 clean primary main checkout and pushed normally to origin/main. Concurrent
 review-tour documentation through `1248c0b1` was merged and preserved; no source
 or test input changed. The documentation gate passed again after integration.
+
+## M2 — session retention (BPR-1216)
+
+Source candidate: `3381a02c5a78f4611fd7ab593cc0f6086ec32208`.
+Assignment: `/root/rfc0027_m2`, `session-retention`, mandate r2, sole product
+writer in worktree `57ed` on `codex/rfc0027-advanced`. Main `6e8ca8a8` was
+fast-forwarded before the claim, preserving the concurrent RFC-0022 milestone.
+
+The concrete Quill sink owns a native session-file service. Each logger creates
+an exclusive `session-<128-bit-session>-<segment>.jsonl`; it never reopens a prior
+session or appends to a crash tail. Defaults are 5 MiB per segment, 50 MiB total,
+64 files (therefore at most 64 active sessions), and 30 days for inactive files.
+The directory inventory has an independent 128-entry safety ceiling. A persistent
+private `.retention.lock` serializes admission, pruning and writes. Current files
+hold native lifetime locks; completed segments become reclaimable. All pruning
+rechecks exact owner-private, single-link native identity. Unknown entries,
+symlinks/reparse points, changed identities and unsafe permissions refuse storage.
+POSIX operations use pinned directory descriptors; Windows uses the existing
+private descriptor and retained parent handles with native file locks.
+
+Native writes happen on the Quill backend, without a userspace file buffer.
+Producer ingress retains its bounded dropping queues and try-lock. A contended
+retention transaction drops and increments loss, while capacity/write/rotation
+failure reports full/unavailable. Admission tries at most 100 one-millisecond
+waits before busy. Normal close drains after producer quiescence. Kernel/device
+stalls and crash durability remain outside the guarantee. Idle expired files
+are pruned on the next startup/write; completed segments in a running session
+may be pruned. External same-user modification is not constrained by a disk quota.
+
+The existing metadata preview and cleanup recognize the shared closed session
+filename grammar and legacy `diagnostics.log`. Each partial tail contributes one
+omission, including a valid-looking legacy prefix missing only its newline.
+Original input bytes count toward the 16 MiB read budget even if that tail is
+removed from the in-memory classifier input. Clear/purge preserves the lock inode
+and its directory while removing the prepared diagnostic files. Frozen metadata
+export is still limited to 16 MiB input/65,536 records; larger selections refuse
+instead of truncating. Richer scope/export policy remains M4.
+
+### Commands and results
+
+```sh
+cmake --build --preset dev --target test_quill_logging test_session_retention test_application_logging test_release_maintenance_host test_release_maintenance_files test_release_maintenance_public_path test_profile_management_public_path test_profile_multi_window_public_path bench_better_pull_review_large_review -j 8
+ctest --preset dev --output-on-failure -R '^(logging_session_retention|logging_session_concurrency|quill_logging|quill_logging_content_policy|quill_logging_backpressure|application_logging|application_logging_cancel_startup|application_logging_full|application_logging_unavailable|application_release_maintenance|sqlite_release_maintenance_files|application_release_maintenance_public_path|application_profile_management_public_path|application_profile_multi_window_public_path|architecture_boundaries)$'
+python3 _coding-standard/scripts/format.py --root . --dry-run src/adapters/logging/include/bpr/logging/quill_log.hpp src/adapters/logging/src/quill_log.cpp src/adapters/logging/src/session_files.cpp src/adapters/logging/src/session_files.hpp src/application/include/bpr/application/diagnostic_log_files.hpp src/adapters/sqlite/src/release_maintenance_files.cpp tests/support/diagnostic_files.hpp tests/logging/quill_logging_tests.cpp tests/logging/session_retention_tests.cpp tests/end_to_end/application_logging_tests.cpp tests/end_to_end/profile_management_public_path_tests.cpp tests/end_to_end/profile_multi_window_public_path_tests.cpp tests/end_to_end/large_review_benchmark.cpp tests/end_to_end/release_maintenance_public_path_tests.cpp tests/sqlite_contract/release_maintenance_files_tests.cpp
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/logging/src/quill_log.cpp src/adapters/logging/src/session_files.cpp src/adapters/sqlite/src/release_maintenance_files.cpp
+python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
+git diff --check
+```
+
+Final build and 15-file format passed. Tidy passed all three product translation
+units, reusing the unchanged session-file unit after its own passing rerun.
+The documentation gate and its 64 tests passed. Final integration passed **15/15**
+on that exact source candidate in 129.49 seconds; all task-owned build, test and
+tidy commands completed. There is no attended session/server or protected candidate.
+
+The early unchanged public logging/content checks passed 2/2. The initial build
+found the old tests' numeric constructor arguments; these now use explicit
+limits. First candidate testing passed 5/6: the public maintenance legacy fixture
+needed owner-private creation now that the logger creates a different file.
+The corrected fixture passed. New retention and public failure/cancellation
+courses passed 6/7; an added assertion incorrectly expected a textual exported
+outcome, and its first correction accessed the prepared context instead of its
+Selection, failing compilation. A subsequent 14/15 run still used that older
+binary and is not final-candidate evidence. Both assertion issues are corrected.
+Tidy initially refused the enum exception; a fixed std::exception-derived refusal
+resolved it. An intermediate read-budget edit omitted the local declaration and
+failed compilation; the final helper compiles and preserves the original-byte cap.
+
+The concise self-review separated native storage from record encoding, kept the
+startup retry and multi-file snapshot loops in named helpers, removed obsolete
+stdio dependencies, and checked lock lifetime, overflow, ownership and partial
+record boundaries. It found and corrected the valid-looking legacy-tail issue
+and retained-input budget before the final candidate.
+
+Native evidence is macOS arm64 with the existing Debug Qt 6.11.2/Quill 13.0.0
+cache. The direct storage course tests rotation, aggregate/count limits, expiry,
+protected active sessions, refusal of linked/obstructed files, and an actual
+kernel short write followed by RLIMIT_FSIZE failure, then restart. That is a real
+native write-failure path, not an observed ENOSPC-filled filesystem. Four separate
+processes exercise one directory and verify bounded files plus exact session
+ownership. Public courses exercise provider-to-file success, full/unavailable
+logging without disabling the application, cancellation, shutdown, profile/window
+isolation, and real Settings preview/export/clear. No native Windows/Linux,
+packaged-platform, human-control, live sign-in or crash-survival claim is made.
+Those full-RFC obligations remain open for the later milestones.

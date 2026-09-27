@@ -64,7 +64,7 @@ recovery refuses anything whose recorded identity it cannot prove.
 | Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
 | Retained Git data | Managed repository/cache/catalog layout and its identity manifests | No automatic TTL/LRU pruning. Exact epoch pruning leaves tombstones and does not promise immediate byte reclamation. Explicit repository-cache deletion removes that cache's bytes; never-observed history cannot be recovered. |
 | Agent and MCP material | Adjacent `<profile-root-leaf>-agent-workspaces-v1` ownership area; profile `agent-workspace-ownership-v1` and `mcp-snapshot` | Original owners reconcile active/interrupted work before purge. Populated or unknown workspace state can block it; no broad sweep is used. Existing developer checkouts are outside purge. |
-| Diagnostics | `logs/diagnostics.log` | Appends across launches up to 16 MiB. Recording stops at the cap; no automatic rotation. Explicit diagnostic cleanup removes the prepared log. |
+| Diagnostics | `logs/session-<opaque-session>-<segment>.jsonl`; legacy `logs/diagnostics.log` is read for compatibility | New files rotate before 5 MiB. Coordinated retention bounds the profile to 50 MiB and 64 files, pruning inactive history older than 30 days and oldest inactive files under pressure. Explicit cleanup removes the prepared logs; `logs/.retention.lock` remains. |
 | Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
 | Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
 
@@ -75,6 +75,15 @@ manual token removes the previous grant. A crash or missing binding metadata
 can leave unresumable vault material. Neither purge nor uninstall enumerates a
 whole credential namespace. External `gh` and AI credentials belong to those
 applications and are not removed by BetterPullReview.
+
+Retention runs at logger startup and before backend writes. Each active session
+holds its current file; completed segments may be pruned while that session
+continues. Idle files can remain past the age limit until the next retention
+pass. If active files exhaust capacity, recording reports full or startup busy
+without deleting them. Unsafe links, unknown entries and changed directory/file
+identities refuse logging. These bounds apply to cooperating application writers;
+external modification is not a disk quota. A crash may leave a partial final
+record. Restart creates a new session file and never appends to that tail.
 
 ## Preview and export diagnostics
 
@@ -89,7 +98,7 @@ applications and are not removed by BetterPullReview.
    refused. Export writes those same frozen bytes; later log appends are not
    silently added. Nothing is uploaded. Share only through your approved channel.
 
-Input work is bounded to 16 MiB and 65,536 records. Legacy v1 lines admit at
+Input work across the selected directory is bounded to 16 MiB and 65,536 records; a larger retained set reports a limit instead of silently truncating. Each incomplete file tail is counted as one omitted record, independently of the next file. Legacy v1 lines admit at
 most 8,192 bytes; canonical v2 JSONL records admit at most 16 KiB including the
 newline. The v2 parser accepts the writer's exact field order and bounded ASCII
 scalar grammar, and omits unsupported encodings or extra fields. Output
