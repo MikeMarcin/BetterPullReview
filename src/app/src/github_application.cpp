@@ -6744,23 +6744,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #else
 			review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
 #endif
-			ReviewSubmission                                               = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
-																														  *Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																														  [this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
+			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
+																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
+																			[this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
 																				const auto operation = aDisposition == core::review_disposition::approve
 																					? QStringLiteral("Approve pull request")
 																					: aDisposition == core::review_disposition::request_changes
 																					? QStringLiteral("Request changes")
 																					: QStringLiteral("Submit comment review");
 																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
-																														  });
-			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
+																			});
 #if defined(BPR_BUILD_TESTING)
+			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
 				return Fixture ? application::make_review_submission_testing_grant(session, generation, plan) : application::review_submission_execution_grant{ };
-#else
-				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
-#endif
 			};
+#else
+			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto session, auto generation, const application::staged_review_plan& plan) {
+				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
+			};
+#endif
 			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
                 if(!TourHost){return;
 }const auto draft=TourHost->presentation().Draft;
