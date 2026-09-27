@@ -175,5 +175,21 @@ int main(int argc, char** argv)
 	light.setColor(QPalette::Window, QColor{ 246, 247, 249 });
 	paletteOwner.setPalette(light);
 	expect(themed.palette().color(QPalette::Window) == light.color(QPalette::Window), "visible theme changes update the separate composition window");
+	auto dense = projection;
+	dense.Turns.clear();
+	for (std::uint64_t i = 1; i <= 64; ++i) {
+		auto row                       = projection.Turns.front();
+		row.Revision.Identity.Turn     = core::private_review_turn_id{ i };
+		row.Revision.Identity.Revision = core::private_review_turn_revision_id{ i };
+		dense.Turns.push_back(std::move(row));
+	}
+	panel.present(dense);
+	turns->setCurrentIndex(panel.turn_model()->index(31));
+	QPersistentModelIndex changedRow{ panel.turn_model()->index(31) };
+	const auto            changesBefore = changes;
+	dense.Turns[31].Lineage             = "One changed row in a bounded active page";
+	panel.present(dense);
+	expect(panel.turn_model()->rowCount() == 64 && changes == changesBefore + 1 && resets == 0 && changedRow.isValid() && turns->currentIndex() == changedRow, "one changed row in 64 updates in place without reset or selection loss");
+	std::cout << "private-model-stats:active=64 changed=1 inserts=" << inserts << " changes=" << changes << " resets=" << resets << '\n';
 	std::cout << "private-review-panel:pass\n";
 }

@@ -1576,3 +1576,29 @@ composition dialog; the extra capture/focus paths run only in the local test
 course. The image set and evidence record are in `docs/verification/`. BPR-0588
 still owns M9 failure/performance evidence. BPR-0584's designated or signed
 publication readback and M10's final independent review remain pending.
+
+## M9 BPR-0588 failure and bounded-work slice
+
+The [focused evidence and eighteen-row criterion matrix](RFC-BPR-0023.m9-failure-performance-evidence.md)
+records the integrated nine-test run, actual kill/repair paths, selected-only
+child-input and credential environment canaries, exact store quota/page
+boundaries and measured database/Qt work. All nine selected tests passed after
+M8 integration. The storage fixture measured growth from 4,096 to 67,473,408
+bytes while retaining 64 MiB of assistant bodies; the next byte was refused
+atomically. Its maximum resident set was 29,147,136 bytes. A 64-row Qt page
+updated one row via one `dataChanged`, kept its selected persistent index and
+emitted zero model resets; its 200% run reached 61,177,856 bytes maximum
+resident set. These are local fixture measurements, not platform-wide bounds.
+
+BPR-0588 changed only the SQLite and Qt test courses to print direct growth,
+memory-context and active/changed-set statistics, plus this verification
+record. No operator-visible product behavior, data schema or release metadata
+changed in this card. A changed-file credential-format scan found no key
+patterns; the real child and SQLite tests separately checked concrete canaries.
+The full documentation and changed-surface gates accompany M9 integration.
+
+BPR-0584 remains parked: a designated safe GitHub/GHES mutation target or
+qualifying signed recording, and an independent public body/actor/unchanged-
+state read, have not been supplied. Thus local M9 work may land on main, but
+the M9 external exit and RFC AC-12/13/17 remain pending. The final independent
+review stays at M10 as the owner requested.

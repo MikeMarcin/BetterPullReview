@@ -557,10 +557,11 @@ namespace {
 	void full_thread_byte_budget()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "private-total-bytes" };
-		auto                                 config = configuration(scratch.path());
-		auto                                 store  = open(config);
-		auto                                 first  = create(*store, "x");
-		auto                                 header = first.Thread;
+		auto                                 config       = configuration(scratch.path());
+		auto                                 store        = open(config);
+		auto                                 first        = create(*store, "x");
+		const auto                           initialBytes = std::filesystem::file_size(ledger_path(config));
+		auto                                 header       = first.Thread;
 		std::string                          body(maximum_private_assistant_body_bytes, 'z');
 		for (int i = 0; i < 64; ++i) {
 			if (i == 63) {
@@ -577,7 +578,7 @@ namespace {
 		auto page = store->list_revisions(first.Thread.Id);
 		expect(page && page->Revisions.size() == 64 && page->Next, "full body budget remains paged");
 		auto stats = std::filesystem::file_size(ledger_path(config));
-		std::cout << "private-store-body-budget:67108864 database-bytes:" << stats << '\n';
+		std::cout << "private-store-body-budget:67108864 database-initial-bytes:" << initialBytes << " database-final-bytes:" << stats << " database-growth-bytes:" << stats - initialBytes << '\n';
 	}
 	void findings_and_run_retention()
 	{
