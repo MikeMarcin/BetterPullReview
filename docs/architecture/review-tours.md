@@ -67,3 +67,36 @@ private copies remain associated with that owner and can be resumed by reopening
 the pull request. At most eight such suspended copies are retained per window;
 further new tours are refused with a recovery explanation rather than evicting
 unsaved prose. Clean saved copies are reconstructed from the private store.
+Merely opening a PR does not consume a durable tour slot: an untouched empty
+seed is observed and discarded without a save.
+
+`Add tour stop` is in the source context menu and Pull Request menu
+(`Alt+Shift+T`). The Qt surface supplies real source-line endpoints. Composition
+checks the exact accepted endpoint provenance, owner fingerprint, commit, blob
+and repository path before inserting a stop. Unified selections spanning both
+sides are refused rather than converted from painted rows into a false range.
+Related source capture uses the same admission and stores no credential-bearing
+fetch destination.
+
+The Tour stops page retains native explanation documents by stop ID, with a
+wrapping outline and separate title, explanation and related-source controls.
+Arrange offers insert, duplicate, split at the text cursor, merge with next,
+remove, move and bounded structural undo/redo. `Alt+Shift+Up/Down` reorders while
+keeping the stop selected; the existing `Alt+Up/Down` file gestures remain free.
+`Save and next` (`Alt+Return`) marks only a complete, resolved stop Ready.
+An oversized edit remains in its native document for shortening, copying or Undo.
+Other fields and tour mutations wait until that edit fits, preventing a later
+projection from silently replacing refused text.
+
+Previous, Next and Return to tour preserve the independent conceptual route.
+Normal file exploration leaves the selected stop and editor intact. Navigation
+reuses the workbench file/diff path, then compares immutable source material
+before restoring the range under the current runtime comparison identity.
+Unavailable or changed material remains explicit; it never selects a nearby
+line as a substitute. The ordinary opt-in “mark read when fully seen” trigger is
+suppressed while Tour is shown. Neither readiness nor visiting a stop creates a
+review receipt, resolution, approval, remote mutation or agent invocation.
+
+The current preview is private and lists the brief, ordered explanations and
+source relationships. GitHub import, compatibility planning and publication are
+the following milestones, not capabilities of this preparation surface.

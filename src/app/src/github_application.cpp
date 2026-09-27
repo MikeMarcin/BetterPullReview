@@ -7261,6 +7261,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// screen is coloured.
 					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
+					finish_tour_navigation();
 					correlate_defects();
 					retain_reading_position();
 					schedule_reading_restoration();
@@ -8629,7 +8630,85 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::tour_owner> TourOwner;
 		core::git_commit_oid            TourHead;
 		core::git_commit_oid            TourAttentionHead;
-		void                            observe_tour_head()
+		std::optional<core::tour_source_range> PendingTourSource;
+		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
+		{
+			const auto* surface = Window->comparison_surface();
+			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
+				return std::nullopt;
+			}
+			const auto range = surface->selected_source_range();
+			if (!range) {
+				return std::nullopt;
+			}
+			const auto& p     = *SelectedDiffPublication;
+			const auto& owner = p.Request.WorkbenchAuthority;
+			if (owner.Host != TourOwner->Host || owner.HostAuthority != TourOwner->HostAuthority || owner.Account != TourOwner->Account || owner.Repository != TourOwner->Repository || owner.PullRequest != TourOwner->PullRequest) {
+				return std::nullopt;
+			}
+			const bool  left     = range->first.Side == core::diff_side::left;
+			const auto& path     = left ? p.LeftPath : p.RightPath;
+			const auto& blob     = left ? p.Key.LeftBlob : p.Key.RightBlob;
+			const auto& endpoint = left ? p.LeftEndpoint : p.RightEndpoint;
+			if (!path || !blob || !endpoint || !application::valid(*endpoint, p.Request, range->first.Side, *blob, *path)) {
+				return std::nullopt;
+			}
+			const auto bytes  = path->generic_u8string();
+			auto       source = core::tour_source_range{ range->first, range->second, left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit, blob, std::string{ bytes.begin(), bytes.end() } };
+			return core::valid(source) ? std::optional{ std::move(source) } : std::nullopt;
+		}
+		void finish_tour_navigation()
+		{
+			if (!PendingTourSource || !TourHost || !TourOwner || Closing || !WorkbenchHost) {
+				return;
+			}
+			const auto source = *PendingTourSource;
+			const auto file   = core::file_identity_of(source.Path);
+			if (WorkbenchHost->selected() != file) {
+				PendingTourSource.reset();
+				return;
+			}
+			auto* surface = Window->comparison_surface();
+			if (!SelectedDiffPublication || SelectedDiffPublication->Request.File.File != file || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key || !surface->current_semantic_index()) {
+				return;
+			}
+			const auto& p      = *SelectedDiffPublication;
+			const bool  left   = source.First.Side == core::diff_side::left;
+			const auto& commit = left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit;
+			const auto& blob   = left ? p.Key.LeftBlob : p.Key.RightBlob;
+			const auto& path   = left ? p.LeftPath : p.RightPath;
+			const auto  bytes  = path ? path->generic_u8string() : std::u8string{ };
+			PendingTourSource.reset();
+			if (commit != source.Commit || (source.Blob && blob != source.Blob) || std::string{ bytes.begin(), bytes.end() } != source.Path) {
+				Window->tour_editor()->show_notice(QStringLiteral("The original source revision is not in this comparison. The stop and its pinned destination are retained; choose its revision to inspect it."));
+				return;
+			}
+			auto first = source.First;
+			auto last  = source.Last;
+			// Restart changes runtime scope. Reuse lines only after the immutable
+			// commit, blob, path and side match the newly admitted material.
+			first.Comparison = last.Comparison = core::comparison_digest(p.Key);
+			const bool placed                  = surface->restore_source_range(first, last);
+			Window->tour_editor()->show_notice(placed ? QStringLiteral("Tour source selected. Visiting a stop does not mark code reviewed.") : QStringLiteral("Source lines unavailable. The explanation and original destination are retained."));
+		}
+		void navigate_tour_source(const std::optional<core::tour_source_range>& aSource)
+		{
+			Window->open_review_tour();
+			Window->tour_editor()->show_stops();
+			if (!aSource || !WorkbenchHost || !WorkbenchHost->contains_file(core::file_identity_of(aSource->Path))) {
+				Window->tour_editor()->show_notice(QStringLiteral("Source is unavailable in this comparison. The stop stays editable and the normal file path remains available."));
+				return;
+			}
+			abandon_tab_load();
+			TabModality       = core::workbench_modality::read;
+			PendingTourSource = aSource;
+			const auto file   = core::file_identity_of(aSource->Path);
+			if (WorkbenchHost->selected() != file) {
+				WorkbenchHost->apply(core::select_workbench_file_intent{ file });
+			}
+			finish_tour_navigation();
+		}
+		void observe_tour_head()
 		{
 			if (!TourHost) {
 				return;
@@ -8642,6 +8721,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		void suspend_review_tour()
 		{
+			PendingTourSource.reset();
 			if (TourHost && TourOwner) {
 				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
 			}
@@ -8650,7 +8730,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// copies reachable by their immutable owner when that PR is reopened.
 			std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
 				const auto p = aRetained.Host->presentation();
-				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && p.SavedRevision == p.Draft->Revision;
+				const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
+				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 			});
 			Window->prepare_tour_action()->setEnabled(false);
 			Window->tour_editor()->present({ });
@@ -8704,6 +8785,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			switch (aAction) {
 			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
 			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
+			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
+			case qt::tour_editor_action::navigate_stop:  {
+				const auto* stop = Window->tour_editor()->selected_stop();
+				navigate_tour_source(stop ? (stop->Mapped ? stop->Mapped : stop->Original) : std::nullopt);
+				return;
+			}
+			case qt::tour_editor_action::navigate_related: navigate_tour_source(Window->tour_editor()->selected_related()); return;
+			case qt::tour_editor_action::add_stop:
+			case qt::tour_editor_action::insert_before:
+			case qt::tour_editor_action::add_related:      {
+				const auto source = selected_tour_source();
+				const auto draft  = TourHost->presentation().Draft;
+				if (!draft) {
+					return;
+				}
+				if (!source) {
+					Window->open_review_tour();
+					Window->tour_editor()->show_stops();
+					Window->tour_editor()->show_notice(QStringLiteral("Select a line or contiguous range in an available source pane, then add it to the tour. Your draft remains saved."));
+					return;
+				}
+				if (aAction == qt::tour_editor_action::add_related) {
+					const auto* selected = Window->tour_editor()->selected_stop();
+					if (!selected) {
+						return;
+					}
+					auto value = *selected;
+					value.Related.push_back(*source);
+					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
+					return;
+				}
+				auto position = draft->Stops.size();
+				if (aAction == qt::tour_editor_action::insert_before) {
+					if (const auto* stop = Window->tour_editor()->selected_stop()) {
+						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
+						position = static_cast<std::size_t>(found - draft->Stops.begin());
+					}
+				}
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
+				Window->open_review_tour();
+				Window->tour_editor()->show_stops();
+				return;
+			}
 			case qt::tour_editor_action::map_problem:
 			case qt::tour_editor_action::map_solution:   {
 				const auto draft = TourHost->presentation().Draft;

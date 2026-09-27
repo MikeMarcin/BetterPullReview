@@ -1296,6 +1296,69 @@ namespace bpr::qt {
 		return Controller;
 	}
 
+	auto diff_workbench::selected_source_range() const -> std::optional<std::pair<core::source_line_ref, core::source_line_ref>>
+	{
+		if (!SemanticIndex || !Interaction.Selection) {
+			return std::nullopt;
+		}
+		auto first = Interaction.Selection->PreferredLine;
+		auto last  = first;
+		if (OnePaneEnabled) {
+			const auto cursor = Unified->textCursor();
+			if (cursor.hasSelection()) {
+				const auto begin = Unified->document()->findBlock(cursor.selectionStart()).blockNumber();
+				const auto end   = Unified->document()->findBlock(cursor.selectionEnd() - 1).blockNumber();
+				if (begin < 0 || end < begin || static_cast<std::size_t>(end) >= UnifiedPresentation->Rows.size()) {
+					return std::nullopt;
+				}
+				std::optional<std::uint32_t> previous;
+				for (int row = begin; row <= end; ++row) {
+					const auto& source = UnifiedPresentation->Rows[static_cast<std::size_t>(row)];
+					const auto  line   = first.Side == core::diff_side::left ? source.Base : source.Head;
+					if (!line || (previous && *line != *previous + 1U)) {
+						return std::nullopt;
+					}
+					if (!previous) {
+						first.Line = *line;
+					}
+					last.Line = *line;
+					previous  = line;
+				}
+			}
+			return core::select_line(*SemanticIndex, first) && core::select_line(*SemanticIndex, last) ? std::optional{ std::pair{ first, last } } : std::nullopt;
+		}
+		const auto* editor = first.Side == core::diff_side::left ? Left : Right;
+		const auto  cursor = editor->textCursor();
+		if (cursor.hasSelection()) {
+			first.Line = static_cast<std::uint32_t>(editor->document()->findBlock(cursor.selectionStart()).blockNumber());
+			last.Line  = static_cast<std::uint32_t>(editor->document()->findBlock(cursor.selectionEnd() - 1).blockNumber());
+		}
+		if (!core::select_line(*SemanticIndex, first) || !core::select_line(*SemanticIndex, last)) {
+			return std::nullopt;
+		}
+		return std::pair{ first, last };
+	}
+	auto diff_workbench::restore_source_range(core::source_line_ref aFirst, core::source_line_ref aLast) -> bool
+	{
+		if (!SemanticIndex || aFirst.Comparison != aLast.Comparison || aFirst.Side != aLast.Side || aFirst.Line > aLast.Line || !core::select_line(*SemanticIndex, aLast)) {
+			return false;
+		}
+		const auto selection = core::select_line(*SemanticIndex, aFirst);
+		if (!selection || !restore_selection(*selection)) {
+			return false;
+		}
+		auto*      editor = aFirst.Side == core::diff_side::left ? Left : Right;
+		const auto first  = editor->document()->findBlockByNumber(static_cast<int>(aFirst.Line));
+		const auto last   = editor->document()->findBlockByNumber(static_cast<int>(aLast.Line));
+		if (!first.isValid() || !last.isValid()) {
+			return false;
+		}
+		auto cursor = QTextCursor{ editor->document() };
+		cursor.setPosition(first.position());
+		cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
+		editor->setTextCursor(cursor);
+		return true;
+	}
 	auto diff_workbench::selection() const noexcept
 		-> const std::optional<core::semantic_selection>&
 	{

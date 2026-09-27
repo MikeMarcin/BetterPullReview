@@ -1162,6 +1162,14 @@ namespace bpr::qt {
 		addAction(PrepareTourAction);
 		PullRequestMenu->addAction(PrepareTourAction);
 		connect(PrepareTourAction, &QAction::triggered, this, [this] { open_review_tour(); });
+		AddTourStopAction = new QAction{ tr("Add tour stop"), this };
+		AddTourStopAction->setObjectName(QStringLiteral("addTourStopAction"));
+		AddTourStopAction->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+T") });
+		AddTourStopAction->setEnabled(false);
+		addAction(AddTourStopAction);
+		PullRequestMenu->addAction(AddTourStopAction);
+		connect(PrepareTourAction, &QAction::changed, this, [this] { AddTourStopAction->setEnabled(PrepareTourAction->isEnabled()); });
+		connect(AddTourStopAction, &QAction::triggered, this, [this] { TourEditor->trigger(tour_editor_action::add_stop); });
 		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
@@ -1226,6 +1234,16 @@ namespace bpr::qt {
 		// documents, so the centre gains no second mapping, no regrouping, no
 		// follower-scroll coupling, and no synthetic alignment rows.
 		ComparisonSurface  = new diff_workbench{ CentreSurface };
+		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
+			pane->setContextMenuPolicy(Qt::CustomContextMenu);
+			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
+				auto* menu = pane->createStandardContextMenu();
+				menu->setAttribute(Qt::WA_DeleteOnClose);
+				menu->addSeparator();
+				menu->addAction(AddTourStopAction);
+				menu->popup(pane->viewport()->mapToGlobal(aPosition));
+			});
+		}
 		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
 		// [[BPR-0646]]. Home's landing, above the epoch line while there is
@@ -5462,6 +5480,7 @@ namespace bpr::qt {
 	}
 
 	auto workbench_window::prepare_tour_action() const noexcept -> QAction* { return PrepareTourAction; }
+	auto workbench_window::add_tour_stop_action() const noexcept -> QAction* { return AddTourStopAction; }
 	auto workbench_window::tour_editor() const noexcept -> review_tour_editor* { return TourEditor; }
 	void workbench_window::open_review_tour()
 	{
@@ -6398,6 +6417,7 @@ namespace bpr::qt {
 	void workbench_window::consider_mark_read_when_fully_seen()
 	{
 		if (Behaviour.MarkRead != application::review_mark_read_behaviour::when_fully_seen
+			|| (TourEditor != nullptr && TourEditor->isVisible())
 			|| !ReceiptDispatch || !Receipt.has_value() || ComparisonSurface == nullptr
 			|| ComparisonSurface->current_result() == nullptr) {
 			return;

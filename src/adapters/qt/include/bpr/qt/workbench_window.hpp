@@ -556,6 +556,7 @@ namespace bpr::qt {
 		/// marked while a review draft is kept.
 		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
+		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
 		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
 		void               open_review_tour();
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
@@ -1497,6 +1498,7 @@ namespace bpr::qt {
 		private_notes_panel*                   PrivateNotes                     = nullptr;
 		review_tour_editor*                    TourEditor                       = nullptr;
 		QAction*                               PrepareTourAction                = nullptr;
+		QAction*                               AddTourStopAction                = nullptr;
 		side_chat_panel*                       SideChat                         = nullptr;
 		finding_queue_view*                    FindingQueue                     = nullptr;
 		review_draft_editor*                   ReviewEditor                     = nullptr;

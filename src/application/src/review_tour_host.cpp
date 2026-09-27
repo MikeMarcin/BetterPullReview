@@ -205,6 +205,7 @@ namespace bpr::application {
 		if (self.Closing || self.Active || !self.State.Conflict) {
 			return;
 		}
+		self.State.Refusal       = core::tour_refusal::none;
 		self.State.Draft         = self.State.Conflict;
 		self.State.SavedRevision = self.State.Draft->Revision;
 		self.State.Conflict.reset();
@@ -218,7 +219,13 @@ namespace bpr::application {
 		if (Implementation) {
 			Implementation->Closing = true;
 			Implementation->Publish = { };
-			Implementation->pump();
+			const auto& state       = Implementation->State;
+			const bool  untouched   = state.Draft && state.SavedRevision == 0U && state.Draft->Revision == 1U && state.Draft->Problem.empty() && state.Draft->Solution.empty() && state.Draft->Stops.empty() && !state.Draft->ProblemBaseline && !state.Draft->SolutionBaseline;
+			// Opening a PR observes its optional tour; it does not consume a
+			// durable draft slot unless the author actually changes something.
+			if (!untouched) {
+				Implementation->pump();
+			}
 		}
 	}
 	auto review_tour_host::presentation() const -> tour_presentation { return Implementation->State; }

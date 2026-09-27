@@ -69,6 +69,15 @@ int main()
 	effects.drain();
 	decisions.drain();
 	expect(shared->Draft->Problem == "still editable", "explicit retry retains last edits");
+	++shared->Draft->Revision;
+	shared->Draft->Problem = "other window";
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, "my conflict"));
+	effects.drain();
+	decisions.drain();
+	host.dispatch(tests::tour_edit(*host.presentation().Draft, std::string(core::maximum_tour_field_bytes + 1U, 'x')));
+	expect(host.presentation().Conflict && host.presentation().Refusal == core::tour_refusal::bounds, "conflicted editor also retains a refused oversized candidate");
+	host.use_saved_copy();
+	expect(!host.presentation().Conflict && host.presentation().Refusal == core::tour_refusal::none && host.presentation().Draft->Problem == "other window", "explicit discard adopts the saved copy and clears the old refusal");
 	shared->Throw = true;
 	host.dispatch(tests::tour_edit(*host.presentation().Draft, "exception"));
 	effects.drain();
@@ -83,4 +92,22 @@ int main()
 	expect(host.is_quiescent() && publications == before && shared->Draft->Problem == "exception", "shutdown drains without late projection");
 	host.dispatch(tests::tour_edit(*host.presentation().Draft, "after shutdown"));
 	expect(shared->Draft->Problem == "exception", "closed host refuses edits");
+	{
+		auto empty = tests::review_tour_fixture();
+		empty.Problem.clear();
+		empty.Solution.clear();
+		empty.Stops.clear();
+		empty.ProblemBaseline.reset();
+		empty.SolutionBaseline.reset();
+		empty.Revision                          = 1;
+		auto                          untouched = std::make_shared<store_state>();
+		application::review_tour_host observer{ empty, std::make_unique<store>(untouched), effects, decisions, { } };
+		observer.start();
+		effects.drain();
+		decisions.drain();
+		observer.shutdown();
+		effects.drain();
+		decisions.drain();
+		expect(observer.is_quiescent() && untouched->Saves == 0, "opening a PR without authoring does not consume a durable tour slot");
+	}
 }
