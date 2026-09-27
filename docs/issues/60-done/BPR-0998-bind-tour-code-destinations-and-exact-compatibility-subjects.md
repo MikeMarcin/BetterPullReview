@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0998"
 title: "Bind tour code destinations and exact compatibility subjects"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041"]
 depends_on: ["BPR-0996", "BPR-0997"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-08","milestone":"github-round-trip","acceptance":["AC39-04","AC40-06","AC41-06"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC39-04","outcome":"pass","revision":"757e8b9bcaa54f75eeac965e4cbbde39bfc54502","evidence":{"kind":"command","detail":"Final 12/12 focused milestone integration passed 40.96s, including actual native/file multiline cold navigation, unavailable historical/unchanged source and visible canonical link, v1/v2/v3 storage, exact-operation/source cache isolation, codec range negatives and production unsupported/403/429/503 behavior. Source compatibility classification is complete; live pending operations remain separately unqualified per later authored milestones. See durable milestone ledger."}},{"criterion":"AC40-06","outcome":"pass","revision":"757e8b9bcaa54f75eeac965e4cbbde39bfc54502","evidence":{"kind":"command","detail":"Final 12/12 focused milestone integration passed 40.96s, including actual native/file multiline cold navigation, unavailable historical/unchanged source and visible canonical link, v1/v2/v3 storage, exact-operation/source cache isolation, codec range negatives and production unsupported/403/429/503 behavior. Source compatibility classification is complete; live pending operations remain separately unqualified per later authored milestones. See durable milestone ledger."}},{"criterion":"AC41-06","outcome":"pass","revision":"757e8b9bcaa54f75eeac965e4cbbde39bfc54502","evidence":{"kind":"command","detail":"Final 12/12 focused milestone integration passed 40.96s, including actual native/file multiline cold navigation, unavailable historical/unchanged source and visible canonical link, v1/v2/v3 storage, exact-operation/source cache isolation, codec range negatives and production unsupported/403/429/503 behavior. Source compatibility classification is complete; live pending operations remain separately unqualified per later authored milestones. See durable milestone ledger."}}]
 ---
 
 # BPR-0998: Bind tour code destinations and exact compatibility subjects
