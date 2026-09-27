@@ -1,7 +1,7 @@
 {
   "run_id": "rfc-bpr-0023-2026-09-26",
-  "segment_id": "m2-initial",
-  "mandate_revision": "r1",
+  "segment_id": "m2-review-timing-r2",
+  "mandate_revision": "r2",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
     "strategy": "coordinator-implementer",
@@ -29,16 +29,16 @@
     "plan_id": "rfc-bpr-0023-private-review",
     "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
     "milestone_id": "m2-architecture",
-    "definition_fingerprint": "sha256:7f0f3549366d64e45372225853033da4e455f5f828e0590922ad3f998c555d16",
+    "definition_fingerprint": "sha256:fc18576af2fed203f1850979d49d62ed1f01a77a99b7e167283c647bc3c648b4",
     "obligations": [
       {
         "id": "BPR-0577:*",
         "source": "BPR-0577",
         "selector": null,
-        "source_fingerprint": "sha256:2e95f660b4369944111e66857dfa284ec36fe66807534bad1eaff30ce6d6f933"
+        "source_fingerprint": "sha256:6348743d479db93b4ec0b451b9034bc0b49fe4cbb33bca1a94fccedc046078ca"
       }
     ],
-    "obligation_fingerprint": "sha256:efe7db0aaafa62aee20db01bddef46e3ccf86172594c3cc194ef44197474d3ef",
+    "obligation_fingerprint": "sha256:25237758771b6805d29db30c48ebb32ae45035678c72843d2872731bb5a90ed6",
     "exit_criteria": [
       {
         "id": "m2-architecture:exit:1",
@@ -50,7 +50,7 @@
       },
       {
         "id": "m2-architecture:exit:3",
-        "text": "Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied."
+        "text": "Every RFC criterion retains its direct evidence owner, and mandate r2 carries the authority-boundary review into the final integrated-candidate review at M10/BPR-0591."
       }
     ],
     "prerequisite_fingerprint": "sha256:49606a2b4ba66615ffa2fcae7c42821f0778e112b11884d665447bae11b23f77",
@@ -60,23 +60,23 @@
     "diagnostics": [],
     "diagnostics_truncated": false
   },
-  "disposition": "continue-milestone",
-  "candidate_revision": "b98ddfd477962c4768ab291e646a3fecd4e1600e",
-  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m2-durable-handoff",
-  "required_pending": [
-    "BPR-0577 independent authority-boundary review; m2-architecture:exit:3"
-  ],
+  "disposition": "milestone-complete",
+  "candidate_revision": "8a11272be9eb629165113c58b4ab1e7d6cadb029",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m2-r2-completed-handoff",
+  "required_pending": [],
   "evidence_refs": [
     "docs/verification/RFC-BPR-0023-live-audit.md",
-    "docs/verification/RFC-BPR-0023.md"
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023.m2-amendment-r2.json"
   ],
   "acceptance_records": [
     {
       "id": "BPR-0577:*",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0023-live-audit.md",
-        "docs/verification/RFC-BPR-0023.md"
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m2-amendment-r2.json"
       ]
     },
     {
@@ -84,7 +84,8 @@
       "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0023-live-audit.md",
-        "docs/verification/RFC-BPR-0023.md"
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m2-amendment-r2.json"
       ]
     },
     {
@@ -92,23 +93,25 @@
       "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0023-live-audit.md",
-        "docs/verification/RFC-BPR-0023.md"
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m2-amendment-r2.json"
       ]
     },
     {
       "id": "m2-architecture:exit:3",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0023-live-audit.md",
-        "docs/verification/RFC-BPR-0023.md"
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m2-amendment-r2.json"
       ]
     }
   ],
   "continuation": {
-    "intent": "wait",
-    "next_milestone": "m2-architecture",
-    "reason": "pending-obligation",
-    "detail": "Candidate-ready for separately authorized independent authority-boundary review. Coordinator obtains review on the exact candidate; preserve BPR-0577 In Progress and M3 ineligible until findings are resolved and M2 is accepted."
+    "intent": "fresh",
+    "next_milestone": "m3-core",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates accepted M2 to main and starts a fresh M3 implementer for BPR-0578/BPR-0579 under mandate r2. One capability-critical independent review remains required on the final integrated candidate at M10/BPR-0591; no review is claimed by M2."
   },
   "ownership": "quiescent"
 }

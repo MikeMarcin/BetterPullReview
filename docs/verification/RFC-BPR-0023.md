@@ -392,3 +392,39 @@ human and designated publication evidence remains on the existing later cards.
 The technical allocation remains the previously checked M2 design. Amendment
 edits change review timing and records only. There are no unresolved M2
 architecture obligations under r2; BPR-0591 retains the unsatisfied final review.
+
+
+### M2 r2 completed handoff
+
+Accepted architecture/amendment candidate:
+`8a11272be9eb629165113c58b4ab1e7d6cadb029`. The technical design originated at `b98ddfd4`; this candidate
+adds owner amendment r2, the revised plan/view, BPR-0577/BPR-0591 review
+allocation, current RFC/index narrative, and renewed M2 checkpoint. The finish
+commit changes BPR-0577 to Done, repairs its editable LIVE_IMPORT link, and
+stores this completion plus the [r2 observation](RFC-BPR-0023.m2-observation.json).
+It does not certify product behavior or the final independent review.
+
+The [r2 checkpoint](RFC-BPR-0023.m2-checkpoint.json) and observation bind run
+`rfc-bpr-0023-2026-09-26`, segment `m2-review-timing-r2`, mandate r2 and the exact
+candidate above. BPR-0577 and all three M2 exits pass; `required_pending` is
+empty for M2. The final independent review is a distinct pending M10/BPR-0591
+obligation, not an omitted RFC gate. After finish, the completion-only HEAD
+will differ from the observation's candidate; exact acceptance remains bound
+to the candidate above and the relevant artifact bytes are unchanged.
+
+All task-owned commands are complete at return. The amendment proposal and
+acceptance decision use automatically removed temporary directories; the test
+harness removed its own fixtures. No child agent, product process, server,
+protection lease or retained temporary work exists. The implementer releases
+writer ownership to the coordinator. Main integration is the coordinator's next
+action, followed by fresh M3 work; there is no pending M2 decision.
+
+Architecture artifact SHA-256 under r2:
+`59d617cf08de116ab81ad8bc2c0b7f64a8b0acc42a4538494a98b029e5d4c169`.
+
+
+The candidate-bound `milestone_checkpoint.py check` command (same flags as the
+r1 check, current r2 files, execution quiescent and accepted M1) returned
+`fresh-context` for M3 on `8a11272be9eb629165113c58b4ab1e7d6cadb029`.
+The helper reports engineering acceptance as not evaluated; the explicit
+architecture judgments and owner timing amendment above supply that decision.
