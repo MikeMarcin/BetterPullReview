@@ -3014,8 +3014,9 @@ encoded record including its newline is at most 16 KiB; summary storage remains
 bytes are refused. This framing guard does not sanitize provider content; the
 credential-owning BPR-0971 classifier still decides what may enter the port.
 Existing plaintext records remain in place. The maintenance preview recognizes
-their v1 prefix and canonical v2/v3 JSONL; none copies prose or identities
-to the metadata export.
+their v1 prefix and canonical v2/v3 JSONL. The legacy metadata API omits all
+prose/identities; BPR-1218's shipped rich preview reclassifies known explanations
+and remaps joins, with separately confirmed identifying export.
 
 `github.pull_request` entries identify each load by the typed window/request
 labels. Verbose adds a `started` entry for each provider operation, before
@@ -3072,8 +3073,8 @@ vocabulary. Unclassified codes, symbols and prose are explicitly omitted.
 Filtering happens while the native adapter still owns the active
 credential, before any summary reaches Quill. Authentication bodies, headers,
 request URLs and source/review bodies are excluded. Local prose can still name
-contextual service information. RFC-0014's separate metadata export omits that
-prose. Typed request/window identity privacy now follows the independent capture
+contextual service information. The legacy metadata export omits that prose;
+the rich preview retains only reclassified closed explanations. Typed request/window identity privacy now follows the independent capture
 choice; older retained records are not rewritten. See the
 [diagnostic controls guide](storage-and-diagnostics.md#diagnostic-controls) for
 persisted settings, barriers, bounded context and visible failures.
@@ -3130,12 +3131,13 @@ producer quiescence. This is not crash durability
 or a hard filesystem-latency guarantee. Full/unavailable/drop states are exposed
 through the typed logging port. Storage & privacy now offers bounded preview,
 local export, clear and profile purge through a separate typed maintenance host.
-The export contains only classified operation/outcome and numeric HTTP/drop
-metadata, not a copy of the raw log. Follow the
+The shipped export rebuilds classified records under an explicit privacy policy,
+with fresh joins and optional recent context. It saves the exact preview locally.
+Follow the
 [storage and diagnostics guide](storage-and-diagnostics.md) for exact labels,
-limits, stopped-profile behavior and failure/recovery. Rotation, broad verbosity,
-optional context capture and expanded event coverage remain BPR-0603 work;
-RFC-0014 does not claim those deferred controls or complete crash redaction.
+limits, stopped-profile behavior and failure/recovery. RFC-BPR-0027 M1–M4 now
+supply structured session retention, controls and export. Native, packaged and
+attended acceptance remain open; no complete crash-redaction claim is made.
 
 Focused checks:
 

@@ -1,6 +1,7 @@
 #ifndef BPR_APP_RELEASE_MAINTENANCE_CONTROLS_HPP
 #define BPR_APP_RELEASE_MAINTENANCE_CONTROLS_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/application/release_maintenance_application_host.hpp"
 
@@ -25,7 +26,7 @@ namespace bpr::app {
 	public:
 		[[nodiscard]] static auto start_profile(std::filesystem::path                               aRoot,
 												std::shared_ptr<application::profile_runtime_lease> aLease, core::bpr_profile_id aProfile,
-												release_maintenance_retirement aRetire = { })
+												release_maintenance_retirement aRetire = { }, std::shared_ptr<application::diagnostic_control_port> aDiagnostics = { })
 			-> std::unique_ptr<release_maintenance_controls>;
 		~release_maintenance_controls();
 		void attach(qt::settings_window& aSettings, const std::string& aLabel);

@@ -974,7 +974,7 @@ namespace bpr::qt {
 			target.Posts.push_back(card_post{
 				.Id         = node.Id,
 				.Author     = author,
-				.Body       = text(node.Body),
+				.Body       = text(node.ReviewerProse.value_or(node.Body)),
 				.Depth      = depth,
 				.Mine       = !Viewer.isEmpty() && author == Viewer,
 				.Unread     = unread,

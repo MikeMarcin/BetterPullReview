@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Changed-line and off-hunk mouse gestures use the same editor, real protocol session, SQLite journal reopen, accepted server read and canonical selected post; composition confirmation passes. See BPR-0571 card and m3-composition-confirmation.log."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Existing application path and provider session composed; no helper-only acceptance. Both native and file course return through ordinary snapshot normalization. See BPR-0571 card and m3-composition-confirmation.log."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Production mutation branch digest remains83a7c809526a324ab4e730f7a58c23160f2a6813cc2de659d97ce13f4b056e5c after source review; tests-disabled build repaired in0569 and final rebuild0572. See BPR-0571 card and m3-composition-confirmation.log."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact existing production grant boundary unchanged; test fixture injects credential-free synthetic wire and explicit test contract only; isolation0572 binds final source. See BPR-0571 card and m3-composition-confirmation.log."
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "b6326e0341cb8e190eebfbc32a3bd5b24cb7e571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Native lost response recovers across recreated session with one remote native comment and no repeated POST; original14 criteria and native-plus-fallback marker pass. See BPR-0571 card and m3-composition-confirmation.log."
+      }
+    }
+  ]
+}

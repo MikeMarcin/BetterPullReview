@@ -4,9 +4,7 @@
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
-#if defined(_WIN32)
-	#include "bpr/logging/quill_log.hpp"
-#endif
+#include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -19,10 +17,14 @@
 #include <QAbstractItemModel>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -61,9 +63,11 @@ namespace {
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
 	}
-	void choose(qt::release_maintenance_panel& aPanel, const QString& aDestination)
+	void choose(qt::release_maintenance_panel& aPanel, const QString& aDestination, bool aTrigger = true)
 	{
-		aPanel.action(command::export_diagnostics)->trigger();
+		if (aTrigger) {
+			aPanel.action(command::export_diagnostics)->trigger();
+		}
 		QFileDialog* dialog = nullptr;
 		for (auto* candidate : aPanel.findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog"))) {
 			if (candidate->isVisible()) {
@@ -104,6 +108,22 @@ try {
 	// beside the root has a private parent.
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private application root");
+	{
+		application::diagnostic_preferences preferences;
+		preferences.Privacy = application::diagnostic_privacy::include_locally;
+		adapters::logging::quill_log  logger{ root, { }, preferences };
+		application::diagnostic_event event{ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::failed, .Request = 998877U, .WindowSession = 887766U, .HttpStatus = 403U };
+		constexpr std::string_view    explanation = "message=\"Unknown schema field fields\" code=\"[omitted:unclassified-code]\" ";
+		std::copy(explanation.begin(), explanation.end(), event.Summary.Text.begin());
+		event.Summary.Size  = static_cast<std::uint16_t>(explanation.size());
+		event.Summary.State = application::diagnostic_summary_state::sanitized;
+		expect(logger.record(event) == application::diagnostic_log_status::available, "retained session records classified identifying facts");
+		expect(logger.flush_for_export(false).has_value(), "identifying record flushes before privacy barrier");
+		preferences.Privacy = application::diagnostic_privacy::anonymized;
+		expect(logger.configure(preferences), "retained session changes capture privacy");
+		expect(logger.record(event) == application::diagnostic_log_status::available, "same session records anonymized facts");
+		logger.close();
+	}
 	constexpr auto hostileLegacyLines = std::string_view{ "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n" };
 #if defined(_WIN32)
 	// [[BPR-1030]]. On Windows the running logger is the log's only writer: it
@@ -167,8 +187,16 @@ try {
 	auto* preview = panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"));
 	expect(preview && preview->isReadOnly(), "exact export text is selectable read-only preview");
 	const auto bytes = preview->toPlainText().toStdString();
-	expect(bytes.starts_with("bpr-diagnostics-v1\n") && bytes.find("request=") == std::string::npos && bytes.find("detail=") == std::string::npos, "actual log is reduced to metadata");
-	expect(bytes.find("BPR_CANARY_") == std::string::npos && bytes.find("legacy") == std::string::npos, "public preview excludes secret, source, comment and malformed legacy bodies");
+	expect(bytes.starts_with("{\"format\":\"bpr-diagnostics-v2\"") && bytes.find("998877") == std::string::npos && bytes.find("887766") == std::string::npos, "actual mixed-mode log exports with fresh anonymized identities");
+	expect(bytes.find("Unknown schema field fields") != std::string::npos, "useful safe explanation survives the public preview");
+	const auto originals = tests::read_diagnostic_logs(root);
+	// Appends after preparation must not change the confirmed export.
+	{
+		std::ofstream append{ root / "logs/diagnostics.log", std::ios::app };
+		append << hostileLegacyLines;
+	}
+	expect(!settings->grab().isNull(), "full composed Settings preview renders");
+	expect(bytes.find("BPR_CANARY_") == std::string::npos && bytes.find("legacy BPR") == std::string::npos, "public preview excludes secret, source, comment and malformed legacy bodies");
 	settings->resize(960, 680);
 	QApplication::processEvents();
 	const auto capture = qEnvironmentVariable("BPR_MAINTENANCE_PUBLIC_RENDER");
@@ -184,12 +212,46 @@ try {
 		std::cerr << "diagnostic-export-mismatch: preview-bytes=" << bytes.size() << " exported-bytes=" << exported.size()
 				  << " destination-exists=" << QFileInfo::exists(destination) << '\n';
 	}
-	expect(exported == bytes, "export bytes equal exact preview including non-ASCII save path");
+	expect(exported == bytes, "export bytes equal exact frozen preview despite later append and non-ASCII save path");
+	expect(tests::read_diagnostic_logs(root).size() >= originals.size(), "export leaves original records intact");
 	panel->action(command::preview_diagnostics)->trigger();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "new explicit preview is required for another export");
 	choose(*panel, destination);
 	until([&] { return status->text().contains(QStringLiteral("export was refused")); }, "existing destination is refused with actionable local-file guidance");
 	expect(read(app::native_filesystem_path(destination)) == bytes, "failed export cannot overwrite an existing destination");
+	auto* scope       = panel->findChild<QComboBox*>(QStringLiteral("diagnosticExportScope"));
+	auto* recent      = panel->findChild<QCheckBox*>(QStringLiteral("diagnosticExportRecent"));
+	auto* identifying = panel->findChild<QPushButton*>(QStringLiteral("diagnosticIdentifyingPreview"));
+	expect(scope && recent && identifying && !recent->isChecked(), "explicit session and recent-context controls default safely");
+	identifying->click();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "identifying preview prepared separately");
+	const auto identifyingBytes = preview->toPlainText().toStdString();
+	expect(identifyingBytes.find("\"request\":998877") != std::string::npos && identifyingBytes.find("\"request\":0") != std::string::npos, "identifying preview retains captured identifiers without reversing capture redaction");
+	expect(identifyingBytes.find("BPR_CANARY_") == std::string::npos, "identifying mode cannot release forbidden content");
+	panel->action(command::export_diagnostics)->trigger();
+	auto* disclosure = panel->findChild<QMessageBox*>(QStringLiteral("diagnosticIdentifyingConfirmation"));
+	expect(disclosure && disclosure->isVisible() && disclosure->defaultButton() == disclosure->button(QMessageBox::Cancel), "identifying save requires separate default-cancel disclosure");
+	disclosure->button(QMessageBox::Cancel)->click();
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	expect(panel->findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog")).empty(), "cancel disclosure opens no destination");
+	panel->action(command::export_diagnostics)->trigger();
+	disclosure = panel->findChild<QMessageBox*>(QStringLiteral("diagnosticIdentifyingConfirmation"));
+	for (auto* confirmation : disclosure->buttons()) {
+		if (disclosure->buttonRole(confirmation) == QMessageBox::AcceptRole) {
+			confirmation->click();
+			break;
+		}
+	}
+	const auto identifyingDestination = temporary.path() + QStringLiteral("/identifying.txt");
+	choose(*panel, identifyingDestination, false);
+	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "confirmed identifying write completed");
+	expect(read(app::native_filesystem_path(identifyingDestination)) == identifyingBytes, "confirmed identifying output matches exact preview");
+	scope->setCurrentIndex(1);
+	panel->action(command::preview_diagnostics)->trigger();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "current-session preview prepared");
+	expect(!preview->toPlainText().contains(QStringLiteral("Unknown schema field fields")), "current session excludes retained prior session");
+	scope->setCurrentIndex(0);
+	expect(!panel->action(command::export_diagnostics)->isEnabled(), "changing scope invalidates preview before export");
 	expect(resets == 0U, "ordinary maintenance publications reset no workbench model");
 	for (const auto& observer : observers) {
 		QObject::disconnect(observer);
@@ -210,6 +272,17 @@ try {
 	auto* comparison = window->comparison_surface();
 	until([&] { return comparison->current_result() && comparison->current_semantic_index() && !comparison->geometry_pending() && comparison->isVisible(); }, "selected fixture diff reaches the real workbench");
 	expect(comparison->current_result()->Alignment.Key.File == core::file_identity_of("review.cpp") && comparison->link_map(), "one accepted alignment drives the comparison and DiffLinkMap");
+	window->open_settings(qt::settings_page::storage_and_privacy);
+	recent->setChecked(true);
+	panel->action(command::preview_diagnostics)->trigger();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "live Standard ring is explicitly selected through UI");
+	const auto ringPreview = preview->toPlainText().toStdString();
+	expect(ringPreview.find("\"source\":\"recent_context\"") != std::string::npos, "unpersisted intermediate context reaches selected public export");
+	const auto ringDestination = temporary.path() + QStringLiteral("/recent-context.txt");
+	choose(*panel, ringDestination);
+	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "selected ring export saves locally");
+	expect(read(app::native_filesystem_path(ringDestination)) == ringPreview, "ring save equals frozen preview");
+	settings->close();
 	auto* newWindow = window->findChild<QAction*>(QStringLiteral("newBprWindowAction"));
 	expect(newWindow && newWindow->isEnabled(), "New Window remains available after diagnostics");
 	newWindow->trigger();

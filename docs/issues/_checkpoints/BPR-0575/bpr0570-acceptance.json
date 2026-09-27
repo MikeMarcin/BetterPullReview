@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "9c14888d2a7d65fed06d6780ab073637c88cc571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Same source-line editor and typed outcome; exact resulting conversation in full workbench; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "9c14888d2a7d65fed06d6780ab073637c88cc571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Qt projection-only ownership; unchanged M1/M2 host publication gates; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "9c14888d2a7d65fed06d6780ab073637c88cc571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Collapsed Support details with exact server subject wording; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "9c14888d2a7d65fed06d6780ab073637c88cc571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Typed line-only refusal with retained text/no Qt dispatch; real session incompatible-body zero POST; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "9c14888d2a7d65fed06d6780ab073637c88cc571",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Three-scale light/dark/high-contrast rendered workbench, keyboard/Tab, exact selection and no-reset bounds; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"
+      }
+    }
+  ]
+}

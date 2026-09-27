@@ -134,7 +134,7 @@ namespace bpr::qt {
 				heading.append(QStringLiteral("\nDeleted comment"));
 			} else if (!aValue.Body.empty()) {
 				heading.append(QLatin1Char('\n'));
-				heading.append(text(aValue.Body));
+				heading.append(text(aValue.ReviewerProse.value_or(aValue.Body)));
 			}
 
 			if (aValue.Kind != application::github_conversation_kind::review_thread) {
@@ -304,7 +304,7 @@ namespace bpr::qt {
 		case author_login_role:
 			return text(conversation.AuthorLogin);
 		case body_role:
-			return conversation.Deleted ? QString{ } : text(conversation.Body);
+			return conversation.Deleted ? QString{ } : text(conversation.ReviewerProse.value_or(conversation.Body));
 		case path_role:
 			return text(conversation.Path);
 		case line_role:
@@ -706,6 +706,15 @@ namespace bpr::qt {
 		}
 		const auto* const value = static_cast<const node*>(aModelIndex.internalPointer());
 		return value == nullptr ? std::string{ } : value->Value.Id;
+	}
+
+	auto github_conversation_model::semantic_anchor(const QModelIndex& aIndex) const -> std::optional<core::source_line_ref>
+	{
+		if (!aIndex.isValid() || aIndex.model() != this) {
+			return std::nullopt;
+		}
+		const auto* value = static_cast<const node*>(aIndex.internalPointer());
+		return value ? value->Value.SemanticAnchor : std::nullopt;
 	}
 
 	auto github_conversation_model::statistics() const noexcept

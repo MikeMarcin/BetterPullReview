@@ -430,4 +430,42 @@ segments and opens a fresh segment before acknowledging success. A deletion or
 reopen failure is explicitly partial and disables the sink. The stopped-profile
 prepared inventory and purge authority above are unchanged. Metadata preview
 recognizes canonical v3 but continues to omit all identities and prose; richer
-privacy-aware export is BPR-1218.
+privacy-aware export is described below.
+
+## RFC-BPR-0027 frozen diagnostic exports (BPR-1218)
+
+The legacy metadata classifier and API above remain supported. The shipped panel
+now requests the richer `bpr-diagnostics-v2` JSONL document. Core options bind
+Anonymized/Identifying, retained/current sessions and Include recent to the exact
+request and descriptor. A mismatched prepared policy is refused. Identifying save
+requires an additional explicit confirmation, and consumes that exact preview.
+Generic raw summary/identity field flags remain forbidden; rich fields have
+separate classified-detail, correlation and captured-identity classes.
+
+The profile composition retains its logger control port alongside native storage.
+Preparation runs on the maintenance effect worker: the logger mutex admits a flush,
+session sequence cutoff and optional bounded sanitized context; current-session
+file selection filters the native inventory before reads. A later same-session
+append beyond the cutoff is excluded. Other retained sessions are read into bounded
+immutable input; files are never appended to, rewritten or attached to exports.
+Malformed/partial records have counts. The existing 16 MiB/65,536 input and
+1,024-record/256 KiB output ceilings remain; the optional ring has its independent
+512-event/2 MiB ceiling. Duplicate session/sequence pairs are counted once.
+
+The application classifier rechecks the canonical schema, fixed field vocabularies,
+framing, times, build and identity grammar. It retains only recognized closed
+capability explanations/public symbols, omitting other prose explicitly. A native
+fresh random namespace supplies per-export opaque session/request/window joins;
+no unsalted identity hash is used. Identifying output includes only already
+captured numeric identities and the session. Both policies preserve capture privacy
+and disclose irreversible omissions. Version-one input retains metadata only.
+The header and projection report scope, range, categories, bytes/counts and loss.
+A prepared recent-context snapshot is deliberate preview state until consumed or
+cancelled; no new events enter it. Scope changes and hiding the panel cancel it.
+
+The native output admission and exclusive atomic publication above are unchanged.
+Public tests traverse the actual profile Settings, native logs and save chooser,
+compare preview/output bytes after later appends, confirm/cancel identifying saves,
+select current/retained/ring scope and exercise content canaries. They run under
+network isolation. Native Windows/Linux, packaged and human judgments remain M5
+obligations in the [RFC-0027 ledger](../verification/RFC-BPR-0027.md).

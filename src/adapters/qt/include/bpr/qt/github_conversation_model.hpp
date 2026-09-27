@@ -92,6 +92,8 @@ namespace bpr::qt {
 			-> QModelIndex;
 		[[nodiscard]] auto id_for_index(const QModelIndex& aModelIndex) const
 			-> std::string;
+		/// \brief Returns the host-validated exact comparison anchor, when one exists.
+		[[nodiscard]] auto semantic_anchor(const QModelIndex& aIndex) const -> std::optional<core::source_line_ref>;
 		[[nodiscard]] auto statistics() const noexcept
 			-> github_conversation_model_statistics;
 

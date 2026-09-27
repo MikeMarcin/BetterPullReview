@@ -6,6 +6,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QComboBox>
 #include <QImage>
@@ -938,6 +939,67 @@ namespace {
 		}
 	}
 
+	void test_compatibility_anchor_refresh()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(1000, 700);
+		auto thread           = root("file-thread", "src/file.cpp");
+		thread.RemoteSubject  = application::github_conversation_remote_subject::file;
+		thread.SemanticAnchor = core::source_line_ref{ .Side = core::diff_side::right, .Line = 11U };
+		auto post             = reply("file-comment", "file-thread");
+		post.RemoteSubject    = thread.RemoteSubject;
+		post.SemanticAnchor   = thread.SemanticAnchor;
+		post.Body             = "Canonical permalink and raw prose";
+		post.ReviewerProse    = "Only the reviewer prose";
+		panel.adopt({ thread, post }, QStringLiteral("available"));
+		panel.set_current_endpoint_placement(false, false);
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		panel.set_anchor_line(thread.SemanticAnchor);
+		panel.show();
+		process_events();
+		const auto index = panel.model()->index_for_id("file-comment");
+		expect(index.isValid(), "a retained compatibility anchor does not borrow native-current placement");
+		panel.view()->setCurrentIndex(index);
+		process_events();
+		expect(index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("Only the reviewer prose"), "normal comment reader projects prose without representation syntax");
+		expect(panel.thread_map()->focus_identity() == "file-comment", "compatibility reply selects the canonical map node");
+		auto* const support     = panel.findChild<QToolButton*>(QStringLiteral("conversationSupportDetails"));
+		auto* const description = panel.findChild<QLabel*>(QStringLiteral("conversationSupportDescription"));
+		expect(support && description && support->isVisible() && !description->isVisible()
+				   && !support->isChecked(),
+			   "representation is disclosed only after expanding Support details");
+		auto* const accessible = QAccessible::queryAccessibleInterface(support);
+		expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Conversation support details"), "support disclosure has an accessible name");
+		support->setFocus(Qt::TabFocusReason);
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+		QApplication::sendEvent(support, &press);
+		QApplication::sendEvent(support, &release);
+		process_events();
+		expect(support->isChecked() && description->isVisible() && support->hasFocus(), "keyboard expansion retains focus and reveals the honest server representation");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			expect(panel.grab().save(path + QStringLiteral("-semantic-support.png")), "semantic support detail rendered for inspection");
+		}
+		const auto before = panel.model()->statistics();
+		panel.adopt({ thread, post }, QStringLiteral("available"));
+		expect(panel.model()->statistics().ModelResets == before.ModelResets, "identical compatibility refresh has no model reset");
+		auto other = *thread.SemanticAnchor;
+		other.Line = 12U;
+		panel.set_anchor_line(other);
+		expect(panel.model()->rowCount() == 0, "another source line does not acquire the fallback thread");
+		panel.set_anchor_line(std::nullopt);
+		thread.SemanticAnchor.reset();
+		thread.Line.reset();
+		thread.DiffSide.reset();
+		thread.AnchorAvailability = application::github_conversation_anchor_availability::file_level;
+		post.SemanticAnchor.reset();
+		post.ReviewerProse.reset();
+		panel.adopt({ thread, post }, QStringLiteral("available"));
+		expect(!panel.model()->semantic_anchor(panel.model()->index_for_id("file-thread")), "external removal clears semantic placement without changing identity");
+		expect(!support->isVisible() && !description->isVisible(), "an external edit withdraws stale support information");
+		panel.close();
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -946,6 +1008,7 @@ auto main(int argc, char** argv) -> int
 	test_choosing_a_file_visits_only_its_conversations();
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
+	test_compatibility_anchor_refresh();
 	test_initial_detail_measures_only_selected_thread();
 	test_replies_are_a_flat_feed_under_their_root();
 	test_discuss_widens_into_list_map_and_feed();

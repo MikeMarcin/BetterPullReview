@@ -137,11 +137,15 @@ maintenance follows its own cancellation boundary. Pruning can make an older
 comparison unavailable. These operations do not change GitHub or a developer
 working copy. They are separate from resetting preferences.
 
-RFC-BPR-0014 now supplies **Preview diagnostics** and **Export preview…**.
-The read-only preview contains classified bounded metadata, not the readable
-log, private text, credentials or crash memory. Export writes exactly those
-previewed bytes to a new local file and uploads nothing. Advanced verbosity
-controls remain separate RFC-BPR-0027 work.
+Help → Diagnostics raises this page while signed out. Profile capture controls
+own On/Off, Standard/Verbose and independent identifying-detail privacy.
+**Preview anonymized diagnostics** selects retained or current-session files
+and optional recent context. It displays exact frozen bytes, range, categories,
+counts and omissions. **Export anonymized preview…** saves those bytes locally.
+**Preview with identifying details…** has a separate identifying export action
+and confirmation; capture-time redaction cannot be reversed. Neither mode admits
+credentials, review content or crash memory, and nothing is uploaded. See the
+[diagnostics guide](storage-and-diagnostics.md#preview-and-export-diagnostics).
 
 **Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
 the selected profile and all its producers will stop before an exact inventory

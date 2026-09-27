@@ -147,6 +147,13 @@ namespace bpr::application {
 										 busy,
 										 unavailable,
 										 partial };
+	/// \brief Cutoff after a bounded flush; optional recent records are already sanitized.
+	struct diagnostic_export_capture
+	{
+		std::string              Session;
+		std::uint64_t            Sequence = 0;
+		std::vector<std::string> Recent;
+	};
 	/// \brief Effect-lane control capability; barriers never run on the decision lane.
 	class diagnostic_control_port
 	{
@@ -157,6 +164,8 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto capture_state() -> diagnostic_capture_state                     = 0;
 		/// \brief Explicit bounded export selection; reading it expires obsolete context first.
 		[[nodiscard]] virtual auto recent_context() -> std::vector<std::string> = 0;
+		/// \brief Flushes accepted file events, captures a sequence cutoff and only explicitly selected context.
+		[[nodiscard]] virtual auto flush_for_export(bool) -> std::optional<diagnostic_export_capture> { return std::nullopt; }
 	};
 }
 #endif

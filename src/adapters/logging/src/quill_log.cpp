@@ -693,6 +693,25 @@ namespace bpr::adapters::logging {
 			}
 			return result;
 		}
+		auto flush_for_export(bool aIncludeRecent) -> std::optional<application::diagnostic_export_capture>
+		{
+			std::lock_guard lock{ Mutex };
+			refresh_context();
+			flush();
+			application::diagnostic_export_capture result{ Session, Sequence, { } };
+			if (aIncludeRecent) {
+				result.Recent.reserve(Recent.size());
+				for (const auto& item : Recent) {
+					result.Recent.push_back(item.Bytes);
+				}
+			}
+			if (ContextGeneration != State->Generation.load()) {
+				refresh_context();
+				return std::nullopt;
+			}
+			return result;
+		}
+
 		std::shared_ptr<sink_state> State;
 
 	private:
@@ -793,6 +812,7 @@ namespace bpr::adapters::logging {
 	auto quill_log::configure(application::diagnostic_preferences aPreferences) noexcept -> bool { return Implementation && Implementation->configure(aPreferences); }
 	auto quill_log::clear() noexcept -> application::diagnostic_clear_result { return Implementation ? Implementation->clear() : application::diagnostic_clear_result::unavailable; }
 	auto quill_log::capture_state() -> application::diagnostic_capture_state { return Implementation ? Implementation->capture_state() : application::diagnostic_capture_state{ }; }
+	auto quill_log::flush_for_export(bool aIncludeRecent) -> std::optional<application::diagnostic_export_capture> { return Implementation ? Implementation->flush_for_export(aIncludeRecent) : std::nullopt; }
 	auto quill_log::recent_context() -> std::vector<std::string> { return Implementation ? Implementation->recent_context() : std::vector<std::string>{ }; }
 	auto quill_log::record(const application::diagnostic_event& aEvent) noexcept -> status_type { return Implementation ? Implementation->record(aEvent) : status_type::unavailable; }
 	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->status() : status_type::unavailable; }

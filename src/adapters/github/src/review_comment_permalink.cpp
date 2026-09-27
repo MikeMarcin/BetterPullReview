@@ -109,7 +109,10 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto source_url_prefix(const review_permalink_source& aSource) -> std::optional<std::string>
 		{
-			if (!application::valid(aSource.Target) || !aSource.Endpoint || !core::valid(aSource.Comparison) || aSource.LineCount == 0U) {
+			// Reading a closed review grants no publication authority.
+			auto readableTarget = aSource.Target;
+			readableTarget.Open = true;
+			if (!application::valid(readableTarget) || !aSource.Endpoint || !core::valid(aSource.Comparison) || aSource.LineCount == 0U) {
 				return std::nullopt;
 			}
 			const auto& endpoint  = *aSource.Endpoint;
@@ -225,7 +228,7 @@ namespace bpr::adapters::github::detail {
 	auto compile_review_permalink_body(const review_permalink_source& aSource, const core::source_line_ref& aAnchor, const std::string_view aProse) -> std::optional<std::string>
 	{
 		const auto prefix = source_url_prefix(aSource);
-		if (!prefix || !valid_prose(aProse) || aAnchor.Side != core::diff_side::right
+		if (!application::valid(aSource.Target) || !prefix || !valid_prose(aProse) || aAnchor.Side != core::diff_side::right
 			|| aAnchor.Comparison != core::comparison_digest(aSource.Comparison) || aAnchor.Line >= aSource.LineCount
 			|| aSource.Endpoint->request().Diff.Comparison.Right.Commit != aSource.Target.Semantic.ExpectedHead) {
 			return std::nullopt;

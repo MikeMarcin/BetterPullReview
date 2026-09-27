@@ -1,6 +1,7 @@
 #ifndef BPR_ADAPTERS_SQLITE_RELEASE_MAINTENANCE_FILES_HPP
 #define BPR_ADAPTERS_SQLITE_RELEASE_MAINTENANCE_FILES_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
 #include <filesystem>
@@ -17,7 +18,8 @@ namespace bpr::adapters::sqlite {
 	public:
 		release_maintenance_files(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
 								  core::bpr_profile_id aProfile, core::application_session_id aSession,
-								  application::release_profile_cleanup_port* aCredentials = nullptr);
+								  application::release_profile_cleanup_port*            aCredentials = nullptr,
+								  std::shared_ptr<application::diagnostic_control_port> aDiagnostics = { });
 		~release_maintenance_files() override;
 		auto authority() const noexcept -> core::release_maintenance_authority override;
 		auto capabilities() const noexcept -> core::release_maintenance_capabilities override;

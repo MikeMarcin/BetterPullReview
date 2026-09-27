@@ -127,6 +127,11 @@ namespace {
 				return std::unexpected(*Refusal);
 			}
 			auto result = std::make_shared<preparation>();
+			if (aContext.Operation == command::preview_diagnostics) {
+				result->Document = *application::prepare_diagnostic_export(
+					"2026-09-20T00:00:00Z v=1 op=application outcome=failed request=987 http_status=0 summary=sanitized dropped=2 detail=SOURCE_CANARY\nlegacy SECRET_CANARY\n", core::release_maintenance_revision{ 7U }, aContext.ExportOptions, { }, "0123456789abcdef0123456789abcdef");
+				result->Selection = result->Document.Descriptor;
+			}
 			if (aContext.Operation != command::preview_diagnostics) {
 				core::release_maintenance_inventory inventory{ core::release_maintenance_revision{ 9U }, { }, aContext.Operation == command::prepare_purge ? core::release_profile_purge_categories : 1U, 6U, 0U, true };
 				inventory.Digest[0] = 99U;
@@ -272,7 +277,7 @@ namespace {
 				   && announcements.back().Politeness == QAccessible::AnnouncementPoliteness::Polite,
 			   "preparing and ready each announce one polite exact status");
 		auto* preview = test.Panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"));
-		expect(preview && preview->isReadOnly() && preview->toPlainText().startsWith(QStringLiteral("bpr-diagnostics-v1")) && !preview->toPlainText().contains(QStringLiteral("CANARY")), "rendered preview contains only classified frozen metadata");
+		expect(preview && preview->isReadOnly() && preview->toPlainText().contains(QStringLiteral("bpr-diagnostics-v2")) && !preview->toPlainText().contains(QStringLiteral("CANARY")), "rendered preview contains only classified frozen metadata");
 		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceSummary"))->text().contains(QStringLiteral("1 records omitted")), "omission count visible");
 		auto cursor = preview->textCursor();
 		cursor.setPosition(2);

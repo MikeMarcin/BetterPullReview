@@ -22,21 +22,25 @@ namespace bpr::core {
 	using release_maintenance_revision   = strong_id<release_maintenance_revision_tag>;
 	using release_maintenance_generation = strong_id<release_maintenance_generation_tag>;
 
-	/// \brief Closed export field classes; prose and unknown fields are always omitted.
+	/// \brief Legacy raw classes remain forbidden; rich formats admit only rebuilt, classified values.
 	enum class release_diagnostic_field : std::uint32_t {
-		operation        = 1U << 0U,
-		outcome          = 1U << 1U,
-		failure_code     = 1U << 2U,
-		counts           = 1U << 3U,
-		summary          = 1U << 4U,
-		identity_or_path = 1U << 5U,
-		source_body      = 1U << 6U,
-		comment_body     = 1U << 7U,
-		private_text     = 1U << 8U,
-		credential       = 1U << 9U,
-		crash_memory     = 1U << 10U,
+		operation         = 1U << 0U,
+		outcome           = 1U << 1U,
+		failure_code      = 1U << 2U,
+		counts            = 1U << 3U,
+		summary           = 1U << 4U,
+		identity_or_path  = 1U << 5U,
+		source_body       = 1U << 6U,
+		comment_body      = 1U << 7U,
+		private_text      = 1U << 8U,
+		credential        = 1U << 9U,
+		crash_memory      = 1U << 10U,
+		classified_detail = 1U << 11U,
+		correlation       = 1U << 12U,
+		captured_identity = 1U << 13U,
 	};
-	inline constexpr std::uint32_t release_diagnostic_default_fields = 0x0fU;
+	inline constexpr std::uint32_t release_diagnostic_default_fields    = 0x0fU;
+	inline constexpr std::uint32_t release_diagnostic_classified_fields = static_cast<std::uint32_t>(release_diagnostic_field::classified_detail) | static_cast<std::uint32_t>(release_diagnostic_field::correlation);
 
 	/// \brief Permits only classified fixed vocabulary and numeric metadata, never raw text.
 	/// \details The adapter must parse into those types before applying this rule. A label
@@ -71,15 +75,37 @@ namespace bpr::core {
 		auto                        operator==(const release_maintenance_authority&) const -> bool = default;
 	};
 
-	/// \brief Immutable metadata-only bytes retained by the host for preview and export.
+	enum class diagnostic_export_policy : std::uint8_t { metadata,
+														 anonymized,
+														 identifying };
+	enum class diagnostic_export_scope : std::uint8_t { retained_sessions,
+														current_session };
+	/// \brief Exact requested capture scope, carried through preparation and confirmation.
+	struct diagnostic_export_options
+	{
+		diagnostic_export_policy Policy                                                     = diagnostic_export_policy::metadata;
+		diagnostic_export_scope  Scope                                                      = diagnostic_export_scope::retained_sessions;
+		bool                     IncludeRecent                                              = false;
+		auto                     operator==(const diagnostic_export_options&) const -> bool = default;
+	};
+	[[nodiscard]] auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool;
+
+	/// \brief Immutable classified bytes retained by the host for preview and export.
 	struct release_diagnostic_snapshot
 	{
 		release_maintenance_revision Revision;
 		std::array<std::uint8_t, 32> Digest{ };
-		std::uint32_t                Fields                                                       = release_diagnostic_default_fields;
-		std::uint32_t                Records                                                      = 0U;
-		std::uint64_t                Bytes                                                        = 0U;
-		std::uint32_t                OmittedRecords                                               = 0U;
+		std::uint32_t                Fields         = release_diagnostic_default_fields;
+		std::uint32_t                Records        = 0U;
+		std::uint64_t                Bytes          = 0U;
+		std::uint32_t                OmittedRecords = 0U;
+		diagnostic_export_options    Options{ };
+		std::uint64_t                FirstUtcMs                                                   = 0U;
+		std::uint64_t                LastUtcMs                                                    = 0U;
+		std::uint32_t                Sessions                                                     = 0U;
+		std::uint32_t                Categories                                                   = 0U;
+		std::uint32_t                RecentRecords                                                = 0U;
+		std::uint32_t                CaptureRedactedRecords                                       = 0U;
 		auto                         operator==(const release_diagnostic_snapshot&) const -> bool = default;
 	};
 
@@ -156,6 +182,7 @@ namespace bpr::core {
 		release_maintenance_generation Generation;
 		release_maintenance_command    Operation = release_maintenance_command::preview_diagnostics;
 		release_maintenance_selection  Selection;
+		diagnostic_export_options      ExportOptions{ };
 		auto                           operator==(const release_maintenance_context&) const -> bool = default;
 	};
 
@@ -175,6 +202,8 @@ namespace bpr::core {
 		release_maintenance_authority              Authority;
 		release_maintenance_command                Command = release_maintenance_command::preview_diagnostics;
 		std::optional<release_maintenance_context> Target;
+		diagnostic_export_options                  ExportOptions{ };
+		bool                                       IdentifyingConfirmed = false;
 	};
 	/// \brief Rebinds after root admission or recovery, retiring all previous selections/work.
 	struct release_maintenance_authority_changed

@@ -36,6 +36,7 @@ namespace bpr::adapters::logging {
 		[[nodiscard]] auto clear() noexcept -> application::diagnostic_clear_result override;
 		[[nodiscard]] auto capture_state() -> application::diagnostic_capture_state override;
 		[[nodiscard]] auto recent_context() -> std::vector<std::string> override;
+		[[nodiscard]] auto flush_for_export(bool aIncludeRecent) -> std::optional<application::diagnostic_export_capture> override;
 
 	private:
 		class implementation;

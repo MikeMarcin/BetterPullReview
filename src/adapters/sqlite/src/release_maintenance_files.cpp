@@ -12,6 +12,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <random>
 #include <utility>
 #include <vector>
 #if !defined(_WIN32)
@@ -1231,7 +1232,7 @@ namespace bpr::adapters::sqlite {
 			}
 		};
 #endif
-		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop) -> std::string
+		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop, std::string_view aSession = { }) -> std::string
 		{
 			if (!inspect(aRoot, "logs")) {
 				return { };
@@ -1244,6 +1245,9 @@ namespace bpr::adapters::sqlite {
 			std::size_t inputBytes = 0U;
 			for (const auto& item : entries) {
 				cancelled(aStop);
+				if (!aSession.empty() && !leaf(item.Path).starts_with(std::string{ "session-" } + std::string{ aSession } + "-")) {
+					continue;
+				}
 				auto part = read_file(logs.Value, leaf(item.Path), application::release_diagnostic_input_limit - inputBytes);
 				inputBytes += part.size();
 				// Count original input even when discarding a tail. One empty line is
@@ -1256,6 +1260,19 @@ namespace bpr::adapters::sqlite {
 			}
 			return bytes;
 		}
+		auto export_namespace() -> std::string
+		{
+			std::random_device         source;
+			std::string                result;
+			constexpr std::string_view hex = "0123456789abcdef";
+			for (unsigned index = 0U; index < 16U; ++index) {
+				const auto byte = source() & 255U;
+				result.push_back(hex[byte >> 4U]);
+				result.push_back(hex[byte & 15U]);
+			}
+			return result;
+		}
+
 		void validate_cache_manifests(native_handle aRoot, const std::vector<entry>& aEntries)
 		{
 			for (const auto& item : aEntries) {
@@ -1289,22 +1306,24 @@ namespace bpr::adapters::sqlite {
 
 	struct release_maintenance_files::implementation
 	{
-		std::filesystem::path                               Root;
-		std::shared_ptr<application::profile_runtime_lease> Lease;
-		core::release_maintenance_authority                 Authority;
-		application::release_profile_cleanup_port*          Credentials;
-		std::uint64_t                                       Revision  = 0U;
-		bool                                                Available = false;
-		descriptor                                          RootHandle;
-		std::uint64_t                                       Device     = 0U;
-		std::uint64_t                                       Inode      = 0U;
-		std::uint64_t                                       ObjectHigh = 0U;
+		std::filesystem::path                                 Root;
+		std::shared_ptr<application::profile_runtime_lease>   Lease;
+		core::release_maintenance_authority                   Authority;
+		application::release_profile_cleanup_port*            Credentials;
+		std::shared_ptr<application::diagnostic_control_port> Diagnostics;
+		std::uint64_t                                         Revision  = 0U;
+		bool                                                  Available = false;
+		descriptor                                            RootHandle;
+		std::uint64_t                                         Device     = 0U;
+		std::uint64_t                                         Inode      = 0U;
+		std::uint64_t                                         ObjectHigh = 0U;
 		implementation(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
-					   core::bpr_profile_id aProfile, core::application_session_id aSession, application::release_profile_cleanup_port* aCredentials)
+					   core::bpr_profile_id aProfile, core::application_session_id aSession, application::release_profile_cleanup_port* aCredentials, std::shared_ptr<application::diagnostic_control_port> aDiagnostics)
 			: Root{ std::move(aRoot) }
 			, Lease{ std::move(aLease) }
 			, Authority{ aProfile, aSession, { } }
 			, Credentials{ aCredentials }
+			, Diagnostics{ std::move(aDiagnostics) }
 		{
 			if (aProfile.value() == 0U || aSession.value() == 0U || !detail::validates_profile_runtime_lease(Root, Lease)) {
 				return;
@@ -1439,8 +1458,8 @@ namespace bpr::adapters::sqlite {
 		}
 	};
 	release_maintenance_files::release_maintenance_files(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
-														 core::bpr_profile_id aProfile, core::application_session_id aSession, application::release_profile_cleanup_port* aCredentials)
-		: Implementation{ std::make_unique<implementation>(std::move(aRoot), std::move(aLease), aProfile, aSession, aCredentials) }
+														 core::bpr_profile_id aProfile, core::application_session_id aSession, application::release_profile_cleanup_port* aCredentials, std::shared_ptr<application::diagnostic_control_port> aDiagnostics)
+		: Implementation{ std::make_unique<implementation>(std::move(aRoot), std::move(aLease), aProfile, aSession, aCredentials, std::move(aDiagnostics)) }
 	{ }
 	release_maintenance_files::~release_maintenance_files() = default;
 	auto release_maintenance_files::authority() const noexcept -> core::release_maintenance_authority { return Implementation->Authority; }
@@ -1469,8 +1488,21 @@ namespace bpr::adapters::sqlite {
 				fail(reason::recovery_required);
 			}
 			if (aContext.Operation == command::preview_diagnostics) {
-				const auto bytes    = read_diagnostic_files(self.RootHandle.Value, aStop);
-				auto       document = application::prepare_release_diagnostics(bytes, revision);
+				application::diagnostic_export_capture capture;
+				if (self.Diagnostics) {
+					auto flushed = self.Diagnostics->flush_for_export(aContext.ExportOptions.IncludeRecent);
+					if (!flushed) {
+						fail(reason::unavailable);
+					}
+					capture = std::move(*flushed);
+				} else if (aContext.ExportOptions.IncludeRecent || aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session) {
+					fail(reason::unavailable);
+				}
+				const auto bytes    = read_diagnostic_files(self.RootHandle.Value, aStop,
+															aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session ? std::string_view{ capture.Session } : std::string_view{ });
+				auto       document = aContext.ExportOptions.Policy == core::diagnostic_export_policy::metadata
+					? application::prepare_release_diagnostics(bytes, revision)
+					: application::prepare_diagnostic_export(bytes, revision, aContext.ExportOptions, capture, export_namespace());
 				if (!document) {
 					fail(document.error());
 				}

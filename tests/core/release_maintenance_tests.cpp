@@ -189,6 +189,30 @@ namespace {
 		expect(active.Prepared.has_value() == (aExpected == reason::none), "only complete exact inventories can reach confirmation");
 	}
 
+	void test_export_selection_and_confirmation()
+	{
+		auto                       active = current();
+		release_maintenance_intent preview{ authority(), command::preview_diagnostics, { } };
+		preview.ExportOptions = { diagnostic_export_policy::identifying, diagnostic_export_scope::current_session, true };
+		const auto start      = transition(active, preview);
+		expect(start.Accepted && start.Request->Context.ExportOptions == preview.ExportOptions, "exact export options reach preparation");
+		auto selected    = snapshot();
+		selected.Options = preview.ExportOptions;
+		expect(transition(active, release_maintenance_prepared{ *active.Pending, selected }).Accepted && active.Prepared, "rich snapshot prepared");
+		release_maintenance_intent save{ authority(), command::export_diagnostics, active.Prepared };
+		reject_unchanged(active, save, reason::privacy_refusal);
+		save.IdentifyingConfirmed = true;
+		const auto exported       = transition(active, save);
+		expect(exported.Accepted && exported.Request->Context.ExportOptions == preview.ExportOptions, "identifying confirmation keeps exact selected scope");
+		active = current();
+		static_cast<void>(transition(active, preview));
+		selected.Options.Policy = diagnostic_export_policy::anonymized;
+		expect(transition(active, release_maintenance_prepared{ *active.Pending, selected }).Diagnostic == reason::selection_changed && !active.Prepared, "mismatched preview policy cannot be substituted");
+		active                       = current();
+		preview.ExportOptions.Policy = static_cast<diagnostic_export_policy>(255);
+		reject_unchanged(active, preview, reason::invalid_selection);
+	}
+
 	void test_purge_scope_and_bounds()
 	{
 		for (const auto operation : { command::prepare_clear, command::prepare_purge }) {
@@ -405,6 +429,7 @@ auto main() -> int
 	test_safe_defaults_and_closed_fields();
 	test_public_two_phase_courses();
 	test_snapshot_privacy_and_bounds();
+	test_export_selection_and_confirmation();
 	test_purge_scope_and_bounds();
 	test_exact_preview_and_completion_identity();
 	test_cancellation_and_durable_truth();

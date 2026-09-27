@@ -25,6 +25,7 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     POSITIVE_CONTROL_SYMBOL,
     REQUIRED_PORT_IMPLEMENTATION,
     _check_binaries,
+    _check_sources,
     COMPILED_RESOURCE_HEADER,
     construction_site_counts,
     construction_sites,
@@ -329,6 +330,43 @@ class ObjectInspectionTests(unittest.TestCase):
 
 
 class ConstructionSiteTests(unittest.TestCase):
+    def test_fallback_only_live_path_is_rejected(self) -> None:
+        # Choosing the compatibility representation cannot bypass inventory
+        # or construction checks: both representations use the same port.
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            tree_with_only_the_fake(root)
+            rogue = "tests/application/rogue_fallback.cpp"
+            write(
+                root, rogue,
+                "class fallback_provider : public application::review_mutation_port {};\n"
+                "auto provider = make_live_review_mutation_provider(effects);\n"
+                "request.Representation = core::review_publication_representation::"
+                "file_comment_with_permalink;\n"
+                "provider->submit_and_reconcile(request);\n",
+            )
+            failures = _check_sources(root)
+        self.assertTrue(any(rogue in item and "implements" in item for item in failures))
+        self.assertTrue(any(rogue in item and "calls" in item for item in failures))
+
+    @mock.patch("scripts.verify_live_mutation_isolation.symbols")
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_fallback_submission_symbol_is_rejected(
+        self, inspects: mock.Mock, read: mock.Mock
+    ) -> None:
+        inspects.return_value = False
+        read.return_value = CLEAN_TABLE + (
+            "\n0000000100004c30 T bpr::adapters::github::"
+            "live_review_mutation_provider::submit_and_reconcile("
+            "bpr::application::review_mutation_request const&)\n"
+        )
+        with contained_temporary_directory() as directory:
+            manifest = Path(directory) / "binaries.txt"
+            manifest.write_text("/fixture/review_mutation_tests\n", encoding="utf-8")
+            failures, inspected, _ = _check_binaries(manifest)
+        self.assertEqual(inspected, 1)
+        self.assertTrue(any("submit_and_reconcile" in item for item in failures))
+
     def test_no_sites_on_a_clean_tree(self) -> None:
         with contained_temporary_directory() as directory:
             root = Path(directory)

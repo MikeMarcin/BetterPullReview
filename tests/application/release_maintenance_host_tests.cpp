@@ -172,6 +172,77 @@ namespace {
 		expect(!application::prepare_release_diagnostics(std::string(application::release_diagnostic_input_limit + 1U, 'x'), core::release_maintenance_revision{ 1U }), "input byte cap");
 		expect(!application::prepare_release_diagnostics(std::string(application::release_diagnostic_input_records + 1U, '\n'), core::release_maintenance_revision{ 1U }), "input work cap");
 	}
+	constexpr std::string_view session = "fedcba9876543210fedcba9876543210";
+	auto                       structured_line(unsigned aSequence, bool aIdentifying = false) -> std::string
+	{
+		return std::string{ R"({"v":3,"event":"github.capability.failed","category":"github","severity":"error","utc_ms":1780000000000,"elapsed_us":5,"session":")" }
+		+ std::string{ session } + R"(","sequence":)" + std::to_string(aSequence)
+			+ R"(,"build":"0.1.0-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef-Debug","op":"github.capability","outcome":"failed","request":)"
+			+ (aIdentifying ? "991" : "0") + R"(,"http_status":403,"summary":"sanitized","dropped":2,"detail":"message=\"Field fields exceeds a service repetition limit [omitted:unclassified-content]\" code=\"[omitted:unclassified-code]\" ","epoch_stage":"none","failure_domain":"none","failure":"none","pack_failure":"none","page_operation":"none","window_session":)"
+			+ (aIdentifying ? "776" : "0") + R"(,"relationship_detail":"none","transport_source":"none","git_step":"none","request_label":"request-)"
+			+ std::string{ session } + R"(-1","window_label":"window-)" + std::string{ session }
+		+ R"(-2","capture_privacy":")" + (aIdentifying ? "include_locally" : "anonymized") + R"(","capture_detail":"standard","event_detail":"standard"})" + "\n";
+	}
+	void test_rich_export()
+	{
+		using policy = core::diagnostic_export_policy;
+		using scope  = core::diagnostic_export_scope;
+		application::diagnostic_export_capture capture{ std::string{ session }, 3U, { structured_line(2), structured_line(3) } };
+		for (auto& line : capture.Recent) {
+			line.pop_back();
+		}
+		const auto original = structured_line(1) + structured_line(2, true) + structured_line(4) + log_line() + "malformed CANARY\n";
+		const auto prepare  = [&](policy aPolicy, bool aRecent, scope aScope, std::string_view aNamespace) {
+			return application::prepare_diagnostic_export(original, core::release_maintenance_revision{ 2U }, { aPolicy, aScope, aRecent }, capture, aNamespace);
+		};
+		const auto document = prepare(policy::anonymized, true, scope::retained_sessions, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document && document->Descriptor.Records == 4U && document->Descriptor.RecentRecords == 1U && document->Descriptor.OmittedRecords == 1U, "frozen files plus explicit unique ring, cutoff and legacy metadata");
+		expect(document->Descriptor.CaptureRedactedRecords == 2U && document->Descriptor.Sessions == 1U && document->Descriptor.Categories == 2U, "capture omissions and scope summary are factual");
+		expect(document->Bytes.find("Field fields exceeds a service repetition limit") != std::string::npos && document->Bytes.find("\"detail_omissions\":0") != std::string::npos, "unknown code keeps useful reclassified explanation");
+		expect(document->Bytes.find(session) == std::string::npos && document->Bytes.find("991") == std::string::npos && document->Bytes.find("776") == std::string::npos && document->Bytes.find("CANARY") == std::string::npos, "anonymized output removes original identities and forbidden content");
+		const std::string requestLabel = "request-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-2";
+		const auto        first        = document->Bytes.find(requestLabel);
+		expect(first != std::string::npos && document->Bytes.find(requestLabel, first + requestLabel.size()) != std::string::npos, "fresh labels preserve event joins");
+		const auto next = prepare(policy::anonymized, false, scope::retained_sessions, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+		expect(next && next->Descriptor.Records == 3U && next->Descriptor.RecentRecords == 0U && next->Bytes.find(requestLabel) == std::string::npos, "ring opt-out and fresh export mapping");
+		const auto identifying = prepare(policy::identifying, true, scope::current_session, "cccccccccccccccccccccccccccccccc");
+		expect(identifying && identifying->Descriptor.Records == 3U && identifying->Bytes.find("\"request\":991") != std::string::npos && identifying->Bytes.find("\"request\":0") != std::string::npos, "identifying export cannot recover capture-time redaction and current scope excludes legacy");
+		expect(original.find("CANARY") != std::string::npos, "original log preserved");
+		auto older = structured_line(1, true);
+		older.replace(older.find("\"v\":3"), 5U, "\"v\":2");
+		older.erase(older.find(",\"request_label\""));
+		older += "}\n";
+		older.replace(older.find(session), session.size(), "1234567890abcdef1234567890abcdef");
+		older.replace(older.find("1780000000000"), 13U, "0");
+		const auto mixed = application::prepare_diagnostic_export(older + original, core::release_maintenance_revision{ 2U }, { policy::anonymized }, capture, "dddddddddddddddddddddddddddddddd");
+		expect(mixed && mixed->Descriptor.Sessions == 2U && mixed->Descriptor.FirstUtcMs == 0U && mixed->Descriptor.LastUtcMs == 1780000000000ULL, "v2 and v3 sessions retain exact time range including epoch zero");
+		expect(mixed->Bytes.find("legacy_identifying") != std::string::npos && mixed->Bytes.find("1234567890abcdef1234567890abcdef") == std::string::npos, "v2 identities are freshly anonymized");
+		const auto legacy = application::prepare_diagnostic_export(log_line(), core::release_maintenance_revision{ 2U }, { policy::anonymized }, capture, "dddddddddddddddddddddddddddddddd");
+		expect(legacy && legacy->Descriptor.Categories == 2U && legacy->Descriptor.Sessions == 0U, "legacy metadata reports its known category without inventing a session");
+		std::string many;
+		for (unsigned sequence = 1U; sequence <= 1025U; ++sequence) {
+			many += structured_line(sequence);
+		}
+		auto unlimitedCapture     = capture;
+		unlimitedCapture.Sequence = 1025U;
+		const auto bounded        = application::prepare_diagnostic_export(many, core::release_maintenance_revision{ 2U }, { policy::anonymized }, unlimitedCapture, "dddddddddddddddddddddddddddddddd");
+		expect(bounded && bounded->Descriptor.Records + bounded->Descriptor.OmittedRecords == 1025U && bounded->Descriptor.OmittedRecords > 0U && bounded->Bytes.size() <= core::release_diagnostic_byte_limit, "rich export byte bound counts every omitted record");
+
+		for (const std::string_view field : { "event", "category", "severity", "session", "build", "op", "outcome", "summary", "detail", "epoch_stage", "failure_domain", "failure", "pack_failure", "page_operation", "relationship_detail", "transport_source", "git_step", "request_label", "window_label", "capture_privacy", "capture_detail", "event_detail" }) {
+			auto       poisoned = structured_line(1);
+			const auto begin    = poisoned.find(std::string{ "\"" } + std::string{ field } + "\":\"") + field.size() + 4U;
+			// Prefixing every source string with forbidden content must never copy it through.
+			poisoned.insert(begin, "SOURCE_COMMENT_SECRET_CANARY");
+			const auto refused = application::prepare_diagnostic_export(poisoned, core::release_maintenance_revision{ 1U }, { policy::identifying }, capture, "dddddddddddddddddddddddddddddddd");
+			expect(refused && refused->Bytes.find("CANARY") == std::string::npos, "every string field is reprocessed under identifying export too");
+			expect(field == "detail" ? refused->Descriptor.Records == 1U : refused->Descriptor.Records == 0U, "unclassifiable detail has an omission reason; invalid operational fields omit whole record");
+		}
+		auto malformed = structured_line(1);
+		malformed.pop_back();
+		const auto tail = application::prepare_diagnostic_export(malformed, core::release_maintenance_revision{ 1U }, { policy::anonymized }, capture, "dddddddddddddddddddddddddddddddd");
+		expect(tail && tail->Descriptor.Records == 0U && tail->Descriptor.OmittedRecords == 1U, "partial tail is never exported");
+	}
+
 	void test_preview_export()
 	{
 		fixture test;
@@ -290,6 +361,7 @@ namespace {
 auto main() -> int
 {
 	test_parser();
+	test_rich_export();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();
 	test_lifecycle_failure_and_reentrancy();

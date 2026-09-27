@@ -1,3 +1,29 @@
+# BPR-0998 github-round-trip integration: reviewed dc1a836b..18c23cdd,
+# pinned-scope product commits f44c95dd and 757e8b9b, plus this merge resolution.
+# Raw tour imports and exact commit/path/side/range navigation retain existing
+# source admission. Conversation refresh runs before tour range restoration;
+# imports neither publish nor authorize an operation. Raw description selection
+# retains exact UTF-8 spans. A duplicate codec include is removed. Other main
+# composition/diagnostic behavior is retained. Mutation-branch pin is unchanged.
+# Review and direct combined evidence: BPR-0998 and RFC-BPR-0039-0043 ledger.
+# BPR-0571 merged integration: reviewed b8543067..a3533195, product commits
+# f442ca2b, 791decea, 75700f4d and 3fd1224e plus their merge resolutions.
+# Tour authoring/navigation and diagnostic controls add no publication grant;
+# exact source admission, semantic normalization and receipt navigation remain.
+# Add both diagnostic control files to the explicit inventory and manifest.
+# Production mutation-branch digest is unchanged. Review is on BPR-0571 and
+# the M3 integration checkpoint; this reseal does not change product source.
+# BPR-0571: reviewed e12e0fda..this composition slice. Successful receipts
+# request the ordinary server read and select only the matching accepted
+# identity under the exact target, actor and comparison. No new write
+# authority; production mutation branch is unchanged. The fixture replaces
+# its root shortcut with the real protocol session and SQLite.
+# BPR-0569 reseal: reviewed 2deb889b..this normalization slice. Accepted read
+# and retained material now project file subjects through the strict codec;
+# exact selected context is rechecked and clears on source replacement. The
+# M1 handoff/material fields and clone helper are available in both graphs,
+# repairing a tests-disabled compile failure. The mutation branch is unchanged.
+# Source review and direct regression evidence are recorded on BPR-0569.
 # BPR-0563 reseal: 9ee0350f..this product slice; reviewed host source
 # port, accepted catalogue/material capture and both ctor connections. No other
 # pinned-scope edits; grant and mutation authority paths are unchanged.
@@ -372,7 +398,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a16d7dc278233797bd56a91732a16fdfabe62b070941a5a75fefe5894e02e6ab"
+		"3e4694ec6ededc527d617f11261bcbacc7bc3820bbee8127d5fe10e8c18e1576"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -387,6 +413,7 @@ endfunction()
 
 function(bpr_compute_production_app_manifest_digest app_source_root out_variable)
     set(bpr_production_app_sources
+        "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -400,6 +427,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/designated_live_macos_supervisor_identity.hpp"
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/diagnostic_controls.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/installed_resources.cpp"
@@ -451,6 +479,7 @@ function(bpr_verify_app_source_tree app_source_root)
         )
     endif()
     set(bpr_expected_app_sources
+        "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -468,6 +497,7 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_supervisor_identity.hpp"
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/diagnostic_controls.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
@@ -523,7 +553,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5dc7e1e58bc4812bdb748bf0c08eecff43c6d42ca6b4fff7f0f829491805ec9d"
+        "452e4eeee30054dd75c2f9fa9110484dc93304a20a7c2b9552eeac18b5039a60"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -1113,6 +1143,7 @@ foreach(marker IN ITEMS
     GITHUB_FIXTURE_OK:github.com
     REVIEW_MUTATION_PROVIDER:fixture
     REVIEW_ROUND_TRIP_COMPOSITION_OK
+    SEMANTIC_COMMENT_COMPOSITION_OK:native-posts=2,file-posts=1,stored=2,journal-reopens=3,session-constructions=2
     REVIEW_ROUND_TRIP_COMPOSITION_EVIDENCE:11111111111111
     DORMANT_LIVE_PROVIDER_SELECTION:1:28/28:1:1
     WORKBENCH_HOST_COMPOSED_OK
