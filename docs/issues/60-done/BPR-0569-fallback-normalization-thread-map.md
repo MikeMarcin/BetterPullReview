@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0569"
 title: "Normalize compatibility comments to semantic source anchors"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0564","BPR-0565","BPR-0568"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"Distinct canonical native/file subjects; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}},{"criterion":"AC2","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"Immediate and fresh-state exact source placement; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}},{"criterion":"AC3","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"Root-inherited replies with no reply parsing; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}},{"criterion":"AC4","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"External edits/resolution/deletion and unavailable source; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}},{"criterion":"AC5","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"Invalid grammar stays file-level; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}},{"criterion":"AC6","outcome":"pass","revision":"e12e0fda7885b47b4da0379ccd1549e4ad2f585a","evidence":{"kind":"observation","detail":"No inferred native historical identity; review_comment_permalink + Qt conversation panel/map + public composition pass; see m3-frontier.md and card"}}]
 ---
 
 # Normalize compatibility comments to semantic source anchors
