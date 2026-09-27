@@ -37,11 +37,11 @@ namespace bpr::adapters::github::detail {
 		constexpr auto response_body_limit   = std::size_t{ 256U * 1024U };
 		constexpr auto curl_path             = std::string_view{ "/usr/bin/curl" };
 		constexpr auto designated_base_oid
-			= std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
+			= std::string_view{ "a939a85a5525994fe9e9cb4c973ad9362ed427c7" };
 		constexpr auto designated_head_oid
-			= std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+			= std::string_view{ "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a" };
 		constexpr auto designated_path
-			= std::string_view{ "/repos/MikeMarcin/BPR-Test/pulls/1" };
+			= std::string_view{ "/repos/MikeMarcin/BPR-Test/pulls/2" };
 		constexpr auto designated_origin
 			= std::string_view{ "https://api.github.com" };
 
@@ -274,21 +274,21 @@ namespace bpr::adapters::github::detail {
 				.Semantic = {
 					.Host         = core::git_host_id{ 1U },
 					.Repository   = core::repository_id{ 1'328'277'631U },
-					.PullRequest  = core::pull_request_id{ 4'246'446'933U },
+					.PullRequest  = core::pull_request_id{ 4'650'736'621U },
 					.ExpectedHead = *head,
 				},
 				.Hostname                 = application::github_canonical_hostname{ "github.com" },
 				.ServerContract           = application::github_server_contract::github_com_2022_11_28,
 				.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" },
-				.Number                   = core::pull_request_number{ 1U },
+				.Number                   = core::pull_request_number{ 2U },
 				.RepositoryDatabaseId     = 1'328'277'631U,
 				.RepositoryNodeId         = "R_kgDOTyvofw",
-				.PullRequestDatabaseId    = 4'246'446'933U,
-				.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+				.PullRequestDatabaseId    = 4'650'736'621U,
+				.PullRequestNodeId        = "PR_kwDOTyvof88AAAABFTSb7Q",
 				.BaseRepositoryDatabaseId = 1'328'277'631U,
 				.BaseOid                  = *base,
-				.BaseRef                  = "main",
-				.HeadRef                  = "codex/disposable-live-review-20260810",
+				.BaseRef                  = "codex/rfc0022-fixture-base-20260926",
+				.HeadRef                  = "codex/rfc0022-live-comments-20260926",
 				.Open                     = true,
 			};
 		}
@@ -677,15 +677,15 @@ namespace bpr::adapters::github::detail {
 			const auto* baseRef        = base == nullptr ? nullptr : text_member(*base, "ref");
 			const auto* repositoryNode = repo == nullptr ? nullptr : text_member(*repo, "node_id");
 			const auto* repositoryName = repo == nullptr ? nullptr : text_member(*repo, "full_name");
-			return integer_member(*root, "id") == 4'246'446'933U
-				&& integer_member(*root, "number") == 1U
-				&& node != nullptr && *node == "PR_kwDOTyvof879G6NV"
+			return integer_member(*root, "id") == 4'650'736'621U
+				&& integer_member(*root, "number") == 2U
+				&& node != nullptr && *node == "PR_kwDOTyvof88AAAABFTSb7Q"
 				&& state != nullptr && *state == "open"
 				&& headSha != nullptr && *headSha == designated_head_oid
 				&& headRef != nullptr
-				&& *headRef == "codex/disposable-live-review-20260810"
+				&& *headRef == "codex/rfc0022-live-comments-20260926"
 				&& baseSha != nullptr && *baseSha == designated_base_oid
-				&& baseRef != nullptr && *baseRef == "main"
+				&& baseRef != nullptr && *baseRef == "codex/rfc0022-fixture-base-20260926"
 				&& repo != nullptr
 				&& integer_member(*repo, "id") == 1'328'277'631U
 				&& repositoryNode != nullptr && *repositoryNode == "R_kgDOTyvofw"

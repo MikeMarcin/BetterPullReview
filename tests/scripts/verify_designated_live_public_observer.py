@@ -18,12 +18,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 HOST = "api.github.com"
-PATH = "/repos/MikeMarcin/BPR-Test/pulls/1"
+PATH = "/repos/MikeMarcin/BPR-Test/pulls/2"
 BODY = (
-    b'{"id":4246446933,"node_id":"PR_kwDOTyvof879G6NV","number":1,'
-    b'"state":"open","head":{"sha":"17990ba0c2fb50338141f35c0717f0f99639c7ba",'
-    b'"ref":"codex/disposable-live-review-20260810"},"base":{'
-    b'"sha":"e2a44aa8fef704de7373463222b1872e796918c6","ref":"main",'
+    b'{"id":4650736621,"node_id":"PR_kwDOTyvof88AAAABFTSb7Q","number":2,'
+    b'"state":"open","head":{"sha":"61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",'
+    b'"ref":"codex/rfc0022-live-comments-20260926"},"base":{'
+    b'"sha":"a939a85a5525994fe9e9cb4c973ad9362ed427c7","ref":"codex/rfc0022-fixture-base-20260926",'
     b'"repo":{"id":1328277631,"node_id":"R_kgDOTyvofw",'
     b'"full_name":"MikeMarcin/BPR-Test"}}}'
 )
@@ -165,7 +165,7 @@ class Server:
                 else:
                     body = BODY
                     if self.scenario == "identity":
-                        body = body.replace(b"17990ba0", b"27990ba0", 1)
+                        body = body.replace(b"61e8dbcd", b"71e8dbcd", 1)
                     elif self.scenario == "limit":
                         body = b"x" * (256 * 1024 + 1)
                     response = (

@@ -1,3 +1,8 @@
+# BPR-0573: reviewed dc1a836b..this bounded target reassignment. Only the
+# compiled attended target changes from PR1 to owner-designated PR2; application,
+# bootstrap and independent observer agree on exact IDs, refs and OIDs. No grant,
+# transport, classifier or production mutation-branch change. The touched TU also
+# receives mechanical format of inherited tour fields/branches. Card records review.
 # BPR-0571 merged integration: reviewed b8543067..a3533195, product commits
 # f442ca2b, 791decea, 75700f4d and 3fd1224e plus their merge resolutions.
 # Tour authoring/navigation and diagnostic controls add no publication grant;
@@ -390,7 +395,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fdee747b41dc6f902ea72a4828c33c4b585a3067ec067d5a1c54371edde404c3"
+		"18744f6fab645b79825b44e03402b473d65150228de8487581591a864db31d95"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -545,7 +550,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "452c4d142756f37f2acb0ed11e5da4b789d35c67e2a838203504b4de12a5167e"
+        "dc51dd04ec09e35d9557d1bff07cf4973383d37a4be261c17b706bf41b5f182a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

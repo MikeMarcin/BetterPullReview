@@ -1220,7 +1220,7 @@ if(test_network_effect_files)
     foreach(
         required_surface
         IN ITEMS
-            "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"
+            "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/2"
             "QNetworkAccessManager"
             "QNetworkProxy::NoProxy"
             "QNetworkRequest::ManualRedirectPolicy"
@@ -1255,7 +1255,7 @@ if(test_network_effect_files)
     endif()
     string(
         REPLACE
-        "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"
+        "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/2"
         ""
         designated_live_test_network_runner_without_endpoint
         "${designated_live_test_network_runner_contents}"
@@ -1923,7 +1923,7 @@ if(EXISTS "${github_designated_live_observer_file}")
         IN ITEMS
             [=["/usr/bin/curl"]=]
             [=["https://api.github.com"]=]
-            [=["/repos/MikeMarcin/BPR-Test/pulls/1"]=]
+            [=["/repos/MikeMarcin/BPR-Test/pulls/2"]=]
             [=[CFSTR("anchor apple and identifier \"com.apple.curl\"")]=]
             [=[kSecCSCheckAllArchitectures]=]
             [=[POSIX_SPAWN_START_SUSPENDED]=]

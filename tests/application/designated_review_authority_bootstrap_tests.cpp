@@ -144,16 +144,16 @@ namespace {
 				&& aExpected.Repository.Name == "BPR-Test"
 				&& aExpected.RepositoryDatabaseId == 1'328'277'631U
 				&& aExpected.RepositoryNodeId == "R_kgDOTyvofw"
-				&& aExpected.Number == core::pull_request_number{ 1U }
-				&& aExpected.PullRequestDatabaseId == 4'246'446'933U
-				&& aExpected.PullRequestNodeId == "PR_kwDOTyvof879G6NV"
+				&& aExpected.Number == core::pull_request_number{ 2U }
+				&& aExpected.PullRequestDatabaseId == 4'650'736'621U
+				&& aExpected.PullRequestNodeId == "PR_kwDOTyvof88AAAABFTSb7Q"
 				&& aExpected.BaseRepositoryDatabaseId == 1'328'277'631U
 				&& core::canonical_hex(aExpected.BaseOid).view()
-					== "e2a44aa8fef704de7373463222b1872e796918c6"
+					== "a939a85a5525994fe9e9cb4c973ad9362ed427c7"
 				&& core::canonical_hex(aExpected.Semantic.ExpectedHead).view()
-					== "17990ba0c2fb50338141f35c0717f0f99639c7ba"
-				&& aExpected.BaseRef == "main"
-				&& aExpected.HeadRef == "codex/disposable-live-review-20260810"
+					== "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a"
+				&& aExpected.BaseRef == "codex/rfc0022-fixture-base-20260926"
+				&& aExpected.HeadRef == "codex/rfc0022-live-comments-20260926"
 				&& aExpected.Open;
 			if (BeforeReturn) {
 				BeforeReturn();
@@ -806,14 +806,14 @@ namespace {
 			std::pair{ "repository_name=BPR-Test", "repository_name=Other" },
 			std::pair{ "repository_database_id=1328277631", "repository_database_id=2" },
 			std::pair{ "repository_node_id=R_kgDOTyvofw", "repository_node_id=R_other" },
-			std::pair{ "pull_request_number=1", "pull_request_number=2" },
-			std::pair{ "pull_request_database_id=4246446933", "pull_request_database_id=2" },
-			std::pair{ "pull_request_node_id=PR_kwDOTyvof879G6NV", "pull_request_node_id=PR_other" },
+			std::pair{ "pull_request_number=2", "pull_request_number=1" },
+			std::pair{ "pull_request_database_id=4650736621", "pull_request_database_id=2" },
+			std::pair{ "pull_request_node_id=PR_kwDOTyvof88AAAABFTSb7Q", "pull_request_node_id=PR_other" },
 			std::pair{ "base_repository_database_id=1328277631", "base_repository_database_id=2" },
-			std::pair{ "base_oid=e2a44aa8fef704de7373463222b1872e796918c6", "base_oid=0000000000000000000000000000000000000000" },
-			std::pair{ "base_ref=main", "base_ref=other" },
-			std::pair{ "head_oid=17990ba0c2fb50338141f35c0717f0f99639c7ba", "head_oid=0000000000000000000000000000000000000000" },
-			std::pair{ "head_ref=codex/disposable-live-review-20260810", "head_ref=other" },
+			std::pair{ "base_oid=a939a85a5525994fe9e9cb4c973ad9362ed427c7", "base_oid=0000000000000000000000000000000000000000" },
+			std::pair{ "base_ref=codex/rfc0022-fixture-base-20260926", "base_ref=other" },
+			std::pair{ "head_oid=61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a", "head_oid=0000000000000000000000000000000000000000" },
+			std::pair{ "head_ref=codex/rfc0022-live-comments-20260926", "head_ref=other" },
 			std::pair{ "state=open", "state=closed" },
 			std::pair{ "effect=one-source-line-review-comment", "effect=anything" },
 		};

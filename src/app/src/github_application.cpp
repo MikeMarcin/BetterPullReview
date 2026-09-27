@@ -1,6 +1,6 @@
 #include "bpr/app/github_application.hpp"
-#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
@@ -379,14 +379,14 @@ namespace bpr::app {
 #endif
 		inline constexpr auto designated_review_repository_id     = std::uint64_t{ 1'328'277'631U };
 		inline constexpr auto designated_review_repository_node   = std::string_view{ "R_kgDOTyvofw" };
-		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'246'446'933U };
-		inline constexpr auto designated_review_pull_request_node = std::string_view{ "PR_kwDOTyvof879G6NV" };
-		inline constexpr auto designated_review_number            = std::uint32_t{ 1U };
-		inline constexpr auto designated_review_base_ref          = std::string_view{ "main" };
-		inline constexpr auto designated_review_base_full_ref     = std::string_view{ "refs/heads/main" };
-		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/disposable-live-review-20260810" };
-		inline constexpr auto designated_review_base_oid          = std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
-		inline constexpr auto designated_review_head_oid          = std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'650'736'621U };
+		inline constexpr auto designated_review_pull_request_node = std::string_view{ "PR_kwDOTyvof88AAAABFTSb7Q" };
+		inline constexpr auto designated_review_number            = std::uint32_t{ 2U };
+		inline constexpr auto designated_review_base_ref          = std::string_view{ "codex/rfc0022-fixture-base-20260926" };
+		inline constexpr auto designated_review_base_full_ref     = std::string_view{ "refs/heads/codex/rfc0022-fixture-base-20260926" };
+		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/rfc0022-live-comments-20260926" };
+		inline constexpr auto designated_review_base_oid          = std::string_view{ "a939a85a5525994fe9e9cb4c973ad9362ed427c7" };
+		inline constexpr auto designated_review_head_oid          = std::string_view{ "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a" };
 		[[nodiscard]] auto    designated_review_replay_namespace_path(
 			const std::filesystem::path& aApplicationDataRoot)
 			-> std::filesystem::path
@@ -8650,10 +8650,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host> RetiredTourHosts;
-		std::optional<core::tour_owner> TourOwner;
-		core::git_commit_oid            TourHead;
-		core::git_commit_oid            TourAttentionHead;
+		std::vector<retained_tour_host>        RetiredTourHosts;
+		std::optional<core::tour_owner>        TourOwner;
+		core::git_commit_oid                   TourHead;
+		core::git_commit_oid                   TourAttentionHead;
 		std::optional<core::tour_source_range> PendingTourSource;
 		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
@@ -8753,7 +8753,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Clean, drained copies can be reconstructed. Keep failed or pending
 			// copies reachable by their immutable owner when that PR is reopened.
 			std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
-				const auto p = aRetained.Host->presentation();
+				const auto p         = aRetained.Host->presentation();
 				const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
 				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 			});
@@ -8845,7 +8845,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (aAction == qt::tour_editor_action::insert_before) {
 					if (const auto* stop = Window->tour_editor()->selected_stop()) {
 						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
-						position = static_cast<std::size_t>(found - draft->Stops.begin());
+						position         = static_cast<std::size_t>(found - draft->Stops.begin());
 					}
 				}
 				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
@@ -8854,7 +8854,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			case qt::tour_editor_action::map_problem:
-			case qt::tour_editor_action::map_solution:   {
+			case qt::tour_editor_action::map_solution: {
 				const auto draft = TourHost->presentation().Draft;
 				if (!draft) {
 					return;

@@ -54,22 +54,22 @@ namespace bpr::application::detail {
 		constexpr auto designated_repository_id = std::uint64_t{ 1'328'277'631U };
 		constexpr auto designated_repository_node
 			= std::string_view{ "R_kgDOTyvofw" };
-		constexpr auto designated_pull_request_number = std::uint32_t{ 1U };
+		constexpr auto designated_pull_request_number = std::uint32_t{ 2U };
 		constexpr auto designated_pull_request_id
-			= std::uint64_t{ 4'246'446'933U };
+			= std::uint64_t{ 4'650'736'621U };
 		constexpr auto designated_pull_request_node
-			= std::string_view{ "PR_kwDOTyvof879G6NV" };
-		constexpr auto designated_base_ref = std::string_view{ "main" };
+			= std::string_view{ "PR_kwDOTyvof88AAAABFTSb7Q" };
+		constexpr auto designated_base_ref = std::string_view{ "codex/rfc0022-fixture-base-20260926" };
 		constexpr auto designated_head_ref
-			= std::string_view{ "codex/disposable-live-review-20260810" };
+			= std::string_view{ "codex/rfc0022-live-comments-20260926" };
 		constexpr auto designated_base_oid
-			= std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
+			= std::string_view{ "a939a85a5525994fe9e9cb4c973ad9362ed427c7" };
 		constexpr auto designated_head_oid
-			= std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+			= std::string_view{ "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a" };
 		constexpr auto designated_approval_statement = std::string_view{
 			"I authorize this exact BetterPullReview build to publish one source-line "
-			"review comment to MikeMarcin/BPR-Test#1 at head "
-			"17990ba0c2fb50338141f35c0717f0f99639c7ba."
+			"review comment to MikeMarcin/BPR-Test#2 at head "
+			"61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a."
 		};
 
 		[[nodiscard]] auto lowercase_sha256(const std::string_view aText) noexcept
