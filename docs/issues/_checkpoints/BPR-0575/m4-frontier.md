@@ -206,3 +206,12 @@ acceptance remains separately pending. After handback, a fresh engineering owner
 must reconcile the verdict/protection, GET the exact external reply, verify its
 canonical app refresh, settle remaining obligations, and close D only if all pass.
 Root owns final main merge/push and must preserve later main work.
+
+
+Prepared human handoff: sessionbee55ff737d8a45a160d3ca6ad748b0c, cursor17,
+BPR-0573-github-only-continuity fingerprintc5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8.
+Loopback server22327 / command39240 is the only retained process. The server
+health check passed; complete URL stays in runtime state and the coordinator
+message. [Handoff](m4-r3-review-handoff.json) includes exact watch/status argv and
+protection paths. Exclusive repository writing ownership is released after the
+handoff commit. Coordinator arms the hand-back watch before yielding.

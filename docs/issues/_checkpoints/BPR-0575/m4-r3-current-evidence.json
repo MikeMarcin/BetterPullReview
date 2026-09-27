@@ -76,7 +76,12 @@
     "mounted_capsule": null,
     "approval": "consumed; empty owned parent removed",
     "background_builds_and_tests": [],
-    "review_server": "to be started and handed off explicitly"
+    "review_server": {
+      "pid": 22327,
+      "session": 39240,
+      "port": 54712
+    }
   },
-  "utc": "2026-09-27T19:55:43.113271+00:00"
+  "utc": "2026-09-27T19:55:43.113271+00:00",
+  "ownership": "Released after handoff commit; only protected human-review candidate and loopback server retained."
 }

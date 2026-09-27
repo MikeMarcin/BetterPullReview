@@ -1,0 +1,92 @@
+{
+  "schema": "rfc0022.review-handoff.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "production_candidate": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "evidence_candidate": "1bb3645af40c1ae9472973220b6e774d88c43628",
+  "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+  "cursor": 17,
+  "candidates": [
+    {
+      "id": "BPR-0573-github-only-continuity",
+      "title": "Check the existing discussion entirely in GitHub",
+      "revision": "rfc0022-d-0f3188093-comment4116623474-r1",
+      "fingerprint": "c5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "manifest": "m4-r3-collaborator-review-manifest.json",
+  "protection": {
+    "paths": [
+      "docs/issues/_checkpoints/BPR-0575/m4-r3-collaborator-review.md",
+      "docs/issues/_checkpoints/BPR-0575/m4-r3-live-fallback-observation.json",
+      "docs/issues/_checkpoints/BPR-0575/m4-r3-get-recovery-success.json",
+      "docs/issues/_checkpoints/BPR-0575/m4-r3-file-read-capsule-identities.json",
+      "src/adapters/github/src/github_mutation_contract.cpp",
+      "src/adapters/github/src/github_read_contract.cpp",
+      "src/adapters/github/src/github_read_normalizer.cpp",
+      "src/adapters/github/src/github_paged_read.cpp"
+    ],
+    "resources": [
+      "github-thread:github.com/MikeMarcin/BPR-Test/2/PRRT_kwDOTyvof86mdn2L"
+    ]
+  },
+  "host": {
+    "pid": 22327,
+    "port": 54712,
+    "command_session": 39240,
+    "url": "Complete local token URL is in runtime .mask/attended-review/session.json and coordinator handoff; intentionally not committed."
+  },
+  "watch_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+    "wait",
+    "--after",
+    "17",
+    "--kind",
+    "handed-back",
+    "--timeout",
+    "86400"
+  ],
+  "status_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+    "status",
+    "--after",
+    "17"
+  ],
+  "offline_html": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-collaborator-review.html",
+  "remaining": [
+    "Human GitHub-only source/prose/author/reply continuity judgement",
+    "After verdict, GET exact reply and canonical app refresh without root publication",
+    "Actual desktop uninstall remains unobserved; evidence disposition unresolved",
+    "Independent acceptance remains pending",
+    "0573/0575 and RFC closeout; root main integration/push after acceptance"
+  ],
+  "commands": {
+    "retained": [
+      {
+        "purpose": "attended-review loopback server",
+        "pid": 22327,
+        "session": 39240
+      }
+    ],
+    "finished": [
+      "App19358/supervisor19246 and mounted capsule normal exit/detach106.86s",
+      "All builds, tests, tidy, documentation, GET-only preflight/recovery checks",
+      "Consumed approval deleted by launch; only its empty task parent removed"
+    ],
+    "not_started": "Coordinator watch must be armed after ownership release; implementer does not own it."
+  },
+  "ownership": "Exclusive repository writing released after this handoff commit. Candidate protections remain active. Only review server retained; no children.",
+  "continuation": "On handed-back, reconcile exact new verdict and protections in a fresh engineering round under the selected recipe. Preserve prior3accepted decisions, five historical journals and current successful sixth lineage; never retry old witnesses or rootcomment. All remote mutations stay within standing exact authority and ordinary UI. Root preserves later main changes and owns finalDlanding.",
+  "utc": "2026-09-27T19:57:12.199284+00:00"
+}
