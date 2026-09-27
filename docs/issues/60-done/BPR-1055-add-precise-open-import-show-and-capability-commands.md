@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1055"
 title: "Add precise open, import, show and capability commands"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1054"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-04","milestone":"headless-manual","acceptance":["AC44-05"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-05","outcome":"pass","revision":"699c619d79c25f9f61eaa3c38462561d2b40d9ec","evidence":{"kind":"command","detail":"tour_cli_composition, sqlite_review_tour_storage, architecture_boundaries and desktop application_review_tour_cold_import_public_path pass; docs ledger records scope. No live PR or credential effects."}}]
 ---
 
 # BPR-1055: Add precise open, import, show and capability commands
