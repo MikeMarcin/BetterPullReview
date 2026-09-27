@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
-parked_on: "awaiting-live-github"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
