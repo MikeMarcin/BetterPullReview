@@ -2,6 +2,7 @@
 #include "private_review_operations.hpp"
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <map>
 namespace bpr::app {
 	namespace {
@@ -821,11 +822,17 @@ namespace bpr::app {
 	auto private_review_workflow::pending(const core::review_mutation_target& aTarget, core::github_account_id aActor) -> std::vector<application::private_publication_record>
 	{
 		const auto lock = std::scoped_lock{ Gate };
-		if (!Current || Current->Scope.Host != aTarget.Host || Current->Scope.Repository != aTarget.Repository
-			|| Current->Scope.PullRequest != aTarget.PullRequest || Current->Scope.Account != aActor) {
-			return { };
+		std::vector<application::private_publication_record> rows;
+		for (const auto& context : Contexts) {
+			const auto& scope = context->Scope;
+			if (scope.Host != aTarget.Host || scope.Repository != aTarget.Repository
+				|| scope.PullRequest != aTarget.PullRequest || scope.Account != aActor) {
+				continue;
+			}
+			auto pending = application::private_publication_application_host(*context->Store).pending(aTarget, aActor);
+			rows.insert(rows.end(), std::make_move_iterator(pending.begin()), std::make_move_iterator(pending.end()));
 		}
-		return application::private_publication_application_host(*Current->Store).pending(aTarget, aActor);
+		return rows;
 	}
 	auto private_review_workflow::complete_observed(const application::private_publication_record& aRecord, std::string_view aWire, const application::review_mutation_receipt& aReceipt) -> bool
 	{

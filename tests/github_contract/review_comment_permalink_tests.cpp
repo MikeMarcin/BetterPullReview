@@ -941,7 +941,7 @@ namespace {
 	void private_composition_publication()
 	{
 		using namespace application;
-		for (unsigned mode = 0; mode < 8; ++mode) {
+		for (unsigned mode = 0; mode < 11; ++mode) {
 			auto scratch              = tests::sqlite_contract::scratch_root{ "private-publication" };
 			auto source               = permalink_source();
 			auto request              = publication_request(source);
@@ -984,7 +984,7 @@ namespace {
 			fault.FailPrepare       = mode == 4;
 			auto transport          = publication_transport{ };
 			transport.RejectNative  = mode == 1;
-			transport.HideAfterPost = mode == 3;
+			transport.HideAfterPost = mode == 3 || mode >= 8;
 			transport.WrongActor    = mode == 5;
 			sqlite3* heldWriter     = nullptr;
 			if (mode == 2) {
@@ -1015,7 +1015,7 @@ namespace {
 			auto row = rows->Records.front();
 			expect(row.Draft == draft.Draft.Id && row.DraftRevision == draft.Revision && row.Composition == draft.Composition && row.IdempotencyKey == request.IdempotencyKey && row.ActorNode == "U_fixture" && row.ActorDatabaseId == 22 && row.ActorLogin == "fixture-reviewer", "lineage freezes exact draft/composition actor and idempotency");
 			expect(row.ApprovedProseDigest == core::private_digest(request.Proposal.Body), "approved prose digest retained independently");
-			if (mode == 2 || mode == 3) {
+			if (mode == 2 || mode == 3 || mode >= 8) {
 				expect(!row.ServerComment && result.Lineage == review_lineage_state::pending && store->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::publishing, "remote success and refused local write or refresh remains pending");
 			} else {
 				expect(row.ServerComment && result.Lineage == review_lineage_state::recorded, "successful receipt commits even when later writes occupy the remaining quota");
@@ -1030,28 +1030,45 @@ namespace {
 			auto                                 reopened = std::move(*adapters::sqlite::make_private_review_store(config));
 			private_publication_application_host recoveredLineage(*reopened);
 			auto                                 current = session_configuration(request);
-			if (mode == 3) {
+			if (mode == 3 || mode == 8) {
 				transport.StaleAtTarget              = 1;
 				current.Target.Semantic.ExpectedHead = *core::parse_git_commit_oid("1212121212121212121212121212121212121212");
 				auto&      comment                   = transport.Comments.front();
 				const auto line                      = "\"line\":" + std::to_string(request.Proposal.Anchor.Line + 1U);
 				const auto at                        = comment.find(line);
 				expect(at != std::string::npos, "native fixture exposes original line before head movement");
-				comment.replace(at, line.size(), "\"line\":null");
+				comment.replace(at, line.size(), mode == 3 ? "\"line\":null" : "\"line\":" + std::to_string(request.Proposal.Anchor.Line + 2U));
+				if (mode == 8) {
+					const std::string originalCommit = "\"commit_id\":\"1111111111111111111111111111111111111111\"";
+					const auto        commit         = comment.find(originalCommit);
+					expect(commit != std::string::npos, "native fixture exposes original commit before head movement");
+					comment.replace(commit, originalCommit.size(), "\"commit_id\":\"1212121212121212121212121212121212121212\"");
+				}
 				comment.insert(comment.size() - 1U, ",\"original_commit_id\":\"1111111111111111111111111111111111111111\",\"original_line\":" + std::to_string(request.Proposal.Anchor.Line + 1U));
 			}
+			if (mode == 9 || mode == 10) {
+				auto& comment = transport.Comments.front();
+				comment.insert(comment.size() - 1U, mode == 9 ? ",\"in_reply_to_id\":9001" : ",\"start_line\":1,\"start_side\":\"RIGHT\"");
+			}
 			auto recovered = review_mutation_session{ transport, current, std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(source.Target.ServerContract), &recoveredLineage };
-			if (mode == 2 || mode == 3) {
+			if (mode == 2 || mode == 3 || mode >= 8) {
 				transport.WrongActor = true;
 				recovered.repair_pending_publications();
 				expect(!reopened->lookup_publication(row.LogicalPublication)->value().ServerComment && transport.Posts.size() == posts, "wrong viewer cannot repair pending lineage or post");
 				transport.WrongActor = false;
+				if (mode == 9 || mode == 10) {
+					recovered.repair_pending_publications();
+					expect(!reopened->lookup_publication(row.LogicalPublication)->value().ServerComment && transport.Posts.size() == posts, "reply or multiline response cannot stand for a root single-line publication");
+					auto& comment = transport.Comments.front();
+					comment.erase(comment.find(mode == 9 ? ",\"in_reply_to_id\"" : ",\"start_line\""));
+					comment.push_back('}');
+				}
 				recovered.repair_pending_publications();
 				expect(reopened->lookup_publication(row.LogicalPublication)->value().ServerComment == result.Result->ServerCommentId && transport.Posts.size() == posts, "pending lineage repairs by read after restart and head advance without another POST");
 				transport.StaleAtTarget = 0;
 			}
 			auto repaired = recovered.reconcile_publication(request);
-			expect((mode == 3 || (repaired.Result && repaired.Lineage == review_lineage_state::recorded)) && transport.Posts.size() == posts, "restart repairs only through reads and one local transaction with zero new POST");
+			expect(((mode == 3 || mode == 8) || (repaired.Result && repaired.Lineage == review_lineage_state::recorded)) && transport.Posts.size() == posts, "restart repairs only through reads and one local transaction with zero new POST");
 			auto lookup = reopened->lookup_publication(row.LogicalPublication);
 			expect(lookup && *lookup && (**lookup).ServerComment == result.Result->ServerCommentId && (**lookup).ReconciledIdentity == result.Result->ServerCommentId && (**lookup).ReceiptReserve == 0, "exact canonical server join survives reopen");
 			expect(reopened->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::published, "draft terminal and lineage commit atomically");
@@ -1066,7 +1083,7 @@ namespace {
 			wrongRequest.LiveBinding->ActingIdentity.NodeId = "foreign";
 			expect(!recovered.reconcile_publication(wrongRequest).Result && transport.Posts.size() == posts, "wrong actor cannot repair lineage");
 			expect(reopened->find_publication(result.Result->ServerCommentId)->Records.size() == 1, "lineage lookup by server ID resolves same draft");
-			if (mode == 3) {
+			if (mode == 3 || mode == 8) {
 				recovered.repair_pending_publications();
 				expect(transport.Posts.size() == posts, "repeated advanced-head repair remains read-only");
 			} else {

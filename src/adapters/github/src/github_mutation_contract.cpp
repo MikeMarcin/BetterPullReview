@@ -340,6 +340,7 @@ namespace bpr::adapters::github::detail {
 			std::optional<std::string>   SubjectType;
 			std::optional<std::uint64_t> StartLine;
 			std::optional<std::string>   StartSide;
+			std::optional<std::uint64_t> InReplyToId;
 			std::string                  Body;
 			review_author_json           User;
 			struct glaze
@@ -356,6 +357,7 @@ namespace bpr::adapters::github::detail {
 					"subject_type", &comment_response_json::SubjectType,
 					"start_line", &comment_response_json::StartLine,
 					"start_side", &comment_response_json::StartSide,
+					"in_reply_to_id", &comment_response_json::InReplyToId,
 					"body", &comment_response_json::Body,
 					"user", &comment_response_json::User);
 			};
@@ -3376,12 +3378,13 @@ namespace bpr::adapters::github::detail {
 					const bool fileComment = comment.SubjectType == "file";
 					const auto currentLine = comment.CommitId == commit.view() && comment.Line
 						&& *comment.Line == static_cast<std::uint64_t>(row.Target.Line.Line) + 1U;
-					const auto originalLine = !comment.Line && comment.OriginalCommitId == commit.view()
+					const auto originalLine = comment.OriginalCommitId == commit.view()
 						&& comment.OriginalLine && *comment.OriginalLine == static_cast<std::uint64_t>(row.Target.Line.Line) + 1U;
 					if (comment.NodeId.empty() || comment.Id == 0 || comment.Path != row.Path
 						|| comment.Body != child->Body || comment.User.Id != row.ActorDatabaseId
 						|| comment.User.NodeId != row.ActorNode || comment.User.Login != row.ActorLogin || fileComment != file
-						|| (!file && (!(currentLine || originalLine) || comment.Side != expectedSide))
+						|| comment.InReplyToId
+						|| (!file && (!(currentLine || originalLine) || comment.Side != expectedSide || comment.StartLine || comment.StartSide))
 						|| (file && comment.CommitId != commit.view())
 						|| (file && (comment.Line || comment.StartLine || comment.StartSide))
 						|| (child->BaselineExactCommentIds && std::ranges::binary_search(*child->BaselineExactCommentIds, comment.NodeId))) {
