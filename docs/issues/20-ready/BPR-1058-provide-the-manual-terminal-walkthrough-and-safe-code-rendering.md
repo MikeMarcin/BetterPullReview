@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1058"
 title: "Provide the manual terminal walkthrough and safe code rendering"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1057"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-07","milestone":"headless-manual","acceptance":["AC44-03","AC44-06","AC44-11"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
