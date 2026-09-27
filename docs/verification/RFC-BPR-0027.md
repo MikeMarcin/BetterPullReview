@@ -181,3 +181,8 @@ logging without disabling the application, cancellation, shutdown, profile/windo
 isolation, and real Settings preview/export/clear. No native Windows/Linux,
 packaged-platform, human-control, live sign-in or crash-survival claim is made.
 Those full-RFC obligations remain open for the later milestones.
+
+M2 accepted and pushed on main as `8ff94031e1279c913cdb59512c2a9609e0779410`.
+BPR-1216 is Done. Source behavior is `3381a02c`; the final handoff commit is
+documentation only. All task-owned commands are finished. No review session,
+server or protected candidate is transferred. Next: BPR-1217 / diagnostic-controls.

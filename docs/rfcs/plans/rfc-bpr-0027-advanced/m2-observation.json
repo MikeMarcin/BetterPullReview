@@ -1,0 +1,117 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "session-retention",
+    "definition_fingerprint": "sha256:f2d888e60f9bc27294506da84392484166a379fcf4db399e4d0ac88e6e6e1db4",
+    "obligations": [
+      {
+        "id": "BPR-1216:*",
+        "source": "BPR-1216",
+        "selector": null,
+        "source_fingerprint": "sha256:29df2bfe61ad2563c082fa4ee2fa8b8b9bf00984f039ba10f8cb020a855367fb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:3f27cc4d85991b4d991354a765d8907f6ec16b72e0067890e28e73352656402d",
+    "exit_criteria": [
+      {
+        "id": "session-retention:exit:1",
+        "text": "AC1: Enforce file, aggregate, age and session bounds with safe ownership and concurrent-session coordination."
+      },
+      {
+        "id": "session-retention:exit:2",
+        "text": "AC2: Test disk/rotation/partial-tail failures and startup/cancel/shutdown availability through public composition."
+      },
+      {
+        "id": "session-retention:exit:3",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:65f66e97c4a88849c4d606c9e7a74e9d12fc8c7c2a62b2e16aea08b0f95b7037",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "session-retention",
+  "disposition": "milestone-complete",
+  "candidate_revision": "8ff94031e1279c913cdb59512c2a9609e0779410",
+  "handoff_ref": "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#M2-checkpoint",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md",
+    "docs/issues/60-done/BPR-1216-session-retention.md",
+    "git:8ff94031e1279c913cdb59512c2a9609e0779410:main-and-origin/main"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1216:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1216-session-retention.md",
+        "git:8ff94031e1279c913cdb59512c2a9609e0779410:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "session-retention:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1216-session-retention.md",
+        "git:8ff94031e1279c913cdb59512c2a9609e0779410:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "session-retention:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1216-session-retention.md",
+        "git:8ff94031e1279c913cdb59512c2a9609e0779410:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "session-retention:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1216-session-retention.md",
+        "git:8ff94031e1279c913cdb59512c2a9609e0779410:main-and-origin/main"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "diagnostic-controls",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1216 accepted and pushed on main; fresh implementer owns BPR-1217. Full-RFC native/human and later controls/export obligations remain open."
+  },
+  "ownership": "quiescent"
+}

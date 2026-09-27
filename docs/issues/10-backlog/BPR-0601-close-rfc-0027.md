@@ -105,7 +105,7 @@ reuse this worktree and its offline `build/dev` cache, promote/claim BPR-1216,
 and bind `session-retention` with `structured-events` accepted. Preserve the
 full RFC criteria, mandate r2 and the existing BPR-0971 privacy boundary.
 
-### M2 checkpoint — accepted, landing pending
+### M2 checkpoint — accepted and landed
 
 Mandate r2; assignment `/root/rfc0027_m2`, BPR-1216 / `session-retention`.
 Source candidate: `3381a02c5a78f4611fd7ab593cc0f6086ec32208`. Main `6e8ca8a8`
@@ -127,7 +127,10 @@ No live service was used. Native Windows/Linux, packaged and human acceptance
 remain open; the real native write failure uses RLIMIT_FSIZE, not a filled disk.
 
 All owned build/test/tidy commands finished. There is no review URL/session,
-event cursor, protected candidate or server. This writer owns final tracker
-commit and main landing only, then releases ownership. Next eligible scope is
+event cursor, protected candidate or server. The source/acceptance landing was pushed as `8ff94031e1279c913cdb59512c2a9609e0779410`;
+main and origin/main matched after push. This final documentation checkpoint
+releases `/root/rfc0027_m2` writer ownership. The
+[completion observation](../../rfcs/plans/rfc-bpr-0027-advanced/m2-observation.json)
+binds every M2 obligation and exit to that landed candidate. Next eligible scope is
 BPR-1217 / `diagnostic-controls` for a fresh implementer. Preserve mandate r2,
 M1/M2 evidence and the full native/human criteria.
