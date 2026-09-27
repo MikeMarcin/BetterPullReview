@@ -1,0 +1,112 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m4-storage-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m4-storage",
+    "definition_fingerprint": "sha256:70cbbef65c4d09b5ba9fd0f41c7edfaa3d92169c65b34a40ee2797cc2b6b3434",
+    "obligations": [
+      {
+        "id": "BPR-0580:*",
+        "source": "BPR-0580",
+        "selector": null,
+        "source_fingerprint": "sha256:722024bb47460dae22c2b204b81ac98dcaf66044440b05429334ba91ffd2927d"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b178de6f4db4b81b7a64fa195b698153484ca03cf07cee09b8b992dfd04f7b13",
+    "exit_criteria": [
+      {
+        "id": "m4-storage:exit:1",
+        "text": "Every supported ledger origin through the live frontier migrates atomically, including exact v5 notes and v6 revision/CAS state, with one private authority."
+      },
+      {
+        "id": "m4-storage:exit:2",
+        "text": "Monotonic IDs, bounded queries/body continuations, quotas, draft correlation, purge and crash recovery have direct evidence."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:2441eb30e3b04de20cd373f665c11e894013a9b210796de576d2986640b38b15",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m4-storage",
+  "disposition": "milestone-complete",
+  "candidate_revision": "25fd32efd8ca316ca3473f9a6a928265eb0d6000",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m4-durable-handoff",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023-live-audit.md",
+    "docs/architecture/review-ledger.md",
+    "tests/sqlite_contract/private_review_storage_tests.cpp",
+    "tests/sqlite_contract/review_ledger_storage_tests.cpp"
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m5-protocol",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates accepted M4 into local main, preserving ledger v7 and recovery v5/tour codec v3, then starts a fresh M5/BPR-0581 segment. Later public host/UI/native/designated-publication acceptance and final M10/BPR-0591 independent review remain assigned under r2."
+  },
+  "ownership": "quiescent",
+  "acceptance_records": [
+    {
+      "id": "BPR-0580:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/review_ledger_storage_tests.cpp"
+      ]
+    },
+    {
+      "id": "m4-storage:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/review_ledger_storage_tests.cpp"
+      ]
+    },
+    {
+      "id": "m4-storage:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/review_ledger_storage_tests.cpp"
+      ]
+    }
+  ]
+}

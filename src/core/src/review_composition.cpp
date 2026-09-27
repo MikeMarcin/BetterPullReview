@@ -595,6 +595,18 @@ namespace bpr::core {
 		}
 		return private_run_authorization{ aRun.Binding.Scope, aRun.Run, aRun.Order, aRun.Binding, aRun.Completion, aRun.OutputDigest };
 	}
+	auto valid_retained_agent_finding(const retained_agent_finding& aFinding) -> bool
+	{
+		if (!valid_private_source(aFinding.Source) || !std::holds_alternative<private_finding_source>(aFinding.Source.Key)
+			|| aFinding.Verdict.State > agent_finding_anchor_state::stale || aFinding.Verdict.Refusal >= agent_finding_refusal::malformed
+			|| aFinding.Verdict.AnalyzedBaseOid != aFinding.Finding.AnalyzedBaseOid || aFinding.Verdict.AnalyzedHeadOid != aFinding.Finding.AnalyzedHeadOid
+			|| validate_agent_finding(aFinding.Finding, { }).Refusal == agent_finding_refusal::malformed) {
+			return false;
+		}
+		const auto bytes = finding_encoding(aFinding.Finding, aFinding.Verdict);
+		return aFinding.Source.Digest == bytes.digest() && aFinding.Source.BodyBytes == bytes.size();
+	}
+
 	auto retain_agent_finding(const agent_run_provenance& aRun, std::uint32_t aOrdinal, private_vertex_order aOrder,
 							  const agent_finding& aFinding, const agent_finding_snapshot& aSnapshot) -> std::expected<retained_agent_finding, private_review_refusal>
 	{
