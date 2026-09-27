@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PRIVATE_REVIEW_STORE_HPP
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/review_composition.hpp"
+#include <memory>
 namespace bpr::application {
 	inline constexpr std::size_t maximum_private_threads     = 4096;
 	inline constexpr std::size_t maximum_private_revisions   = 65536;
@@ -18,7 +19,8 @@ namespace bpr::application {
 													  missing,
 													  stale_cursor,
 													  quota,
-													  references_present };
+													  references_present,
+													  busy };
 	template <typename T>
 	using private_store_result = std::expected<T, private_store_failure>;
 	/// \brief A scope-bound optimistic allocation frontier; committing consumes IDs atomically.
@@ -166,11 +168,26 @@ namespace bpr::application {
 		std::vector<private_publication_record>        Publications;
 		std::vector<core::private_source_selection>    SourceGuards;
 	};
+	/// \brief Source guard owned and released on the store effect lane.
+	class private_source_use
+	{
+	public:
+		virtual ~private_source_use() = default;
+	};
+	struct private_run_page
+	{
+		std::vector<core::agent_run_provenance> Runs;
+		std::optional<core::agent_run_id>       Next;
+	};
 	/// \brief One durable authority, accessed on the owning storage lane. No remote capabilities.
 	class private_review_store_port
 	{
 	public:
 		virtual ~private_review_store_port() = default;
+		/// \brief Rechecks exact source tips and excludes concurrent writes through input delivery.
+		[[nodiscard]] virtual auto claim_sources(std::span<const core::private_source_selection>) -> private_store_result<std::unique_ptr<private_source_use>> { return std::unexpected(private_store_failure::unavailable); }
+		/// \brief Recovery scans bounded run pages; never resumes or launches a process.
+		[[nodiscard]] virtual auto list_runs(std::optional<core::agent_run_id> = { }) -> private_store_result<private_run_page> { return std::unexpected(private_store_failure::unavailable); }
 		/// \brief Observes the non-pruned allocation frontier; exhausted identity returns zero.
 		[[nodiscard]] virtual auto frontier() -> private_store_result<private_store_frontier> = 0;
 		/// \brief Commits one bounded batch or refuses it whole, including allocation and quota counters.

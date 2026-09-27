@@ -1078,12 +1078,45 @@ also checks the actual cumulative bytes before each write. An invalid late
 thread ID can receive the initialization handshake, but receives no private
 context. Neither layer clips the input to make it fit.
 
-M6 owns the production durable admission transaction and callback wiring:
-persist the reviewer prompt and allocate one run before dispatch, revalidate
-source tips through the store, pass `AdmittedRun` and the complete selected
-bodies, finalize against the expected run, and commit complete assistant text
-and terminal facts. Existing callers can still omit the durable snapshot and
-carry a zero run until that integration. This compatibility path supplies no
-private source bodies and is not evidence of completed durable conversation
-admission. Storage schema 7 already persists the typed facts; no schema or
-mutation-recovery change is introduced by M5.
+M5 supplied this launch snapshot contract. M6 implements the durable host path
+below; M8 owns its connection to the production composition root and UI.
+Storage schema 7 persists the typed facts; mutation-recovery remains unchanged.
+
+### Durable private conversation host
+
+`private_review_application_host` implements the invocation host's optional
+`private_agent_run_port`. When configured, ordinary invocations require an
+exact private-run intent; admission reloads store-owned source bodies and
+commits the reviewer prompt and run before the existing workspace/process path.
+The final source claim serializes edits and deletion through input delivery.
+Only changed thread/revision/run/finding identities are posted to the decision
+lane. A projection retrieves full content through bounded store queries.
+
+The shared decoder retains complete assistant items: App Server deltas and
+matching completed items, JSONL completed agent-message IDs, Claude assistant
+text blocks, and terminal stdout including line endings. Identical completed
+items coalesce; conflicts refuse. Claude's result summary is not appended as a
+second answer. At most 256 items and 1 MiB assistant bytes are retained; the
+existing frame/stdout bounds can impose a smaller representable answer.
+The run stores item byte lengths and digest, while its assistant turn stores the
+single concatenated body. Errors retain only validated incomplete text.
+
+The host persists a correlated original response before the existing stale
+presentation step. Explicit cancellation cannot be overwritten by a late
+success. Admission failure starts no child; terminal storage failure reports
+`private_storage_failure`, and bounded recovery marks remaining admitted runs
+interrupted after producer quiescence. There is no automatic retry or rerun.
+Finding replies preserve their original run/ordinal/digest as the thread subject.
+
+The claim and SQLite store live on the invocation effect lane. SQLite's immediate
+transaction temporarily excludes all writers to the ledger and returns `busy`
+for contention; the process timeout bounds the claim. Raw selected-body vectors
+are released before launch. The immutable encoded request remains bounded and
+lives until process retirement; source exclusion releases at input acknowledgement.
+The launcher creates no durable supplement copy.
+
+M8 connects these APIs to the production composition root and drawer/workshop.
+Until then, callers without the private run port keep their legacy zero-run path
+and cannot supply private source bodies. The separate `WritingOnly` review-tour
+path refuses private-run intents and keeps its existing restricted protocol.
+M6 adds no GitHub capability, publisher or second process launcher.

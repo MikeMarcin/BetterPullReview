@@ -69,6 +69,7 @@ namespace bpr::core {
 		std::optional<private_composition_target> Target;
 		std::optional<private_copy_body>          CopyBody;
 		std::optional<agent_finding_verdict>      FindingVerdict = { };
+		std::optional<private_review_binding>     Binding        = { };
 	};
 	[[nodiscard]] auto source_of(const private_review_revision& aRevision) -> private_source_reference;
 	[[nodiscard]] auto valid_private_source(const private_source_reference& aSource) noexcept -> bool;
@@ -81,6 +82,8 @@ namespace bpr::core {
 	[[nodiscard]] auto admit_composition_sources(const private_review_scope&               aScope,
 												 std::span<const private_source_selection> aSelected, std::span<const private_source_observation> aObserved)
 		-> std::expected<private_body_digest, private_review_refusal>;
+
+	[[nodiscard]] auto admit_private_run_sources(const private_review_binding&, std::span<const private_source_selection>, std::span<const private_source_observation>) -> std::expected<private_body_digest, private_review_refusal>;
 
 	struct private_derivation_edge
 	{
@@ -177,9 +180,11 @@ namespace bpr::core {
 		std::vector<private_source_selection> SelectedPrivateSources;
 		private_body_digest                   InputSelectionDigest;
 		std::optional<private_body_digest>    OutputDigest;
-		private_run_outcome                   Outcome                                        = private_run_outcome::admitted;
-		private_revision_completion           Completion                                     = private_revision_completion::incomplete;
-		auto                                  operator<=>(const agent_run_provenance&) const = default;
+		private_run_outcome                   Outcome    = private_run_outcome::admitted;
+		private_revision_completion           Completion = private_revision_completion::incomplete;
+		/// Ordered byte lengths preserve item boundaries without duplicating assistant text.
+		std::vector<std::uint64_t> OutputItemBytes                                = { };
+		auto                       operator<=>(const agent_run_provenance&) const = default;
 	};
 	[[nodiscard]] auto valid_run_provenance(const agent_run_provenance& aRun) -> bool;
 	/// \brief Authorizes only a conversation result under its exact admitted entry point.

@@ -48,6 +48,22 @@ namespace {
 		expect(committed.has_value(), "atomic thread turn and body committed");
 		return *proposal;
 	}
+	void run_codec_compatibility()
+	{
+		agent_run_provenance old;
+		old.ProfileDisplayName = "retained v1 name";
+		detail::private_codec codec;
+		std::uint64_t         version = 1;
+		codec.value(version);
+		codec.value(old);
+		auto decoded = detail::decode_private<agent_run_provenance>(codec.Bytes);
+		expect(decoded && *decoded == old && decoded->OutputItemBytes.empty(), "v1 run payload remains exact and unknown item boundaries stay absent");
+		auto current            = old;
+		current.OutputItemBytes = { 3, 5 };
+		auto encoded            = detail::encode_private(current);
+		expect(encoded && detail::decode_private<agent_run_provenance>(*encoded) == current, "v2 run payload preserves boundaries without duplicate text");
+	}
+
 	void smoke()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "private-review" };
@@ -734,6 +750,7 @@ namespace {
 auto main() -> int
 {
 	protocol_metadata_storage_and_secret_scan();
+	run_codec_compatibility();
 	smoke();
 	facade_thread_coherence();
 	simultaneous_allocations();

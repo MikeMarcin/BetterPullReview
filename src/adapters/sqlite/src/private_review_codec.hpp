@@ -204,9 +204,12 @@ namespace bpr::adapters::sqlite::detail {
 	[[nodiscard]] auto encode_private(T aValue) -> std::optional<std::vector<std::uint8_t>>
 	{
 		private_codec codec;
-		std::uint64_t version = 1;
+		std::uint64_t version = std::is_same_v<T, core::agent_run_provenance> ? 2 : 1;
 		codec.value(version);
 		codec.value(aValue);
+		if constexpr (std::is_same_v<T, core::agent_run_provenance>) {
+			codec.value(aValue.OutputItemBytes);
+		}
 		if (!codec.Good || codec.Bytes.size() > 2U * 1024U * 1024U) {
 			return { };
 		}
@@ -223,11 +226,16 @@ namespace bpr::adapters::sqlite::detail {
 		codec.Input           = aBytes;
 		std::uint64_t version = 0;
 		codec.value(version);
-		if (version != 1) {
+		if (version != 1 && !(std::is_same_v<T, core::agent_run_provenance> && version == 2)) {
 			return { };
 		}
 		T result{ };
 		codec.value(result);
+		if constexpr (std::is_same_v<T, core::agent_run_provenance>) {
+			if (version == 2) {
+				codec.value(result.OutputItemBytes);
+			}
+		}
 		if (!codec.Good || !codec.Input.empty()) {
 			return { };
 		}

@@ -38,7 +38,7 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata);
 				} else {
 					Result.Metadata = Request.Metadata;
-					write_input(Request.Input);
+					write_input(Request.Input, !IsAppServer);
 				}
 				if (!IsAppServer && !has_cause()) {
 					Transport.close_input();
@@ -74,6 +74,9 @@ namespace bpr::adapters::agent::detail {
 					Result.ExitCode.reset();
 				}
 
+				if (Request.PrivateInputClaim) {
+					Request.PrivateInputClaim->release();
+				}
 				complete_result();
 				return std::move(Result);
 			}
@@ -100,14 +103,22 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 
-			void write_input(std::string_view aBytes)
+			void write_input(std::string_view aBytes, bool aPrivate = false)
 			{
 				if (aBytes.size() > application::maximum_agent_input_bytes - InputBytes) {
 					record_protocol_failure(application::agent_protocol_failure::input_too_large);
 					return;
 				}
+				if (aPrivate && Request.PrivateInputClaim && !Request.PrivateInputClaim->permitted()) {
+					record_forced_outcome(application::agent_run_outcome::cancelled);
+					Request.PrivateInputClaim->release();
+					return;
+				}
 				InputBytes += aBytes.size();
 				record_write(Transport.write(aBytes));
+				if (aPrivate && Request.PrivateInputClaim) {
+					Request.PrivateInputClaim->release();
+				}
 			}
 
 			void record_write(const agent_protocol_write_status aStatus) noexcept
@@ -235,7 +246,7 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(followup.error());
 					return;
 				}
-				write_input(*followup);
+				write_input(*followup, aMessage.Kind == application::agent_protocol_event_kind::context_channel_ready);
 				if (has_cause()) {
 					return;
 				}
@@ -382,6 +393,7 @@ namespace bpr::adapters::agent::detail {
 
 			void complete_result()
 			{
+				Result.AssistantItems = Decoder.assistant_items();
 				for (const auto& report : Decoder.metadata().ProtocolReported) {
 					auto appended = core::append_runtime_report(Result.Metadata, report);
 					if (!appended) {

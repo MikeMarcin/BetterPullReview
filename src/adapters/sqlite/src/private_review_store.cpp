@@ -135,7 +135,9 @@ namespace bpr::adapters::sqlite::detail {
 			explicit transaction(sqlite3* aDatabase, bool aWrite = true)
 				: Database(aDatabase)
 			{
-				require(execute(Database, aWrite ? "BEGIN IMMEDIATE" : "BEGIN").has_value(), error::unavailable);
+				require(sqlite3_get_autocommit(Database) != 0, error::busy);
+				const auto result = sqlite3_exec(Database, aWrite ? "BEGIN IMMEDIATE" : "BEGIN", nullptr, nullptr, nullptr);
+				require(result == SQLITE_OK, (result & 255) == SQLITE_BUSY || (result & 255) == SQLITE_LOCKED ? error::busy : error::unavailable);
 			}
 			~transaction()
 			{
@@ -328,6 +330,7 @@ namespace bpr::adapters::sqlite::detail {
 					o.Completion = meta.Completion;
 					auto header  = thread(key.Thread.value());
 					if (auto* exact = std::get_if<exact_private_subject>(&header.Binding)) {
+						o.Binding = exact->Binding;
 						if (auto* line = std::get_if<source_line_ref>(&exact->Subject)) {
 							o.Target = private_composition_target{ exact->Binding, *line };
 						}
@@ -339,11 +342,12 @@ namespace bpr::adapters::sqlite::detail {
 					o.Actor          = private_agent_actor{ std::get<private_finding_source>(aSource.Key).Run };
 					o.Latest         = aSource.Key;
 					o.FindingVerdict = finding.Verdict;
-					if (finding.Verdict.anchored() && finding.Finding.Anchor.Line) {
+					{
 						auto run = sql("SELECT record FROM private_run WHERE scope_id=?1 AND id=?2", Scope, std::get<private_finding_source>(aSource.Key).Run.value());
 						require(run.row(), error::integrity);
 						auto provenance = run.record<agent_run_provenance>(0);
-						if (provenance.Binding.Comparison == finding.Finding.Anchor.Line->Comparison) {
+						o.Binding       = provenance.Binding;
+						if (finding.Verdict.anchored() && finding.Finding.Anchor.Line && provenance.Binding.Comparison == finding.Finding.Anchor.Line->Comparison) {
 							o.Target = private_composition_target{ provenance.Binding, *finding.Finding.Anchor.Line };
 						}
 					}
@@ -357,8 +361,9 @@ namespace bpr::adapters::sqlite::detail {
 					o.Actor   = candidate.Actor;
 					auto comp = composition(q.integer(1));
 					require(comp.State.Candidate.has_value(), error::integrity);
-					o.Latest = comp.State.Candidate->Key;
-					o.Target = comp.State.Target;
+					o.Latest  = comp.State.Candidate->Key;
+					o.Target  = comp.State.Target;
+					o.Binding = comp.State.Binding;
 				}
 				require(aSource.Digest == q.digest<private_body_digest>(4), error::conflict);
 				if (kind != 1) {
@@ -613,13 +618,14 @@ namespace bpr::adapters::sqlite::detail {
 				auto q      = aDb.sql("SELECT record FROM private_run WHERE scope_id=?1 AND id=?2", aDb.Scope, run.Run.value());
 				bool update = q.row();
 				if (update) {
-					auto previous         = q.record<agent_run_provenance>(0);
-					auto oldSize          = q.bytes(0).size();
-					auto identity         = run;
-					identity.Metadata     = previous.Metadata;
-					identity.Outcome      = previous.Outcome;
-					identity.Completion   = previous.Completion;
-					identity.OutputDigest = previous.OutputDigest;
+					auto previous            = q.record<agent_run_provenance>(0);
+					auto oldSize             = q.bytes(0).size();
+					auto identity            = run;
+					identity.Metadata        = previous.Metadata;
+					identity.Outcome         = previous.Outcome;
+					identity.Completion      = previous.Completion;
+					identity.OutputDigest    = previous.OutputDigest;
+					identity.OutputItemBytes = previous.OutputItemBytes;
 					require(encoded(identity) == encoded(previous) && previous.Outcome == private_run_outcome::admitted && run.Outcome != private_run_outcome::admitted, error::conflict);
 					require(run.Metadata.Requested == previous.Metadata.Requested && run.Metadata.Configured == previous.Metadata.Configured, error::conflict);
 					require(run.Metadata.ProtocolReported.size() >= previous.Metadata.ProtocolReported.size() && std::equal(previous.Metadata.ProtocolReported.begin(), previous.Metadata.ProtocolReported.end(), run.Metadata.ProtocolReported.begin()), error::conflict);
@@ -686,6 +692,13 @@ namespace bpr::adapters::sqlite::detail {
 					auto run  = q.record<agent_run_provenance>(0);
 					auto auth = authorize_private_run(run);
 					require(auth.has_value() && auth->OutputDigest == r.Identity.Digest && auth->Completion == r.Completion, error::conflict);
+					if (!run.OutputItemBytes.empty()) {
+						std::uint64_t bytes = 0;
+						for (const auto size : run.OutputItemBytes) {
+							bytes += size;
+						}
+						require(bytes == r.Body.size(), error::conflict);
+					}
 					auto* exact = std::get_if<exact_private_subject>(&t.Binding);
 					require(exact && exact->Binding == run.Binding, error::conflict);
 				}
@@ -693,6 +706,20 @@ namespace bpr::adapters::sqlite::detail {
 					require(r.Predecessor->Thread == r.Identity.Thread && r.Predecessor->Turn == r.Identity.Turn && r.EditDerivation, error::conflict);
 				}
 				aDb.insert_revision(r, aState);
+				if (t.Version == 1) {
+					if (const auto* exact = std::get_if<exact_private_subject>(&t.Binding)) {
+						if (const auto* linked = std::get_if<private_finding_reference>(&exact->Subject)) {
+							auto source = aDb.sql("SELECT record FROM private_content WHERE scope_id=?1 AND kind=1 AND owner_id=?2 AND sub_id=?3", aDb.Scope, linked->Run.value(), static_cast<std::uint64_t>(linked->Ordinal));
+							require(source.row(), error::missing);
+							auto finding = source.record<retained_agent_finding>(0);
+							require(finding.Source.Digest == linked->Digest, error::conflict);
+							auto provenance = aDb.sql("SELECT record FROM private_run WHERE scope_id=?1 AND id=?2", aDb.Scope, linked->Run.value());
+							require(provenance.row() && provenance.record<agent_run_provenance>(0).Binding == exact->Binding, error::conflict);
+							aDb.edge(r.Identity.Order.value(), finding.Source, private_derivation_kind::promoted_from_finding);
+						}
+					}
+				}
+
 				if (r.Predecessor) {
 					aDb.edge(r.Identity.Order.value(), { r.Predecessor->Scope, private_turn_source{ r.Predecessor->Thread, r.Predecessor->Turn, r.Predecessor->Revision }, r.Predecessor->Order, r.Predecessor->Digest, 0 }, *r.EditDerivation);
 				}
@@ -910,6 +937,43 @@ namespace bpr::adapters::sqlite::detail {
 				, Scope(aScope)
 				, Identity(aIdentity)
 			{ }
+			auto claim_sources(std::span<const private_source_selection> aSelected) -> private_store_result<std::unique_ptr<private_source_use>> override
+			{
+				return guarded([&]() -> std::unique_ptr<private_source_use> {
+					struct claim final : private_source_use
+					{
+						transaction Transaction;
+						explicit claim(sqlite3* aDatabase)
+							: Transaction(aDatabase)
+						{ }
+					};
+					auto held = std::make_unique<claim>(Ledger.handle());
+					auto db   = database();
+					guards(db, aSelected);
+					return held;
+				});
+			}
+			auto list_runs(std::optional<agent_run_id> aAfter) -> private_store_result<private_run_page> override
+			{
+				return guarded([&] {
+					auto             db = database();
+					auto             q  = db.sql("SELECT record FROM private_run WHERE scope_id=?1 AND id>?2 ORDER BY id LIMIT 17", Scope, aAfter ? aAfter->value() : 0);
+					private_run_page page;
+					std::size_t      bytes = 0;
+					while (q.row()) {
+						require(q.bytes(0).size() <= 131072, error::integrity);
+						if (page.Runs.size() == maximum_private_detail_runs || bytes + q.bytes(0).size() > 256U * 1024U) {
+							page.Next = page.Runs.back().Run;
+							break;
+						}
+						bytes += q.bytes(0).size();
+						auto run = q.record<agent_run_provenance>(0);
+						require(valid_run_provenance(run) && run.Binding.Scope == Identity, error::integrity);
+						page.Runs.push_back(std::move(run));
+					}
+					return page;
+				});
+			}
 			auto frontier() -> private_store_result<private_store_frontier> override
 			{
 				return guarded([&] {

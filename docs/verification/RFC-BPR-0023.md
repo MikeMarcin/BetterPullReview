@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M5 complete; final independent review and integrated feature criteria pending**
+Status: **implementation authorized under mandate r2; M1–M6 complete; final independent review and integrated feature criteria pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -1013,3 +1013,100 @@ and the single final M10/BPR-0591 independent review under mandate r2. The
 original eighteen feature criteria remain open until their full assigned
 evidence is supplied; M5 fixtures do not waive native or designated-publication
 acceptance.
+
+## M6 private thread application host
+
+Assignment: M6/BPR-0582 only, coordinator-implementer strategy, mandate r2,
+baseline `09bb9a75`. The [checkpoint](RFC-BPR-0023.m6-checkpoint.json) binds the
+whole card and both authored exits. The live app retains ledger schema 7,
+mutation-recovery schema 5, staged-tour codec 3 and the separate restricted
+review-tour `WritingOnly` path. The source pack, adopted plan and eighteen
+criteria are unchanged. The [live reconciliation](RFC-BPR-0023-live-audit.md#m6-invocation-and-retention-reconciliation)
+records the bounded encoded-request lifetime clarification before acceptance.
+
+### Implemented boundary and changed paths
+
+- New `src/application/{include/bpr/application,src}/private_review_application_host.*`
+  supplies exact store-backed run admission, source claims, terminal retention,
+  finding-linked reviewer replies and bounded interrupted-run recovery. It has
+  no process, GitHub or publication port.
+- `agent_invocation_host.*` calls this capability from its existing effect lane,
+  posts bounded identity deltas to its decision lane, and preserves the existing
+  process/workspace owner and cleanup. A configured private port requires an
+  intent; `WritingOnly` refuses that intent. M8 owns UI/composition-root wiring.
+- `agent_launch.*`, `adapters/agent/src/agent_protocol_loop.cpp` and core
+  `review_composition.*` carry the exact source claim, validated full assistant
+  items, item boundaries and source revision/anchor checks. There is one
+  existing process entry point and one encoded input admission.
+- `private_review_store.hpp`, SQLite `private_review_store.cpp` and
+  `private_review_codec.hpp` supply a bounded run page, exact source transaction,
+  finding dependency edge and backward-readable run payload v2. The schema
+  remains 7. Item metadata holds byte counts, not another prose copy.
+- New `tests/sqlite_contract/private_review_host_tests.cpp` composes the real
+  SQLite authority, existing invocation host, manual effect/decision executors,
+  fake process and fault-injection store wrapper. Focused core/protocol/storage
+  tests and the existing Qt real-child canary are extended. Their CMake files
+  register/link the direct courses; no loopback port metadata is added.
+- `docs/architecture/ai-agent-boundary.md`, `review-ledger.md` and the live audit
+  describe actual ownership, lifetimes, compatibility and recovery limits.
+
+### Whole-card acceptance evidence
+
+| Required final state | Direct observation |
+|---|---|
+| Prompt and run commit atomically before dispatch | The composed invocation test reads the committed admission and prompt through a second SQLite connection at process entry. Injected admission failure leaves neither and starts zero processes. |
+| Existing invocation path retains complete correlated responses | The real host uses the existing process port; the real child receives selected-only input. Reopen retains full response bytes, including detail beyond finding claims, CR/LF and Unicode, with exact run actor and ordered item lengths. Empty validated responses retain an empty turn. |
+| Typed cancellation/failure/timeout/stale/duplicate/late behavior | Incomplete failure/cancel/timeout output is ineligible; explicit cancel wins over late success. Original correlated complete output persists before stale presentation. Wrong run and malformed metadata/items/findings terminalize as protocol failure. Duplicate terminal conflicts. Storage refusal cannot claim success; bounded restart recovery marks the admitted run interrupted without a rerun. Reentrant projection and shutdown courses finish quiescent. |
+| Findings snapshot and exact thread linkage | Run/ordinal/digest snapshot retains all structured fields; reviewer reply names it as the exact subject and commits a dependency edge. The source cannot be deleted while referenced, and full selected finding text reaches the same launch path. Reopen retains the snapshot. |
+| Exact selected source reload/revalidation | Unchecked old note context, missing/deleted, edited, duplicate, cross-review and over-limit references start no process. A change after admission but before the final claim refuses launch. A second connection's edit returns `busy` while input is claimed and succeeds after acknowledgement. Revoked claims send no private bytes, including deferred App Server input. Core rejects a different source epoch/anchor binding. |
+| Session pruning preserves runs | The real ledger admits more than its 128-row catalog limit, then reopened private storage returns both runs from a continued session and both exact prompt/response pairs. Run IDs differ while session ID is retained. |
+| Bounded changed-identity deltas | Admission and terminal emit two bounded deltas naming the changed thread/revision/run and bounded finding references. No transcript or aggregate private ledger is projected. Store queries remain bounded and recovery pages cap 16 rows/256 KiB. |
+
+Both M6 exits are evidenced by these composed courses. They do not close the
+full RFC feature criteria: production UI wiring remains M8, integrated/native
+and designated-publication evidence remains M9, and independent review remains
+M10/BPR-0591 under the owner's r2 amendment.
+
+### Commands and results
+
+| Command/course | Result |
+|---|---|
+| `cmake --build --preset core-only --target test_review_composition_core test_private_review_host test_private_review_storage test_better_pull_review_agent_launch_tests test_better_pull_review_agent_protocol_loop_tests test_better_pull_review_agent_invocation_host_tests test_better_pull_review_agent_finding_protocol_tests test_writing_delivery -j 6` | PASS. |
+| `ctest --preset core-only --output-on-failure -R '^(core_review_composition\|application_private_review_host\|sqlite_private_review_storage\|application_agent_launch\|application_agent_protocol_loop\|application_agent_invocation_host\|application_agent_finding_protocol\|application_writing_delivery\|architecture_boundaries\|architecture_boundary_contract)$'` | PASS 10/10, 128.70 seconds, before the final explicit-cancel/page-integrity refinement. Unchanged protocol/launch/core/writing and architecture-validator self-test evidence is reused. |
+| Rebuild private host/storage/invocation targets; `ctest --preset core-only --output-on-failure -R '^(application_private_review_host\|sqlite_private_review_storage\|application_agent_invocation_host\|architecture_boundaries)$'` | PASS 4/4, 23.29 seconds after explicit-cancel/page-integrity refinement. |
+| Rebuild `test_better_pull_review_qt_agent_launch_canary_tests`; `ctest --preset dev --output-on-failure -R '^qt_agent_launch_canary$'` | PASS 1/1, 90.63 seconds. Real SQLite, owned child process and actual stdin prove the admission path. Upstream CMake warnings remain non-fatal. |
+| Final finding-reply delta assertion; rebuild `test_private_review_host`; `ctest --preset core-only --output-on-failure -R '^application_private_review_host$'` | PASS. The final narrow change carries the already retained run outcome in its finding-reply delta; other course inputs are unchanged. |
+| `clang-format --dry-run --Werror` on all changed C++ paths; `git diff --check` | PASS. |
+| `python3 scripts/verify_documentation.py --root .` | PASS, `DOCUMENTATION_OK`. |
+| `python3 tests/scripts/verify_documentation_tests.py` | PASS, 64 tests. Printed ERROR messages are intentional invalid-document fixtures. |
+| `issue_board.py --repo-root . validate --rfc RFC-BPR-0023 --json` | PASS, 1,208 cards and no errors. |
+| `git diff --exit-code 09bb9a75` on adopted plan, live RFC and retained RFC-0022/0023 assets, excluding editable LIVE_IMPORT links | PASS; source bytes and all criteria are unchanged. |
+
+The first new child course correctly rejected the fixture's repeated JSONL
+`item-1` carrying different bodies. The canary now emits a distinct ID for each
+new item, and explicit duplicate/conflict fixtures retain their separate checks.
+The production decoder was not weakened to accommodate the old fixture.
+This initial failed run is superseded by the passing final child course above.
+
+Self-review checked source/authority binding, storage ordering, cancellation
+versus stale presentation, decoder item correlation, terminal storage failure,
+claim release, backward payload reads and the separate writing-only path.
+No independent review was requested or performed during M6, per mandate r2.
+
+### M6 durable handoff
+
+Candidate and finish identities are recorded with the acceptance observation
+and final handoff below. The only assigned card is BPR-0582. There is no M6
+human or native criterion awaiting a decision and no review session/server is
+created. Full-RFC native, designated-publication and final independent review
+obligations remain pending in their allocated M9/M10 milestones.
+
+M8 must configure the run port, use exact intents from the host-owned binding,
+connect bounded identity deltas and recovery, and expose typed storage refusal.
+The store outlives all claims and invocations on its serialized effect lane.
+Archive/delete/purge or storage quota/failure during a response may refuse its
+terminal transaction; no thread is resurrected and recovery never reruns it.
+No installed vendor release or real GitHub mutation is qualified by these local
+courses. The coarse claim and encoded-request lifetime limits are documented
+in the live audit. M7 next owns composition acceptance, durable drafts and the
+separate publication join.

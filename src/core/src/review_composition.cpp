@@ -571,6 +571,25 @@ namespace bpr::core {
 		}
 		return result;
 	}
+	auto admit_private_run_sources(const private_review_binding& aBinding, std::span<const private_source_selection> aSelected, std::span<const private_source_observation> aObserved) -> std::expected<private_body_digest, private_review_refusal>
+	{
+		if (!valid_private_binding(aBinding)) {
+			return std::unexpected(private_review_refusal::invalid_binding);
+		}
+		if (aSelected.empty() && aObserved.empty()) {
+			return private_selection_digest(aSelected);
+		}
+		auto result = admit_composition_sources(aBinding.Scope, aSelected, aObserved);
+		if (!result) {
+			return result;
+		}
+		for (const auto& observed : aObserved) {
+			if (observed.Binding && (observed.Binding->Revision != aBinding.Revision || observed.Binding->HostAuthority != aBinding.HostAuthority || observed.Binding->Access != aBinding.Access || observed.Binding->LeftAnchor != aBinding.LeftAnchor || observed.Binding->RightAnchor != aBinding.RightAnchor)) {
+				return std::unexpected(private_review_refusal::invalid_binding);
+			}
+		}
+		return result;
+	}
 	auto valid_run_provenance(const agent_run_provenance& aRun) -> bool
 	{
 		if (!valid_private_id(aRun.Run) || !valid_private_id(aRun.Session) || !valid_private_id(aRun.Order) || !valid_private_id(aRun.Profile)
@@ -581,6 +600,16 @@ namespace bpr::core {
 		}
 		if (aRun.Purpose == private_run_purpose::composition && aRun.EntryPoint != agent_entry_point::workshop_comment) {
 			return false;
+		}
+		if (aRun.OutputItemBytes.size() > 256 || (!aRun.OutputItemBytes.empty() && !aRun.OutputDigest)) {
+			return false;
+		}
+		std::uint64_t bytes = 0;
+		for (const auto count : aRun.OutputItemBytes) {
+			if (count > maximum_private_assistant_body_bytes - bytes) {
+				return false;
+			}
+			bytes += count;
 		}
 		const auto digest = private_selection_digest(aRun.SelectedPrivateSources);
 		if (!digest || *digest != aRun.InputSelectionDigest) {
