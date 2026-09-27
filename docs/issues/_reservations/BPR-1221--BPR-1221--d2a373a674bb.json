@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1221"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0039-0043 review tour stop status icon follow-up",
+  "created": "2026-09-27T17:19:11.964070+00:00",
+  "base": "6a27df7817a7f3990c6592da93b93348a91d8479"
+}
