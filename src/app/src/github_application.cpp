@@ -1,6 +1,6 @@
 #include "bpr/app/github_application.hpp"
-#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
@@ -1112,6 +1112,8 @@ namespace bpr::app {
 			return { };
 		}
 
+#endif
+
 		[[nodiscard]] auto clone_without_smart_git(
 			const application::accepted_pull_request_handoff& aHandoff)
 			-> application::accepted_pull_request_handoff
@@ -1142,7 +1144,6 @@ namespace bpr::app {
 				.CurrentViewerReview   = aHandoff.CurrentViewerReview,
 			};
 		}
-#endif
 
 		[[nodiscard]] auto windows_system_root()
 			-> std::optional<std::filesystem::path>
@@ -8647,10 +8648,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host> RetiredTourHosts;
-		std::optional<core::tour_owner> TourOwner;
-		core::git_commit_oid            TourHead;
-		core::git_commit_oid            TourAttentionHead;
+		std::vector<retained_tour_host>        RetiredTourHosts;
+		std::optional<core::tour_owner>        TourOwner;
+		core::git_commit_oid                   TourHead;
+		core::git_commit_oid                   TourAttentionHead;
 		std::optional<core::tour_source_range> PendingTourSource;
 		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
@@ -8750,7 +8751,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Clean, drained copies can be reconstructed. Keep failed or pending
 			// copies reachable by their immutable owner when that PR is reopened.
 			std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
-				const auto p = aRetained.Host->presentation();
+				const auto p         = aRetained.Host->presentation();
 				const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
 				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 			});
@@ -8842,7 +8843,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (aAction == qt::tour_editor_action::insert_before) {
 					if (const auto* stop = Window->tour_editor()->selected_stop()) {
 						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
-						position = static_cast<std::size_t>(found - draft->Stops.begin());
+						position         = static_cast<std::size_t>(found - draft->Stops.begin());
 					}
 				}
 				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
@@ -8851,7 +8852,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			case qt::tour_editor_action::map_problem:
-			case qt::tour_editor_action::map_solution:   {
+			case qt::tour_editor_action::map_solution: {
 				const auto draft = TourHost->presentation().Draft;
 				if (!draft) {
 					return;
@@ -10527,9 +10528,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						activity);
 				}
 				load_defects();
-#if defined(BPR_BUILD_TESTING)
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
-#endif
 				if (!preserves_selected_diff(EpochHost->state(), aHandoff)) {
 					clear_diff_selection();
 				}
@@ -13859,23 +13858,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
 
-		decltype(github_profile_runtime::Profiles)&                Profiles                = Profile->Profiles;
-		decltype(github_profile_runtime::ProfileOptions)&          ProfileOptions          = Profile->ProfileOptions;
-		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
-		decltype(github_profile_runtime::VaultEffects)&            VaultEffects            = Profile->VaultEffects;
-		decltype(github_profile_runtime::ReviewMutationEffects)&   ReviewMutationEffects   = Profile->ReviewMutationEffects;
-		decltype(github_profile_runtime::ReviewSubmissionEffects)& ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
+		decltype(github_profile_runtime::Profiles)&                 Profiles                = Profile->Profiles;
+		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions          = Profile->ProfileOptions;
+		decltype(github_profile_runtime::ProviderEffects)&          ProviderEffects         = Profile->ProviderEffects;
+		decltype(github_profile_runtime::VaultEffects)&             VaultEffects            = Profile->VaultEffects;
+		decltype(github_profile_runtime::ReviewMutationEffects)&    ReviewMutationEffects   = Profile->ReviewMutationEffects;
+		decltype(github_profile_runtime::ReviewSubmissionEffects)&  ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
+		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
+		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
-																	ReviewMutationDecisionGate;
-		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
-		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
-		std::size_t                                                 EpochPruneIntentDispatchCount  = 0U;
-		std::size_t                                                 EpochDeleteIntentDispatchCount = 0U;
-		std::size_t                                                 EpochCancelIntentDispatchCount = 0U;
+					ReviewMutationDecisionGate;
+		std::size_t EpochPruneIntentDispatchCount  = 0U;
+		std::size_t EpochDeleteIntentDispatchCount = 0U;
+		std::size_t EpochCancelIntentDispatchCount = 0U;
 		struct appearance_theme_probe_state
 		{
 			enum class phase {
