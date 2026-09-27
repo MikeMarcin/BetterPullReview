@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1063"
 title: "Verify cold published recovery and incomplete remote observations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1055", "BPR-1059"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-12","milestone":"publish-and-recover","acceptance":["AC45-01","AC45-02","AC45-09"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
