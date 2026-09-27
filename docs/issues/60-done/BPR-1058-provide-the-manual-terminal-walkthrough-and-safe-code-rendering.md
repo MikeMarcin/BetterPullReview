@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1058"
 title: "Provide the manual terminal walkthrough and safe code rendering"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1057"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-07","milestone":"headless-manual","acceptance":["AC44-03","AC44-06","AC44-11"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-03","outcome":"pass","revision":"9c1c9447463d838e7306e3911316c28b8802dd76","evidence":{"kind":"command","detail":"Local authoring/rehearsal portion: real PTY at 24 columns exercises Problem/Solution/add/move/walk/observed Ready/preview/remove/EOF without model or remote mutation capabilities. Publication and actual human qualification remain later milestone work."}},{"criterion":"AC44-06","outcome":"pass","revision":"9c1c9447463d838e7306e3911316c28b8802dd76","evidence":{"kind":"command","detail":"git_haves_trimmed_pack_tour-source passes actual shared epoch/cache/catalog source through installed Git; current added, left, historical, unchanged, Unicode, missing, out-of-range and dirty-checkout cases."}},{"criterion":"AC44-11","outcome":"pass","revision":"9c1c9447463d838e7306e3911316c28b8802dd76","evidence":{"kind":"command","detail":"CLI process and composition tests pass inert OSC/CSI/control/bidi display, raw JSON, bounded pages, no color and 24-column Unicode terminal interaction; pager absence is explicit."}}]
 ---
 
 # BPR-1058: Provide the manual terminal walkthrough and safe code rendering
