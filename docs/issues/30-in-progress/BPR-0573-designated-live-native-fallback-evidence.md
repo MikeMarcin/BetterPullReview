@@ -96,3 +96,27 @@ an unrelated file with the same name cannot borrow source-count treatment.
 Mac configured-manifest and structure gates pass, as do all66 validator tests.
 No native Windows qualification is claimed. The initially absent macOS gh CLI
 fixture executable is now built so its existing symbol-exclusion check runs.
+
+### Actual Default attempt and isolated-profile continuation
+
+The exact Default capsule ran and signed in as MikeMarcin, loaded PR2, then
+refused its comparison at `cache_open: invalid_manifest`. Read-only diagnosis
+found a populated legacy v1 repository cache whose lock inode was unchanged but
+whose device changed after remount. The existing pristine-only recovery rule
+deliberately refuses that populated cache. No draft or Publish occurred; GET
+observations found zero review comments, issue comments and reviews afterward.
+Normal exit/detach passed452.19s, which proves lifecycle only. Its approval is
+spent; see [the preserved attempt](../_checkpoints/BPR-0575/m4-default-live-attempt.json).
+
+Source `6526f525` adds an optional exact profile selector to the fixed attended
+launch lane. The shipped Profiles UI created profile2, RFC0022 live fixture.
+A fresh owner-private replay namespace was initialized only under that profile;
+Default's seven replay-file hashes stayed unchanged. The new subject binds the
+new namespace, application, supervisor, source and inventory. It does not
+reuse the spent Default approval or reinterpret Default's history.
+
+[Profile control evidence](../_checkpoints/BPR-0575/m4-profile-control-evidence.json)
+records50 capsule tests,67 manifest tests, focused architecture/counterexample
+checks, format/tidy, Release capsule preflight and the491-row configured graph
+with exactly one profile2 live lane. It also preserves the initially stale
+guard assertions and image-freshness refusal.
