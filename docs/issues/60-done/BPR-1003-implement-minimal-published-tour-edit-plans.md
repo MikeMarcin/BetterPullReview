@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1003"
 title: "Implement minimal published-tour edit plans"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0042"]
 depends_on: ["BPR-1002"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-13","milestone":"manual-maintenance","acceptance":["AC42-02","AC42-03","AC42-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC42-02","outcome":"pass","revision":"b56cad7ea1911dab63dcabc3eea9db2ab44d5f7b","evidence":{"kind":"observation","detail":"Core planner and real application maintenance course preserve original IDs/replies, emit no equal-body writes and update minimal affected navigation then original root. Course passed 19.62s."}},{"criterion":"AC42-03","outcome":"pass","revision":"b56cad7ea1911dab63dcabc3eea9db2ab44d5f7b","evidence":{"kind":"observation","detail":"Real app later insertion, linked retarget and replied-to retirement produce exactly 23 total writes, 3 creates, 3 COMMENT submissions including initial publication; split/merge core preserves originals. No deletion operation is emitted."}},{"criterion":"AC42-05","outcome":"pass","revision":"b56cad7ea1911dab63dcabc3eea9db2ab44d5f7b","evidence":{"kind":"observation","detail":"Production session/SQLite journal lost-response tests plus 24 forced-death boundaries (9 maintenance) pass; Stop/restart performs read-only reconciliation and explicit Resume never duplicates creation or rolls back shared content."}}]
 ---
 
 # BPR-1003: Implement minimal published-tour edit plans
