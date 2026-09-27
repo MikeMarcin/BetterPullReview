@@ -13,6 +13,7 @@
 #include "public_path_poll.hpp"
 
 #include "bpr/core/review_tour_markdown.hpp"
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -32,10 +33,12 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStyleOptionViewItem>
 #include <QSysInfo>
 #include <QTabBar>
 #include <QTabWidget>
@@ -99,6 +102,94 @@ namespace {
 		QKeyEvent release{ QEvent::KeyRelease, aKey.key(), aKey.keyboardModifiers() };
 		QApplication::sendEvent(aTarget, &release);
 		QApplication::processEvents();
+	}
+	void visible_focus(qt::review_tour_editor& aEditor)
+	{
+		auto* focus  = QApplication::focusWidget();
+		auto* scroll = aEditor.window()->findChild<QScrollArea*>(QStringLiteral("workbenchTourScroll"));
+		expect(focus && scroll && scroll->viewport()->rect().contains(focus->mapTo(scroll->viewport(), focus->rect().center())), "keyboard focus is inside the actual Tour viewport, not merely an unhidden offscreen child");
+		auto* frame = focus->findChild<QWidget*>(QStringLiteral("tourKeyboardFocus"), Qt::FindDirectChildrenOnly);
+		expect(frame && frame->isVisible(), "visible focus ring follows the real focused control");
+		const auto pixels     = frame->grab().toImage();
+		const auto highlight  = focus->palette().color(QPalette::Highlight);
+		int        ringPixels = 0;
+		for (int y = 0; y < pixels.height(); ++y) {
+			for (int x = 0; x < pixels.width(); ++x) {
+				if (pixels.pixelColor(x, y) == highlight) {
+					++ringPixels;
+				}
+			}
+		}
+		expect(ringPixels > 20, "focus ring paints a visible palette highlight perimeter");
+	}
+	void preparation_icons(const application::tour_presentation& aPresentation, const QString& aCapture)
+	{
+		qt::review_tour_editor probe;
+		auto                   projection = aPresentation;
+		auto                   draft      = std::make_shared<core::review_tour>(*aPresentation.Draft);
+		projection.Draft                  = draft;
+		draft->Stops.resize(1);
+		draft->Stops.front().Title = "A stop";
+		const std::array states{ core::tour_preparation::editing, core::tour_preparation::ready, core::tour_preparation::suggested, core::tour_preparation::needs_attention };
+		const std::array labels{ QStringLiteral("Editing"), QStringLiteral("Ready"), QStringLiteral("Suggested / unvisited"), QStringLiteral("Needs attention") };
+		QImage           sheet{ 480, 576, QImage::Format_ARGB32_Premultiplied };
+		sheet.fill(Qt::transparent);
+		QPainter sheetPainter{ &sheet };
+		for (int theme = 0; theme < 3; ++theme) {
+			auto palette = probe.palette();
+			if (theme != 0) {
+				const auto background = theme == 1 ? Qt::black : Qt::white;
+				const auto foreground = theme == 1 ? Qt::white : Qt::black;
+				palette.setColor(QPalette::Base, background);
+				palette.setColor(QPalette::Text, foreground);
+				palette.setColor(QPalette::Highlight, foreground);
+				palette.setColor(QPalette::HighlightedText, background);
+			}
+			for (int selected = 0; selected < 2; ++selected) {
+				std::array<QImage, 4> shapes;
+				for (std::size_t state = 0; state < states.size(); ++state) {
+					draft->Stops.front().Preparation = states[state];
+					probe.present(projection);
+					auto*      list  = probe.outline();
+					const auto index = list->model()->index(0, 0);
+					expect(index.data(Qt::AccessibleTextRole).toString() == QStringLiteral("1. A stop. ") + labels[state] && index.data(Qt::ToolTipRole) == index.data(Qt::AccessibleTextRole), "each status survives in spoken and hover labels");
+					QStyleOptionViewItem option;
+					option.initFrom(list);
+					option.widget = list;
+					// QListView highlights its decoration as part of the selected row.
+					option.showDecorationSelected = true;
+					option.rect                   = { 0, 0, 240, 48 };
+					option.palette                = palette;
+					option.font.setPointSize(theme == 2 ? 18 : 13);
+					option.fontMetrics = QFontMetrics{ option.font };
+					option.state       = QStyle::State_Enabled | (selected ? QStyle::State_Selected : QStyle::State_None);
+					QImage row{ 480, 96, QImage::Format_ARGB32_Premultiplied };
+					row.setDevicePixelRatio(2);
+					row.fill(palette.color(QPalette::Base));
+					QPainter painter{ &row };
+					list->itemDelegate()->paint(&painter, option, index);
+					painter.end();
+					shapes[state] = row;
+
+					sheetPainter.drawImage(QRect{ selected * 240, (theme * 4 + static_cast<int>(state)) * 48, 240, 48 }, row);
+				}
+				for (std::size_t first = 0; first < shapes.size(); ++first) {
+					for (std::size_t second = first + 1; second < shapes.size(); ++second) {
+						if (shapes[first] == shapes[second]) {
+							if (!aCapture.isEmpty()) {
+								shapes[first].save(aCapture + QStringLiteral("-icon-failure.png"));
+							}
+							std::cerr << "icon equality: theme=" << theme << " selected=" << selected << " states=" << first << "," << second << '\n';
+						}
+						expect(shapes[first] != shapes[second], "preparation states retain distinct painted shapes with identical title and monochrome colors");
+					}
+				}
+			}
+		}
+		sheetPainter.end();
+		if (!aCapture.isEmpty()) {
+			expect(sheet.save(aCapture + QStringLiteral("-status-icons.png")), "status icon palette and size comparison saved");
+		}
 	}
 	void tab_leaves(QPlainTextEdit* aEditor)
 	{
@@ -306,6 +397,11 @@ auto main(int argc, char** argv) -> int
 			window.resize(1440, 1000);
 			window.setWindowTitle(QStringLiteral("Review tour native qualification — synthetic data — close to finish"));
 			QApplication::setQuitOnLastWindowClosed(true);
+			// The developer fixture owns one application rather than profile_desktop.
+			// Supply the same workbench Quit action; shutdown below drains its hosts.
+			window.set_profile_management_dispatch({ }, { }, [] { QApplication::quit(); });
+			auto* quit = window.findChild<QAction*>(QStringLiteral("quitProfilesAction"));
+			expect(quit && quit->isEnabled() && quit->shortcut() == QKeySequence{ QKeySequence::Quit }, "attended course offers the ordinary native Quit shortcut");
 			QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
 			std::cout << "review-tour-attended:ready stops=" << count << " qpa=" << QApplication::platformName().toStdString() << '\n'
 					  << std::flush;
@@ -572,8 +668,21 @@ auto main(int argc, char** argv) -> int
 		tab_leaves(editor.problem_editor());
 		key(editor.problem_editor(), QKeyCombination{ Qt::Key_Tab });
 		expect(QApplication::focusWidget() == editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic")), "Problem Tab reaches the visible assistance control");
+		visible_focus(editor);
 		key(QApplication::focusWidget(), QKeyCombination{ Qt::ShiftModifier, Qt::Key_Backtab });
 		expect(editor.problem_editor()->hasFocus(), "reverse Tab returns from assistance to Problem");
+		visible_focus(editor);
+		const auto beforeFocusSize = window.size();
+		window.resize(960, 720);
+		QApplication::processEvents();
+		key(editor.problem_editor(), QKeyCombination{ Qt::Key_Tab });
+		visible_focus(editor);
+		if (argc > 1) {
+			expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-keyboard.png")), "capture scrolled keyboard focus in real workbench");
+		}
+		key(QApplication::focusWidget(), QKeyCombination{ Qt::ShiftModifier, Qt::Key_Backtab });
+		visible_focus(editor);
+		window.resize(beforeFocusSize);
 		editor.problem_editor()->insertPlainText(problem);
 		saved(editor);
 		editor.problem_editor()->undo();
@@ -756,6 +865,11 @@ auto main(int argc, char** argv) -> int
 			render(1100, 900, QStringLiteral("-large-font"));
 			editor.setFont(original);
 		}
+		const auto* row = editor.outline()->item(0);
+		expect(!row->text().contains(QStringLiteral(" — ")) && row->data(Qt::AccessibleTextRole).toString().size() > row->text().size() && row->toolTip() == row->data(Qt::AccessibleTextRole).toString(), "visual title has no status suffix while spoken and hover labels retain it");
+		auto* accessible = QAccessible::queryAccessibleInterface(editor.outline());
+		expect(accessible && accessible->child(0) && accessible->child(0)->text(QAccessible::Name) == row->data(Qt::AccessibleTextRole).toString(), "actual accessible list item includes preparation state");
+		preparation_icons(editor.shown(), argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString{ });
 		const auto accepted = *editor.shown().Draft;
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
 		expect(editor.preview()->original_body().find(accepted.Problem) != std::string::npos && editor.preview()->original_body().find(accepted.Solution) != std::string::npos, "preview retains raw source without rendering feedback into draft");

@@ -15,9 +15,11 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
@@ -26,6 +28,96 @@
 #include <limits>
 namespace bpr::qt {
 	namespace {
+		constexpr int preparation_role = Qt::UserRole + 1;
+
+		// Keep the cue inside the control's bounds, including scroll viewports.
+		// Some native styles omit button focus when full keyboard access is off.
+		class tour_focus_ring final : public QWidget
+		{
+		public:
+			explicit tour_focus_ring(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("tourKeyboardFocus"));
+				setAttribute(Qt::WA_TransparentForMouseEvents);
+				setAttribute(Qt::WA_NoSystemBackground);
+				setGeometry(aParent->rect());
+				hide();
+				aParent->installEventFilter(this);
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::FocusIn) {
+					show();
+					raise();
+				} else if (aEvent->type() == QEvent::FocusOut) {
+					hide();
+				} else if (aEvent->type() == QEvent::Resize) {
+					setGeometry(parentWidget()->rect());
+				}
+				return QWidget::eventFilter(aWatched, aEvent);
+			}
+			void paintEvent(QPaintEvent*) override
+			{
+				QPainter painter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setBrush(Qt::NoBrush);
+				painter.setPen(QPen{ palette().color(QPalette::Highlight), 2.0 });
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
+			}
+		};
+
+		void paint_preparation(QPainter& aPainter, core::tour_preparation aPreparation)
+		{
+			QPainterPath path;
+			switch (aPreparation) {
+			case core::tour_preparation::editing:
+				// A pencil, with its tip distinct from the six-dot reorder grip.
+				path.moveTo(3, 11);
+				path.lineTo(11, 3);
+				path.lineTo(14, 6);
+				path.lineTo(6, 14);
+				path.lineTo(2, 15);
+				path.closeSubpath();
+				path.moveTo(9, 5);
+				path.lineTo(12, 8);
+				break;
+			case core::tour_preparation::ready:
+				path.addEllipse(QRectF{ 2, 2, 14, 14 });
+				path.moveTo(5, 9);
+				path.lineTo(8, 12);
+				path.lineTo(13, 6);
+				break;
+			case core::tour_preparation::needs_attention:
+				path.moveTo(9, 2);
+				path.lineTo(17, 16);
+				path.lineTo(1, 16);
+				path.closeSubpath();
+				path.moveTo(9, 6);
+				path.lineTo(9, 10);
+				path.moveTo(9, 13);
+				path.lineTo(9, 13.2);
+				break;
+			case core::tour_preparation::suggested:
+				path.moveTo(9, 1);
+				path.lineTo(11, 7);
+				path.lineTo(17, 9);
+				path.lineTo(11, 11);
+				path.lineTo(9, 17);
+				path.lineTo(7, 11);
+				path.lineTo(1, 9);
+				path.lineTo(7, 7);
+				path.closeSubpath();
+				break;
+			}
+			const auto color = aPainter.brush().color();
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.setPen(QPen{ color, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.drawPath(path);
+		}
+
 		class tour_stop_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -36,22 +128,29 @@ namespace bpr::qt {
 			{
 				QStyledItemDelegate::initStyleOption(aOption, aIndex);
 				const auto extent = std::max(18, aOption->fontMetrics.height());
-				QPixmap    handle{ extent, extent };
-				handle.fill(Qt::transparent);
-				QPainter painter{ &handle };
+				const auto ratio  = aOption->widget ? aOption->widget->devicePixelRatioF() : 1.0;
+				QPixmap    decoration{ qRound((extent * 2 + 6) * ratio), qRound(extent * ratio) };
+				decoration.setDevicePixelRatio(ratio);
+				decoration.fill(Qt::transparent);
+				QPainter painter{ &decoration };
 				painter.setRenderHint(QPainter::Antialiasing);
 				painter.setPen(Qt::NoPen);
 				painter.setBrush(aOption->palette.color(aOption->state & QStyle::State_Selected ? QPalette::HighlightedText : QPalette::Text));
+				painter.scale(extent / 18.0, extent / 18.0);
 				for (int row = -1; row <= 1; ++row) {
 					for (int column = -1; column <= 1; column += 2) {
-						painter.drawEllipse(QPointF{ extent / 2.0 + column * 2.5, extent / 2.0 + row * 5.0 }, 1.2, 1.2);
+						painter.drawEllipse(QPointF{ 9.0 + column * 2.5, 9.0 + row * 5.0 }, 1.2, 1.2);
 					}
 				}
+				painter.translate(18.0 + 6.0 * 18.0 / extent, 0);
+				paint_preparation(painter, static_cast<core::tour_preparation>(aIndex.data(preparation_role).toInt()));
 				aOption->features |= QStyleOptionViewItem::HasDecoration;
-				aOption->icon           = QIcon{ handle };
-				aOption->decorationSize = { extent, extent };
+				aOption->icon = QIcon{ decoration };
+				aOption->icon.addPixmap(decoration, QIcon::Selected);
+				aOption->decorationSize = { extent * 2 + 6, extent };
 			}
 		};
+
 		// The list translates a drag to one semantic move. Only the accepted
 		// projection may reorder its rows, so a refused drop leaves them intact.
 		class tour_outline final : public QListWidget
@@ -122,6 +221,14 @@ namespace bpr::qt {
 			label->setTextFormat(Qt::PlainText);
 			label->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			return label;
+		}
+		void reveal_focus(QWidget* aWidget)
+		{
+			for (auto* parent = aWidget->parentWidget(); parent; parent = parent->parentWidget()) {
+				if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
+					scroll->ensureWidgetVisible(aWidget, 8, 8);
+				}
+			}
 		}
 		void update_text(QPlainTextEdit* aEditor, const std::string& aText)
 		{
@@ -261,6 +368,9 @@ namespace bpr::qt {
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
 			widget->setAttribute(Qt::WA_MacShowFocusRect);
+			if (widget->focusPolicy() & Qt::TabFocus) {
+				new tour_focus_ring{ widget };
+			}
 		}
 		present({ });
 	}
@@ -521,6 +631,7 @@ namespace bpr::qt {
 			if (next->window() == window() && next->isVisible() && next->isEnabled() && (next->focusPolicy() & Qt::TabFocus) && !next->focusProxy()) {
 				next->setFocus(aNext ? Qt::TabFocusReason : Qt::BacktabFocusReason);
 				if (QApplication::focusWidget() != current) {
+					reveal_focus(next);
 					return true;
 				}
 			}
@@ -794,8 +905,11 @@ namespace bpr::qt {
 				: stop.Preparation == core::tour_preparation::suggested                                                                                      ? tr("Suggested / unvisited")
 																																							 : tr("Editing");
 			const auto title = stop.Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop.Title);
-			item->setText(tr("%1. %2 — %3").arg(row + 1).arg(title, state));
-			item->setToolTip(item->text());
+			item->setText(tr("%1. %2").arg(row + 1).arg(title));
+			item->setData(preparation_role, static_cast<int>(stop.Preparation));
+			const auto spoken = tr("%1. %2. %3").arg(row + 1).arg(title, state);
+			item->setData(Qt::AccessibleTextRole, spoken);
+			item->setToolTip(spoken);
 		}
 		while (Outline->count() > static_cast<int>(count)) {
 			delete Outline->takeItem(Outline->count() - 1);

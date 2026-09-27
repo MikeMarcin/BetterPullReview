@@ -38,10 +38,16 @@ comment action as support for a pending tour batch.
    Markdown reader is read-only and has HTML/disclosure limitations. Raw Markdown
    remains the publication source; preview does not promise GitHub pixel parity.
 
+Each stop has a small status icon before its number: a pencil for Editing, a
+circled check for Ready, a sparkle for Suggested / unvisited, and a warning
+triangle for Needs attention. The dotted drag handle is separate. Hover a row for
+its full status; assistive technology receives the number, title and status.
+
 Local saves are automatic and profile/account scoped. A failed save says that
 text is not yet durable; keep the editor open and use the offered retry/recovery.
 Conflicting windows retain both versions. Tab and Shift+Tab move between controls
-without inserting tabs into prose. Standard Undo/Redo (`Cmd+Z` / `Cmd+Shift+Z`
+without inserting tabs into prose. The focused control scrolls into view and has
+a visible focus outline. Standard Undo/Redo (`Cmd+Z` / `Cmd+Shift+Z`
 on macOS) reverses the latest arrangement while its history is available,
 including adding a stop or dragging it. Subsequent text editing clears that
 bounded structural history and gives Undo/Redo to the native text editor, so
