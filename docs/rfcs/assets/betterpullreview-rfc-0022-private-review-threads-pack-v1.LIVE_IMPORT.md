@@ -39,7 +39,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-01 | [BPR-0576](../../issues/60-done/BPR-0576-import-reconcile-and-plan.md) |
 | PACK-BPR-0022-02 | [BPR-0577](../../issues/60-done/BPR-0577-architecture-allocation-and-live-contract.md) |
 | PACK-BPR-0022-03 | [BPR-0578](../../issues/60-done/BPR-0578-core-private-thread-model.md) |
-| PACK-BPR-0022-04 | [BPR-0579](../../issues/10-backlog/BPR-0579-core-provenance-lineage-and-composition.md) |
+| PACK-BPR-0022-04 | [BPR-0579](../../issues/20-ready/BPR-0579-core-provenance-lineage-and-composition.md) |
 | PACK-BPR-0022-05 | [BPR-0580](../../issues/10-backlog/BPR-0580-sqlite-schema-migration-and-paged-store.md) |
 | PACK-BPR-0022-06 | [BPR-0581](../../issues/10-backlog/BPR-0581-agent-runtime-provenance-capture.md) |
 | PACK-BPR-0022-07 | [BPR-0582](../../issues/10-backlog/BPR-0582-private-thread-application-host.md) |
