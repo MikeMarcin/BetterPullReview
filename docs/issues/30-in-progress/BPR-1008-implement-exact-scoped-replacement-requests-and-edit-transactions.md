@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1008"
 title: "Implement exact scoped replacement requests and edit transactions"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1007", "BPR-0992"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-18","milestone":"scoped-ai","acceptance":["AC43-03","AC43-04","AC43-05","AC43-06"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
