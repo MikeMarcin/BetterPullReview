@@ -142,6 +142,26 @@ namespace {
 		expect(wrongScope && !(*wrongScope)->admit(expected) && (*wrongScope)->load(input.IdempotencyKey)->has_value() == false, "scope cannot read or admit another actor request");
 		expect((*wrongScope)->pending() && (*wrongScope)->pending()->empty(), "pending discovery cannot cross actor scope");
 	}
+	void test_version_three_migration_preserves_whole_reviews()
+	{
+		for (const bool succeeded : { false, true }) {
+			temporary_directory root;
+			auto                store    = storage(root.Path);
+			const auto          expected = record();
+			expect(store->admit(expected).has_value(), "v3 whole-review row admitted");
+			auto saved = store->mark_possibly_transmitted(expected.Request.IdempotencyKey, expected.RequestFingerprint);
+			expect(saved.has_value(), "v3 whole-review witness saved");
+			if (succeeded) {
+				saved = store->resolve(expected.Request.IdempotencyKey, expected.RequestFingerprint, receipt());
+				expect(saved.has_value(), "v3 receipt saved");
+			}
+			store.reset();
+			execute_sql(database(root), "DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+			store = storage(root.Path);
+			expect(store->load(expected.Request.IdempotencyKey).value() == *saved, "v4 migration retains exact whole-review witness or receipt");
+		}
+	}
+
 	void test_integrity_and_schema()
 	{
 		for (const auto* mutation : { "UPDATE submission_attempt SET request = zeroblob(length(request))", "UPDATE submission_attempt SET request_fingerprint = zeroblob(32)", "UPDATE submission_baseline SET baseline_digest = zeroblob(32)", "UPDATE submission_baseline SET baseline = zeroblob(length(baseline))" }) {
@@ -155,7 +175,7 @@ namespace {
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
 			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
-		for (const auto* mutation : { "PRAGMA user_version = 4", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
+		for (const auto* mutation : { "PRAGMA user_version = 5", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
 			temporary_directory root;
 			auto                store = storage(root.Path);
 			store.reset();
@@ -197,6 +217,7 @@ namespace {
 auto main() -> int
 try {
 	test_storage_round_trip();
+	test_version_three_migration_preserves_whole_reviews();
 	test_integrity_and_schema();
 	test_capacity_and_baseline_validation();
 	std::cout << "review-submission-recovery-storage-tests:pass\n";

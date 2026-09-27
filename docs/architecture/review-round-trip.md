@@ -798,3 +798,35 @@ The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`
 Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
 observed on 2026-09-26. Provider publication, recovery and read normalization
 connect this codec in the subsequent authored milestones.
+
+### RFC-0022 logical journal (schema 4)
+
+Schema 4 adds `logical_publication` transactionally after exact validation of
+schemas 1–3. Existing native attempts, baselines, whole-review attempts and
+receipts keep their original bytes and semantics. Legacy recovery remains the
+native path; a migrated unresolved attempt is never turned into fresh admission.
+The new journal stores one versioned bounded binary parent with at most two
+children and a SHA-256 digest covering the complete record, including baselines.
+Both journals share the 1,024-publication limit per authority scope.
+
+A parent retains its logical fingerprint and legacy alias. The alias is unique
+within its scope: an existing legacy row refuses new logical admission, and a
+logical parent refuses legacy admission under that alias. Each child key is
+SHA-256 over `bpr-review-child-v1:`, the parent key and either
+`:native-wire-v1` or `:file-wire-v1:permalink-v1:body-v1`. Child fingerprints bind
+the exact canonical wire; the parent fingerprint binds the logical contract.
+All integers in the stored binary format are unsigned 64-bit little-endian;
+text is an eight-byte length followed by exact bytes and digests are 32 bytes.
+The binary format starts with revision 1. Stored enum and text bounds are checked
+before use; a digest-valid but invalid state is still refused.
+
+Compare-and-swap commits exactly one core-legal state transition and its child
+witness or receipt. Fallback requires a previously committed exact native
+non-creation rejection, or an initial scoped-evidence admission with no native
+child. Its authorization stores the contract/scope digests and, for cached
+observations, generation and observed/expiry seconds. A native transmission
+witness cannot be replaced by cached evidence. A succeeded child and its receipt
+commit together; a baseline ID cannot become that receipt. Prepared children
+that survive interruption remain conservatively non-retryable. The session may
+reconcile only a possibly transmitted child; it never treats GET absence as
+permission for another POST.

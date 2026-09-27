@@ -22,7 +22,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 3 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 4 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -86,6 +86,14 @@ namespace bpr::adapters::sqlite {
 				"transmission INTEGER NOT NULL CHECK(transmission BETWEEN 0 AND 1),"
 				"PRIMARY KEY(scope_id,idempotency_key),"
 				"FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			std::string_view{
+				"CREATE TABLE logical_publication("
+				"scope_id INTEGER NOT NULL REFERENCES recovery_scope(scope_id) ON DELETE CASCADE,"
+				"publication_key TEXT NOT NULL CHECK(length(publication_key) = 64),"
+				"legacy_key TEXT NOT NULL CHECK(length(legacy_key) = 64),"
+				"record BLOB NOT NULL CHECK(length(record) BETWEEN 8 AND 200000),"
+				"record_digest BLOB NOT NULL CHECK(length(record_digest) = 32),"
+				"PRIMARY KEY(scope_id,publication_key),UNIQUE(scope_id,legacy_key)) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -107,6 +115,18 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
 			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
 		};
+
+		constexpr std::array RecoverySchemaVersion4{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+		};
+		[[nodiscard]] auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>;
+		[[nodiscard]] auto decode_publication(std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>;
 
 		[[nodiscard]] auto translate(const detail::failure aFailure) noexcept
 			-> application::review_mutation_recovery_failure
@@ -361,6 +381,63 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
+			auto load_publication(const std::string& aKey) -> std::expected<std::optional<application::review_publication_recovery_record>, application::review_mutation_recovery_failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				return load_publication_locked(aKey);
+			}
+			auto advance_publication(const std::optional<application::review_publication_recovery_record>& aExpected, const application::review_publication_recovery_record& aNext)
+				-> std::expected<application::review_publication_recovery_record, application::review_mutation_recovery_failure> override
+			{
+				using failure = application::review_mutation_recovery_failure;
+				if (!application::valid_publication_transition(aExpected, aNext)) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				if (!detail::execute(Database, "BEGIN IMMEDIATE")) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto transaction = [&]() -> std::expected<void, failure> {
+					const auto current = load_publication_locked(aNext.Key);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					if (*current != aExpected) {
+						return std::unexpected(failure::conflict);
+					}
+					const auto legacy = load_locked(aNext.LegacyKey);
+					if (!legacy) {
+						return std::unexpected(legacy.error());
+					}
+					if (legacy->has_value()) {
+						return std::unexpected(failure::conflict);
+					}
+					if (!aExpected) {
+						auto count = detail::prepare(Database, "SELECT (SELECT count(*) FROM recovery_attempt WHERE scope_id=?1)+(SELECT count(*) FROM logical_publication WHERE scope_id=?1)");
+						if (!count || ::sqlite3_bind_int64(count->Value, 1, Scope) != SQLITE_OK || ::sqlite3_step(count->Value) != SQLITE_ROW) {
+							return std::unexpected(failure::unavailable);
+						}
+						if (::sqlite3_column_int64(count->Value, 0) >= static_cast<std::int64_t>(application::maximum_review_mutation_recovery_records)) {
+							return std::unexpected(failure::capacity);
+						}
+					}
+					const auto bytes  = encode_publication(aNext);
+					const auto digest = core::sha256(std::span{ bytes });
+					auto       write  = detail::prepare(Database, aExpected ? "UPDATE logical_publication SET record=?4,record_digest=?5 WHERE scope_id=?1 AND publication_key=?2 AND legacy_key=?3" : "INSERT INTO logical_publication(scope_id,publication_key,legacy_key,record,record_digest) VALUES(?1,?2,?3,?4,?5)");
+					if (!write || ::sqlite3_bind_int64(write->Value, 1, Scope) != SQLITE_OK || !bind_text(write->Value, 2, aNext.Key)
+						|| !bind_text(write->Value, 3, aNext.LegacyKey) || !bind_blob(write->Value, 4, bytes) || !bind_blob(write->Value, 5, digest)
+						|| ::sqlite3_step(write->Value) != SQLITE_DONE || ::sqlite3_changes(Database) != 1) {
+						return std::unexpected(failure::conflict);
+					}
+					return { };
+				}();
+				if (!transaction || !detail::execute(Database, "COMMIT")) {
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+					return std::unexpected(transaction ? failure::unavailable : transaction.error());
+				}
+				return aNext;
+			}
+
 			auto load(const std::string& aIdempotencyKey)
 				-> std::expected<
 					std::optional<application::review_mutation_recovery_record>,
@@ -410,9 +487,16 @@ namespace bpr::adapters::sqlite {
 						.Record = std::move(result),
 					};
 				}
+				auto logical = detail::prepare(Database, "SELECT count(*) FROM logical_publication WHERE scope_id=?1 AND legacy_key=?2");
+				if (!logical || ::sqlite3_bind_int64(logical->Value, 1, Scope) != SQLITE_OK || !bind_text(logical->Value, 2, aRecord.IdempotencyKey)
+					|| ::sqlite3_step(logical->Value) != SQLITE_ROW || ::sqlite3_column_int64(logical->Value, 0) != 0) {
+					rollback();
+					return std::unexpected(failure::conflict);
+				}
+
 				auto count = detail::prepare(
 					Database,
-					"SELECT count(*) FROM recovery_attempt WHERE scope_id = ?1");
+					"SELECT (SELECT count(*) FROM recovery_attempt WHERE scope_id = ?1) + (SELECT count(*) FROM logical_publication WHERE scope_id = ?1)");
 				if (!count || ::sqlite3_bind_int64(count->Value, 1, Scope) != SQLITE_OK
 					|| ::sqlite3_step(count->Value) != SQLITE_ROW) {
 					rollback();
@@ -608,6 +692,38 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
+			[[nodiscard]] auto load_publication_locked(const std::string& aKey) -> std::expected<std::optional<application::review_publication_recovery_record>, application::review_mutation_recovery_failure>
+			{
+				using failure = application::review_mutation_recovery_failure;
+				auto query    = detail::prepare(Database, "SELECT legacy_key,record,record_digest FROM logical_publication WHERE scope_id=?1 AND publication_key=?2");
+				if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || !bind_text(query->Value, 2, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto row = ::sqlite3_step(query->Value);
+				if (row == SQLITE_DONE) {
+					return std::optional<application::review_publication_recovery_record>{ };
+				}
+				if (row != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto  legacy = text_at(query->Value, 0);
+				const auto  digest = digest_at(query->Value, 2);
+				const auto  size   = ::sqlite3_column_bytes(query->Value, 1);
+				const auto* data   = static_cast<const std::uint8_t*>(::sqlite3_column_blob(query->Value, 1));
+				if (!legacy || !digest || ::sqlite3_column_type(query->Value, 1) != SQLITE_BLOB || !data || size < 8 || size > 200000) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				const auto bytes = std::span{ data, static_cast<std::size_t>(size) };
+				if (core::sha256(bytes) != *digest) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				auto decoded = decode_publication(bytes);
+				if (!decoded || decoded->Key != aKey || decoded->LegacyKey != *legacy || ::sqlite3_step(query->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				return std::optional{ std::move(*decoded) };
+			}
+
 			[[nodiscard]] auto load_locked(const std::string& aIdempotencyKey)
 				-> std::expected<
 					std::optional<application::review_mutation_recovery_record>,
@@ -727,6 +843,7 @@ namespace bpr::adapters::sqlite {
 				integer(aValue.size());
 				Bytes.insert(Bytes.end(), aValue.begin(), aValue.end());
 			}
+			void digest(const std::array<std::uint8_t, 32>& aValue) { Bytes.insert(Bytes.end(), aValue.begin(), aValue.end()); }
 			void oid(const core::git_commit_oid& aValue)
 			{
 				integer(static_cast<std::uint64_t>(aValue.algorithm()));
@@ -763,6 +880,26 @@ namespace bpr::adapters::sqlite {
 				Bytes = Bytes.subspan(static_cast<std::size_t>(size));
 				return value;
 			}
+			auto bounded(const std::uint64_t aMaximum) -> std::uint64_t
+			{
+				const auto value = integer();
+				if (value > aMaximum) {
+					Good = false;
+					return 0U;
+				}
+				return value;
+			}
+			auto digest() -> std::array<std::uint8_t, 32>
+			{
+				std::array<std::uint8_t, 32> result{ };
+				if (Bytes.size() < 32U) {
+					Good = false;
+					return result;
+				}
+				std::ranges::copy(Bytes.first(32U), result.begin());
+				Bytes = Bytes.subspan(32U);
+				return result;
+			}
 			auto oid() -> core::git_commit_oid
 			{
 				const auto algorithm = integer();
@@ -792,6 +929,106 @@ namespace bpr::adapters::sqlite {
 			std::span<const std::uint8_t> Bytes;
 			bool                          Good = true;
 		};
+		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild)
+		{
+			aOut.integer(aChild.has_value() ? 1U : 0U);
+			if (!aChild) {
+				return;
+			}
+			const auto& c = *aChild;
+			aOut.text(c.IdempotencyKey);
+			aOut.digest(c.RequestFingerprint);
+			aOut.digest(c.AuthorityFingerprint);
+			aOut.text(c.Body);
+			aOut.text(c.Anchor.Path);
+			aOut.digest(c.Anchor.Semantic.Comparison.bytes());
+			aOut.integer(c.Anchor.Semantic.Line);
+			aOut.oid(c.Anchor.Commit);
+			aOut.integer(static_cast<std::uint64_t>(c.Transmission));
+			aOut.integer(static_cast<std::uint64_t>(c.State));
+			aOut.integer(c.BaselineExactCommentIds->size());
+			for (const auto& id : *c.BaselineExactCommentIds) {
+				aOut.text(id);
+			}
+			aOut.integer(c.Receipt.has_value() ? 1U : 0U);
+			if (c.Receipt) {
+				aOut.text(c.Receipt->ServerCommentId);
+				aOut.integer(c.Receipt->Duplicate ? 1U : 0U);
+				aOut.integer(static_cast<std::uint64_t>(c.Receipt->Representation));
+			}
+		}
+		auto decode_child(submission_reader& aIn) -> std::optional<application::review_mutation_recovery_record>
+		{
+			if (aIn.bounded(1U) == 0U) {
+				return std::nullopt;
+			}
+			application::review_mutation_recovery_record c;
+			c.IdempotencyKey             = aIn.text(64U);
+			c.RequestFingerprint         = aIn.digest();
+			c.AuthorityFingerprint       = aIn.digest();
+			c.Body                       = aIn.text(65536U);
+			c.Anchor.Path                = aIn.text(4096U);
+			c.Anchor.Semantic.Comparison = core::file_comparison_digest{ aIn.digest() };
+			c.Anchor.Semantic.Side       = core::diff_side::right;
+			c.Anchor.Semantic.Line       = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
+			c.Anchor.Commit              = aIn.oid();
+			c.Transmission               = static_cast<application::review_mutation_recovery_transmission>(aIn.bounded(2U));
+			c.State                      = static_cast<application::review_mutation_recovery_state>(aIn.bounded(1U));
+			const auto count             = aIn.bounded(application::maximum_review_mutation_baseline_comments);
+			c.BaselineExactCommentIds.emplace();
+			for (auto index = std::uint64_t{ 0 }; index < count; ++index) {
+				c.BaselineExactCommentIds->push_back(aIn.text());
+			}
+			if (aIn.bounded(1U) != 0U) {
+				c.Receipt.emplace();
+				c.Receipt->ServerCommentId = aIn.text();
+				c.Receipt->Duplicate       = aIn.bounded(1U) != 0U;
+				c.Receipt->Representation  = static_cast<core::review_publication_representation>(aIn.bounded(1U));
+			}
+			return c;
+		}
+		auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>
+		{
+			submission_writer out;
+			out.integer(1U);
+			out.text(aRecord.Key);
+			out.text(aRecord.LegacyKey);
+			out.digest(aRecord.Fingerprint);
+			out.integer(static_cast<std::uint64_t>(aRecord.State));
+			const auto& auth = aRecord.Authorization;
+			out.integer(static_cast<std::uint64_t>(auth.Source));
+			out.digest(auth.ContractDigest);
+			out.digest(auth.ScopeDigest);
+			out.integer(auth.Generation);
+			out.integer(auth.ObservedAt);
+			out.integer(auth.ExpiresAt);
+			encode_child(out, aRecord.Native);
+			encode_child(out, aRecord.Fallback);
+			return out.Bytes;
+		}
+		auto decode_publication(const std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>
+		{
+			submission_reader in{ aBytes };
+			if (in.integer() != 1U) {
+				return std::nullopt;
+			}
+			application::review_publication_recovery_record result;
+			result.Key          = in.text(64U);
+			result.LegacyKey    = in.text(64U);
+			result.Fingerprint  = in.digest();
+			result.State        = static_cast<core::review_publication_state>(in.bounded(9U));
+			auto& auth          = result.Authorization;
+			auth.Source         = static_cast<application::review_fallback_authorization_source>(in.bounded(2U));
+			auth.ContractDigest = in.digest();
+			auth.ScopeDigest    = in.digest();
+			auth.Generation     = in.integer();
+			auth.ObservedAt     = in.integer();
+			auth.ExpiresAt      = in.integer();
+			result.Native       = decode_child(in);
+			result.Fallback     = decode_child(in);
+			return in.done() && application::valid(result) ? std::optional{ std::move(result) } : std::nullopt;
+		}
+
 		// The snapshot has its own version and preserves full-width IDs and literal body bytes.
 		auto encode_submission(const application::review_submission_request& aRequest) -> std::vector<std::uint8_t>
 		{
@@ -1161,7 +1398,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,3)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,4)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1170,7 +1407,8 @@ namespace bpr::adapters::sqlite {
 						return std::unexpected(detail::failure::schema_mismatch);
 					}
 					auto schema = *version == 1 ? validate_schema(aDatabase, RecoverySchemaVersion1) : *version == 2 ? validate_schema(aDatabase, RecoverySchemaVersion2)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion3);
+						: *version == 3                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion3)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion4);
 					if (!schema) {
 						return schema;
 					}
@@ -1180,14 +1418,17 @@ namespace bpr::adapters::sqlite {
 					if (*version < 3 && (!detail::execute(aDatabase, RecoverySchema[4]) || !detail::execute(aDatabase, RecoverySchema[5]))) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 3 WHERE singleton = 1")) {
+					if (*version < 4 && !detail::execute(aDatabase, RecoverySchema[6])) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 4 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 3")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 4")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion3);
+				return validate_schema(aDatabase, RecoverySchemaVersion4);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {
