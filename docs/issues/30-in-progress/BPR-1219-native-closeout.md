@@ -65,3 +65,16 @@ original accepted files identity, copied apps, server ownership and next action.
 Only the two replacement controls/export verdicts are requested. The original
 files acceptance remains preserved. Full M5 acceptance and main landing remain
 pending; required human review is not self-certified.
+
+
+## Final human acceptance and engineering reconciliation
+
+The fresh `/root/rfc0027_closeout` owner consumed the session hand-back at
+cursor34 under mandate r2. Controls and export are explicit human Accept at
+source `0fb249a2`; the original files Accept remains at `7ab11993`. All notes
+are blank. [The final ledger](../../verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2)
+records all decision IDs, fingerprints, rechecked binary digests and limitations.
+No product changes were needed. All nine RFC product criteria pass, and this
+card's native and attended obligations are complete. The accepted source lands
+on main before this card's final finish. BPR-0601 retains the separate canonical
+ordering hold; reconciliation does not claim a terminal RFC status.

@@ -301,7 +301,9 @@ minutes, checked before exposure and retired by bounded idle backend maintenance
 Off, privacy/detail changes and Clear invalidate queued generations and reset
 transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
-scope-aware export is described below; native/attended qualification remains open.
+scope-aware export is described below. RFC-0027 native developer courses and
+attended controls are accepted; its verification ledger retains the separate
+package/release limitations and canonical closeout hold.
 
 Diagnostic refresh requests made while a capture is in flight coalesce into one
 fresh observation after its completion. Reopening Settings after Sign out therefore

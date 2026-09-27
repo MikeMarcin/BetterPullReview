@@ -1,5 +1,10 @@
 # RFC-BPR-0027 advanced implementation evidence
 
+Current result: all nine product criteria and the three human judgments are
+accepted. The final engineering round below records the main landing and the
+remaining canonical-order closeout hold. Earlier pending statements are dated
+checkpoints, not the current human-review state.
+
 Mandate r2, 2026-09-26: implement the full advanced phase and land each accepted
 milestone on main. Immutable RFC base:
 `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`. The prior deferral is superseded;
@@ -744,3 +749,85 @@ valid for the original immutable app, which stays reserved by this checkpoint.
 No replacement files question is created. Both revised candidates are protected.
 The final checkpoint on BPR-0601 transfers server PID 8289/session 64739 and the
 complete local URL to the coordinator; M5 remains unaccepted until actual verdicts.
+
+
+## M5 final engineering round — mandate r2
+
+Assignment `/root/rfc0027_closeout`, `native-closeout`, sole writer in worktree
+`57ed`, branch `codex/rfc0027-advanced`. Incoming checkpoint was
+`f9185a22ff14281f4309df7717a175616dcf6408`. The source remains `41cce4ba` with
+UI source `0fb249a2`; this round changes documentation and board state only.
+The latest main checked and fetched was `f1e0c652`, already merged at `0fb249a2`.
+The coordinator confirmed the hand-back watcher exited 0 at cursor 34.
+
+### Consumed human acceptance
+
+Session `c1565558e5fd3fdc277e62622604873b` handed back at cursor **34**, with
+no pending decisions. All three outcomes are explicit human Accept, blank notes:
+
+| Candidate | Source | Decision ID | Fingerprint |
+|---|---|---|---|
+| `BPR-1219-controls` | `0fb249a2499fa4752c645f29d19e1c768e9472e4` | `87de7415-823d-4efc-b07c-03e9491fec5f` | `86f20e8f40401168249b2c48b610d8d364af07d88f5d08fdae341cecbb377cd8` |
+| `BPR-1219-export` | `0fb249a2499fa4752c645f29d19e1c768e9472e4` | `1e877215-b39e-4e6c-a83e-fd338022d415` | `31b491264e3f3dfaaee7861c3de28adaf06b5ee39d7e712ad16fe2fbc0859d4a` |
+| `BPR-1219-files` | `7ab119933439878d858100410083080ab4d1ea7b` | `413e836b-5898-4aeb-a48c-43b21595d54b` | `6eabaa3590e43c125423db6cd31edba6d685f2f919e94d55b7bd1a7cc0836ab7` |
+
+The controls/export copied binary is SHA-256
+`9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186`;
+the original files binary is
+`3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+Both executable digests were rechecked from the retained copied apps and match.
+The accepted files behavior did not change in the UI revision. No copied app,
+review attachment, manifest or recorded verdict was rewritten. The current
+documentation paths had no attended protection conflicts.
+
+### Closeout disposition
+
+All nine RFC product criteria pass within the exact evidence in BPR-0601.
+Actual Mac, Windows and Linux developer logging/lifecycle/control checks meet
+AC-09; the package proof binds pinned Quill, installed notices, SPDX and the
+separate corresponding-source artifact at `189d24f9`. Those observations do not
+qualify release distribution. The Windows AppContainer wrapper failed startup;
+its direct architecture gate passed. Ubuntu 26.04 evidence does not qualify
+Ubuntu 24.04/RHEL10 packages. The universal Mac package is unpublished and
+ad-hoc sealed, with no release trust or source-offer approval. Crash evidence
+preserves only explicitly flushed records. The optional unrelated Windows tour
+storage target's missing platform include remains unclaimed.
+
+The current user-supplied AGENTS.md requires sequential canonical RFC closeout.
+Earlier canonical RFC-0020, RFC-0021 and RFC-0023 are Deferred; RFC-0022 is
+Proposed. RFC-0027's listed dependencies 0001/0002 are Auto-Verified. Although
+historical BPR-0750 applied ordering only to its declared dependencies, mandate
+r2 supplies no explicit exception to the current sequential rule. Therefore the
+accepted implementation lands on main while BPR-0601 and RFC-0027 terminal
+status remain pending that ordering requirement. No product criterion is waived
+and no additional human product review is requested. The coordinator may obtain
+an explicit ordering amendment, or resume closeout after those predecessors.
+
+Documentation impact: existing product, host, privacy, settings, resource and
+package documentation already owns the final behavior. This round updates
+acceptance and removes stale active-review wording; no API, persistence,
+threading, provider authority, native launch or package behavior changes.
+
+
+### Final focused verification
+
+At `f0104f8007a401f7eb417e82f7050d8aeeff09fe` (product inputs identical to
+`41cce4ba`), the explicit three-target dev rebuild passed. The focused public
+integration passed **4/4** in **46.21 seconds**:
+
+```sh
+cmake --build --preset dev --target test_application_logging test_diagnostic_controls_public_path test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_logging_capability-failure|application_diagnostic_controls_public_path|application_release_maintenance_public_path|architecture_boundaries)$'
+```
+
+This exercises the real provider-to-file failure, signed-out control and export
+compositions through their fixture transports. No live sign-in ran. Unchanged
+native/package, format and tidy results above remain bound to their actual
+producing revisions; no broad matrix was repeated for this documentation round.
+
+The documentation gate reports `DOCUMENTATION_OK`; `git diff --check` passes.
+The prior 64 documentation-regression tests remain valid because neither gate
+nor schema changed. The attended-review `stop` command returned `stopped: true`
+after decision intake. Session 64739/PID 8289 is no longer transferred; copied
+apps, verdicts and protections remain retained for inspection. The coordinator's
+watch 47764 completed with exit 0. All final build/test commands have completed.

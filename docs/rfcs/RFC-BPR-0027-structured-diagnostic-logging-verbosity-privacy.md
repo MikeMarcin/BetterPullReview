@@ -13,13 +13,16 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Basic logging foundation implemented; advanced phase active.**
-The owner requested this RFC on 2026-09-04, using AllTheThings' verbosity and
-privacy controls as the reference. The owner subsequently requested basic Quill logging now, deferring fancy
-rotation, anonymization and Settings controls. This authorizes the foundation
-implementation and its pinned Quill dependency, not a new live sign-in or
-publication. The full design below remains the later target, not a claim of
-implemented or owner-tested behavior.
+**Full diagnostic implementation and human judgments accepted; canonical closeout pending.**
+Mandate r2 authorized all five milestones and landing each accepted milestone on
+main. Structured JSONL, bounded retention, independent detail/privacy controls,
+profile barriers, rich frozen exports and native developer courses are complete.
+All three owner judgments were accepted by session hand-back cursor34. The
+[final ledger](../verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2)
+binds exact candidates and retains package, platform and crash limits. The RFC
+stays Proposed until the current sequential closeout requirement is satisfied;
+BPR-0601 records the earlier open RFCs and the final main landing. The historical
+phase descriptions below remain provenance, not a current advanced-phase deferral.
 
 Registration baseline: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
 Entry: [[BPR-0600]]. Foundation: [[BPR-0602]]. Advanced phase: [[BPR-0603]].
@@ -31,7 +34,7 @@ available, without creating reverse dependencies.
 
 ## Authorized implementation phases
 
-**Phase 1, now — BPR-0602:** pin Quill; explicitly own its backend lifetime;
+**Historical phase 1 — BPR-0602:** pin Quill; explicitly own its backend lifetime;
 write startup/shutdown and GitHub viewer/capability operation outcomes to one
 fixed owner-local log file; retain a bounded useful capability GraphQL error
 summary before response disposal. Use a nonblocking bounded queue, capped
@@ -49,7 +52,7 @@ Retained prose may still identify the service or account; local logs are not
 anonymized or automatically safe to share. This distinction replaces the full
 phase-2 anonymization default for the limited initial implementation.
 
-**Phase 2, later — BPR-0603:** rotation/age/aggregate retention, identity
+**Phase 2, implemented under mandate r2 — BPR-0603:** rotation/age/aggregate retention, identity
 anonymization, Standard/Verbose and privacy/Off Settings controls, recent-context
 ring, preview/export/Clear/Open-logs UI, expanded operation coverage and later
 profile integration. The full acceptance criteria below remain the RFC closeout
