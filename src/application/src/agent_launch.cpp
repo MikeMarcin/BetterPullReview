@@ -1391,6 +1391,11 @@ namespace bpr::application {
 		if (!core::valid(aSettings) || aSources.size() > 8 || aRequest.Selection.Begin > aRequest.Selection.End || aRequest.Selection.End > aRequest.Raw.size()) {
 			return std::nullopt;
 		}
+		for (std::size_t index = 0; index < aSources.size(); ++index) {
+			if (std::ranges::find(aSources.first(index), aSources[index].Id, &writing_source::Id) != aSources.first(index).end()) {
+				return std::nullopt;
+			}
+		}
 		const auto selected = std::string_view{ aRequest.Raw }.substr(aRequest.Selection.Begin, aRequest.Selection.End - aRequest.Selection.Begin);
 		if (selected.size() > 6000 || !core::valid_writing_utf8(selected)) {
 			return std::nullopt;
@@ -1427,8 +1432,13 @@ namespace bpr::application {
 	}
 	auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>
 	{
-		if (aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
+		if (aSources.size() > 8 || aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
 			return std::nullopt;
+		}
+		for (std::size_t index = 0; index < aSources.size(); ++index) {
+			if (aSources[index].Id.empty() || std::ranges::find(aSources.first(index), aSources[index].Id, &writing_source::Id) != aSources.first(index).end()) {
+				return std::nullopt;
+			}
 		}
 		const auto root  = bounded_json_parser{ aJson }.parse();
 		const auto exact = [](const json_value& v, std::initializer_list<std::string_view> keys) { return v.Kind == json_kind::object_value && v.Members.size() == keys.size() && std::ranges::all_of(keys, [&](auto key) { return member(v, key) != nullptr; }); };
@@ -1480,7 +1490,7 @@ namespace bpr::application {
 			for (const auto& stop : stops->Elements) {
 				const auto title = bounded(stop, "title", 180, false), anchor = bounded(stop, "anchor_ref", 128, false), reason = bounded(stop, "reason", 240, false), question = bounded(stop, "author_question", 240);
 				const auto related = refs(member(stop, "related_refs"));
-				if (!exact(stop, { "title", "anchor_ref", "related_refs", "reason", "author_question" }) || !title || !anchor || !reason || !question || !related || std::ranges::find(aSources, *anchor, &writing_source::Id) == aSources.end()) {
+				if (!exact(stop, { "title", "anchor_ref", "related_refs", "reason", "author_question" }) || !title || !anchor || !reason || !question || !related || std::ranges::find(aSources, *anchor, &writing_source::Id) == aSources.end() || std::ranges::find(*related, *anchor) != related->end()) {
 					return std::nullopt;
 				}
 				result.Stops.push_back({ *title, *anchor, *related, *reason, *question });

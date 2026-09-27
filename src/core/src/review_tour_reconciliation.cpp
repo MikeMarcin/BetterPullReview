@@ -119,10 +119,14 @@ namespace bpr::core {
 		}
 		void accept_stop_body(tour_stop& aStop, const std::string& aBody, const tour_field_baseline& aObservation)
 		{
+			const auto previousBody = aStop.Body, previousTitle = aStop.Title;
 			const auto mapping = map_tour_stop(aBody);
 			aStop.Body         = mapping.Narrative ? aBody.substr(mapping.Narrative->Begin, mapping.Narrative->End - mapping.Narrative->Begin) : aBody;
 			if (mapping.Heading && mapping.Title != tour_markdown_label(aStop.Title)) {
 				aStop.Title = mapping.Title;
+			}
+			if (aStop.Suggestion && (aStop.Body != previousBody || aStop.Title != previousTitle)) {
+				aStop.Preparation = tour_preparation::editing;
 			}
 			aStop.Baseline            = aObservation;
 			const auto observed       = map_tour_stop(aObservation.Raw);

@@ -82,6 +82,7 @@ namespace bpr::core {
 	public:
 		[[nodiscard]] auto begin(writing_target aTarget, std::string aRaw, writing_selection aSelection) -> std::expected<writing_request, writing_refusal>;
 		[[nodiscard]] auto complete(std::uint64_t aRequest, const writing_target& aCurrent, std::string_view aRaw, std::string aReplacement) -> std::expected<writing_edit, writing_refusal>;
+		[[nodiscard]] auto complete_outline(std::uint64_t aRequest, const writing_target& aCurrent) -> bool;
 		void               cancel() noexcept { Pending.reset(); }
 		[[nodiscard]] auto pending() const noexcept -> const std::optional<writing_request>& { return Pending; }
 

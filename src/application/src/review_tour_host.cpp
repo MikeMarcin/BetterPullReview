@@ -248,7 +248,7 @@ namespace bpr::application {
 				if (text || aCommand.Kind == core::tour_command_kind::observe_head) {
 					Undo.clear();
 					Redo.clear();
-				} else {
+				} else if (aCommand.Kind != core::tour_command_kind::visit) {
 					retain(Undo, *State.Draft);
 					Redo.clear();
 				}

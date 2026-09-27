@@ -37,7 +37,9 @@ namespace bpr::qt {
 												   publish_publication,
 												   resume_publication,
 												   reconcile_publication,
-												   stop_publication };
+												   stop_publication,
+												   suggest_outline,
+												   insert_outline };
 	/// \brief Native Markdown interaction and inert projections for private tour preparation.
 	class review_tour_editor final : public QWidget
 	{
@@ -52,6 +54,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto compatibility_publication() const -> bool;
 		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
+		void               present_outline(const std::vector<core::tour_outline_entry>& aEntries);
+		[[nodiscard]] auto retained_outline_entries() const -> std::vector<std::size_t>;
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
@@ -95,6 +99,8 @@ namespace bpr::qt {
 		QPushButton*                                           StopTour           = nullptr;
 		QComboBox*                                             Imports            = nullptr;
 		QPushButton*                                           Import             = nullptr;
+		QListWidget*                                           SuggestedOutline   = nullptr;
+		QPushButton*                                           InsertOutline      = nullptr;
 		QListWidget*                                           Outline            = nullptr;
 		QListWidget*                                           Related            = nullptr;
 		QLineEdit*                                             Title              = nullptr;

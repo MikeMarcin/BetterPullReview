@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 6;
+		std::uint8_t                  Version = 7;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -206,11 +206,14 @@ namespace bpr::adapters::sqlite::detail {
 			if (Version >= 6) {
 				optional(aStop.ReaffirmedHead, [&](auto& value) { oid(value); });
 			}
+			if (Version >= 7) {
+				optional(aStop.Suggestion, [&](auto& value) { text(value.AnchorRef, 128); text(value.Reason, 240); text(value.Question, 240); number(value.Visited); });
+			}
 		}
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5 && Version != 6) {
+			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5 && Version != 6 && Version != 7) {
 				Good = false;
 				return;
 			}

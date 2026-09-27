@@ -31,6 +31,17 @@ int main()
 	expect(decode(R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"insufficient_context","reason":"Which behavior should be explained?"})")->Insufficient, "insufficient is distinct");
 	expect(application::decode_writing_result(R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Why","anchor_ref":"pr-description","related_refs":[],"reason":"Review the approach","author_question":""}]})", core::writing_hook::outline, sources, false).has_value(), "outline test uses exact immutable schema without bodies/status");
 	expect(!application::decode_writing_result(R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[],"status":"ok"})", core::writing_hook::outline, sources, false), "outline extra status refused");
+	const std::string outlinePrefix = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Why","anchor_ref":"pr-description","reason":"Private reason","author_question":"","related_refs":[])";
+	for (const auto& tail : { R"(,"body":"publish me"}]})", R"(,"Ready":true}]})", R"(,"tool":"Bash"}]})", R"(,"title":"duplicate"}]})" }) {
+		expect(!application::decode_writing_result(outlinePrefix + tail, core::writing_hook::outline, sources, false), "outline body/Ready/tool/duplicate keys refused");
+	}
+	for (const auto& related : { R"(["pr-description"])", R"(["missing"])", R"(["pr-description","pr-description"])", "null" }) {
+		const auto json = outlinePrefix.substr(0, outlinePrefix.size() - 2) + related + "}]}";
+		expect(!application::decode_writing_result(json, core::writing_hook::outline, sources, false), "duplicate primary/related, unknown and malformed refs refused");
+	}
+	const auto duplicateSources = std::vector{ sources.front(), sources.front() };
+	const auto validOutline     = outlinePrefix + "}]}";
+	expect(!application::decode_writing_result(validOutline, core::writing_hook::outline, duplicateSources, false), "duplicate supplied IDs cannot resolve ambiguously");
 	core::writing_request request;
 	request.Raw           = "Selected text";
 	request.Selection.End = request.Raw.size();

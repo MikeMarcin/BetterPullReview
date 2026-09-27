@@ -6,8 +6,9 @@
 namespace bpr::application {
 	struct writing_source
 	{
-		std::string Id;
-		std::string Text;
+		std::string                            Id;
+		std::string                            Text;
+		std::optional<core::tour_source_range> Source = std::nullopt;
 	};
 	struct writing_note
 	{

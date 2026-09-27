@@ -1217,6 +1217,14 @@ namespace bpr::qt {
 		return QRect{ source->viewport()->mapTo(this, row.topLeft()), row.size() };
 	}
 
+	auto diff_workbench::source_line_visible(core::diff_side aSide, std::uint32_t aLine) const -> bool
+	{
+		const auto* editor = OnePaneEnabled ? Unified : aSide == core::diff_side::left ? Left
+																					   : Right;
+		const auto  row    = line_rect(aSide, aLine);
+		return editor->isVisible() && !row.isEmpty() && editor->viewport()->visibleRegion().intersects(QRect{ editor->viewport()->mapFrom(this, row.topLeft()), row.size() });
+	}
+
 	void diff_workbench::set_line_marks(const core::diff_side aSide, std::vector<diff_line_mark> aMarks)
 	{
 		pane(aSide == core::diff_side::left ? Left : Right)->set_line_marks(std::move(aMarks));

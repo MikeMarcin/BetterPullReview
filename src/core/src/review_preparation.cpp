@@ -74,7 +74,7 @@ namespace bpr::core {
 	{
 		Pending.reset();
 		if (Sequence == std::numeric_limits<std::uint64_t>::max() || !valid(aTarget.Owner) || aTarget.Draft.value() == 0
-			|| aTarget.Hook == writing_hook::outline || aTarget.Hook > writing_hook::comment
+			|| aTarget.Hook > writing_hook::comment
 			|| (aTarget.Hook == writing_hook::comment) != (aTarget.Stop.value() != 0)
 			|| aTarget.Window.Profile != aTarget.Owner.Profile || aTarget.Window.Window.value() == 0 || aTarget.Window.Generation.value() == 0
 			|| aTarget.Session.value() == 0 || aTarget.Agent.value() == 0 || aTarget.HookRevision == 0 || aTarget.TextGeneration == 0 || aTarget.EditorGeneration == 0
@@ -93,6 +93,15 @@ namespace bpr::core {
 		Pending = request;
 		return request;
 	}
+	auto scoped_writing_state::complete_outline(std::uint64_t aRequest, const writing_target& aCurrent) -> bool
+	{
+		if (!Pending || Pending->Id != aRequest) {
+			return false;
+		}
+		const bool accepted = Pending->Target.Hook == writing_hook::outline && Pending->Target == aCurrent;
+		Pending.reset();
+		return accepted;
+	}
 	auto scoped_writing_state::complete(std::uint64_t aRequest, const writing_target& aCurrent, std::string_view aRaw, std::string aReplacement) -> std::expected<writing_edit, writing_refusal>
 	{
 		if (!Pending || Pending->Id != aRequest) {
@@ -100,7 +109,7 @@ namespace bpr::core {
 		}
 		auto request = std::move(*Pending);
 		Pending.reset();
-		if (request.Target != aCurrent || request.RawDigest != writing_digest(aRaw) || request.Raw != aRaw) {
+		if (request.Target.Hook == writing_hook::outline || request.Target != aCurrent || request.RawDigest != writing_digest(aRaw) || request.Raw != aRaw) {
 			return std::unexpected(writing_refusal::stale);
 		}
 		const auto begin = request.Selection.Begin, end = request.Selection.End;
