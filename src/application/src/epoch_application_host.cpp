@@ -252,6 +252,7 @@ namespace bpr::application {
 			std::shared_ptr<diagnostic_log_port> Log;
 			std::uint64_t                        Request       = 0U;
 			std::uint64_t                        WindowSession = 0U;
+			std::uint64_t                        Generation    = Log ? Log->context_generation() : 0U;
 
 			void record(diagnostic_epoch_stage aStage, diagnostic_outcome aOutcome,
 						diagnostic_epoch_failure               aFailure = { },
@@ -259,14 +260,15 @@ namespace bpr::application {
 						git_smart_transport_step               aStep    = git_smart_transport_step::none) const noexcept
 			{
 				if (Log) {
-					static_cast<void>(Log->record({ .Operation        = diagnostic_operation::epoch,
-													.Outcome          = aOutcome,
-													.Request          = Request,
-													.WindowSession    = WindowSession,
-													.EpochStage       = aStage,
-													.EpochFailure     = std::move(aFailure),
-													.EpochPackFailure = aPack,
-													.GitStep          = aStep }));
+					static_cast<void>(Log->record({ .Operation         = diagnostic_operation::epoch,
+													.Outcome           = aOutcome,
+													.Request           = Request,
+													.WindowSession     = WindowSession,
+													.EpochStage        = aStage,
+													.EpochFailure      = std::move(aFailure),
+													.EpochPackFailure  = aPack,
+													.GitStep           = aStep,
+													.ContextGeneration = Generation }));
 				}
 			}
 			template <typename Failure>

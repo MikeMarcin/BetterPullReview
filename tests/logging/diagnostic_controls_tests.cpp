@@ -100,6 +100,17 @@ namespace {
 		application::diagnostic_settings_host       host{ log, store, effects, decisions, store.load() };
 		application::diagnostic_settings_projection shown;
 		host.observe([&](const auto& aValue) { shown = aValue; });
+		static_cast<void>(log.record({ .Detail = application::diagnostic_detail::verbose }));
+		host.refresh();
+		effects.drain();
+		log.discard_context();
+		host.refresh();
+		host.refresh();
+		decisions.drain();
+		expect(!host.quiescent() && effects.pending() == 1U, "refresh during an in-flight capture is coalesced for a fresh observation");
+		effects.drain();
+		decisions.drain();
+		expect(host.quiescent() && shown.Capture.RecentEvents == 0U, "reopening diagnostics after Sign out cannot leave a stale recent-context count");
 		host.apply({ false, application::diagnostic_detail::verbose, application::diagnostic_privacy::include_locally });
 		expect(shown.Busy && shown.Capture.Preferences.Enabled, "pending UI shows old accepted preferences");
 		effects.drain();

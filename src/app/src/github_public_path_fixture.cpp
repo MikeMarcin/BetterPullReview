@@ -50,6 +50,7 @@
 
 namespace bpr::app::detail {
 	namespace {
+		constexpr std::string_view capability_diagnostic_failure_body = R"({"errors":[{"message":"Field '__type' has a max repetition count of 2","extensions":{"code":"NEVER_SEEN_CODE"}}]})";
 		using adapters::github::detail::anonymous_read_operations;
 		using adapters::github::detail::capability_probe_response;
 		using adapters::github::detail::github_capability_probe_wire_cancelled;
@@ -1181,7 +1182,9 @@ namespace bpr::app::detail {
 			// ran both would not be able to advance one by driving the other.
 			fixture_replay                                                                 AnonymousRecording;
 			std::array<std::string, adapters::github::detail::capability_probe_part_count> CapabilityBody;
-			std::size_t                                                                    CapabilityCalls          = 0U;
+			std::size_t                                                                    CapabilityCalls             = 0U;
+			bool                                                                           CapabilityDiagnosticFailure = false;
+			application::diagnostic_summary                                                CapabilityFailureSummary;
 			std::size_t                                                                    BootstrapFactoryCalls    = 0U;
 			std::size_t                                                                    BootstrapFactoryAttempts = 0U;
 			std::size_t                                                                    AccountFactoryAttempts   = 0U;
@@ -1965,9 +1968,15 @@ namespace bpr::app::detail {
 					.Name  = "X-RateLimit-Resource",
 					.Value = "graphql",
 				};
+				application::diagnostic_summary summary;
+				if (State->CapabilityDiagnosticFailure) {
+					response.Body = capability_diagnostic_failure_body;
+					summary       = State->CapabilityFailureSummary;
+				}
 				return github_capability_probe_wire_success{
 					.Correlation = aRequest.Correlation,
 					.Response    = std::move(response),
+					.Summary     = summary,
 				};
 			}
 
@@ -2098,6 +2107,11 @@ namespace bpr::app::detail {
 				if (State->RepeatSessions && State->BootstrapFactoryCalls != 0U) {
 					State->BootstrapRecording.rewind();
 				}
+				if (State->CapabilityDiagnosticFailure) {
+					State->CapabilityFailureSummary = adapters::github::detail::sanitize_capability_error(
+						capability_diagnostic_failure_body,
+						aCredential.bytes());
+				}
 				++State->BootstrapFactoryCalls;
 				return BootstrapTransport;
 			}
@@ -2131,6 +2145,11 @@ namespace bpr::app::detail {
 				// pull-request read behind it.
 				if (State->RepeatSessions && State->AccountFactoryCalls != 0U) {
 					State->Recording.rewind();
+				}
+				if (State->CapabilityDiagnosticFailure) {
+					State->CapabilityFailureSummary = adapters::github::detail::sanitize_capability_error(
+						capability_diagnostic_failure_body,
+						aCredential.Credential.bytes());
 				}
 				State->AuthenticationSession = aCredential.Context.ApplicationSession;
 				++State->AccountFactoryCalls;
@@ -3475,9 +3494,10 @@ namespace bpr::app::detail {
 			Recording = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
 				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
-			Recording->LargeReviewForeignPosts = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewForeignPosts;
-			Recording->LargeReviewRepeatReads  = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewRepeatReads;
-			Recording->RepeatSessions          = aOptions.DeviceRefreshCourse
+			Recording->LargeReviewForeignPosts     = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewForeignPosts;
+			Recording->CapabilityDiagnosticFailure = aOptions.CapabilityDiagnosticFailure;
+			Recording->LargeReviewRepeatReads      = aFixture == github_public_path_fixture::large_review_v1 && aOptions.LargeReviewRepeatReads;
+			Recording->RepeatSessions              = aOptions.DeviceRefreshCourse
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;

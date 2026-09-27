@@ -303,6 +303,12 @@ transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
 scope-aware export is described below; native/attended qualification remains open.
 
+Diagnostic refresh requests made while a capture is in flight coalesce into one
+fresh observation after its completion. Reopening Settings after Sign out therefore
+cannot leave a prior capture as the final displayed recent-context count. Queued
+epoch effects retain the logger generation observed when they were submitted, so
+later protocol steps cannot repopulate a revoked account context.
+
 BPR-1218 carries export policy, session scope and explicit recent-context selection
 through the existing maintenance core's exact preparation identity. The logging
 control port flushes and returns a sequence cutoff plus selected sanitized context

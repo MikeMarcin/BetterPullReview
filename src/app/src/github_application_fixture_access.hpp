@@ -216,6 +216,8 @@ namespace bpr::app::detail {
 		bool SetupUnconfiguredEnterprise = false;
 
 		bool RegisteredDeviceCourse = false;
+		/// RFC-0027: fail the recorded capability probe with a useful unfamiliar error.
+		bool CapabilityDiagnosticFailure = false;
 		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
 		// a rotation needs that the read-path fixture has no use for: a real
 		// second vault slot and the documented renewal answer on the

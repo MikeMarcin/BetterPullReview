@@ -9,7 +9,8 @@ namespace bpr::application {
 		decision_executor&             Decisions;
 		diagnostic_settings_projection Projection;
 		observer                       Observer;
-		bool                           Closing = false;
+		bool                           Closing        = false;
+		bool                           RefreshPending = false;
 		implementation(diagnostic_control_port& aControl, diagnostic_settings_port& aSettings, effect_executor& aEffects,
 					   decision_executor& aDecisions, diagnostic_preference_load aLoaded)
 			: Control{ aControl }
@@ -54,6 +55,9 @@ namespace bpr::application {
 						}
 						self->Projection.Busy = false;
 						self->publish();
+						if (std::exchange(self->RefreshPending, false)) {
+							self->refresh();
+						}
 					});
 				});
 			} catch (...) {
@@ -61,6 +65,17 @@ namespace bpr::application {
 				Projection.Result = diagnostic_control_result::refused;
 				publish();
 			}
+		}
+		void refresh()
+		{
+			if (Closing) {
+				return;
+			}
+			if (Projection.Busy) {
+				RefreshPending = true;
+				return;
+			}
+			submit([] { return diagnostic_control_result::none; });
 		}
 	};
 	diagnostic_settings_host::diagnostic_settings_host(diagnostic_control_port& aControl, diagnostic_settings_port& aSettings,
@@ -106,7 +121,7 @@ namespace bpr::application {
 	}
 	void diagnostic_settings_host::refresh()
 	{
-		Impl->submit([] { return diagnostic_control_result::none; });
+		Impl->refresh();
 	}
 	void diagnostic_settings_host::shutdown()
 	{

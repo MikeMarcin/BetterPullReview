@@ -2978,6 +2978,23 @@ provider verifies the archive hash and size, stages its headers, and does not
 execute upstream tests, examples or install rules. The core-only graph does not
 acquire Quill. License and bundled fmt notices are in `third_party/quill/`.
 
+The focused native recovery courses are `logging_session_retention` and
+`logging_crash_recovery`. The latter kills a live child after a confirmed flush,
+then verifies fresh session ownership and preservation of the terminated session.
+It makes no promise about unflushed records. On macOS, run actual disk exhaustion
+outside the ordinary test sandbox with:
+
+```sh
+python3 tests/logging/verify_logging_disk_full.py build/dev/tests/logging/session_retention
+```
+
+That course creates and mounts its own 32 MiB HFS+ image, verifies that the mount
+is a different device, observes ENOSPC, checks logger unavailability and restart
+after freeing space, then detaches and removes the image. It never fills the host
+filesystem. `application_logging_capability-failure` drives a recorded failed
+sign-in through the public composition and reads its correlated sanitized error
+from the actual file; it contacts no live service.
+
 The Mac app writes separate session segments beneath:
 
 ```text

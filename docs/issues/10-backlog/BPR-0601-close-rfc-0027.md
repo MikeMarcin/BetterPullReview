@@ -66,8 +66,9 @@ no blocker remains in that subset. Opposite-family review was unavailable.
 The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
-authorized. BPR-1215–1219 are the required source-owned milestones. Current ownership: released at the accepted M4 boundary; worktree `57ed`,
-branch `codex/rfc0027-advanced`, is available to the next sole implementer.
+authorized. BPR-1215–1219 are the required source-owned milestones. Current ownership:
+`/root/rfc0027_m5` is the sole M5 engineering writer in worktree `57ed`, branch
+`codex/rfc0027-advanced`, under mandate r2.
 Next milestone: `native-closeout`.
 
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred

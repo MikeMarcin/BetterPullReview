@@ -994,7 +994,8 @@ namespace bpr::application {
 				case github_file_change::copied:        change = core::cached_file_change::copied; break;
 				case github_file_change::type_changed:  change = core::cached_file_change::type_changed; break;
 				case github_file_change::unchanged:     change = core::cached_file_change::unchanged; break;
-				case github_file_change::uninitialized: return std::nullopt;
+				case github_file_change::uninitialized:
+				default:                                return std::nullopt;
 				}
 				files.push_back({ file.Path, file.PreviousPath, change, file.Additions, file.Deletions });
 			}
@@ -1055,7 +1056,8 @@ namespace bpr::application {
 					case github_review_state::approved:          kind = core::cached_discussion_kind::approved_review; break;
 					case github_review_state::changes_requested: kind = core::cached_discussion_kind::changes_requested_review; break;
 					case github_review_state::dismissed:         kind = core::cached_discussion_kind::dismissed_review; break;
-					case github_review_state::uninitialized:     return std::nullopt;
+					case github_review_state::uninitialized:
+					default:                                     return std::nullopt;
 					}
 					messages.push_back({ .Id = std::string{ review.Review.value() }, .AuthorLogin = review.Author ? review.Author->Login : std::string{ }, .Body = review.Body, .Kind = kind, .CommitOid = review.Commit ? std::optional{ std::string{ review.Commit->value() } } : std::nullopt });
 				}

@@ -91,8 +91,9 @@ try {
 	}
 
 	bpr::app::detail::github_public_path_fixture_options options;
-	options.ApplicationDataRoot    = root;
-	options.RegisteredDeviceCourse = true;
+	options.ApplicationDataRoot         = root;
+	options.RegisteredDeviceCourse      = true;
+	options.CapabilityDiagnosticFailure = scenario == "--capability-failure-log";
 	{
 		std::unique_ptr<bpr::app::github_application> app;
 		auto                                          startupTerminal = false;
@@ -113,20 +114,44 @@ try {
 		}
 		expect(app != nullptr, "application startup succeeds");
 		app->select_device_authorization();
-		wait_for([&app] { return app->window().session_panel()->status() == bpr::core::github_status::session_ready; });
+		if (options.CapabilityDiagnosticFailure) {
+			wait_for([&app] { return app->window().session_panel()->status() == bpr::core::github_status::session_failed; });
+			const auto* panel = app->window().session_panel();
+			expect(!panel->session() && panel->connect_enabled(), "capability rejection grants no session and retains explicit retry");
+			expect(panel->diagnostic_text().find("__type") == std::string::npos && panel->diagnostic_text().find("NEVER_SEEN_CODE") == std::string::npos, "public wording does not copy remote error prose");
+			app->begin_shutdown();
+			wait_for([&app] { return app->status().ShutdownComplete; });
+		} else {
+			wait_for([&app] { return app->window().session_panel()->status() == bpr::core::github_status::session_ready; });
 
-		expect(!std::filesystem::exists(root / "locks"), "isolated cache lock directory not opened before PR");
-		{
-			std::ofstream blocker{ root / "locks" };
-			blocker << "synthetic unsafe cache target";
+			expect(!std::filesystem::exists(root / "locks"), "isolated cache lock directory not opened before PR");
+			{
+				std::ofstream blocker{ root / "locks" };
+				blocker << "synthetic unsafe cache target";
+			}
+			// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+			app->window().home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+			app->window().home_open_action()->trigger();
+			wait_for([&app] { return app->status().EpochStatus == bpr::core::epoch_status::failed || app->status().EpochStatus == bpr::core::epoch_status::unavailable; });
+			expect(!app->status().DisplayedComparison, "failed cache preparation cannot display a comparison");
+			app->begin_shutdown();
+			wait_for([&app] { return app->status().ShutdownComplete; });
 		}
-		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
-		app->window().home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
-		app->window().home_open_action()->trigger();
-		wait_for([&app] { return app->status().EpochStatus == bpr::core::epoch_status::failed || app->status().EpochStatus == bpr::core::epoch_status::unavailable; });
-		expect(!app->status().DisplayedComparison, "failed cache preparation cannot display a comparison");
-		app->begin_shutdown();
-		wait_for([&app] { return app->status().ShutdownComplete; });
+	}
+	if (options.CapabilityDiagnosticFailure) {
+		const auto text = bpr::tests::read_diagnostic_logs(root);
+		expect(text.find("exceeds a service repetition limit") != std::string::npos && text.find("__type") != std::string::npos, "failed sign-in persists useful error detail directly in local JSONL");
+		expect(text.find("unclassified-code") != std::string::npos && text.find("NEVER_SEEN_CODE") == std::string::npos, "failed sign-in safely reports unfamiliar error code");
+		const auto records    = bpr::tests::diagnostic_json_records(text);
+		auto       correlated = false;
+		for (const auto& record : records) {
+			if (record.value("op") == "github.capability" && record.value("detail").toString().contains("service repetition limit")) {
+				correlated = !record.value("request_label").toString().isEmpty() && !record.value("session").toString().isEmpty() && record.value("http_status").toInt() == 200;
+			}
+		}
+		expect(correlated, "error detail retains actual request and logger-session correlation");
+		std::cout << "application-logging-capability-failure:pass\n";
+		return EXIT_SUCCESS;
 	}
 	if (!scenario.empty() && scenario != "--recovery-log") {
 		expect(scenario == "--full-log" || scenario == "--unavailable-log", "known failure scenario");
