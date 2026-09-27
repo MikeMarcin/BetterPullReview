@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0585"
 title: "Implement coherent private/shared conversation navigation and incremental private transcript presentation"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0578","BPR-0579","BPR-0580","BPR-0582"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"BPR-0585 required final state","outcome":"pass","revision":"17e6f85d1e834473702d0072c454cc605b91a163","evidence":{"kind":"command","detail":"Qt private history test and architecture boundaries pass; stable identities, no resets, exact historical selection, actor/currentness/lineage projection, explicit local rail and provenance fact bases; production wiring remains BPR-0587."}}]
 ---
 
 # Implement coherent private/shared conversation navigation and incremental private transcript presentation
