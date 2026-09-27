@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1013"
 title: "Qualify native authoring and website-only review paths"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1006", "BPR-1012"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-23","milestone":"qualification-closeout","acceptance":["AC39-06","AC39-08","AC40-07","AC41-04","AC41-06","AC42-08","AC43-10"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
