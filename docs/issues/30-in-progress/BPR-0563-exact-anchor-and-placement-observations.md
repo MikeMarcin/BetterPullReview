@@ -22,10 +22,22 @@ Extend the application-host binding so publication proves changed-file membershi
 
 ## Verification
 
-Record the focused command or attended interaction, result, durable evidence,
-and producing commit on the live card. Reuse passing evidence only when its
-inputs did not change. Run composition-oriented selectors for any slice that
-changes the shipped path.
+- Source review: baseline `9ee0350f` through this BPR-0563 product slice.
+  The only pinned application edits capture exact material facts from the diff
+  host, read accepted catalogue membership, validate the current epoch/PR/actor,
+  and supply that observation port to both production and fixture hosts. No
+  grant, provider mutation, or transport admission policy changes. The full-app,
+  production-manifest and mutation-construction tripwires are resealed for this
+  reviewed range. This is implementer self-review, not independent acceptance.
+- Host cases exercise missing catalogue membership, snapshot/identity/key/blob/
+  head/path/actor mismatch, absent material, zero/out-of-range lines, invalid
+  placement and admitted unknown placement. Existing right-root, left-reply,
+  one-shot authority and async cancellation cases remain required.
+- Production has no complete provider patch-domain observation yet: placement
+  is explicitly `unknown`, bound to the accepted snapshot, target, actor and
+  exact file comparison. It remains eligible for native negotiation.
+- Card's historical left-side refusal applies to new roots. Existing BPR-0657
+  left-side replies retain their canonical thread identity and remain supported.
 
 ## Import boundary
 
