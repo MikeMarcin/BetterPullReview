@@ -26,11 +26,11 @@ this list and dependencies before closeout. Registration is not implementation.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| AC-01: Standard/Verbose, independent identifying-detail privacy, Off, Open logs, Clear and export controls are reachable while signed out; accepted settings survive restart without increasing disclosure on invalid data. | Composed Diagnostics controls, four detail/privacy combinations, restart and invalid-setting fixtures | Automated M3 controls/restart/invalid-value evidence passes; attended controls judgment pending | `75700f4d`, `92c98361` |
+| AC-01: Standard/Verbose, independent identifying-detail privacy, Off, Open logs, Clear and export controls are reachable while signed out; accepted settings survive restart without increasing disclosure on invalid data. | Composed Diagnostics controls, four detail/privacy combinations, restart and invalid-setting fixtures | Automated controls/restart/invalid-value and revised paired controls pass; files accepted at cursor23, revised controls judgment pending | `75700f4d`, `92c98361`, `0fb249a2` |
 | AC-02: A composed failed GitHub sign-in yields a correlated local log with useful sanitized unknown GraphQL error detail, readable directly without UI copying, while UI wording and session/retry authority remain unchanged. | Credential-free native/provider-to-host-to-file failure fixture with unfamiliar code and useful sanitized message; compare UI/authority | Composed unfamiliar-error failure reaches correlated JSONL; useful classified prose, unchanged UI failure and explicit retry pass; fixture only | `92c98361` |
 | AC-03: Forbidden credentials and review content never reach queues, sinks, recent context, exports or fallback output under any detail/privacy combination, including malformed provider data and sanitizer failure. | Secret/private-content canaries across all sinks, queues, ring, export and failure fallbacks | M1–M4 canary, fixed-capacity encoding, queue/ring/export and fail-closed parser checks pass within the exercised inputs | `ac64e5ad`, `75700f4d`, `3fd1224e` |
 | AC-04: Standard and Verbose retain their declared distinct detail; privacy changes, Off, Clear and sign-out honor acknowledged barriers and do not retain hidden transient context. | Manual-executor mode-change, Off, Clear, sign-out and queued-event transition cases | M3 barriers pass; M5 fixes deferred refresh and stamps captured epoch generation; native verification recorded below | `75700f4d`, `92c98361` |
-| AC-05: Anonymized and identifying-detail exports use the exact previewed scope, preserve useful event joins, handle malformed records safely, disclose irreversible capture-time redaction and never upload automatically. | Preview/snapshot export course with joins, mixed modes, malformed lines and zero-network observation | M4 frozen rich exports and final public preview course pass; attended disclosure judgment pending | `3fd1224e`, `189d24f9` |
+| AC-05: Anonymized and identifying-detail exports use the exact previewed scope, preserve useful event joins, handle malformed records safely, disclose irreversible capture-time redaction and never upload automatically. | Preview/snapshot export course with joins, mixed modes, malformed lines and zero-network observation | Frozen rich exports and simplified direct Help preview course pass; revised disclosure judgment pending | `3fd1224e`, `189d24f9`, `0fb249a2` |
 | AC-06: Event, queue, ring, file, aggregate and age bounds hold under overload, error storms, concurrent sessions, disk-full and rotation failures without blocking core decisions or Sign out. | Bounded overload/error-storm, concurrent-process, rotation, retention and disk-full fixture | M2 bounds/rotation/concurrency and M5 actual isolated macOS ENOSPC pass; native Windows courses pass | `3381a02c`, `92c98361`, `7ab11993` |
 | AC-07: Startup, cancellation, shutdown, partial-tail recovery and logger failure produce truthful availability/loss status without claiming unflushed events survived a crash. | Startup/cancel/quiescence, partial final line and sink-failure course | Startup/cancel/shutdown and partial-tail checks pass; native killed-process restart preserves only explicitly flushed records | `3381a02c`, `92c98361` |
 | AC-08: Core/host/adapter/Qt boundaries, explicit Quill lifetime, safe file ownership and scope separation hold through the shipped composition, with no raw logging bypass in protected transports. | Architecture guards, composed lifetime, fake filesystem attacks and profile-scope partition cases | Architecture and composed lifetime/ownership checks pass; M5 repairs tests-disabled state visibility and Windows active-file sharing | `189d24f9`, `7ab11993` |
@@ -66,9 +66,10 @@ no blocker remains in that subset. Opposite-family review was unavailable.
 The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
-authorized. BPR-1215–1219 are the required source-owned milestones. Current continuation: M5 is prepared for attended review under mandate r2.
-`/root/rfc0027_m5` releases sole engineering writer ownership at the checkpoint
-below; branch `codex/rfc0027-advanced`, worktree `57ed`, remains the candidate.
+authorized. BPR-1215–1219 are the required source-owned milestones. Current continuation: M5 files were accepted at cursor23. Revised controls and
+export are prepared at cursor31 under mandate r2. `/root/rfc0027_m5_revision`
+releases sole engineering writer ownership at the latest checkpoint below;
+branch `codex/rfc0027-advanced`, worktree `57ed`, remains the candidate.
 Next milestone: resume `native-closeout` after recorded human input.
 
 Historical foundation and BPR-0971 evidence remain preserved. The table now
@@ -274,3 +275,84 @@ conflict/release workflow before editing protected material. Reuse passing
 unchanged evidence; main may advance independently and must be reconciled before
 any eventual non-force M5 integration/push. No live sign-in or PR mutation is
 authorized.
+
+
+### M5 revision checkpoint — human pending, writer released
+
+Mandate r2; assignment `/root/rfc0027_m5_revision`, BPR-1219 / `native-closeout`.
+UI source `e0a870b3`, synchronized with main `f1e0c652` at
+`0fb249a2499fa4752c645f29d19e1c768e9472e4`. The separate portable serializer
+comparison correction is `41cce4bae80542a56fa842e8c98f00ffb9d9d57d`.
+[Evidence and exact commands](../../verification/RFC-BPR-0027.md#m5-post-attended-ui-revision)
+retain the checks, native results and original package/crash limits. The renewed
+`m5-revision-binding.json` and `m5-revision-observation.json` in the existing
+[plan directory](../../rfcs/plans/rfc-bpr-0027-advanced/MILESTONES.md) bind this
+human-pending round. The full RFC criteria and authored milestone are unchanged.
+
+Changed product paths: Qt diagnostic_settings_panel and release_maintenance_panel
+headers/implementations; workbench_window Help actions; app
+release_maintenance_controls header/implementation and github_application
+composition; SQLite review_tour_codec.hpp. Focused public/Qt tests and owning
+architecture/operator/RFC documentation changed with them. New native paired
+selectors, short disclosures, direct Help exports and an automatically prepared
+compact preview preserve capture barriers, frozen selection and local-only export.
+The codec edit compares numeric bounds as uint64_t so MSVC accepts bool fields;
+its format and behavior remain unchanged. It is outside the frozen UI candidate.
+Exact integrated Mac composition passed 4/4 (50.44 seconds); changed Linux public
+courses passed 2/2 (13.56 seconds); changed Windows public courses passed 2/2
+(29.05 seconds). The codec's Mac storage course passed 1/1; its optional Windows
+storage target could not compile because of a pre-existing missing platform
+include, so no passing claim is made for that target. Existing logging, ENOSPC,
+crash and unpublished package evidence is reused at its recorded revisions.
+
+The owner accepted `BPR-1219-files` at cursor23 with no note, decision
+`413e836b-5898-4aeb-a48c-43b21595d54b`. The immutable original app remains at
+`/Users/jaeger/.codex/worktrees/57ed/BetterPullReview/build/rfc0027-m5/review/BetterPullReview.app`,
+source `7ab119933439878d858100410083080ab4d1ea7b`, binary SHA-256
+`3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+Its files fingerprint remains
+`6eabaa3590e43c125423db6cd31edba6d685f2f919e94d55b7bd1a7cc0836ab7`.
+The shared path release also cleared its protection flag; its decision and app
+are unchanged and reserved by this checkpoint. Do not ask files again or overwrite
+that app. Controls/export were rejected with the AllTheThings references; the
+three attachments and the read-only source reference informed these revisions.
+
+The same attended session `c1565558e5fd3fdc277e62622604873b` is ready at cursor
+**31**, with exactly two pending Accept/Reject criteria:
+
+- `BPR-1219-controls`: the paired settings are clear and ready to keep;
+  fingerprint `86f20e8f40401168249b2c48b610d8d364af07d88f5d08fdae341cecbb377cd8`.
+- `BPR-1219-export`: direct Help export and compact preview are clear and ready
+  to keep; fingerprint `31b491264e3f3dfaaee7861c3de28adaf06b5ee39d7e712ad16fe2fbc0859d4a`.
+
+Both candidates are protected. Exact source is `0fb249a2`; binary SHA-256 is
+`9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186` at
+`/Users/jaeger/.codex/worktrees/57ed/BetterPullReview/build/rfc0027-m5/review-v2/BetterPullReview.app`.
+The identity, manifest and offline HTML are beside it. Each launch command uses
+absolute paths and a separate owner-private test profile. Review stays signed
+out; no live service or PR mutation is authorized. The native Mac inspection is
+objective evidence only; replacement human judgments have not been supplied.
+
+BPR-1219 is parked for human review. BPR-0603/BPR-0601 and the RFC/index remain
+open. M5 acceptance and main landing await the two actual new verdicts. Main was
+clean at `f1e0c652` when synchronized; recheck it before eventual non-force landing.
+All task-owned engineering/build/test/native commands have completed. Isolated
+native clones and ignored local evidence remain available for inspection. No
+source writer is transferred. Only the inherited loopback review server remains:
+PID **8289**, command session **64739**, port **63107**. Its complete token-bearing
+URL is supplied directly to the coordinator, not stored in Git.
+
+The coordinator arms the watch before yielding the human-facing turn:
+
+```sh
+python3 -B /Users/jaeger/.codex/worktrees/57ed/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/.codex/worktrees/57ed/BetterPullReview wait --after 31 --kind handed-back --timeout 43200
+```
+
+After handback, a fresh engineering owner reads `status --after 31` without
+printing attachment base64, binds the milestone to the current obligations,
+applies the two exact recorded decisions and preserves the original files accept.
+If changes are requested, query conflicts then release only the affected
+candidate/resource; a candidate and path selector are combined as OR by the tool.
+Reuse unchanged evidence. When all required acceptance actually passes, reconcile
+BPR-1219/BPR-0603/BPR-0601 and RFC/index, run the focused closeout gate, and safely
+merge/push accepted M5 on main under the continuing mandate r2.

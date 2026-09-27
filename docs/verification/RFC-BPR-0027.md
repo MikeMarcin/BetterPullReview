@@ -631,3 +631,116 @@ verdicts to the exact candidates, resolves rejected criteria and remaining
 qualification limits, then reconciles BPR-1219/BPR-0603/BPR-0601 and RFC/index.
 An actual accepted M5 must land on main under mandate r2. No M5 acceptance or
 main integration is claimed while the attended criteria are pending.
+
+
+## M5 post-attended UI revision
+
+Assignment `/root/rfc0027_m5_revision`, mandate r2, sole nondelegating writer.
+Source slice `e0a870b3`, integrated with
+main `f1e0c652` as `0fb249a2499fa4752c645f29d19e1c768e9472e4`.
+
+### Owner decisions and design
+
+The owner handed back session `c1565558e5fd3fdc277e62622604873b` at cursor 23.
+`BPR-1219-files` was accepted with no note (decision `413e836b-5898-4aeb-a48c-43b21595d54b`).
+Controls were rejected in favor of AllTheThings’ setting selectors; export was
+rejected in favor of its simpler Help actions. Both controls attachments and
+the Help screenshot were decoded locally and viewed. The read-only reference
+at `2ba1b33c9886a3e20865801581a26b5ba73f2700` confirms native segmented detail
+choices and separate Help exports. No AllTheThings file was modified.
+
+The revised Settings uses native exclusive paired buttons, short explanations,
+and an optional About disclosure. Open/Clear behavior and confirmations retain
+the accepted code. Help now offers anonymized and identifying exports directly;
+the profile owner composes the same maintenance host without displaying Settings.
+A compact dialog automatically freezes a preview, presents scope/range/size and
+omissions, and offers Save/Cancel. Options and exact records expand on request.
+Changing options cancels the old snapshot; Update preview re-admits it. The
+identifying dialog defaults to Cancel; its explicit Save supplies the core’s
+existing confirmation bit for the exact displayed descriptor. Capture policies,
+barriers, parser, file admission and local-only effects are unchanged.
+
+### Verification and integration
+
+The unchanged public path passed 2/2 before edits. The first revised build and
+architecture/Qt/public cut passed 6/6 in 42.00 seconds. Render inspection led to
+arrow disclosures replacing empty collapsed frames and removal of duplicated
+summary prose. The final affected Qt/public cut passed **5/5** in 34.25 seconds.
+All five changed product translation units passed tidy; the two polished panels
+were checked again. All 12 changed C++ files passed formatting. Documentation
+and its 64 tests pass.
+
+The real native macOS app was also inspected through Help → Export anonymized
+diagnostics → Cancel and Help → Diagnostics. The signed-out window showed the
+two direct export entries, a ready frozen preview, Cancel as default, and blue
+selected Standard/Anonymized paired buttons under the native dark appearance.
+The app used an isolated owner-private profile and quit normally. This is
+objective presentation evidence, not the owner’s replacement verdict.
+
+The render-only executable run initially used `/var` aliases for two save
+locations while native admission requires canonical parents. The ordinary CTest
+course already supplies canonical temporary roots and passed. The public fixture
+now canonicalizes all three export paths consistently; no file-admission policy
+was loosened. The intermediate render failures are not claimed as passing tests.
+
+Main integration preserved its newer tour-code destination and published
+conversation state while retaining the M5 production state declarations.
+The exact merged build and architecture, controls, export and tour public
+composition passed **4/4** in 50.44 seconds at `0fb249a2`.
+
+```sh
+cmake --build --preset dev --target app_better_pull_review test_release_maintenance_panel test_release_maintenance_public_path test_diagnostic_controls_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(qt_release_maintenance.*|application_release_maintenance_public_path|application_diagnostic_controls_public_path)$'
+cmake --build --preset dev --target app_better_pull_review test_release_maintenance_panel test_diagnostic_controls_public_path test_release_maintenance_public_path test_review_tour_composition_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path|application_review_tour_composition_public_path|architecture_boundaries)$'
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/qt/src/diagnostic_settings_panel.cpp src/adapters/qt/src/release_maintenance_panel.cpp src/adapters/qt/src/workbench_window.cpp src/app/src/release_maintenance_controls.cpp src/app/src/github_application.cpp
+python3 -B scripts/verify_documentation.py --root .
+python3 -B tests/scripts/verify_documentation_tests.py
+```
+
+The native UI recheck is bounded to the two changed public controls/export
+courses on the same isolated Windows/Linux clones. Linux passed **2/2** in
+13.56 seconds at `0fb249a2`. The Windows build exposed MSVC warning C4804 in
+incoming main's tour codec numeric bound comparison with bool. The one-line
+uint64_t cast at `41cce4ba` follows the already-used cached overview serializer
+pattern and preserves encoding/admission. Its local storage test passed **1/1**
+in 0.42 seconds, and header formatting passed. Windows compiled the repaired
+library and both public executables. The Windows controls/export courses passed
+**2/2** in 29.05 seconds at `41cce4ba` (native uncontained execution). The
+additional optional Windows tour-storage
+test target failed to compile because its existing CMake target cannot find the
+platform private-object header; it is not counted as a pass and does not alter
+the two required UI course targets.
+
+```sh
+cmake --build --preset dev --target test_review_tour_storage -j 8
+ctest --preset dev --output-on-failure -R '^sqlite_review_tour_storage$'
+# Isolated Linux checkout /home/mmarcin/rfc0027-m5, source 0fb249a2:
+cmake --build --preset dev --target test_diagnostic_controls_public_path test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path)$'
+# Isolated Windows checkout C:/code/rfc0027-m5, source 41cce4ba:
+cmake --build --preset windows-dev --target test_diagnostic_controls_public_path test_release_maintenance_public_path test_review_tour_storage --parallel 10
+ctest --preset windows-dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path)$'
+```
+ The original logging,
+retention, crash, actual ENOSPC and Quill dependency/package evidence above is
+reused within its exact recorded limits. The unpublished package remains bound
+to `189d24f9`; no newly signed, installed or released package is claimed.
+
+### Replacement attended candidate
+
+Same session and server, cursor **31**. Only `BPR-1219-controls` and
+`BPR-1219-export` are new pending questions. Their source is `0fb249a2` and copied
+binary SHA-256 is `9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186`.
+The separate app, manifest, identity and offline HTML are in
+`build/rfc0027-m5/review-v2/`. Each launch names an absolute isolated data path;
+no sign-in, live service or remote PR operation is requested.
+
+The original files verdict, revision and old copied app remain intact; its
+binary digest was rechecked as `3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+The conflict-release helper combines path and candidate selectors, so the shared
+panel path also released the files protection flag. Its recorded accept remains
+valid for the original immutable app, which stays reserved by this checkpoint.
+No replacement files question is created. Both revised candidates are protected.
+The final checkpoint on BPR-0601 transfers server PID 8289/session 64739 and the
+complete local URL to the coordinator; M5 remains unaccepted until actual verdicts.

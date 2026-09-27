@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1219"
 title: "Qualify structured diagnostics and reconcile RFC acceptance"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1218"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"Native macOS/Windows/Linux developer logging, lifecycle and controls pass; universal Mac unpublished package, Quill provenance, explicit installer/container/crash limits in docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC2","outcome":"pending","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"Three protected exact-source attended candidates prepared at cursor19; actual human verdicts remain required. No live sign-in."}},{"criterion":"AC3","outcome":"pending","revision":"7ab119933439878d858100410083080ab4d1ea7b","evidence":{"kind":"observation","detail":"All nine criteria reconciled in BPR-0601; RFC/index remain open and accepted M5 main landing awaits actual acceptance."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Prior native logging/lifecycle/package evidence retained at its exact revisions; revised UI passes Mac public/Qt/native inspection, Linux 2/2 at 0fb249a2 and Windows changed public courses at 41cce4ba. Tour serializer Mac storage passes; optional Windows tour-storage target has a pre-existing missing platform include and is not a pass. Exact results and package limits: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC2","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Original files accepted at cursor23, decision 413e836b-5898-4aeb-a48c-43b21595d54b at source7ab11993. Revised controls/export are protected at cursor31, source0fb249a2, SHA256 9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186; two actual new human verdicts required. No live sign-in."}},{"criterion":"AC3","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Full criteria reconciled in BPR-0601; BPR-0603 and RFC/index remain open. Required new attended verdicts and accepted M5 main landing pending under mandate r2."}}]
+parked_on: "human-review"
 ---
 
 # Qualify structured diagnostics and reconcile RFC acceptance
@@ -53,3 +54,15 @@ panel path caused `resume-development` to release its protection flag as well
 as controls (the tool combines paths and candidate selectors); its verdict and
 identity were unchanged. The old app remains reserved by this handoff and is
 not overwritten; replacement candidates use a separate copy.
+
+
+## Revised attended handoff
+
+UI revision `e0a870b3`, merged main candidate `0fb249a2`, and separate MSVC
+serializer comparison correction `41cce4ba` are committed. The
+[latest checkpoint](../10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released)
+records exact native results, the two revised protected criteria at cursor31,
+original accepted files identity, copied apps, server ownership and next action.
+Only the two replacement controls/export verdicts are requested. The original
+files acceptance remains preserved. Full M5 acceptance and main landing remain
+pending; required human review is not self-certified.
