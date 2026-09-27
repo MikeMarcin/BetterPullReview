@@ -2,6 +2,7 @@
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
 #include "../core/private_review_fixture.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
+#include "bpr/application/agent_launch.hpp"
 #include "review_ledger_legacy_fixture.hpp"
 #include "scratch_root.hpp"
 #include <barrier>
@@ -403,6 +404,47 @@ namespace {
 		write.Runs                 = { run };
 		return write;
 	}
+	void protocol_metadata_storage_and_secret_scan()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "protocol-provenance" };
+		const auto                           config = configuration(scratch.path());
+		auto                                 store  = open(config);
+		const auto                           thread = create(*store);
+		auto                                 write  = pending_run(*store, thread.Thread);
+		auto&                                run    = write.Runs.front();
+		run.Protocol                                = agent_protocol::claude_stream_json;
+		run.Metadata.Requested                      = { "request-fact", "high" };
+		run.Metadata.Configured                     = { "default-fact", { } };
+		expect(store->commit(write).has_value(), "exact run admitted before protocol metadata");
+		agent_protocol_decoder decoder{ run.Protocol };
+		expect(decoder.push(R"({"type":"system","subtype":"init","session_id":"remote-session","model":"reported-fact","claude_code_version":"fixture-1","apiKeySource":"not-retained-env-canary","extra":"not-retained-secret-canary"})"
+							"\n")
+				   .has_value(),
+			   "protocol decodes allowlisted facts from richer raw envelope");
+		for (const auto& report : decoder.metadata().ProtocolReported) {
+			run.Metadata = *append_runtime_report(run.Metadata, report);
+		}
+		run.Outcome                = private_run_outcome::cancelled;
+		write.ExpectedNextIdentity = store->frontier()->NextIdentity;
+		expect(store->commit(write).has_value(), "partial cancelled-run metadata commits independently of complete assistant output");
+		const auto expected = run;
+		store.reset();
+		store             = open(config);
+		const auto loaded = store->load_run_details(std::array{ expected.Run });
+		expect(loaded && loaded->size() == 1 && loaded->front() == expected
+				   && inspect_runtime_metadata(loaded->front().Metadata)->size() == 3,
+			   "actual decoder facts and conflicts survive SQLite restart");
+		for (const auto& entry : std::filesystem::recursive_directory_iterator(scratch.path())) {
+			if (!entry.is_regular_file()) {
+				continue;
+			}
+			std::ifstream     input{ entry.path(), std::ios::binary };
+			const std::string bytes{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+			expect(bytes.find("not-retained-env-canary") == std::string::npos && bytes.find("not-retained-secret-canary") == std::string::npos,
+				   "database, WAL and evidence files contain no discarded credential/environment carrier");
+		}
+	}
+
 	auto new_thread_write(private_review_store_port& aStore) -> private_store_write
 	{
 		auto f        = *aStore.frontier();
@@ -691,6 +733,7 @@ namespace {
 }
 auto main() -> int
 {
+	protocol_metadata_storage_and_secret_scan();
 	smoke();
 	facade_thread_coherence();
 	simultaneous_allocations();

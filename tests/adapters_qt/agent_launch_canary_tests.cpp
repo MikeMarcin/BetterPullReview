@@ -8,6 +8,7 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <array>
@@ -273,6 +274,10 @@ namespace {
 		};
 		for (const auto protocol : protocols) {
 			auto launched = request(protocol);
+			launched.Run  = core::agent_run_id{ 71U };
+			if (protocol == core::agent_protocol::codex_app_server) {
+				launched.Metadata.Requested = { "canary-requested", "high" };
+			}
 			launched.Arguments.emplace_back("--stderr-pressure");
 			auto streamed     = std::vector<application::agent_stream_event>{ };
 			auto firstEventAt = std::optional<qint64>{ };
@@ -289,6 +294,23 @@ namespace {
 					streamed.push_back(aEvent);
 				});
 			const auto finishedAt = timer.elapsed();
+			expect(result.Run == launched.Run, "real process result preserves exact invocation identity");
+			if (protocol == core::agent_protocol::codex_app_server) {
+				expect(result.Metadata.Requested.Model == "canary-requested" && result.Metadata.ProtocolReported.size() == 2
+						   && result.Metadata.ProtocolReported[0].Settings.Model == "canary-reported" && result.ProvenanceConflicts.size() == 2,
+					   "real App Server IPC retains requested/reported disagreement");
+			} else if (protocol == core::agent_protocol::claude_stream_json) {
+				expect(result.Metadata.ProtocolReported.size() == 2 && result.Metadata.ProtocolReported[0].ToolVersion == "fixture-1"
+						   && result.Metadata.ProtocolReported[1].Settings.Model == "canary-served" && result.ProvenanceConflicts.size() == 1,
+					   "real Claude IPC retains version, session and conflicting reported models");
+			} else if (protocol == core::agent_protocol::codex_jsonl_exec) {
+				expect(result.Metadata.ProtocolReported.size() == 1 && !result.Metadata.ProtocolReported[0].Settings.Model,
+					   "real JSONL reports its thread and leaves model absent");
+			} else {
+				expect(result.Metadata.ProtocolReported.empty(), "real terminal leaves unsupported metadata unknown");
+			}
+			expect(result.Metadata.ContentSelfReported == core::agent_setting_facts{ }, "output prose never supplies runtime facts");
+
 			expect(
 				result.Outcome == application::agent_run_outcome::success
 					&& result.ExitCode == 0,
@@ -311,6 +333,7 @@ namespace {
 			for (auto index = std::size_t{ 0U }; index < result.Events.size(); ++index) {
 				expect(
 					result.Events[index].Session == session().Id
+						&& result.Events[index].Run == launched.Run
 						&& result.Events[index].Sequence == index,
 					"every streamed frame carries exact ordered session identity");
 			}
@@ -361,23 +384,17 @@ namespace {
 		plant_parent_secrets();
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		auto       launched         = request(core::agent_protocol::codex_jsonl_exec);
-		const auto workingDirectory = std::filesystem::temp_directory_path()
-			/ ("bpr-agent-cwd-"
-			   + std::to_string(
-				   std::chrono::steady_clock::now().time_since_epoch().count()));
+		auto          launched = request(core::agent_protocol::codex_jsonl_exec);
+		QTemporaryDir scratch;
+		expect(scratch.isValid(), "the canary owns a random scratch root");
+		const auto      workingDirectory = std::filesystem::path{ scratch.path().toStdString() };
 		std::error_code filesystemError;
-		expect(
-			std::filesystem::create_directory(workingDirectory, filesystemError)
-				&& !filesystemError,
-			"the canary receives a dedicated accepted working directory");
-		// [[BPR-1121]]. Owned from here, so a failure below removes it.
-		const bpr::tests::scratch_guard ownedWorkingDirectory{ workingDirectory };
+		std::filesystem::permissions(workingDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, filesystemError);
+		expect(!filesystemError, "canary root is owner private");
 
 		launched.WorkingDirectory = workingDirectory.string();
 		auto       launcher       = adapters::agent::agent_process_launcher{ };
 		const auto result         = launcher.run(launched, 20'000);
-		static_cast<void>(std::filesystem::remove(workingDirectory, filesystemError));
 		expect(
 			result.Outcome == application::agent_run_outcome::success,
 			"the boundary canary succeeds");
@@ -437,6 +454,27 @@ namespace {
 					!= std::string::npos;
 			}),
 			"the child reads every required local context class only from stdin");
+	}
+
+	void test_input_budget_refuses_before_real_child_effect()
+	{
+		QTemporaryDir scratch;
+		expect(scratch.isValid(), "budget course owns its random root");
+		const auto root = std::filesystem::path{ scratch.path().toStdString() };
+		std::filesystem::permissions(root, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto marker         = root / "child-started";
+		auto       launched       = request(core::agent_protocol::external_terminal);
+		launched.WorkingDirectory = root.string();
+		launched.Arguments        = { "--pre-assignment-side-effect", marker.string() };
+		launched.Input.assign(application::maximum_agent_input_bytes + 1, 'x');
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto refused  = launcher.run(launched, 20'000);
+		expect(refused.ProtocolFailure == application::agent_protocol_failure::input_too_large && !std::filesystem::exists(marker),
+			   "over-limit input cannot reach even the child's first side effect");
+		launched.Input     = "small context\n";
+		const auto control = launcher.run(launched, 20'000);
+		expect(control.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker),
+			   "negative control proves the same child creates the marker when admitted");
 	}
 
 	void test_independent_agent_identity_alone_controls_canary_authority()
@@ -1103,6 +1141,7 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_output_before_input_does_not_stall_the_request();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();

@@ -277,7 +277,7 @@ namespace {
 			.Protocol        = aProtocol,
 			.Session         = run_session,
 			.Input           = "initial-input",
-			.DeferredContext = "selected-context",
+			.DeferredContext = aProtocol == core::agent_protocol::codex_app_server ? "selected-context" : "",
 		};
 		return run_agent_protocol_loop(request, { }, transport);
 	}
@@ -698,6 +698,8 @@ namespace {
 				 failure::remote_failed,
 				 failure::remote_interrupted,
 				 failure::causal_violation,
+				 failure::invalid_runtime_metadata,
+				 failure::input_too_large,
 			 }) {
 			values.push_back(static_cast<std::uint8_t>(existing));
 		}

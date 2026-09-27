@@ -276,7 +276,13 @@ namespace bpr::adapters::agent {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
-		auto       result                 = application::agent_run_result{ .Session = aRequest.Session };
+		auto result = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run };
+		if (const auto admitted = application::admit_agent_input(aRequest); !admitted) {
+			result.Outcome         = application::agent_run_outcome::protocol_failure;
+			result.ProtocolFailure = admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata;
+			return result;
+		}
+		result.Metadata                   = aRequest.Metadata;
 		auto&      control                = *Implementation;
 		const auto cancellationGeneration = control.CancellationGeneration.load(
 			std::memory_order_acquire);

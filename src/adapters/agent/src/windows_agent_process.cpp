@@ -777,7 +777,7 @@ namespace bpr::adapters::agent::detail {
 			const application::agent_output_sink&    aSink,
 			const cancellation_probe&                aCancelled) -> application::agent_run_result
 		{
-			auto        result     = application::agent_run_result{ .Session = aRequest.Session };
+			auto        result     = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run, .Metadata = aRequest.Metadata };
 			const auto& requested  = *aRequest.WorkspaceLifetimeGuard;
 			const auto  guardPath  = utf16(requested.Path);
 			auto        ownerGuard = guardPath
@@ -921,7 +921,7 @@ namespace bpr::adapters::agent::detail {
 		const cancellation_probe&                aCancelled)
 		-> application::agent_run_result
 	{
-		auto result           = application::agent_run_result{ .Session = aRequest.Session };
+		auto result           = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run, .Metadata = aRequest.Metadata };
 		auto executable       = utf16(aRequest.Executable);
 		auto workingDirectory = utf16(aRequest.WorkingDirectory);
 		auto environment      = environment_block(aRequest.Environment);

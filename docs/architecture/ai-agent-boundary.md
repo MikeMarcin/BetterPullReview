@@ -936,7 +936,7 @@ session (BPR-0500, `application_agent_invocation_host`).
 | A session without the per-session opt-in carries zero notes and zero drafts | `core_agent_context_supplement`, `core_agent_chat_scope` |
 | The host builds the supplement through the gated overload only | `application_agent_launch` |
 | A structured payload decodes once, in the shared loop, on each carrying protocol | `application_agent_finding_protocol`, `application_agent_protocol_loop` |
-| Every bound and malformation has its own typed cause, and all twelve are pairwise distinct | `application_agent_finding_protocol` |
+| Every bound and malformation has its own typed cause, and all declared causes are pairwise distinct | `application_agent_finding_protocol` |
 | The external terminal refuses a payload as `unsupported_finding_transport` | `application_agent_finding_protocol` |
 | Deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `application_agent_finding_protocol` |
 | A payload arriving after an accepted head move is stale with its analyzed OIDs intact | `application_agent_invocation_host` |
@@ -1014,3 +1014,76 @@ session (BPR-0500, `application_agent_invocation_host`).
   code; the Windows process lifecycle remains claimed only on the strength of
   BPR-0240's 2026-08-26/27 target-native runs, exactly as the RFC-BPR-0011
   sections above say.
+
+## RFC-BPR-0023 runtime facts and input admission
+
+M5 extends the existing invocation/launch/decoder/result path. Requested
+settings are explicit invocation inputs; configured settings are explicit
+profile defaults. Both remain separate from protocol reports. The effective
+wire setting uses the request when present, otherwise the default. Neither a
+profile display name, executable path, assistant prose, stderr nor environment
+value supplies a runtime fact. Content-self-reported settings remain absent:
+none of these four transports has a typed content-self-report field.
+
+### Tested protocol capability boundary
+
+| Protocol | Requested/default settings sent | Reported facts admitted | Unknown facts |
+|---|---|---|---|
+| Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
+| Codex JSONL exec | Explicit settings refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
+| Claude stream JSON | Explicit settings refuse as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
+| External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
+
+These are field-specific observations, not provider-execution attestation.
+App Server's thread result can describe its configured default before the turn
+setting takes effect; its report retains that exact basis. `initialize`'s
+`userAgent` is never scraped into a version. The adapter does not discover a
+model catalog or promise that an agent supports every bounded model/effort
+value; a tool-side rejection remains a failed protocol operation. The public
+App Server contract describes the [request and result fields](https://learn.chatgpt.com/docs/app-server);
+the Claude field mapping is grounded in the publisher's
+[SDK 0.3.211 type declarations](https://unpkg.com/@anthropic-ai/claude-agent-sdk@0.3.211/sdk.d.ts).
+The local canary fixtures exercise these envelopes; they do not qualify an
+installed vendor release or infer facts absent from its messages.
+
+A decoder admits metadata only after its normal phase and remote-identity
+checks. Each distinct report retains its protocol/event/field basis. Identical
+reports coalesce; conflicting requested, configured and reported values remain
+separate and produce the core's typed conflicts. Scalars retain the M3 limits:
+256 bytes per model/effort/version/basis, 1,024 per remote ID, at most 16 reports
+and 16 KiB aggregate metadata. Empty, control-containing, invalid UTF-8,
+wrong-type and oversized fields refuse the frame, without truncation. Missing
+fields remain absent, including nullable App Server effort. Raw JSON and
+credential-related neighboring fields are not persisted as provenance.
+
+### One invocation snapshot and one bounded wire input
+
+`agent_launch_options::AdmittedRun` accepts the store-issued durable run
+snapshot. The builder validates its session, profile identity/display snapshot,
+protocol, entry point, exact revision binding, requested/default facts and
+ordered private source set. Each supplied full body must match its admitted
+source reference, byte count and digest. Unadmitted, missing or changed private
+bodies refuse. The request, stream events and terminal result carry the same
+`agent_run_id`; reusing a session does not reuse its invocation identity.
+Finalization can require the expected run, discarding foreign-run/session facts
+while retaining same-run facts on revision staleness, cancellation and failure.
+
+Private selection remains capped at 256 sources and 2 MiB raw body bytes. A
+separate **8 MiB aggregate encoded stdin** admission counts supplement fields,
+TSV escaping, selected full bodies, protocol JSON escaping, fixed wrappers and
+App Server follow-ups before allocating the encoded context. App Server
+reserves the maximum escaped size of a 1,024-byte remote thread ID. The process
+adapter repeats admission before starting a child; the shared protocol loop
+also checks the actual cumulative bytes before each write. An invalid late
+thread ID can receive the initialization handshake, but receives no private
+context. Neither layer clips the input to make it fit.
+
+M6 owns the production durable admission transaction and callback wiring:
+persist the reviewer prompt and allocate one run before dispatch, revalidate
+source tips through the store, pass `AdmittedRun` and the complete selected
+bodies, finalize against the expected run, and commit complete assistant text
+and terminal facts. Existing callers can still omit the durable snapshot and
+carry a zero run until that integration. This compatibility path supplies no
+private source bodies and is not evidence of completed durable conversation
+admission. Storage schema 7 already persists the typed facts; no schema or
+mutation-recovery change is introduced by M5.

@@ -150,7 +150,7 @@ namespace {
 			.Protocol        = aProtocol,
 			.Session         = core::agent_session_id{ 41U },
 			.Input           = "initial-input",
-			.DeferredContext = "selected-context",
+			.DeferredContext = aProtocol == core::agent_protocol::codex_app_server ? "selected-context" : "",
 		};
 	}
 
@@ -695,10 +695,61 @@ namespace {
 		expect_single_termination(nonzero, "a payload-bearing failure terminates once");
 	}
 
+	void test_run_metadata_and_input_admission()
+	{
+		auto launched        = request(core::agent_protocol::claude_stream_json);
+		launched.Run         = core::agent_run_id{ 71 };
+		const auto init      = std::string{ R"({"type":"system","subtype":"init","session_id":"session","model":"initial","claude_code_version":"2.0"})"
+											"\n" };
+		const auto body      = std::string{ R"({"type":"assistant","session_id":"session","message":{"role":"assistant","model":"served","content":[{"type":"text","text":"response"}]}})"
+											"\n" };
+		const auto terminal  = std::string{ R"({"type":"result","session_id":"session","subtype":"success","is_error":false,"result":"response"})"
+											"\n" };
+		auto       transport = fake_transport{ };
+		transport.Output     = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = init + body + terminal } };
+		const auto result    = run_agent_protocol_loop(launched, { }, transport);
+		expect(result.Outcome == application::agent_run_outcome::success && result.Run == launched.Run
+				   && result.Events.size() == 1 && result.Events[0].Run == launched.Run && result.Metadata.ProtocolReported.size() == 2
+				   && result.ProvenanceConflicts.size() == 1,
+			   "protocol loop delivers exact run and conflicting reports");
+		for (const auto status : { agent_protocol_wait_status::cancelled, agent_protocol_wait_status::timeout }) {
+			auto stopped       = fake_transport{ };
+			stopped.Output     = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = init } };
+			stopped.Waits      = { { .Status = status } };
+			const auto partial = run_agent_protocol_loop(launched, { }, stopped);
+			expect(partial.Run == launched.Run && partial.Metadata.ProtocolReported.size() == 1 && partial.Events.empty()
+					   && partial.Outcome != application::agent_run_outcome::success,
+				   "cancelled/timeout retains admitted facts without complete response");
+		}
+		auto oversized       = request(core::agent_protocol::external_terminal);
+		oversized.Input      = std::string(application::maximum_agent_input_bytes + 1, 'x');
+		auto       untouched = fake_transport{ };
+		const auto refused   = run_agent_protocol_loop(oversized, { }, untouched);
+		expect(refused.ProtocolFailure == application::agent_protocol_failure::input_too_large && untouched.Writes.empty(), "oversized input makes zero writes");
+		auto invalid                     = request(core::agent_protocol::codex_app_server);
+		invalid.Metadata.Requested.Model = std::string(257, 'x');
+		auto       unstarted             = fake_transport{ };
+		const auto invalidResult         = run_agent_protocol_loop(invalid, { }, unstarted);
+		expect(invalidResult.ProtocolFailure == application::agent_protocol_failure::invalid_runtime_metadata && unstarted.Writes.empty()
+				   && invalidResult.Metadata == core::agent_runtime_metadata{ },
+			   "invalid launch facts are refused without copying into result");
+		auto late   = fake_transport{ };
+		late.Output = {
+			{ .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":0,\"result\":{}}\n" },
+			{ .Status = agent_protocol_pipe_read_status::no_data },
+			{ .Status = agent_protocol_pipe_read_status::data, .Bytes = R"({"id":1,"result":{"thread":{"id":")" + std::string(1025, 'x') + "\"}}}\n" }
+		};
+		late.Waits           = { { .Status = agent_protocol_wait_status::running } };
+		const auto badThread = run_agent_protocol_loop(request(core::agent_protocol::codex_app_server), { }, late);
+		expect(badThread.ProtocolFailure == application::agent_protocol_failure::invalid_runtime_metadata && late.Writes.size() == 2,
+			   "invalid late thread permits handshake but no private context write");
+	}
+
 } // namespace
 
 int main()
 {
+	test_run_metadata_and_input_admission();
 	test_all_write_statuses_are_classified();
 	test_app_server_phases_follow_successful_writes_only();
 	test_partial_and_oversized_stdout();

@@ -6,6 +6,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
 #include <array>
@@ -116,6 +117,23 @@ namespace bpr::application {
 		const core::agent_session&       aSession)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>;
 
+	/// \brief One store-validated full body, ordered exactly as the admitted selection.
+	struct agent_private_source_body
+	{
+		core::private_source_reference Source;
+		std::string                    Body;
+	};
+	/// \brief Host admission snapshot and explicit settings for one invocation.
+	/// The host persists AdmittedRun before dispatch; the builder verifies correlation,
+	/// never allocates identities. Legacy callers omit it until durable host integration.
+	struct agent_launch_options
+	{
+		core::agent_setting_facts                 Requested;
+		core::agent_entry_point                   EntryPoint = core::agent_entry_point::ask_about_selection;
+		std::optional<core::agent_run_provenance> AdmittedRun;
+		std::vector<agent_private_source_body>    PrivateSources;
+	};
+
 	/// \brief What one agent process is started with.
 	struct agent_launch_request
 	{
@@ -134,6 +152,9 @@ namespace bpr::application {
 		/// Present only for a workspace with durable recovery ownership. A
 		/// requested guard must be retained or launch refuses before execution.
 		std::optional<agent_workspace_lifetime_guard> WorkspaceLifetimeGuard;
+		core::agent_run_id                            Run;
+		core::agent_runtime_metadata                  Metadata;
+		std::optional<core::agent_run_provenance>     AdmittedRun;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -150,18 +171,28 @@ namespace bpr::application {
 		invalid_profile,
 		profile_session_mismatch,
 		unsupported_supplement_schema,
+		invalid_runtime_settings,
+		unsupported_runtime_settings,
+		invalid_run_snapshot,
+		input_too_large,
 	};
 
 	/// \brief Builds one protocol-specific process request.
 	[[nodiscard]] auto build_agent_launch(
 		const core::agent_profile&            aProfile,
 		const core::agent_context_supplement& aSupplement,
-		const environment_reader&             aParent)
+		const environment_reader&             aParent,
+		const agent_launch_options&           aOptions = { })
 		-> std::expected<agent_launch_request, agent_launch_failure>;
 
 	/// \brief Renders every supplement field with explicit count/presence data.
 	[[nodiscard]] auto encode_agent_supplement(
 		const core::agent_context_supplement& aSupplement) -> std::string;
+
+	inline constexpr std::size_t maximum_agent_input_bytes = 8U * 1024U * 1024U;
+	/// \brief Validates encoded stdin including reserved App Server follow-ups.
+	[[nodiscard]] auto admit_agent_input(const agent_launch_request& aRequest)
+		-> std::expected<std::size_t, agent_launch_failure>;
 
 	inline constexpr std::size_t maximum_agent_stdout_bytes = 1U * 1024U * 1024U;
 	inline constexpr std::size_t maximum_agent_stderr_bytes = 1U * 1024U * 1024U;
@@ -220,17 +251,19 @@ namespace bpr::application {
 		/// The selected protocol has no result framing a payload could ride in,
 		/// so one is refused rather than given framing nobody specified.
 		unsupported_finding_transport,
+		invalid_runtime_metadata,
+		input_too_large,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 12U;
+	inline constexpr std::size_t agent_protocol_failure_count = 14U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::unsupported_finding_transport)
+			agent_protocol_failure::input_too_large)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");
@@ -341,16 +374,20 @@ namespace bpr::application {
 		[[nodiscard]] auto acknowledge_followup(agent_protocol_event_kind aControl)
 			-> std::expected<void, agent_protocol_failure>;
 
+		/// \brief Only admitted protocol fields; no raw frame, stderr or prose scraping.
+		[[nodiscard]] auto metadata() const noexcept -> const core::agent_runtime_metadata& { return Metadata; }
+
 	private:
-		core::agent_protocol Protocol;
-		std::string          Pending;
-		std::size_t          TotalBytes   = 0U;
-		bool                 Failed       = false;
-		std::uint8_t         Phase        = 0U;
-		bool                 SawAssistant = false;
-		std::string          RemoteSession;
-		std::string          RemoteThread;
-		std::string          RemoteTurn;
+		core::agent_runtime_metadata Metadata;
+		core::agent_protocol         Protocol;
+		std::string                  Pending;
+		std::size_t                  TotalBytes   = 0U;
+		bool                         Failed       = false;
+		std::uint8_t                 Phase        = 0U;
+		bool                         SawAssistant = false;
+		std::string                  RemoteSession;
+		std::string                  RemoteThread;
+		std::string                  RemoteTurn;
 	};
 
 	/// \brief Every terminal condition the host exposes distinctly.
@@ -379,6 +416,7 @@ namespace bpr::application {
 		core::agent_session_id Session;
 		std::uint64_t          Sequence = 0U;
 		std::string            Text;
+		core::agent_run_id     Run;
 
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
@@ -397,7 +435,10 @@ namespace bpr::application {
 		/// finalization, because a payload the reviewer can no longer act on
 		/// is still a payload they are entitled to see refused by revision
 		/// rather than to never learn about.
-		std::optional<agent_finding_payload> Findings;
+		std::optional<agent_finding_payload>         Findings;
+		core::agent_run_id                           Run;
+		core::agent_runtime_metadata                 Metadata;
+		std::vector<core::agent_provenance_conflict> ProvenanceConflicts;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};
@@ -422,7 +463,8 @@ namespace bpr::application {
 	[[nodiscard]] auto finalize_agent_run(
 		agent_run_result                    aResult,
 		const core::agent_session&          aSession,
-		const core::agent_revision_binding& aObserved) -> agent_run_result;
+		const core::agent_revision_binding& aObserved,
+		core::agent_run_id                  aExpectedRun = { }) -> agent_run_result;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
