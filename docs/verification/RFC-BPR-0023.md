@@ -1328,3 +1328,22 @@ Start a fresh M8 implementer at this integrated main tip. Preserve all previous
 frontiers, BPR-0584's pending public body/actor read, and the M7 composition and
 publication integration contracts. No designated GitHub/GHES mutation target
 or signed independent readback was supplied.
+
+## M8 / BPR-0585 private history presentation
+
+The Notes tray now offers separate Private history and Agent tools pages beside
+shared Comments. The private page always names its local visibility. Bounded
+thread and immutable revision models retain stable indexes and issue insert,
+remove, move or data-change notifications without model resets. It offers exact
+revision selection with explicit historical consent, body continuation, typed
+actor/completion/currentness, local lineage labels and qualified provenance
+facts. Bodies and remote metadata render as literal text. All effects remain
+semantic intents; production wiring is BPR-0587.
+
+`cmake --build --preset dev --target test_private_review_panel -j6` and
+`ctest --preset dev --output-on-failure -R '^(qt_private_review_panel|architecture_boundaries)$'`
+passed (2/2, 8.24 seconds). The Qt test directly observes zero resets, one changed
+row and retained persistent identity, exact selected source dispatch, no effects
+from projections, unknown/conflict facts, accessible names and keyboard focus.
+Rendered native appearance and the complete public course remain M8/M9 work;
+this component evidence is not RFC acceptance.

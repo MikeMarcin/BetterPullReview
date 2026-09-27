@@ -21,6 +21,8 @@
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/private_review_panel.hpp"
+#include <QTabWidget>
 #include "bpr/qt/usage_ring.hpp"
 
 #include <QAbstractButton>
@@ -1852,7 +1854,13 @@ namespace bpr::qt {
 		CommentsScroll     = makeTabColumn(commentsContents, QStringLiteral("workbenchCommentsScroll"));
 		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchNotesScroll"));
 		// Keep the purpose within the visible page even when tools scroll sideways.
-		notesPageLayout->addWidget(ConversationScroll, 1);
+		auto* privateTabs = new QTabWidget{ notesPage };
+		privateTabs->setObjectName(QStringLiteral("privateConversationTabs"));
+		privateTabs->setAccessibleName(tr("Private history and agent tools"));
+		PrivateReview = new private_review_panel{ notesPage };
+		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
+		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
+		notesPageLayout->addWidget(privateTabs, 1);
 
 		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
 		// and Tour. The drawer still
