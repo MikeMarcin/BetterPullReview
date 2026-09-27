@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0571"
 title: "Compose RFC-BPR-0022 through the shipped review path"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0568","BPR-0569","BPR-0570"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
