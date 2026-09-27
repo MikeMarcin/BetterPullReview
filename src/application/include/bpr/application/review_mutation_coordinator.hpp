@@ -58,10 +58,11 @@ namespace bpr::application {
 
 		/// \brief Publishes and retains the provider's post-attempt server refresh.
 		[[nodiscard]] auto publish_attempt(
-			const core::review_publication_proposal& aProposal,
-			review_mutation_anchor_binding           aAnchor,
-			bool                                     aAcknowledged,
-			std::stop_token                          aStop = { })
+			const core::review_publication_proposal&      aProposal,
+			review_mutation_anchor_binding                aAnchor,
+			bool                                          aAcknowledged,
+			std::stop_token                               aStop   = { },
+			std::optional<review_mutation_source_binding> aSource = std::nullopt)
 			-> review_mutation_submission;
 
 		/// \brief Publishes after binding the semantic anchor to exact source data.
@@ -100,7 +101,8 @@ namespace bpr::application {
 			const core::review_publication_proposal&      aProposal,
 			std::optional<review_mutation_anchor_binding> aAnchor,
 			bool                                          aAcknowledged,
-			std::stop_token                               aStop)
+			std::stop_token                               aStop,
+			std::optional<review_mutation_source_binding> aSource = std::nullopt)
 			-> review_mutation_submission;
 
 		review_mutation_port*                          Provider = nullptr;

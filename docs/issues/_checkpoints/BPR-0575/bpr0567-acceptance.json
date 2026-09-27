@@ -1,0 +1,60 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "transactional-migration",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    },
+    {
+      "criterion": "representation-keys",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    },
+    {
+      "criterion": "single-post-child",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    },
+    {
+      "criterion": "atomic-authorization",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    },
+    {
+      "criterion": "indeterminate-native-refusal",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    },
+    {
+      "criterion": "closed-recovery-counterexamples",
+      "outcome": "pass",
+      "revision": "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034",
+      "evidence": {
+        "kind": "command",
+        "detail": "sqlite_review_mutation_recovery_storage and sqlite_review_submission_recovery_storage pass; v1-v3 preservation, both-direction alias refusal, two-connection CAS, durable rejection/evidence, restart, corruption, baseline and 1024 capacity exercised. m2-recovery-tests-alias.log and m2-recovery-tests-final2.log."
+      }
+    }
+  ]
+}

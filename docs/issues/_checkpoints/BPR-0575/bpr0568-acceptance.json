@@ -1,0 +1,60 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "legacy-native",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "GitHub.com/GHES SQLite-backed session courses keep legacy lines native despite cached unsupported evidence. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    },
+    {
+      "criterion": "proven-native",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "Canonical native receipts and observed-success cache evidence retain native representation; native and permalink wire suites pass. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    },
+    {
+      "criterion": "unknown-negotiation",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "Unknown support uses the authorized native child first; synthetic exact rejection is the only configured fallback transition. Production no-contract course sends no fallback. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    },
+    {
+      "criterion": "durable-fallback-authorization",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "Exact native rejection is committed before fallback; fresh exact-anchor evidence admits a parent without a native child. Both admission paths resume across restart. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    },
+    {
+      "criterion": "ambiguous-native-recovery",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "Generic422/403/429/503, loss, cancellation and every possibly-sent restart perform no blind retry or fallback. Legacy/logical alias courses prevent a fresh POST in either direction. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    },
+    {
+      "criterion": "existing-authority-preserved",
+      "outcome": "pass",
+      "revision": "12c5953959fb00b8d90f3afe103a9422ec4b2dda",
+      "evidence": {
+        "kind": "command",
+        "detail": "Host source propagation, coordinator and public composition, duplicate gestures, two target observations per child, stale head, actor and lease refusal, one-shot witnesses, server refresh, original provider/restart and Qt editor checks pass. Logs: build/rfc0022/m2-integration-tests.log (13 relevant tests pass; optional global binary sweep lacks unbuilt unrelated binaries), m2-polish-tests.log (3/3), m2-changed-isolation.log (10/10), m2-tidy-final.log, m2-precommit-docs.log."
+      }
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "schema": "rfc0022.milestone-evidence.v1",
+  "assignment": "/root/rfc0022_m2",
+  "mandate_revision": "r2",
+  "milestone": "b-provider-recovery",
+  "start_revision": "6e8ca8a8267e36045edab520ab9f83c8748501c0",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "source_candidate": "09fd909b2853a24f31decef457e041c5ffea18d7",
+  "board_candidate": "96b0df197b47553a084cc237cbf2737e56498e5f",
+  "accepted_cards": [
+    "BPR-0565",
+    "BPR-0566",
+    "BPR-0567",
+    "BPR-0568"
+  ],
+  "commits": [
+    "9360e18db4a118f7e9cbc462bc2b937c6c0bd277 docs: bind RFC-0022 provider and recovery milestone",
+    "e9d14abf445fb2fa00b2386e755590e82e65fa4a Claim BPR-0565",
+    "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b feat: add exact file-subject publication wire contracts",
+    "5bb3f07b0c328db01ffdfbd7c69e5c4cda110012 Finish BPR-0565",
+    "163f1008ea228c8b5a9693f08a3a562cab3f0dc0 docs: make scoped publication evidence eligible",
+    "98ddcf23174a359b743fdb38a162679771a7c471 Claim BPR-0566",
+    "df611ce678acade351aabcb557e45155bd477dbd feat: bound exact repository publication capability evidence",
+    "f298a2233cb94824e46128033443a63425ae9880 Finish BPR-0566",
+    "24f660c2f0b5ade92dc3b93b616641bb12d6450e docs: make logical publication recovery eligible",
+    "4b9db0782dd96216038da68aee88f9cde803e5b3 Claim BPR-0567",
+    "d9ce7daf2ca2b3db3cd7ddc72f6d9a261a52a034 feat: journal logical publications with atomic child transitions",
+    "8ba5a73a2772e53cfeb3daecceb00f8965ddca44 Finish BPR-0567",
+    "5cc57015e759f70e1ddf2db9cc24bb6d72980329 docs: make serialized publication negotiation eligible",
+    "3cde8dc8214fb7928d44d2f74b1ea06d5e9263bb Claim BPR-0568",
+    "12c5953959fb00b8d90f3afe103a9422ec4b2dda feat: negotiate off-hunk publication through durable child attempts",
+    "96b0df197b47553a084cc237cbf2737e56498e5f Finish BPR-0568",
+    "09fd909b2853a24f31decef457e041c5ffea18d7 fix: refuse conflicting routing metadata on admitted comment rejection"
+  ],
+  "changed_paths": [
+    "docs/architecture/github-provider-contract.md",
+    "docs/architecture/review-round-trip.md",
+    "docs/issues/10-backlog/BPR-0565-github-wire-and-unsupported-classifier.md",
+    "docs/issues/10-backlog/BPR-0566-publication-capability-evidence.md",
+    "docs/issues/10-backlog/BPR-0567-logical-publication-recovery.md",
+    "docs/issues/10-backlog/BPR-0568-native-fallback-negotiation.md",
+    "docs/issues/60-done/BPR-0565-github-wire-and-unsupported-classifier.md",
+    "docs/issues/60-done/BPR-0566-publication-capability-evidence.md",
+    "docs/issues/60-done/BPR-0567-logical-publication-recovery.md",
+    "docs/issues/60-done/BPR-0568-native-fallback-negotiation.md",
+    "docs/issues/_checkpoints/BPR-0575/bpr0565-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0566-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0567-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0568-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/m2-binding.json",
+    "docs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md",
+    "src/adapters/github/src/github_mutation_contract.cpp",
+    "src/adapters/github/src/github_mutation_contract.hpp",
+    "src/adapters/github/src/native_https_transport.cpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/adapters/sqlite/src/review_mutation_recovery_store.cpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/review_mutation_coordinator.hpp",
+    "src/application/include/bpr/application/review_mutation_port.hpp",
+    "src/application/include/bpr/application/review_mutation_recovery_port.hpp",
+    "src/application/include/bpr/application/review_publication_capability_cache.hpp",
+    "src/application/src/review_mutation_application_host.cpp",
+    "src/application/src/review_mutation_contract.cpp",
+    "src/application/src/review_mutation_coordinator.cpp",
+    "src/application/src/review_publication_capability_cache.cpp",
+    "src/application/src/review_publication_recovery_contract.cpp",
+    "tests/application/CMakeLists.txt",
+    "tests/application/review_mutation_application_host_tests.cpp",
+    "tests/application/review_publication_capability_cache_tests.cpp",
+    "tests/github_contract/CMakeLists.txt",
+    "tests/github_contract/native_https_transport_tests.cpp",
+    "tests/github_contract/review_comment_permalink_tests.cpp",
+    "tests/scripts/verify_native_https_transport.py",
+    "tests/sqlite_contract/review_mutation_recovery_storage_tests.cpp",
+    "tests/sqlite_contract/review_submission_recovery_storage_tests.cpp"
+  ],
+  "commands": [
+    {
+      "command": "cmake --build --preset dev --target better_pull_review test_better_pull_review_review_mutation_tests test_better_pull_review_live_review_mutation_provider_tests test_better_pull_review_review_comment_permalink_tests test_better_pull_review_review_mutation_application_host_tests test_review_publication_capability_cache test_better_pull_review_native_https_transport_tests test_better_pull_review_review_mutation_recovery_storage_tests test_better_pull_review_review_submission_recovery_storage_tests -j 6",
+      "result": "pass; app plus focused test targets. Subsequent exact-candidate app/native HTTPS rebuild passed."
+    },
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_github_mutation_contract_tests test_better_pull_review_qt_review_draft_editor_tests -j 6",
+      "result": "pass"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(architecture_boundaries|live_mutation_isolation|application_review_mutation_application_host|application_review_mutation|application_review_publication_capability_cache|sqlite_review_mutation_recovery_storage|sqlite_review_submission_recovery_storage|github_mutation_contract|live_review_mutation_provider|live_review_mutation_restart_recovery|github_review_comment_permalink|native_https_transport_fixture|application_review_round_trip_composition_contract|qt_review_draft_editor)$'",
+      "result": "13 functional/architecture/public-path selectors pass. Optional full live_mutation_isolation sweep fails on absent unrelated executables; it is not claimed as passing."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(github_review_comment_permalink|sqlite_review_mutation_recovery_storage|sqlite_review_submission_recovery_storage)$'",
+      "result": "3/3 pass after naming/conversion polish; 2.04 seconds"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^native_https_transport_fixture$'",
+      "result": "pass after final 422+Location correction; 20.55 seconds; complete422, truncated422, whole-review422 and conflicting Location covered"
+    },
+    {
+      "command": "python3 scripts/verify_live_mutation_isolation.py --root . --manifest build/rfc0022/m2-changed-executables.txt",
+      "result": "pass on all 10 changed/test executables, with positive control; full source inventory still inspected"
+    },
+    {
+      "command": "python3 -B _coding-standard/scripts/tidy.py --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm/bin/clang-tidy --warnings-as-errors --paths [scoped paths recorded in logs]",
+      "result": "new cache/recovery contract, host/coordinator, session, native transport, SQLite and session tests pass across initial clean units and focused repaired-unit reruns"
+    },
+    {
+      "command": "/opt/homebrew/opt/llvm/bin/clang-format --dry-run --Werror [changed C++ paths]",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "logs": [
+    {
+      "path": "build/rfc0022/m2-wire-tests.log",
+      "sha256": "3ceb08cd5a4eef2120983aa2ead001da04705bb88b3b13d2b4f95fbe221be5ad"
+    },
+    {
+      "path": "build/rfc0022/m2-cache-tests.log",
+      "sha256": "0d71533567a4da06ba58768097262c09dcda8de3a8105c2c7335470a7218d640"
+    },
+    {
+      "path": "build/rfc0022/m2-recovery-tests-complete.log",
+      "sha256": "dd830995e26ee97d0456c1fe1bfeda2aa0a2f536b05fcb2cdf95ff801e0cc24c"
+    },
+    {
+      "path": "build/rfc0022/m2-recovery-tests-alias.log",
+      "sha256": "12ed2def1af3077c8dba51b18cceeeddb2c92b0155ccb43047aea82bdaef6479"
+    },
+    {
+      "path": "build/rfc0022/m2-recovery-tests-final2.log",
+      "sha256": "890a47e04d94a9af157f377207044526a83865a59ddae1052eec87587e574072"
+    },
+    {
+      "path": "build/rfc0022/m2-integration-build2.log",
+      "sha256": "09f5a15f384f8ce9c1b0c6f1b5eee7d89ebe472981fee93f9e66db4d1dde1d1a"
+    },
+    {
+      "path": "build/rfc0022/m2-integration-build3.log",
+      "sha256": "574ea15ec0f771664a8f603668357e9697de2fff4e78168f60a4df57816d255f"
+    },
+    {
+      "path": "build/rfc0022/m2-integration-tests.log",
+      "sha256": "09f879a4dfdf57d08705498fe1068323c2e32a40310fd5b677745171b48a9be4"
+    },
+    {
+      "path": "build/rfc0022/m2-polish-build.log",
+      "sha256": "0001ed1c451e3dcd10ee2de463772d8a79f1d415282cac60e55ca63f21011b71"
+    },
+    {
+      "path": "build/rfc0022/m2-polish-tests.log",
+      "sha256": "118840b79225395716c4220ac005522aef63dc1f195105aafacef1f7f272016f"
+    },
+    {
+      "path": "build/rfc0022/m2-routing-build.log",
+      "sha256": "83305ca8b86c9c51a051cf3e1c6b16fab0751f67bfa33f1168e6131a4a43f7bc"
+    },
+    {
+      "path": "build/rfc0022/m2-routing-tests.log",
+      "sha256": "fd37771613b06dc10b773e5df594808a95930cb2e1e56b539edb5dd0d7c9c4c9"
+    },
+    {
+      "path": "build/rfc0022/m2-changed-isolation-final.log",
+      "sha256": "bfccb25745c02dc58ec9e6b270e025bb3d79f3686269980f02569a5c5ed4c15e"
+    },
+    {
+      "path": "build/rfc0022/m2-tidy.log",
+      "sha256": "e5882f62bc996560bf96f1117b18b6f15ba7cf560754fcf48e210cbce1f48dd9"
+    },
+    {
+      "path": "build/rfc0022/m2-tidy-final.log",
+      "sha256": "e7db3db583b07e538145138426a4d76c7a1c876f701f38610272cf799b845fb4"
+    },
+    {
+      "path": "build/rfc0022/m2-routing-tidy.log",
+      "sha256": "0a1c4b2f7865a0e8db06b3e5b134d00981cd36a1fd88513e5fdb86f825165441"
+    },
+    {
+      "path": "build/rfc0022/m2-final-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ],
+  "coverage": [
+    "Native/file wire fields and honest subjects; exact source/permalink/body; operation/server/API/classifier allowlist with explicitly synthetic tuples only.",
+    "Cache has at most128 entries and300-second monotonic lifetime, exact actor/profile/repository/operation/revisions/generation plus commit/path/line scope; fresh session starts unknown.",
+    "Schema4 is additive and transactional; v1/v2 native and v3 whole-review rows preserved, unresolved/succeeded legacy aliases block fresh parents, reverse aliases refuse native admission.",
+    "Exact expected-state CAS, one-shot transmission witness, baseline digest/integrity/capacity/conflict checks and deterministic representation child identities.",
+    "GitHub.com/GHES session fixtures use real SQLite; durable native rejection and no-native evidence admission; cached-admission restart; every child interruption boundary; duplicate gesture; ambiguous receipt recovery; both legacy/logical directions after restart.",
+    "Existing actor/head/lease/cancellation/one-use host authority and left reply courses pass. Application public composition and Qt editor regression pass."
+  ],
+  "corrected_findings": [
+    "Compile failures in initial routing edits and typed test expectation were corrected; production native-only admission guard is scoped to session entry, not canonical file compiler.",
+    "Added missing exhaustive UI mapping for incompatible_body while preserving other presentation behavior.",
+    "Added pre-admission observations to retain double observation for each child; narrowed cached evidence to exact anchor rather than generalizing repository-wide.",
+    "Transport preserves complete422 error data, refuses truncated framing and conflicting Location; synthetic harness now encodes422 status reason.",
+    "Fixed test single-character string operations and SQLite optional/conversion tidy findings. Existing Glaze overrides retain exact library names with local documented naming suppressions, consistent with adjacent adapter code."
+  ],
+  "reused_evidence": "Unchanged M1 core-only and documentation-validator regression evidence; no core or documentation-validator implementation changed. Integration-functional evidence is retained across later comment-only Glaze annotations and scoped storage conversion, with affected storage/permalink suites rerun.",
+  "required_pending_for_milestone": [],
+  "pending_followup": [
+    "Coordinator must merge and push milestoneB to main before startingC per owner amendment.",
+    "MilestoneC BPR-0569..0572: file-subject normalization/thread mapping, UI round trip and composed product/public-path/security verification.",
+    "MilestoneD BPR-0573: production has no admitted unsupported classifier tuple. Exact observed or owner-approved recorded non-creation contract is required before enabling fallback; generic422 never suffices.",
+    "Owner allows GitHub.com-only live course using designated MikeMarcin/BPR-Test PR2 and existing attended identity-bound mutation authority. Refresh actor/PR/base/head before use; no live writes occurred inB.",
+    "GHES fixture coverage passes; native GHES behavior remains explicitly unobserved. Remaining RFC closeout criteria/canonical sequencing are not waived."
+  ],
+  "review": "Implementer self-review only; no B human criterion, no independent review claimed, no review server.",
+  "ownership": "All task-owned build/test/tidy commands finished; no subagents or extra checkout writers. Exclusive checkout is released to coordinator at final handoff.",
+  "binding_renewal": "m2-binding-final.json refreshes the obligation byte fingerprints after appended implementation evidence and accepted-card bookkeeping. Original m2-binding.json retained. All four Acceptance sections, milestone definition, exit criteria and prerequisites compare identical to assignment; no scope change."
+}
