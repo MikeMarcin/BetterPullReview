@@ -45,7 +45,10 @@ may enable prospective classifier2 only for its exact PR2/base/head/actor/profil
 and revalidated source/patch evidence. All four earlier witnesses stay GET-only.
 Actual fallback publication and GET-only receipt recovery are observed in the
 [verification ledger](../verification/RFC-BPR-0022.md). GitHub-only collaborator
-continuity and independent acceptance remain pending. RFC0022 may close ahead of Deferred0020/0021 only
+continuity is accepted for the exact review candidate; the signed app's subsequent
+read-only refresh displayed the external reply at the original semantic line.
+Actual desktop uninstall and independent acceptance remain unresolved.
+RFC0022 may close ahead of Deferred0020/0021 only
 after its remaining accepted requirements pass. The canonical criterion text
 below is retained with these explicit evidence-scope amendments.
 

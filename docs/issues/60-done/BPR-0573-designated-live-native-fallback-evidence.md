@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0f3188093c846cbbb43f624dd48c817e0ea4eec4","evidence":{"kind":"observation","detail":"One actual production fallback at Markdown62/root4116623474; exact signed app and journal recovery evidence retained.","path":"docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"}},{"criterion":"AC2","outcome":"pass","revision":"0f3188093c846cbbb43f624dd48c817e0ea4eec4","evidence":{"kind":"observation","detail":"Mandates r2/r3 approve GitHub.com exact recorded rejection contract and native fixture substitution; live GHES/native success remain unobserved.","path":"docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"}},{"criterion":"AC3","outcome":"pass","revision":"0f3188093c846cbbb43f624dd48c817e0ea4eec4","evidence":{"kind":"observation","detail":"Exact human Accept520a36a8 and public GET root/reply identity checks; signed app read-only refresh rendered reply4116804415 at semanticline62.","path":"docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"}},{"criterion":"AC4","outcome":"pass","revision":"0f3188093c846cbbb43f624dd48c817e0ea4eec4","evidence":{"kind":"observation","detail":"Only public designated fixture metadata and digest summaries retained; no extra publication or disposable probe; all six journals byte-identical.","path":"docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"}},{"criterion":"AC5","outcome":"pass","revision":"0f3188093c846cbbb43f624dd48c817e0ea4eec4","evidence":{"kind":"observation","detail":"Producing source0f3188093/image522e446a and exact immutable PR2/head/path/line/root/reply IDs bound by m4-final-continuity.json.","path":"docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json"}}]
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -338,3 +339,30 @@ Normal UI quit/detach passed106.86s. [Recovery evidence](../_checkpoints/BPR-057
 binds the exact capsule and observation. GitHub-only collaborator acceptance,
 actual-uninstall evidence and independent acceptance remain unresolved. The
 prepared review asks only the concrete GitHub-only inspection/reply judgment.
+
+### Accepted GitHub-only continuity and canonical app refresh
+
+Assignment `/root/rfc0022_m4_final`, mandate r3, resumed from `5a20a1188`.
+The human accepted candidate `BPR-0573-github-only-continuity`, fingerprint
+`c5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8`, in
+decision `520a36a8-b02f-486c-b538-37cbdc2d40bb`; hand-back19 completed the
+session and protection was released at20 without changing the accepted packet.
+Public GET independently found reply4116804415 by MikeMarcin7605339 under
+root4116623474, with exact expected prose, FILE subject and immutable head/path.
+
+The unchanged signed `0f3188093` app reopened PR2 in profile2. Ordinary thread
+selection displayed the complete external reply and selected Markdown line62.
+No Publish or Retry occurred. All six journal digests and both remote comments
+were identical before and after. Normal Quit and ordinary capsule detach passed
+69.39s. [Exact evidence](../_checkpoints/BPR-0575/m4-final-continuity.json) records
+the candidate, human verdict, GET records, UI observation, commands and cleanup.
+An initial approval preparation omitted its digest trailer and was refused before
+the GUI; that failure and its corrected unused envelope are retained explicitly.
+
+The four focused read/paged/permalink/public-composition checks passed (3/3 in
+20.07s, then the separately named read contract in0.20s). Unchanged authority,
+classifier, durability, scale/theme and GHES fixture evidence remains applicable.
+All five card criteria pass under the previously accepted r2/r3 amendments;
+native off-hunk success and native GHES are still unobserved. The RFC's separate
+actual-uninstall criterion and pending independent acceptance belong to BPR-0575.
+This card's completion supplies neither disposition.

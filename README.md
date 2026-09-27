@@ -341,7 +341,9 @@ The ordinary line comment gesture includes materialized current/right lines
 outside a hunk in a text file changed by the pull request. Native publication
 uses the exact current head and acting identity. The implemented file-comment
 compatibility path retains a visible code permalink and canonical GitHub IDs,
-but production fallback awaits an exact admitted unsupported-response contract.
+with fallback admitted only for the owner-approved exact PR2/source/actor/profile
+contract. A signed app publication and subsequent GitHub-only reply have been
+verified; broader native success and installed-removal acceptance remain unobserved.
 See [source-line comments](docs/development/source-line-comments.md) for behavior
 and current evidence limits.
 

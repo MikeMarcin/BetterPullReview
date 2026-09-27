@@ -1545,7 +1545,7 @@ RFC-BPR-0022 uses the existing publication pipeline. Core
 `review_publication_policy` owns representation and legal durable transitions.
 The mutation host supplies exact admitted source and actor facts, then the
 serialized GitHub session owns bounded write-capability observations and the
-SQLite schema-4 logical journal. The adapter owns the canonical permalink and
+SQLite logical journal, retained by the current schema-5 store. The adapter owns the canonical permalink and
 exact wire classifier. Application `review_comment_placement` decodes changed
 FILE roots against sealed source, caches by root identity/body and source, and
 projects semantic anchors separately from remote subjects. Qt renders the

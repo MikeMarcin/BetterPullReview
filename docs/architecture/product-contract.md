@@ -261,8 +261,10 @@ followed by the reviewer's byte-preserved prose. Its valid link reconstructs
 placement from GitHub after local database loss; removing or invalidating that
 link restores honest file-level placement. GitHub IDs and server edits remain
 authoritative. The comment and visible link survive uninstall without a private
-service or hidden marker. Live collaborator/uninstall acceptance is tracked
-separately from the passing reconstruction fixtures.
+service or hidden marker. The designated GitHub-only collaborator course is
+accepted and its external reply was read by the signed app at the same source
+line. Actual desktop uninstall remains unobserved, separately from the passing
+reconstruction fixtures.
 
 The [review round-trip contract](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
 owns representation selection and recovery. Native writes are attempted under

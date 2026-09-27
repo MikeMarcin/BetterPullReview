@@ -457,5 +457,7 @@ names, and RFC-BPR-0003 is not reopened.
 RFC-BPR-0022 mandate r3 permits its closeout ahead of Deferred RFC-BPR-0020 and
 RFC-BPR-0021 once its remaining acceptance passes. The
 [exact owner decision](../issues/_checkpoints/BPR-0575/m4-r3-amendments.md)
-changes only that ordering; native-success limitations and pending fallback,
-collaborator and independent acceptance remain explicit.
+changes only that ordering. Actual fallback, GET-only recovery and the accepted
+GitHub-only reply course are now observed; native-success limitations, actual
+desktop uninstall and independent acceptance remain explicit in the
+[current ledger](../verification/RFC-BPR-0022.md).

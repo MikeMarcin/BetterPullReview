@@ -1,0 +1,72 @@
+{
+  "backtrace": 8,
+  "command": [
+    "/usr/bin/python3",
+    "-I",
+    "-S",
+    "-c",
+    "exec('import hashlib\\nimport os\\nimport stat\\nimport sys\\n\\npath = sys.argv[1]\\nexpected = sys.argv[2]\\ndescriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)\\ntry:\\n    before = os.fstat(descriptor)\\n    if not stat.S_ISREG(before.st_mode) or before.st_size <= 0 or before.st_size > 1048576:\\n        raise SystemExit(\"designated-live-stage-zero: launcher is not a bounded regular file\")\\n    source = bytearray()\\n    while len(source) <= 1048576:\\n        block = os.read(descriptor, min(65536, 1048577 - len(source)))\\n        if not block:\\n            break\\n        source.extend(block)\\n    after = os.fstat(descriptor)\\nfinally:\\n    os.close(descriptor)\\n\\nidentity = lambda value: (\\n    value.st_dev,\\n    value.st_ino,\\n    value.st_mode,\\n    value.st_uid,\\n    value.st_gid,\\n    value.st_size,\\n    value.st_mtime_ns,\\n    value.st_ctime_ns,\\n)\\ncaptured = bytes(source)\\nif identity(before) != identity(after) or len(captured) != before.st_size:\\n    raise SystemExit(\"designated-live-stage-zero: launcher changed while captured\")\\nif hashlib.sha256(captured).hexdigest() != expected:\\n    raise SystemExit(\"designated-live-stage-zero: launcher digest mismatch\")\\nsys.argv = [path, *sys.argv[3:]]\\nscope = {\"__name__\": \"__main__\", \"__file__\": path}\\nexec(compile(captured, path, \"exec\"), scope, scope)\\n')",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+    "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+    "stage-zero",
+    "--image",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule.dmg",
+    "--expected-image-sha256",
+    "522e446ad4d34f233daccf45dfcd949654344c9293871305ed83f905444ebd42",
+    "--mount-parent",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-mount-parent",
+    "--source-sha256",
+    "71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e",
+    "--attended-launch",
+    "--approval",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-final-get-approval-u9lnynhe/approval.txt",
+    "--bpr-profile",
+    "2"
+  ],
+  "name": "live_review_mutation_designated_target",
+  "properties": [
+    {
+      "name": "ENVIRONMENT_MODIFICATION",
+      "value": [
+        "PYTHONPATH=unset:",
+        "PYTHONHOME=unset:",
+        "PYTHONUSERBASE=unset:",
+        "PYTHONINSPECT=unset:",
+        "PYTHONSTARTUP=unset:",
+        "DYLD_INSERT_LIBRARIES=unset:",
+        "DYLD_LIBRARY_PATH=unset:",
+        "DYLD_FRAMEWORK_PATH=unset:",
+        "DYLD_VERSIONED_LIBRARY_PATH=unset:",
+        "DYLD_VERSIONED_FRAMEWORK_PATH=unset:",
+        "DYLD_FALLBACK_LIBRARY_PATH=unset:",
+        "DYLD_FALLBACK_FRAMEWORK_PATH=unset:",
+        "DYLD_IMAGE_SUFFIX=unset:",
+        "DYLD_ROOT_PATH=unset:",
+        "DYLD_SHARED_REGION=unset:",
+        "LD_PRELOAD=unset:",
+        "LD_LIBRARY_PATH=unset:",
+        "LD_AUDIT=unset:",
+        "LD_DEBUG=unset:",
+        "LD_PROFILE=unset:",
+        "GH_TOKEN=unset:",
+        "GITHUB_TOKEN=unset:",
+        "GH_ENTERPRISE_TOKEN=unset:",
+        "GITHUB_ENTERPRISE_TOKEN=unset:"
+      ]
+    },
+    {
+      "name": "LABELS",
+      "value": [
+        "bpr_live_mutation"
+      ]
+    },
+    {
+      "name": "TIMEOUT",
+      "value": 1800.0
+    },
+    {
+      "name": "WORKING_DIRECTORY",
+      "value": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-manifest/tests"
+    }
+  ]
+}

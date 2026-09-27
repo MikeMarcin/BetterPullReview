@@ -22,13 +22,15 @@ GitHub owns comments, author identity, replies, edits and resolution. Removing
 or corrupting the root link removes semantic placement; the comment remains
 file-level. A fresh database can reconstruct a valid link once exact source
 material is available. Uninstall does not remove public comments or links.
-Fixture evidence establishes reconstruction, not a completed live uninstall
-or collaborator judgment.
+Fixture evidence establishes reconstruction. The owner accepted the designated
+GitHub-only code/prose/author/reply course, and the signed app subsequently read
+the external reply at the same semantic line. Actual desktop uninstall remains
+unobserved.
 
-The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) tracks remaining live
-GitHub.com acceptance. Native GHES behavior is unobserved under the owner's
-GitHub.com-only amendment. Implementation and milestone integration do not
-mean the RFC has met canonical closeout order.
+The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) tracks the remaining
+uninstall evidence disposition and independent acceptance. Native GHES behavior
+is unobserved under the owner's GitHub.com-only amendment. RFC closeout remains
+pending under its explicit dependencies and accepted criteria.
 
 ## Diagnosing an unavailable publication
 
