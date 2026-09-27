@@ -74,5 +74,14 @@ int main()
 	r = state.begin(identity, raw, { });
 	state.cancel();
 	expect(!state.complete(r->Id, identity, raw, "late"), "cancel retires authority");
+	identity.Hook = core::writing_hook::outline;
+	r             = state.begin(identity, { }, { });
+	expect(r && !state.complete(r->Id, identity, { }, "body"), "outline capture can never return a prose replacement");
+	r                   = state.begin(identity, { }, { });
+	auto changedOutline = identity;
+	++changedOutline.TextGeneration;
+	expect(!state.complete_outline(r->Id, changedOutline), "changed draft generation refuses outline");
+	r = state.begin(identity, { }, { });
+	expect(state.complete_outline(r->Id, identity) && !state.complete_outline(r->Id, identity), "outline result is consumed once for its exact identity");
 	std::cout << "review-preparation:pass\n";
 }

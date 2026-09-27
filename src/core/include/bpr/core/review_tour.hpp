@@ -101,6 +101,29 @@ namespace bpr::core {
 		auto             operator==(const tour_remote_binding&) const -> bool = default;
 	};
 
+	/// \brief Private outline provenance; never serialized into publishable Markdown.
+	struct tour_suggestion
+	{
+		std::string AnchorRef, Reason, Question;
+		bool        Visited                                          = false;
+		auto        operator==(const tour_suggestion&) const -> bool = default;
+	};
+	/// \brief Body-free proposal with destinations resolved only from supplied host evidence.
+	struct tour_outline_entry
+	{
+		std::string                      Title;
+		std::optional<tour_source_range> Source;
+		std::vector<tour_source_range>   Related;
+		tour_suggestion                  Suggestion;
+	};
+	/// \brief Current presentation observation, supplied by composition at the author gesture.
+	struct tour_attention
+	{
+		bool                             EditorVisible = false;
+		std::optional<tour_source_range> Source;
+		bool                             SourceUnavailable = false;
+	};
+
 	/// \brief A local thought with immutable original source and a separate current mapping.
 	struct tour_stop
 	{
@@ -117,6 +140,7 @@ namespace bpr::core {
 		auto                                 operator==(const tour_stop&) const -> bool = default;
 		std::optional<tour_code_destination> Destination;
 		std::optional<git_commit_oid>        ReaffirmedHead = std::nullopt;
+		std::optional<tour_suggestion>       Suggestion;
 	};
 
 	enum class tour_conflict_field : std::uint8_t { problem,
@@ -185,7 +209,9 @@ namespace bpr::core {
 												  complete,
 												  observe_head,
 												  restore,
-												  reaffirm };
+												  reaffirm,
+												  insert_outline,
+												  visit };
 	/// \brief Exact revision command. Insert/split/duplicate allocate IDs from the draft high-water mark.
 	struct tour_command
 	{
@@ -201,6 +227,8 @@ namespace bpr::core {
 		git_commit_oid                     Head;
 		std::optional<review_tour>         Restore;
 		std::optional<tour_field_baseline> Baseline;
+		std::vector<tour_outline_entry>    Outline;
+		tour_attention                     Attention;
 	};
 	enum class tour_refusal : std::uint8_t { none,
 											 identity,
@@ -225,6 +253,7 @@ namespace bpr::core {
 	/// \brief Conservative encoded-size budget including identities, metadata and length prefixes.
 	[[nodiscard]] auto retained_tour_bytes(const review_tour& aTour) noexcept -> std::size_t;
 	[[nodiscard]] auto ready(const tour_stop& aStop) noexcept -> bool;
+	[[nodiscard]] auto visible_tour_stop(const tour_stop& aStop, const tour_attention& aAttention, bool aRequireSource) noexcept -> bool;
 	/// \brief Applies local authoring only. No command produces publication or review receipts.
 	[[nodiscard]] auto apply(const review_tour& aTour, const tour_command& aCommand) -> tour_outcome;
 }

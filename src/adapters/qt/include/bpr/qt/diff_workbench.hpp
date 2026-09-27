@@ -199,6 +199,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto reveal_conversation_line(
 			core::diff_side aSide,
 			std::uint32_t   aLine) -> bool;
+		/// \brief Whether the actual source line intersects the currently visible code viewport.
+		[[nodiscard]] auto source_line_visible(core::diff_side aSide, std::uint32_t aLine) const -> bool;
 		void               clear_conversation_anchor();
 		[[nodiscard]] auto conversation_anchor() const noexcept
 			-> const std::optional<core::source_line_ref>&;

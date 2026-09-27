@@ -55,7 +55,7 @@ int main()
 	records[1].Raw += "1. [again](" + records[2].Binding.WebUrl + ")\r\n";
 	auto duplicate = discover_tours(seed(), brief, "pull7", records, true)[0].Draft;
 	expect(duplicate.ReadOnly && duplicate.Stops.size() == 3, "duplicate links remain visible as three entries");
-	for (const auto bad : { "https://github.com/o/r/pull/8#discussion_r1", "https://evil.invalid/stop", "https://github.com/o/r/pull/7#pullrequestreview-9", "malformed" }) {
+	for (const auto bad : { "https://github.com/o/r/pull/8#discussion_r1", "https://evil.invalid/stop", "https://credential-canary@github.com/o/r/pull/7#discussion_r1", "https://github.com/o/other/pull/7#discussion_r1", "javascript:publish", "file:///private/source", "https://github.com/o/r/pull/7#discussion_r18446744073709551616", "https://github.com/o/r/pull/7#pullrequestreview-9", "malformed" }) {
 		records        = objects();
 		records[1].Raw = "1. [bad](" + std::string{ bad } + ")\n";
 		auto broken    = discover_tours(seed(), brief, "pull7", records, true);

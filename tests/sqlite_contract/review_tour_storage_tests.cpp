@@ -62,6 +62,14 @@ namespace {
 		original.HasPriorObservation     = true;
 		original.ObservedChanges         = { { core::tour_change_kind::reordered, original.Stops[0].Id, "Observed website change" } };
 
+		adapters::sqlite::detail::tour_codec version6;
+		version6.Version = 6;
+		version6.tour(original);
+		auto              read6 = adapters::sqlite::detail::tour_codec{ .Input = version6.Bytes, .Reading = true };
+		core::review_tour restored6;
+		read6.tour(restored6);
+		expect(read6.Good && read6.Input.empty() && restored6 == original, "v6 migration does not invent generated provenance");
+		original.Stops[0].Suggestion = core::tour_suggestion{ "selected-source", "Private reason", "Author question", true };
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };
 		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);
 		expect(store->save(original, 0, { }).has_value(), "v3 remote source/provenance saved");

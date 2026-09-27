@@ -1,4 +1,5 @@
 #include "bpr/core/review_tour.hpp"
+#include "bpr/core/review_tour_destination.hpp"
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -113,6 +114,73 @@ namespace {
 		wrong.Owner.Account = github_account_id{ 12 };
 		expect(apply(tour, wrong).Refusal == tour_refusal::identity, "account replacement refused");
 	}
+	void check_outline_attention()
+	{
+		auto tour       = draft();
+		tour.Problem    = "Problem";
+		tour.Solution   = "Solution";
+		auto outline    = command(tour, tour_command_kind::insert_outline);
+		outline.Outline = { { "Decision", source(), { }, { "source", "Private reason", "Author question", true } }, { "Unresolved", { }, { }, { "description", "Explain intent", "" } } };
+		apply_ok(tour, outline);
+		expect(tour.Stops.size() == 2 && tour.Stops[0].Body.empty() && !tour.Stops[0].Suggestion->Visited && tour.Stops[0].Preparation == tour_preparation::suggested, "outline supplies no bodies or completion and begins unvisited");
+		auto visit             = command(tour, tour_command_kind::visit);
+		visit.Stop             = tour.Stops[0].Id;
+		visit.Attention.Source = source();
+		expect(apply(tour, visit).Refusal == tour_refusal::incomplete, "hidden editor is not a visit even with an exact source");
+		visit.Attention.EditorVisible = true;
+		apply_ok(tour, visit);
+		expect(tour.Stops[0].Suggestion->Visited && tour.Stops[0].Preparation != tour_preparation::ready, "visible empty placeholder does not acknowledge future generated prose");
+		auto edit       = command(tour, tour_command_kind::edit_stop);
+		edit.Stop       = tour.Stops[0].Id;
+		edit.Value      = tour.Stops[0];
+		edit.Value.Body = "Generated later";
+		apply_ok(tour, edit);
+		const std::vector<tour_destination_plan> destinations(2, { tour_representation::native_line, true, false, false, false });
+		expect(assess_tour_publication(tour, destinations, false) == tour_publication_readiness::incomplete, "retained unresolved/generated stop blocks publication");
+		auto complete = command(tour, tour_command_kind::complete);
+		complete.Stop = tour.Stops[0].Id;
+		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "background completion cannot reuse an earlier visit");
+		complete.Attention = { true, source(4, 5) };
+		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "different current source cannot acknowledge a stop");
+		complete.Attention = { true, { }, true };
+		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "unavailable source is an explicit visit but cannot complete");
+		complete.Attention = { true, source() };
+		apply_ok(tour, complete);
+		auto move     = command(tour, tour_command_kind::move);
+		move.Stop     = tour.Stops[0].Id;
+		move.Position = 1;
+		apply_ok(tour, move);
+		expect(tour.Stops[1].Preparation == tour_preparation::ready, "ordinal-only change preserves acknowledgement");
+		edit       = command(tour, tour_command_kind::edit_stop);
+		edit.Stop  = tour.Stops[1].Id;
+		edit.Value = tour.Stops[1];
+		edit.Value.Suggestion.reset();
+		expect(apply(tour, edit).Refusal == tour_refusal::identity, "ordinary editing cannot erase generated ancestry");
+		edit.Value = tour.Stops[1];
+		edit.Value.Body += " regenerated";
+		apply_ok(tour, edit);
+		expect(tour.Stops[1].Preparation != tour_preparation::ready, "regenerated current text requires another completion");
+		auto remove = command(tour, tour_command_kind::remove);
+		remove.Stop = tour.Stops[0].Id;
+		apply_ok(tour, remove);
+		expect(assess_tour_publication(tour, std::span{ destinations }.first(1), false) == tour_publication_readiness::incomplete, "nonempty generated prose cannot bypass current completion at publication");
+		complete           = command(tour, tour_command_kind::complete);
+		complete.Stop      = tour.Stops[0].Id;
+		complete.Attention = { true, source() };
+		apply_ok(tour, complete);
+		expect(assess_tour_publication(tour, std::span{ destinations }.first(1), false) == tour_publication_readiness::single_review, "explicit current completion admits one retained generated stop");
+		auto duplicate = command(tour, tour_command_kind::duplicate);
+		duplicate.Stop = tour.Stops[0].Id;
+		apply_ok(tour, duplicate);
+		expect(tour.Stops[1].Suggestion && !tour.Stops[1].Suggestion->Visited && tour.Stops[1].Preparation != tour_preparation::ready, "duplicated generated stop needs its own completion");
+		auto manual  = command(tour, tour_command_kind::insert);
+		manual.Value = { .Title = "Manual", .Body = "Manual body", .Original = source(), .Mapping = tour_mapping::exact_original };
+		apply_ok(tour, manual);
+		auto merge = command(tour, tour_command_kind::merge_next);
+		merge.Stop = tour.Stops[0].Id;
+		apply_ok(tour, merge);
+		expect(tour.Stops[0].Suggestion && tour.Stops[0].Preparation != tour_preparation::ready, "merging generated text into a manual stop preserves completion requirement");
+	}
 	void check_ranges_and_bounds()
 	{
 		auto range = source();
@@ -179,5 +247,6 @@ namespace {
 int main()
 {
 	check_commands();
+	check_outline_attention();
 	check_ranges_and_bounds();
 }

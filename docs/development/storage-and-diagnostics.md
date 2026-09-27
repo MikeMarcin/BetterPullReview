@@ -68,7 +68,8 @@ recovery refuses anything whose recorded identity it cannot prove.
 | Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
 | Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
 
-Review tours retain private authored Markdown and editable raw remote baselines,
+Review tours retain private authored Markdown, editable raw remote baselines and
+outline provenance (supplied anchor identifier, private reason/question and visit state),
 bounded to 64 KiB per field, 4 MiB per encoded draft and 128 drafts per profile.
 There is no automatic eviction. The exact profile/account/host/repository/PR key
 is retained; a save conflict keeps both copies. These drafts are not server-backed.

@@ -32,7 +32,7 @@ local drafts, including an empty brief or skeleton stop, are valid saved state.
 Persistence, workbench composition, public navigation and remote publication are
 separate acceptance surfaces. The core tests alone do not establish any of them.
 
-The admitted profile-private `state/v1/review-tours.sqlite3` keeps database schema 1 and writes version 6
+The admitted profile-private `state/v1/review-tours.sqlite3` keeps database schema 1 and writes version 7
 payload records under application ID `0x42505254`. The exact owner and local draft ID
 form the primary key. Payloads are bounded binary records with an integrity
 digest; unknown schemas or corrupt payloads refuse rather than pretending that
@@ -84,7 +84,7 @@ wrapping outline and separate title, explanation and related-source controls.
 Arrange offers insert, duplicate, split at the text cursor, merge with next,
 remove, move and bounded structural undo/redo. `Alt+Shift+Up/Down` reorders while
 keeping the stop selected; the existing `Alt+Up/Down` file gestures remain free.
-`Save and next` (`Alt+Return`) marks only a complete, resolved stop Ready.
+`Ready and next` (`Alt+Return`) marks only a complete, resolved stop Ready.
 An oversized edit remains in its native document for shortening, copying or Undo.
 Other fields and tour mutations wait until that edit fits, preventing a later
 projection from silently replacing refused text.
@@ -204,7 +204,7 @@ not the shared discussion. Explicit source replacement creates a linked new
 comment and preserves the old source binding. Published split/merge operations
 retain the original discussions and prepare local replacements.
 
-The Tour payload reads versions 1–6 and writes version 6, retaining bounded retired
+The Tour payload reads versions 1–7 and writes version 7, retaining bounded retired
 stop baselines, exact baseline/local/remote conflict versions, the observed head,
 per-stop reaffirmation and locally observed website changes. The existing recovery database retains its schema; staged payload
 version 3 additionally stores the frozen maintenance draft and confirmed edit
@@ -255,3 +255,35 @@ and does not create viewed-file receipts, approval, acceptance or resolution.
 The complete fixture manual lifecycle and the separately pending operator course
 are recorded in the [tour verification ledger](../verification/RFC-BPR-0039-0043.md)
 and [website/native course](../verification/RFC-BPR-0039-0043.manual-course.md).
+
+
+## Optional outline and author completion
+
+The Tour stops page offers **Suggest tour outline** through the same selected
+profile, versioned outline hook and restricted writing process as per-field
+assistance. It sends at most eight bounded sources, including the current exact
+selected source when available. Returned references resolve only against those
+supplied identities. A reference to prose has no invented code destination; its
+skeleton remains unresolved until the author selects a real source. Unknown or
+duplicate references, extra bodies, Ready flags and tool directives are refused.
+
+The author chooses retained suggestions, then **Insert selected skeleton stops**
+adds them as one local structural undo transaction. Every inserted explanation is
+empty and Suggested/unvisited. Private reasons and author questions are shown
+beside its editor and retained in payload version 7; they never enter published
+Markdown. Older payloads remain readable without inventing provenance.
+
+A visible visit shows the selected editor with its exact code or an explicit
+source-unavailable explanation. It never acknowledges later generated prose.
+**Generate comment** invokes the existing in-place editor only for that visible
+stop; native Undo/Redo remains unchanged. **Ready and next** supplies a fresh
+observation of that editor and the exact displayed source to the core. Hidden
+or background editors, other source ranges, and unavailable source cannot complete
+a generated stop. The next stop is merely selected; it triggers no inference.
+
+Initial publication and published updates refuse any retained generated stop
+without current author completion. Text, title, mapping or website narrative
+changes clear readiness; derived numbering and navigation do not. Duplicating,
+splitting or merging a generated stop preserves its completion requirement.
+Removing a stop removes that outstanding obligation. Cold import cannot reconstruct
+private generated provenance or author visits that were never published.

@@ -6708,7 +6708,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				nullptr,
 				aConfig.DifCatalog);
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
-			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {if(!Closing && TourHost && current(DraftWindow)){TourHost->dispatch(aCommand);} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
+			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
+				if (!Closing && TourHost && current(DraftWindow)) {
+					aCommand.Attention = current_tour_attention();
+					TourHost->dispatch(aCommand);
+				} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -8760,6 +8764,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto       source = core::tour_source_range{ range->first, range->second, left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit, blob, std::string{ bytes.begin(), bytes.end() } };
 			return core::valid(source) ? std::optional{ std::move(source) } : std::nullopt;
 		}
+		auto current_tour_attention() const -> core::tour_attention
+		{
+			core::tour_attention attention;
+			attention.EditorVisible = Window->tour_editor()->writing_visible(core::writing_hook::comment);
+			const auto* surface     = Window->comparison_surface();
+			if (attention.EditorVisible && surface->isVisible()) {
+				const auto source = selected_tour_source();
+				if (source && surface->source_line_visible(source->First.Side, source->First.Line)) {
+					attention.Source = source;
+				}
+			}
+			return attention;
+		}
+		void observe_tour_visit()
+		{
+			const auto* stop  = Window->tour_editor()->selected_stop();
+			const auto  draft = TourHost ? TourHost->presentation().Draft : nullptr;
+			if (!stop || !stop->Suggestion || !draft) {
+				return;
+			}
+			auto attention = current_tour_attention();
+			if (!attention.EditorVisible) {
+				return;
+			}
+			if (!core::visible_tour_stop(*stop, attention, true)) {
+				attention.Source.reset();
+				attention.SourceUnavailable = true;
+				Window->tour_editor()->show_notice(QStringLiteral("This stop's exact source is not visible. Inspect or retarget its source before marking it Ready."));
+			}
+			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::visit, .Stop = stop->Id, .Attention = attention });
+		}
 		void observe_tour_comparison()
 		{
 			if (!TourHost || !TourOwner || !SelectedDiffPublication) {
@@ -8803,6 +8838,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingTourSource.reset();
 			if (commit != source.Commit || (source.Blob && blob != source.Blob) || std::string{ bytes.begin(), bytes.end() } != source.Path) {
 				Window->tour_editor()->show_notice(QStringLiteral("The original source revision is not in this comparison. The stop and its pinned destination are retained; choose its revision to inspect it."));
+				observe_tour_visit();
 				return;
 			}
 			auto first = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.FirstLine };
@@ -8816,6 +8852,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				observed.Blob = blob;
 				TourHost->observe_source(std::move(observed));
 			}
+			observe_tour_visit();
 			Window->tour_editor()->show_notice(placed ? QStringLiteral("Tour source selected. Visiting a stop does not mark code reviewed.") : QStringLiteral("Source lines unavailable. The explanation and original destination are retained."));
 		}
 		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource)
@@ -8824,6 +8861,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->tour_editor()->show_stops();
 			if (!aSource || !WorkbenchHost || !WorkbenchHost->contains_file(core::file_identity_of(aSource->Path))) {
 				Window->tour_editor()->show_notice(QStringLiteral("Source is unavailable in this comparison. The stop stays editable and the normal file path remains available."));
+				observe_tour_visit();
 				return;
 			}
 			abandon_tab_load();
@@ -8958,11 +8996,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<application::agent_invocation_projection_identity> Invocation;
 			bool                                                             Test = false;
 		};
-		core::scoped_writing_state       WritingState;
-		std::optional<writing_operation> PendingWriting;
-		void                             cancel_writing()
+		struct tour_outline_proposal
+		{
+			core::writing_target                  Target;
+			std::vector<core::tour_outline_entry> Entries;
+		};
+		std::optional<tour_outline_proposal> OutlineProposal;
+		core::scoped_writing_state           WritingState;
+		std::optional<writing_operation>     PendingWriting;
+		void                                 cancel_writing()
 		{
 			WritingState.cancel();
+			if (OutlineProposal) {
+				OutlineProposal.reset();
+				Window->tour_editor()->present_outline({ });
+			}
 			if (!PendingWriting) {
 				return;
 			}
@@ -9006,6 +9054,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return core::writing_target{ .Owner = draft->Owner, .Draft = draft->Id, .Stop = aHook == core::writing_hook::comment ? stop->Id : core::tour_stop_id{ }, .Hook = aHook, .Window = DraftWindow, .Session = EpochHost->state().ApplicationSession, .Agent = *agent, .HookRevision = prefs->WritingHooks.Revision, .TextGeneration = aCapture.TextGeneration, .EditorGeneration = aCapture.EditorGeneration, .ContextDigest = writing_context_key() };
 		}
+		auto selected_writing_source(bool aOutline) const -> std::optional<application::writing_source>
+		{
+			const auto  selected = selected_tour_source();
+			const auto& result   = Window->comparison_surface()->current_result();
+			if (!selected || !result || !SelectedDiffPublication || result->Alignment.Key != SelectedDiffPublication->Key) {
+				return std::nullopt;
+			}
+			const auto* stop = Window->tour_editor()->selected_stop();
+			if (!aOutline && (!stop || !core::visible_tour_stop(*stop, { .EditorVisible = true, .Source = selected }, true))) {
+				return std::nullopt;
+			}
+			const auto& document = selected->First.Side == core::diff_side::left ? result->LeftDocument : result->RightDocument;
+			if (!document || selected->Last.Line >= document->Lines.size()) {
+				return std::nullopt;
+			}
+			const auto begin = document->Lines[selected->First.Line].Content.Begin, end = document->Lines[selected->Last.Line].Content.End;
+			if (end < begin || end > document->Bytes.size() || end - begin > (aOutline ? 3072U : 4096U)) {
+				return std::nullopt;
+			}
+			auto text = std::string{ reinterpret_cast<const char*>(document->Bytes.data() + begin), static_cast<std::size_t>(end - begin) };
+			if (aOutline) {
+				text = selected->Path + " · lines " + std::to_string(selected->First.Line + 1) + "–" + std::to_string(selected->Last.Line + 1) + "\n" + text;
+			}
+			return application::writing_source{ aOutline ? "selected-source" : "stop-source", std::move(text), selected };
+		}
 		auto writing_sources(core::writing_hook aHook, const core::writing_request& aRequest) const -> std::vector<application::writing_source>
 		{
 			std::vector<application::writing_source> sources;
@@ -9024,6 +9097,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				sources.push_back({ std::move(id), std::string{ text.substr(0, size) } });
 				total += size;
 			};
+			if (aHook == core::writing_hook::outline) {
+				if (const auto source = selected_writing_source(true)) {
+					add(source->Id, source->Text, 4096);
+					if (!sources.empty()) {
+						sources.back().Source = source->Source;
+					}
+				}
+			}
 			const auto& snapshot = WindowRead->accepted_snapshot();
 			if (snapshot) {
 				add("pr-description", snapshot->PullRequest.Body, 4096);
@@ -9046,16 +9127,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				add("field-before", std::string_view{ aRequest.Raw }.substr(0, aRequest.Selection.Begin), 512);
 				add("field-after", std::string_view{ aRequest.Raw }.substr(aRequest.Selection.End), 512);
 			}
-			const auto* stop     = Window->tour_editor()->selected_stop();
-			const auto  selected = selected_tour_source();
-			const auto& result   = Window->comparison_surface()->current_result();
-			if (aHook == core::writing_hook::comment && stop && stop->Original && selected && *selected == *stop->Original && result && SelectedDiffPublication && result->Alignment.Key == SelectedDiffPublication->Key) {
-				const auto& document = selected->First.Side == core::diff_side::left ? result->LeftDocument : result->RightDocument;
-				if (document && selected->Last.Line < document->Lines.size()) {
-					const auto begin = document->Lines[selected->First.Line].Content.Begin, end = document->Lines[selected->Last.Line].Content.End;
-					if (end >= begin && end <= document->Bytes.size() && end - begin <= 4096) {
-						add("stop-source", std::string_view{ reinterpret_cast<const char*>(document->Bytes.data() + begin), static_cast<std::size_t>(end - begin) }, 4096);
-					}
+			if (aHook == core::writing_hook::comment) {
+				if (const auto source = selected_writing_source(false)) {
+					add(source->Id, source->Text, 4096);
 				}
 			}
 			return sources;
@@ -9065,6 +9139,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			cancel_writing();
 			if (Closing || !TourHost || !WindowRead->accepted_snapshot() || !Window->tour_editor()->writing_visible(aHook)) {
 				return;
+			}
+			if (aHook == core::writing_hook::comment) {
+				observe_tour_visit();
+				const auto* stop  = Window->tour_editor()->selected_stop();
+				const auto  draft = TourHost->presentation().Draft;
+				if (draft && stop && stop->Suggestion && stop->Preparation == core::tour_preparation::ready) {
+					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = stop->Id, .Value = *stop });
+				}
 			}
 			const auto target = writing_target(aHook, aCapture);
 			if (!target || !AgentHost || !AgentHost->is_quiescent()) {
@@ -9077,7 +9159,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto sources = writing_sources(aHook, *request);
 			// Recover an unambiguous existing author section before asking a model.
-			if (request->Scope == core::writing_scope::empty_field && aHook != core::writing_hook::comment) {
+			if (request->Scope == core::writing_scope::empty_field && (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution)) {
 				const auto&                         description = WindowRead->accepted_snapshot()->PullRequest.Body;
 				const auto                          map         = core::map_tour_markdown(description);
 				std::optional<core::tour_text_span> recovered;
@@ -9120,6 +9202,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				cancel_writing();
 			}
 		}
+		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
+		{
+			std::vector<core::tour_outline_entry> entries;
+			for (const auto& stop : aResult.Stops) {
+				const auto source = std::ranges::find(aOperation.Sources, stop.Anchor, &application::writing_source::Id);
+				if (source == aOperation.Sources.end()) {
+					return std::nullopt;
+				}
+				core::tour_outline_entry entry{ .Title = stop.Title, .Source = source->Source, .Suggestion = { stop.Anchor, stop.Reason, stop.Question } };
+				for (const auto& ref : stop.Related) {
+					const auto related = std::ranges::find(aOperation.Sources, ref, &application::writing_source::Id);
+					if (related == aOperation.Sources.end() || !related->Source) {
+						return std::nullopt;
+					}
+					entry.Related.push_back(*related->Source);
+				}
+				entries.push_back(std::move(entry));
+			}
+			return entries;
+		}
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string
 		{
 			if (aResult.Insufficient) {
@@ -9134,6 +9236,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (!Window->tour_editor()->writing_visible(hook)) {
 				return "The captured editor is no longer active. Your text is unchanged.";
+			}
+			if (hook == core::writing_hook::outline) {
+				const auto target = current_outline_target();
+				if (!target || !WritingState.complete_outline(aOperation.Request.Id, *target)) {
+					return "The captured tour changed. No skeletons were inserted.";
+				}
+				auto entries = outline_entries(aOperation, aResult);
+				if (!entries) {
+					return "An outline source or related destination is unavailable. No skeletons were inserted.";
+				}
+				Window->tour_editor()->present_outline(*entries);
+				OutlineProposal = tour_outline_proposal{ *target, std::move(*entries) };
+				return "Choose the skeletons to insert. Each starts empty and needs your individual completion.";
 			}
 			auto*      editor  = Window->tour_editor()->writing_editor(hook);
 			const auto capture = editor->capture();
@@ -9191,6 +9306,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->tour_editor()->show_writing_notice(QString::fromStdString(message));
 			}
 		}
+		auto current_outline_target() const -> std::optional<core::writing_target>
+		{
+			const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+			if (!draft || draft->ReadOnly) {
+				return std::nullopt;
+			}
+			return writing_target(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
+		}
+		void insert_tour_outline()
+		{
+			const auto target = current_outline_target();
+			if (!OutlineProposal || !target || *target != OutlineProposal->Target || !Window->tour_editor()->writing_visible(core::writing_hook::outline)) {
+				cancel_writing();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("The captured tour changed. Request a new outline before inserting stops."));
+				return;
+			}
+			const auto         draft = TourHost->presentation().Draft;
+			core::tour_command command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert_outline, .Position = draft->Stops.size() };
+			for (const auto index : Window->tour_editor()->retained_outline_entries()) {
+				if (index >= OutlineProposal->Entries.size()) {
+					return;
+				}
+				command.Outline.push_back(OutlineProposal->Entries[index]);
+			}
+			if (command.Outline.empty()) {
+				return;
+			}
+			OutlineProposal.reset();
+			Window->tour_editor()->present_outline({ });
+			TourHost->dispatch(command);
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Skeleton stops inserted. Undo arrangement removes this insertion. Visit each stop, write or explicitly generate its comment, then choose Ready and next."));
+		}
 		void test_writing_hook(core::writing_hook aHook)
 		{
 			cancel_writing();
@@ -9226,6 +9373,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
+			case qt::tour_editor_action::suggest_outline:
+				if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
+					request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
+				}
+				return;
+			case qt::tour_editor_action::insert_outline:        insert_tour_outline(); return;
 			case qt::tour_editor_action::preview_publication:
 			case qt::tour_editor_action::publish_publication:
 			case qt::tour_editor_action::resume_publication:

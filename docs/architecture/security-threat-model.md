@@ -1317,3 +1317,16 @@ revokes transient access immediately without waiting for file I/O; delayed
 intermediate producers carry their captured generation and cannot repopulate it. Historical
 files, external exports and OS crash reports retain their original privacy.
 Richer scope-aware export and complete native evidence remain later milestones.
+
+
+### Review-tour outline assistance
+
+Outline results contain only bounded titles, references to supplied context and
+private reasons/questions. The application maps source references to its retained
+exact-source observations; the model supplies no destination authority, body,
+readiness, tool grant or publication instruction. Skeleton insertion is explicit,
+local and undoable. Generated ancestry persists through structural edits and both
+publication admission paths require a separate current visible author completion.
+The restricted process protocol and profile/owner/generation checks remain the
+existing writing-assistance boundary. Deterministic process fixtures establish
+these application behaviors, not installed provider enforcement or model quality.

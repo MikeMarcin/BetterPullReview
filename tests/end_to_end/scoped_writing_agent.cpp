@@ -61,6 +61,19 @@ int main(int argc, char** argv)
 	if (input.find("EMPTY_CANARY") != std::string::npos && input.find("stop-source") == std::string::npos) {
 		return 5;
 	}
+	if (input.find("PROCESS_EXIT_CANARY") != std::string::npos) {
+		std::_Exit(17);
+	}
+	if (input.find("TOOL_USE_CANARY") != std::string::npos) {
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"PRIVATE_WIRE_CANARY"}}]}})" << '\n'
+				  << std::flush;
+		return 0;
+	}
+	if (input.find("UTF8_CANARY") != std::string::npos) {
+		std::cout << "\xff\n"
+				  << std::flush;
+		return 0;
+	}
 	std::string result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Rewritten 😀\r\nexact.","notes":[]})";
 	if (input.find("INVALID_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"evil","notes":[],"publish":true})";
@@ -70,6 +83,12 @@ int main(int argc, char** argv)
 	}
 	if (input.find("EMPTY_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Evidence-backed draft.","notes":[{"kind":"inferred","text":"Bounded source","source_refs":["pr-description"]}]})";
+	}
+	if (input.find("For this outline operation") != std::string::npos) {
+		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Generated decision","anchor_ref":"selected-source","related_refs":[],"reason":"PRIVATE_OUTLINE_REASON","author_question":"What should the reader check?"},{"title":"Unresolved intent","anchor_ref":"pr-description","related_refs":[],"reason":"Explain the stated purpose","author_question":"Where is the supporting code?"}]})";
+	}
+	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
+		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}
 	const auto encoded = escape(result);
 	std::cout << "{\"type\":\"assistant\",\"session_id\":\"fixture\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"" << encoded << "\"}]}}\n";

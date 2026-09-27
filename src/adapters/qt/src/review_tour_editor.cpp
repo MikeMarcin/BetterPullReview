@@ -330,14 +330,14 @@ namespace bpr::qt {
 																																																	: nullptr; }
 	auto review_tour_editor::writing_visible(core::writing_hook aHook) const -> bool
 	{
-		if (!isVisible()) {
+		if (!isVisible() || !window()->isActiveWindow()) {
 			return false;
 		}
 		switch (aHook) {
 		case core::writing_hook::problem:  return Roadmap->currentIndex() == 0;
 		case core::writing_hook::solution: return Roadmap->currentIndex() == 1;
-		case core::writing_hook::comment:  return Roadmap->currentIndex() == 2 && selected_stop();
-		case core::writing_hook::outline:  return false;
+		case core::writing_hook::comment:  return Roadmap->currentIndex() == 2 && selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
+		case core::writing_hook::outline:  return Roadmap->currentIndex() == 2;
 		}
 		return false;
 	}
@@ -368,6 +368,27 @@ namespace bpr::qt {
 			}
 		};
 		label();
+	}
+	void review_tour_editor::present_outline(const std::vector<core::tour_outline_entry>& aEntries)
+	{
+		SuggestedOutline->clear();
+		for (const auto& entry : aEntries) {
+			auto* item = new QListWidgetItem{ QString::fromStdString(entry.Title + "\n" + entry.Suggestion.Reason + (entry.Suggestion.Question.empty() ? "" : "\n" + entry.Suggestion.Question)), SuggestedOutline };
+			item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+			item->setCheckState(Qt::Checked);
+		}
+		SuggestedOutline->setVisible(!aEntries.empty());
+		InsertOutline->setVisible(!aEntries.empty());
+	}
+	auto review_tour_editor::retained_outline_entries() const -> std::vector<std::size_t>
+	{
+		std::vector<std::size_t> retained;
+		for (int row = 0; row < SuggestedOutline->count(); ++row) {
+			if (SuggestedOutline->item(row)->checkState() == Qt::Checked) {
+				retained.push_back(static_cast<std::size_t>(row));
+			}
+		}
+		return retained;
 	}
 	void review_tour_editor::show_problem()
 	{
@@ -457,6 +478,23 @@ namespace bpr::qt {
 		Outline->setMinimumHeight(85);
 		Outline->setMaximumHeight(120);
 		column->addWidget(Outline);
+		auto* suggest = new QPushButton{ tr("Suggest tour outline"), page };
+		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
+		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
+		column->addWidget(suggest);
+		connect(suggest, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::suggest_outline); });
+		SuggestedOutline = new QListWidget{ page };
+		SuggestedOutline->setObjectName(QStringLiteral("tourSuggestedOutline"));
+		SuggestedOutline->setAccessibleName(tr("Suggested skeletons; check the stops to insert"));
+		SuggestedOutline->setWordWrap(true);
+		SuggestedOutline->setTextElideMode(Qt::ElideNone);
+		SuggestedOutline->setMaximumHeight(140);
+		column->addWidget(SuggestedOutline);
+		InsertOutline = new QPushButton{ tr("Insert selected skeleton stops"), page };
+		InsertOutline->setObjectName(QStringLiteral("tourInsertOutline"));
+		column->addWidget(InsertOutline);
+		connect(InsertOutline, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::insert_outline); });
+		present_outline({ });
 		StopFields   = new QWidget{ page };
 		auto* fields = new QVBoxLayout{ StopFields };
 		fields->setContentsMargins(0, 0, 0, 0);
@@ -506,7 +544,7 @@ namespace bpr::qt {
 		returnToTour->setObjectName(QStringLiteral("tourReturn"));
 		column->addWidget(returnToTour);
 		connect(returnToTour, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::navigate_stop); });
-		auto* complete = new QPushButton{ tr("Save and next"), page };
+		auto* complete = new QPushButton{ tr("Ready and next"), page };
 		complete->setObjectName(QStringLiteral("tourComplete"));
 		complete->setShortcut(QKeySequence{ QStringLiteral("Alt+Return") });
 		auto* reaffirm = new QPushButton{ tr("Reaffirm explanation for current head"), page };
@@ -577,6 +615,7 @@ namespace bpr::qt {
 			}
 			auto*      item  = Outline->item(row);
 			const auto state = stop.Preparation == core::tour_preparation::ready ? tr("Ready") : stop.Preparation == core::tour_preparation::needs_attention ? tr("Needs attention")
+				: stop.Preparation == core::tour_preparation::suggested                                                                                      ? tr("Suggested / unvisited")
 																																							 : tr("Editing");
 			const auto title = stop.Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop.Title);
 			item->setText(tr("%1. %2 — %3").arg(row + 1).arg(title, state));
@@ -642,6 +681,13 @@ namespace bpr::qt {
 			: stop->Mapping == core::tour_mapping::author_selected                                                                                                ? tr("Author-selected replacement")
 																																								  : tr("Source unavailable");
 		Source->setText(Source->text() + "\n" + mapping);
+		if (stop->Suggestion) {
+			const auto& suggestion = *stop->Suggestion;
+			Source->setText(Source->text() + tr("\nPrivate outline reason: ") + QString::fromStdString(suggestion.Reason));
+			if (!suggestion.Question.empty()) {
+				Source->setText(Source->text() + tr("\nAuthor question: ") + QString::fromStdString(suggestion.Question));
+			}
+		}
 		if (Shown.Draft->ObservedHead && stop->ReaffirmedHead != Shown.Draft->ObservedHead) {
 			Source->setText(Source->text() + tr("\nHead or surrounding contract changed. Reaffirm or revise the explanation before publishing; identical selected bytes are not proof."));
 		}

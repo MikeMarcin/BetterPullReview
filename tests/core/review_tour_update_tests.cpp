@@ -1,4 +1,5 @@
 #include "../support/review_tour_fixture.hpp"
+#include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
@@ -154,6 +155,21 @@ int main()
 		std::swap(prefixed.Stops[0], prefixed.Stops[1]);
 		const auto update = plan_tour_update(prefixed, { });
 		expect(update && update->StopBodies[1].starts_with("Website prefix.\r\n\r\n"), "reorder patches unique managed spans and preserves unrelated website prefix");
+	}
+	{
+		auto generated                 = published();
+		generated.Stops[0].Suggestion  = tour_suggestion{ "selected-source", "Private reason", "", true };
+		generated.Stops[0].Preparation = tour_preparation::editing;
+		const std::vector<tour_destination_plan> destinations(generated.Stops.size(), { tour_representation::native_line, true, false, false, false });
+		expect(!plan_tour_update(generated, { }) && assess_tour_update(generated, destinations, false, tour_operation_support::supported) == tour_publication_readiness::incomplete, "published generated stop cannot bypass re-completion through update");
+		generated.Stops[0].Preparation = tour_preparation::ready;
+		std::swap(generated.Stops[0], generated.Stops[1]);
+		expect(plan_tour_update(generated, { }).has_value(), "derived numbering and footer changes retain generated completion");
+		auto       remote = generated;
+		const auto at     = remote.Stops[1].Baseline->Raw.find("Exact explanation 1");
+		remote.Stops[1].Baseline->Raw.replace(at, 19, "Website explanation");
+		const auto reconciled = reconcile_tour(generated, remote);
+		expect(reconciled.Stops[1].Suggestion && reconciled.Stops[1].Preparation != tour_preparation::ready, "website narrative change clears local generated acknowledgement");
 	}
 	website_deltas();
 	reconciliation();
