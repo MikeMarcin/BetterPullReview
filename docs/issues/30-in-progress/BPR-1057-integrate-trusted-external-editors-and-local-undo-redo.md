@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1057"
 title: "Integrate trusted external editors and local undo redo"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1056"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-06","milestone":"headless-manual","acceptance":["AC44-07"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
