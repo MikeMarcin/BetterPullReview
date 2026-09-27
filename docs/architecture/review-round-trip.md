@@ -765,3 +765,36 @@ fallback returns typed incompatibility. Native publication remains available.
 This pure contract is preparatory: the provider and transactional recovery
 integration remain milestone B work. Existing ordinary publication continues
 through RFC-BPR-0008's coordinator and exact user or attended authority.
+
+### Immutable permalink codec (BPR-0564)
+
+The GitHub adapter's `review_comment_permalink` codec accepts an exact retained
+right-side endpoint minted by the epoch host, its file-comparison key, the
+connected target, and the text line count observed for that blob. It checks the
+endpoint's authority, comparison, algorithm, path and blob before interpreting
+a remote line. Compilation additionally requires the current target head;
+rehydration can use an exact historical retained endpoint. The caller still
+proves changed-file membership and a file-subject root in the expected PR.
+Parsing alone never grants publication authority.
+
+The visible grammar is one bare canonical HTTPS permalink, two LF bytes, then
+non-empty UTF-8 reviewer prose. The codec preserves accepted prose byte for byte
+and caps the combined body at 64 KiB. It rejects leading extra blank lines,
+control bytes, and a second code-permalink-shaped URL in the prose, preserving
+one unambiguous semantic anchor. It never follows a URL or performs a mutation.
+
+Path segments use uppercase percent escapes, with slash only between segments.
+Dot segments, backslashes, controls, malformed UTF-8 and paths over 4 KiB are
+refused. The parser compares the complete authority/path/commit/query prefix to
+its canonical compiler form; alternate ports, userinfo, escaped separators,
+foreign repositories, abbreviated OIDs and query/fragment additions therefore
+cannot normalize into a trusted anchor. Fragments are canonical positive decimal
+`#L` numbers, converted to zero-based semantic lines only after the exact blob's
+line bound passes.
+
+The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`,
+`.mkd`, `.mdwn`, `.mdx` and `.litcoffee`, matched without case. These use
+`?plain=1`; other source paths have no query. This set follows the [GitHub
+Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
+observed on 2026-09-26. Provider publication, recovery and read normalization
+connect this codec in the subsequent authored milestones.

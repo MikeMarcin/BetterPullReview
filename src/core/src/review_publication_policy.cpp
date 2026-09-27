@@ -2,40 +2,40 @@
 
 namespace bpr::core {
 	namespace {
-		[[nodiscard]] auto valid_observation(const review_publication_observation& aValue) noexcept -> bool
+		[[nodiscard]] auto valid_observation(const review_publication_observation& aObservation) noexcept -> bool
 		{
-			return aValue.Placement <= review_placement::off_hunk
-				&& aValue.Capability <= off_hunk_creation_capability::unsupported
-				&& aValue.Body <= review_body_compatibility::requires_line_subject
-				&& aValue.State <= review_publication_state::rejected;
+			return aObservation.Placement <= review_placement::off_hunk
+				&& aObservation.Capability <= off_hunk_creation_capability::unsupported
+				&& aObservation.Body <= review_body_compatibility::requires_line_subject
+				&& aObservation.State <= review_publication_state::rejected;
 		}
 
-		[[nodiscard]] auto fallback(const review_publication_observation& aValue, const review_publication_action aAction) noexcept -> review_publication_decision
+		[[nodiscard]] auto fallback(const review_publication_observation& aObservation, const review_publication_action aAction) noexcept -> review_publication_decision
 		{
-			if (aValue.Body == review_body_compatibility::requires_line_subject) {
+			if (aObservation.Body == review_body_compatibility::requires_line_subject) {
 				return { .Diagnostic = review_publication_diagnostic::incompatible_body };
 			}
 			return { .Action = aAction, .Representation = review_publication_representation::file_comment_with_permalink };
 		}
 	}
 
-	auto plan_review_publication(const review_publication_observation& aValue) noexcept -> review_publication_decision
+	auto plan_review_publication(const review_publication_observation& aObservation) noexcept -> review_publication_decision
 	{
-		if (!valid_observation(aValue)) {
+		if (!valid_observation(aObservation)) {
 			return { .Diagnostic = review_publication_diagnostic::invalid_observation };
 		}
-		if (!aValue.Eligible) {
+		if (!aObservation.Eligible) {
 			return { .Diagnostic = review_publication_diagnostic::ineligible_anchor };
 		}
 		using state          = review_publication_state;
 		using action         = review_publication_action;
 		using representation = review_publication_representation;
-		switch (aValue.State) {
+		switch (aObservation.State) {
 		case state::initial:
-			if (aValue.Placement == review_placement::off_hunk
-				&& aValue.Capability == off_hunk_creation_capability::unsupported
-				&& aValue.CapabilityCurrent) {
-				return fallback(aValue, action::admit_unsupported_evidence);
+			if (aObservation.Placement == review_placement::off_hunk
+				&& aObservation.Capability == off_hunk_creation_capability::unsupported
+				&& aObservation.CapabilityCurrent) {
+				return fallback(aObservation, action::admit_unsupported_evidence);
 			}
 			[[fallthrough]];
 		case state::native_prepared:
@@ -45,7 +45,7 @@ namespace bpr::core {
 		case state::native_definitively_unsupported:
 		case state::unsupported_evidence_admitted:
 		case state::fallback_prepared:
-			return fallback(aValue, action::fallback_attempt);
+			return fallback(aObservation, action::fallback_attempt);
 		case state::fallback_possibly_transmitted:
 			return { .Action = action::reconcile_fallback, .Representation = representation::file_comment_with_permalink };
 		case state::succeeded_native:
@@ -58,24 +58,24 @@ namespace bpr::core {
 		return { .Diagnostic = review_publication_diagnostic::invalid_observation };
 	}
 
-	auto advance_review_publication(const review_publication_observation& aValue, const review_publication_event aEvent) noexcept -> std::optional<review_publication_state>
+	auto advance_review_publication(const review_publication_observation& aObservation, const review_publication_event aEvent) noexcept -> std::optional<review_publication_state>
 	{
-		if (!valid_observation(aValue) || !aValue.Eligible) {
+		if (!valid_observation(aObservation) || !aObservation.Eligible) {
 			return std::nullopt;
 		}
 		using state        = review_publication_state;
 		using event        = review_publication_event;
-		const auto current = aValue.State;
+		const auto current = aObservation.State;
 		const auto native  = current == state::native_prepared || current == state::native_possibly_transmitted;
 		const auto file    = current == state::fallback_prepared || current == state::fallback_possibly_transmitted;
 		switch (aEvent) {
 		case event::prepare_native:
-			if (current == state::initial && plan_review_publication(aValue).Action == review_publication_action::native_attempt) {
+			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::native_attempt) {
 				return state::native_prepared;
 			}
 			break;
 		case event::admit_unsupported_evidence:
-			if (current == state::initial && plan_review_publication(aValue).Action == review_publication_action::admit_unsupported_evidence) {
+			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::admit_unsupported_evidence) {
 				return state::unsupported_evidence_admitted;
 			}
 			break;
@@ -96,7 +96,7 @@ namespace bpr::core {
 			break;
 		case event::prepare_fallback:
 			if ((current == state::native_definitively_unsupported || current == state::unsupported_evidence_admitted)
-				&& plan_review_publication(aValue).Action == review_publication_action::fallback_attempt) {
+				&& plan_review_publication(aObservation).Action == review_publication_action::fallback_attempt) {
 				return state::fallback_prepared;
 			}
 			break;

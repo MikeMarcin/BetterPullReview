@@ -1269,3 +1269,27 @@ endif()
 
 bpr_add_network_isolated_test(NAME github_capability_content_policy COMMAND test_better_pull_review_github_capability_probe_tests --audit-content-policy)
 bpr_add_network_isolated_test(NAME github_provider_content_policy COMMAND test_better_pull_review_github_provider_tests --audit-content-policy)
+
+# BPR-0564: pure bounded codec, using only fixture-minted endpoint provenance.
+bpr_add_executable(
+    test_better_pull_review_review_comment_permalink_tests
+    review_comment_permalink_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_comment_permalink_tests
+    PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::Application
+)
+target_include_directories(
+    test_better_pull_review_review_comment_permalink_tests
+    PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_review_comment_permalink_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
+bpr_enable_hardening(test_better_pull_review_review_comment_permalink_tests)
+bpr_enable_warnings(test_better_pull_review_review_comment_permalink_tests)
+bpr_add_network_isolated_test(
+    NAME github_review_comment_permalink
+    COMMAND test_better_pull_review_review_comment_permalink_tests
+)
