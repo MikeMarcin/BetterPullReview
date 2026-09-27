@@ -77,3 +77,24 @@ The current criterion ledger was reconciled in `2ec9a37f`. The final checkpoint
 adds no product change, so the capsule and its focused verification remain bound
 to `dde294fb`. [R3 handoff](m4-r3-handoff.json) lists exact continuation and command
 state; the old r2 handoff/proposals retain their original evidence and identities.
+
+## Confirmed-unlock continuation — held before launch
+
+The user confirmed unlock and BPR-0573 was resumed at `6f53ca74`. The existing
+shared issue-counter high water1222 was preserved in `e81e991e0`; no ID was
+allocated. Exact PR2 base/head/IDs/complete patch/blob pair and all saved artifact
+and historic journal digests remain unchanged. A new owner-private unused
+approval and exact491-row profile2 launch graph are ready; network manifest
+passes1.42s. See [fresh preflight](m4-r3-unlocked-preflight.json) and
+[exact launch command](m4-r3-unlocked-live-command.json).
+
+The prior OS lock is resolved. Another task owns the attended application:
+checkout15a6 RFC0023 app70360/supervisor70265 remained active at18:00:24UTC.
+No cross-task UI control or competing launch occurred. All RFC0022 commands are
+finished; the unused approval file remains intentionally available for the
+continuation. Wait for that app to exit naturally or for coordinator/user UI
+ownership coordination. Recheck app inventory, approval file/source/image/profile,
+PR2 head and journal hashes, then launch our exact configured lane. Do not reuse
+another task's UI or stop its process. No further code or broad gate is needed.
+This continuation releases writing ownership after its held-state commit;
+BPR-0573 is again Parked awaiting-live-github and no milestone acceptance is claimed.

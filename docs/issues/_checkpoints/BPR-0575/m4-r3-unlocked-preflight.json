@@ -1,0 +1,50 @@
+{
+  "schema": "rfc0022.r3-resume-preflight.v1",
+  "utc": "2026-09-27T17:58:29.911698+00:00",
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "image_sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+  "all_saved_artifact_digests_match": true,
+  "profile": 2,
+  "historical_journal_count": 4,
+  "historical_journal_hashes_unchanged": true,
+  "target": {
+    "url": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "state": "open",
+    "review_comments": 0,
+    "issue_comments": 0,
+    "complete_approved_patch_and_blob_pair_matches": true
+  },
+  "approval_id": "043f5e0af2227bc8933004cedbf1fa264039bcb99d3cdc3ee1fd5d4220d58a26",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-unlocked-approval-16faq_yo/approval.txt",
+  "subject_sha256": "f3c0a20cb62b2f7f19f92bdb9f4a49e8221fe62e5b06148133d6977f5ecf8f41",
+  "state": "Held before launch: another attended application owns the UI; no concurrent launch, UI control or Publish.",
+  "other_attended_application": {
+    "checkout": "/Users/jaeger/.codex/worktrees/15a6/BetterPullReview",
+    "supervisor_pid": 70265,
+    "application_pid": 70360,
+    "observed_elapsed": "09:13 supervisor / 09:11 app",
+    "observed_utc": "2026-09-27T18:00:24+00:00",
+    "control_taken": false
+  },
+  "approval_status": "Owner-private file remains present and unused. Expiry begins at accepted launch bootstrap; verify fresh issuance when launching. Earlier course approval remains retired.",
+  "checks": {
+    "m4-r3-unlocked-configure.log": {
+      "exit_code": 0,
+      "sha256": "025ccfcd9a733d52ff6ba98d60172dd462215c5511d9e8431f11ae74ade1ed50"
+    },
+    "m4-r3-unlocked-manifest-check.log": {
+      "exit_code": 0,
+      "sha256": "19fecccaa9b53252c7e8b473984da0779139aba540d89a3f9eee5242fc9ff9e8"
+    }
+  },
+  "configured_graph": {
+    "rows": 491,
+    "exact_profile2_lane_count": 1,
+    "manifest_gate_seconds": 1.42,
+    "command": "m4-r3-unlocked-live-command.json"
+  },
+  "commands": "All owned commands finished; no RFC0022 app/supervisor mounted. Other task app untouched. Inherited review server72886/session52232 retained."
+}

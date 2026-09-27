@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+parked_on: "awaiting-live-github"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -222,3 +223,22 @@ after explicit unlock, a new one-use approval is required for the same verified
 capsule. [Actual course evidence](../_checkpoints/BPR-0575/m4-r3-live-attempt.json)
 retains the no-POST observation. Actual fallback, collaborator continuity and
 independent acceptance remain pending.
+
+### Confirmed unlock and held fresh launch
+
+The user confirmed Mac unlock. The continuation revalidated every saved capsule
+artifact digest, all four historic publication-record hashes, exact open PR2
+head/base/IDs and the complete two-file patch/blob pair. Review comments remain0.
+A fresh one-use approval is prepared in a new owner-private directory and the
+491-row graph again contains exactly one profile2 lane; its configured network
+manifest gate passes1.42s. The local issue counter advanced only to the existing
+shared-history high water1222 so board operations could proceed.
+
+Before launch, read-only process inventory found another task's RFC0023 attended
+app70360/supervisor70265 from checkout15a6 already active. It remained active
+at18:00:24UTC, elapsed09:11/09:13. No control or launch was attempted against that
+application. Our fresh approval is still unused and no RFC0022 UI action or Publish
+occurred. [Held launch evidence](../_checkpoints/BPR-0575/m4-r3-unlocked-preflight.json)
+and [exact command](../_checkpoints/BPR-0575/m4-r3-unlocked-live-command.json)
+preserve a ready continuation when UI ownership is free. The coordinator handles
+the external coordination; milestone acceptance remains pending.
