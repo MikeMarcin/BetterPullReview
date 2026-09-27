@@ -68,3 +68,23 @@ checkpoint and ledger record the pending obligations and next action.
 No designated safe live GitHub.com/GHES target/accounts, installed restricted
 provider or model qualification was supplied. BPR-1013 stays human-pending,
 BPR-1016 stays Backlog and all five RFCs stay Proposed with explicit dependencies.
+
+
+## Hand-back 90 and r4 correction
+
+The owner accepted r3 Add/Redo and ordinary layout, preserving six total
+source/binary-bound accepts. Only keyboard was rejected: “Still no indication tab
+or shift tab do anything.” Native physical diagnosis found focus moved to an
+offscreen button. Source `95b71e99cc658871a886df66a7a7be22dd2fe3e7` now scrolls it into view and paints a
+visible palette-derived outline. Physical Tab/Shift+Tab and composed narrow-window
+checks pass; the owner verdict remains pending.
+
+The owner also requested compact status icons before the number, implemented by
+[BPR-1221](BPR-1221-show-tour-stop-status-before-the-number.md).
+That explicitly affected ordinary-layout candidate is re-prepared alongside
+keyboard; the other five current accepted candidates retain their fingerprints,
+decisions and protection. The historical ordinary-layout accept stays recorded.
+The attended fixture now wires the ordinary Quit callback; physical Cmd+Q exits
+cleanly. Production profile-desktop Quit was already wired and its public-path
+drain course passes. See the r4 ledger/checkpoint for exact candidate and command
+evidence. Live host, website and model qualification obligations remain open.

@@ -107,3 +107,10 @@ RFC-BPR-0052 are not additional dependencies of this pack. Historical intake
 observations remain dated evidence; they do not override the live configuration.
 No predecessor acceptance, safe live target, inference account or owner waiver
 was supplied in this final milestone.
+
+
+Hand-back 90 records six native accepts on their exact original/r3 candidates.
+The r4 follow-up corrects keyboard visibility and implements the owner-requested
+BPR-1221 row icons; only keyboard and ordinary-layout require new judgments.
+Historical accepts remain evidence for their own source and binary. This does
+not satisfy the outstanding live-host/model/dependency rows or advance RFC status.
