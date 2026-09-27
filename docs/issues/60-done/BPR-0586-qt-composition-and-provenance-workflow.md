@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0586"
 title: "Implement exact source selection, composition workspace, and separate draft/publish controls in Qt"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0583","BPR-0585"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"BPR-0586 required final state","outcome":"pass","revision":"d392ab0fdaa3a8cead4218f6534c27e4de4b8c60","evidence":{"kind":"command","detail":"qt_private_review_panel passes exact-source and finding selection presentation, three modes, target and split intents, candidate/version-bound local acceptance, stale refusal, keyboard and accessible controls. No publication intent exists on composition surface; end-to-end behavior belongs to BPR-0587."}}]
 ---
 
 # Implement exact source selection, composition workspace, and separate draft/publish controls in Qt
