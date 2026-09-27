@@ -1,0 +1,71 @@
+{
+  "schema": "rfc0022.live-attempt.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "source_revision": "0eee1f45ea49b188711570deaeb09cd80293b23f",
+  "source_sha256": "0c0dba127132d3875317f044c7e95fa6174a1cbcafffb5bc7217e60034f5b5ba",
+  "image_sha256": "1eb1229644b85683987587cd1c1eaef2b856403f31f395c662e07d6ef4117f62",
+  "profile": 2,
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "actor": "MikeMarcin",
+  "interaction": "Independent TXT RIGHT line61 selected and confirmed by toolbar; one ordinary Publish. No retry or fallback.",
+  "terminal_ui": "Publication result is unavailable; retry is safe.",
+  "journal": {
+    "record": {
+      "version": 1,
+      "key": "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30",
+      "legacy_key": "153e63b16b40201cfdbda0a19e9ee7d0fc2ec6d184200c6ef6cdb893dc2eca47",
+      "fingerprint": "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30",
+      "parent_state": 2,
+      "authorization_source": 0,
+      "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "scope_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "generation": 0,
+      "observed_at": 0,
+      "expires_at": 0,
+      "native": {
+        "key": "999f0f6d1b5c8a536b7cfbbea8424ed0600114a6e5e3fb2a23efd6ee3baa231a",
+        "request_fingerprint": "a87084ec56cca6f3e12bc4df6e0f5031a8e6aa6cd39561c9cc015ba527184599",
+        "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+        "body": "BetterPullReview source-line verification at line 61.",
+        "path": "off_hunk_fixture.txt",
+        "comparison": "4b06fe46271be1ec6cde433f6b852ba642b30d91c6427ee795f685a6a20b538b",
+        "zero_based_line": 60,
+        "commit_algorithm": 1,
+        "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+        "transmission": 2,
+        "state": 0,
+        "baseline_ids": [],
+        "receipt_present": false
+      },
+      "fallback": null
+    },
+    "record_sha256": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "bytes": 641
+  },
+  "prior_journal_digests_unchanged": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9"
+  },
+  "diagnostic": {
+    "event": "github.review_comment.response_received",
+    "sequence": 47,
+    "utc_ms": 1790482807871,
+    "http_status": 422,
+    "detail": "create_review_comment representation=native metadata=valid envelope=Validation Failed envelope_unknown=0 documentation_url=https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request status=422 errors=1 error_unknown=0 resource=PullRequestReviewComment field=pull_request_review_thread.line code=custom message=omitted",
+    "transport_source": "http_response"
+  },
+  "interpretation": "Complete bounded422, all envelope/error members recognized, exact resource/qualified field/custom code. Message still unrecognized and omitted. No unsupported authority; all three publications remain GET-only.",
+  "get_observations": {
+    "review_comments": 0,
+    "reviews": 0
+  },
+  "lifecycle": {
+    "result": "PASS; normal quit, app55794 exited, capsule detached",
+    "command_session": 95315,
+    "log": "build/rfc0022/m4-shape-live-execution.log",
+    "log_sha256": "a94fb6aafa3b14c6bf14d440e6c3d5bb5fb214864c5863c51c0bfa3099bf0154"
+  },
+  "approval": "Spent one-use subject; must not reuse."
+}

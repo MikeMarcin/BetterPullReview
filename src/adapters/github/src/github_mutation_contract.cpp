@@ -1281,7 +1281,7 @@ namespace bpr::adapters::github::detail {
 				result += " resource=" + diagnostic_text(error, "resource", { "PullRequestReviewComment", "PullRequestReviewThread", "PullRequestReview" });
 				result += " field=" + diagnostic_text(error, "field", { "line", "position", "path", "commit_id", "side", "subject_type", "pull_request_review_thread", "pull_request_review_thread.line", "pull_request_review_thread.start_line" });
 				result += " code=" + diagnostic_text(error, "code", { "invalid", "missing", "missing_field", "custom", "unprocessable", "already_exists" });
-				result += " message=" + diagnostic_text(error, "message", { });
+				result += " message=" + diagnostic_text(error, "message", { "could not be resolved", "could not be resolved.", "must be part of the diff", "must be part of the diff.", "is not part of the diff", "is not part of the diff." });
 			}
 			return result;
 		}

@@ -25,5 +25,20 @@
     }
   ],
   "previous_live_evidence": "m4-diagnostic-live-attempt.json; both line60 journals remain unresolved GET-only and original TXT digest unchanged.",
-  "next": "Separate approved TXT RIGHT line61 comment under fresh exact one-use capsule. No production unsupported contract admitted."
+  "next": "Separate approved TXT RIGHT line61 comment under fresh exact one-use capsule. No production unsupported contract admitted.",
+  "supplement": {
+    "changes": "Recognize exact fixed resolution and predicate-only message literals; preserve each variant. A firsthand external report suggests could not be resolved, but no local observation is inferred from it and no authority changes.",
+    "checks": "Focused publication/privacy/authority test PASS1.19s after two-line vocabulary addition; previous strict tidy/format unchanged structure.",
+    "logs": [
+      {
+        "path": "build/rfc0022/m4-predicate-build.log",
+        "sha256": "3bcb13ed2c1ab09dacdc1b63aefe258118a18efa865e7754c6e1888f3a1830cd"
+      },
+      {
+        "path": "build/rfc0022/m4-predicate-tests.log",
+        "sha256": "c5f1d045460635ad6a0e8ef331db7c5052ba331c026116b228018ff29572dfe5"
+      }
+    ],
+    "local_observation": "m4-shape-live-attempt.json keeps actual TXT61 message omitted; all three journals remain GET-only."
+  }
 }
