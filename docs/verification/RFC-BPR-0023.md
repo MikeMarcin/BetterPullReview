@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M6 complete; final independent review and integrated feature criteria pending**
+Status: **implementation authorized under mandate r2; M1–M8 local work integrated; M7 external publication evidence and final independent review pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -77,24 +77,29 @@ their current direct surfaces and evidence owners; feature checks have not run.
 
 | AC | Criterion | Result | Producing commit |
 |---|---|---|---|
-| AC-01 | A reviewer can create a PR-level or exact semantic-subject private thread, add reviewer turns, restart BetterPullReview, and recover the thread and its revision history exactly. | Not run | None |
-| AC-02 | Side-chat prompts and complete assistant responses can be retained as turns without adding a second agent launch path, and the thread remains bound to the exact review revision it was created against. | Not run | None |
-| AC-03 | Every turn revision has a typed actor. New reviewer text is `reviewer`, agent text names one exact `agent_run_id`, and migrated notes are `legacy_unknown`. | Not run | None |
-| AC-04 | Editing agent-authored text creates a reviewer-authored successor with an immutable `edited_from` edge; the original bytes, actor, and run provenance remain inspectable. | Not run | None |
-| AC-05 | Agent provenance retains requested, configured, protocol-reported, and content-self-reported model/effort facts separately. Missing facts remain unknown, disagreements are visible, and no value is inferred from a profile or executable name. | Not run | None |
-| AC-06 | One agent session can produce multiple uniquely identified runs and finding sets without collision; retained provenance remains readable after session catalog pruning. | Not run | None |
-| AC-07 | Thread subjects and composition targets use exact semantic identities. Head/epoch movement produces visible stale or unplaceable state and never a nearest-line or silent reanchor. | Not run | None |
-| AC-08 | A reviewer can select exact revisions/findings, open a composition workspace, inspect sources and provenance, and produce a reviewer-authored, exact-copy, or explicitly agent-assisted candidate. | Not run | None |
-| AC-09 | `Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step. | Not run | None |
-| AC-10 | Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess. | Not run | None |
-| AC-11 | Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart. | Not run | None |
-| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Not run | None |
-| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Not run | None |
-| AC-14 | Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | Not run | None |
-| AC-15 | Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | Not run | None |
-| AC-16 | Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | Not run | None |
-| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Not run | None |
-| AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Not run | None |
+| AC-01 | A reviewer can create a PR-level or exact semantic-subject private thread, add reviewer turns, restart BetterPullReview, and recover the thread and its revision history exactly. | Local pass | 891735401 |
+| AC-02 | Side-chat prompts and complete assistant responses can be retained as turns without adding a second agent launch path, and the thread remains bound to the exact review revision it was created against. | Local pass | 891735401 |
+| AC-03 | Every turn revision has a typed actor. New reviewer text is `reviewer`, agent text names one exact `agent_run_id`, and migrated notes are `legacy_unknown`. | Local pass | 891735401 |
+| AC-04 | Editing agent-authored text creates a reviewer-authored successor with an immutable `edited_from` edge; the original bytes, actor, and run provenance remain inspectable. | Local pass | 891735401 |
+| AC-05 | Agent provenance retains requested, configured, protocol-reported, and content-self-reported model/effort facts separately. Missing facts remain unknown, disagreements are visible, and no value is inferred from a profile or executable name. | Local pass | 891735401 |
+| AC-06 | One agent session can produce multiple uniquely identified runs and finding sets without collision; retained provenance remains readable after session catalog pruning. | Local pass | 891735401 |
+| AC-07 | Thread subjects and composition targets use exact semantic identities. Head/epoch movement produces visible stale or unplaceable state and never a nearest-line or silent reanchor. | Local pass | 891735401 |
+| AC-08 | A reviewer can select exact revisions/findings, open a composition workspace, inspect sources and provenance, and produce a reviewer-authored, exact-copy, or explicitly agent-assisted candidate. | Local pass | 891735401 |
+| AC-09 | `Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step. | Local pass | 891735401 |
+| AC-10 | Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess. | Local pass | 891735401 |
+| AC-11 | Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart. | Local pass | 891735401 |
+| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Local pass; external read pending | 891735401 |
+| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Local pass; external read pending | 891735401 |
+| AC-14 | Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | Local pass | 891735401 |
+| AC-15 | Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | Local pass | 891735401 |
+| AC-16 | Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | Local pass | 891735401 |
+| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local pass; external read pending | 891735401 |
+| AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Local pass; final review pending | 80d4eb4da |
+
+The producing commits in this table identify the M9 evidence records, not the
+original source commits for every feature. "Local pass" is a bounded fixture
+judgment. The external rows and final independent review retain their stated
+acceptance gates; this table does not close the RFC.
 
 The public-path course also covers RFC-BPR-0022 native and file-permalink
 representations, logical receipt recovery, and distinct approved-prose/public-body
@@ -1531,3 +1536,102 @@ M9/BPR-0588 and BPR-0589 are next. BPR-0584 still awaits a qualifying designated
 or signed publication target and an independent public body/actor read. M10 owns
 the single independent review at the end, as the owner requested; neither gate
 is counted as M8 acceptance.
+
+## M9 local-evidence sequencing amendment
+
+The integrated M7 publication implementation and M8 public path are sufficient
+for BPR-0588's local crash, migration, quota, security and performance courses.
+Its BPR-0584 terminal-status dependency is removed from the live board so this
+work can start. The card's required final state still demands either qualifying
+designated evidence or a precise live blocker. A blocker can complete that local
+evidence card but cannot satisfy BPR-0584, RFC AC-12/13/17 or the external M9
+exit. BPR-0589 proceeds independently with rendered/native presentation work.
+No source-pack criterion or independent final-review requirement is removed.
+
+## M9 BPR-0589 rendered UX slice
+
+The [rendered evidence record](RFC-BPR-0023.m9-rendered-evidence.md) preserves
+synthetic captures and exact outcomes from the shipped executable and Qt
+projection test. The app course passed at 100%, 125% and 200% across system,
+light, dark, high-contrast-light and high-contrast-dark appearances. Native
+macOS Cocoa runs passed at 125% dark and 200% high-contrast-dark. The 200%
+offscreen course asserted Tab focus on Accept and automatic scroll visibility;
+the background Cocoa process could not own a key window, so its native run
+asserted scroll visibility. `qt_private_review_panel` passed at 100% and 200%
+and exercised three panel Tab transitions, distinct local and published names,
+provenance bases, two exact targets, stale refusal and zero full model resets
+under bounded projection changes.
+
+The captures found two presentation defects: the separate composition dialog
+kept a light palette under dark appearance, and native Cocoa selectors clipped
+workspace/target labels. The dialog now follows its workbench palette at
+creation and on palette changes. Workspace and target selectors have usable
+widths at 200%; the target label displays a short commit prefix while its
+tooltip retains the full head and the application intent retains the exact
+target. The final native captures show readable labels and a reachable Accept
+action after scroll. One Cocoa fixture run stalled before entering Review;
+a fresh three-process rerun passed. The failure and its boundary are retained
+in the evidence record.
+
+Changed source/test paths for this slice: the Qt composition editor header and
+implementation, the testing-only shipped-app private review fixture course,
+its Python public-path launcher, and the Qt panel test. Operator-visible
+behavior is limited to palette inheritance and selector legibility in the
+composition dialog; the extra capture/focus paths run only in the local test
+course. The image set and evidence record are in `docs/verification/`. BPR-0588
+still owns M9 failure/performance evidence. BPR-0584's designated or signed
+publication readback and M10's final independent review remain pending.
+
+## M9 BPR-0588 failure and bounded-work slice
+
+The [focused evidence and eighteen-row criterion matrix](RFC-BPR-0023.m9-failure-performance-evidence.md)
+records the integrated nine-test run, actual kill/repair paths, selected-only
+child-input and credential environment canaries, exact store quota/page
+boundaries and measured database/Qt work. All nine selected tests passed after
+M8 integration. The storage fixture measured growth from 4,096 to 67,473,408
+bytes while retaining 64 MiB of assistant bodies; the next byte was refused
+atomically. Its maximum resident set was 29,147,136 bytes. A 64-row Qt page
+updated one row via one `dataChanged`, kept its selected persistent index and
+emitted zero model resets; its 200% run reached 61,177,856 bytes maximum
+resident set. These are local fixture measurements, not platform-wide bounds.
+
+BPR-0588 changed only the SQLite and Qt test courses to print direct growth,
+memory-context and active/changed-set statistics, plus this verification
+record. No operator-visible product behavior, data schema or release metadata
+changed in this card. A changed-file credential-format scan found no key
+patterns; the real child and SQLite tests separately checked concrete canaries.
+The full documentation and changed-surface gates accompany M9 integration.
+
+BPR-0584 remains parked: a designated safe GitHub/GHES mutation target or
+qualifying signed recording, and an independent public body/actor/unchanged-
+state read, have not been supplied. Thus local M9 work may land on main, but
+the M9 external exit and RFC AC-12/13/17 remain pending. The final independent
+review stays at M10 as the owner requested.
+
+## M9 local integration candidate
+
+BPR-0589 is Done at `b47b9730f`; BPR-0588 is Done at `0925365af`.
+The local M9 candidate is `0925365afa40184a1405182b843d61a8b4905f36`.
+The nine-test integrated pass, native/offscreen captures, measured storage/Qt
+courses, documentation gate, 64 documentation tests, changed-file format check,
+capture checksum check and scoped board validation all passed. All task-owned
+builds, CTest processes and UI fixture children have exited. The one native
+fixture modality stall and its passing fresh rerun are recorded in the rendered
+evidence record; no result was silently dropped.
+
+The [M9 observation](RFC-BPR-0023.m9-observation.json) records BPR-0588 and
+BPR-0589 and local exits 1–2 as passing. Exit 3 remains pending because
+BPR-0584 lacks a qualifying designated or signed recorded mutation and
+independent server body/actor read. M9's local work is eligible for main
+integration under the adopted boundary, but the milestone is not externally
+complete and the RFC is not Auto-Verified. After integration, M10 can start
+local work under the [checked sequencing amendment](RFC-BPR-0023.m10-amendment.json),
+which preserves that external exit and the end-of-RFC independent review.
+
+The M10 amendment changes only its plan prerequisite from M9 terminal
+acceptance to the integrated M8 base. BPR-0590's actual card dependencies on
+BPR-0588/0589 are now Done, and work begins only after the M9 local candidate
+lands on main. M10's four completion criteria are unchanged: final independent
+review, all cards, external publication evidence and RFC Auto-Verified remain
+required for full closeout. The generated milestone view was updated from the
+checked plan. No pending M9 obligation was reclassified as passing.

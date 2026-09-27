@@ -145,7 +145,7 @@ Focused failure, performance and rendered workflow evidence
 - Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied.
 - BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Use the integrated M7 publication implementation for local BPR-0588 evidence while BPR-0584's external card remains parked. Complete BPR-0588 with a precise live blocker if the designated target/readback is unavailable; this does not satisfy RFC AC-12/13/17 or the external M9 exit. Integrate only verified local work on main and carry external acceptance pending; required evidence is never inferred.
 
 ## m10-closeout
 
@@ -153,7 +153,7 @@ Documented RFC acceptance with one capability-critical independent review of the
 
 **Work:** `BPR-0590`, `BPR-0591`
 
-**Prerequisites:** m9-acceptance
+**Prerequisites:** m8-public-ui
 
 **Completion:**
 
@@ -162,4 +162,4 @@ Documented RFC acceptance with one capability-critical independent review of the
 - Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied.
 - All sixteen cards and eighteen criteria, explicit RFC dependencies and pending decisions are satisfied before RFC/index Auto-Verified closeout.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Begin local BPR-0590 documentation and simplification only after the M9 local evidence candidate is integrated on main; BPR-0584 external evidence remains pending. Perform the single independent review at the end of the integrated local implementation as owner mandate r2 directs. Preserve all M9 external exits, M10 closeout exits and RFC criteria; BPR-0591 and RFC Auto-Verified cannot claim complete acceptance until the designated or signed publication and independent public read are supplied. Return a durable quiescent handoff; required external acceptance is never inferred.

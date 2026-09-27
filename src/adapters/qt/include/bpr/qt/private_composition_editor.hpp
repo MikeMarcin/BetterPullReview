@@ -18,6 +18,7 @@ namespace bpr::qt {
 		void show_status(std::string_view);
 
 	private:
+		bool                                        eventFilter(QObject*, QEvent*) override;
 		void                                        dispatch(application::private_composition_action);
 		application::private_composition_dispatch   Dispatch;
 		application::private_composition_projection Shown;

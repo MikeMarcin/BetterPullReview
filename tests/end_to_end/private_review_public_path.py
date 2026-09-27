@@ -13,6 +13,8 @@ def main():
     parser.add_argument('--agent', type=Path, required=True)
     parser.add_argument('--representation', choices=('native', 'file'), required=True)
     parser.add_argument('--render', type=Path)
+    parser.add_argument('--scale', choices=('1', '1.25', '2'), default='1')
+    parser.add_argument('--theme', choices=('system', 'light', 'dark', 'high-contrast-light', 'high-contrast-dark'), default='system')
     parser.add_argument('--lose-first-result', action='store_true')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='bpr-private-review-') as temporary:
@@ -23,6 +25,8 @@ def main():
         for phase in ('seed', 'compose', 'publish'):
             env = os.environ.copy()
             env.setdefault('QT_QPA_PLATFORM', 'offscreen')
+            env['QT_SCALE_FACTOR'] = args.scale
+            env['BPR_PRIVATE_REVIEW_THEME'] = args.theme
             if args.render:
                 env['BPR_PRIVATE_REVIEW_RENDER'] = str(args.render.resolve().with_name(args.render.stem + '-' + phase + args.render.suffix))
             command = [str(args.application.resolve()), '--github-fixture', 'github-com', '--epoch-fixture-root', str(root), '--epoch-fixture-phase', 'single', '--private-review-course', phase, '--private-review-representation', args.representation, '--private-review-agent', str(args.agent.resolve())]
