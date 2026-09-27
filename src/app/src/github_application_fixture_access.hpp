@@ -159,6 +159,7 @@ namespace bpr::app::detail {
 		bool                      LargeReviewHistory = false;
 		/// BPR-0972: the synthetic large-review posts belong to another fixture actor.
 		bool LargeReviewForeignPosts = false;
+		bool ReviewTourCourse        = false;
 		/// BPR-0972: each read session of the paged large review replays its
 		/// complete script from the repository read, as the strict scripts do
 		/// with `RepeatReadSessions`, so a sibling window can load it again.

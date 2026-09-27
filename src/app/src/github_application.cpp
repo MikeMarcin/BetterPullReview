@@ -1,10 +1,11 @@
 #include "bpr/app/github_application.hpp"
-#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -8766,6 +8767,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TourHead = aHandoff.Head;
 			if (TourOwner == owner && TourHost) {
 				observe_tour_head();
+				refresh_tour_imports();
 				return;
 			}
 			suspend_review_tour();
@@ -8797,6 +8799,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   observe_tour_head();
 																				});
 			TourHost->start();
+			refresh_tour_imports();
+		}
+		void refresh_tour_imports()
+		{
+			if (!TourHost || !WindowRead->accepted_snapshot() || !TourOwner) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto* profile  = find_profile(snapshot.Profile);
+			const auto  base     = core::parse_git_commit_oid(snapshot.PullRequest.BaseOid.value());
+			const auto  head     = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			if (!profile || !base || !head) {
+				return;
+			}
+			const auto seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname()));
 		}
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
@@ -8804,6 +8822,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
+			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
 			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
 			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
 			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
@@ -8856,12 +8875,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!draft) {
 					return;
 				}
-				const auto selected = Window->overview_page()->body_view()->source_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
-				if (selected.isEmpty()) {
+				const auto* view     = Window->overview_page()->body_view();
+				const auto  span     = view->selected_source_bytes();
+				const auto& snapshot = WindowRead->accepted_snapshot();
+				if (!span || !snapshot || view->original_body() != snapshot->PullRequest.Body) {
 					Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
 					return;
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = selected.toUtf8().toStdString() });
+				const auto& raw = view->original_body();
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = raw.substr(span->first, span->second - span->first), .Baseline = core::tour_field_baseline{ .Raw = raw, .RemoteEntity = std::string{ snapshot->PullRequest.Node.value() }, .SourceSpan = span } });
 				return;
 			}
 			}

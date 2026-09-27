@@ -1958,24 +1958,108 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		// These are optional only for old recordings. A remote body without the new
+		// observations remains readable but cannot be claimed as a raw tour baseline.
+		[[nodiscard]] auto parse_comment_observation(const page_json_value& aValue, bool aGraphql)
+			-> std::expected<application::github_comment_observation, github_paged_read_failure>
+		{
+			const auto                              object = json_object(aValue);
+			application::github_comment_observation result;
+			const auto                              scalar = [&](std::string_view aKey, std::string& aOut) {
+				const auto value = json_member(object, aKey);
+				if (json_is_undefined(value) || json_is_null(value)) {
+					return true;
+				}
+				if (!json_is_string(value)) {
+					return false;
+				}
+				aOut = text(value);
+				return true;
+			};
+			if (!scalar(aGraphql ? "url" : "html_url", result.WebUrl) || !scalar(aGraphql ? "updatedAt" : "updated_at", result.UpdatedAt)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto id = json_member(object, aGraphql ? "fullDatabaseId" : "id");
+			if (!json_is_undefined(id) && !json_is_null(id)) {
+				if (exact_integer(id, true)) {
+					result.DatabaseId = integer(id);
+				} else if (json_is_string(id)) {
+					const auto digits = text(id);
+					const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), result.DatabaseId);
+					if (digits.empty() || digits.front() == '0' || parsed.ec != std::errc{ } || parsed.ptr != digits.data() + digits.size() || !result.DatabaseId) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+				} else {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+			}
+			const auto body = json_member(object, "body");
+			if (!json_is_undefined(body)) {
+				if (!json_is_string(body)) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				result.RawBody = text(body);
+			}
+			if (aGraphql) {
+				for (const auto& entry : { std::pair{ "commit", &result.Commit }, std::pair{ "originalCommit", &result.OriginalCommit }, std::pair{ "pullRequestReview", &result.ReviewNode } }) {
+					const auto value = json_member(object, entry.first);
+					if (json_is_undefined(value) || json_is_null(value)) {
+						continue;
+					}
+					const auto key = std::string_view{ entry.first } == "pullRequestReview" ? "id" : "oid";
+					if (!json_is_object(value) || !has_exact_keys(json_object(value), { key }) || !nonempty_string(json_member(json_object(value), key))) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					*entry.second = text(json_member(json_object(value), key));
+				}
+			} else if (!scalar("commit_id", result.Commit) || !scalar("original_commit_id", result.OriginalCommit)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			for (const auto& entry : { std::pair{ aGraphql ? "startLine" : "start_line", &result.StartLine }, std::pair{ aGraphql ? "originalStartLine" : "original_start_line", &result.OriginalStartLine } }) {
+				const auto value = json_member(object, entry.first);
+				if (json_is_undefined(value) || json_is_null(value)) {
+					continue;
+				}
+				if (!valid_line(value)) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				*entry.second = optional_line(value);
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto parse_graphql_comment(const page_json_value& aValue)
 			-> std::expected<application::github_review_comment_record,
 							 github_paged_read_failure>
 		{
 			if (!json_is_object(aValue)
-				|| !has_exact_keys(json_object(aValue),
-								   {
-									   "author",
-									   "bodyText",
-									   "id",
-									   "line",
-									   "originalLine",
-									   "outdated",
-									   "path",
-									   "replyTo",
-								   })) {
+				|| !has_required_keys(json_object(aValue),
+									  {
+										  "author",
+										  "bodyText",
+										  "id",
+										  "line",
+										  "originalLine",
+										  "outdated",
+										  "path",
+										  "replyTo",
+									  })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
+			auto keys = std::vector<std::string_view>{ "author", "bodyText", "id", "line", "originalLine", "outdated", "path", "replyTo" };
+			for (const auto key : { "body", "url", "updatedAt", "fullDatabaseId", "commit", "originalCommit", "startLine", "originalStartLine", "pullRequestReview" }) {
+				if (!json_is_undefined(json_member(json_object(aValue), key))) {
+					keys.push_back(key);
+				}
+			}
+			if (!has_exact_keys(json_object(aValue), keys)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto observation = parse_comment_observation(aValue, true);
+			if (!observation) {
+				return std::unexpected(observation.error());
+			}
+
 			const auto comment      = json_object(aValue);
 			const auto author       = optional_graphql_actor(json_member(comment, "author"));
 			const auto line         = json_member(comment, "line");
@@ -2006,6 +2090,7 @@ namespace bpr::adapters::github::detail {
 				.OriginalLine = optional_line(originalLine),
 				.Outdated     = json_bool(json_member(comment, "outdated")),
 				.Deleted      = false,
+				.Observation  = *observation,
 			};
 		}
 
@@ -2583,13 +2668,19 @@ namespace bpr::adapters::github::detail {
 			if (!json_is_null(json_member(object, "commit_id"))) {
 				commit = application::commit_oid{ text(json_member(object, "commit_id")) };
 			}
+			const auto observation = parse_comment_observation(aValue, false);
+			if (!observation) {
+				return std::unexpected(observation.error());
+			}
+
 			return application::github_review_record{
-				.DatabaseId = integer(json_member(object, "id")),
-				.Review     = application::github_review_id{ text(json_member(object, "node_id")) },
-				.Author     = author.Actor,
-				.State      = review_state(json_text(json_member(object, "state"))),
-				.Commit     = std::move(commit),
-				.Body       = text(json_member(object, "body")),
+				.DatabaseId  = integer(json_member(object, "id")),
+				.Review      = application::github_review_id{ text(json_member(object, "node_id")) },
+				.Author      = author.Actor,
+				.State       = review_state(json_text(json_member(object, "state"))),
+				.Commit      = std::move(commit),
+				.Body        = text(json_member(object, "body")),
+				.Observation = *observation,
 			};
 		}
 
@@ -2607,11 +2698,17 @@ namespace bpr::adapters::github::detail {
 				|| !json_is_string(json_member(object, "body")) || !author.Valid) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
+			const auto observation = parse_comment_observation(aValue, false);
+			if (!observation) {
+				return std::unexpected(observation.error());
+			}
+
 			return application::github_issue_comment_record{
-				.Comment = application::github_comment_id{ text(json_member(object, "node_id")) },
-				.Author  = author.Actor,
-				.Body    = text(json_member(object, "body")),
-				.Deleted = false,
+				.Comment     = application::github_comment_id{ text(json_member(object, "node_id")) },
+				.Author      = author.Actor,
+				.Body        = text(json_member(object, "body")),
+				.Deleted     = false,
+				.Observation = *observation,
 			};
 		}
 
@@ -2664,6 +2761,11 @@ namespace bpr::adapters::github::detail {
 					std::to_string(integer(reply))
 				};
 			}
+			const auto observation = parse_comment_observation(aValue, false);
+			if (!observation) {
+				return std::unexpected(observation.error());
+			}
+
 			return application::github_review_comment_record{
 				.Comment = application::github_comment_id{
 					std::to_string(integer(json_member(object, "id"))) },
@@ -2675,6 +2777,7 @@ namespace bpr::adapters::github::detail {
 				.OriginalLine = optional_line(json_member(object, "original_line")),
 				.Outdated     = json_is_null(json_member(object, "position")),
 				.Deleted      = false,
+				.Observation  = *observation,
 			};
 		}
 

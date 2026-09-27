@@ -224,6 +224,21 @@ namespace bpr::application {
 		auto operator<=>(const github_commit_record&) const = default;
 	};
 
+	/// \brief Optional raw remote editing/source facts; absent legacy fields confer no import authority.
+	struct github_comment_observation
+	{
+		std::uint64_t                DatabaseId = 0;
+		std::string                  WebUrl;
+		std::string                  UpdatedAt;
+		std::optional<std::string>   RawBody;
+		std::string                  ReviewNode;
+		std::string                  Commit;
+		std::string                  OriginalCommit;
+		std::optional<std::uint32_t> StartLine;
+		std::optional<std::uint32_t> OriginalStartLine;
+		auto                         operator<=>(const github_comment_observation&) const = default;
+	};
+
 	/// \brief Describes the github review record record.
 	struct github_review_record
 	{
@@ -233,6 +248,8 @@ namespace bpr::application {
 		github_review_state                State = github_review_state::uninitialized;
 		std::optional<commit_oid>          Commit;
 		std::string                        Body;
+
+		github_comment_observation Observation;
 
 		auto operator<=>(const github_review_record&) const = default;
 	};
@@ -249,6 +266,8 @@ namespace bpr::application {
 		std::optional<std::uint32_t>       OriginalLine;
 		bool                               Outdated = false;
 		bool                               Deleted  = false;
+
+		github_comment_observation Observation;
 
 		auto operator<=>(const github_review_comment_record&) const = default;
 	};
@@ -300,6 +319,8 @@ namespace bpr::application {
 		std::optional<github_actor_record> Author;
 		std::string                        Body;
 		bool                               Deleted = false;
+
+		github_comment_observation Observation;
 
 		auto operator<=>(const github_issue_comment_record&) const = default;
 	};
@@ -1248,12 +1269,29 @@ namespace bpr::application {
 				aLimits.MaximumHeadlineBytes);
 		}
 
+		[[nodiscard]] inline auto validate_comment_observation(const github_comment_observation& aValue, github_text_budget& aBudget, const github_read_limits& aLimits) noexcept -> github_read_validation_error
+		{
+			for (const auto* text : { &aValue.WebUrl, &aValue.UpdatedAt, &aValue.ReviewNode, &aValue.Commit, &aValue.OriginalCommit }) {
+				if (const auto error = aBudget.consume(*text, aLimits.MaximumPathBytes); error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			if (aValue.RawBody) {
+				return aBudget.consume(*aValue.RawBody, aLimits.MaximumBodyBytes);
+			}
+			return github_read_validation_error::none;
+		}
+
 		[[nodiscard]] inline auto validate_review(
 			const github_review_record& aRecord,
 			github_text_budget&         aBudget,
 			const github_read_limits&   aLimits) noexcept
 			-> github_read_validation_error
 		{
+			if (const auto error = validate_comment_observation(aRecord.Observation, aBudget, aLimits); error != github_read_validation_error::none) {
+				return error;
+			}
+
 			if (aRecord.DatabaseId == 0U || !valid_enum(aRecord.State)) {
 				return github_read_validation_error::invalid_enum;
 			}
@@ -1283,6 +1321,10 @@ namespace bpr::application {
 			const github_read_limits&           aLimits) noexcept
 			-> github_read_validation_error
 		{
+			if (const auto error = validate_comment_observation(aRecord.Observation, aBudget, aLimits); error != github_read_validation_error::none) {
+				return error;
+			}
+
 			const auto invalidLine = [](const std::optional<std::uint32_t>& aLine) {
 				return aLine.has_value()
 					&& (*aLine == 0U || *aLine > maximum_github_line);
@@ -1414,6 +1456,10 @@ namespace bpr::application {
 			const github_read_limits&          aLimits) noexcept
 			-> github_read_validation_error
 		{
+			if (const auto error = validate_comment_observation(aRecord.Observation, aBudget, aLimits); error != github_read_validation_error::none) {
+				return error;
+			}
+
 			if (const auto error = consume_id(aBudget, aRecord.Comment.value(), aLimits);
 				error != github_read_validation_error::none) {
 				return error;

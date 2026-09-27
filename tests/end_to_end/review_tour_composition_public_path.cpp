@@ -4,14 +4,17 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include "bpr/core/review_tour_markdown.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -118,7 +121,7 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
 		auto                                     startup  = access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,
-																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewSubmissionServer = server },
+																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && std::string_view{ argv[1] } == "--cold", .ReviewSubmissionServer = server },
 																		  [&](auto aResult) { terminal = true; if (aResult) { started = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(started != nullptr, "startup succeeds");
@@ -131,6 +134,41 @@ auto main(int argc, char** argv) -> int
 		auto& window = application->window();
 		auto& editor = *window.tour_editor();
 		expect(editor.problem_editor()->toPlainText().isEmpty() && editor.solution_editor()->toPlainText().isEmpty(), "new draft is empty, coaching is not source");
+
+		if (argc > 1 && std::string_view{ argv[1] } == "--cold") {
+			auto* choices = editor.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+			wait([&] { return choices && choices->count() == 1; }, "published root discovered through real provider snapshot");
+			editor.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
+			expect(editor.shown().Draft->Stops.size() == 2 && !editor.shown().Draft->ReadOnly, "cold profile reconstructs editable own route");
+			expect(editor.shown().Draft->Stops[0].Remote->DatabaseId == 71002 && editor.shown().Draft->Stops[1].Remote->DatabaseId == 71001, "website list order overrides returned collection order");
+			expect(editor.shown().Draft->Problem == "\r\n**Keep raw** problem.\r\n\r\n" && editor.shown().Draft->Solution == "\r\nSmall exact solution.\r\n\r\n", "ordinary description sections preserve raw CRLF bytes");
+			auto* description = window.overview_page()->body_view();
+			description->show_source(true);
+			auto selection = description->source_view()->textCursor();
+			selection.setPosition(0);
+			selection.setPosition(10, QTextCursor::KeepAnchor);
+			description->source_view()->setTextCursor(selection);
+			editor.findChild<QPushButton*>(QStringLiteral("tourSolutionMap"))->click();
+			expect(editor.shown().Draft->Solution == "Preface α\r\n" && editor.shown().Draft->SolutionBaseline->SourceSpan == std::optional{ std::pair<std::size_t, std::size_t>{ 0, 12 } }, "manual native source selection maps Unicode and CRLF back to exact UTF-8 bytes");
+			const auto baseline = *editor.shown().Draft->ProblemBaseline;
+			editor.problem_editor()->selectAll();
+			editor.problem_editor()->insertPlainText(QStringLiteral("Revised problem."));
+			saved(editor);
+			const auto       span = *baseline.SourceSpan;
+			const std::array edits{ core::tour_text_edit{ { span.first, span.second }, baseline.Raw.substr(span.first, span.second - span.first), editor.shown().Draft->Problem } };
+			const auto       edited = core::edit_tour_markdown(baseline.Raw, edits);
+			expect(edited && *edited == baseline.Raw.substr(0, span.first) + "Revised problem." + baseline.Raw.substr(span.second), "only explicitly mapped problem bytes change; testing prose and backlink remain exact");
+			const auto accepted = *editor.shown().Draft;
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0 && access::review_mutation_evidence(*application).Submissions == 0, "cold import and editing have no inference or remote writes");
+			shutdown(*application);
+			application.reset();
+			application = make();
+			open(*application);
+			expect(*application->window().tour_editor()->shown().Draft == accepted, "real store reopen retains raw baselines and remote attribution");
+			shutdown(*application);
+			std::cout << "review-tour-cold-import:pass\n";
+			return EXIT_SUCCESS;
+		}
 		const auto mutationBefore = access::review_mutation_evidence(*application);
 		const auto agentBefore    = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 		expect(agentBefore == 0U, "no agent configured or launched for authoring");

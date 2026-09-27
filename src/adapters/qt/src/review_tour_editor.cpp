@@ -1,6 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -44,6 +45,15 @@ namespace bpr::qt {
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(8, 8, 8, 8);
 		layout->addWidget(paragraph(tr("Private review tour. Nothing here publishes."), this));
+		Imports = new QComboBox{ this };
+		Imports->setObjectName(QStringLiteral("tourImportChoices"));
+		Imports->setAccessibleName(tr("GitHub tour index and list"));
+		Imports->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		Import = new QPushButton{ tr("Load selected GitHub tour"), this };
+		Import->setObjectName(QStringLiteral("tourImport"));
+		connect(Import, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::import_selected); });
+		layout->addWidget(Imports);
+		layout->addWidget(Import);
 		Roadmap = new QTabWidget{ this };
 		Roadmap->setObjectName(QStringLiteral("tourRoadmap"));
 		Roadmap->setAccessibleName(tr("Review tour sections"));
@@ -59,6 +69,7 @@ namespace bpr::qt {
 			editor->setMinimumHeight(130);
 			column->addWidget(editor, 1);
 			auto* map = new QPushButton{ tr("Use selected description text"), page };
+			map->setObjectName(aName + QStringLiteral("Map"));
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
 			column->addWidget(map);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
@@ -101,6 +112,7 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 		Action   = std::move(aAction);
 	}
+	auto review_tour_editor::import_choice() const -> std::size_t { return static_cast<std::size_t>(Imports->currentIndex()); }
 	void review_tour_editor::edit(core::tour_command_kind aKind, const QString& aText)
 	{
 		if (Applying || !Shown.Draft || !Dispatch) {
@@ -119,8 +131,19 @@ namespace bpr::qt {
 		if (aProjection.Selected != Shown.Selected && aProjection.Selected.value()) {
 			Selected = aProjection.Selected;
 		}
+		if (Shown.ImportChoices != aProjection.ImportChoices) {
+			const auto block = QSignalBlocker{ Imports };
+			Imports->clear();
+			for (const auto& choice : aProjection.ImportChoices) {
+				Imports->addItem(QString::fromStdString(choice));
+			}
+			// Multiple plausible roots require an explicit choice, even when a link is preferred.
+			Imports->setCurrentIndex(Imports->count() == 1 ? 0 : -1);
+		}
+		Imports->setVisible(!aProjection.ImportChoices.empty());
+		Import->setVisible(!aProjection.ImportChoices.empty());
 		Shown               = aProjection;
-		const bool editable = Shown.Draft && !Shown.Loading;
+		const bool editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly;
 		const bool bounded  = same && Shown.Refusal == core::tour_refusal::bounds;
 		Problem->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::problem));
 		Solution->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::solution));
@@ -146,6 +169,12 @@ namespace bpr::qt {
 		} else if (Shown.Draft) {
 			status = Shown.Saving ? tr("Saving locally…") : Shown.SavedRevision == Shown.Draft->Revision ? tr("Saved locally. Nothing published.")
 																										 : tr("Private draft. Nothing published.");
+		}
+		if (Shown.Draft && !Shown.Draft->ImportNotice.empty()) {
+			status += " " + QString::fromStdString(Shown.Draft->ImportNotice);
+		}
+		if (!Shown.ImportNotice.empty()) {
+			status += " " + QString::fromStdString(Shown.ImportNotice);
 		}
 		Status->setText(status);
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);

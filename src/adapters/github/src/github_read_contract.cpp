@@ -31,7 +31,7 @@ namespace bpr::adapters::github::detail {
 															 "reviewThreads(first:100){nodes{"
 															 "id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
 															 "subjectType path diffSide line originalLine "
-															 "comments(first:100){nodes{id bodyText path line originalLine outdated "
+															 "comments(first:100){nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated "
 															 "author{login ... on Node{id}} replyTo{id}} "
 															 "pageInfo{hasNextPage endCursor}}} "
 															 "pageInfo{hasNextPage "
@@ -633,7 +633,7 @@ namespace bpr::adapters::github::detail {
 		{
 			std::string result{ "comments(" };
 			result += aArguments;
-			result += "){totalCount nodes{id bodyText path line originalLine "
+			result += "){totalCount nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine "
 					  "outdated author{login ... on Node{id}} replyTo{id}} ";
 			result += page_info_selection();
 			result += '}';

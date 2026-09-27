@@ -65,6 +65,25 @@ namespace bpr::core {
 		auto                                               operator==(const tour_field_baseline&) const -> bool = default;
 	};
 
+	enum class tour_remote_kind : std::uint8_t { review,
+												 line_comment,
+												 file_comment,
+												 conversation_comment };
+	/// \brief Returned remote identity retained for attribution and later revalidation; never a write grant.
+	struct tour_remote_binding
+	{
+		tour_remote_kind Kind       = tour_remote_kind::review;
+		std::uint64_t    DatabaseId = 0;
+		std::string      Entity;
+		std::string      Actor;
+		std::string      WebUrl;
+		std::string      Review;
+		bool             Own                                                  = false;
+		bool             Resolved                                             = false;
+		bool             Outdated                                             = false;
+		auto             operator==(const tour_remote_binding&) const -> bool = default;
+	};
+
 	/// \brief A local thought with immutable original source and a separate current mapping.
 	struct tour_stop
 	{
@@ -77,6 +96,7 @@ namespace bpr::core {
 		std::vector<tour_source_range>     Related;
 		tour_preparation                   Preparation = tour_preparation::editing;
 		std::optional<tour_field_baseline> Baseline;
+		std::optional<tour_remote_binding> Remote;
 		auto                               operator==(const tour_stop&) const -> bool = default;
 	};
 
@@ -94,6 +114,10 @@ namespace bpr::core {
 		std::vector<tour_stop>             Stops;
 		std::uint64_t                      Revision                                     = 1;
 		std::uint64_t                      LastStopId                                   = 0;
+		std::optional<tour_remote_binding> Remote;
+		std::optional<tour_field_baseline> IndexBaseline;
+		std::string                        ImportNotice;
+		bool                               ReadOnly                                     = false;
 		auto                               operator==(const review_tour&) const -> bool = default;
 	};
 
@@ -123,6 +147,7 @@ namespace bpr::core {
 		std::size_t                SplitByte = 0;
 		git_commit_oid             Head;
 		std::optional<review_tour> Restore;
+		std::optional<tour_field_baseline> Baseline;
 	};
 	enum class tour_refusal : std::uint8_t { none,
 											 identity,

@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_application
     STATIC
+        src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/window_review_restoration_host.cpp
         src/document_tab_host.cpp

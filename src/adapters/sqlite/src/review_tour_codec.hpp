@@ -13,6 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
+		std::uint8_t                  Version = 2;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -160,6 +161,18 @@ namespace bpr::adapters::sqlite::detail {
 			optional(aValue.SourceSpan, [&](auto& aSpan) {number(aSpan.first);number(aSpan.second); });
 			number(aValue.LocalGeneration);
 		}
+		void remote(core::tour_remote_binding& aValue)
+		{
+			enumeration(aValue.Kind);
+			number(aValue.DatabaseId);
+			text(aValue.Entity, 1024);
+			text(aValue.Actor, 1024);
+			text(aValue.WebUrl, core::maximum_tour_path_bytes);
+			text(aValue.Review, 1024);
+			number(aValue.Own);
+			number(aValue.Resolved);
+			number(aValue.Outdated);
+		}
 		void stop(core::tour_stop& aStop)
 		{
 			id(aStop.Id);
@@ -171,12 +184,14 @@ namespace bpr::adapters::sqlite::detail {
 			enumeration(aStop.Preparation);
 			list(aStop.Related, core::maximum_tour_related_sources, [&](auto& aSource) { source(aSource); });
 			optional(aStop.Baseline, [&](auto& aBaseline) { baseline(aBaseline); });
+			if (Version >= 2) {
+				optional(aStop.Remote, [&](auto& aValue) { remote(aValue); });
+			}
 		}
 		void tour(core::review_tour& aTour)
 		{
-			std::uint8_t version = 1;
-			byte(version);
-			if (version != 1) {
+			byte(Version);
+			if (Version != 1 && Version != 2) {
 				Good = false;
 				return;
 			}
@@ -191,6 +206,12 @@ namespace bpr::adapters::sqlite::detail {
 			optional(aTour.ProblemBaseline, [&](auto& aValue) { baseline(aValue); });
 			optional(aTour.SolutionBaseline, [&](auto& aValue) { baseline(aValue); });
 			list(aTour.Stops, core::maximum_tour_stops, [&](auto& aStop) { stop(aStop); });
+			if (Version >= 2) {
+				optional(aTour.Remote, [&](auto& aValue) { remote(aValue); });
+				optional(aTour.IndexBaseline, [&](auto& aValue) { baseline(aValue); });
+				text(aTour.ImportNotice);
+				number(aTour.ReadOnly);
+			}
 		}
 	};
 }

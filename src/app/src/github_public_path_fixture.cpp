@@ -536,6 +536,55 @@ namespace bpr::app::detail {
 			aBody = document.toJson(QJsonDocument::Compact).toStdString();
 		}
 
+		void overlay_review_tour(std::string& aBody, read_operation aOperation, const fixture_descriptor& aDescriptor)
+		{
+			const auto prefix   = QStringLiteral("https://github.com/octo-org/review-repository/pull/17");
+			auto       document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
+			if (aOperation == read_operation::get_pull_request) {
+				auto pull = document.object();
+				pull.insert("body", "Preface α\r\n\r\n## Problem\r\n\r\n**Keep raw** problem.\r\n\r\n## Solution\r\n\r\nSmall exact solution.\r\n\r\n## Testing\r\n\r\nUntouched <details>notes</details>.\r\n\r\n[Tour](" + prefix + "#pullrequestreview-4001)\r\n");
+				document = QJsonDocument{ pull };
+			} else if (aOperation == read_operation::list_reviews) {
+				auto review = document.array().first().toObject();
+				review.insert("body", "## A hand-authored route\r\n\r\n1. [same](" + prefix + "#discussion_r71002)\r\n1. [same](" + prefix + "#discussion_r71001)\r\n");
+				review.insert("html_url", prefix + "#pullrequestreview-4001");
+				review.insert("updated_at", "2026-09-26T00:00:00Z");
+				document = QJsonDocument{ QJsonArray{ review } };
+			} else if (aOperation == read_operation::list_review_threads) {
+				auto body    = document.object();
+				auto data    = body["data"].toObject();
+				auto repo    = data["repository"].toObject();
+				auto pull    = repo["pullRequest"].toObject();
+				auto threads = pull["reviewThreads"].toObject();
+				auto nodes   = threads["nodes"].toArray();
+				for (qsizetype i = 0; i < nodes.size(); ++i) {
+					auto thread   = nodes[i].toObject();
+					auto comments = thread["comments"].toObject();
+					auto comment  = comments["nodes"].toArray().first().toObject();
+					comment.insert("body", "### Author's tour · 8 — same\r\n\r\n**Raw** explanation " + QString::number(i) + ".\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n");
+					comment.insert("url", prefix + "#discussion_r" + QString::number(71001 + i));
+					comment.insert("fullDatabaseId", QString::number(71001 + i));
+					comment.insert("updatedAt", "2026-09-26T00:00:00Z");
+					comment.insert("commit", QJsonObject{ { "oid", QString::fromUtf8(aDescriptor.HeadOneOid.data(), static_cast<qsizetype>(aDescriptor.HeadOneOid.size())) } });
+					comment.insert("originalCommit", comment["commit"]);
+					comment.insert("pullRequestReview", QJsonObject{ { "id", "PRR_fixture_1" } });
+					comment.insert("author", QJsonObject{ { "id", "U_fixture_viewer" }, { "login", "octo-reviewer" } });
+					comments.insert("nodes", QJsonArray{ comment });
+					thread.insert("comments", comments);
+					nodes[i] = thread;
+				}
+				threads.insert("nodes", nodes);
+				pull.insert("reviewThreads", threads);
+				repo.insert("pullRequest", pull);
+				data.insert("repository", repo);
+				body.insert("data", data);
+				document = QJsonDocument{ body };
+			} else {
+				return;
+			}
+			aBody = document.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		[[nodiscard]] auto load_recording(
 			const fixture_descriptor& aDescriptor,
 			const std::string_view    aHead)
@@ -1196,6 +1245,7 @@ namespace bpr::app::detail {
 			// kept, so a course that reads them still reads the truth.
 			bool                                        RepeatSessions           = false;
 			bool                                        LargeReviewForeignPosts  = false;
+			bool                                        ReviewTourCourse         = false;
 			bool                                        LargeReviewRepeatReads   = false;
 			bool                                        CliEnabled               = false;
 			bool                                        RefuseFirstSmartAcquire  = false;
@@ -1853,6 +1903,9 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (State->ReviewTourCourse) {
+					overlay_review_tour(response->Body, aRequest.Wire.Operation, State->Descriptor);
+				}
 
 				// [[BPR-0978]]. A second profile's account is a different actor
 				// entirely: database id, node id and login all change together, so
@@ -3483,6 +3536,7 @@ namespace bpr::app::detail {
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
+			Recording->ReviewTourCourse        = aOptions.ReviewTourCourse;
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();

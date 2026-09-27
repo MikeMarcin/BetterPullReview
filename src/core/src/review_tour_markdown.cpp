@@ -20,6 +20,16 @@ namespace bpr::core {
 			}
 			return aText.substr(first, aText.find_last_not_of(" \t\r\n") - first + 1);
 		}
+		// URI syntax is inert Markdown here. The host separately admits destinations.
+		auto absolute_link(std::string_view aText) -> bool
+		{
+			const auto colon = aText.find(':');
+			if (colon < 2 || colon > 32 || colon == std::string_view::npos) {
+				return false;
+			}
+			return std::all_of(aText.begin(), aText.begin() + static_cast<std::ptrdiff_t>(colon), [](unsigned char aByte) { return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '+' || aByte == '-' || aByte == '.'; });
+		}
+
 		auto lines(std::string_view aRaw) -> std::vector<markdown_line>
 		{
 			std::vector<markdown_line> result;
@@ -60,7 +70,7 @@ namespace bpr::core {
 					}
 					// Conservatively opaque through the next blank line (CommonMark HTML blocks),
 					// and through explicit details close for disclosures containing blank lines.
-					if (!comment && clean.starts_with('<') && !clean.starts_with("<https://")) {
+					if (!comment && clean.starts_with('<') && !absolute_link(clean.substr(1))) {
 						html = true;
 						top  = false;
 						if (clean.starts_with("<details")) {
@@ -92,7 +102,7 @@ namespace bpr::core {
 		}
 		auto safe_destination(std::string_view aText) -> bool
 		{
-			return aText.starts_with("https://") && aText.size() <= maximum_tour_path_bytes
+			return !aText.empty() && aText.size() <= maximum_tour_path_bytes
 				&& std::none_of(aText.begin(), aText.end(), [](unsigned char aByte) { return aByte <= 0x20 || aByte == 0x7f || aByte == '(' || aByte == ')' || aByte == '<' || aByte == '>' || aByte == '\\'; });
 		}
 		auto read_link(std::string_view aText, std::size_t& aAt) -> std::optional<tour_markdown_link>
@@ -267,7 +277,7 @@ namespace bpr::core {
 		}
 		const auto  rows  = lines(aRaw);
 		std::size_t first = 0;
-		if (!rows.empty() && safe_destination(trim(rows[0].Text)) && rows.size() > 2 && trim(rows[1].Text).empty()) {
+		if (!rows.empty() && absolute_link(trim(rows[0].Text)) && safe_destination(trim(rows[0].Text)) && rows.size() > 2 && trim(rows[1].Text).empty()) {
 			first = 2;
 		}
 		if (first >= rows.size() || !rows[first].Top) {

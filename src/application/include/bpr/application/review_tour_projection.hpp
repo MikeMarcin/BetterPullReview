@@ -19,6 +19,8 @@ namespace bpr::application {
 		core::tour_refusal                       Refusal = core::tour_refusal::none;
 		core::tour_stop_id                       Selected;
 		std::uint64_t                            SavedRevision = 0;
+		std::vector<std::string>                 ImportChoices;
+		std::string                              ImportNotice;
 		bool                                     Loading       = false;
 		bool                                     Saving        = false;
 		bool                                     CanUndo       = false;
