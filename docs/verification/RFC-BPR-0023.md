@@ -590,3 +590,52 @@ The integrated pass includes the final high-water, output-digest, finding-verdic
 and draft-link corrections. It is one combined core pass, not an application
 suite or native release qualification. The existing M2/r2 architecture and all
 later obligations remain intact.
+
+### M3 durable handoff
+
+Accepted integrated M3 core candidate:
+`1acd8821187e77321862df7e26e1f4013d633b4f`.
+BPR-0578 candidate was `5bbb2563`, completed by `3ab8df0b`; BPR-0579 was claimed
+at `df069591`. The integrated candidate includes both cards and the later
+run-body correlation correction. The finish commit `e6e902083c06f365e56eac7c55c5cd71bd6e1d45` changes
+BPR-0579 to Done and records the observation. This following documentation-only
+commit records the handoff without changing code.
+
+The [M3 observation](RFC-BPR-0023.m3-observation.json) binds both whole-card
+obligations and both milestone exits to that candidate, mandate r2 and segment
+`m3-core-r2`. The candidate-bound checkpoint check returned `fresh-context`
+for M4 after accepted M1/M2. Its `engineering_acceptance: not-evaluated` means
+the helper checked consistency only; the criterion judgments and direct tests
+above provide the engineering decision. An initial observation used the wrong
+`acceptance` field; the helper refused it without action. The corrected
+`acceptance_records` observation passed.
+
+Changed M3 paths: new `private_review.hpp/.cpp`, `review_composition.hpp/.cpp`,
+private/composition core tests and shared synthetic fixture; existing
+revisioned-draft header/implementation; core and test CMake registration;
+domain/state document; live RFC-0023 audit/ledger; M3 checkpoint/observation;
+BPR-0578/BPR-0579 card moves and editable LIVE_IMPORT link repairs. No SQLite,
+application, agent adapter, Qt, production composition, RFC criterion, retained
+pack or authored plan source was edited.
+
+All task-owned configure, build, CTest and helper commands have finished.
+No child agent, review server, human session, event cursor, protection lease,
+external service operation or pending background writer is handed off. The
+acceptance helper's task-owned temporary directory is removed on return; ignored
+core-only build/cache outputs remain reusable. The sole writer in this assigned
+checkout was `/root/rfc0023_m3`; unrelated worktrees and main's independent tour
+work were observed read-only and preserved. Writer ownership is released to
+the coordinator after the finish commit. No push, PR or main-branch mutation
+was performed.
+
+Next action: coordinator integrates M3 with current main, preserves the two
+additive CMake registration sets, and checks the combined affected core paths.
+Start a fresh M4/BPR-0580 implementer on that integrated candidate; BPR-0581/M5
+is also dependency-eligible after M3 but follows M4 in the adopted order.
+Storage must enforce high-water allocation, source existence/latest CAS and
+transaction atomicity using these pure proposals. M5 must capture actual
+protocol facts and full encoded-input bounds; M6/M7 must prove dispatch,
+durability and separate mutation composition. All later human/native/designated
+publication obligations and the single final M10 independent review remain
+pending at their assigned boundaries. There is no pending M3 acceptance or
+review session to interpret.
