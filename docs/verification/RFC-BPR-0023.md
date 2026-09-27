@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1 complete; M2 architecture accepted under amended review timing; final independent review and feature criteria pending**
+Status: **implementation authorized under mandate r2; M1–M5 complete; final independent review and integrated feature criteria pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -12,8 +12,7 @@ import-only deferral; it does not satisfy acceptance. Owner amendment r2
 (2026-09-26) directs implementation to continue and moves M2's independent
 architecture review into one capability-critical review of the final integrated
 candidate at M10/BPR-0591. That final review is authorized and required before
-RFC closeout; it has not been supplied. The current r2 M2 completion appears at
-the end of this ledger. Earlier r1 handoffs remain historical observations. The
+RFC closeout; it has not been supplied. Milestone completions under r2 are recorded chronologically below. Earlier r1 handoffs remain historical observations. The
 [live audit and evidence allocation](RFC-BPR-0023-live-audit.md) and
 [adopted plan](../rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json) govern
 execution. The protected imported issue-plan bytes remain unchanged.
@@ -833,3 +832,162 @@ publication acceptance, followed by the one final independent review at
 M10/BPR-0591. Windows process-kill parity and actual unchanged-GitHub readback
 are not inferred from macOS storage fixtures. None is silently marked complete
 by M4, and the eighteen-row feature matrix is unchanged.
+
+## M5 runtime provenance and input admission
+
+Segment `m5-protocol-r2`, mandate r2, owns BPR-0581 as one whole card. Baseline
+is integrated main `fa2eefe9`; readiness commit `a51bd6fd` and claim commit
+`8d69e75eac9803fc6e392f78bffbcbd8731043e8` precede implementation. The
+[M5 checkpoint](RFC-BPR-0023.m5-checkpoint.json) binds the adopted obligation
+and both exits. No original criterion, milestone exit, dependency or protected
+source-pack byte changes. Ledger 7, mutation recovery 5 and staged-tour codec 3
+remain intact. Independent review remains assigned to M10/BPR-0591 under r2.
+
+### Whole-card evidence and limits
+
+| BPR-0581 required state | M5 result and direct evidence |
+|---|---|
+| Bounded optional requested settings without profile-name inference | PASS at the existing invocation entry point: `application_agent_invocation_host` observes the explicit settings on the one dispatched request. The launch course separates explicit profile defaults and request overrides; JSONL, Claude and terminal requested/default settings refuse before any process call. |
+| One dispatch identity and immutable profile/protocol/binding/entry-point/source snapshot | PASS for the allocated M5 contract: `agent_launch_options::AdmittedRun` and ordered full bodies are validated; two runs on one session remain distinct. Missing/tampered/unadmitted bodies, changed settings/entry point and snapshot mismatches refuse. Request, stream and result preserve run identity. M6 owns store-before-dispatch production wiring, as detailed below. |
+| Protocol-reported model/effort/version/remote IDs only when reported | PASS at each implemented protocol field: [capability matrix](../architecture/ai-agent-boundary.md#tested-protocol-capability-boundary), decoder and real child canary. App Server provides thread/turn facts and thread settings; it supplies no invented version/session/run. Claude init and assistant model retain separate bases. |
+| Unsupported/external facts remain unknown | PASS: JSONL retains only its reported remote thread; external text that claims a model/effort/version yields no report; absent optional fields stay absent. All content-self-report fields remain absent. |
+| Requested and reported disagreement persists as facts and typed conflict | PASS: launch/protocol-loop/canary courses inspect both facts and conflict values. The SQLite course decodes, stores, reopens and compares the exact metadata and three derived conflicts. |
+| No prose/executable/profile scraping or provider credential capture | PASS: only named protocol fields are admitted. Real child canary compares exact allowlisted environment/argv/stdin while fake credential values exist in the parent. SQLite scans every file in its owned root, including any WAL, for ignored credential-like envelope canaries and finds none. |
+| Full/partial/conflicting/malformed/oversized/stale/cancelled/unknown fixtures | PASS: launch, loop, finding-protocol, storage and child courses cover each class; remote-ID mismatch/oversize cannot release App Server context, and foreign run/session results cannot attach facts to another run. Same-run staleness/cancellation retain previously admitted facts. |
+
+The per-field runtime limits remain 256 bytes, remote IDs 1,024 bytes, 16
+reports and 16 KiB aggregate metadata. Input courses exercise 2 MiB raw selected
+bodies and one byte past, exact 8 MiB direct wire admission and one byte past,
+JSON expansion beyond the aggregate budget, fixed wrapper/handshake costs and
+late remote-ID overhead. Full source text is digest checked and transmitted
+without truncation. The pre-encoding counter avoids allocating the expanded
+context before admission; the real process adapter refuses before child start;
+the shared loop counts every actual stdin write. The child side-effect file
+stays absent for refused input and exists for the small-input negative control
+using the same child. Invalid launch facts are refused without copying them
+into returned metadata.
+
+The production host currently accepts explicit requested settings, but legacy
+callers still have no `AdmittedRun` and retain zero run. That compatibility path
+cannot send `PrivateSources`. The adopted M5 exit is the identity **contract**;
+M6/BPR-0582 must allocate and persist each run/prompt before process dispatch,
+load/revalidate exact selected sources, pass the snapshot, retain complete
+assistant text, finalize against the exact expected run and commit terminal
+facts. This record does not mark AC-02/06/16 or the complete public UI flow
+accepted. The eighteen-row canonical matrix remains unchanged for integrated
+feature acceptance.
+
+### Changed surfaces and operator behavior
+
+- `src/core/include/bpr/core/agent_profile.hpp` carries explicit profile default
+  settings; `review_composition.hpp` reuses the setting type and gives the
+  immutable provenance value exact comparison. No core effect dependency is
+  introduced.
+- `src/application/include/bpr/application/agent_launch.hpp` and
+  `src/application/src/agent_launch.cpp` own validated snapshot input, field-level
+  report extraction, total encoded input admission and result correlation.
+  `agent_invocation_host.hpp/.cpp` forwards requested settings through the
+  existing launch path.
+- `src/adapters/agent/src/agent_protocol_loop.cpp`, `agent_process_launcher.cpp`
+  and `windows_agent_process.cpp` retain run/facts through the one process path,
+  independently refuse oversized input and preserve existing lifecycle and
+  credential isolation. Windows-specific fallback returns carry the metadata;
+  Windows native execution was not performed here.
+- Focused application launch/loop/finding/invocation-host tests, the child
+  fixture and `tests/adapters_qt/agent_launch_canary_tests.cpp` exercise the wire
+  and process boundary. `tests/sqlite_contract/private_review_storage_tests.cpp`
+  links the application decoder for the restart/secret-scan course; its CMake
+  target adds that dependency. No store codec or schema is edited.
+- [Agent boundary](../architecture/ai-agent-boundary.md) and
+  [live audit](RFC-BPR-0023-live-audit.md#m5-protocol-and-input-reconciliation)
+  describe actual capability limits. No UI setting editor or provenance
+  presentation is claimed by this milestone.
+
+The canaries are sanitized local children on macOS with Qt 6.11.2, not installed
+Codex/Claude providers. They prove transport handling and existing process
+isolation on this host. They do not establish Windows/Linux native parity,
+model catalog support, vendor execution attestation, native accessibility,
+complete installed UI reachability or live GitHub body/identity semantics.
+Those outstanding acceptance owners remain M6–M10. No real provider or GitHub
+mutation was performed.
+
+### Verification and self-review
+
+The shortest public composition was the existing invocation host into its
+process port, followed by the real process adapter into the hostile child.
+The metadata persistence course then traversed decoder → public private-store
+transaction → close/reopen → exact run load. Secret scanning uses only its
+owned temporary files. Scratch roots for touched process courses are now
+owner-private `QTemporaryDir` roots, with files inside and cleanup by the owner.
+
+Early development runs exposed stale fakes that put `DeferredContext` on
+non-App-Server requests, an incomplete App Server turn fixture, and C++ fixture
+syntax/enum errors. The fakes now match the production protocol contract;
+subsequent targeted runs passed. Invalid UTF-8 can be refused by the JSON parser
+before metadata validation, and the fixture accepts either explicit failure
+cause. These were development failures, not waived acceptance.
+
+The implementer's own focused review checked exact field bases, aggregate
+escaping, request/result correlation, cancellation facts, raw-frame exclusion
+and pre-start refusal. It removed an unused unconditional JSON-escape allocation
+and delayed copying metadata until input admission succeeds. This is engineering
+self-review; the required independent review remains at M10.
+
+| Command / check | Actual result |
+|---|---|
+| `cmake --preset dev` | PASS; pinned Qt 6.11.2 and dependencies configured. Existing dependency CMake uninitialized-variable warnings did not fail configuration. |
+| `cmake --build --preset core-only --target test_better_pull_review_agent_launch_tests test_better_pull_review_agent_protocol_loop_tests test_better_pull_review_agent_finding_protocol_tests test_better_pull_review_agent_invocation_host_tests test_private_review_storage -j 6` | PASS on final code. |
+| `ctest --preset core-only --output-on-failure -R '^(sqlite_private_review_storage\|application_agent_invocation_host\|application_agent_launch\|application_agent_protocol_loop\|application_agent_finding_protocol\|core_review_composition)$'` | PASS 6/6, 15.00 seconds, final code. |
+| `cmake --build --preset dev --target test_better_pull_review_qt_agent_launch_canary_tests test_better_pull_review_agent_finding_protocol_tests -j 6` | PASS on final code. |
+| `ctest --preset dev --output-on-failure -R '^(qt_agent_launch_canary\|application_agent_finding_protocol)$'` | PASS 2/2, 90.73 seconds, final code; child canary 88.32 seconds. |
+| `ctest --preset core-only --output-on-failure -R '^(application_agent_launch\|application_agent_protocol_loop\|application_agent_finding_protocol\|application_agent_invocation_host\|core_review_composition\|architecture_boundaries\|architecture_boundary_contract)$'` | PASS 7/7, 112.48 seconds before the final narrow metadata-copy/counter cleanup and new storage/host fixtures. Changed behavior was rerun above. The unchanged boundary-validator self-test is reused. |
+| `ctest --preset core-only --output-on-failure -R '^architecture_boundaries$'` | PASS 1/1, 7.07 seconds against final source and CMake graph. |
+| `clang-format --dry-run --Werror` on every changed C++ path; `git diff --check` | PASS. |
+| `python3 scripts/verify_documentation.py --root .` | PASS, `DOCUMENTATION_OK`. |
+| `python3 tests/scripts/verify_documentation_tests.py` | PASS 64 tests; printed ERROR diagnostics belong to intentional invalid-document fixtures. |
+| `issue_board.py ... validate --rfc RFC-BPR-0023 --json` | PASS, 1,208 cards, no errors. |
+| Compare retained source-pack/plan/live RFC to `fa2eefe9` | PASS. The editable LIVE_IMPORT file has only the board helper's BPR-0581 lane-link repair. |
+
+No application-wide suite or installed-app test was needed for the bounded
+protocol milestone. Tests use the repository network-isolation wrapper and
+owned local fixtures. The immutable source comparison deliberately excludes
+the editable LIVE_IMPORT lane links. Acceptance evidence is attached through
+the finish record, preserving the bound card body and obligation fingerprint.
+
+### M5 durable handoff
+
+Accepted M5/BPR-0581 product/test/evidence candidate:
+`8e20e9e850c6f185e1107280a175b3fd8f9cec29`.
+Finish commit `a92e76679309f994d1de3b5c2146ae9c675a1a4f` moves the whole
+card to Done, attaches seven passing required-state records at that exact
+candidate and adds the [M5 observation](RFC-BPR-0023.m5-observation.json).
+This following documentation commit records the final handoff without changing
+product code or tests.
+
+The checkpoint check with accepted M1–M4 returned `fresh-context` for M6 at the
+candidate. After finish it returned `reconcile` solely because HEAD advanced
+past that revision; `git diff --exit-code 8e20e9e8 HEAD -- src tests` confirmed
+identical product/test content. The checkpoint's
+`engineering_acceptance: not-evaluated` is its consistency scope; the whole-card
+judgment rests on the direct courses and limits above. M5 has no required
+pending acceptance. The next engineering owner must preserve both the durable
+snapshot contract and the explicit remaining M6 integration work.
+
+All M5 build, CTest, format, documentation, board, checkpoint and acceptance
+commands completed. The finish helper's temporary acceptance directory was
+removed. No background command, child agent, review server, human session,
+event cursor or protected candidate lease is handed off. Test children and
+owned scratch roots were cleaned by their courses; ignored build outputs are
+retained for reuse. `/root/rfc0023_m5` was the only writer in this assigned
+checkout, and releases writer ownership to the coordinator with this handoff.
+No main mutation, push, PR or real GitHub/GHES operation was performed.
+
+Coordinator next action: integrate this completed M5 branch into local main,
+then start a fresh M6/BPR-0582 segment at that integrated baseline. M6 must wire
+one persisted run/prompt admission and exact private-source revalidation before
+existing process dispatch, retain complete assistant text and terminal facts,
+and pass the expected run on finalization. Preserve ledger 7, recovery 5 and
+staged-tour codec 3 plus any independent main changes. Continue M7–M9 and the
+single final M10/BPR-0591 independent review under mandate r2. The original
+eighteen feature criteria remain open until their full assigned evidence is
+supplied; M5 fixtures do not waive native or designated-publication acceptance.

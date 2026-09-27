@@ -1,6 +1,7 @@
 /// \file
 /// \brief Proves exact context adaptation, framing, and typed host outcomes.
 
+#include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
 
 #include <algorithm>
@@ -951,10 +952,216 @@ namespace {
 			"no ungated one-argument build remains reachable from the host");
 	}
 
+	void test_runtime_metadata_is_field_bound_and_never_inferred()
+	{
+		using protocol = core::agent_protocol;
+		auto app       = application::agent_protocol_decoder{ protocol::codex_app_server };
+		expect(app.push(R"({"id":0,"result":{"userAgent":"not-a-version-fact"}})"
+						"\n")
+				   .has_value(),
+			   "initialization admits no inferred version");
+		expect(app.acknowledge_followup(application::agent_protocol_event_kind::initialization_complete).has_value(), "thread request is sent");
+		expect(app.push(R"({"id":1,"result":{"model":"reported-model","reasoningEffort":"high","thread":{"id":"thread-a"}}})"
+						"\n")
+				   .has_value(),
+			   "documented App Server settings and thread are admitted");
+		expect(app.acknowledge_followup(application::agent_protocol_event_kind::context_channel_ready).has_value(), "turn request is sent");
+		expect(app.push(R"({"id":2,"result":{"turn":{"id":"turn-a","status":"inProgress","items":[]}}})"
+						"\n")
+				   .has_value(),
+			   "turn identity admitted");
+		const auto& reports = app.metadata().ProtocolReported;
+		expect(reports.size() == 2 && reports[0].Settings.Model == "reported-model" && reports[0].Settings.Effort == "high"
+				   && reports[0].RemoteThread == "thread-a" && reports[1].RemoteTurn == "turn-a" && !reports[0].ToolVersion
+				   && !reports[0].RemoteSession && !reports[0].RemoteRun,
+			   "exact facts and supported absence survive");
+		expect(!app.push(R"({"method":"turn/completed","params":{"threadId":"wrong-thread","turn":{"id":"turn-a","status":"completed","items":[]}}})"
+						 "\n"),
+			   "stale remote identity refuses terminal");
+		auto jsonl = application::agent_protocol_decoder{ protocol::codex_jsonl_exec };
+		expect(jsonl.push(R"({"type":"thread.started","thread_id":"remote-thread","model":"unsupported"})"
+						  "\n")
+				   .has_value(),
+			   "JSONL thread admission");
+		expect(jsonl.metadata().ProtocolReported.size() == 1 && jsonl.metadata().ProtocolReported[0].RemoteThread == "remote-thread"
+				   && !jsonl.metadata().ProtocolReported[0].Settings.Model,
+			   "JSONL has no model metadata contract");
+		auto external = application::agent_protocol_decoder{ protocol::external_terminal };
+		expect(external.push("I am model x at high effort version 99\n").has_value() && external.metadata().ProtocolReported.empty()
+				   && external.metadata().ContentSelfReported == core::agent_setting_facts{ },
+			   "terminal prose never creates metadata");
+		auto claude = application::agent_protocol_decoder{ protocol::claude_stream_json };
+		expect(claude.push(R"({"type":"system","subtype":"init","session_id":"session-a","model":"initial","claude_code_version":"2.0"})"
+						   "\n")
+				   .has_value(),
+			   "Claude init reports dedicated fields");
+		const auto answer = std::string{ R"({"type":"assistant","session_id":"session-a","message":{"role":"assistant","model":"served","content":[{"type":"text","text":"I use something else"}]}})"
+										 "\n" };
+		expect(claude.push(answer.substr(0, 39)).has_value() && claude.push(answer.substr(39)).has_value() && claude.push(answer).has_value(), "partial frames and identical reports coalesce");
+		expect(claude.metadata().ProtocolReported.size() == 2 && core::inspect_runtime_metadata(claude.metadata())->size() == 1
+				   && !claude.metadata().ProtocolReported[1].Settings.Effort && claude.metadata().ContentSelfReported == core::agent_setting_facts{ },
+			   "differing protocol facts remain qualified with conflict");
+		expect(claude.push(R"({"type":"result","subtype":"success","is_error":false,"session_id":"session-a","result":"summary"})"
+						   "\n")
+					   .has_value()
+				   && claude.finish().has_value(),
+			   "matching complete terminal preserves facts");
+	}
+
+	void test_metadata_refuses_malformed_and_excess_facts()
+	{
+		const auto badValues = std::vector<std::string>{ "7", "{}", "[]", "null", R"("")", R"("bad\u0000value")", R"("bad\nvalue")", "\"" + std::string(257, 'x') + "\"", std::string{ "\"\xC0\xAF\"" } };
+		for (const auto& bad : badValues) {
+			auto       decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+			const auto decoded = decoder.push(R"({"type":"system","subtype":"init","session_id":"session-a","model":)" + bad + "}\n");
+			expect(!decoded && (decoded.error() == application::agent_protocol_failure::invalid_runtime_metadata || decoded.error() == application::agent_protocol_failure::malformed_frame) && decoder.metadata().ProtocolReported.empty(), "malformed model refuses whole frame without metadata publication");
+		}
+		for (const auto& id : { std::string(1025, 'x'), std::string{ R"(bad\tidentity)" } }) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+			expect(!decoder.push(R"({"type":"thread.started","thread_id":")" + id + "\"}\n"), "remote IDs are bounded scalars");
+		}
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(decoder.push(R"({"type":"system","subtype":"init","session_id":"session-a"})"
+							"\n")
+				   .has_value(),
+			   "absent optional facts accepted");
+		for (std::size_t index = 0; index < 16; ++index) {
+			const auto decoded = decoder.push(R"({"type":"assistant","session_id":"session-a","message":{"role":"assistant","model":"model-)" + std::to_string(index) + R"(","content":[]}})"
+																																										"\n");
+			expect(decoded.has_value() == (index < 15), "seventeenth distinct record refuses instead of dropping a fact");
+		}
+	}
+
+	[[nodiscard]] auto admitted_options(const core::agent_profile& aProfile, core::agent_context_supplement& aSupplement,
+										std::vector<std::string> aBodies = { }) -> application::agent_launch_options
+	{
+		auto options                = application::agent_launch_options{ };
+		auto run                    = core::agent_run_provenance{ .Run = core::agent_run_id{ 101 }, .Session = aSupplement.Session.Id, .Order = core::private_vertex_order{ 1000 }, .Profile = aProfile.Id, .ProfileDisplayName = aProfile.DisplayName, .Protocol = aProfile.Protocol, .Binding = private_review_fixture::binding(), .Metadata = { .Configured = aProfile.DefaultSettings } };
+		aSupplement.Session.Binding = run.Binding.Revision;
+		for (std::size_t index = 0; index < aBodies.size(); ++index) {
+			const auto source = core::private_source_reference{ .Scope     = run.Binding.Scope,
+																.Key       = core::private_turn_source{ core::private_review_thread_id{ 1 }, core::private_review_turn_id{ index + 1 }, core::private_review_turn_revision_id{ index + 1 } },
+																.Order     = core::private_vertex_order{ index + 1 },
+																.Digest    = core::private_digest(aBodies[index]),
+																.BodyBytes = aBodies[index].size() };
+			run.SelectedPrivateSources.push_back({ .Source = source, .ExpectedLatest = source.Key });
+			options.PrivateSources.push_back({ source, std::move(aBodies[index]) });
+		}
+		run.InputSelectionDigest = *core::private_selection_digest(run.SelectedPrivateSources);
+		options.AdmittedRun      = run;
+		return options;
+	}
+
+	void test_requested_configured_and_admitted_run_snapshot()
+	{
+		auto selectedProfile                    = profile(core::agent_protocol::codex_app_server);
+		selectedProfile.DisplayName             = "label is not a model";
+		selectedProfile.DefaultSettings         = { "default-model", "low" };
+		auto supplement                         = built_supplement();
+		auto options                            = admitted_options(selectedProfile, supplement, { "exact private text" });
+		options.Requested                       = { "requested-model", "high" };
+		options.AdmittedRun->Metadata.Requested = options.Requested;
+		const auto launch                       = application::build_agent_launch(selectedProfile, supplement, reader(), options);
+		expect(launch && launch->Run == options.AdmittedRun->Run && launch->AdmittedRun == options.AdmittedRun
+				   && launch->Metadata.Requested == options.Requested && launch->Metadata.Configured == selectedProfile.DefaultSettings
+				   && launch->Metadata.ProtocolReported.empty(),
+			   "one admitted identity and exact immutable settings/source snapshot cross launch");
+		const auto followup = application::build_agent_protocol_followup(*launch, { .Kind = application::agent_protocol_event_kind::context_channel_ready, .Text = "thread" });
+		expect(followup && followup->find(R"("model":"requested-model")") != std::string::npos && followup->find(R"("effort":"high")") != std::string::npos
+				   && followup->find("exact private text") != std::string::npos,
+			   "actual wire contains admitted effective settings and full source");
+		auto second             = options;
+		second.AdmittedRun->Run = core::agent_run_id{ 102 };
+		const auto another      = application::build_agent_launch(selectedProfile, supplement, reader(), second);
+		expect(another && another->Session == launch->Session && another->Run != launch->Run, "continued session retains distinct invocation identity");
+		for (int fault = 0; fault < 7; ++fault) {
+			auto bad = options;
+			switch (fault) {
+			case 0: bad.AdmittedRun->Session = core::agent_session_id{ 99 }; break;
+			case 1: bad.AdmittedRun->ProfileDisplayName = "different"; break;
+			case 2: bad.PrivateSources[0].Body += "edited"; break;
+			case 3: bad.PrivateSources.clear(); break;
+			case 4: bad.AdmittedRun->Metadata.ProtocolReported.push_back({ .Basis = "invented", .Settings = { "invented", { } } }); break;
+			case 5: bad.AdmittedRun->EntryPoint = core::agent_entry_point::run_ai_review; break;
+			case 6: bad.AdmittedRun.reset(); break;
+			}
+			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), bad), "snapshot/source/settings mismatch refuses before launch");
+		}
+		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::claude_stream_json, core::agent_protocol::external_terminal }) {
+			auto       unsupported            = profile(protocol);
+			const auto requested              = application::build_agent_launch(unsupported, built_supplement(), reader(), { .Requested = { "model", "high" } });
+			unsupported.DefaultSettings.Model = "default";
+			const auto configured             = application::build_agent_launch(unsupported, built_supplement(), reader());
+			expect(!requested && !configured && requested.error() == application::agent_launch_failure::unsupported_runtime_settings
+					   && configured.error() == requested.error(),
+				   "unsupported explicit requested/default settings refuse rather than becoming claims");
+		}
+		selectedProfile.DefaultSettings.Model = std::string(257, 'x');
+		expect(!application::build_agent_launch(selectedProfile, built_supplement(), reader()), "oversized configured setting refused");
+	}
+
+	void test_run_correlation_keeps_stale_facts_without_misattribution()
+	{
+		const auto admittedSession = session();
+		auto       result          = application::agent_run_result{ .Session = admittedSession.Id, .Outcome = application::agent_run_outcome::success, .Run = core::agent_run_id{ 71 }, .Metadata = { .Requested = { "requested", "high" }, .ProtocolReported = { { .Basis = "field", .Settings = { "reported", "low" } } } } };
+		result.ProvenanceConflicts = *core::inspect_runtime_metadata(result.Metadata);
+		auto changed               = admittedSession.Binding;
+		changed.HeadOid            = commit(9);
+		const auto stale           = application::finalize_agent_run(result, admittedSession, changed, result.Run);
+		expect(stale.Outcome == application::agent_run_outcome::stale_result && stale.Metadata == result.Metadata
+				   && stale.ProvenanceConflicts == result.ProvenanceConflicts,
+			   "navigation staleness preserves exact original-run facts");
+		const auto wrongRun = application::finalize_agent_run(result, admittedSession, admittedSession.Binding, core::agent_run_id{ 72 });
+		expect(wrongRun.Outcome == application::agent_run_outcome::stale_result && wrongRun.Metadata == core::agent_runtime_metadata{ }
+				   && wrongRun.ProvenanceConflicts.empty(),
+			   "wrong run cannot attribute another invocation's facts");
+		result.Outcome       = application::agent_run_outcome::cancelled;
+		const auto cancelled = application::finalize_agent_run(result, admittedSession, changed, result.Run);
+		expect(cancelled.Outcome == application::agent_run_outcome::cancelled && cancelled.Metadata == result.Metadata,
+			   "cancel remains cancel even when head changed");
+	}
+
+	void test_full_encoded_input_budget_and_private_raw_budget()
+	{
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec,
+									 core::agent_protocol::claude_stream_json, core::agent_protocol::external_terminal }) {
+			auto       supplement      = built_supplement();
+			const auto selectedProfile = profile(protocol);
+			auto       options         = admitted_options(selectedProfile, supplement, { std::string(1024 * 1024, 'x'), std::string(1024 * 1024, 'y') });
+			const auto full            = application::build_agent_launch(selectedProfile, supplement, reader(), options);
+			expect(full.has_value(), "exact 2 MiB selected raw body set admitted with complete identities");
+			options = admitted_options(selectedProfile, supplement, { std::string(1024 * 1024, 'x'), std::string(1024 * 1024, 'y'), "z" });
+			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), options), "raw 2 MiB plus one refuses without truncation");
+			options            = admitted_options(selectedProfile, supplement, { std::string(1024 * 1024, '\x01'), std::string(1024 * 1024, '\x01') });
+			const auto escaped = application::build_agent_launch(selectedProfile, supplement, reader(), options);
+			const bool json    = protocol == core::agent_protocol::codex_app_server || protocol == core::agent_protocol::claude_stream_json;
+			expect(escaped.has_value() != json, "JSON expansion exceeds wire ceiling despite raw source eligibility");
+			supplement.PullRequestUrl = std::string(application::maximum_agent_input_bytes, 'x');
+			expect(!application::build_agent_launch(selectedProfile, supplement, reader()), "whole supplement and wrapper included in launch bound");
+		}
+		auto external = application::agent_launch_request{ .Protocol = core::agent_protocol::external_terminal, .Input = std::string(application::maximum_agent_input_bytes, 'x') };
+		expect(application::admit_agent_input(external) == application::maximum_agent_input_bytes, "process boundary accepts exact 8 MiB wire");
+		external.Input += 'x';
+		expect(!application::admit_agent_input(external), "process boundary refuses one excess wire byte");
+		auto       app     = application::agent_launch_request{ .Protocol = core::agent_protocol::codex_app_server, .Input = "init", .DeferredContext = "context" };
+		const auto initial = *application::admit_agent_input(app);
+		app.DeferredContext.append(application::maximum_agent_input_bytes - initial, 'x');
+		expect(application::admit_agent_input(app) == application::maximum_agent_input_bytes, "App Server reserves bounded remote identity and every follow-up once");
+		app.DeferredContext += 'x';
+		expect(!application::admit_agent_input(app), "App Server combined handshake/context/follow-ups excess refuses");
+		app.DeferredContext = "context";
+		expect(!application::build_agent_protocol_followup(app, { .Kind = application::agent_protocol_event_kind::context_channel_ready, .Text = std::string(1025, 't') }), "oversized late thread identity refuses before context write");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_run_correlation_keeps_stale_facts_without_misattribution();
+	test_runtime_metadata_is_field_bound_and_never_inferred();
+	test_metadata_refuses_malformed_and_excess_facts();
+	test_requested_configured_and_admitted_run_snapshot();
+	test_full_encoded_input_budget_and_private_raw_budget();
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
 	test_the_workshop_operation_crosses_only_under_its_entry_point();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();

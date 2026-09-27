@@ -823,3 +823,41 @@ M9 retains native and designated-publication qualification, and M10 retains the
 single final independent review under r2. All eighteen RFC criteria, authored
 milestone exits and original imported source bytes are preserved. No change to
 the adopted milestone order or whole-card obligation is needed.
+
+## M5 protocol and input reconciliation
+
+M5 starts from integrated main `fa2eefe9` and preserves ledger schema 7,
+mutation-recovery schema 5 and staged-tour codec 3. It extends the live shared
+protocol loop and process-launch boundary; no second launch path or provider
+client is added. The current, field-level capability matrix is recorded in
+[the agent boundary](../architecture/ai-agent-boundary.md#tested-protocol-capability-boundary).
+Earlier source-audit protocol observations remain historical baseline evidence.
+
+Only App Server has an implemented explicit requested/default setting transport
+in this slice. Other protocols refuse these inputs; a profile name is never a
+substitute. Reports retain their event/field basis, including the distinction
+between App Server thread defaults and turn overrides. Unsupported facts stay
+absent. The actual vendor tool can reject a bounded setting it does not support;
+M5 does not claim model-catalog discovery or runtime execution attestation.
+
+The source snapshot API carries M4's store-issued run identity, exact selected
+references and full digest-checked bodies into the existing launch builder.
+The builder's pre-encoding counter and the process adapter's independent
+pre-start admission enforce the M2 8 MiB total wire budget, including App Server
+follow-ups and reserved remote-ID escaping. A real child side-effect canary and
+its small-input negative control distinguish refusal from a child that simply
+did not report output. Legacy fake requests incorrectly put deferred context
+on every protocol; they now give that field only to App Server, matching the
+production builder. The scope and original acceptance are unchanged.
+
+The adopted M5 exit is the durable run identity contract. M6/BPR-0582 owns its
+production admission/terminal transaction wiring and complete assistant-text
+retention, so zero-run legacy callers remain visible until that step. The new
+public invocation-host course already exercises explicit settings through the
+existing dispatch path, and the SQLite course stores decoded typed facts,
+reopens them exactly and scans its owned files for ignored raw-envelope
+credential canaries. These are direct protocol/storage evidence, not a claim
+that AC-02/06/16 or the complete UI workflow is finished. All eighteen criteria,
+authored plan exits and retained source-pack bytes remain unchanged. M9 native
+and designated-publication obligations and the final M10 independent review
+remain pending under r2.

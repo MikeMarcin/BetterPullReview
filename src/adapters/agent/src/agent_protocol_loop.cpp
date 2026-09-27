@@ -24,7 +24,7 @@ namespace bpr::adapters::agent::detail {
 				: Request{ aRequest }
 				, Sink{ aSink }
 				, Transport{ aTransport }
-				, Result{ .Session = aRequest.Session }
+				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
 				, Decoder{ aRequest.Protocol, aRequest.WritingOnly }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
@@ -34,7 +34,12 @@ namespace bpr::adapters::agent::detail {
 
 			[[nodiscard]] auto run() -> application::agent_run_result
 			{
-				record_write(Transport.write(Request.Input));
+				if (const auto admitted = application::admit_agent_input(Request); !admitted) {
+					record_protocol_failure(admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata);
+				} else {
+					Result.Metadata = Request.Metadata;
+					write_input(Request.Input);
+				}
 				if (!IsAppServer && !has_cause()) {
 					Transport.close_input();
 				}
@@ -93,6 +98,16 @@ namespace bpr::adapters::agent::detail {
 				if (!has_cause()) {
 					ForcedOutcome = aOutcome;
 				}
+			}
+
+			void write_input(std::string_view aBytes)
+			{
+				if (aBytes.size() > application::maximum_agent_input_bytes - InputBytes) {
+					record_protocol_failure(application::agent_protocol_failure::input_too_large);
+					return;
+				}
+				InputBytes += aBytes.size();
+				record_write(Transport.write(aBytes));
 			}
 
 			void record_write(const agent_protocol_write_status aStatus) noexcept
@@ -188,6 +203,7 @@ namespace bpr::adapters::agent::detail {
 					.Session  = Request.Session,
 					.Sequence = Sequence++,
 					.Text     = aMessage.Text,
+					.Run      = Request.Run,
 				};
 				Result.Events.push_back(event);
 				if (Sink) {
@@ -219,7 +235,7 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(followup.error());
 					return;
 				}
-				record_write(Transport.write(*followup));
+				write_input(*followup);
 				if (has_cause()) {
 					return;
 				}
@@ -366,6 +382,18 @@ namespace bpr::adapters::agent::detail {
 
 			void complete_result()
 			{
+				for (const auto& report : Decoder.metadata().ProtocolReported) {
+					auto appended = core::append_runtime_report(Result.Metadata, report);
+					if (!appended) {
+						record_protocol_failure(application::agent_protocol_failure::invalid_runtime_metadata);
+						break;
+					}
+					Result.Metadata = std::move(*appended);
+				}
+				if (const auto conflicts = core::inspect_runtime_metadata(Result.Metadata)) {
+					Result.ProvenanceConflicts = *conflicts;
+				}
+
 				if (ForcedOutcome) {
 					Result.Outcome = *ForcedOutcome;
 				} else if (ProtocolFailure) {
@@ -395,6 +423,7 @@ namespace bpr::adapters::agent::detail {
 			application::agent_run_result                      Result;
 			application::agent_protocol_decoder                Decoder;
 			std::array<char, protocol_buffer_bytes>            Buffer{ };
+			std::size_t                                        InputBytes     = 0;
 			std::uint64_t                                      Sequence       = 0U;
 			std::uint8_t                                       AppServerPhase = 0U;
 			bool                                               IsAppServer    = false;

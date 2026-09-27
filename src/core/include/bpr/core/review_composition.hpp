@@ -100,12 +100,6 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_remote_run_id_bytes           = 1024;
 	inline constexpr std::size_t maximum_runtime_reports               = 16;
 	inline constexpr std::size_t maximum_runtime_metadata_bytes        = 16U * 1024U;
-	struct agent_setting_facts
-	{
-		std::optional<std::string> Model;
-		std::optional<std::string> Effort;
-		auto                       operator<=>(const agent_setting_facts&) const = default;
-	};
 	/// \brief Protocol facts retain the exact field/event basis; conflicting reports coexist.
 	struct agent_reported_facts
 	{
@@ -183,8 +177,9 @@ namespace bpr::core {
 		std::vector<private_source_selection> SelectedPrivateSources;
 		private_body_digest                   InputSelectionDigest;
 		std::optional<private_body_digest>    OutputDigest;
-		private_run_outcome                   Outcome    = private_run_outcome::admitted;
-		private_revision_completion           Completion = private_revision_completion::incomplete;
+		private_run_outcome                   Outcome                                        = private_run_outcome::admitted;
+		private_revision_completion           Completion                                     = private_revision_completion::incomplete;
+		auto                                  operator<=>(const agent_run_provenance&) const = default;
 	};
 	[[nodiscard]] auto valid_run_provenance(const agent_run_provenance& aRun) -> bool;
 	/// \brief Authorizes only a conversation result under its exact admitted entry point.

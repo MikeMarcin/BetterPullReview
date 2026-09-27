@@ -513,7 +513,7 @@ bpr_enable_warnings(test_review_tour_storage)
 bpr_add_network_isolated_test(NAME sqlite_review_tour_storage COMMAND test_review_tour_storage)
 
 bpr_add_executable(test_private_review_storage private_review_storage_tests.cpp)
-target_link_libraries(test_private_review_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+target_link_libraries(test_private_review_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
 if(WIN32)
     target_link_libraries(test_private_review_storage PRIVATE advapi32 BetterPullReview::Platform)
 endif()
