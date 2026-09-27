@@ -67,8 +67,8 @@ The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
 authorized. BPR-1215–1219 are the required source-owned milestones. Current owner:
-`/root/rfc0027_m2`, sole writer in worktree `57ed`, branch
-`codex/rfc0027-advanced`; current milestone `session-retention`.
+`/root/rfc0027_m3`, sole writer in worktree `57ed`, branch
+`codex/rfc0027-advanced`; current milestone `diagnostic-controls`.
 
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
 rows describe their original not-run state; advanced acceptance stays pending
@@ -134,3 +134,31 @@ releases `/root/rfc0027_m2` writer ownership. The
 binds every M2 obligation and exit to that landed candidate. Next eligible scope is
 BPR-1217 / `diagnostic-controls` for a fresh implementer. Preserve mandate r2,
 M1/M2 evidence and the full native/human criteria.
+
+### M3 checkpoint — accepted, landing pending
+
+Mandate r2; assignment `/root/rfc0027_m3`, BPR-1217 / `diagnostic-controls`.
+Source candidate `75700f4dd0ce88f86e59940cddf690a6a3e2f45b`; merged candidate
+`6089117d7bd13ad52d2b34c49713b842cd0f3954` preserves concurrent main `2deb889b`.
+Claim `b56d0b2f`; immutable RFC base unchanged.
+[Binding](../../rfcs/plans/rfc-bpr-0027-advanced/m3-binding.json) and
+[evidence/commands](../../verification/RFC-BPR-0027.md) define this checkpoint.
+
+Changed paths: application diagnostic ports/settings host and metadata classifier;
+logging encoder/queues/ring/native Clear; SQLite preferences/purge inventory;
+Qt Settings/Help and composition lifecycle/sign-out; the fixed Verbose provider
+producer; direct/provider/public tests and owning architecture/operator docs.
+No credential-owner, core authority or dependency version change.
+
+Affected backend/provider gates pass 9/9 and public composition 3/3, all 26 C++
+files pass format, all 12 product units have passing tidy, documentation and its
+64 tests pass. The ledger preserves the initial failures, fixes and earlier long
+profile/lifecycle/180-second age checks. The merged-source rebuild passed and focused
+public integration passed 5/5 in 35.90 seconds at `6089117d`. BPR-1217 is accepted;
+main push and the final completion observation remain.
+
+Current writer remains `/root/rfc0027_m3`; all task-owned build/test/tidy commands
+have completed. No review URL/session/event cursor, protected
+candidate or server exists. Required full-RFC rich export and native/human
+acceptance remain open. Next after accepted main landing: a fresh implementer
+for BPR-1218 / `diagnostic-export`, preserving mandate r2 and all prior evidence.
