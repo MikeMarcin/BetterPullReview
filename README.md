@@ -82,8 +82,10 @@ comparison, which is BPR-1199.
 an ordered route of source-bound explanations. Add stops from selected code,
 reorder them with `Alt+Shift+Up/Down`, and use Previous, Next or Return to tour
 while exploring files. Drafts save locally and survive reopening; editing and
-preview require no AI and publish nothing. GitHub tour import and publication
-remain later milestones. See [private review-tour authoring](docs/architecture/review-tours.md).
+preview require no AI and publish nothing. Import, publication and recovery are
+implemented through production-port fixtures; production Tour writes remain
+unavailable until exact host/transport qualification. See
+[private review-tour authoring](docs/architecture/review-tours.md).
 
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
@@ -280,7 +282,12 @@ Problem, Solution and ordered source explanations without AI. The
 writing hooks, cold import and partial maintenance. Production Tour writes remain
 unavailable until exact server/transport qualification; the
 [execution ledger](docs/verification/RFC-BPR-0039-0043.md) distinguishes tested
-composition from pending native, website and installed-model acceptance.
+composition from unobserved native, website and installed-model qualification.
+RFC-BPR-0039–0043 are Auto-Verified under the owner's
+[r2 implementation-scope amendment](docs/verification/RFC-BPR-0039-0043.owner-closeout-r2.md).
+Standalone Blocked BPR-1222–1226 retain GitHub.com/GHES live operations and website
+courses, remaining native stations, installed-provider/model evidence and original
+predecessor acceptance. RFC status enables no unavailable operation.
 
 ## Installation, privacy and release status
 

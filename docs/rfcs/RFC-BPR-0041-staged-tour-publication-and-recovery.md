@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0041"
 title: "Staged Tour Publication and Recovery"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review tours"
 depends_on: ["RFC-BPR-0008", "RFC-BPR-0015", "RFC-BPR-0013", "RFC-BPR-0040"]

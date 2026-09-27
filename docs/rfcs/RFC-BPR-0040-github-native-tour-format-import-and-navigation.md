@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0040"
 title: "GitHub-Native Tour Format, Import, and Navigation"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review tours"
 depends_on: ["RFC-BPR-0039"]

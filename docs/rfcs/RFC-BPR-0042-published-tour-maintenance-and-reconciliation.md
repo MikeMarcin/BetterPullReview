@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0042"
 title: "Published Tour Maintenance and Reconciliation"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review tours"
 depends_on: ["RFC-BPR-0029", "RFC-BPR-0041"]

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0039"
 title: "Manual-First Review Tour Authoring"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review tours"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0008", "RFC-BPR-0024"]

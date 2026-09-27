@@ -14,6 +14,12 @@ server, other-platform and installed-provider/model checks. The seven prepared
 Mac native judgments are accepted on their recorded candidates. Do not interpret
 an available ordinary comment action as support for a pending tour batch.
 
+RFC-BPR-0039–0043 close only the verified implementation under the owner's
+[r2 amendment](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md).
+Standalone Blocked BPR-1222–1226 retain all unobserved qualification and original
+predecessor acceptance. The eleven live-operation rows remain unavailable;
+actual model quality and installed-provider restrictions remain unqualified.
+
 ## Write the brief and route
 
 1. Write what was wrong, missing or difficult in **Problem**, then describe the

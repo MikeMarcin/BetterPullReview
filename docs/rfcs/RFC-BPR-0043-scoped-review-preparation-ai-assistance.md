@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0043"
 title: "Scoped Review Preparation AI Assistance"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review tours"
 depends_on: ["RFC-BPR-0011", "RFC-BPR-0012", "RFC-BPR-0018", "RFC-BPR-0042"]
