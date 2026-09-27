@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0570"
 title: "Present one representation-blind comment-anywhere UX"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0562","BPR-0563","BPR-0569"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
