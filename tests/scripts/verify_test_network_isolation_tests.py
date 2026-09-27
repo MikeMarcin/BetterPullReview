@@ -49,6 +49,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
+    WINDOWS_PENDING_REGISTRATIONS,
     WORKSPACE_REFUSAL_EXPRESSION,
     boundary_marker_failures,
     composition_symbols,
@@ -562,6 +563,23 @@ class ConfiguredManifestTests(unittest.TestCase):
             )
             self.assertEqual(uncontained_registration_count(root), 2)
             self.assertLessEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
+
+    def test_pending_windows_inventory_grants_no_configured_exception(self) -> None:
+        source, name = next(pair for pair in WINDOWS_PENDING_REGISTRATIONS if "${" not in pair[1])
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            write(root, source, f"bpr_add_network_isolated_test(NAME {name} WINDOWS_UNCONTAINED COMMAND x)\n")
+            self.assertEqual(uncontained_registration_count(root), 1)
+            self.assertEqual(uncontained_registration_count(root, exclude_pending=True), 0)
+            write(root, "tests/unlisted/CMakeLists.txt", f"bpr_add_network_isolated_test(NAME {name} WINDOWS_UNCONTAINED COMMAND x)\n")
+            self.assertEqual(uncontained_registration_count(root, exclude_pending=True), 1)
+        failures = configured_failures(
+            {"tests": [{"name": name, "command": ["/test"], "properties": [
+                {"name": "LABELS", "value": [WINDOWS_UNCONTAINED_LABEL]}, scrub_property()
+            ]}]},
+            ["/launcher"], windows_uncontained=frozenset(WINDOWS_UNCONTAINED_TESTS),
+        )
+        self.assertTrue(any("not in the pinned" in value for value in failures))
 
     def test_manifest_command_names_the_configuration_when_given(self) -> None:
         # A multi-configuration generator's `ctest --show-only` lists nothing

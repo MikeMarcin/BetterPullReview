@@ -82,3 +82,17 @@ Historical PR1 qualification and its immutable packets are preserved. This new
 compiled target supersedes their applicability only for new launches of this
 candidate. It neither changes what the earlier course observed nor authorizes a
 queued PR1 run against new bytes.
+
+### Configured-manifest correction
+
+The initial macOS gate found 168 Windows-uncontained source registrations but
+only166 measured allowed names. The audited23 pending source/name patterns are
+recorded in [m4-windows-pending-inventory.json](../_checkpoints/BPR-0575/m4-windows-pending-inventory.json).
+They now count as explicitly pending source inventory, never as configured
+Windows exceptions. The measured Windows allowlist and all CMake execution
+registrations are unchanged. A regression counterexample proves that an
+unqualified pending name is still refused by the Windows configured checker;
+an unrelated file with the same name cannot borrow source-count treatment.
+Mac configured-manifest and structure gates pass, as do all66 validator tests.
+No native Windows qualification is claimed. The initially absent macOS gh CLI
+fixture executable is now built so its existing symbol-exclusion check runs.

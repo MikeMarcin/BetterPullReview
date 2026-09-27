@@ -1,0 +1,99 @@
+{
+  "source_revision": "0ff88046",
+  "status": "Unqualified existing registrations; no Windows execution allowed by manifest checker",
+  "registrations": [
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_active_changed_scaling"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_attended_recent_replay"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_diagnostic_controls_public_path"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_document_tabs_restoration_public_path"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_first_tab_comparison"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_large_review_timing_control"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_logging_${scenario}"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_logging_cancel_startup"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_offline_inventory"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_profile_window_layout_drain"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_rate_limit_render_recovery"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_recent_account_isolation"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_release_maintenance_public_path"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_release_update_public_path"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_review_submission_composition_scale_${scale}"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_review_tour_composition_public_path"
+    },
+    {
+      "source": "tests/end_to_end/CMakeLists.txt",
+      "name": "application_review_tour_composition_scale_${scale}"
+    },
+    {
+      "source": "tests/logging/CMakeLists.txt",
+      "name": "diagnostic_context_age"
+    },
+    {
+      "source": "tests/logging/CMakeLists.txt",
+      "name": "diagnostic_controls"
+    },
+    {
+      "source": "tests/logging/CMakeLists.txt",
+      "name": "logging_session_retention"
+    },
+    {
+      "source": "tests/logging/CMakeLists.txt",
+      "name": "quill_logging_content_policy"
+    },
+    {
+      "source": "tests/sqlite_contract/CMakeLists.txt",
+      "name": "sqlite_cached_review_overview"
+    },
+    {
+      "source": "tests/sqlite_contract/CMakeLists.txt",
+      "name": "sqlite_release_maintenance_files"
+    }
+  ],
+  "change": "Only exclude exact source/name pairs from source-count cap on other platforms; measured Windows configured allowlist unchanged."
+}
