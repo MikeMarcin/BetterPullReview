@@ -214,3 +214,26 @@ any particular private pull request can render.
 5. **Identity test:** published actions appear under the actual user identity.
 6. **Server-truth test:** refresh corrects local shared-state disagreement in favor of GitHub.
 7. **No-adoption test:** BetterPullReview remains valuable when only one participant uses it.
+
+## Source-line comments
+
+A reviewer selects one current/right source line in a text file already changed
+by the pull request and uses the ordinary draft and Publish action. The exact
+head, changed-file membership, retained path/blob/line and acting identity are
+revalidated before the write. Painted diff geometry supplies no server capability.
+
+The semantic source anchor is distinct from GitHub's remote LINE or FILE subject.
+An ordinary file review comment can carry a visible immutable code permalink
+followed by the reviewer's byte-preserved prose. Its valid link reconstructs
+placement from GitHub after local database loss; removing or invalidating that
+link restores honest file-level placement. GitHub IDs and server edits remain
+authoritative. The comment and visible link survive uninstall without a private
+service or hidden marker. Live collaborator/uninstall acceptance is tracked
+separately from the passing reconstruction fixtures.
+
+The [review round-trip contract](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
+owns representation selection and recovery. Native writes are attempted under
+unknown capability. Production currently admits no exact unsupported contract,
+so automatic file fallback remains unavailable; a generic 422 cannot enable it.
+The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) records this limitation
+and the GitHub.com-only owner amendment; native GHES is unobserved.

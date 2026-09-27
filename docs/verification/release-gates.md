@@ -83,3 +83,13 @@ smart HTTP, mode-isolated cache/epoch/diff, and explicit unavailable-action
 checks. A passing macOS artifact does not enable another platform. The
 [RFC-0017 ledger](RFC-BPR-0017.md) retains exact bounded evidence and remaining
 closeout gates; this section is not release approval.
+
+## Source-line compatibility qualification
+
+RFC-BPR-0022 fixture success does not authorize a production unsupported
+classifier. Any enabled tuple requires exact observed or explicitly approved
+recorded non-creation evidence for the operation/server/API/classifier revision.
+Current production supplies none. The owner narrowed live qualification to
+GitHub.com; GHES fixture coverage remains mandatory and native GHES must be
+reported unobserved. Required live publication and GitHub-only collaborator
+judgments remain pending until supplied on the [exact RFC-0022 candidate](RFC-BPR-0022.md).

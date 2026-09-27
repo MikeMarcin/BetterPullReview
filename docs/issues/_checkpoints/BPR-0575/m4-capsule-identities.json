@@ -1,0 +1,44 @@
+{
+  "source_revision": "0ff88046",
+  "source_sha256": "04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "25f8a7391749c5df500bc86df5c1250bd9beaf5452b30152d8409f7ff817ec31",
+      "bytes": 15302208
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "342a8773e74e4f8ba2ac6717a069c7a6675d2e885f2c130494377a3f1b0efafc",
+      "bytes": 240752
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323/capsule.inventory",
+      "sha256": "75a25080de1ee0fb9ab80833b06b8118aa6aadb0cff0c291022312c148ce94fd",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323/capsule.dmg",
+      "sha256": "0a6c01d48640e18aa39b6384999f2ab15d48de45f85487791f720e29aca0e860",
+      "bytes": 34917428
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323/source-manifest.txt",
+      "sha256": "04ad4c316644f2a79a0cc87ad45e856eacc8703ca29b9be56ee762a730d36323",
+      "bytes": 6875
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "5cc939b01ba7367a01d585205443a2f5aff7dfa3177414bda6d0787bd2fdc954",
+      "bytes": 64451
+    }
+  },
+  "approval_id": "4018f747d160ae6e5471132512d8c8751d6a220956193dcde3db9463b4d15800",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-approval-parent/approval.txt",
+  "subject_sha256": "e4d2cf8d49e4157c2be74e935db3437e47c5c04afe515d60a707a675806d6b1a",
+  "subject_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/docs/issues/_checkpoints/BPR-0575/m4-approval-subject.txt",
+  "mount_parent": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-mount-parent",
+  "replay_namespace": "/Users/jaeger/Library/Application Support/BetterPullReview/BetterPullReview/designated-live-review-replay-state-v1",
+  "replay_state_unchanged": true,
+  "approval_materialization_authority": "Standing user mandate r2 permits safe PR2 test comment; no separate human hash endorsement asserted."
+}

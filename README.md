@@ -298,6 +298,16 @@ are verified; Intel validation is deferred to nonblocking BPR-0950, while live
 private-release/vault evidence remains required in the
 [RFC-0035 ledger](docs/verification/RFC-BPR-0035.md).
 
+## Source-line comments
+
+The ordinary line comment gesture includes materialized current/right lines
+outside a hunk in a text file changed by the pull request. Native publication
+uses the exact current head and acting identity. The implemented file-comment
+compatibility path retains a visible code permalink and canonical GitHub IDs,
+but production fallback awaits an exact admitted unsupported-response contract.
+See [source-line comments](docs/development/source-line-comments.md) for behavior
+and current evidence limits.
+
 ## Architecture
 
 > The core decides. The host performs. Qt presents.

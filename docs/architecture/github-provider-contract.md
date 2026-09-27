@@ -916,8 +916,9 @@ server contract, complete actor, repository database/node identity, operation,
 API/classifier revision and freshness generation are exact key components.
 Expiry and a backward monotonic observation yield unknown. Only verified native
 success, definitive rejection, or an explicitly admitted recorded contract can
-supply an evidence entry. Session ownership and production wiring are completed
-with BPR-0568; the cache itself is not mutation or recovery authority.
+supply an evidence entry. The serialized session owns this cache. Keys also bind exact head, path and
+line; an observation cannot establish support at a different anchor. The cache
+itself is not mutation or recovery authority.
 
 The native HTTPS root-comment exchange now retains a complete bounded HTTP 422
 as response data for the exact classifier. This does not mark it a successful

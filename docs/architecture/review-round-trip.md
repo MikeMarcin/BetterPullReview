@@ -744,7 +744,7 @@ registrations remain network-contained.
 
 ## Semantic source-line publication policy (RFC-BPR-0022)
 
-Milestone A adds the provider-free `review_publication_policy` contract. It
+The provider-free `review_publication_policy` contract It
 consumes exact host eligibility and bounded placement/capability/body facts.
 Legacy placement always selects native publication; unknown placement also
 selects native even when the repository's off-hunk capability is unsupported.
@@ -762,8 +762,7 @@ Success is terminal and retains its representation for duplicate receipt replay.
 Fenced suggestion bodies require a line subject. The core conservatively
 recognizes backtick/tilde fences and whitespace in the info string; a required
 fallback returns typed incompatibility. Native publication remains available.
-This pure contract is preparatory: the provider and transactional recovery
-integration remain milestone B work. Existing ordinary publication continues
+The provider and transactional recovery compose this contract. Publication continues
 through RFC-BPR-0008's coordinator and exact user or attended authority.
 
 ### Immutable permalink codec (BPR-0564)
@@ -796,8 +795,7 @@ The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`
 `.mkd`, `.mdwn`, `.mdx` and `.litcoffee`, matched without case. These use
 `?plain=1`; other source paths have no query. This set follows the [GitHub
 Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
-observed on 2026-09-26. Provider publication, recovery and read normalization
-connect this codec in the subsequent authored milestones.
+observed on 2026-09-26. Provider publication, recovery and read normalization use this one codec.
 
 ### RFC-0022 logical journal (schema 4)
 
@@ -899,3 +897,13 @@ that post. Selection is bound to the exact target, acting identity and retained
 comparison and is abandoned on a mismatch. Both native and file-subject
 publications use this path; the server read owns the remote subject, body and
 canonical thread identity.
+
+### Current designated attended target
+
+BPR-0573 rebinds only the compiled attended course to owner-designated
+`MikeMarcin/BPR-Test#2`, exact base/head and node identities recorded in the
+[RFC-0022 ledger](../verification/RFC-BPR-0022.md). Historical PR1 packets and
+results remain evidence for their original builds and targets; they do not
+authorize this candidate or a new PR1 launch. Any queued PR1 course needs its
+own source/artifact reconciliation before execution. The ordinary user-publish
+route and dynamic actor validation are unchanged.
