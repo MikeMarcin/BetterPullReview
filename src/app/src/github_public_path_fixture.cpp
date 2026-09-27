@@ -613,7 +613,7 @@ namespace bpr::app::detail {
 		void overlay_published_tour(std::string& aBody, read_operation aOperation, review_submission_fixture_state& aState)
 		{
 			const std::scoped_lock lock{ aState.Mutex };
-			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription) {
+			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
 				return;
 			}
 			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
@@ -626,10 +626,25 @@ namespace bpr::app::detail {
 				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
 			}
 			const auto text = [](std::string_view value) { return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())); };
-			if (aOperation == read_operation::get_pull_request && aState.StagedDescription) {
+			if (aOperation == read_operation::get_pull_request) {
 				auto pull = document.object();
-				pull.insert("body", text(*aState.StagedDescription));
+				if (aState.StagedDescription) {
+					pull.insert("body", text(*aState.StagedDescription));
+				}
+				pull.insert("draft", aState.DraftPullRequest);
 				document = QJsonDocument{ pull };
+			} else if (aOperation == read_operation::search_pull_requests) {
+				auto search = document.object();
+				auto items  = search["items"].toArray();
+				for (qsizetype i = 0; i < items.size(); ++i) {
+					auto item = items[i].toObject();
+					if (item["node_id"] == "PR_fixture_17") {
+						item.insert("draft", aState.DraftPullRequest);
+						items[i] = item;
+					}
+				}
+				search.insert("items", items);
+				document = QJsonDocument{ search };
 			} else if (aOperation == read_operation::list_reviews) {
 				auto       nodes = document.array();
 				const auto seed  = nodes.first().toObject();

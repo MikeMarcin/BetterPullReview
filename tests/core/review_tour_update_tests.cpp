@@ -148,6 +148,13 @@ namespace {
 }
 int main()
 {
+	{
+		auto prefixed                   = published();
+		prefixed.Stops[0].Baseline->Raw = "Website prefix.\r\n\r\n" + prefixed.Stops[0].Baseline->Raw;
+		std::swap(prefixed.Stops[0], prefixed.Stops[1]);
+		const auto update = plan_tour_update(prefixed, { });
+		expect(update && update->StopBodies[1].starts_with("Website prefix.\r\n\r\n"), "reorder patches unique managed spans and preserves unrelated website prefix");
+	}
 	website_deltas();
 	reconciliation();
 	auto draft = published();

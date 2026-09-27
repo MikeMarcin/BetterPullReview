@@ -59,6 +59,9 @@ namespace {
 		const std::array navigation{ tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" }, tour_markdown_link{ "Next", entries[1].Destination } };
 		const auto       stop = render_tour_stop("Why boundary", 2, "Local explanation", navigation, "https://github.com/o/r/blob/1111111111111111111111111111111111111111/a.md?plain=1#L2-L4");
 		expect(stop && stop->starts_with("https://") && stop->find("\n\n###") != std::string::npos, "fallback bare permalink stays first");
+		const auto prefixed = map_tour_stop("Website prefix.\n\n" + *stop);
+		expect(prefixed.Heading && prefixed.Narrative && prefixed.Footer && prefixed.Heading->Begin > std::string{ "Website prefix.\n\n" }.size(), "unique managed spans preserve leading website prose and permalink");
+		expect(!map_tour_stop(*stop + "\n" + *stop).Heading, "multiple managed headings require explicit mapping");
 		const auto split = map_tour_stop(*stop);
 		expect(split.Heading && split.Narrative && split.Footer && split.Title == "Why boundary", "separate managed spans");
 		auto prose = *stop + "\nThis website paragraph is new.\n";

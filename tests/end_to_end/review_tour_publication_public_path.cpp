@@ -112,6 +112,7 @@ auto main(int argc, char** argv) -> int
 	auto          server          = std::make_shared<app::detail::review_submission_fixture_state>();
 	auto          make            = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true},[&](auto result){terminal=true;if(result){started=std::move(*result);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
+	server->DraftPullRequest      = mode == "manual";
 	server->StagedQualified       = mode != "unsupported";
 	auto application              = make();
 	try {
@@ -136,6 +137,13 @@ auto main(int argc, char** argv) -> int
 		editor.stop_title()->setText(QStringLiteral("Use the retained source"));
 		editor.stop_body()->setPlainText(QStringLiteral("Connect the explanation to the original decision."));
 		saved(editor);
+		if (mode == "manual") {
+			editor.outline()->setCurrentRow(1);
+			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(editor);
+			expect(editor.shown().Draft->Stops.front().Title == "Use the retained source", "manual route reorder precedes publication");
+			wait([&] {auto* summary=window.findChild<QLabel*>(QStringLiteral("overviewSummary"));return summary && summary->text().contains("Draft."); }, "actual provider snapshot renders draft PR status");
+		}
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
 		if (mode == "compat") {
 			editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode"))->setCurrentIndex(1);
@@ -317,9 +325,8 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 
-		if (mode == "maintenance") {
+		if (mode == "maintenance" || mode == "manual") {
 			saved(editor);
-			editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
 			{
 				std::scoped_lock lock{ server->Mutex };
 				auto             reply    = server->StagedComments.front();
@@ -330,42 +337,67 @@ auto main(int argc, char** argv) -> int
 				reply.Body                = "Website reviewer discussion must survive.";
 				reply.Reply               = true;
 				server->StagedComments.push_back(reply);
+				if (mode == "manual") {
+					server->StagedComments.front().Body.insert(0, "Website explanation prefix.\n\n");
+					auto& description = *server->StagedDescription;
+					description.replace(description.find("Keep exact sources and a readable route."), std::string{ "Keep exact sources and a readable route." }.size(), "Website-maintained solution.");
+					description += "\n\n## Testing\n\nPreserve website template.\n";
+				}
 			}
-			editor.outline()->setCurrentRow(1);
-			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
-			saved(editor);
-			button("tourPreparePublication")->click();
-			expect(button("tourPublish")->isEnabled(), "published reorder offers explicit update preview");
-			expect(preview->original_body().contains("non-atomic"), "maintenance preview is honest about separate writes");
-			button("tourPublish")->click();
-			wait([&] { return status->text().startsWith(QStringLiteral("Published:")); }, "published reorder completes");
-			saved(editor);
+			if (mode == "manual") {
+				shutdown(*application);
+				application.reset();
+				application = make();
+				open(*application);
+			}
+			auto&      activeWindow  = application->window();
+			auto&      activeEditor  = *activeWindow.tour_editor();
+			const auto activeButton  = [&](const char* name) { return activeEditor.findChild<QPushButton*>(QString::fromUtf8(name)); };
+			auto*      activeStatus  = activeEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
+			auto*      activePreview = activeEditor.publication_preview();
+			activeEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
+			if (mode == "manual") {
+				wait([&] { return activeEditor.shown().Draft && activeEditor.shown().Draft->Solution.contains("Website-maintained solution.") && activeEditor.shown().Draft->Stops.front().Baseline->Raw.starts_with("Website explanation prefix."); }, "reopened application adopts website text and raw stop bytes");
+				saved(activeEditor);
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 5, "website reopen remains read-only");
+			}
+
+			activeEditor.outline()->setCurrentRow(1);
+			activeEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(activeEditor);
+			activeButton("tourPreparePublication")->click();
+			expect(activeButton("tourPublish")->isEnabled(), "published reorder offers explicit update preview");
+			expect(activePreview->original_body().contains("non-atomic"), "maintenance preview is honest about separate writes");
+			activeButton("tourPublish")->click();
+			wait([&] { return activeStatus->text().startsWith(QStringLiteral("Published:")); }, "published reorder completes");
+			saved(activeEditor);
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedWrites == 8 && server->StagedCreates == 1 && server->StagedSubmits == 1, "pure reorder only edits two bodies and original root");
 				expect(server->StagedComments.size() == 3 && server->StagedComments.back().Body == "Website reviewer discussion must survive.", "replies retain identity and bytes");
 				expect(server->StagedWritePaths.back().ends_with("/reviews/501"), "root update occurs last");
 			}
-			button("tourPreparePublication")->click();
-			expect(!button("tourPublish")->isEnabled() && status->text().contains("No published changes"), "equal-body update offers no writes");
-			select_file(window, "review.cpp");
-			select_range(window, core::diff_side::right, 2, 4);
-			window.add_tour_stop_action()->trigger();
-			editor.stop_title()->setText("Later batch insertion");
-			editor.stop_body()->setPlainText("A later idea preserves the original discussion.");
-			saved(editor);
-			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
-			saved(editor);
-			button("tourPreparePublication")->click();
-			expect(button("tourPublish")->isEnabled(), "later insertion has an explicit publication preview");
+			activeButton("tourPreparePublication")->click();
+			expect(!activeButton("tourPublish")->isEnabled() && activeStatus->text().contains("No published changes"), "equal-body update offers no writes");
+			select_file(activeWindow, "review.cpp");
+			select_range(activeWindow, core::diff_side::right, 2, 4);
+			activeWindow.add_tour_stop_action()->trigger();
+			activeEditor.stop_title()->setText("Later batch insertion");
+			activeEditor.stop_body()->setPlainText("A later idea preserves the original discussion.");
+			saved(activeEditor);
+			activeEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
+			saved(activeEditor);
+			activeButton("tourPreparePublication")->click();
+			expect(activeButton("tourPublish")->isEnabled(), "later insertion has an explicit publication preview");
 			{
 				std::scoped_lock lock{ server->Mutex };
 				server->StagedBlockNext = true;
 			}
-			button("tourPublish")->click();
+			activeButton("tourPublish")->click();
 			wait([&] {std::scoped_lock lock{server->Mutex};return server->StagedBlocked; }, "new batch creation reaches durable witness");
-			button("tourStop")->click();
-			wait([&] { return !button("tourStop")->isEnabled(); }, "maintenance stop drains effects");
+			activeButton("tourStop")->click();
+			wait([&] { return !activeButton("tourStop")->isEnabled(); }, "maintenance stop drains effects");
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedWrites == 9 && server->StagedCreates == 2, "new destination created once before interruption");
@@ -395,8 +427,8 @@ auto main(int argc, char** argv) -> int
 			}
 			auto& restoredWindow = application->window();
 			restored.outline()->setCurrentRow(0);
-			select_file(restoredWindow, "review.cpp");
-			select_range(restoredWindow, core::diff_side::right, 2, 4);
+			select_file(restoredWindow, mode == "manual" ? "secondary.cpp" : "review.cpp");
+			select_range(restoredWindow, core::diff_side::right, mode == "manual" ? 1 : 2, mode == "manual" ? 3 : 4);
 			restored.findChild<QAction*>(QStringLiteral("tourRetarget"))->trigger();
 			saved(restored);
 			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
@@ -421,6 +453,45 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3, "retirement edits membership/navigation without remote deletion");
 				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 699 && c.Body == "Website reviewer discussion must survive."; }), "retiring root comment preserves its website reply");
 			}
+			if (mode == "manual") {
+				const auto completed = *restored.shown().Draft;
+				expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0 && !access::review_ledger_receipt_present(*application), "complete manual update has no AI or review receipt dependency");
+				shutdown(*application);
+				application.reset();
+				currentDataRoot = e2e::private_data_root(coldData);
+				expect(currentDataRoot.has_value(), "new clean profile admitted");
+				application = make();
+				open(*application);
+				auto& cold    = *application->window().tour_editor();
+				auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+				wait([&] { return choices->count() > 0; }, "clean profile discovers shared website roots");
+				int selected = -1;
+				for (int i = 0; i < choices->count(); ++i) {
+					if (choices->itemText(i).contains(QString::fromStdString(completed.Remote->Entity))) {
+						selected = i;
+					}
+				}
+				expect(selected >= 0, "complete manual root survives across all batches");
+				choices->setCurrentIndex(selected);
+				cold.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
+				wait([&] { return cold.shown().Draft && cold.shown().Draft->Remote && cold.shown().Draft->Stops.size() == completed.Stops.size(); }, "cold profile reconstructs complete maintained route");
+				const auto imported = *cold.shown().Draft;
+				for (std::size_t i = 0; i < completed.Stops.size(); ++i) {
+					expect(imported.Stops[i].Remote->Entity == completed.Stops[i].Remote->Entity && imported.Stops[i].Baseline->Raw == completed.Stops[i].Baseline->Raw, "cold route preserves exact remote ids/order/bodies across batches");
+				}
+				expect(!imported.HasPriorObservation && imported.ObservedChanges.empty() && imported.Solution.contains("Website-maintained solution."), "cold profile uses shared brief and declares unknown private history");
+				cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+				expect(!cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold maintained route offers no normalization writes");
+				cold.outline()->setCurrentRow(0);
+				cold.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+				expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0 && !access::review_ledger_receipt_present(*application), "cold import/navigation starts no AI or review receipt");
+				if (argc > 2) {
+					expect(application->window().grab().save(QString::fromUtf8(argv[2]) + "-cold.png"), "complete maintained cold route render");
+				}
+				saved(cold);
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3 && server->DraftPullRequest && server->StagedDescription->ends_with("Preserve website template.\n"), "independent server counts preserve draft status and website template through complete manual course");
+			}
 		}
 		if (mode == "native" || mode == "compat") {
 			saved(*application->window().tour_editor());
@@ -439,6 +510,8 @@ auto main(int argc, char** argv) -> int
 		std::cout << "review-tour-publication:" << mode << ":pass\n";
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {
+		const auto evidence = access::evidence(*application);
+		std::cerr << "read operation=" << evidence.LastReadOperation << " count=" << evidence.AccountReadCount << " recording-failure=" << evidence.RecordingFailure << "\n";
 		std::cerr << "publication-status: " << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().toStdString() << "\n";
 		std::cerr << "read-status: " << application->window().github_status_text() << " writes=" << server->StagedWrites << "\n";
 		std::cerr << "review-tour-publication:fail " << error.what() << '\n';

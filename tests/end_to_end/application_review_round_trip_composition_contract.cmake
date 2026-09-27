@@ -77,6 +77,11 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1006 reseal: 6cff4914..22fd2150 (b56cad7e, 9a7ba459, 22fd2150).
+# Reviewed Tour update preview/journal handoff, same-owner observed conflicts,
+# immutable original versus proposed source and deliberate retarget/reaffirmation.
+# Existing source-line mutation branch is unchanged. Production-mode syntax checks
+# and the complete manual production-port course are recorded in the pack ledger.
 # BPR-1210 reseal: 44bd1266..the BPR-1210 product commit. No intervening
 # pinned-scope changes. Private ledger presentation/CRUD reuses its existing
 # lifetime and capabilities; one owned item enters the core's revisioned edit
@@ -407,7 +412,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"1ef4372eec769003fedae24b1ef9cb5cefcc122647b1f17dfcc75e79717ace54"
+		"e66ae5fa891c194799cf62833681836a9921700093171bb9dfe7566535c83a66"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -562,7 +567,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c0c6f27cc9793ca190e0388a5c38d749a470281ab5e0384b4907dcf70aa14756"
+        "71fa41698c1f8871b31dede13f2082fa65fa193b0e4601d27159e9ba9ad75070"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

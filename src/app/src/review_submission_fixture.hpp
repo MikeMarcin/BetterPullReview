@@ -15,6 +15,7 @@ namespace bpr::app::detail {
 	struct review_submission_fixture_state
 	{
 		std::mutex                                          Mutex;
+		bool                                                DraftPullRequest = false;
 		std::map<std::uint64_t, std::uint64_t>              ReplyParents;
 		std::condition_variable_any                         StagedWait;
 		std::optional<application::staged_review_entity>    StagedReview;

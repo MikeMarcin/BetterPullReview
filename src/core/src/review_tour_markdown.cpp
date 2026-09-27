@@ -275,20 +275,23 @@ namespace bpr::core {
 		if (aRaw.size() > maximum_tour_field_bytes) {
 			return result;
 		}
-		const auto  rows  = lines(aRaw);
-		std::size_t first = 0;
-		if (!rows.empty() && absolute_link(trim(rows[0].Text)) && safe_destination(trim(rows[0].Text)) && rows.size() > 2 && trim(rows[1].Text).empty()) {
-			first = 2;
+		const auto                 rows   = lines(aRaw);
+		constexpr auto             prefix = std::string_view{ "### Author's tour · " };
+		std::optional<std::size_t> heading;
+		for (std::size_t index = 0; index < rows.size(); ++index) {
+			if (rows[index].Top && trim(rows[index].Text).starts_with(prefix)) {
+				if (heading) {
+					return result;
+				}
+				heading = index;
+			}
 		}
-		if (first >= rows.size() || !rows[first].Top) {
+		if (!heading) {
 			return result;
 		}
-		const auto     text   = trim(rows[first].Text);
-		constexpr auto prefix = std::string_view{ "### Author's tour · " };
-		if (!text.starts_with(prefix)) {
-			return result;
-		}
-		const auto dash = text.find(" — ", prefix.size());
+		const auto first = *heading;
+		const auto text  = trim(rows[first].Text);
+		const auto dash  = text.find(" — ", prefix.size());
 		if (dash == std::string_view::npos || dash == prefix.size()
 			|| !std::all_of(text.begin() + static_cast<std::ptrdiff_t>(prefix.size()), text.begin() + static_cast<std::ptrdiff_t>(dash), [](unsigned char aByte) { return std::isdigit(aByte); })) {
 			return result;

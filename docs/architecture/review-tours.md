@@ -32,7 +32,7 @@ local drafts, including an empty brief or skeleton stop, are valid saved state.
 Persistence, workbench composition, public navigation and remote publication are
 separate acceptance surfaces. The core tests alone do not establish any of them.
 
-The admitted profile-private `state/v1/review-tours.sqlite3` keeps database schema 1 and writes version 3
+The admitted profile-private `state/v1/review-tours.sqlite3` keeps database schema 1 and writes version 6
 payload records under application ID `0x42505254`. The exact owner and local draft ID
 form the primary key. Payloads are bounded binary records with an integrity
 digest; unknown schemas or corrupt payloads refuse rather than pretending that
@@ -129,7 +129,7 @@ navigation paragraph are confidently recognized.
 
 Payload v2 added remote attribution, index baselines and read-only state. Payload
 v3 adds a comparison-independent source destination. Versions 1 and 2 remain
-readable without rewriting their content; the next save uses v3. The database
+readable without rewriting their content; the next save uses the current payload version. The database
 schema and private-root contract are unchanged.
 
 ## Exact source and compatibility
@@ -204,8 +204,9 @@ not the shared discussion. Explicit source replacement creates a linked new
 comment and preserves the old source binding. Published split/merge operations
 retain the original discussions and prepare local replacements.
 
-The Tour payload reads versions 1–5 and writes version 5, retaining bounded retired
-stop baselines and exact baseline/local/remote conflict versions. The existing recovery database retains its schema; staged payload
+The Tour payload reads versions 1–6 and writes version 6, retaining bounded retired
+stop baselines, exact baseline/local/remote conflict versions, the observed head,
+per-stop reaffirmation and locally observed website changes. The existing recovery database retains its schema; staged payload
 version 3 additionally stores the frozen maintenance draft and confirmed edit
 prefix, while still reading versions 1–2. Existing profile purge and private-store
 retention cover these bounded prose records; no shared object is deleted by purge.
@@ -229,3 +230,28 @@ conflicts. Description changes patch the mapped brief sections and preserve
 unrelated template bytes; imported custom stop layouts retain a whole-comment
 editor. Reimport from a clean profile retains only shared identities and source
 addresses, without private preparation provenance or inferred viewing history.
+
+
+## Revision attention and observed changes
+
+An admitted selected epoch comparison supplies the existing deterministic line and
+move correspondence. Proposed later ranges retain their exact comparison, commit,
+blob and renamed path separately from the original public source. They never
+create replacement subjects without the author's explicit retarget. Missing or
+ambiguous correspondence stays explicit. Observing another head clears previous
+reaffirmations for every stop, because identical selected bytes cannot prove an
+explanation about a changed caller or contract. The author can deliberately
+reaffirm an explanation while retaining its original source, including a bound
+imported address whose old blob is unavailable locally.
+
+The locally observed website-change list compares retained raw baseline versions
+and ordered remote URLs. It distinguishes added, removed, reordered, changed-text
+and changed-source stops without counting unpublished local edits as shared
+history. A repeated equal observation retains the last differing observation;
+successful publication clears that difference list. A clean profile states
+“No prior local tour version.” Changed-stop navigation uses the existing outline
+and does not create viewed-file receipts, approval, acceptance or resolution.
+
+The complete fixture manual lifecycle and the separately pending operator course
+are recorded in the [tour verification ledger](../verification/RFC-BPR-0039-0043.md)
+and [website/native course](../verification/RFC-BPR-0039-0043.manual-course.md).
