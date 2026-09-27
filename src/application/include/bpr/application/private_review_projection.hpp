@@ -28,6 +28,7 @@ namespace bpr::application {
 		std::vector<private_thread_row>               Threads;
 		std::optional<core::private_review_thread_id> SelectedThread;
 		std::vector<private_turn_row>                 Turns;
+		std::vector<core::private_source_observation> Findings;
 		bool                                          MoreThreads = false;
 		bool                                          MoreTurns   = false;
 		std::string                                   Status;
@@ -57,5 +58,41 @@ namespace bpr::application {
 		std::string                                   Body;
 	};
 	using private_conversation_dispatch = std::function<void(private_conversation_intent)>;
+
+	struct private_composition_projection
+	{
+		std::uint64_t                                               Generation = 0;
+		std::vector<core::private_source_observation>               Sources;
+		std::vector<core::private_composition_target>               Targets;
+		std::vector<core::review_composition_state>                 Workspaces;
+		std::optional<core::review_composition_state>               Current;
+		std::uint64_t                                               Version = 0;
+		std::optional<core::review_composition_revision>            Candidate;
+		std::vector<std::pair<core::agent_profile_id, std::string>> Profiles;
+		bool                                                        Busy = false;
+		std::string                                                 Status;
+	};
+	enum class private_composition_action : std::uint8_t { create,
+														   split,
+														   select,
+														   revise,
+														   target,
+														   ask_agent,
+														   accept,
+														   cancel };
+	struct private_composition_intent
+	{
+		private_composition_action                      Action     = private_composition_action::create;
+		std::uint64_t                                   Generation = 0;
+		core::review_composition_mode                   Mode       = core::review_composition_mode::reviewer_authored;
+		std::optional<core::review_composition_id>      Composition;
+		std::uint64_t                                   ExpectedVersion = 0;
+		std::optional<core::private_source_reference>   Candidate;
+		std::optional<core::private_composition_target> Target;
+		core::agent_profile_id                          Profile;
+		core::agent_setting_facts                       Requested;
+		std::string                                     Body;
+	};
+	using private_composition_dispatch = std::function<void(private_composition_intent)>;
 }
 #endif

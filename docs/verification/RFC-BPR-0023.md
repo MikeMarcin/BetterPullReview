@@ -1347,3 +1347,22 @@ row and retained persistent identity, exact selected source dispatch, no effects
 from projections, unknown/conflict facts, accessible names and keyboard focus.
 Rendered native appearance and the complete public course remain M8/M9 work;
 this component evidence is not RFC acceptance.
+
+## M8 / BPR-0586 composition presentation
+
+The private composition dialog retains exact source identities, currentness and
+full body digests, offers reviewer-authored/exact-copy/explicit-agent-assisted
+modes, named profile and requested model/effort fields, explicit target choice,
+split workspaces and candidate actor/derivation. Accept as Draft is labelled
+local and has no publication intent; the ordinary draft editor owns Publish.
+The history panel also exposes exact retained finding selection and deduplicated
+polite accessibility status announcements. Cancel closes the view without
+removing retained private sources.
+
+The focused `qt_private_review_panel` test exercises all three mode intents,
+refused unplaceable acceptance, candidate/version-bound local acceptance,
+keyboard controls, accessible names and absence of a Publish control. Concrete
+host refusal/reload, lineage lookup, restart and mutation canaries are the
+following BPR-0587 public wiring course. M9 retains scale/native acceptance.
+The M7 implementation-prerequisite amendment is also applied to BPR-0586;
+BPR-0584 external acceptance remains pending and is not inferred here.

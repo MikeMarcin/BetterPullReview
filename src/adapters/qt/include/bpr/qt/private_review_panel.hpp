@@ -8,6 +8,7 @@ class QListView;
 class QPlainTextEdit;
 class QPushButton;
 class QCheckBox;
+class QComboBox;
 namespace bpr::qt {
 	class private_thread_model final : public QAbstractListModel
 	{
@@ -67,6 +68,7 @@ namespace bpr::qt {
 		QPushButton*                                 MoreThreads;
 		QPushButton*                                 MoreTurns;
 		QPushButton*                                 MoreBody;
+		QComboBox*                                   Findings;
 		bool                                         Applying = false;
 	};
 }

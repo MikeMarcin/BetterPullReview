@@ -1,5 +1,7 @@
 #include "bpr/qt/private_review_panel.hpp"
+#include <QAccessible>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QListView>
@@ -9,47 +11,47 @@
 #include <algorithm>
 namespace bpr::qt {
 	namespace {
-		auto text(std::string_view value) -> QString { return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())); }
-		auto actor(const core::private_review_actor& value) -> QString
+		auto text(std::string_view aValue) -> QString { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); }
+		auto actor(const core::private_review_actor& aValue) -> QString
 		{
-			if (const auto* agent = std::get_if<core::private_agent_actor>(&value)) {
+			if (const auto* agent = std::get_if<core::private_agent_actor>(&aValue)) {
 				return QStringLiteral("Agent · run %1 · model/effort in provenance").arg(agent->Run.value());
 			}
-			return std::holds_alternative<core::private_reviewer_actor>(value) ? QStringLiteral("Reviewer") : QStringLiteral("Legacy · author unknown");
+			return std::holds_alternative<core::private_reviewer_actor>(aValue) ? QStringLiteral("Reviewer") : QStringLiteral("Legacy · author unknown");
 		}
 	}
-	auto private_thread_model::rowCount(const QModelIndex& parent) const -> int { return parent.isValid() ? 0 : static_cast<int>(Rows.size()); }
-	auto private_thread_model::data(const QModelIndex& index, int role) const -> QVariant
+	auto private_thread_model::rowCount(const QModelIndex& aParent) const -> int { return aParent.isValid() ? 0 : static_cast<int>(Rows.size()); }
+	auto private_thread_model::data(const QModelIndex& aIndex, int aRole) const -> QVariant
 	{
-		if (!index.isValid() || index.row() < 0 || index.row() >= rowCount()) {
+		if (!aIndex.isValid() || aIndex.row() < 0 || aIndex.row() >= rowCount()) {
 			return { };
 		}
-		const auto& row = Rows[static_cast<std::size_t>(index.row())];
-		if (role == Qt::UserRole) {
+		const auto& row = Rows[static_cast<std::size_t>(aIndex.row())];
+		if (aRole == Qt::UserRole) {
 			return QVariant::fromValue<qulonglong>(row.Thread.Id.value());
 		}
-		if (role == Qt::DisplayRole || role == Qt::AccessibleTextRole || role == Qt::ToolTipRole) {
+		if (aRole == Qt::DisplayRole || aRole == Qt::AccessibleTextRole || aRole == Qt::ToolTipRole) {
 			return QStringLiteral("Private thread %1 · %2 · %3").arg(row.Thread.Id.value()).arg(text(core::stable_name(row.Thread.Lifecycle)), text(core::stable_name(row.Availability)));
 		}
 		return { };
 	}
-	void private_thread_model::present(const std::vector<application::private_thread_row>& rows)
+	void private_thread_model::present(const std::vector<application::private_thread_row>& aRows)
 	{
-		if (rows.size() > 64) {
+		if (aRows.size() > 64) {
 			return;
 		}
 		for (int i = rowCount() - 1; i >= 0; --i) {
-			if (std::ranges::none_of(rows, [&](const auto& row) { return row.Thread.Id == Rows[static_cast<std::size_t>(i)].Thread.Id; })) {
+			if (std::ranges::none_of(aRows, [&](const auto& aRow) { return aRow.Thread.Id == Rows[static_cast<std::size_t>(i)].Thread.Id; })) {
 				beginRemoveRows({ }, i, i);
 				Rows.erase(Rows.begin() + i);
 				endRemoveRows();
 			}
 		}
-		for (std::size_t i = 0; i < rows.size(); ++i) {
-			auto found = std::ranges::find_if(Rows, [&](const auto& row) { return row.Thread.Id == rows[i].Thread.Id; });
+		for (std::size_t i = 0; i < aRows.size(); ++i) {
+			auto found = std::ranges::find_if(Rows, [&](const auto& aRow) { return aRow.Thread.Id == aRows[i].Thread.Id; });
 			if (found == Rows.end()) {
 				beginInsertRows({ }, static_cast<int>(i), static_cast<int>(i));
-				Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), rows[i]);
+				Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), aRows[i]);
 				endInsertRows();
 			} else {
 				const auto at = static_cast<std::size_t>(found - Rows.begin());
@@ -60,45 +62,45 @@ namespace bpr::qt {
 					Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), std::move(row));
 					endMoveRows();
 				}
-				if (Rows[i] != rows[i]) {
-					Rows[i] = rows[i];
+				if (Rows[i] != aRows[i]) {
+					Rows[i] = aRows[i];
 					emit dataChanged(index(static_cast<int>(i)), index(static_cast<int>(i)));
 				}
 			}
 		}
 	}
-	auto private_turn_model::rowCount(const QModelIndex& parent) const -> int { return parent.isValid() ? 0 : static_cast<int>(Rows.size()); }
-	auto private_turn_model::data(const QModelIndex& index, int role) const -> QVariant
+	auto private_turn_model::rowCount(const QModelIndex& aParent) const -> int { return aParent.isValid() ? 0 : static_cast<int>(Rows.size()); }
+	auto private_turn_model::data(const QModelIndex& aIndex, int aRole) const -> QVariant
 	{
-		if (!index.isValid() || index.row() < 0 || index.row() >= rowCount()) {
+		if (!aIndex.isValid() || aIndex.row() < 0 || aIndex.row() >= rowCount()) {
 			return { };
 		}
-		const auto& row = Rows[static_cast<std::size_t>(index.row())];
-		if (role == Qt::UserRole) {
+		const auto& row = Rows[static_cast<std::size_t>(aIndex.row())];
+		if (aRole == Qt::UserRole) {
 			return QVariant::fromValue<qulonglong>(row.Revision.Identity.Revision.value());
 		}
-		if (role == Qt::DisplayRole || role == Qt::AccessibleTextRole || role == Qt::ToolTipRole) {
+		if (aRole == Qt::DisplayRole || aRole == Qt::AccessibleTextRole || aRole == Qt::ToolTipRole) {
 			return QStringLiteral("Turn %1 · revision %2\n%3 · %4 · %5%6%7").arg(row.Revision.Identity.Turn.value()).arg(row.Revision.Identity.Revision.value()).arg(actor(row.Revision.Actor), text(core::stable_name(row.Revision.Completion)), text(core::stable_name(row.Availability)), row.Selection.Historical ? QStringLiteral(" · historical") : QString{ }, row.Lineage.empty() ? QString{ } : QStringLiteral("\n") + text(row.Lineage));
 		}
 		return { };
 	}
-	void private_turn_model::present(const std::vector<application::private_turn_row>& rows)
+	void private_turn_model::present(const std::vector<application::private_turn_row>& aRows)
 	{
-		if (rows.size() > 64) {
+		if (aRows.size() > 64) {
 			return;
 		}
 		for (int i = rowCount() - 1; i >= 0; --i) {
-			if (std::ranges::none_of(rows, [&](const auto& row) { return row.Revision.Identity == Rows[static_cast<std::size_t>(i)].Revision.Identity; })) {
+			if (std::ranges::none_of(aRows, [&](const auto& aRow) { return aRow.Revision.Identity == Rows[static_cast<std::size_t>(i)].Revision.Identity; })) {
 				beginRemoveRows({ }, i, i);
 				Rows.erase(Rows.begin() + i);
 				endRemoveRows();
 			}
 		}
-		for (std::size_t i = 0; i < rows.size(); ++i) {
-			auto found = std::ranges::find_if(Rows, [&](const auto& row) { return row.Revision.Identity == rows[i].Revision.Identity; });
+		for (std::size_t i = 0; i < aRows.size(); ++i) {
+			auto found = std::ranges::find_if(Rows, [&](const auto& aRow) { return aRow.Revision.Identity == aRows[i].Revision.Identity; });
 			if (found == Rows.end()) {
 				beginInsertRows({ }, static_cast<int>(i), static_cast<int>(i));
-				Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), rows[i]);
+				Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), aRows[i]);
 				endInsertRows();
 			} else {
 				const auto at = static_cast<std::size_t>(found - Rows.begin());
@@ -109,15 +111,15 @@ namespace bpr::qt {
 					Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(i), std::move(row));
 					endMoveRows();
 				}
-				if (Rows[i] != rows[i]) {
-					Rows[i] = rows[i];
+				if (Rows[i] != aRows[i]) {
+					Rows[i] = aRows[i];
 					emit dataChanged(index(static_cast<int>(i)), index(static_cast<int>(i)));
 				}
 			}
 		}
 	}
-	private_review_panel::private_review_panel(QWidget* parent)
-		: QWidget(parent)
+	private_review_panel::private_review_panel(QWidget* aParent)
+		: QWidget(aParent)
 	{
 		setObjectName(QStringLiteral("privateReviewPanel"));
 		auto* layout = new QVBoxLayout(this);
@@ -138,7 +140,7 @@ namespace bpr::qt {
 		ThreadList->setModel(Threads);
 		ThreadList->setMinimumHeight(100);
 		layout->addWidget(ThreadList);
-		auto button = [&](const QString& label, const QString& name, application::private_conversation_action action) { auto* b = new QPushButton(label, this); b->setObjectName(name); b->setAccessibleName(label); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, action] { emit_action(action); }); return b; };
+		auto button = [&](const QString& aLabel, const QString& aName, application::private_conversation_action aCtion) { auto* b = new QPushButton(aLabel, this); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aCtion] { emit_action(aCtion); }); return b; };
 		button(tr("Refresh private history"), QStringLiteral("privateRefresh"), application::private_conversation_action::refresh);
 		MoreThreads = button(tr("Next thread page"), QStringLiteral("privateMoreThreads"), application::private_conversation_action::next_threads);
 		Turns       = new private_turn_model(this);
@@ -177,6 +179,24 @@ namespace bpr::qt {
 		auto* clear = new QPushButton(tr("Clear selected sources"), this);
 		layout->addWidget(clear);
 		connect(clear, &QPushButton::clicked, this, [this] { Sources.clear(); Selection->setText(tr("0 exact sources selected")); });
+		Findings = new QComboBox(this);
+		Findings->setObjectName(QStringLiteral("privateFindingSources"));
+		Findings->setAccessibleName(tr("Exact retained findings from the selected invocation"));
+		layout->addWidget(Findings);
+		auto* findingSource = new QPushButton(tr("Select exact finding as source"), this);
+		findingSource->setObjectName(QStringLiteral("privateSelectFinding"));
+		layout->addWidget(findingSource);
+		connect(findingSource, &QPushButton::clicked, this, [this] {
+			const auto row = Findings->currentIndex();
+			if (row < 0 || static_cast<std::size_t>(row) >= Shown.Findings.size() || Sources.size() >= core::maximum_private_sources) {
+				return;
+			}
+			const auto& finding = Shown.Findings[static_cast<std::size_t>(row)];
+			if (std::ranges::none_of(Sources, [&](const auto& aSelected) { return aSelected.Source == finding.Source; })) {
+				Sources.push_back({ finding.Source, finding.Latest, false });
+			}
+			Selection->setText(tr("%1 exact sources selected").arg(Sources.size()));
+		});
 		Composer = new QPlainTextEdit(this);
 		Composer->setObjectName(QStringLiteral("privateReviewerText"));
 		Composer->setAccessibleName(tr("Private reviewer text or explicit agent question"));
@@ -194,37 +214,48 @@ namespace bpr::qt {
 		connect(TurnList->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { if (!Applying) { select_turn(); } });
 		present({ });
 	}
-	void private_review_panel::set_dispatch(application::private_conversation_dispatch dispatch) { Dispatch = std::move(dispatch); }
-	void private_review_panel::present(const application::private_conversation_projection& projection)
+	void private_review_panel::set_dispatch(application::private_conversation_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
+	void private_review_panel::present(const application::private_conversation_projection& aProjection)
 	{
 		Applying = true;
-		if (Shown.Generation != projection.Generation) {
+		if (Shown.Generation != aProjection.Generation) {
 			Sources.clear();
 			Selection->setText(tr("0 exact sources selected"));
 			Composer->clear();
 			Provenance->clear();
 		}
-		Shown = projection;
-		Threads->present(projection.Threads);
-		Turns->present(projection.Turns);
+		Shown = aProjection;
+		Findings->clear();
+		for (const auto& finding : aProjection.Findings) {
+			const auto* key = std::get_if<core::private_finding_source>(&finding.Source.Key);
+			if (key) {
+				Findings->addItem(tr("Run %1 · finding %2 · %3").arg(key->Run.value()).arg(key->Ordinal).arg(text(core::stable_name(finding.Availability))));
+			}
+		}
+
+		Threads->present(aProjection.Threads);
+		Turns->present(aProjection.Turns);
 		for (int i = 0; i < Threads->rowCount(); ++i) {
-			if (projection.SelectedThread == Threads->rows()[static_cast<std::size_t>(i)].Thread.Id) {
+			if (aProjection.SelectedThread == Threads->rows()[static_cast<std::size_t>(i)].Thread.Id) {
 				ThreadList->setCurrentIndex(Threads->index(i));
 				break;
 			}
 		}
-		MoreThreads->setEnabled(projection.MoreThreads);
-		MoreTurns->setEnabled(projection.MoreTurns);
-		setEnabled(projection.Available && !projection.Busy);
-		show_status(text(projection.Status));
+		MoreThreads->setEnabled(aProjection.MoreThreads);
+		MoreTurns->setEnabled(aProjection.MoreTurns);
+		setEnabled(aProjection.Available && !aProjection.Busy);
+		show_status(text(aProjection.Status));
 		select_turn();
 		Applying = false;
 	}
-	void private_review_panel::show_status(const QString& status)
+	void private_review_panel::show_status(const QString& aStatus)
 	{
-		if (Status->text() != status) {
-			Status->setText(status);
-			Status->setAccessibleDescription(status);
+		if (Status->text() != aStatus) {
+			Status->setText(aStatus);
+			Status->setAccessibleDescription(aStatus);
+			auto event = QAccessibleAnnouncementEvent{ this, aStatus };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
 		}
 	}
 	void private_review_panel::select_turn()
@@ -256,17 +287,17 @@ namespace bpr::qt {
 			show_status(tr("The selection limit is 256 sources."));
 			return;
 		}
-		if (std::ranges::none_of(Sources, [&](const auto& source) { return source.Source == turn.Selection.Source; })) {
+		if (std::ranges::none_of(Sources, [&](const auto& aSource) { return aSource.Source == turn.Selection.Source; })) {
 			Sources.push_back(turn.Selection);
 		}
 		Selection->setText(tr("%1 exact sources selected; content is sent only by Ask agent or agent-assisted composition.").arg(Sources.size()));
 	}
-	void private_review_panel::emit_action(application::private_conversation_action action)
+	void private_review_panel::emit_action(application::private_conversation_action aCtion)
 	{
 		if (Applying || !Dispatch || !Shown.Available || Shown.Busy) {
 			return;
 		}
-		auto       intent = application::private_conversation_intent{ .Action = action, .Generation = Shown.Generation, .Thread = Shown.SelectedThread, .Sources = Sources, .Body = Composer->toPlainText().toStdString() };
+		auto       intent = application::private_conversation_intent{ .Action = aCtion, .Generation = Shown.Generation, .Thread = Shown.SelectedThread, .Sources = Sources, .Body = Composer->toPlainText().toStdString() };
 		const auto thread = ThreadList->currentIndex().row();
 		if (thread >= 0 && thread < Threads->rowCount()) {
 			intent.Thread          = Threads->rows()[static_cast<std::size_t>(thread)].Thread.Id;
@@ -278,26 +309,26 @@ namespace bpr::qt {
 		}
 		Dispatch(std::move(intent));
 	}
-	void private_review_panel::present_body(const core::private_source_reference& source, std::string_view body, bool more)
+	void private_review_panel::present_body(const core::private_source_reference& aSource, std::string_view aBody, bool aMore)
 	{
 		const auto row = TurnList->currentIndex().row();
-		if (row >= 0 && row < Turns->rowCount() && Turns->rows()[static_cast<std::size_t>(row)].Selection.Source == source) {
-			Body->setPlainText(text(body));
-			MoreBody->setEnabled(more);
+		if (row >= 0 && row < Turns->rowCount() && Turns->rows()[static_cast<std::size_t>(row)].Selection.Source == aSource) {
+			Body->setPlainText(text(aBody));
+			MoreBody->setEnabled(aMore);
 		}
 	}
-	void private_review_panel::present_provenance(const core::agent_run_provenance& run)
+	void private_review_panel::present_provenance(const core::agent_run_provenance& aRun)
 	{
-		auto result = tr("Run %1 · profile %2\nModel and effort remain unknown unless a fact below supplies them.\n").arg(run.Run.value()).arg(text(run.ProfileDisplayName));
-		auto facts  = [&](const QString& basis, const core::agent_setting_facts& value) { result += basis + tr(": model=%1; effort=%2\n").arg(value.Model ? text(*value.Model) : tr("unknown"), value.Effort ? text(*value.Effort) : tr("unknown")); };
-		facts(tr("Requested"), run.Metadata.Requested);
-		facts(tr("Configured"), run.Metadata.Configured);
-		for (const auto& report : run.Metadata.ProtocolReported) {
+		auto result = tr("Run %1 · profile %2\nModel and effort remain unknown unless a fact below supplies them.\n").arg(aRun.Run.value()).arg(text(aRun.ProfileDisplayName));
+		auto facts  = [&](const QString& aBasis, const core::agent_setting_facts& aValue) { result += aBasis + tr(": model=%1; effort=%2\n").arg(aValue.Model ? text(*aValue.Model) : tr("unknown"), aValue.Effort ? text(*aValue.Effort) : tr("unknown")); };
+		facts(tr("Requested"), aRun.Metadata.Requested);
+		facts(tr("Configured"), aRun.Metadata.Configured);
+		for (const auto& report : aRun.Metadata.ProtocolReported) {
 			facts(tr("Protocol reported (%1)").arg(text(report.Basis)), report.Settings);
 			result += tr("Tool=%1; session=%2; thread=%3; turn=%4; run=%5\n").arg(report.ToolVersion ? text(*report.ToolVersion) : tr("unknown"), report.RemoteSession ? text(*report.RemoteSession) : tr("unknown"), report.RemoteThread ? text(*report.RemoteThread) : tr("unknown"), report.RemoteTurn ? text(*report.RemoteTurn) : tr("unknown"), report.RemoteRun ? text(*report.RemoteRun) : tr("unknown"));
 		}
-		facts(tr("Content self-reported (unverified)"), run.Metadata.ContentSelfReported);
-		const auto conflicts = core::inspect_runtime_metadata(run.Metadata);
+		facts(tr("Content self-reported (unverified)"), aRun.Metadata.ContentSelfReported);
+		const auto conflicts = core::inspect_runtime_metadata(aRun.Metadata);
 		result += conflicts && conflicts->empty() ? tr("No conflicting facts reported.") : tr("Conflicting facts retained; no model or effort winner is inferred.");
 		Provenance->setPlainText(result);
 	}
