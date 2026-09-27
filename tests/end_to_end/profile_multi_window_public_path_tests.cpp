@@ -847,10 +847,10 @@ try {
 	} else {
 		std::ifstream     stream{ root / "logs/diagnostics.log" };
 		const std::string log{ std::istreambuf_iterator<char>{ stream }, { } };
-		const auto        started = log.find("op=application outcome=started");
-		const auto        stopped = log.find("op=application outcome=shutdown");
-		expect(started != std::string::npos && log.find("op=application outcome=started", started + 1U) == std::string::npos, "one profile services startup");
-		expect(stopped != std::string::npos && log.find("op=application outcome=shutdown", stopped + 1U) == std::string::npos, "one profile services shutdown");
+		const auto        started = log.find("\"op\":\"application\",\"outcome\":\"started\"");
+		const auto        stopped = log.find("\"op\":\"application\",\"outcome\":\"shutdown\"");
+		expect(started != std::string::npos && log.find("\"op\":\"application\",\"outcome\":\"started\"", started + 1U) == std::string::npos, "one profile services startup");
+		expect(stopped != std::string::npos && log.find("\"op\":\"application\",\"outcome\":\"shutdown\"", stopped + 1U) == std::string::npos, "one profile services shutdown");
 	}
 	std::cout << "profile-multi-window-public-path:pass\n";
 	return EXIT_SUCCESS;

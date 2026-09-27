@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
+#include <chrono>
 #include <cstdio>
 #include <expected>
 #include <limits>
@@ -16,6 +18,7 @@
 #include <quill/Frontend.h>
 #include <quill/Logger.h>
 #include <quill/sinks/Sink.h>
+#include <random>
 #include <thread>
 #if !defined(_WIN32)
 	#include <fcntl.h>
@@ -466,6 +469,78 @@ namespace bpr::adapters::logging {
 			std::uint64_t               MaximumBytes;
 			std::uint64_t               Bytes = 0;
 		};
+		// Only already-classified fields enter this fixed-capacity encoder. Escaping
+		// protects JSON framing; it does not classify or sanitize provider content.
+		class json_record
+		{
+		public:
+			json_record() { append("{"); }
+			void text(std::string_view aKey, std::string_view aValue)
+			{
+				key(aKey);
+				append("\"");
+				append_escaped(aValue);
+				append("\"");
+			}
+			void number(std::string_view aKey, std::uint64_t aValue)
+			{
+				key(aKey);
+				std::array<char, 20> number{ };
+				const auto           converted = std::to_chars(number.data(), number.data() + number.size(), aValue);
+				append({ number.data(), static_cast<std::size_t>(converted.ptr - number.data()) });
+			}
+			auto finish() -> std::string_view
+			{
+				append("}");
+				return Valid ? std::string_view{ Bytes.data(), Size } : std::string_view{ };
+			}
+
+		private:
+			void append_escaped(std::string_view aValue)
+			{
+				for (const unsigned char character : aValue) {
+					if (character == '"' || character == '\\') {
+						append("\\");
+					}
+					const char value = static_cast<char>(character);
+					append({ &value, 1U });
+				}
+			}
+			void key(std::string_view aKey)
+			{
+				append(Size == 1U ? "\"" : ",\"");
+				append(aKey);
+				append("\":");
+			}
+			void append(std::string_view aValue)
+			{
+				if (aValue.size() > Bytes.size() - Size) {
+					Valid = false;
+					return;
+				}
+				std::copy(aValue.begin(), aValue.end(), Bytes.begin() + static_cast<std::ptrdiff_t>(Size));
+				Size += aValue.size();
+			}
+			// Includes space for Quill's single newline; nothing grows on overflow.
+			std::array<char, 16U * 1024U - 1U> Bytes{ };
+			std::size_t                        Size  = 0U;
+			bool                               Valid = true;
+		};
+		auto session_identity() -> std::string
+		{
+			std::random_device random;
+			std::string        identity;
+			identity.reserve(32U);
+			constexpr std::string_view hex = "0123456789abcdef";
+			for (unsigned index = 0U; index < 4U; ++index) {
+				const auto value = static_cast<std::uint32_t>(random());
+				for (unsigned shift = 0U; shift < 32U; shift += 4U) {
+					identity.push_back(hex[(value >> shift) & 15U]);
+				}
+			}
+			return identity;
+		}
+
 		constexpr std::array<std::string_view, 5>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch" };
 		constexpr std::array<std::string_view, 13> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline" };
 		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
@@ -478,7 +553,8 @@ namespace bpr::adapters::logging {
 			: State{ std::make_shared<sink_state>() }
 		{
 			try {
-				Sink = std::make_shared<capped_sink>(aRoot, aMaximumBytes, State);
+				Session = session_identity();
+				Sink    = std::make_shared<capped_sink>(aRoot, aMaximumBytes, State);
 				if (State->Status != status_type::available) {
 					return;
 				}
@@ -488,7 +564,7 @@ namespace bpr::adapters::logging {
 					State->fail(status_type::unavailable);
 					return;
 				}
-				Logger = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(time) %(message)", "%Y-%m-%dT%H:%M:%S.%QnsZ", quill::Timezone::GmtTime });
+				Logger = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(message)" });
 			} catch (...) {
 				// [[BPR-0885]]. A throw while admitting the file still names a
 				// cause. Once the sink exists the file was admitted, and a later
@@ -544,7 +620,7 @@ namespace bpr::adapters::logging {
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
 			if (gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
-				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter == 127U; })) {
+				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter >= 127U; })) {
 				State->drop();
 				return status_type::dropped;
 			}
@@ -557,13 +633,48 @@ namespace bpr::adapters::logging {
 				Threads[ThreadCount++] = thread;
 			}
 			try {
-				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={} page_operation={} window_session={} relationship_detail={} transport_source={} git_step={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+
+				static constexpr quill::MacroMetadata metadata{ "", "", "{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
 				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
 				const auto                            failureDomain = githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation") : domains[aEvent.EpochFailure.index()];
 				const auto                            failure       = githubFailure
 					? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
 					: std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
-				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], failureDomain, failure, aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" }, paged_operations[paged], aEvent.WindowSession, aEvent.RelationshipDetail ? failure_name(*aEvent.RelationshipDetail) : std::string_view{ "none" }, transportSources[transportSource], gitSteps[gitStep])) {
+				const auto                            utc           = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				if (utc < 0 || Sequence == std::numeric_limits<std::uint64_t>::max()) {
+					State->drop();
+					return status_type::dropped;
+				}
+				json_record record;
+				record.number("v", 2U);
+				record.text("event", std::string{ operations[operation] } + "." + std::string{ outcomes[outcome] });
+				record.text("category", operation == 0U ? "application" : operation == 4U ? "epoch"
+																						  : "github");
+				record.text("severity", aEvent.Outcome == application::diagnostic_outcome::failed ? "error" : aEvent.HttpStatus >= 400U ? "warning"
+																																		: "info");
+				record.number("utc_ms", static_cast<std::uint64_t>(utc));
+				record.number("elapsed_us", static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - Started).count()));
+				record.text("session", Session);
+				record.number("sequence", ++Sequence);
+				record.text("build", BPR_DIAGNOSTIC_BUILD);
+				record.text("op", operations[operation]);
+				record.text("outcome", outcomes[outcome]);
+				record.number("request", aEvent.Request);
+				record.number("http_status", aEvent.HttpStatus);
+				record.text("summary", summaries[summary]);
+				record.number("dropped", State->Dropped.load());
+				record.text("detail", aEvent.Summary.text());
+				record.text("epoch_stage", stages[stage]);
+				record.text("failure_domain", failureDomain);
+				record.text("failure", failure);
+				record.text("pack_failure", aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" });
+				record.text("page_operation", paged_operations[paged]);
+				record.number("window_session", aEvent.WindowSession);
+				record.text("relationship_detail", aEvent.RelationshipDetail ? failure_name(*aEvent.RelationshipDetail) : std::string_view{ "none" });
+				record.text("transport_source", transportSources[transportSource]);
+				record.text("git_step", gitSteps[gitStep]);
+				const auto bytes = record.finish();
+				if (bytes.empty() || !Logger->log_statement<false>(&metadata, bytes)) {
 					State->drop();
 					return status_type::dropped;
 				}
@@ -590,8 +701,11 @@ namespace bpr::adapters::logging {
 		frontend::logger_t*             Logger = nullptr;
 		std::unique_ptr<backend_lease>  Backend;
 		// Retained after close so concurrent status reads never race pointer reset.
-		std::shared_ptr<backend_status> BackendStatus;
-		bool                            Closed = false;
+		std::shared_ptr<backend_status>             BackendStatus;
+		const std::chrono::steady_clock::time_point Started = std::chrono::steady_clock::now();
+		std::string                                 Session;
+		std::uint64_t                               Sequence = 0U;
+		bool                                        Closed   = false;
 	};
 	quill_log::quill_log(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes) noexcept
 	{

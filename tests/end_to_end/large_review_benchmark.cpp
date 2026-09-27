@@ -2057,7 +2057,7 @@ namespace bpr::e2e::large_review {
 			application.reset();
 			std::ifstream     diagnosticFile{ dataRoot / "logs/diagnostics.log" };
 			const std::string diagnostics{ std::istreambuf_iterator<char>{ diagnosticFile }, { } };
-			require(diagnostics.find("op=application outcome=shutdown") != std::string::npos, "large public course closes the actual diagnostic file");
+			require(diagnostics.find("\"op\":\"application\",\"outcome\":\"shutdown\"") != std::string::npos, "large public course closes the actual diagnostic file");
 			const auto exported = application::prepare_release_diagnostics(diagnostics, core::release_maintenance_revision{ 1U });
 			require(exported && exported->Descriptor.Records != 0U, "large public course reaches the actual export classifier");
 			for (const auto* marker : { "int fixture_", "// synthetic source", "int sample_", "large/comparison.cpp", "access_token", "refresh_token" }) {

@@ -1,4 +1,5 @@
 #include "../support/capability_error_content_canaries.hpp"
+#include "../support/diagnostic_json.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
@@ -66,6 +67,59 @@ namespace {
 		return credentialRetained || contentRetained || exportRetained ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
 
+	void structured_record_contract(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		using status = application::diagnostic_log_status;
+		application::diagnostic_summary escaped;
+		escaped.State = application::diagnostic_summary_state::sanitized;
+		escaped.Text.fill('\\');
+		escaped.Text.front() = '"';
+		escaped.Size         = static_cast<std::uint16_t>(escaped.Text.size());
+		{
+			adapters::logging::quill_log log{ aRoot };
+			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::failed, .Request = 123U, .HttpStatus = 403U, .Summary = escaped }) == status::available, "maximum escaped classified field is admitted");
+			auto invalid    = escaped;
+			invalid.Text[1] = '\n';
+			expect(log.record({ .Summary = invalid }) == status::dropped, "line injection is refused before enqueue");
+			invalid.Text[1] = static_cast<char>(0xff);
+			expect(log.record({ .Summary = invalid }) == status::dropped, "invalid UTF-8 cannot reach JSON transport");
+			expect(log.record({ .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 429U }) == status::available, "HTTP warning admitted");
+			expect(log.record({ .Outcome = application::diagnostic_outcome::cancelled }) == status::available, "cancellation is informational");
+		}
+		{
+			adapters::logging::quill_log log{ aRoot };
+			expect(log.record({ }) == status::available, "next logger session admitted");
+		}
+		const auto bytes   = read(aRoot / "logs/diagnostics.log");
+		const auto records = tests::diagnostic_json_records(bytes);
+		expect(records.size() == 4U && records[0].value("detail").toString().toStdString() == escaped.text(), "escaping round trips one full classified field without extra records");
+		expect(records[0].value("severity") == "error" && records[1].value("severity") == "warning" && records[2].value("severity") == "info", "error, warning and cancellation severity survive JSON");
+		expect(records[1].value("dropped").toInteger() == 2 && records[2].value("sequence").toInteger() == 3, "invalid records are counted without entering session sequence");
+		expect(records[0].value("session") != records[3].value("session") && records[3].value("sequence").toInteger() == 1, "a new session cannot alias appended history");
+		const auto exported = application::prepare_release_diagnostics(bytes, core::release_maintenance_revision{ 1U });
+		expect(exported && exported->Descriptor.Records == 4U && exported->Descriptor.OmittedRecords == 0U && exported->Bytes.find("\\") == std::string::npos, "JSONL export reconstructs metadata without escaped prose");
+		const auto       first = bytes.substr(0U, bytes.find('\n') + 1U);
+		const std::array corruptions{
+			std::pair{ std::string{ "\"v\":2" }, std::string{ "\"v\":3" } },
+			std::pair{ std::string{ "\"http_status\":403" }, std::string{ "\"http_status\":999" } },
+			std::pair{ std::string{ "\"request\":123" }, std::string{ "\"request\":0123" } },
+			std::pair{ std::string{ "\"request\":123" }, std::string{ "\"request\":18446744073709551616" } },
+			std::pair{ std::string{ "\"summary\":\"sanitized\"" }, std::string{ "\"summary\":\"SECRET_CANARY\"" } },
+			std::pair{ std::string{ "\"v\":2" }, std::string{ "\"v\":2,\"v\":2" } },
+			std::pair{ std::string{ "}\n" }, std::string{ ",\"unknown\":\"SECRET_CANARY\"}\n" } },
+			std::pair{ std::string{ "}\n" }, std::string{ "} trailing SECRET_CANARY\n" } },
+			std::pair{ std::string{ "}\n" }, std::string{ "}" } }
+		};
+		for (const auto& [from, to] : corruptions) {
+			auto       corrupted = first;
+			const auto position  = corrupted.find(from);
+			expect(position != std::string::npos, "negative fixture changes its intended field");
+			corrupted.replace(position, from.size(), to);
+			const auto refused = application::prepare_release_diagnostics(corrupted, core::release_maintenance_revision{ 1U });
+			expect(refused && refused->Descriptor.Records == 0U && refused->Descriptor.OmittedRecords == 1U && refused->Bytes == "bpr-diagnostics-v1\n", "unknown, duplicate, malformed or partial JSON is omitted without pass-through");
+		}
+	}
 	void hostile_summary_limits(const std::filesystem::path& aRoot)
 	{
 		using namespace bpr;
@@ -129,11 +183,11 @@ namespace {
 		log.close();
 		const auto closeMs = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - closeStarted).count();
 		const auto bytes   = read(aRoot / "logs/diagnostics.log");
-		const auto marker  = bytes.find("request=971 ");
+		const auto marker  = bytes.find("\"request\":971,");
 		expect(marker != std::string::npos, "final accepted record survives ordinary close");
-		const auto    count    = bytes.find("dropped=", marker);
+		const auto    count    = bytes.find("\"dropped\":", marker);
 		std::uint64_t reported = 0U;
-		expect(count != std::string::npos && std::from_chars(bytes.data() + count + 8U, bytes.data() + bytes.size(), reported).ec == std::errc{ }, "final record carries a numeric loss count");
+		expect(count != std::string::npos && std::from_chars(bytes.data() + count + 10U, bytes.data() + bytes.size(), reported).ec == std::errc{ }, "final record carries a numeric loss count");
 		expect(reported == dropped.load(), "every observed drop is reported exactly once after pressure subsides");
 		expect(bytes.size() <= maximumBytes, "stress preserves the configured file ceiling");
 		std::cout << "logging-stress attempts=80000 dropped=" << reported << " bytes=" << bytes.size()
@@ -160,6 +214,7 @@ try {
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--audit-content-policy") {
 		return audit_content_policy(root);
 	}
+	structured_record_contract(private_root(root / "structured"));
 	hostile_summary_limits(private_root(root / "limits"));
 	stress_loss_reporting(private_root(root / "stress"));
 	{
@@ -222,18 +277,18 @@ try {
 		secondLog.close();
 		const auto firstText  = read(firstRoot / "logs/diagnostics.log");
 		const auto secondText = read(secondRoot / "logs/diagnostics.log");
-		expect(firstText.find("request=7001 ") != std::string::npos && firstText.find("request=7003 ") != std::string::npos
-				   && firstText.find("request=7002 ") == std::string::npos && firstText.find("request=7004 ") == std::string::npos,
+		expect(firstText.find("\"request\":7001,") != std::string::npos && firstText.find("\"request\":7003,") != std::string::npos
+				   && firstText.find("\"request\":7002,") == std::string::npos && firstText.find("\"request\":7004,") == std::string::npos,
 			   "first log contains only its own events");
-		expect(secondText.find("request=7002 ") != std::string::npos && secondText.find("request=7004 ") != std::string::npos
-				   && secondText.find("request=7001 ") == std::string::npos && secondText.find("request=7003 ") == std::string::npos,
+		expect(secondText.find("\"request\":7002,") != std::string::npos && secondText.find("\"request\":7004,") != std::string::npos
+				   && secondText.find("\"request\":7001,") == std::string::npos && secondText.find("\"request\":7003,") == std::string::npos,
 			   "second log contains only its own events");
 		adapters::logging::quill_log firstAgain{ firstRoot };
 		adapters::logging::quill_log secondAgain{ secondRoot };
 		secondAgain.close();
 		expect(firstAgain.record({ .Request = 7005 }) == status::available, "reverse close order also keeps survivor live");
 		firstAgain.close();
-		expect(read(firstRoot / "logs/diagnostics.log").find("request=7005 ") != std::string::npos, "backend restarts after final owner closes");
+		expect(read(firstRoot / "logs/diagnostics.log").find("\"request\":7005,") != std::string::npos, "backend restarts after final owner closes");
 	}
 	{
 		std::barrier              ready{ 4 };
@@ -251,7 +306,7 @@ try {
 		writers.clear();
 		for (auto index = 0; index < 4; ++index) {
 			const auto text = read(root / ("concurrent-" + std::to_string(index)) / "logs/diagnostics.log");
-			expect(text.find("request=" + std::to_string(8000 + index) + " ") != std::string::npos, "concurrent close drains each owned logger");
+			expect(text.find("\"request\":" + std::to_string(8000 + index) + ",") != std::string::npos, "concurrent close drains each owned logger");
 		}
 	}
 	{
@@ -271,34 +326,34 @@ try {
 		healthy.close();
 		// Final backend drainage checks Quill's delayed failure counters too.
 		expect(healthy.status() == status::available, "informational queue-drop report is not a shared backend failure");
-		expect(read(root / "healthy-profile/logs/diagnostics.log").find("request=9001 ") != std::string::npos, "healthy sibling event survives overflow drainage");
+		expect(read(root / "healthy-profile/logs/diagnostics.log").find("\"request\":9001,") != std::string::npos, "healthy sibling event survives overflow drainage");
 	}
 	const auto first    = read(file);
 	const auto exported = application::prepare_release_diagnostics(first, core::release_maintenance_revision{ 1U });
 	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
 		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");
-	expect(first.find("git_step=cli_qualification") != std::string::npos && first.find("window_session=2") != std::string::npos, "closed acquisition step and window identity persist without raw executable or provider output");
-	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
-	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
+	expect(first.find("\"git_step\":\"cli_qualification\"") != std::string::npos && first.find("\"window_session\":2") != std::string::npos, "closed acquisition step and window identity persist without raw executable or provider output");
+	expect(first.find("\"epoch_stage\":\"protocol_acquire\",\"failure_domain\":\"protocol\",\"failure\":\"pack_sink\",\"pack_failure\":\"input_limit\"") != std::string::npos, "fixed protocol and pack failure names persisted");
+	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("\"request\":42,\"http_status\":200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
-	expect(first.find("op=github.pull_request outcome=response_received request=43 http_status=403") != std::string::npos
-			   && first.find("failure_domain=github failure=rate_limit pack_failure=none page_operation=ListPullRequestFiles") != std::string::npos
-			   && first.find("failure_domain=validation failure=missing_required_text") != std::string::npos
-			   && first.find("page_operation=ListPullRequestFiles window_session=2") != std::string::npos,
+	expect(first.find("\"op\":\"github.pull_request\",\"outcome\":\"response_received\",\"request\":43,\"http_status\":403") != std::string::npos
+			   && first.find("\"failure_domain\":\"github\",\"failure\":\"rate_limit\",\"pack_failure\":\"none\",\"page_operation\":\"ListPullRequestFiles\"") != std::string::npos
+			   && first.find("\"failure_domain\":\"validation\",\"failure\":\"missing_required_text\"") != std::string::npos
+			   && first.find("\"page_operation\":\"ListPullRequestFiles\",\"window_session\":2") != std::string::npos,
 		   "typed HTTP, provider and validation facts persist without arbitrary text");
-	expect(first.find("failure_domain=validation failure=invalid_relationship pack_failure=none page_operation=SearchPullRequests window_session=0 relationship_detail=relationship_actor_login") != std::string::npos, "relationship reason is independent of the final fetched operation");
-	expect(first.find("request=46 http_status=404") != std::string::npos
-			   && first.find("failure=permission pack_failure=none page_operation=GetRepository window_session=0 relationship_detail=none transport_source=http_response") != std::string::npos
-			   && first.find("request=47 http_status=0") != std::string::npos
-			   && first.find("transport_source=network_reply") != std::string::npos,
+	expect(first.find("\"failure_domain\":\"validation\",\"failure\":\"invalid_relationship\",\"pack_failure\":\"none\",\"page_operation\":\"SearchPullRequests\",\"window_session\":0,\"relationship_detail\":\"relationship_actor_login\"") != std::string::npos, "relationship reason is independent of the final fetched operation");
+	expect(first.find("\"request\":46,\"http_status\":404") != std::string::npos
+			   && first.find("\"failure\":\"permission\",\"pack_failure\":\"none\",\"page_operation\":\"GetRepository\",\"window_session\":0,\"relationship_detail\":\"none\",\"transport_source\":\"http_response\"") != std::string::npos
+			   && first.find("\"request\":47,\"http_status\":0") != std::string::npos
+			   && first.find("\"transport_source\":\"network_reply\"") != std::string::npos,
 		   "persisted permission diagnostics distinguish HTTP response from network reply");
-	expect(first.find("op=application outcome=started") != std::string::npos, "ordinary close persists startup");
+	expect(first.find("\"op\":\"application\",\"outcome\":\"started\"") != std::string::npos, "ordinary close persists startup");
 	{
 		adapters::logging::quill_log log{ root };
 		expect(log.record({ .Outcome = application::diagnostic_outcome::shutdown }) == status::available, "append after reopen");
 	}
-	expect(read(file).starts_with(first) && read(file).find("outcome=shutdown") != std::string::npos, "reopen preserves prior records");
+	expect(read(file).starts_with(first) && read(file).find("\"outcome\":\"shutdown\"") != std::string::npos, "reopen preserves prior records");
 	{
 		const auto                   original = read(file);
 		adapters::logging::quill_log log{ root, original.size() + 1U };

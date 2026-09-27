@@ -242,8 +242,8 @@ try {
 		}
 		std::ifstream     stream{ logRoot / "logs/diagnostics.log" };
 		const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };
-		expect(text.find("op=application outcome=started") != std::string::npos
-				   && text.find("op=application outcome=shutdown") != std::string::npos,
+		expect(text.find("\"op\":\"application\",\"outcome\":\"started\"") != std::string::npos
+				   && text.find("\"op\":\"application\",\"outcome\":\"shutdown\"") != std::string::npos,
 			   "each concurrent profile retains its own startup and shutdown diagnostics");
 	}
 
