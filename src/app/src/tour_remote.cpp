@@ -163,7 +163,17 @@ namespace bpr::app {
 					return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
 				};
 				// Tour operations still require the parent's exact host/transport qualification.
-				return tour_publication_context{ std::move(binding), std::move(factory), Session, false };
+				return tour_publication_context{ std::move(binding), std::move(factory), Session, false, [configuration](std::string_view aKey) -> tour_cli_result<std::optional<application::staged_review_plan>> {
+													auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+													if (!store) {
+														return std::unexpected(tour_cli_error{ "recovery_unavailable", "The private publication journal is unavailable.", 7 });
+													}
+													auto record = (*store)->load_staged(std::string{ aKey });
+													if (!record) {
+														return std::unexpected(tour_cli_error{ "recovery_unavailable", "The saved publication record is unavailable.", 7 });
+													}
+													return *record ? std::optional{ (**record).Plan } : std::nullopt;
+												} };
 			}
 
 			auto source(const core::tour_code_destination& aSource) -> tour_cli_result<tour_source_material> override

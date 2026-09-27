@@ -11,6 +11,7 @@
 #include "review_submission_execution_authority.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_decisions.hpp"
+#include "tour_observation.hpp"
 #include <QCoreApplication>
 #include <QThread>
 #include <algorithm>
@@ -286,8 +287,11 @@ namespace bpr::app {
 		if (!snapshot) {
 			return snapshot;
 		}
-		auto                       seed    = snapshot->Draft;
-		auto                       imports = application::observe_review_tours(core::review_tour{ .Id = read->Target.Draft, .Owner = read->Target.Owner, .Base = read->Target.Base, .Head = read->Target.Head }, read->Snapshot, read->Target.Hostname);
+		auto seed    = snapshot->Draft;
+		auto imports = observe_published_tours(core::review_tour{ .Id = read->Target.Draft, .Owner = read->Target.Owner, .Base = read->Target.Base, .Head = read->Target.Head }, read->Snapshot, read->Target.Hostname);
+		if (imports.empty() && !application::review_tour_observation_complete(read->Snapshot)) {
+			return failure("remote_incomplete", "Published collections or bodies are unavailable. No empty tour is inferred; existing private work is retained.", 5);
+		}
 		std::optional<std::size_t> selected;
 		for (std::size_t i = 0; i < imports.size(); ++i) {
 			const auto& remote = imports[i].Draft.Remote;
@@ -342,7 +346,14 @@ namespace bpr::app {
 		if (!state.ImportNotice.empty()) {
 			result.ImportNotice += state.ImportNotice;
 		}
-		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel };
+		const auto pending = static_cast<std::size_t>(std::ranges::count(read->Snapshot.Reviews, application::github_review_state::pending, &application::github_review_record::State));
+		if (pending) {
+			result.ImportNotice += " Pending server reviews are candidates only; absent local WIP and approval are unknown. No automatic adoption, editing, deletion or submission.";
+		}
+		const auto observation = !application::review_tour_observation_complete(read->Snapshot) ? "partial" : result.RemoteStale ? "stale"
+			: result.Remote                                                                                                      ? "complete"
+																																 : "no_published_root";
+		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel, observation, pending };
 	}
 	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
 	{
@@ -411,6 +422,9 @@ namespace bpr::app {
 		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
 			return failure("identity_changed", "The current account or PR differs from the saved draft.", 4);
 		}
+		if (!application::review_tour_observation_complete(read->Snapshot)) {
+			return failure("remote_incomplete", "Publication requires a complete current observation. Missing collections or bodies cannot authorize an empty update.", 5);
+		}
 		auto context = reader->publication();
 		if (!context) {
 			return std::unexpected(context.error());
@@ -431,6 +445,16 @@ namespace bpr::app {
 		}
 		if (pending->size() > 1) {
 			return failure("target_ambiguous", "Several journaled attempts exist; select --attempt with an exact attempt ID.", 2);
+		}
+		if (pending->empty() && !aAttempt.empty()) {
+			auto saved = context->Attempt ? self.effect([&] { return context->Attempt(aAttempt); }) : tour_cli_result<std::optional<application::staged_review_plan>>{ std::nullopt };
+			if (!saved) {
+				return std::unexpected(saved.error());
+			}
+			if (!*saved || !application::valid(**saved) || (**saved).Owner != target.Owner || (**saved).Submission.Proposal.Draft.value() != target.Draft.value()) {
+				return failure("attempt_unknown", "No matching plan exists in this private journal. Remote pending data cannot recover lost authorization.", 4);
+			}
+			pending->push_back(std::move(**saved));
 		}
 		if (!pending->empty()) {
 			preview.Plan   = pending->front();
@@ -460,11 +484,13 @@ namespace bpr::app {
 				preview.Result.State = preview.Plan ? application::staged_publication_state::ready : application::staged_publication_state::unavailable;
 				if (aRecover) {
 					preview.Plan.reset();
-					preview.Status = "No matching local publication receipt. Published content can be reopened from GitHub; private WIP and authorization are not recoverable from pending reviews.";
+					preview.Result.State = application::staged_publication_state::unavailable;
+					preview.Status       = "No matching local publication receipt. Published content can be reopened from GitHub; private WIP and authorization are not recoverable from pending reviews.";
 				}
 				if (preview.PendingServerReviews) {
 					preview.Plan.reset();
-					preview.Status = "Pending server review candidates exist without this attempt's receipt. No automatic adoption, edit, deletion or submission is permitted.";
+					preview.Result.State = application::staged_publication_state::unavailable;
+					preview.Status       = "Pending server review candidates exist without this attempt's receipt. No automatic adoption, edit, deletion or submission is permitted.";
 				}
 			}
 		}
@@ -509,6 +535,9 @@ namespace bpr::app {
 		auto        read   = reader->open(target.Hostname, target.Repository, target.Number, aGh);
 		if (!read) {
 			return std::unexpected(read.error());
+		}
+		if (!application::review_tour_observation_complete(read->Snapshot)) {
+			return failure("remote_incomplete", "Publication requires a complete current observation. Missing collections or bodies cannot authorize an empty update.", 5);
 		}
 		auto context = reader->publication();
 		if (!context) {

@@ -27,10 +27,11 @@ namespace bpr::app {
 	/// \brief Exact observed provider composition, retained only during this command.
 	struct tour_publication_context
 	{
-		application::review_submission_live_binding     Binding;
-		application::review_submission_provider_factory Factory;
-		core::application_session_id                    Session;
-		bool                                            Qualified = false;
+		application::review_submission_live_binding                                                      Binding;
+		application::review_submission_provider_factory                                                  Factory;
+		core::application_session_id                                                                     Session;
+		bool                                                                                             Qualified = false;
+		std::function<tour_cli_result<std::optional<application::staged_review_plan>>(std::string_view)> Attempt;
 	};
 	/// \brief Headless provider composition; publication has a separate exact-plan authority.
 	class tour_remote_reader
@@ -48,6 +49,8 @@ namespace bpr::app {
 		application::tour_saved_target Target;
 		core::review_tour              Draft;
 		std::string                    UndoLabel, RedoLabel;
+		std::string                    PublishedObservation = "not_refreshed";
+		std::size_t                    PendingServerReviews = 0;
 	};
 	/// \brief Read-only preview or journal recovery; the plan itself grants no writes.
 	struct tour_publication_preview

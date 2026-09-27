@@ -283,11 +283,30 @@ namespace bpr::app {
 			}
 			return pr_target{ parsed.host().toStdString(), std::move(repo), core::pull_request_number{ static_cast<std::uint32_t>(*number(parts[4])) } };
 		}
+		auto remote_identity(const std::optional<core::tour_remote_binding>& aRemote) -> QJsonValue
+		{
+			if (!aRemote) {
+				return QJsonValue::Null;
+			}
+			const auto& remote = *aRemote;
+			const auto  kind   = remote.Kind == core::tour_remote_kind::review ? "review" : remote.Kind == core::tour_remote_kind::line_comment ? "line_comment"
+				: remote.Kind == core::tour_remote_kind::file_comment                                                                           ? "file_comment"
+																																				: "conversation_comment";
+			return QJsonObject{ { "kind", kind }, { "database_id", QString::number(remote.DatabaseId) }, { "node_id", text(remote.Entity) }, { "actor", text(remote.Actor) }, { "url", text(remote.WebUrl) }, { "review", text(remote.Review) }, { "own", remote.Own }, { "resolved", remote.Resolved }, { "outdated", remote.Outdated } };
+		}
+		auto source_binding(const core::tour_stop& aStop) -> QJsonValue
+		{
+			const auto source = stop_destination(aStop);
+			if (!source) {
+				return QJsonValue::Null;
+			}
+			return QJsonObject{ { "path", text(source->Path) }, { "commit", text(core::canonical_hex(source->Commit).view()) }, { "side", source->Side == core::diff_side::left ? "LEFT" : "RIGHT" }, { "first_line", QString::number(source->FirstLine + 1) }, { "last_line", QString::number(source->LastLine + 1) }, { "blob_observed", source->Blob.has_value() } };
+		}
 		auto identities(const tour_local_snapshot& aSnapshot) -> QJsonObject
 		{
 			const auto& target = aSnapshot.Target;
 			const auto& owner  = target.Owner;
-			return { { "profile_id", QString::number(owner.Profile.value()) }, { "draft_id", text(tour_runtime::draft_token(target)) }, { "account_id", QString::number(owner.Account.value()) }, { "repository_id", QString::number(owner.Repository.value()) }, { "pull_request_id", QString::number(owner.PullRequest.value()) }, { "host", text(target.Hostname) }, { "repository", text(target.Repository.Owner + "/" + target.Repository.Name) }, { "number", QString::number(target.Number.value()) }, { "revision", QString::number(aSnapshot.Draft.Revision) }, { "head", text(core::canonical_hex(aSnapshot.Draft.Head).view()) }, { "local_state", "Saved locally" }, { "published", aSnapshot.Draft.Remote.has_value() }, { "read_only", aSnapshot.Draft.ReadOnly }, { "remote_stale", aSnapshot.Draft.RemoteStale }, { "conflict_count", QString::number(aSnapshot.Draft.Conflicts.size()) }, { "source_state", "not_loaded" }, { "undo_label", text(aSnapshot.UndoLabel) }, { "redo_label", text(aSnapshot.RedoLabel) } };
+			return { { "profile_id", QString::number(owner.Profile.value()) }, { "draft_id", text(tour_runtime::draft_token(target)) }, { "account_id", QString::number(owner.Account.value()) }, { "repository_id", QString::number(owner.Repository.value()) }, { "pull_request_id", QString::number(owner.PullRequest.value()) }, { "host", text(target.Hostname) }, { "repository", text(target.Repository.Owner + "/" + target.Repository.Name) }, { "number", QString::number(target.Number.value()) }, { "revision", QString::number(aSnapshot.Draft.Revision) }, { "head", text(core::canonical_hex(aSnapshot.Draft.Head).view()) }, { "local_state", "Saved locally" }, { "published_observation", text(aSnapshot.PublishedObservation) }, { "pending_server_candidates", QString::number(aSnapshot.PendingServerReviews) }, { "published_root", remote_identity(aSnapshot.Draft.Remote) }, { "prior_private_context", "unknown; GitHub does not contain unsent WIP, prior AI provenance or approval" }, { "published_change_history", aSnapshot.Draft.HasPriorObservation ? "observed_in_this_profile" : "unknown_before_this_profile" }, { "published", aSnapshot.Draft.Remote.has_value() }, { "read_only", aSnapshot.Draft.ReadOnly }, { "remote_stale", aSnapshot.Draft.RemoteStale }, { "conflict_count", QString::number(aSnapshot.Draft.Conflicts.size()) }, { "source_state", "not_loaded" }, { "undo_label", text(aSnapshot.UndoLabel) }, { "redo_label", text(aSnapshot.RedoLabel) } };
 		}
 		struct presentation
 		{
@@ -302,6 +321,9 @@ namespace bpr::app {
 			const auto&  draft = aSnapshot.Draft;
 			presentation result{ identities(aSnapshot), { }, { } };
 			result.Human = QStringLiteral("%1/%2/%3#%4\nDraft %5\nrevision %6\nSaved locally; local changes are not published.\n").arg(text(aSnapshot.Target.Hostname), text(aSnapshot.Target.Repository.Owner), text(aSnapshot.Target.Repository.Name), QString::number(aSnapshot.Target.Number.value()), text(tour_runtime::draft_token(aSnapshot.Target)), QString::number(draft.Revision));
+			if (draft.Remote) {
+				result.Human += "Published root: " + text(draft.Remote->WebUrl) + "\nEarlier private context and provenance are unknown after profile loss.\n";
+			}
 			if (aOptions.Values.contains("--offline")) {
 				result.Warnings.append(QJsonObject{ { "code", "stale_cached" }, { "message", "Local state only; published material and source have not been refreshed." } });
 			}
@@ -324,6 +346,8 @@ namespace bpr::app {
 					result.Data["title"]           = text(stop->Title).left(256);
 					result.Data["title_truncated"] = text(stop->Title).size() > 256;
 					result.Data["stop_id"]         = QString::number(stop->Id.value());
+					result.Data["remote"]          = remote_identity(stop->Remote);
+					result.Data["source_binding"]  = source_binding(*stop);
 				} else {
 					return refuse("invalid_field", "Use problem, solution or stop:ID.");
 				}
@@ -352,7 +376,7 @@ namespace bpr::app {
 				}
 				for (auto i = cursor; i < end; ++i) {
 					const auto& stop = draft.Stops[i];
-					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) } });
+					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
 					result.Human += QStringLiteral("%1. %2 [%3]\n").arg(QString::number(stop.Id.value()), text(stop.Title), stop.Preparation == core::tour_preparation::ready ? "Ready" : "Editing");
 				}
 				result.Data["stops"]       = stops;
@@ -513,11 +537,27 @@ namespace bpr::app {
 			return presentation{ data, human, { } };
 		}
 
+		auto publication_state_name(application::staged_publication_state aState) -> QString
+		{
+			using state = application::staged_publication_state;
+			switch (aState) {
+			case state::ready:                 return "ready";
+			case state::staged:                return "staged";
+			case state::published:             return "published";
+			case state::outcome_unknown:       return "outcome_unknown";
+			case state::conflict:              return "conflict";
+			case state::partial:               return "partial";
+			case state::description_attention: return "description_attention";
+			case state::unavailable:           return "unavailable";
+			}
+			return "unavailable";
+		}
 		auto render_publication(const tour_publication_preview& aPreview) -> tour_cli_result<presentation>
 		{
 			presentation result{ identities(aPreview.Snapshot), text(aPreview.Status) + "\n", { } };
 			auto&        data                 = result.Data;
 			data["publication_status"]        = text(aPreview.Status);
+			data["publication_state"]         = publication_state_name(aPreview.Result.State);
 			data["publication_authorized"]    = false;
 			data["pending_server_candidates"] = QString::number(aPreview.PendingServerReviews);
 			data["private_history"]           = "local only; unknown after profile loss";

@@ -170,3 +170,30 @@ does not enable live Tour writes. Unsupported vaults, platforms and authority
 remain typed refusals. Live host, native package and actual human/agent
 qualification remain later acceptance work. The current exact-plan preview is
 bounded to 400,000 UTF-8 bytes; larger plans refuse before prompting.
+
+## Fresh profile reconstruction
+
+Online `open` uses the same ordinary-comment importer and scoped pinned-link
+parser as the desktop. It preserves current description text, website route
+order, raw baselines, remote discussion IDs and source commit/path/side/range.
+Multiple roots require an explicit `--root`; later publication batches can belong
+to the original index. A clean profile does not need a copied manifest or cache.
+
+JSON includes `published_root`, per-stop `remote` and `source_binding`, and
+`published_observation` (`complete`, `partial`, `stale`, `no_published_root` or
+`not_refreshed`). A complete collection may still contain unresolved deleted or
+inaccessible route entries; these remain visible and read-only. Missing source
+identity remains null, and source bytes require an independent pinned read.
+Private WIP, prior AI provenance, readiness and approval absent from this profile
+are unknown. An observed source binding does not invent a blob or author visit.
+
+Incomplete collections or raw bodies cannot prepare publication. Accessible
+partial routes remain visible and read-only; an incomplete empty response does
+not initialize an empty replacement. If a previously bound index disappears,
+retained local text is marked stale. Pending reviews and their private comments
+are excluded from the published projection and supply no recovery authority.
+
+`recover --attempt ID` can read a completed exact plan from the existing private
+journal even after local attribution advanced the draft revision. It reobserves
+the provider and reports `publication_state` and real receipts without writes.
+Without that journal, a pending server candidate cannot recreate lost approval.

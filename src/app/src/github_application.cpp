@@ -14,6 +14,7 @@
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
 #include "terminal_diagnostics.hpp"
+#include "tour_observation.hpp"
 #include <QCryptographicHash>
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -8817,15 +8818,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!profile || !base || !head) {
 				return;
 			}
-			const auto seed  = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
-			const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
-			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname(), [scope, seed](std::string_view aBody) {
-				auto source = adapters::github::detail::parse_tour_permalink(scope, aBody);
-				if (source && source->Commit == seed.Base) {
-					source->Side = core::diff_side::left;
-				}
-				return source;
-			}));
+			const auto seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			TourHost->observe_imports(observe_published_tours(seed, snapshot, profile->hostname()));
 		}
 		struct writing_operation
 		{

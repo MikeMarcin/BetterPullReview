@@ -2,11 +2,13 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../../src/app/src/tour_cancellation.hpp"
 #include "../../src/app/src/tour_cli.hpp"
+#include "../../src/app/src/tour_observation.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include <QCoreApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
@@ -26,8 +28,9 @@ namespace {
 	}
 	struct fixture_state
 	{
-		std::shared_ptr<app::detail::review_submission_fixture_state> Server    = std::make_shared<app::detail::review_submission_fixture_state>();
-		bool                                                          Qualified = true, WrongAccount = false, Partial = false, FailRead = false;
+		std::shared_ptr<app::detail::review_submission_fixture_state>   Server    = std::make_shared<app::detail::review_submission_fixture_state>();
+		bool                                                            Qualified = true, WrongAccount = false, Partial = false, FailRead = false;
+		std::function<void(application::github_pull_request_snapshot&)> Observe;
 	};
 	class fixture_reader final : public app::tour_remote_reader
 	{
@@ -74,6 +77,9 @@ namespace {
 			for (const auto& comment : State.Server->CompatibilityComments) {
 				snapshot.IssueComments.push_back({ .Comment = application::github_comment_id{ comment.NodeId }, .Author = snapshot.Viewer, .Observation = { .DatabaseId = comment.Id, .WebUrl = comment.WebUrl, .UpdatedAt = "version1", .RawBody = comment.Body } });
 			}
+			if (State.Observe) {
+				State.Observe(snapshot);
+			}
 			return read;
 		}
 		auto publication() -> app::tour_cli_result<app::tour_publication_context> override
@@ -87,7 +93,13 @@ namespace {
 				}
 				return app::detail::make_staged_review_fixture_provider(server, std::move(*store), live, "");
 			};
-			return app::tour_publication_context{ live, std::move(factory), core::application_session_id{ 123 }, State.Qualified };
+			return app::tour_publication_context{ live, std::move(factory), core::application_session_id{ 123 }, State.Qualified, [configuration](std::string_view aKey) -> app::tour_cli_result<std::optional<application::staged_review_plan>> {
+													 auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+													 expect(store.has_value(), "existing fixture journal opens");
+													 auto record = (*store)->load_staged(std::string{ aKey });
+													 expect(record.has_value(), "keyed fixture receipt load");
+													 return *record ? std::optional{ (**record).Plan } : std::nullopt;
+												 } };
 		}
 
 	private:
@@ -216,6 +228,123 @@ namespace {
 		}
 		return code;
 	}
+	void cold_course(fixture_state& aState, const std::filesystem::path& aRoot)
+	{
+		auto& server = *aState.Server;
+		expect(server.PreviousReviews.size() == 1 && server.PreviousComments.size() == 1 && server.StagedComments.size() == 1, "cold fixture spans two actually published batches");
+		const auto root                      = server.PreviousReviews.front().WebUrl;
+		const auto first                     = server.PreviousComments.front().WebUrl;
+		const auto second                    = server.StagedComments.front().WebUrl;
+		server.StagedDescription             = "Template retained.\r\n## Problem\r\nWebsite problem.\r\n## Solution\r\nWebsite solution.\r\n## Checks\r\nPreserved.\r\n";
+		server.PreviousComments.front().Body = "Website-maintained **raw** first stop.\r\n";
+		const auto compatibility             = "https://github.com/o/r/pull/7#issuecomment-801";
+		const auto historical                = "https://github.com/o/r/pull/7#issuecomment-802";
+		const auto base                      = std::string{ core::canonical_hex(tests::review_tour_fixture().Base).view() };
+		server.CompatibilityComments.push_back({ .Id = 801, .NodeId = "IC_801", .WebUrl = compatibility, .Actor = server.StagedReview->Actor, .Body = "https://github.com/o/r/blob/" + base + "/src/left.cpp#L2-L4\n\nLeft-side explanation." });
+		server.CompatibilityComments.push_back({ .Id = 802, .NodeId = "IC_802", .WebUrl = historical, .Actor = server.StagedReview->Actor, .Body = "https://github.com/o/r/blob/3333333333333333333333333333333333333333/src/old.cpp#L1-L2\n\nHistorical explanation." });
+		server.PreviousReviews.front().Body     = "Website route\n\n1. [Later batch](" + second + ")\n1. [Original](" + first + ")\n1. [Left](" + compatibility + ")\n1. [Historical](" + historical + ")\n";
+		const auto                       writes = server.StagedWrites;
+		std::optional<core::review_tour> expected;
+		std::string                      token;
+		for (const auto name : { "cold-one", "cold-two" }) {
+			app::tour_runtime runtime{ aRoot / name / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false);
+			expect(opened && opened->PublishedObservation == "complete", "fresh profile gets complete ordinary GitHub observation");
+			const auto& draft = opened->Draft;
+			expect(draft.Stops.size() == 4 && draft.Problem == "Website problem.\r\n" && draft.Solution == "Website solution.\r\n", "cold reconstruction preserves website brief and full route");
+			expect(draft.Stops[0].Remote->WebUrl == second && draft.Stops[1].Remote->WebUrl == first && draft.Stops[1].Body == server.PreviousComments.front().Body, "current website order and raw narrative override former publication order");
+			expect(draft.IndexBaseline->Raw == server.PreviousReviews.front().Body && draft.ProblemBaseline->Raw == *server.StagedDescription, "raw website baselines are exact");
+			expect(draft.Stops[0].Destination && draft.Stops[0].Destination->Path == "src/later.cpp" && draft.Stops[1].Destination && draft.Stops[1].Destination->Path == "src/item.cpp", "native subjects from different batches retain original sources");
+			expect(draft.Stops[2].Destination && draft.Stops[2].Destination->Side == core::diff_side::left && draft.Stops[2].Destination->FirstLine == 1 && draft.Stops[2].Destination->LastLine == 3, "same desktop scoped parser recovers compatibility left source");
+			expect(draft.Stops[3].Destination && core::canonical_hex(draft.Stops[3].Destination->Commit).view() == "3333333333333333333333333333333333333333", "historical pinned commit never replaced by current head");
+			expect(!draft.HasPriorObservation && std::ranges::all_of(draft.Stops, [](const auto& stop) { return !stop.Original && !stop.Suggestion && stop.CompletionOrigin == core::tour_completion_origin::unspecified && stop.Preparation != core::tour_preparation::ready && !stop.Destination->Blob; }), "cold observation invents no private source visits readiness provenance or blobs");
+			if (expected) {
+				expect(*expected == draft, "two fresh roots without shared cache or manifest reconstruct identical published content");
+			} else {
+				expected = draft;
+			}
+			token = app::tour_runtime::draft_token(opened->Target);
+		}
+		{
+			std::ostringstream output;
+			auto*              before = std::cout.rdbuf(output.rdbuf());
+			const auto         code   = app::run_tour_cli({ "tour", "status", "--data-root", QString::fromStdString((aRoot / "cold-one" / "data").string()), "--profile", "1", "--draft", QString::fromStdString(token), "--json" }, readers(aState));
+			std::cout.rdbuf(before);
+			const auto data = QJsonDocument::fromJson(QByteArray::fromStdString(output.str())).object()["data"].toObject();
+			expect(code == 0 && data["published_root"].toObject()["url"].toString() == QString::fromStdString(root) && data["prior_private_context"].toString().startsWith("unknown") && data["stops"].toArray().size() == 4 && data["stops"].toArray()[2].toObject()["source_binding"].toObject()["side"] == "LEFT", "actual CLI JSON exposes remote bindings and unknown private context");
+		}
+		aState.Partial = true;
+		{
+			app::tour_runtime runtime{ aRoot / "partial" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false);
+			expect(opened && opened->Draft.ReadOnly && opened->PublishedObservation == "partial" && opened->Draft.Stops.size() == 4, "partial accessible content stays visible and read-only");
+			expect(!runtime.prepare_publication(app::tour_runtime::draft_token(opened->Target), false, { }), "partial read cannot authorize maintenance");
+		}
+		aState.Observe = [](auto& snapshot) {snapshot.Reviews.clear();snapshot.IssueComments.clear();snapshot.ReviewThreads.clear(); };
+		{
+			app::tour_runtime runtime{ aRoot / "partial-empty" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
+			expect(!opened && opened.error().Code == "remote_incomplete", "missing collections never become an empty new tour");
+		}
+		aState.Partial = false;
+		aState.Observe = [](auto& snapshot) { snapshot.ReviewThreads.front().Comments.front().Deleted = true; };
+		{
+			app::tour_runtime runtime{ aRoot / "deleted-stop" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false);
+			expect(opened && opened->Draft.ReadOnly && opened->Draft.Stops.size() == 4 && !opened->Draft.Stops[1].Remote && opened->Draft.Stops[1].Body.starts_with("Unresolved"), "deleted inaccessible destination retained as unresolved route entry");
+		}
+		aState.Observe = [](auto& snapshot) {auto& comment=snapshot.ReviewThreads.front().Comments.front();comment.Observation.Commit.clear();comment.Observation.OriginalCommit.clear(); };
+		{
+			app::tour_runtime runtime{ aRoot / "unknown-source" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false);
+			expect(opened && !opened->Draft.Stops[1].Destination && opened->Draft.Stops[1].Body == server.PreviousComments.front().Body, "unknown source preserves accessible prose without fabricated anchor");
+		}
+		aState.Observe = [](auto& snapshot) { snapshot.Reviews.front().Observation.RawBody.reset(); };
+		{
+			app::tour_runtime runtime{ aRoot / "missing-body" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
+			expect(!opened && opened.error().Code == "remote_incomplete", "unavailable raw root body never implies absence");
+		}
+		aState.Observe = [](auto& snapshot) {auto other=snapshot.Reviews.front();other.DatabaseId=999;other.Review=application::github_review_id{"PRR_999"};other.Observation.DatabaseId=999;other.Observation.WebUrl="https://github.com/o/r/pull/7#pullrequestreview-999";snapshot.Reviews.push_back(other); };
+		{
+			app::tour_runtime runtime{ aRoot / "multiple" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
+			expect(!opened && opened.error().Code == "target_ambiguous", "multiple current roots require explicit selection");
+			expect(runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false).has_value(), "explicit stable root selects intended story");
+		}
+		aState.Observe = [](auto& snapshot) { snapshot.Reviews.clear(); };
+		{
+			app::tour_runtime runtime{ aRoot / "cold-one" / "data", "1", readers(aState) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
+			expect(opened && opened->Draft.RemoteStale && opened->PublishedObservation == "stale" && opened->Draft.Stops == expected->Stops, "missing old index preserves complete retained local story as stale");
+		}
+		aState.Observe  = { };
+		aState.FailRead = true;
+		{
+			app::tour_runtime runtime{ aRoot / "cold-two" / "data", "1", readers(aState) };
+			expect(!runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false), "provider read failure remains unavailable");
+			expect(runtime.load(token, true)->Draft == *expected, "failed read retains exact local content and revisions");
+		}
+		aState.FailRead = false;
+		expect(server.StagedWrites == writes, "all cold/import/status/partial courses perform zero writes");
+		fixture_state pending;
+		pending.Server->StagedReview        = *server.StagedReview;
+		pending.Server->StagedReview->State = application::staged_review_state::pending;
+		pending.Server->StagedComments      = server.StagedComments;
+		{
+			app::tour_runtime runtime{ aRoot / "pending" / "data", "1", readers(pending) };
+			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
+			expect(opened && !opened->Draft.Remote && opened->Draft.Stops.empty() && opened->PendingServerReviews == 1 && opened->PublishedObservation == "no_published_root", "cold pending review is a candidate, never a recovered public tour");
+			const auto pendingToken = app::tour_runtime::draft_token(opened->Target);
+			for (int i = 0; i < 2; ++i) {
+				auto recovered = runtime.prepare_publication(pendingToken, false, { }, { }, true);
+				expect(recovered && !recovered->Plan && !recovered->Result.Record && recovered->PendingServerReviews == 1, "lost journal and authority are explicitly unrecoverable");
+			}
+			expect(!runtime.prepare_publication(pendingToken, false, { }, "unknown-attempt", true), "arbitrary attempt name grants no adoption");
+		}
+		expect(pending.Server->StagedWrites == 0, "pending discovery never adopts edits deletes or submits");
+	}
+
 	void course()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-publish" };
@@ -255,6 +384,8 @@ namespace {
 			expect(state.Server->StagedCreates == 1 && state.Server->StagedSubmits == 1 && state.Server->StagedWrites == 4, "one create one patch one submit one description");
 			auto recovered = runtime.prepare_publication(token, false, { }, { }, true);
 			expect(recovered && state.Server->StagedWrites == 4, "recovery is read-only after completion");
+			auto receipt = runtime.prepare_publication(token, false, { }, prepared.Plan->Submission.IdempotencyKey, true);
+			expect(receipt && receipt->Result.Record && receipt->Result.State == application::staged_publication_state::published && state.Server->StagedWrites == 4, "explicit completed receipt survives local attribution revision and remains read-only");
 			auto snapshot = *runtime.load(token, true);
 			auto stop     = snapshot.Draft.Stops.front();
 			stop.Body     = "An explicit maintained explanation.";
@@ -263,7 +394,16 @@ namespace {
 			expect(update && update->Plan && update->Plan->Update, "maintenance uses same immutable parent plan");
 			auto updated = runtime.publish(*update, false);
 			expect(updated && updated->Result.State == application::staged_publication_state::published && state.Server->StagedCreates == 1 && state.Server->StagedSubmits == 1, "maintenance preserves original remote identities");
+			snapshot                  = *runtime.load(token, true);
+			auto additional           = tests::review_tour_fixture().Stops.front();
+			additional.Original->Path = "src/later.cpp";
+			additional.Original->Blob = *core::parse_git_blob_oid("2222222222222222222222222222222222222222");
+			additional.Title          = "Second batch";
+			snapshot                  = edit(runtime, snapshot, { .Kind = core::tour_command_kind::insert, .Value = additional });
+			auto insertion            = runtime.prepare_publication(token, false, { });
+			expect(insertion && insertion->Plan && runtime.publish(*insertion, false)->Result.State == application::staged_publication_state::published, "second actual publication batch succeeds before cold recovery");
 		}
+		cold_course(state, scratch.path());
 		QStringList args{ "tour", "publish", "--data-root", QString::fromStdString((scratch.path() / "data").string()), "--profile", "1", "--draft", QString::fromStdString(token), "--json" };
 		const auto  writes = state.Server->StagedWrites;
 		expect(app::run_tour_cli(args, readers(state)) == 3 && writes == state.Server->StagedWrites, "JSON cannot authorize publication");
