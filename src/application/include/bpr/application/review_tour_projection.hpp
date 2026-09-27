@@ -40,6 +40,7 @@ namespace bpr::application {
 		bool                                     Saving  = false;
 		bool                                     CanUndo = false;
 		bool                                     CanRedo = false;
+		std::string                              UndoLabel, RedoLabel;
 	};
 }
 #endif

@@ -1714,6 +1714,9 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative STREQUAL "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp")
             file(READ "${BPR_ROOT}/src/adapters/mcp/CMakeLists.txt" effect_owner_cmake)
             set(effect_owner_target "tool_better_pull_review_mcp_context_helper")
+        elseif(current_allowed_relative STREQUAL "src/app/src/tour_editor.cpp")
+            set(effect_owner_cmake "${app_cmake_contents}")
+            set(effect_owner_target "better_pull_review_tour_runtime")
         elseif(current_allowed_relative STREQUAL "src/app/src/terminal_diagnostics.cpp")
             set(effect_owner_cmake "${app_cmake_contents}")
             set(effect_owner_target "better_pull_review_composition")
@@ -1740,11 +1743,29 @@ endfunction()
 verify_effect_owner(
     "QProcess"
     "QProcess"
+    "src/app/src/tour_editor.cpp"
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
     "${agent_process_runner_relative}"
     "src/adapters/update/src/macos_release_update.cpp"
 )
+# The manual tour editor is an explicit trusted-argv terminal capability.
+# It never parses a shell command, selects repository configuration, or detaches.
+file(READ "${BPR_ROOT}/src/app/src/tour_editor.cpp" tour_editor_contents)
+foreach(required_editor_boundary
+    "BPR_TOUR_EDITOR_ARGV" "QDir::isAbsolutePath" "QTemporaryDir"
+    "QIODevice::NewOnly" "read_projection" "CloseFileDescriptors"
+    "windows_standard_handles::launch_restriction" "inheritance.apply"
+    "O_NOFOLLOW" "FILE_FLAG_OPEN_REPARSE_POINT" "process.waitForFinished")
+    string(FIND "${tour_editor_contents}" "${required_editor_boundary}" editor_boundary_found)
+    if(editor_boundary_found LESS 0)
+        message(FATAL_ERROR "Tour editor lost its ${required_editor_boundary} boundary")
+    endif()
+endforeach()
+if(tour_editor_contents MATCHES "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute|QSettings)")
+    message(FATAL_ERROR "Tour editor must retain explicit trusted argv and attended process ownership")
+endif()
+
 verify_effect_owner(
     "QProcessEnvironment"
     "QProcessEnvironment"

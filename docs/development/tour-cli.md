@@ -79,3 +79,28 @@ Desktop and terminal authoring use `application::review_tour_host::execute` with
 the exact owner, draft and expected revision. Admission and durable save are
 separate observations. The parent importer, source semantics and staged
 publication services remain authoritative.
+
+## Trusted editor and local history
+
+An interactive `edit FIELD` opens one private Markdown projection. Set
+`BPR_TOUR_EDITOR_ARGV` to a JSON array containing an absolute executable followed
+by its arguments, for example `["/absolute/path/to/editor", "--wait"]`.
+`VISUAL` and `EDITOR` accept one absolute executable path; arguments require the
+JSON form. Configuration is user supplied; repository editor settings and shell
+commands are not evaluated. Choose a blocking editor mode. Its own plugins,
+backups and synchronization remain governed by that editor.
+
+The profile lease is released while the editor runs. Successful import requires
+the captured whole-draft revision, valid bounded UTF-8, and an ordinary private
+projection file. Cancellation, editor failure, invalid input or a competing edit
+retains the candidate and prints its absolute path. Read the latest draft before
+using `--file` to import a retained candidate. Noninteractive commands require
+explicit `--file PATH` or `--file -` and never open an editor.
+
+`undo` and `redo` use the same local journal as the desktop. Each successful
+import is one labeled transaction; content and history are saved in one SQLite
+compare-and-swap record. Reopening preserves up to 16 transactions and 8 MiB in
+each direction. Revisions always advance, including undo. Observing a changed
+head or remote publication invalidates the local history. Undo changes local
+content; it grants no authority to change a published discussion. Schema 3 reads
+legacy draft payloads and initializes an empty journal without inventing history.

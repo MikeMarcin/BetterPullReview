@@ -87,11 +87,15 @@ namespace bpr::app {
 		}
 		auto snapshot(const application::tour_saved_target& aTarget) -> tour_cli_result<tour_local_snapshot>
 		{
-			auto value = effect([&] { return Store->load(aTarget.Owner, aTarget.Draft, { }); });
+			auto value = effect([&] { return Store->load_state(aTarget.Owner, aTarget.Draft, { }); });
 			if (!value) {
 				return store_failure(value);
 			}
-			return tour_local_snapshot{ aTarget, value->value_or(core::review_tour{ .Id = aTarget.Draft, .Owner = aTarget.Owner, .Base = aTarget.Base, .Head = aTarget.Head }) };
+			if (!*value) {
+				return tour_local_snapshot{ aTarget, core::review_tour{ .Id = aTarget.Draft, .Owner = aTarget.Owner, .Base = aTarget.Base, .Head = aTarget.Head }, { }, { } };
+			}
+			const auto& state = value->value();
+			return tour_local_snapshot{ aTarget, state.Draft, state.Undo.empty() ? std::string{ } : state.Undo.back().Label, state.Redo.empty() ? std::string{ } : state.Redo.back().Label };
 		}
 	};
 	tour_runtime::tour_runtime(std::filesystem::path aBase, std::string aProfile, tour_reader_factory aReaders)
@@ -227,7 +231,7 @@ namespace bpr::app {
 		if (!state.ImportNotice.empty()) {
 			result.ImportNotice += state.ImportNotice;
 		}
-		return tour_local_snapshot{ read->Target, std::move(result) };
+		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel };
 	}
 	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
 	{
@@ -278,6 +282,6 @@ namespace bpr::app {
 		if (state.Failure) {
 			return failure("storage_unavailable", "The local edit was not durably saved.");
 		}
-		return tour_local_snapshot{ loaded->Target, *state.Draft };
+		return tour_local_snapshot{ loaded->Target, *state.Draft, state.UndoLabel, state.RedoLabel };
 	}
 }

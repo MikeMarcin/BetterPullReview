@@ -1,12 +1,114 @@
 """Process-boundary CLI checks with a read-only fixture provider at normal composition."""
 import json
 import os
+import errno
+import select as readiness
 from pathlib import Path
 import signal
 import subprocess
 import sys
 import tempfile
 import time
+
+
+def editor_checks(binary, root, select, invoke, temporary):
+    import pty
+    fixture = Path(temporary) / "trusted editor fixture.py"
+    fixture.write_text(r'''import json, os, pathlib, signal, subprocess, sys, time
+mode, literal, name = sys.argv[1:]
+assert literal == "$(touch NOT_EXECUTED); | & `literal`"
+path = pathlib.Path(name)
+assert path.is_absolute() and path.read_bytes()
+assert path.stat().st_mode & 0o077 == 0
+assert path.parent.stat().st_mode & 0o077 == 0
+pathlib.Path(os.environ["CANDIDATE_RECORD"]).write_text(name)
+pathlib.Path(os.environ["CHILD_RECORD"]).write_text(str(os.getpid()))
+if mode == "success": path.write_bytes("editor α\r\n\r\n".encode())
+if mode == "invalid": path.write_bytes(b"\xff")
+if mode == "failure":
+    path.write_text("recoverable candidate")
+    sys.exit(9)
+if mode == "crash": os.kill(os.getpid(), signal.SIGKILL)
+if mode == "symlink":
+    path.unlink()
+    path.symlink_to(os.environ["OUTSIDE_FILE"])
+if mode == "conflict":
+    response = subprocess.run(json.loads(os.environ["CONCURRENT_EDIT"]), input=b"concurrent winner", capture_output=True)
+    assert response.returncode == 0, response.stdout
+    path.write_text("uncommitted editor candidate")
+if mode == "cancel": time.sleep(30)
+''')
+    outside = Path(temporary) / "outside file.md"
+    outside.write_text("outside must remain unchanged")
+    record = Path(temporary) / "candidate path.txt"
+    child_record = Path(temporary) / "child pid.txt"
+    def revision():
+        return json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"]
+    def tty_editor(mode, expected):
+        record.unlink(missing_ok=True)
+        child_record.unlink(missing_ok=True)
+        env = dict(os.environ, BPR_TOUR_EDITOR_ARGV=json.dumps([sys.executable, str(fixture), mode,
+                   "$(touch NOT_EXECUTED); | & `literal`"]), CANDIDATE_RECORD=str(record),
+                   CHILD_RECORD=str(child_record), OUTSIDE_FILE=str(outside),
+                   CONCURRENT_EDIT=json.dumps([binary, "tour", "edit", "problem", *select,
+                   "--expected-revision", expected, "--file", "-", "--json", "--data-root", str(root)]))
+        master, slave = pty.openpty()
+        child = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", expected,
+                                  "--data-root", str(root)], stdin=slave, stdout=slave, stderr=slave, env=env)
+        os.close(slave)
+        output = bytearray()
+        deadline = time.monotonic() + 15
+        cancelled = False
+        try:
+            while time.monotonic() < deadline:
+                if mode == "cancel" and record.exists() and not cancelled:
+                    assert invoke("status", *select, "--json").returncode == 0
+                    child.send_signal(signal.SIGINT)
+                    cancelled = True
+                if readiness.select([master], [], [], 0.05)[0]:
+                    try:
+                        part = os.read(master, 8192)
+                    except OSError as error:
+                        if error.errno == errno.EIO:
+                            break
+                        raise
+                    if not part: break
+                    output.extend(part)
+            child.wait(timeout=5)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+            os.close(master)
+        return child.returncode, bytes(output), Path(record.read_text())
+    for mode, code in [("success", 0), ("failure", 7), ("crash", 7), ("invalid", 2), ("symlink", 7), ("cancel", 130), ("conflict", 4)]:
+        before = revision()
+        previous = json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+        actual, output, candidate = tty_editor(mode, before)
+        assert actual == code, (mode, actual, output)
+        assert b"\x1b" not in output
+        if mode == "success":
+            assert not candidate.exists()
+            assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == "editor α\r\n\r\n"
+            undone = invoke("undo", *select, "--expected-revision", revision(), "--json")
+            assert undone.returncode == 0 and json.loads(undone.stdout)["data"]["transaction_label"] == "Edit Problem"
+            assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == previous
+        else:
+            assert str(candidate).encode() in output and candidate.parent.exists()
+            current = json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+            assert current == ("concurrent winner" if mode == "conflict" else previous)
+            assert revision() != before if mode == "conflict" else revision() == before
+            candidate.unlink()
+            candidate.parent.rmdir()
+        assert outside.read_text() == "outside must remain unchanged"
+        assert not (Path(temporary) / "NOT_EXECUTED").exists()
+        if child_record.exists():
+            try:
+                os.kill(int(child_record.read_text()), 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise AssertionError("Editor process was left running")
 
 
 def main():
@@ -38,6 +140,15 @@ def main():
                          "--file", "-", "--json", data=b"")
         assert cleared.returncode == 0
         revision = json.loads(cleared.stdout)["data"]["revision"]
+        undone = invoke("undo", *select, "--expected-revision", revision, "--json")
+        assert undone.returncode == 0, undone.stdout
+        assert json.loads(undone.stdout)["data"]["transaction_label"] == "Edit Problem"
+        revision = json.loads(undone.stdout)["data"]["revision"]
+        assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == ""
+        redone = invoke("redo", *select, "--expected-revision", revision, "--json")
+        assert redone.returncode == 0, redone.stdout
+        revision = json.loads(redone.stdout)["data"]["revision"]
+        assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"].encode() == raw
         for body, code in [(b"\xff", "invalid_utf8"), (b"a"*65537, "input_too_large")]:
             failed = invoke("edit", "problem", *select, "--expected-revision", revision,
                             "--file", "-", "--json", data=body)
@@ -63,6 +174,8 @@ def main():
                     waiting.wait(timeout=10)
                 waiting.stdin.close()
             assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"].encode() == raw
+        if os.name != "nt":
+            editor_checks(binary, root, select, invoke, temporary)
     print("tour-cli-process-commands:pass")
 
 

@@ -39,6 +39,7 @@ namespace bpr::app {
 	{
 		application::tour_saved_target Target;
 		core::review_tour              Draft;
+		std::string                    UndoLabel, RedoLabel;
 	};
 	/// \brief One short profile-owned transaction. Destroy before waiting for human input.
 	class tour_runtime final

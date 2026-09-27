@@ -11,9 +11,10 @@ namespace bpr::adapters::sqlite {
 	namespace {
 		using application::tour_store_failure;
 		using application::tour_store_result;
-		constexpr std::int64_t     application_id = 0x42505254;
-		constexpr std::string_view target_schema  = "CREATE TABLE targets(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
-		constexpr std::string_view schema         = "CREATE TABLE tours(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
+		constexpr std::size_t      maximum_state_bytes = core::maximum_tour_bytes + 2 * application::maximum_tour_history_bytes + 65536;
+		constexpr std::int64_t     application_id      = 0x42505254;
+		constexpr std::string_view target_schema       = "CREATE TABLE targets(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
+		constexpr std::string_view schema              = "CREATE TABLE tours(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
 		auto                       fail(tour_store_failure aFailure) { return std::unexpected(application::tour_store_error{ aFailure, { } }); }
 		struct connection
 		{
@@ -49,22 +50,23 @@ namespace bpr::adapters::sqlite {
 			auto       statement = detail::prepare(aDatabase, "COMMIT");
 			return statement && sqlite3_step(statement->Value) == SQLITE_DONE;
 		}
-		auto schema_valid(sqlite3* aDatabase, bool aLegacy = false) -> bool
+		auto schema_valid(sqlite3* aDatabase, int aVersion = 3) -> bool
 		{
 			const auto count      = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4)");
 			const auto definition = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='tours' AND type='table'");
 			const auto targets    = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='targets' AND type='table'");
 			return detail::scalar_integer(aDatabase, "PRAGMA application_id") == application_id
-				&& detail::scalar_integer(aDatabase, "PRAGMA user_version") == (aLegacy ? 1 : 2)
-				&& count == (aLegacy ? 1 : 2) && definition && detail::canonical_sql(*definition) == detail::canonical_sql(schema)
-				&& (aLegacy || (targets && detail::canonical_sql(*targets) == detail::canonical_sql(target_schema)));
+				&& detail::scalar_integer(aDatabase, "PRAGMA user_version") == aVersion
+				&& count == (aVersion == 1 ? 1 : 2) && definition && detail::canonical_sql(*definition) == detail::canonical_sql(schema)
+				&& (aVersion == 1 || (targets && detail::canonical_sql(*targets) == detail::canonical_sql(target_schema)));
 		}
 		auto establish(sqlite3* aDatabase, std::stop_token aStop) -> bool
 		{
-			sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, static_cast<int>(core::maximum_tour_bytes + 4096U));
+			sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, static_cast<int>(maximum_state_bytes + 4096U));
 			sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 4096);
-			const auto empty  = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0 && detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
-			const auto legacy = schema_valid(aDatabase, true);
+			const auto empty        = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0 && detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
+			const auto legacy       = schema_valid(aDatabase, 1) || schema_valid(aDatabase, 2);
+			const bool needsTargets = empty || schema_valid(aDatabase, 1);
 			if ((!empty && !legacy && !schema_valid(aDatabase)) || !detail::configure_connection(aDatabase) || aStop.stop_requested()) {
 				return false;
 			}
@@ -76,7 +78,7 @@ namespace bpr::adapters::sqlite {
 			}
 			const auto transaction = rollback{ aDatabase };
 			return (!empty || (detail::execute(aDatabase, schema, aStop) && detail::execute(aDatabase, "PRAGMA application_id=1112560212", aStop)))
-				&& detail::execute(aDatabase, target_schema, aStop) && detail::execute(aDatabase, "PRAGMA user_version=2", aStop)
+				&& (!needsTargets || detail::execute(aDatabase, target_schema, aStop)) && detail::execute(aDatabase, "PRAGMA user_version=3", aStop)
 				&& schema_valid(aDatabase) && commit(aDatabase, aStop);
 		}
 		void target_codec(detail::tour_codec& aCodec, application::tour_saved_target& aTarget)
@@ -117,7 +119,45 @@ namespace bpr::adapters::sqlite {
 			}
 			return { static_cast<const std::uint8_t*>(sqlite3_column_blob(aStatement, aColumn)), static_cast<std::size_t>(size) };
 		}
-		auto read(sqlite3* aDatabase, const core::tour_owner& aOwner, core::tour_draft_id aDraft) -> tour_store_result<std::optional<core::review_tour>>
+		void state_codec(detail::tour_codec& aCodec, application::tour_stored_state& aState)
+		{
+			if (aCodec.Reading && !aCodec.Input.empty() && aCodec.Input.front() <= 8) {
+				aCodec.tour(aState.Draft);
+				return;
+			}
+			std::uint8_t marker = 84, version = 1;
+			aCodec.byte(marker);
+			aCodec.byte(version);
+			if (marker != 84 || version != 1) {
+				aCodec.Good = false;
+				return;
+			}
+			aCodec.tour(aState.Draft);
+			for (auto* history : { &aState.Undo, &aState.Redo }) {
+				auto count = history->size();
+				aCodec.number(count);
+				if (!aCodec.Good || count > application::maximum_tour_history_entries) {
+					aCodec.Good = false;
+					return;
+				}
+				if (aCodec.Reading) {
+					history->resize(count);
+				}
+				std::size_t bytes = 0;
+				for (auto& entry : *history) {
+					aCodec.tour(entry.Draft);
+					aCodec.id(entry.Selected);
+					aCodec.text(entry.Label, 128);
+					bytes += core::retained_tour_bytes(entry.Draft);
+					if (!aCodec.Good || bytes > application::maximum_tour_history_bytes) {
+						aCodec.Good = false;
+						return;
+					}
+				}
+			}
+		}
+
+		auto read(sqlite3* aDatabase, const core::tour_owner& aOwner, core::tour_draft_id aDraft) -> tour_store_result<std::optional<application::tour_stored_state>>
 		{
 			auto       row        = detail::prepare(aDatabase, "SELECT payload,digest FROM tours WHERE key=?1 LIMIT 1");
 			const auto encodedKey = key(aOwner, aDraft);
@@ -131,15 +171,15 @@ namespace bpr::adapters::sqlite {
 			if (result != SQLITE_ROW) {
 				return fail(tour_store_failure::unavailable);
 			}
-			const auto payload = blob(row->Value, 0, core::maximum_tour_bytes);
+			const auto payload = blob(row->Value, 0, maximum_state_bytes);
 			const auto digest  = blob(row->Value, 1, 32);
 			if (payload.empty() || digest.size() != 32 || !std::ranges::equal(core::sha256(payload), digest)) {
 				return fail(tour_store_failure::corrupt);
 			}
-			detail::tour_codec codec{ { }, payload, true };
-			core::review_tour  tour;
-			codec.tour(tour);
-			if (!codec.Good || !codec.Input.empty() || core::validate(tour) != core::tour_refusal::none || tour.Owner != aOwner || tour.Id != aDraft) {
+			detail::tour_codec             codec{ { }, payload, true };
+			application::tour_stored_state tour;
+			state_codec(codec, tour);
+			if (!codec.Good || !codec.Input.empty() || !application::valid(tour) || tour.Draft.Owner != aOwner || tour.Draft.Id != aDraft) {
 				return fail(tour_store_failure::corrupt);
 			}
 			return tour;
@@ -152,6 +192,17 @@ namespace bpr::adapters::sqlite {
 				, Profile{ aProfile }
 			{ }
 			auto load(const core::tour_owner& aOwner, core::tour_draft_id aDraft, std::stop_token aStop) -> tour_store_result<std::optional<core::review_tour>> override
+			{
+				auto result = load_state(aOwner, aDraft, aStop);
+				if (!result) {
+					return std::unexpected(result.error());
+				}
+				if (!*result) {
+					return std::nullopt;
+				}
+				return std::move(result->value().Draft);
+			}
+			auto load_state(const core::tour_owner& aOwner, core::tour_draft_id aDraft, std::stop_token aStop) -> tour_store_result<std::optional<application::tour_stored_state>> override
 			{
 				if (aOwner.Profile != Profile || !core::valid(aOwner) || !aDraft.value()) {
 					return fail(tour_store_failure::wrong_profile);
@@ -169,18 +220,20 @@ namespace bpr::adapters::sqlite {
 				}
 				return result;
 			}
-			auto save(const core::review_tour& aTour, std::uint64_t aExpectedRevision, std::stop_token aStop) -> tour_store_result<core::review_tour> override
+			auto save(const core::review_tour& aTour, std::uint64_t aExpectedRevision, std::stop_token aStop) -> tour_store_result<core::review_tour> override { return save_state({ aTour, { }, { } }, aExpectedRevision, aStop); }
+			auto save_state(const application::tour_stored_state& aState, std::uint64_t aExpectedRevision, std::stop_token aStop) -> tour_store_result<core::review_tour> override
 			{
+				const auto& aTour = aState.Draft;
 				if (aTour.Owner.Profile != Profile) {
 					return fail(tour_store_failure::wrong_profile);
 				}
-				if (core::validate(aTour) != core::tour_refusal::none || aTour.Revision <= aExpectedRevision) {
+				if (!application::valid(aState) || aTour.Revision <= aExpectedRevision) {
 					return fail(tour_store_failure::bounds);
 				}
-				auto               candidate = aTour;
+				auto               candidate = aState;
 				detail::tour_codec codec;
-				codec.tour(candidate);
-				if (!codec.Good || codec.Bytes.size() > core::maximum_tour_bytes) {
+				state_codec(codec, candidate);
+				if (!codec.Good || codec.Bytes.size() > maximum_state_bytes) {
 					return fail(tour_store_failure::bounds);
 				}
 				auto opened = open(aStop);
@@ -198,8 +251,8 @@ namespace bpr::adapters::sqlite {
 				if (!current) {
 					return std::unexpected(current.error());
 				}
-				if ((current->has_value() ? current->value().Revision : 0U) != aExpectedRevision) {
-					return std::unexpected(application::tour_store_error{ tour_store_failure::conflict, *current });
+				if ((current->has_value() ? current->value().Draft.Revision : 0U) != aExpectedRevision) {
+					return std::unexpected(application::tour_store_error{ tour_store_failure::conflict, current->has_value() ? std::optional{ current->value().Draft } : std::nullopt });
 				}
 				const auto count = detail::scalar_integer(database.Database, "SELECT count(*) FROM (SELECT 1 FROM tours LIMIT 129)");
 				if (!count || *count > 128 || (!*current && *count >= 128)) {

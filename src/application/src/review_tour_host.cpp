@@ -13,17 +13,12 @@ namespace bpr::application {
 		decision_executor&                       Decision;
 		publication                              Publish;
 		tour_presentation                        State;
-		struct history_entry
-		{
-			core::review_tour  Draft;
-			core::tour_stop_id Selected;
-		};
-		std::deque<history_entry> Undo;
-		std::deque<history_entry> Redo;
-		std::uint64_t             Request = 0;
-		bool                      Active  = false;
-		bool                      Started = false;
-		bool                      Closing = false;
+		std::deque<tour_history_entry>           Undo;
+		std::deque<tour_history_entry>           Redo;
+		std::uint64_t                            Request = 0;
+		bool                                     Active  = false;
+		bool                                     Started = false;
+		bool                                     Closing = false;
 		implementation(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 			: Seed{ std::move(aSeed) }
 			, Store{ std::move(aStore) }
@@ -34,8 +29,10 @@ namespace bpr::application {
 		std::vector<core::tour_code_destination> Sources;
 		void                                     notify()
 		{
-			State.CanUndo = !Undo.empty();
-			State.CanRedo = !Redo.empty();
+			State.CanUndo   = !Undo.empty();
+			State.CanRedo   = !Redo.empty();
+			State.UndoLabel = Undo.empty() ? std::string{ } : Undo.back().Label;
+			State.RedoLabel = Redo.empty() ? std::string{ } : Redo.back().Label;
 			State.Destinations.clear();
 			if (State.Draft) {
 				for (const auto& stop : State.Draft->Stops) {
@@ -79,11 +76,11 @@ namespace bpr::application {
 			const auto self    = shared_from_this();
 			try {
 				Effects.post([self, request] {
-					auto observed = tour_store_result<std::optional<core::review_tour>>{ std::unexpected(tour_store_error{ }) };
+					auto observed = tour_store_result<std::optional<tour_stored_state>>{ std::unexpected(tour_store_error{ }) };
 					try {
-						observed = self->Store->load(self->Seed.Owner, self->Seed.Id, { });
+						observed = self->Store->load_state(self->Seed.Owner, self->Seed.Id, { });
 					} catch (...) { }
-					if (observed && *observed && (core::validate(**observed) != core::tour_refusal::none || (**observed).Owner != self->Seed.Owner || (**observed).Id != self->Seed.Id)) {
+					if (observed && *observed && (!application::valid(**observed) || (**observed).Draft.Owner != self->Seed.Owner || (**observed).Draft.Id != self->Seed.Id)) {
 						observed = std::unexpected(tour_store_error{ tour_store_failure::corrupt, { } });
 					}
 					self->Decision.post([self, request, result = std::move(observed)]() mutable {
@@ -93,8 +90,10 @@ namespace bpr::application {
 						self->Active        = false;
 						self->State.Loading = false;
 						if (result && *result) {
-							self->State.Draft         = std::make_shared<core::review_tour>(std::move(**result));
+							self->State.Draft         = std::make_shared<core::review_tour>(std::move(result->value().Draft));
 							self->State.SavedRevision = self->State.Draft->Revision;
+							self->Undo                = std::move(result->value().Undo);
+							self->Redo                = std::move(result->value().Redo);
 						} else {
 							self->State.Draft = std::make_shared<core::review_tour>(self->Seed);
 							if (!result) {
@@ -193,11 +192,12 @@ namespace bpr::application {
 			const auto self      = shared_from_this();
 			const auto candidate = State.Draft;
 			const auto expected  = State.SavedRevision;
+			const auto journal   = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo });
 			try {
-				Effects.post([self, request, candidate, expected] {
+				Effects.post([self, request, candidate, expected, journal] {
 					auto observed = tour_store_result<core::review_tour>{ std::unexpected(tour_store_error{ }) };
 					try {
-						observed = self->Store->save(*candidate, expected, { });
+						observed = self->Store->save_state(*journal, expected, { });
 					} catch (...) { }
 					if (observed && *observed != *candidate) {
 						observed = std::unexpected(tour_store_error{ tour_store_failure::corrupt, { } });
@@ -229,18 +229,32 @@ namespace bpr::application {
 				State.Failure = tour_store_failure::unavailable;
 			}
 		}
-		void retain(std::deque<history_entry>& aHistory, core::tour_stop_id aSelected)
+		void retain(std::deque<tour_history_entry>& aHistory, core::tour_stop_id aSelected, std::string aLabel)
 		{
-			aHistory.push_back({ *State.Draft, aSelected });
+			aHistory.push_back({ *State.Draft, aSelected, std::move(aLabel) });
 			auto bytes = std::size_t{ 0 };
 			for (const auto& item : aHistory) {
 				bytes += core::retained_tour_bytes(item.Draft);
 			}
-			while (aHistory.size() > 16 || bytes > 8U * 1024U * 1024U) {
+			while (aHistory.size() > maximum_tour_history_entries || bytes > maximum_tour_history_bytes) {
 				bytes -= core::retained_tour_bytes(aHistory.front().Draft);
 				aHistory.pop_front();
 			}
 		}
+		static auto label(core::tour_command_kind aKind) -> std::string
+		{
+			switch (aKind) {
+			case core::tour_command_kind::problem:   return "Edit Problem";
+			case core::tour_command_kind::solution:  return "Edit Solution";
+			case core::tour_command_kind::edit_stop: return "Edit stop";
+			case core::tour_command_kind::insert:    return "Add stop";
+			case core::tour_command_kind::move:      return "Move stop";
+			case core::tour_command_kind::remove:    return "Remove stop";
+			case core::tour_command_kind::complete:  return "Ready stop";
+			default:                                 return "Edit tour";
+			}
+		}
+
 		void dispatch(const core::tour_command& aCommand)
 		{
 			if (Closing || State.Loading || !State.Draft) {
@@ -250,12 +264,14 @@ namespace bpr::application {
 			State.Refusal      = outcome.Refusal;
 			if (outcome.Changed) {
 				const bool text = aCommand.Kind == core::tour_command_kind::problem || aCommand.Kind == core::tour_command_kind::solution || aCommand.Kind == core::tour_command_kind::edit_stop;
-				if (text || aCommand.Kind == core::tour_command_kind::observe_head) {
+				if (aCommand.Kind == core::tour_command_kind::observe_head) {
 					Undo.clear();
 					Redo.clear();
 				} else if (aCommand.Kind != core::tour_command_kind::visit) {
-					retain(Undo, aCommand.Stop.value() ? aCommand.Stop : State.Selected);
-					++State.SelectionRevision;
+					retain(Undo, aCommand.Stop.value() ? aCommand.Stop : State.Selected, label(aCommand.Kind));
+					if (!text) {
+						++State.SelectionRevision;
+					}
 					Redo.clear();
 				}
 				State.Draft    = std::make_shared<core::review_tour>(outcome.Accepted);
@@ -275,7 +291,7 @@ namespace bpr::application {
 			auto               outcome = core::apply(*State.Draft, command);
 			State.Refusal              = outcome.Refusal;
 			if (outcome.Changed) {
-				retain(to, State.Selected);
+				retain(to, State.Selected, from.back().Label);
 				State.Selected = from.back().Selected;
 				++State.SelectionRevision;
 				from.pop_back();
