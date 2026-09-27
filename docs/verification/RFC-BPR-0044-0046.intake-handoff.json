@@ -4,10 +4,10 @@
   "run_id": "bpr-pr-tour-cli-20260927",
   "segment_id": "intake",
   "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
-  "status": "intake-verified-ready-to-finish",
+  "status": "milestone-accepted-and-landed",
   "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
   "historical_import_base": "2928e90ea38cb58dce57f7ee32aa7b817ed4e876",
-  "candidate_revision": "67615d221a21619bb05f085f83b10c69d8c11379",
+  "candidate_revision": "394ade85678811c8228e615dfa9d6cd5fdf437a9",
   "changed_paths": [
     "docs/issues/10-backlog/BPR-1052-import-only-the-extension-and-reconcile-live-predecessor-mappings.md",
     "docs/issues/60-done/BPR-1052-import-only-the-extension-and-reconcile-live-predecessor-mappings.md",
@@ -48,6 +48,12 @@
     {
       "command": "git diff --check; git diff --exit-code EXECUTION_BASE -- src tests cmake CMakeLists.txt packaging docs/rfcs/assets/bpr-review-tour-v1 docs/rfcs/plans/bpr-review-tour-v1",
       "result": "Passed; no product/test/build/package or parent archive/plan changes."
+    },
+    {
+      "command": "Post-landing python3 scripts/verify_documentation.py --root .; issue_board.py validate; git diff --check; git status --short",
+      "revision": "394ade85678811c8228e615dfa9d6cd5fdf437a9",
+      "worktree": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+      "result": "DOCUMENTATION_OK; valid:true, 1214 cards; clean worktree."
     }
   ],
   "review_handoff": {
@@ -62,7 +68,11 @@
     "branch": "detached",
     "other_worktrees": "Existing worktrees inventoried and left untouched.",
     "task_commands": [],
-    "runtime_root": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-pr-tour-cli-intake-1e10fslm"
+    "runtime_root": null,
+    "released": true,
+    "background_commands": [],
+    "runtime_cleanup": "Consumed task-owned acceptance and observation temporary directory removed; no review server retained.",
+    "retained_resources": "Assigned source checkout and existing main checkout remain for coordinator continuation; no worktree created."
   },
   "required_pending_in_intake": [],
   "pending_pack_obligations": [
@@ -71,5 +81,131 @@
     "Canonical AgentSkills access and distribution are BPR-1067 work; no installation attempted."
   ],
   "next_action": "Coordinator starts a fresh implementer for headless-manual, BPR-1053\u20131058, after accepted intake lands on main; promote eligible BPR-1053 and bind with accepted intake.",
-  "self_review": "Confirmed both intake exits, canonical scope, complete alias/source mapping, original parent/extension contracts and external gaps; no product claim added. No further simplification needed for these documentation-only changes."
+  "self_review": "Confirmed both intake exits, canonical scope, complete alias/source mapping, original parent/extension contracts and external gaps; no product claim added. No further simplification needed for these documentation-only changes.",
+  "evidence_revision": "e8236e5d0cec457802e380d2398363512c3533e3",
+  "main_landing": {
+    "revision": "394ade85678811c8228e615dfa9d6cd5fdf437a9",
+    "method": "fast-forward from clean main at execution base",
+    "verified_on_main": true,
+    "result": "DOCUMENTATION_OK; scoped board valid:true (1214 cards); clean worktree; no push.",
+    "handoff_upkeep": "The commit carrying this finalized handoff is a documentation-only descendant of the accepted candidate and is also fast-forwarded to main. Resolve that final commit from git history; no self-referential SHA is embedded."
+  },
+  "commits": {
+    "ready": "c43d56abc713a7d08370d471ce633d8318b1c638",
+    "claim": "67615d221a21619bb05f085f83b10c69d8c11379",
+    "evidence": "e8236e5d0cec457802e380d2398363512c3533e3",
+    "finish": "394ade85678811c8228e615dfa9d6cd5fdf437a9"
+  },
+  "accepted_observation": {
+    "run_id": "bpr-pr-tour-cli-20260927",
+    "segment_id": "intake",
+    "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+    "selection": {
+      "schema": "implement-rfc.strategy-selection.v1",
+      "strategy": "coordinator-implementer",
+      "topology_id": "coordinator-implementer",
+      "recipe_revision": "2",
+      "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+      "routing": {},
+      "requirement_profile": "coordinator-implementer",
+      "owners": {
+        "engineering": "implementer",
+        "bookkeeping": "implementer",
+        "product_edits": "implementer"
+      },
+      "delegation": "recipe",
+      "instruction_paths": [
+        "references/engineering-contract.md",
+        "references/strategies/coordinator-implementer.md"
+      ],
+      "configuration_complete": true,
+      "missing_routes": [],
+      "host_load": "not_verified"
+    },
+    "binding": {
+      "plan_id": "bpr-pr-tour-cli-extension-v1",
+      "plan_path": "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json",
+      "milestone_id": "intake",
+      "definition_fingerprint": "sha256:1810f8fd335355b558fe3d4e0d01575cde112de1388c71fddd483edcb74dac1f",
+      "obligations": [
+        {
+          "id": "BPR-1052:*",
+          "source": "BPR-1052",
+          "selector": null,
+          "source_fingerprint": "sha256:c655a86deb5b7732d94c642b6909506cbfc28c1f506fd8a63de6570e541b9dca"
+        }
+      ],
+      "obligation_fingerprint": "sha256:d89a674b765aade25e626bb09ec94c3a64645b0e7da75c798990d854864c1371",
+      "exit_criteria": [
+        {
+          "id": "intake:exit:1",
+          "text": "Parent archive/import mappings and current HEAD are recorded; no parent cards are cloned or reset."
+        },
+        {
+          "id": "intake:exit:2",
+          "text": "New RFC/card aliases and support links are remapped; the installed implement-rfc imports this offline grouping."
+        }
+      ],
+      "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "structural": "valid",
+      "references": "resolved",
+      "semantic_coverage": "unknown",
+      "diagnostics": [],
+      "diagnostics_truncated": false
+    },
+    "milestone": "intake",
+    "disposition": "milestone-complete",
+    "candidate_revision": "394ade85678811c8228e615dfa9d6cd5fdf437a9",
+    "handoff_ref": "docs/verification/RFC-BPR-0044-0046.intake-handoff.json",
+    "required_pending": [],
+    "evidence_refs": [
+      "docs/verification/RFC-BPR-0044-0046.md",
+      "docs/verification/RFC-BPR-0044-0046.intake-audit.json"
+    ],
+    "acceptance_records": [
+      {
+        "id": "BPR-1052:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/verification/RFC-BPR-0044-0046.intake-audit.json"
+        ]
+      },
+      {
+        "id": "intake:exit:1",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/verification/RFC-BPR-0044-0046.intake-audit.json"
+        ]
+      },
+      {
+        "id": "intake:exit:2",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/verification/RFC-BPR-0044-0046.intake-audit.json"
+        ]
+      }
+    ],
+    "continuation": {
+      "intent": "fresh",
+      "next_milestone": "headless-manual",
+      "reason": "integrated-boundary",
+      "detail": "Intake accepted; land its exact commits on local main, then coordinator starts a fresh implementer for headless-manual."
+    },
+    "ownership": "quiescent"
+  },
+  "checkpoint_check": {
+    "action": "fresh-context",
+    "detail": "Intake accepted; land its exact commits on local main, then coordinator starts a fresh implementer for headless-manual.",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "engineering_acceptance": "Accepted BPR-1052 and both intake exits against the recorded lineage, source, mapping, helper and gate evidence. No unresolved intake obligation or known critical failure remains.",
+  "operator_refusals": [
+    "Initial observational move used ready rather than configured 20-ready and refused without mutation; corrected.",
+    "Initial finish used abbreviated expected revision e8236e5d0 and refused without mutation; full 40-character revision succeeded."
+  ],
+  "next_eligible_milestone": "headless-manual",
+  "next_eligible_card": "BPR-1053 (dependency satisfied; still Backlog for successor promotion)"
 }
