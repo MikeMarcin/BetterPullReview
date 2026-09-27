@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0576"
 title: "Import RFC-BPR-0023, re-audit the live tree, and bind the evidence plan"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0023"]
 depends_on: []
 milestone: "Post-Pack v2"
