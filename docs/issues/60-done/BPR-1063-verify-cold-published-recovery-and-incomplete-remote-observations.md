@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1063"
 title: "Verify cold published recovery and incomplete remote observations"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1055", "BPR-1059"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-12","milestone":"publish-and-recover","acceptance":["AC45-01","AC45-02","AC45-09"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC45-01","outcome":"pass","revision":"3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3","evidence":{"kind":"observation","detail":"Implementation projection: two fresh roots reconstruct current website content, routes, raw baselines and native/compatibility source identities across two actual fixture publication batches. Shared CLI/desktop importer and desktop cold public path pass. Actual skill/native/website acceptance remains later pack scope.","reference":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"AC45-02","outcome":"pass","revision":"3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3","evidence":{"kind":"observation","detail":"Actual CLI JSON shows exact remote/source bindings and unknown prior private context. Partial empty, partial accessible, missing raw body/source, deleted destination, multiple-root and stale bound-root cases retain honest content; incomplete publication refuses.","reference":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"AC45-09","outcome":"pass","revision":"3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3","evidence":{"kind":"observation","detail":"Fresh root with no journal discovers one pending server candidate; recover twice remains read-only, cannot recreate WIP or authority, arbitrary attempt refuses, zero remote writes. Completed keyed receipt is read from existing private journal and reobserved without writes.","reference":"docs/verification/RFC-BPR-0044-0046.md"}}]
 ---
 
 # BPR-1063: Verify cold published recovery and incomplete remote observations
