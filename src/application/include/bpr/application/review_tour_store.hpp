@@ -22,21 +22,23 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_tour_history_bytes   = 8U * 1024U * 1024U;
 	struct tour_history_entry
 	{
-		core::review_tour  Draft;
-		core::tour_stop_id Selected;
-		std::string        Label;
-		auto               operator==(const tour_history_entry&) const -> bool = default;
+		core::review_tour        Draft;
+		core::tour_stop_id       Selected;
+		std::string              Label;
+		tour_presentation_origin Origin                                              = tour_presentation_origin::unknown;
+		auto                     operator==(const tour_history_entry&) const -> bool = default;
 	};
 	/// One compare-and-swap record binds current content and the shared local journal.
 	struct tour_stored_state
 	{
 		core::review_tour              Draft;
 		std::deque<tour_history_entry> Undo, Redo;
+		tour_resume_hint               Resume{ };
 		auto                           operator==(const tour_stored_state&) const -> bool = default;
 	};
 	[[nodiscard]] inline auto valid(const tour_stored_state& aState) -> bool
 	{
-		if (core::validate(aState.Draft) != core::tour_refusal::none) {
+		if (core::validate(aState.Draft) != core::tour_refusal::none || aState.Resume.Section > tour_section::stops || (aState.Resume.Stop.value() && std::ranges::find(aState.Draft.Stops, aState.Resume.Stop, &core::tour_stop::Id) == aState.Draft.Stops.end())) {
 			return false;
 		}
 		for (const auto* history : { &aState.Undo, &aState.Redo }) {
@@ -46,7 +48,7 @@ namespace bpr::application {
 			}
 			for (const auto& item : *history) {
 				bytes += core::retained_tour_bytes(item.Draft);
-				if (bytes > maximum_tour_history_bytes || item.Label.empty() || item.Label.size() > 128 || item.Label.find('\0') != std::string::npos || core::validate(item.Draft) != core::tour_refusal::none || item.Draft.Owner != aState.Draft.Owner || item.Draft.Id != aState.Draft.Id || item.Draft.Revision >= aState.Draft.Revision || (item.Selected.value() && std::ranges::find(item.Draft.Stops, item.Selected, &core::tour_stop::Id) == item.Draft.Stops.end())) {
+				if (item.Origin > tour_presentation_origin::command_client || bytes > maximum_tour_history_bytes || item.Label.empty() || item.Label.size() > 128 || item.Label.find('\0') != std::string::npos || core::validate(item.Draft) != core::tour_refusal::none || item.Draft.Owner != aState.Draft.Owner || item.Draft.Id != aState.Draft.Id || item.Draft.Revision >= aState.Draft.Revision || (item.Selected.value() && std::ranges::find(item.Draft.Stops, item.Selected, &core::tour_stop::Id) == item.Draft.Stops.end())) {
 					return false;
 				}
 			}

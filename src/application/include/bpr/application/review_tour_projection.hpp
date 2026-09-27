@@ -11,6 +11,20 @@ namespace bpr::application {
 												   conflict,
 												   bounds,
 												   wrong_profile };
+	enum class tour_presentation_origin : std::uint8_t { unknown,
+														 desktop,
+														 terminal,
+														 command_client };
+	enum class tour_section : std::uint8_t { problem,
+											 solution,
+											 stops };
+	/// \brief Optional resume position; never a mutation target or author visit.
+	struct tour_resume_hint
+	{
+		tour_section       Section = tour_section::problem;
+		core::tour_stop_id Stop;
+		auto               operator==(const tour_resume_hint&) const -> bool = default;
+	};
 	/// \brief Inert private-draft and local-save projection; no database or remote capability.
 	struct tour_stop_destination
 	{
@@ -41,6 +55,7 @@ namespace bpr::application {
 		bool                                     CanUndo = false;
 		bool                                     CanRedo = false;
 		std::string                              UndoLabel, RedoLabel;
+		tour_resume_hint                         Resume{ };
 	};
 }
 #endif

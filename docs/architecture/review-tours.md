@@ -303,3 +303,21 @@ changes clear readiness; derived numbering and navigation do not. Duplicating,
 splitting or merging a generated stop preserves its completion requirement.
 Removing a stop removes that outstanding obligation. Cold import cannot reconstruct
 private generated provenance or author visits that were never published.
+
+
+## Shared local history and resumption
+
+The CLI and desktop use database schema 3 and the same atomic tour-state
+record. Its version-two envelope adds the originating presentation to each
+reversible transaction and an optional section/stable-stop resume hint. Legacy
+draft payloads and version-one journal envelopes remain readable; opening them
+does not invent prior history or provenance. The resume hint is private workflow
+position, never a mutation target or proof of an author visit.
+
+Each direction retains at most 16 transactions and 8 MiB. Eviction affects only
+old undo/redo entries. Current text, unresolved conflict candidates, source and
+readiness bindings remain in the current draft; remote publication records stay
+in their separately admitted journal. Undo restores exact stored content with a
+new revision, and redo needs no AI or network. No-op edits add no transaction.
+Both history and current content commit under the existing exact revision CAS,
+so a failed or killed commit cannot retain only one half of an edit.

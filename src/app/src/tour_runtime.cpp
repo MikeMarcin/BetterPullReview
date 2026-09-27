@@ -386,6 +386,7 @@ namespace bpr::app {
 		auto& self             = *Implementation;
 		aRequest.Command.Owner = loaded->Draft.Owner;
 		aRequest.Command.Draft = loaded->Draft.Id;
+		aRequest.Origin        = application::tour_presentation_origin::terminal;
 		application::manual_executor  effects, decisions;
 		application::review_tour_host host{ loaded->Draft, adapters::sqlite::make_review_tour_store(self.Root, self.Profile), effects, decisions, { } };
 		host.start();

@@ -16,9 +16,10 @@ namespace bpr::application {
 													   import_selected };
 	struct tour_service_request
 	{
-		core::tour_command     Command;
-		tour_service_operation Operation   = tour_service_operation::edit;
-		std::size_t            ImportIndex = 0;
+		core::tour_command       Command;
+		tour_service_operation   Operation   = tour_service_operation::edit;
+		std::size_t              ImportIndex = 0;
+		tour_presentation_origin Origin      = tour_presentation_origin::desktop;
 	};
 	enum class tour_service_status : std::uint8_t { accepted,
 													unchanged,

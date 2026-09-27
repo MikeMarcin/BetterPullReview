@@ -174,7 +174,7 @@ namespace {
 		auto                                 store  = adapters::sqlite::make_review_tour_store(scratch.path(), before.Owner.Profile);
 		expect(store->save(before, 0, { }).has_value(), "save journal base");
 		const auto                           after = core::apply(before, tests::tour_edit(before, "raw α\r\n")).Accepted;
-		const application::tour_stored_state state{ after, { { before, { }, "Edit Problem" } }, { } };
+		const application::tour_stored_state state{ after, { { before, before.Stops[0].Id, "Edit Problem", application::tour_presentation_origin::terminal } }, { }, { application::tour_section::stops, before.Stops[0].Id } };
 		expect(store->save_state(state, before.Revision, { }).has_value(), "current text and undo saved in one CAS record");
 		store.reset();
 		store = adapters::sqlite::make_review_tour_store(scratch.path(), before.Owner.Profile);
@@ -205,6 +205,7 @@ namespace {
 			host.start();
 			effects.drain();
 			decisions.drain();
+			expect(host.presentation().Resume == state.Resume, "optional section and stable stop survive a presentation switch");
 			auto outcome = host.execute({ .Command = { .Draft = before.Id, .Owner = before.Owner, .ExpectedRevision = expected }, .Operation = redo ? application::tour_service_operation::redo : application::tour_service_operation::undo });
 			host.shutdown();
 			while (!host.is_quiescent()) {
@@ -218,6 +219,37 @@ namespace {
 		expect(undone.Problem == before.Problem && undone.Stops == before.Stops && undone.Revision > after.Revision, "undo restores exact content with a new invalidating revision");
 		const auto redone = apply(true, undone.Revision);
 		expect(redone.Problem == after.Problem && redone.Stops == after.Stops, "redo across host recreation restores exact stored bytes");
+	}
+
+	void bounded_history()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "tour-bounds" };
+		auto                                 seed = tests::review_tour_fixture();
+		seed.Conflicts.push_back({ core::tour_conflict_field::solution, { }, "baseline", "private candidate", "website candidate", { } });
+		application::manual_executor  effects, decisions;
+		application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile), effects, decisions, { } };
+		host.start();
+		effects.drain();
+		decisions.drain();
+		for (unsigned i = 0; i < 24; ++i) {
+			auto command = tests::tour_edit(*host.presentation().Draft, "revision " + std::to_string(i));
+			expect(host.execute({ .Command = command, .Origin = application::tour_presentation_origin::command_client }).Status == application::tour_service_status::accepted, "each command client edit advances shared history");
+			effects.drain();
+			decisions.drain();
+		}
+		auto       store  = adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile);
+		const auto before = store->load_state(seed.Owner, seed.Id, { }).value().value();
+		expect(before.Undo.size() == application::maximum_tour_history_entries && before.Draft.Conflicts == seed.Conflicts, "bounded history never evicts unresolved conflict candidates");
+		expect(before.Undo.back().Origin == application::tour_presentation_origin::command_client, "private origin survives real store reload");
+		expect(host.execute({ .Command = tests::tour_edit(*host.presentation().Draft, before.Draft.Problem) }).Status == application::tour_service_status::unchanged, "same text adds no journal transaction");
+		effects.drain();
+		decisions.drain();
+		expect(store->load_state(seed.Owner, seed.Id, { }).value().value() == before, "no-op leaves text, revision and history unchanged");
+		auto invalid  = before;
+		invalid.Draft = core::apply(before.Draft, tests::tour_edit(before.Draft, "oversized history")).Accepted;
+		invalid.Undo.push_back(before.Undo.back());
+		expect(!store->save_state(invalid, before.Draft.Revision, { }), "over-budget history is refused atomically");
+		host.shutdown();
 	}
 
 	void composed_storage_host()
@@ -252,6 +284,7 @@ namespace {
 }
 int main()
 {
+	bounded_history();
 	durable_history();
 	target_catalog_migration();
 	payload_versions();

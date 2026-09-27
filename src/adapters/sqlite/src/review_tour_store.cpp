@@ -125,10 +125,10 @@ namespace bpr::adapters::sqlite {
 				aCodec.tour(aState.Draft);
 				return;
 			}
-			std::uint8_t marker = 84, version = 1;
+			std::uint8_t marker = 84, version = 2;
 			aCodec.byte(marker);
 			aCodec.byte(version);
-			if (marker != 84 || version != 1) {
+			if (marker != 84 || version < 1 || version > 2) {
 				aCodec.Good = false;
 				return;
 			}
@@ -148,12 +148,19 @@ namespace bpr::adapters::sqlite {
 					aCodec.tour(entry.Draft);
 					aCodec.id(entry.Selected);
 					aCodec.text(entry.Label, 128);
+					if (version >= 2) {
+						aCodec.enumeration(entry.Origin);
+					}
 					bytes += core::retained_tour_bytes(entry.Draft);
 					if (!aCodec.Good || bytes > application::maximum_tour_history_bytes) {
 						aCodec.Good = false;
 						return;
 					}
 				}
+			}
+			if (version >= 2) {
+				aCodec.enumeration(aState.Resume.Section);
+				aCodec.id(aState.Resume.Stop);
 			}
 		}
 

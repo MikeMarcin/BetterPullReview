@@ -15,6 +15,7 @@ namespace bpr::application {
 		tour_presentation                        State;
 		std::deque<tour_history_entry>           Undo;
 		std::deque<tour_history_entry>           Redo;
+		tour_presentation_origin                 Origin  = tour_presentation_origin::desktop;
 		std::uint64_t                            Request = 0;
 		bool                                     Active  = false;
 		bool                                     Started = false;
@@ -94,6 +95,8 @@ namespace bpr::application {
 							self->State.SavedRevision = self->State.Draft->Revision;
 							self->Undo                = std::move(result->value().Undo);
 							self->Redo                = std::move(result->value().Redo);
+							self->State.Resume        = result->value().Resume;
+							self->State.Selected      = self->State.Resume.Stop;
 						} else {
 							self->State.Draft = std::make_shared<core::review_tour>(self->Seed);
 							if (!result) {
@@ -186,13 +189,16 @@ namespace bpr::application {
 			if (Active || !State.Draft || State.Failure || State.SavedRevision == State.Draft->Revision) {
 				return;
 			}
+			if (State.Resume.Stop.value() && std::ranges::find(State.Draft->Stops, State.Resume.Stop, &core::tour_stop::Id) == State.Draft->Stops.end()) {
+				State.Resume.Stop = { };
+			}
 			Active               = true;
 			State.Saving         = true;
 			const auto request   = ++Request;
 			const auto self      = shared_from_this();
 			const auto candidate = State.Draft;
 			const auto expected  = State.SavedRevision;
-			const auto journal   = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo });
+			const auto journal   = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo, State.Resume });
 			try {
 				Effects.post([self, request, candidate, expected, journal] {
 					auto observed = tour_store_result<core::review_tour>{ std::unexpected(tour_store_error{ }) };
@@ -231,7 +237,7 @@ namespace bpr::application {
 		}
 		void retain(std::deque<tour_history_entry>& aHistory, core::tour_stop_id aSelected, std::string aLabel)
 		{
-			aHistory.push_back({ *State.Draft, aSelected, std::move(aLabel) });
+			aHistory.push_back({ *State.Draft, aSelected, std::move(aLabel), Origin });
 			auto bytes = std::size_t{ 0 };
 			for (const auto& item : aHistory) {
 				bytes += core::retained_tour_bytes(item.Draft);
@@ -276,6 +282,9 @@ namespace bpr::application {
 				}
 				State.Draft    = std::make_shared<core::review_tour>(outcome.Accepted);
 				State.Selected = outcome.Selected;
+				State.Resume   = { aCommand.Kind == core::tour_command_kind::problem ? tour_section::problem : aCommand.Kind == core::tour_command_kind::solution ? tour_section::solution
+																																								  : tour_section::stops,
+								   outcome.Selected };
 				pump();
 			}
 			notify();
@@ -295,7 +304,8 @@ namespace bpr::application {
 				State.Selected = from.back().Selected;
 				++State.SelectionRevision;
 				from.pop_back();
-				State.Draft = std::make_shared<core::review_tour>(std::move(outcome.Accepted));
+				State.Draft       = std::make_shared<core::review_tour>(std::move(outcome.Accepted));
+				State.Resume.Stop = State.Selected;
 				pump();
 			}
 			notify();
@@ -382,6 +392,7 @@ namespace bpr::application {
 			return { tour_service_status::storage_failure, core::tour_refusal::none, revision };
 		}
 		self.State.Refusal = core::tour_refusal::none;
+		self.Origin        = aRequest.Origin;
 		switch (aRequest.Operation) {
 		case tour_service_operation::edit: self.dispatch(command); break;
 		case tour_service_operation::undo: self.restore(false); break;
