@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1012"
 title: "Exercise security, crash, conflict and parser adversaries"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1011", "BPR-1000", "BPR-1004"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-22","milestone":"outline-and-adversaries","acceptance":["AC40-05","AC41-03","AC41-05","AC41-08","AC42-04","AC42-05","AC43-06","AC43-09"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
