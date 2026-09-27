@@ -44,7 +44,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-06 | [BPR-0581](../../issues/60-done/BPR-0581-agent-runtime-provenance-capture.md) |
 | PACK-BPR-0022-07 | [BPR-0582](../../issues/60-done/BPR-0582-private-thread-application-host.md) |
 | PACK-BPR-0022-08 | [BPR-0583](../../issues/60-done/BPR-0583-squash-to-draft-host-and-durable-draft.md) |
-| PACK-BPR-0022-09 | [BPR-0584](../../issues/10-backlog/BPR-0584-publication-lineage-correlation.md) |
+| PACK-BPR-0022-09 | [BPR-0584](../../issues/20-ready/BPR-0584-publication-lineage-correlation.md) |
 | PACK-BPR-0022-10 | [BPR-0585](../../issues/10-backlog/BPR-0585-qt-private-shared-conversation-model.md) |
 | PACK-BPR-0022-11 | [BPR-0586](../../issues/10-backlog/BPR-0586-qt-composition-and-provenance-workflow.md) |
 | PACK-BPR-0022-12 | [BPR-0587](../../issues/10-backlog/BPR-0587-composition-root-public-path.md) |
