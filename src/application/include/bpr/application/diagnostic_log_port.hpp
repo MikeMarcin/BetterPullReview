@@ -3,8 +3,10 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 namespace bpr::core {
 	enum class epoch_failure : std::uint8_t;
 	enum class github_failure : std::uint8_t;
@@ -79,6 +81,23 @@ namespace bpr::application {
 		[[nodiscard]] auto       text() const noexcept -> std::string_view { return { Text.data(), Size <= Text.size() ? Size : 0U }; }
 		auto                     operator==(const diagnostic_summary&) const -> bool = default;
 	};
+	enum class diagnostic_detail : std::uint8_t { standard,
+												  verbose };
+	enum class diagnostic_privacy : std::uint8_t { anonymized,
+												   include_locally };
+	/// \brief Independent capture choices, scoped to one BPR profile.
+	struct diagnostic_preferences
+	{
+		bool               Enabled                                                 = true;
+		diagnostic_detail  Detail                                                  = diagnostic_detail::standard;
+		diagnostic_privacy Privacy                                                 = diagnostic_privacy::anonymized;
+		auto               operator==(const diagnostic_preferences&) const -> bool = default;
+	};
+	[[nodiscard]] inline auto valid_diagnostic_preferences(const diagnostic_preferences& aValue) noexcept -> bool
+	{
+		return (aValue.Detail == diagnostic_detail::standard || aValue.Detail == diagnostic_detail::verbose)
+			&& (aValue.Privacy == diagnostic_privacy::anonymized || aValue.Privacy == diagnostic_privacy::include_locally);
+	}
 	struct diagnostic_event
 	{
 		diagnostic_operation                        Operation      = diagnostic_operation::application;
@@ -95,12 +114,24 @@ namespace bpr::application {
 		std::optional<github_read_validation_error> RelationshipDetail;
 		diagnostic_transport_failure_source         TransportFailureSource = diagnostic_transport_failure_source::none;
 		git_smart_transport_step                    GitStep{ };
+		diagnostic_detail                           Detail = diagnostic_detail::standard;
+		/// Capture generation for delayed intermediate producers; zero means current.
+		std::uint64_t ContextGeneration = 0;
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,
 													  full,
 													  dropped,
 													  closed };
+	/// \brief Bounded snapshot of already sanitized context; never a raw-event buffer.
+	struct diagnostic_capture_state
+	{
+		diagnostic_preferences Preferences;
+		diagnostic_log_status  Status       = diagnostic_log_status::unavailable;
+		std::uint64_t          Dropped      = 0;
+		std::size_t            RecentEvents = 0;
+		std::size_t            RecentBytes  = 0;
+	};
 	/// \brief Nonblocking bounded diagnostic submission; failure never changes domain behavior.
 	class diagnostic_log_port
 	{
@@ -108,6 +139,24 @@ namespace bpr::application {
 		virtual ~diagnostic_log_port()                                                                      = default;
 		[[nodiscard]] virtual auto record(const diagnostic_event& aEvent) noexcept -> diagnostic_log_status = 0;
 		[[nodiscard]] virtual auto status() const noexcept -> diagnostic_log_status                         = 0;
+		/// \brief Immediately invalidates queued/recent account context without waiting for I/O.
+		virtual void               discard_context() noexcept { }
+		[[nodiscard]] virtual auto context_generation() const noexcept -> std::uint64_t { return 0; }
+	};
+	enum class diagnostic_clear_result { cleared,
+										 busy,
+										 unavailable,
+										 partial };
+	/// \brief Effect-lane control capability; barriers never run on the decision lane.
+	class diagnostic_control_port
+	{
+	public:
+		virtual ~diagnostic_control_port()                                                         = default;
+		[[nodiscard]] virtual auto configure(diagnostic_preferences aPreferences) noexcept -> bool = 0;
+		[[nodiscard]] virtual auto clear() noexcept -> diagnostic_clear_result                     = 0;
+		[[nodiscard]] virtual auto capture_state() -> diagnostic_capture_state                     = 0;
+		/// \brief Explicit bounded export selection; reading it expires obsolete context first.
+		[[nodiscard]] virtual auto recent_context() -> std::vector<std::string> = 0;
 	};
 }
 #endif

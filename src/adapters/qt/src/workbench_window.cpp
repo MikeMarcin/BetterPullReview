@@ -9525,6 +9525,11 @@ namespace bpr::qt {
 		});
 		// [[BPR-0646]]. Settings is a window, reached by the platform's
 		// preferences shortcut; on macOS the role places it in the app menu.
+		auto* diagnosticMenu = menuBar()->addMenu(QStringLiteral("&Help"));
+		diagnosticMenu->setObjectName(QStringLiteral("releaseUpdateMenu"));
+		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
+		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
+		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
 		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
 		SettingsAction->setMenuRole(QAction::PreferencesRole);

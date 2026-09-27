@@ -186,3 +186,128 @@ M2 accepted and pushed on main as `8ff94031e1279c913cdb59512c2a9609e0779410`.
 BPR-1216 is Done. Source behavior is `3381a02c`; the final handoff commit is
 documentation only. All task-owned commands are finished. No review session,
 server or protected candidate is transferred. Next: BPR-1217 / diagnostic-controls.
+
+## M3 — diagnostic controls (BPR-1217)
+
+Source candidate: `75700f4dd0ce88f86e59940cddf690a6a3e2f45b`.
+Merged candidate: `6089117d7bd13ad52d2b34c49713b842cd0f3954`, preserving concurrent
+main `2deb889b` (RFC-0022). Assignment `/root/rfc0027_m3`, sole writer in worktree
+`57ed`, milestone `diagnostic-controls`, mandate r2; immutable RFC base unchanged.
+Claim: `b56d0b2f`. No live service, sign-in or PR mutation was used.
+
+### Behavior and direct evidence
+
+Help → Diagnostics and profile Storage & privacy now expose persistent On/Off,
+Standard/Verbose and independent Anonymized/Include locally choices, Open logs
+and confirmed Clear. The application owns serialized effects and acknowledgements;
+SQLite owns the private versioned preference store; Qt renders accepted state.
+Preferences load before the first event. Unknown readable values preserve valid
+Off and fall back to Standard/Anonymized; unavailable stores disable capture and
+editing. Explicit identity disclosure can be cancelled without changing state.
+
+JSONL v3 adds capture/detail policy and typed request/window joins to the existing
+bounded schema. Raw numeric identities are zero by default and retained only
+with Include locally; no account/repository/path or content fields were added.
+The existing credential-owner sanitizer remains authoritative. Nonempty summaries
+must have its sanitized classification. Each provider operation adds a fixed
+Verbose start event; errors/warnings remain eligible in Standard. Metadata preview
+accepts v1/v2/v3 and continues to omit every identity/prose field.
+
+Normal ingress stops at 3,584 events/7 MiB, with warning/error room inside the
+4,096-event/8 MiB total and separate bounded Quill queues. Smaller per-thread
+queues may drop sooner. The priority-overflow test drains a real error after
+normal-pressure loss. The recent sanitized ring is bounded to 512 events, 2 MiB
+and three minutes; reads enforce expiry, and 100 ms backend maintenance retires
+idle obsolete entries without waiting on the producer lock. Mode/privacy changes,
+Off and Clear invalidate queued generations, reset ring/mappings and flush before
+acknowledgement. Sign out revokes immediately, and delayed intermediate producers
+carry their captured generation so they cannot repopulate revoked context.
+
+Live Clear uses native admission and retention coordination, refuses another
+active session before deletion, removes admitted segments and opens a fresh empty
+segment. Busy, unavailable and partial results are distinct. Exports, preference
+stores and other profile state remain outside Clear. Profile purge includes the
+new preference store and exact sidecars through the existing owner.
+
+The rendered public course uses the real desktop, Settings and provider fixture.
+It verifies signed-out reachability, independent mode choices and disclosure
+cancel/accept, exact profile folder handoff, Verbose file output, visible recent
+context, the Accounts & hosts Sign out gesture, profile-window sharing, confirmed
+Clear while Off, orderly retirement, restart-Off without startup bytes and invalid
+preference recovery. The folder handler records the OS handoff URL; it does not
+claim that a real file manager appeared. Direct/manual-executor courses cover
+four detail/privacy combinations, forbidden-content canaries in files/ring,
+pending acknowledgements, failed persistence, failed Open, concurrent ingress,
+Clear while another logger is active, Off, delayed revoked events and shutdown.
+
+### Commands and results
+
+```sh
+cmake --build --preset dev --target test_diagnostic_controls test_diagnostic_controls_public_path test_quill_logging test_session_retention test_application_logging test_release_maintenance_public_path test_better_pull_review_github_provider_tests
+ctest --preset dev --output-on-failure -R '^(diagnostic_controls|diagnostic_context_age|application_diagnostic_controls_public_path|logging_session_retention|logging_session_concurrency|quill_logging|quill_logging_content_policy|quill_logging_backpressure|application_logging|application_logging_cancel_startup|application_logging_full|application_logging_unavailable|application_release_maintenance|sqlite_release_maintenance_files|application_release_maintenance_public_path|application_profile_management_public_path|application_profile_multi_window_public_path|architecture_boundaries)$'
+ctest --preset dev --output-on-failure -R '^(diagnostic_controls|github_provider|github_provider_content_policy|quill_logging|quill_logging_content_policy|logging_session_retention|logging_session_concurrency|quill_logging_backpressure|architecture_boundaries)$'
+ctest --preset dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_logging|application_release_maintenance_public_path)$'
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/logging/src/quill_log.cpp src/adapters/logging/src/session_files.cpp src/adapters/qt/src/diagnostic_settings_panel.cpp src/adapters/qt/src/workbench_window.cpp src/adapters/qt/src/release_update_panel.cpp src/adapters/sqlite/src/diagnostic_preferences.cpp src/adapters/sqlite/src/release_maintenance_files.cpp src/app/src/diagnostic_controls.cpp src/app/src/github_application.cpp src/application/src/diagnostic_settings.cpp src/application/src/release_diagnostic_snapshot.cpp src/adapters/github/src/github_provider.cpp
+python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
+git diff --check
+```
+
+The integration pass completed **16/18**: its two failures were older tests
+expecting raw request IDs under the new Anonymized default. It passed actual
+180-second age expiry, startup cancellation/full/unavailable, profile/window
+isolation and maintenance courses. Unchanged long lifecycle/profile evidence is
+reused. After corrections, affected backend/provider tests passed **9/9** in
+24.21 seconds; final public courses passed **3/3** in 35.79 seconds. All 26 touched
+C++ files passed `format.py --root . --dry-run` with clang-format 23.1.1. All 12
+touched product translation units have passing tidy evidence (the final logger
+and provider rerun passed); the documentation gate and its **64 tests** passed.
+
+Earlier build failures were the folder path helper name, a manual-executor method
+name and one nonexistent build-target name; each was corrected. Initial direct
+preferences testing found missing SQLite runtime initialization and failed before
+store loading; adding the existing runtime admission fixed it. Subsequent failures
+exposed remaining raw-ID fixture assumptions, a provider assertion that prohibited
+the new start event instead of only fabricated response events, and public tests
+that left Settings hidden or searched the old Sign out parent. Corrected courses
+exercise the actual visible Settings pages and current account card. Tidy found
+a bounded `from_chars` pointer expression and missing vector reservation; both
+were corrected. These failed runs are not acceptance evidence.
+
+Self-review tightened summary classification, preserved accepted state on effect
+failure, retired idle context, and rejected delayed intermediate generations after
+Sign out. Context cleanup callbacks are disabled before logger destruction even
+if Quill temporarily retains a sink. The decision lane stays live until pending
+control effects quiesce. Architecture guards pass; no core policy, credential
+owner, provider authority or Quill dependency version changed.
+
+### Scope and remaining obligations
+
+This supplies BPR-1217 AC1–AC3 and the controls/detail/privacy portions of full
+RFC AC-01/03/04/06/07/08. It does not close any full RFC criterion. Rich anonymized
+or identifying export, fresh export joins and explicit ring selection remain
+BPR-1218. Windows/Linux native, installed-package, complete crash/disk-full and
+attended control acceptance remain BPR-1219/BPR-0603/BPR-0601. Native evidence here
+is macOS arm64 with the existing Debug Qt 6.11.2/Quill 13.0.0 build cache. Earlier
+180-second expiry evidence verifies the unchanged public age cutoff; later idle
+maintenance is additionally covered by logger lifecycle/direct checks. No physical
+memory erasure or crash persistence guarantee is made. Historical files retain
+their capture-time privacy, and current sanitized explanations remain contextual.
+
+Owning documentation is updated for host/adapter boundaries, persistence,
+operator controls, privacy/loss bounds and maintenance compatibility. No package
+or dependency change needs new provenance for this milestone. The RFC/index and
+full native/human checklist remain open. M3 creates no attended session/server or
+protected candidate; preparation belongs to the native-closeout milestone.
+
+Merged-candidate integration: rebuild passed and **5/5** checks passed in 35.90
+seconds at `6089117d7bd13ad52d2b34c49713b842cd0f3954`:
+
+```sh
+cmake --build --preset dev --target test_diagnostic_controls_public_path test_application_logging test_diagnostic_controls test_better_pull_review_github_provider_tests
+ctest --preset dev --output-on-failure -R '^(diagnostic_controls|application_diagnostic_controls_public_path|application_logging|github_provider|architecture_boundaries)$'
+```
+
+The merged documentation gate passed. All task-owned build/test/tidy commands
+are complete; no source edits remain after that candidate. BPR-1217's three
+criteria are accepted, pending the required main landing and final checkpoint.

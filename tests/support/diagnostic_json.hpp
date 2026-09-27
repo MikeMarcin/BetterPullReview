@@ -23,7 +23,7 @@ namespace bpr::tests {
 			const auto      document = QJsonDocument::fromJson(QByteArray{ aBytes.data(), static_cast<qsizetype>(end) }, &error);
 			expect(error.error == QJsonParseError::NoError && document.isObject(), "independent JSON parser accepts a complete object");
 			const auto record = document.object();
-			expect(record.size() == 25 && record.value("v").toInteger() == 2, "explicit complete version-two schema");
+			expect(record.size() == 30 && record.value("v").toInteger() == 3, "explicit complete version-three schema");
 			const auto session = record.value("session").toString();
 			expect(session.size() == 32 && std::ranges::all_of(session, [](QChar aValue) { return (aValue >= '0' && aValue <= '9') || (aValue >= 'a' && aValue <= 'f'); }), "opaque 128-bit session identity");
 			const auto utc = record.value("utc_ms").toInteger(-1);

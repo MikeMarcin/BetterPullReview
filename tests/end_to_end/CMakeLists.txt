@@ -3224,3 +3224,12 @@ bpr_add_network_isolated_test(NAME application_active_changed_scaling WINDOWS_UN
 set_tests_properties(application_active_changed_scaling PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 180
     PASS_REGULAR_EXPRESSION "application-scaling:observed")
+
+# RFC-0027 diagnostics exercise the signed-out production Settings composition.
+bpr_add_executable(test_diagnostic_controls_public_path diagnostic_controls_public_path_tests.cpp)
+set_target_properties(test_diagnostic_controls_public_path PROPERTIES AUTOMOC ON)
+target_link_libraries(test_diagnostic_controls_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_diagnostic_controls_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_diagnostic_controls_public_path)
+bpr_enable_warnings(test_diagnostic_controls_public_path)
+bpr_add_network_isolated_test(NAME application_diagnostic_controls_public_path WINDOWS_UNCONTAINED COMMAND test_diagnostic_controls_public_path)

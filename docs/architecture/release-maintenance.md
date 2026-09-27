@@ -192,7 +192,7 @@ or passing manual-executor test is not evidence of composed desktop shutdown.
 ### Metadata snapshot and output
 
 `release_diagnostic_snapshot.cpp` classifies the legacy Quill v1 prefix and
-BPR-1215's canonical flat JSONL v2 records into
+BPR-1215/BPR-1217's canonical flat JSONL v2/v3 records into
 closed operation/outcome codes and numeric HTTP status/dropped counts. It omits
 timestamps, request/session identities and all free text. In particular,
 `detail=` is an unframed tail: even a later apparent `failure=` token can be
@@ -201,7 +201,7 @@ subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
 Unknown, malformed and incomplete records are omitted and counted.
 
 Input is bounded to 16 MiB and 65,536 records. The v1 line bound is 8,192
-bytes; v2 is at most 16 KiB including its newline. The v2 reader requires the
+bytes; v2/v3 are at most 16 KiB including the newline. The JSONL reader requires the
 writer's exact field order, bounded ASCII strings with quote/backslash escapes,
 and unsigned decimal integers. Unknown keys, duplicate keys, unsupported
 encodings, malformed syntax and partial tails are omitted without pass-through. Output is
@@ -420,4 +420,14 @@ Regular session retention protects active current files, rechecks private native
 identities and bounds directory inspection to 128 entries. Tests cover separate
 processes, native write failure, rotation obstruction, age, capacity, public
 startup cancellation and ordinary shutdown. These Mac results do not supply
-Windows/Linux native acceptance, crash durability or later diagnostic controls.
+Windows/Linux native acceptance or crash durability.
+
+BPR-1217 adds `diagnostic-preferences.sqlite3` and its exact known sidecars to
+profile purge. Its live logger Clear uses the existing retention transaction and
+native identity checks, refusing another active session before deleting anything.
+It invalidates queued generations, clears transient context, removes owned log
+segments and opens a fresh segment before acknowledging success. A deletion or
+reopen failure is explicitly partial and disables the sink. The stopped-profile
+prepared inventory and purge authority above are unchanged. Metadata preview
+recognizes canonical v3 but continues to omit all identities and prose; richer
+privacy-aware export is BPR-1218.

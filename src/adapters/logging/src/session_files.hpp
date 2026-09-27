@@ -11,6 +11,7 @@ namespace bpr::adapters::logging {
 		session_files(const std::filesystem::path& aRoot, std::string aSession, diagnostic_file_limits aLimits);
 		~session_files();
 		[[nodiscard]] auto write(std::string_view aBytes) noexcept -> application::diagnostic_log_status;
+		[[nodiscard]] auto clear() noexcept -> application::diagnostic_clear_result;
 		[[nodiscard]] auto failure() const noexcept -> diagnostic_file_failure;
 
 	private:

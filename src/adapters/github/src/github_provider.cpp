@@ -70,6 +70,7 @@ namespace bpr::adapters::github::detail {
 				, Context{ std::move(aContext) }
 				, Progress{ std::move(aProgress) }
 				, Overview{ std::move(aOverview) }
+				, DiagnosticGeneration{ aLog ? aLog->context_generation() : 0U }
 			{ }
 			void overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 			{
@@ -83,6 +84,15 @@ namespace bpr::adapters::github::detail {
 			{
 				LastOperation = diagnostic_operation_for(aOperation);
 				report_progress(aOperation);
+				if (Log != nullptr) {
+					static_cast<void>(Log->record({ .Operation         = application::diagnostic_operation::pull_request,
+													.Outcome           = application::diagnostic_outcome::started,
+													.Request           = Context.Request.value(),
+													.WindowSession     = Context.ApplicationSession.value(),
+													.PagedOperation    = *LastOperation,
+													.Detail            = application::diagnostic_detail::verbose,
+													.ContextGeneration = DiagnosticGeneration }));
+				}
 			}
 			void validation_failed(const application::github_read_validation aValidation) noexcept override
 			{
@@ -141,8 +151,9 @@ namespace bpr::adapters::github::detail {
 			core::pull_request_request_context                Context;
 			application::github_pull_request_progress_handler Progress;
 			application::github_pull_request_overview_handler Overview;
-			std::uint32_t                                     PagesReceived = 0;
-			std::uint32_t                                     Sequence      = 0;
+			std::uint64_t                                     DiagnosticGeneration = 0;
+			std::uint32_t                                     PagesReceived        = 0;
+			std::uint32_t                                     Sequence             = 0;
 		};
 
 		enum class provider_phase : std::uint8_t {

@@ -27,18 +27,15 @@
 #include <utility>
 namespace {
 	using bpr::tests::expect;
-	[[nodiscard]] auto window_session(std::string_view aRecord) -> std::uint64_t
+	[[nodiscard]] auto window_session(std::string_view aRecord) -> std::string
 	{
-		constexpr std::string_view field    = "\"window_session\":";
-		const auto                 position = aRecord.find(field);
-		expect(position != std::string_view::npos, "diagnostic record has a window session");
-		const auto    value   = aRecord.substr(position + field.size());
-		std::uint64_t session = 0U;
-		const auto    parsed  = std::from_chars(value.data(), value.data() + value.size(), session);
-		expect(parsed.ec == std::errc{ } && session != 0U
-				   && (parsed.ptr == value.data() + value.size() || *parsed.ptr == ',' || *parsed.ptr == '}'),
-			   "diagnostic session is a nonzero numeric identity");
-		return session;
+		constexpr std::string_view field = "\"window_label\":\"";
+		const auto                 start = aRecord.find(field);
+		if (start == std::string_view::npos) {
+			return { };
+		}
+		aRecord.remove_prefix(start + field.size());
+		return std::string{ aRecord.substr(0, aRecord.find('"')) };
 	}
 
 	void expect_epoch_session(const std::string& aText)

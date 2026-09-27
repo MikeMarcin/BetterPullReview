@@ -38,7 +38,7 @@ namespace {
 	auto audit_content_policy(const std::filesystem::path& aRoot) -> int
 	{
 		using namespace bpr;
-		adapters::logging::quill_log log{ aRoot };
+		adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		const auto                   credential = std::as_bytes(std::span{ tests::capability_error_canary_credential });
 		for (const auto& canary : tests::capability_error_content_canaries) {
 			const auto summary = adapters::github::detail::sanitize_capability_error(canary.Body, credential);
@@ -73,7 +73,7 @@ namespace {
 		escaped.Text.front() = '"';
 		escaped.Size         = static_cast<std::uint16_t>(escaped.Text.size());
 		{
-			adapters::logging::quill_log log{ aRoot };
+			adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::failed, .Request = 123U, .HttpStatus = 403U, .Summary = escaped }) == status::available, "maximum escaped classified field is admitted");
 			auto invalid    = escaped;
 			invalid.Text[1] = '\n';
@@ -84,7 +84,7 @@ namespace {
 			expect(log.record({ .Outcome = application::diagnostic_outcome::cancelled }) == status::available, "cancellation is informational");
 		}
 		{
-			adapters::logging::quill_log log{ aRoot };
+			adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 			expect(log.record({ }) == status::available, "next logger session admitted");
 		}
 		const auto bytes   = tests::read_diagnostic_logs(aRoot);
@@ -97,12 +97,12 @@ namespace {
 		expect(exported && exported->Descriptor.Records == 4U && exported->Descriptor.OmittedRecords == 0U && exported->Bytes.find("\\") == std::string::npos, "JSONL export reconstructs metadata without escaped prose");
 		const auto       first = bytes.substr(0U, bytes.find('\n') + 1U);
 		const std::array corruptions{
-			std::pair{ std::string{ "\"v\":2" }, std::string{ "\"v\":3" } },
+			std::pair{ std::string{ "\"v\":3" }, std::string{ "\"v\":99" } },
 			std::pair{ std::string{ "\"http_status\":403" }, std::string{ "\"http_status\":999" } },
 			std::pair{ std::string{ "\"request\":123" }, std::string{ "\"request\":0123" } },
 			std::pair{ std::string{ "\"request\":123" }, std::string{ "\"request\":18446744073709551616" } },
 			std::pair{ std::string{ "\"summary\":\"sanitized\"" }, std::string{ "\"summary\":\"SECRET_CANARY\"" } },
-			std::pair{ std::string{ "\"v\":2" }, std::string{ "\"v\":2,\"v\":2" } },
+			std::pair{ std::string{ "\"v\":3" }, std::string{ "\"v\":3,\"v\":3" } },
 			std::pair{ std::string{ "}\n" }, std::string{ ",\"unknown\":\"SECRET_CANARY\"}\n" } },
 			std::pair{ std::string{ "}\n" }, std::string{ "} trailing SECRET_CANARY\n" } },
 			std::pair{ std::string{ "}\n" }, std::string{ "}" } }
@@ -127,7 +127,7 @@ namespace {
 			std::string{ R"({"errors":[{"message":"private content canary"}],"errors":[]})" },
 			std::string{ R"({"errors":[{"message":42,"source":"private content canary"}]})" }
 		};
-		adapters::logging::quill_log log{ aRoot };
+		adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		for (const auto& body : bodies) {
 			const auto summary = adapters::github::detail::sanitize_capability_error(body, std::as_bytes(std::span{ credential }));
 			expect(summary.text().empty() && (summary.State == application::diagnostic_summary_state::omitted_limit || summary.State == application::diagnostic_summary_state::omitted_invalid), "oversized or malformed summary has only an omission reason");
@@ -144,7 +144,7 @@ namespace {
 		using clock                               = std::chrono::steady_clock;
 		using status                              = application::diagnostic_log_status;
 		constexpr std::uint64_t      maximumBytes = 50U * 1024U * 1024U;
-		adapters::logging::quill_log log{ aRoot };
+		adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		std::atomic<std::uint64_t>   dropped{ 0U };
 		std::barrier                 ready{ 8 };
 		std::vector<std::jthread>    writers;
@@ -154,7 +154,8 @@ namespace {
 			writers.emplace_back([&] {
 				auto event = application::diagnostic_event{ };
 				event.Summary.Text.fill('x');
-				event.Summary.Size = static_cast<std::uint16_t>(event.Summary.Text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+				event.Summary.Size  = static_cast<std::uint16_t>(event.Summary.Text.size());
 				ready.arrive_and_wait();
 				for (std::size_t index = 0U; index < 10000U; ++index) {
 					if (log.record(event) == status::dropped) {
@@ -214,7 +215,7 @@ try {
 	hostile_summary_limits(private_root(root / "limits"));
 	stress_loss_reporting(private_root(root / "stress"));
 	{
-		adapters::logging::quill_log log{ root };
+		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.status() == status::available, "available local sink");
 		expect(log.record({ }) == status::available, "accepted startup");
 #if !defined(_WIN32)
@@ -244,15 +245,15 @@ try {
 	}
 
 	{
-		adapters::logging::quill_log log{ root };
+		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 20U, .WindowSession = 2U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_smart_transport_failure::unavailable, .GitStep = application::git_smart_transport_step::cli_qualification }) == status::available, "classified CLI refusal reaches the real log");
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
 	}
 	{
 		const auto                   firstRoot  = private_root(root / "profile-first");
 		const auto                   secondRoot = private_root(root / "profile-second");
-		adapters::logging::quill_log firstLog{ firstRoot };
-		adapters::logging::quill_log secondLog{ secondRoot };
+		adapters::logging::quill_log firstLog{ firstRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
+		adapters::logging::quill_log secondLog{ secondRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(firstLog.status() == status::available && secondLog.status() == status::available, "concurrent profiles both have logging");
 		expect(firstLog.record({ .Request = 7001 }) == status::available, "first profile event");
 		expect(secondLog.record({ .Request = 7002 }) == status::available, "second profile event");
@@ -266,7 +267,7 @@ try {
 		}
 		firstLog.close();
 		{
-			adapters::logging::quill_log reopened{ firstRoot };
+			adapters::logging::quill_log reopened{ firstRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 			expect(reopened.record({ .Request = 7003 }) == status::available, "closed profile releases its file while sibling remains live");
 		}
 		expect(secondLog.record({ .Request = 7004 }) == status::available, "closing initial logger leaves sibling recording");
@@ -279,8 +280,8 @@ try {
 		expect(secondText.find("\"request\":7002,") != std::string::npos && secondText.find("\"request\":7004,") != std::string::npos
 				   && secondText.find("\"request\":7001,") == std::string::npos && secondText.find("\"request\":7003,") == std::string::npos,
 			   "second log contains only its own events");
-		adapters::logging::quill_log firstAgain{ firstRoot };
-		adapters::logging::quill_log secondAgain{ secondRoot };
+		adapters::logging::quill_log firstAgain{ firstRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
+		adapters::logging::quill_log secondAgain{ secondRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		secondAgain.close();
 		expect(firstAgain.record({ .Request = 7005 }) == status::available, "reverse close order also keeps survivor live");
 		firstAgain.close();
@@ -292,7 +293,7 @@ try {
 		writers.reserve(4);
 		for (auto index = 0; index < 4; ++index) {
 			writers.emplace_back([&, index] {
-				adapters::logging::quill_log log{ private_root(root / ("concurrent-" + std::to_string(index))) };
+				adapters::logging::quill_log log{ private_root(root / ("concurrent-" + std::to_string(index))), { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 				expect(log.status() == status::available, "concurrent logger admission");
 				ready.arrive_and_wait();
 				expect(log.record({ .Request = static_cast<std::uint64_t>(8000 + index) }) == status::available, "concurrent logger record");
@@ -307,17 +308,24 @@ try {
 	}
 	{
 		adapters::logging::quill_log busy{ private_root(root / "busy-profile") };
-		adapters::logging::quill_log healthy{ private_root(root / "healthy-profile") };
+		adapters::logging::quill_log healthy{ private_root(root / "healthy-profile"), { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		auto                         event = application::diagnostic_event{ };
 		event.Summary.Text.fill('x');
-		event.Summary.Size  = static_cast<std::uint16_t>(event.Summary.Text.size());
 		event.Summary.State = application::diagnostic_summary_state::sanitized;
+		event.Summary.Size  = static_cast<std::uint16_t>(event.Summary.Text.size());
 		auto dropped        = false;
 		for (auto index = 0; index < 100000 && !dropped; ++index) {
 			dropped = busy.record(event) == status::dropped;
 		}
 		expect(dropped, "actual bounded frontend queue overflow exercised");
+		auto priority = status::dropped;
+		for (auto attempt = 0; attempt < 100 && priority == status::dropped; ++attempt) {
+			priority = busy.record({ .Outcome = application::diagnostic_outcome::failed });
+		}
+		expect(priority == status::available, "warning/error reserve accepts after normal queue exhaustion");
 		busy.close();
+		expect(tests::read_diagnostic_logs(root / "busy-profile").find("\"severity\":\"error\"") != std::string::npos,
+			   "reserved error survives normal-pressure drainage");
 		expect(healthy.record({ .Request = 9001 }) == status::available, "overflow does not disable healthy sibling ingress");
 		healthy.close();
 		// Final backend drainage checks Quill's delayed failure counters too.
@@ -346,7 +354,7 @@ try {
 		   "persisted permission diagnostics distinguish HTTP response from network reply");
 	expect(first.find("\"op\":\"application\",\"outcome\":\"started\"") != std::string::npos, "ordinary close persists startup");
 	{
-		adapters::logging::quill_log log{ root };
+		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.record({ .Outcome = application::diagnostic_outcome::shutdown }) == status::available, "append after reopen");
 	}
 	expect(tests::read_diagnostic_logs(root).find(first) != std::string::npos && tests::read_diagnostic_logs(root).find("\"outcome\":\"shutdown\"") != std::string::npos, "reopen preserves prior records");

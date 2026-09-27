@@ -69,19 +69,20 @@ namespace bpr::application {
 			}
 			return std::nullopt;
 		}
-		auto json_fields(std::string_view aInput) -> std::optional<std::array<std::string_view, 25>>
+		auto json_fields(std::string_view aInput) -> std::optional<std::array<std::string_view, 30>>
 		{
-			constexpr std::array<std::string_view, 25> keys{
+			constexpr std::array<std::string_view, 30> keys{
 				"v", "event", "category", "severity", "utc_ms", "elapsed_us", "session", "sequence", "build",
 				"op", "outcome", "request", "http_status", "summary", "dropped", "detail", "epoch_stage", "failure_domain",
-				"failure", "pack_failure", "page_operation", "window_session", "relationship_detail", "transport_source", "git_step"
+				"failure", "pack_failure", "page_operation", "window_session", "relationship_detail", "transport_source", "git_step", "request_label", "window_label", "capture_privacy", "capture_detail", "event_detail"
 			};
-			std::array<std::string_view, 25> fields{ };
+			std::array<std::string_view, 30> fields{ };
 			if (!aInput.starts_with('{') || aInput.size() >= 16U * 1024U) {
 				return std::nullopt;
 			}
+			const auto fieldCount = aInput.starts_with("{\"v\":3,") ? 30U : 25U;
 			aInput.remove_prefix(1U);
-			for (std::size_t index = 0U; index < keys.size(); ++index) {
+			for (std::size_t index = 0U; index < fieldCount; ++index) {
 				if (json_string(aInput) != keys[index] || !aInput.starts_with(':')) {
 					return std::nullopt;
 				}
@@ -102,7 +103,7 @@ namespace bpr::application {
 					}
 					fields[index] = *value;
 				}
-				if (index + 1U == keys.size()) {
+				if (index + 1U == fieldCount) {
 					if (aInput != "}") {
 						return std::nullopt;
 					}
@@ -117,7 +118,7 @@ namespace bpr::application {
 		auto classify_json(std::string_view aLine) -> std::optional<metadata>
 		{
 			const auto fields = json_fields(aLine);
-			if (!fields || (*fields)[0] != "2") {
+			if (!fields || ((*fields)[0] != "2" && (*fields)[0] != "3")) {
 				return std::nullopt;
 			}
 			constexpr std::array<std::string_view, 5> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch" };

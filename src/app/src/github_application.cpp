@@ -1,5 +1,7 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/review_tour_host.hpp"
@@ -4036,6 +4038,9 @@ namespace bpr::app {
 				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement);
 			}
 			Maintenance->attach(*Settings, Admission.Label);
+			if (Diagnostics) {
+				Diagnostics->attach(*Settings);
+			}
 		}
 		std::optional<core::bpr_window_context> Focused;
 		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
@@ -4234,6 +4239,9 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			if (Diagnostics) {
+				Diagnostics->shutdown();
+			}
 			if (Maintenance) {
 				Maintenance->shutdown();
 			}
@@ -4278,7 +4286,7 @@ namespace bpr::app {
 			if (!ServicesClosing || ShutdownComplete) {
 				return;
 			}
-			if (Maintenance && !Maintenance->quiescent()) {
+			if ((Diagnostics && !Diagnostics->quiescent()) || (Maintenance && !Maintenance->quiescent())) {
 				return;
 			}
 			if (ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
@@ -4627,7 +4635,9 @@ namespace bpr::app {
 			DiagnosticLog       = aConfig.DiagnosticLog;
 			if (!DiagnosticLog) {
 				try {
-					OwnedDiagnosticLog = std::make_shared<adapters::logging::quill_log>(applicationDataRoot);
+					const auto loaded  = adapters::sqlite::load_diagnostic_preferences(applicationDataRoot);
+					OwnedDiagnosticLog = std::make_shared<adapters::logging::quill_log>(applicationDataRoot, adapters::logging::diagnostic_file_limits{ }, loaded.Preferences);
+					Diagnostics        = std::make_unique<diagnostic_controls>(applicationDataRoot, OwnedDiagnosticLog, loaded);
 					DiagnosticLog      = OwnedDiagnosticLog;
 				} catch (...) { /* Diagnostics allocation must not prevent application startup. */
 				}
@@ -5576,6 +5586,7 @@ namespace bpr::app {
 		std::filesystem::path                             RegistryRoot;
 		std::function<void(int)>                          DesktopQuit;
 		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
+		std::unique_ptr<diagnostic_controls>              Diagnostics;
 		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
 		std::deque<validated_github_host_profile>         Profiles;
 		std::vector<application::github_profile_option>   ProfileOptions;
@@ -11314,6 +11325,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					} else {
 						if constexpr (std::is_same_v<intent_type, core::deactivate_github_identity_intent>) {
+							if (DiagnosticLog) {
+								DiagnosticLog->discard_context();
+							}
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 						}

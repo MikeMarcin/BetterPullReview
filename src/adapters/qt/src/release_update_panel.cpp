@@ -223,7 +223,10 @@ namespace bpr::qt {
 		connect(&aMenu, &QObject::destroyed, this, [this] {
 			std::erase_if(Menus, [](const auto& aKnown) { return aKnown.isNull(); });
 		});
-		auto* menu = aMenu.addMenu(QStringLiteral("&Help"));
+		auto* menu = aMenu.findChild<QMenu*>(QStringLiteral("releaseUpdateMenu"), Qt::FindDirectChildrenOnly);
+		if (!menu) {
+			menu = aMenu.addMenu(QStringLiteral("&Help"));
+		}
 		menu->setObjectName(QStringLiteral("releaseUpdateMenu"));
 		auto* action = new QAction{ QStringLiteral("Check for Updates…"), menu };
 		action->setObjectName(QStringLiteral("checkForUpdatesAction"));

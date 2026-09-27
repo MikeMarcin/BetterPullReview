@@ -393,6 +393,32 @@ namespace bpr::adapters::logging {
 			return append(Current, aBytes) ? status::available : status::unavailable;
 		}
 
+		auto clear() -> application::diagnostic_clear_result
+		{
+			using result = application::diagnostic_clear_result;
+			if (!lock(Coordination)) {
+				return result::busy;
+			}
+			const unlock_guard release{ Coordination };
+			Directory.verify(Coordination, std::string{ lock_name });
+			auto files = inventory();
+			if (std::ranges::any_of(files, [this](const auto& aFile) { return aFile.Active && aFile.Name != Name; })) {
+				return result::busy;
+			}
+			// Admission has completed. Any subsequent I/O failure may have deleted a subset.
+			try {
+				for (auto& file : files) {
+					Directory.remove(file.File, file.Name);
+				}
+				files.clear();
+				Current = handle{ };
+				rotate();
+				return result::cleared;
+			} catch (...) {
+				return result::partial;
+			}
+		}
+
 	private:
 		auto inventory() -> std::vector<retained_file>
 		{
@@ -471,6 +497,14 @@ namespace bpr::adapters::logging {
 		}
 	}
 	session_files::~session_files() = default;
+	auto session_files::clear() noexcept -> application::diagnostic_clear_result
+	{
+		try {
+			return Implementation ? Implementation->clear() : application::diagnostic_clear_result::unavailable;
+		} catch (...) {
+			return application::diagnostic_clear_result::unavailable;
+		}
+	}
 	auto session_files::failure() const noexcept -> diagnostic_file_failure { return OpenFailure; }
 	auto session_files::write(std::string_view aBytes) noexcept -> application::diagnostic_log_status
 	{
