@@ -24,8 +24,34 @@ distribution are tracked by the extension's later verification milestone.
 
 Capability discovery reports implemented commands explicitly. Human text is the
 default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Unsupported options
-refuse before command execution. Authoring commands are being added under
-BPR-1055 through BPR-1058; the initial runtime candidate exposes discovery only.
+refuse before command execution. Available commands are `connect`, `open`, `status`, `show`, and `capabilities`.
+`open` accepts a full HTTPS PR URL from any directory, or a decimal PR number
+with `--repo HOST/OWNER/REPO`. Multiple roots require `--root` with a returned
+candidate label or a unique review URL/ID. `open --offline` uses one exact saved
+target and reports stale material; it never switches accounts or signs in.
+
+The first open creates an owner-private local default profile through the shared
+initializer. Native sign-in is explicit: `bpr tour connect --host github.com
+--transport native` in a terminal uses the existing device flow and vault. It
+prints the verification URL without launching a browser. Unsupported native
+vaults and GHES device enrollment refuse with setup instructions. Explicit
+`--transport gh` opts into the existing macOS gh executable/configuration trust
+boundary and selects its configured identity; it never extracts tokens.
+
+Machine reads after open require `--profile` and the opaque `draft_id` returned
+by open. Every ID and revision is a decimal string (the opaque draft handle is a
+SHA-256 lookup key). The target catalog includes profile, host authority,
+account, repository, PR and draft; it contains no global last-opened pointer.
+Concurrent profile ownership returns `owner_busy` (exit 4). `status` pages stop
+summaries using `--cursor`; `show problem|solution|stop:ID` preserves raw Markdown
+in JSON and neutralizes terminal controls in human output. `--source` currently
+reports unavailable until the pinned source composition is integrated.
+
+`--data-root` selects an absolute private application root for isolated work.
+Existing non-private roots are refused, never chmodded into ownership. Local
+schema 1 is migrated atomically to schema 2 without rewriting existing tour
+payloads. Corrupt or unknown catalogs remain errors, not empty drafts.
+Authoring and the walkthrough follow under BPR-1056 through BPR-1058.
 
 Desktop and terminal authoring use `application::review_tour_host::execute` with
 the exact owner, draft and expected revision. Admission and durable save are

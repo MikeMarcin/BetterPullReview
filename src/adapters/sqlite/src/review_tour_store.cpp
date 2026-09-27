@@ -12,6 +12,7 @@ namespace bpr::adapters::sqlite {
 		using application::tour_store_failure;
 		using application::tour_store_result;
 		constexpr std::int64_t     application_id = 0x42505254;
+		constexpr std::string_view target_schema  = "CREATE TABLE targets(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
 		constexpr std::string_view schema         = "CREATE TABLE tours(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
 		auto                       fail(tour_store_failure aFailure) { return std::unexpected(application::tour_store_error{ aFailure, { } }); }
 		struct connection
@@ -48,31 +49,55 @@ namespace bpr::adapters::sqlite {
 			auto       statement = detail::prepare(aDatabase, "COMMIT");
 			return statement && sqlite3_step(statement->Value) == SQLITE_DONE;
 		}
-		auto schema_valid(sqlite3* aDatabase) -> bool
+		auto schema_valid(sqlite3* aDatabase, bool aLegacy = false) -> bool
 		{
-			const auto count      = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 2)");
+			const auto count      = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4)");
 			const auto definition = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='tours' AND type='table'");
-			return detail::scalar_integer(aDatabase, "PRAGMA application_id") == application_id && detail::scalar_integer(aDatabase, "PRAGMA user_version") == 1
-				&& count == 1 && definition && detail::canonical_sql(*definition) == detail::canonical_sql(schema);
+			const auto targets    = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='targets' AND type='table'");
+			return detail::scalar_integer(aDatabase, "PRAGMA application_id") == application_id
+				&& detail::scalar_integer(aDatabase, "PRAGMA user_version") == (aLegacy ? 1 : 2)
+				&& count == (aLegacy ? 1 : 2) && definition && detail::canonical_sql(*definition) == detail::canonical_sql(schema)
+				&& (aLegacy || (targets && detail::canonical_sql(*targets) == detail::canonical_sql(target_schema)));
 		}
 		auto establish(sqlite3* aDatabase, std::stop_token aStop) -> bool
 		{
 			sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, static_cast<int>(core::maximum_tour_bytes + 4096U));
 			sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 4096);
-			const auto empty = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0 && detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
-			if ((!empty && !schema_valid(aDatabase)) || !detail::configure_connection(aDatabase) || aStop.stop_requested()) {
+			const auto empty  = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0 && detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
+			const auto legacy = schema_valid(aDatabase, true);
+			if ((!empty && !legacy && !schema_valid(aDatabase)) || !detail::configure_connection(aDatabase) || aStop.stop_requested()) {
 				return false;
 			}
-			if (!empty) {
+			if (!empty && !legacy) {
 				return true;
 			}
 			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE", aStop)) {
 				return false;
 			}
 			const auto transaction = rollback{ aDatabase };
-			return detail::execute(aDatabase, schema, aStop) && detail::execute(aDatabase, "PRAGMA application_id=1112560212", aStop)
-				&& detail::execute(aDatabase, "PRAGMA user_version=1", aStop) && schema_valid(aDatabase) && commit(aDatabase, aStop);
+			return (!empty || (detail::execute(aDatabase, schema, aStop) && detail::execute(aDatabase, "PRAGMA application_id=1112560212", aStop)))
+				&& detail::execute(aDatabase, target_schema, aStop) && detail::execute(aDatabase, "PRAGMA user_version=2", aStop)
+				&& schema_valid(aDatabase) && commit(aDatabase, aStop);
 		}
+		void target_codec(detail::tour_codec& aCodec, application::tour_saved_target& aTarget)
+		{
+			aCodec.owner(aTarget.Owner);
+			aCodec.id(aTarget.Draft);
+			aCodec.id(aTarget.HostProfile);
+			aCodec.text(aTarget.Hostname, 253);
+			aCodec.text(aTarget.Repository.Owner, 100);
+			aCodec.text(aTarget.Repository.Name, 100);
+			aCodec.id(aTarget.Number);
+			aCodec.oid(aTarget.Base);
+			aCodec.oid(aTarget.Head);
+		}
+		auto valid_target(const application::tour_saved_target& aTarget) -> bool
+		{
+			return core::valid(aTarget.Owner) && aTarget.Draft.value() && aTarget.HostProfile.value()
+				&& !aTarget.Hostname.empty() && aTarget.Hostname.size() <= 253 && core::valid(aTarget.Repository)
+				&& aTarget.Number.value() && aTarget.Base.valid() && aTarget.Head.valid();
+		}
+
 		auto key(core::tour_owner aOwner, core::tour_draft_id aDraft) -> std::vector<std::uint8_t>
 		{
 			detail::tour_codec codec;
@@ -185,6 +210,77 @@ namespace bpr::adapters::sqlite {
 					return fail(aStop.stop_requested() ? tour_store_failure::cancelled : tour_store_failure::unavailable);
 				}
 				return aTour;
+			}
+
+			auto targets(std::stop_token aStop) -> tour_store_result<std::vector<application::tour_saved_target>> override
+			{
+				auto opened = open(aStop);
+				if (!opened) {
+					return std::unexpected(opened.error());
+				}
+				const auto database = connection{ *opened };
+				auto       rows     = detail::prepare(database.Database, "SELECT payload,digest FROM targets LIMIT 129");
+				if (!rows) {
+					return fail(tour_store_failure::unavailable);
+				}
+				std::vector<application::tour_saved_target> result;
+				int                                         status = SQLITE_OK;
+				while ((status = sqlite3_step(rows->Value)) == SQLITE_ROW) {
+					if (aStop.stop_requested()) {
+						return fail(tour_store_failure::cancelled);
+					}
+					const auto payload = blob(rows->Value, 0, 4096), digest = blob(rows->Value, 1, 32);
+					if (payload.empty() || digest.size() != 32 || !std::ranges::equal(core::sha256(payload), digest) || result.size() == 128) {
+						return fail(tour_store_failure::corrupt);
+					}
+					detail::tour_codec             codec{ { }, payload, true };
+					application::tour_saved_target target;
+					target_codec(codec, target);
+					if (!codec.Good || !codec.Input.empty() || !valid_target(target) || target.Owner.Profile != Profile) {
+						return fail(tour_store_failure::corrupt);
+					}
+					result.push_back(std::move(target));
+				}
+				if (status != SQLITE_DONE) {
+					return fail(tour_store_failure::unavailable);
+				}
+				return result;
+			}
+			auto remember_target(const application::tour_saved_target& aTarget, std::stop_token aStop) -> tour_store_result<void> override
+			{
+				if (!valid_target(aTarget) || aTarget.Owner.Profile != Profile) {
+					return fail(tour_store_failure::wrong_profile);
+				}
+				auto opened = open(aStop);
+				if (!opened) {
+					return std::unexpected(opened.error());
+				}
+				const auto         database = connection{ *opened };
+				auto               target   = aTarget;
+				detail::tour_codec codec;
+				target_codec(codec, target);
+				if (!codec.Good || !detail::execute(database.Database, "BEGIN IMMEDIATE", aStop)) {
+					return fail(tour_store_failure::unavailable);
+				}
+				const auto transaction = rollback{ database.Database };
+				const auto count       = detail::scalar_integer(database.Database, "SELECT count(*) FROM (SELECT 1 FROM targets LIMIT 129)");
+				auto       exists      = detail::prepare(database.Database, "SELECT 1 FROM targets WHERE key=?1");
+				const auto encodedKey  = key(target.Owner, target.Draft);
+				if (!count || *count > 128 || !exists || !bind(exists->Value, 1, encodedKey)) {
+					return fail(tour_store_failure::unavailable);
+				}
+				const auto present = sqlite3_step(exists->Value);
+				if (present != SQLITE_ROW && present != SQLITE_DONE) {
+					return fail(tour_store_failure::unavailable);
+				}
+				if (present == SQLITE_DONE && *count >= 128) {
+					return fail(tour_store_failure::bounds);
+				}
+				auto row = detail::prepare(database.Database, "INSERT INTO targets(key,payload,digest) VALUES(?1,?2,?3) ON CONFLICT(key) DO UPDATE SET payload=excluded.payload,digest=excluded.digest");
+				if (!row || !bind(row->Value, 1, encodedKey) || !bind(row->Value, 2, codec.Bytes) || !bind(row->Value, 3, core::sha256(codec.Bytes)) || sqlite3_step(row->Value) != SQLITE_DONE || !commit(database.Database, aStop)) {
+					return fail(tour_store_failure::unavailable);
+				}
+				return { };
 			}
 
 		private:

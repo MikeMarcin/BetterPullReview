@@ -122,12 +122,35 @@ namespace {
 #endif
 		sql(path, "PRAGMA user_version=99");
 		expect(!store->load(draft.Owner, draft.Id, { }), "unknown schema refused");
-		sql(path, "PRAGMA user_version=1");
+		sql(path, "PRAGMA user_version=2");
 		expect(store->load(draft.Owner, draft.Id, { }).value() == edited, "schema refusal changes no draft");
 		sql(path, "UPDATE tours SET digest=zeroblob(32)");
 		const auto corrupt = store->load(draft.Owner, draft.Id, { });
 		expect(!corrupt && corrupt.error().Failure == application::tour_store_failure::corrupt, "corrupt payload never treated as empty");
 	}
+	void target_catalog_migration()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "tour-targets" };
+		const auto                           draft = tests::review_tour_fixture();
+		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), draft.Owner.Profile);
+		expect(store->save(draft, 0, { }).has_value(), "create draft for legacy migration");
+		const auto path = scratch.path() / "state/v1/review-tours.sqlite3";
+		sql(path, "DROP TABLE targets; PRAGMA user_version=1");
+		store.reset();
+		store = adapters::sqlite::make_review_tour_store(scratch.path(), draft.Owner.Profile);
+		expect(store->load(draft.Owner, draft.Id, { }).value() == draft, "exact legacy schema migrates without rewriting tour payload");
+		application::tour_saved_target target{ .Owner = draft.Owner, .Draft = draft.Id, .HostProfile = core::host_profile_id{ 1 }, .Hostname = "github.com", .Repository = { "o", "r" }, .Number = core::pull_request_number{ 7 }, .Base = draft.Base, .Head = draft.Head };
+		expect(store->remember_target(target, { }).has_value(), "remember exact accepted target");
+		store.reset();
+		store = adapters::sqlite::make_review_tour_store(scratch.path(), draft.Owner.Profile);
+		expect(store->targets({ }).value() == std::vector{ target }, "target metadata survives reopen beside original draft");
+		target.Owner.Account = core::github_account_id{ 42 };
+		expect(store->remember_target(target, { }).has_value() && store->targets({ })->size() == 2, "accounts retain separate lookup records");
+		sql(path, "UPDATE targets SET digest=zeroblob(32)");
+		expect(!store->targets({ }), "corrupt target catalog is not an empty profile");
+		expect(store->load(draft.Owner, draft.Id, { }).value() == draft, "lookup corruption does not rewrite retained draft");
+	}
+
 	void composed_storage_host()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-host" };
@@ -160,6 +183,7 @@ namespace {
 }
 int main()
 {
+	target_catalog_migration();
 	payload_versions();
 	storage();
 	composed_storage_host();

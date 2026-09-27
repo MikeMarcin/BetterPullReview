@@ -1,10 +1,10 @@
 if(BPR_BUILD_TOUR_CLI)
-    add_library(better_pull_review_tour_runtime STATIC src/tour_cli.cpp)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_cli.cpp src/tour_runtime.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
     target_link_libraries(better_pull_review_tour_runtime PUBLIC BetterPullReview::Application
         PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite Qt6::Core Qt6::Network)
     target_include_directories(better_pull_review_tour_runtime PRIVATE
-        "${PROJECT_SOURCE_DIR}/src/adapters/github/src" "${PROJECT_SOURCE_DIR}/src/application/src")
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src" "${PROJECT_SOURCE_DIR}/src/application/src" "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
     bpr_enable_hardening(better_pull_review_tour_runtime)
     bpr_enable_warnings(better_pull_review_tour_runtime)
@@ -41,6 +41,7 @@ if(BPR_BUILD_QT)
         STATIC
             src/foundation_application.cpp
             src/github_application.cpp
+            src/github_cli_runtime.cpp
             src/profile_desktop.cpp
             src/platform_credential_vault.cpp
             src/release_maintenance_controls.cpp
