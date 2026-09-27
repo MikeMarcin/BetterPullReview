@@ -36,7 +36,7 @@ namespace bpr::application {
 		}
 		if (aPlan.Update) {
 			const auto& draft = *aPlan.Update;
-			if (core::validate(draft) != core::tour_refusal::none || draft.Owner != aPlan.Owner || draft.Revision != aPlan.Generation || !draft.Remote || !draft.Remote->Own || !draft.IndexBaseline || draft.ReadOnly || draft.Stops.empty()) {
+			if (core::validate(draft) != core::tour_refusal::none || draft.Owner != aPlan.Owner || draft.Revision != aPlan.Generation || !draft.Remote || !draft.Remote->Own || !draft.IndexBaseline || draft.ReadOnly || draft.RemoteStale || !draft.Conflicts.empty() || draft.Stops.empty()) {
 				return false;
 			}
 			std::size_t count = 0;

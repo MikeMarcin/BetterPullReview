@@ -1,5 +1,6 @@
 #include "bpr/core/review_tour_update.hpp"
 #include <algorithm>
+#include <charconv>
 namespace bpr::core {
 	namespace {
 		auto newline(std::string_view aRaw) -> std::string_view { return aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n"; }
@@ -19,7 +20,7 @@ namespace bpr::core {
 				aEdits.push_back({ aSpan, before, std::move(aDesired) });
 			}
 		}
-		auto patch_stop(std::string_view aRaw, std::string_view aTitle, std::string_view aNarrative, std::size_t aOrdinal, std::span<const tour_markdown_link> aNavigation) -> std::optional<std::string>
+		auto patch_stop(std::string_view aRaw, std::string_view aTitle, std::string_view aNarrative, std::size_t aOrdinal, std::span<const tour_markdown_link> aNavigation, bool aPreserveNavigation = false) -> std::optional<std::string>
 		{
 			const auto mapped   = map_tour_stop(aRaw);
 			const auto rendered = render_tour_stop(aTitle, aOrdinal, aNarrative, aNavigation, { }, newline(aRaw));
@@ -31,13 +32,43 @@ namespace bpr::core {
 				return { };
 			}
 			std::vector<tour_text_edit> edits;
-			append_edit(edits, aRaw, *mapped.Heading, span_text(*rendered, *generated.Heading));
+			if (!aPreserveNavigation || mapped.Title != tour_markdown_label(aTitle)) {
+				append_edit(edits, aRaw, *mapped.Heading, span_text(*rendered, *generated.Heading));
+			}
 			if (trim(span_text(aRaw, *mapped.Narrative)) != trim(aNarrative)) {
 				append_edit(edits, aRaw, *mapped.Narrative, span_text(*rendered, *generated.Narrative));
 			}
-			append_edit(edits, aRaw, *mapped.Footer, span_text(*rendered, *generated.Footer));
+			if (!aPreserveNavigation) {
+				append_edit(edits, aRaw, *mapped.Footer, span_text(*rendered, *generated.Footer));
+			}
 			return edit_tour_markdown(aRaw, edits);
 		}
+		auto unchanged_position(const review_tour& aTour, std::size_t aIndex) -> bool
+		{
+			const auto                map    = map_tour_markdown(aTour.IndexBaseline->Raw);
+			const tour_markdown_list* before = nullptr;
+			for (const auto& list : map.Lists) {
+				if ((aTour.IndexBaseline->SourceSpan && list.Source == tour_text_span{ aTour.IndexBaseline->SourceSpan->first, aTour.IndexBaseline->SourceSpan->second }) || (!aTour.IndexBaseline->SourceSpan && map.Lists.size() == 1)) {
+					before = &list;
+				}
+			}
+			if (!before || aIndex >= before->Entries.size()) {
+				return false;
+			}
+			for (const auto i : { aIndex ? aIndex - 1 : aIndex, aIndex, aIndex + 1 }) {
+				if (i >= aTour.Stops.size() || i >= before->Entries.size()) {
+					if ((i < aTour.Stops.size()) != (i < before->Entries.size())) {
+						return false;
+					}
+					continue;
+				}
+				if (!aTour.Stops[i].Remote || needs_tour_destination(aTour.Stops[i]) || aTour.Stops[i].Remote->WebUrl != before->Entries[i].Destination) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		auto root_body(const review_tour& aTour, std::span<const tour_markdown_link> aEntries) -> std::optional<std::string>
 		{
 			const auto& raw = aTour.IndexBaseline->Raw;
@@ -71,8 +102,16 @@ namespace bpr::core {
 					return { };
 				}
 				if (count == 1) {
-					const auto  section = std::ranges::find(map.Sections, name, &tour_markdown_section::Name);
-					const auto& field   = name == "Problem" ? aTour.Problem : aTour.Solution;
+					const auto  section  = std::ranges::find(map.Sections, name, &tour_markdown_section::Name);
+					const auto& field    = name == "Problem" ? aTour.Problem : aTour.Solution;
+					const auto& baseline = name == "Problem" ? aTour.ProblemBaseline : aTour.SolutionBaseline;
+					if (baseline) {
+						const auto observed = baseline->DraftText.value_or(baseline->SourceSpan ? baseline->Raw.substr(baseline->SourceSpan->first, baseline->SourceSpan->second - baseline->SourceSpan->first) : baseline->Raw);
+						if (field == observed) {
+							continue;
+						}
+					}
+
 					if (trim(span_text(raw, section->Content)) != trim(field)) {
 						append_edit(edits, raw, section->Content, std::string{ newline(raw) } + std::string{ trim(field) } + std::string{ newline(raw) } + std::string{ newline(raw) });
 					}
@@ -87,13 +126,36 @@ namespace bpr::core {
 			}
 		}
 	}
+	auto propose_tour_stop_text(const tour_stop& aStop) -> std::optional<std::string>
+	{
+		if (!aStop.Baseline) {
+			return { };
+		}
+		const auto& raw     = aStop.Baseline->Raw;
+		const auto  mapping = map_tour_stop(raw);
+		if (!mapping.Narrative || !mapping.Heading || !mapping.Footer) {
+			return aStop.Body == raw || aStop.Baseline->DraftText == std::optional{ raw } ? std::optional{ aStop.Body } : std::nullopt;
+		}
+		const auto heading = span_text(raw, *mapping.Heading);
+		const auto begin   = heading.find(" · ");
+		if (begin == std::string::npos) {
+			return { };
+		}
+		std::size_t ordinal = 0;
+		const auto  parsed  = std::from_chars(heading.data() + begin + 4, heading.data() + heading.size(), ordinal);
+		if (parsed.ec != std::errc{ }) {
+			return { };
+		}
+		const auto footer = map_tour_markdown(span_text(raw, *mapping.Footer));
+		return patch_stop(raw, aStop.Title, aStop.Body, ordinal, footer.Links, true);
+	}
 	auto needs_tour_destination(const tour_stop& aStop) -> bool
 	{
 		return !aStop.Remote || (aStop.Mapped && (!aStop.Original || destination_of(*aStop.Mapped) != destination_of(*aStop.Original)));
 	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty()) {
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty()) {
 			return { };
 		}
 		std::vector<tour_markdown_link> entries;
@@ -128,7 +190,7 @@ namespace bpr::core {
 			if (created != aCreated.end() && stop.Remote) {
 				narrative += "\n\nReplaces [original discussion](" + stop.Remote->WebUrl + ").";
 			}
-			const auto body = patch_stop(baseline, stop.Title, narrative, i + 1, navigation);
+			const auto body = created == aCreated.end() && unchanged_position(aTour, i) ? propose_tour_stop_text(stop) : patch_stop(baseline, stop.Title, narrative, i + 1, navigation);
 			if (!body) {
 				return { };
 			}

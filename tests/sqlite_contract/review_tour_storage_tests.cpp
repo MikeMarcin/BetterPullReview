@@ -52,7 +52,12 @@ namespace {
 		core::review_tour restored2;
 		read2.tour(restored2);
 		expect(read2.Good && read2.Input.empty() && restored2 == original, "v2 remote draft remains exactly readable by v3");
-		original.Stops[0].Destination = core::destination_of(*original.Stops[0].Original);
+		original.Stops[0].Destination       = core::destination_of(*original.Stops[0].Original);
+		original.RemoteStale                = true;
+		original.ProblemBaseline->DraftText = "exact editor baseline";
+		original.Conflicts.push_back({ core::tour_conflict_field::problem, { }, "old raw α\r\n", "local desired α\r\n", "website raw α\r\n", *original.ProblemBaseline });
+		original.IncomingRoute = original.Stops;
+
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };
 		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);
 		expect(store->save(original, 0, { }).has_value(), "v3 remote source/provenance saved");

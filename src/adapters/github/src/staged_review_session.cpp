@@ -318,7 +318,7 @@ namespace bpr::adapters::github::detail {
 			} else {
 				return state::conflict;
 			}
-		} else if (!aRecord.Review && !aRecord.Plan.Compatibility) {
+		} else if (!aRecord.Review && !aRecord.Plan.Compatibility && aRecord.Pending->Operation == operation::create_pending) {
 			const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
 			if (!reviews) {
 				return state::outcome_unknown;

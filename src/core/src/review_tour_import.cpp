@@ -36,12 +36,13 @@ namespace bpr::core {
 					aDraft.ReadOnly = true;
 					aDraft.ImportNotice += "A missing, ambiguous, foreign or self link requires resolution. ";
 				} else {
-					stop.Remote        = object->Binding;
-					const auto mapping = map_tour_stop(object->Raw);
-					stop.Baseline      = baseline(object->Raw, object->Binding.Entity, object->Version, mapping.Narrative);
-					stop.Body          = mapping.Narrative ? object->Raw.substr(mapping.Narrative->Begin, mapping.Narrative->End - mapping.Narrative->Begin) : object->Raw;
-					stop.Destination   = object->Source;
-					stop.Mapping       = tour_mapping::unavailable;
+					stop.Remote              = object->Binding;
+					const auto mapping       = map_tour_stop(object->Raw);
+					stop.Baseline            = baseline(object->Raw, object->Binding.Entity, object->Version, mapping.Narrative);
+					stop.Body                = mapping.Narrative ? object->Raw.substr(mapping.Narrative->Begin, mapping.Narrative->End - mapping.Narrative->Begin) : object->Raw;
+					stop.Baseline->DraftText = stop.Body;
+					stop.Destination         = object->Source;
+					stop.Mapping             = tour_mapping::unavailable;
 					if (!mapping.Narrative) {
 						aDraft.ImportNotice += "Custom stop layout is retained as a whole comment. ";
 					}

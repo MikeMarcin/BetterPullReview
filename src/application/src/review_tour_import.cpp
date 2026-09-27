@@ -20,7 +20,7 @@ namespace bpr::application {
 		auto object(const github_comment_observation& aObservation, core::tour_remote_kind aKind, std::string_view aEntity,
 					const std::optional<github_actor_record>& aAuthor, const github_pull_request_snapshot& aSnapshot, std::string_view aPrefix, bool aRoot) -> core::tour_remote_object
 		{
-			return { .Binding          = { .Kind = aKind, .DatabaseId = aObservation.DatabaseId, .Entity = std::string{ aEntity }, .Actor = aAuthor ? std::string{ aAuthor->Actor.value() } : std::string{ }, .WebUrl = aObservation.WebUrl, .Review = aObservation.ReviewNode, .Own = aAuthor && aAuthor->Actor == aSnapshot.Viewer.Actor },
+			return { .Binding          = { .Kind = aKind, .DatabaseId = aObservation.DatabaseId, .Entity = std::string{ aEntity }, .Actor = aAuthor ? aAuthor->Login : std::string{ }, .WebUrl = aObservation.WebUrl, .Review = aObservation.ReviewNode, .Own = aAuthor && aAuthor->Actor == aSnapshot.Viewer.Actor },
 					 .Raw              = aObservation.RawBody.value_or(std::string{ }),
 					 .Version          = aObservation.UpdatedAt,
 					 .Available        = aObservation.RawBody.has_value(),

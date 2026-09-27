@@ -31,7 +31,7 @@ namespace bpr::core {
 	auto assess_tour_update(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, tour_operation_support aBodyEdits) -> tour_publication_readiness
 	{
 		using state = tour_publication_readiness;
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || aDestinations.size() != aTour.Stops.size()) {
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || aDestinations.size() != aTour.Stops.size()) {
 			return state::incomplete;
 		}
 		if (aBodyEdits != tour_operation_support::supported) {

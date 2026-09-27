@@ -22,6 +22,7 @@ namespace bpr::core {
 		std::vector<std::string>      StopBodies;
 		std::string                   Index;
 	};
+	[[nodiscard]] auto propose_tour_stop_text(const tour_stop&) -> std::optional<std::string>;
 	[[nodiscard]] auto needs_tour_destination(const tour_stop&) -> bool;
 	/// Pure bounded planning: exact raw spans, real returned destinations, no no-op writes.
 	[[nodiscard]] auto plan_tour_update(const review_tour&, std::span<const tour_created_destination>) -> std::optional<tour_update_bodies>;

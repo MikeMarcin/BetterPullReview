@@ -129,6 +129,14 @@ namespace bpr::qt {
 		UseSaved = new QPushButton{ tr("Discard my edits and use saved copy"), this };
 		connect(UseSaved, &QPushButton::clicked, this, [this] {if(Action){Action(tour_editor_action::use_saved_copy);} });
 		layout->addWidget(UseSaved);
+		KeepLocalConflict = new QPushButton{ tr("Keep my proposed version"), this };
+		KeepLocalConflict->setObjectName(QStringLiteral("tourKeepLocalConflict"));
+		connect(KeepLocalConflict, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::keep_local_conflict); });
+		layout->addWidget(KeepLocalConflict);
+		UseRemoteConflict = new QPushButton{ tr("Use website version"), this };
+		UseRemoteConflict->setObjectName(QStringLiteral("tourUseRemoteConflict"));
+		connect(UseRemoteConflict, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::use_remote_conflict); });
+		layout->addWidget(UseRemoteConflict);
 		present({ });
 	}
 	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
@@ -215,7 +223,15 @@ namespace bpr::qt {
 		Status->setText(status);
 		Retry->setVisible(Shown.Failure.has_value() && !Shown.Conflict);
 		UseSaved->setVisible(static_cast<bool>(Shown.Conflict));
-		Conflict->setVisible(static_cast<bool>(Shown.Conflict));
+		const bool remoteConflict = Shown.Draft && !Shown.Draft->Conflicts.empty();
+		KeepLocalConflict->setVisible(remoteConflict && !Shown.Conflict);
+		UseRemoteConflict->setVisible(remoteConflict && !Shown.Conflict);
+		Conflict->setVisible(static_cast<bool>(Shown.Conflict) || remoteConflict);
+		if (remoteConflict && !Shown.Conflict) {
+			const auto& conflict = Shown.Draft->Conflicts.front();
+			update_text(Conflict, "Website conflict — saved versions\n\nBASELINE\n" + conflict.Baseline + "\n\nMY PROPOSAL\n" + conflict.Local + "\n\nWEBSITE\n" + conflict.Remote);
+			Conflict->setAccessibleName(tr("Baseline, my proposal and website versions"));
+		}
 		if (Shown.Conflict) {
 			auto text = "## Problem\n" + Shown.Conflict->Problem + "\n\n## Solution\n" + Shown.Conflict->Solution;
 			for (const auto& stop : Shown.Conflict->Stops) {

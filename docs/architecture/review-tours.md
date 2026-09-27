@@ -204,8 +204,8 @@ not the shared discussion. Explicit source replacement creates a linked new
 comment and preserves the old source binding. Published split/merge operations
 retain the original discussions and prepare local replacements.
 
-The Tour payload reads versions 1–3 and writes version 4, adding bounded retired
-stop baselines. The existing recovery database retains its schema; staged payload
+The Tour payload reads versions 1–5 and writes version 5, retaining bounded retired
+stop baselines and exact baseline/local/remote conflict versions. The existing recovery database retains its schema; staged payload
 version 3 additionally stores the frozen maintenance draft and confirmed edit
 prefix, while still reading versions 1–2. Existing profile purge and private-store
 retention cover these bounded prose records; no shared object is deleted by purge.
@@ -217,3 +217,15 @@ conditional body write: preflight and reconciliation cannot eliminate a concurre
 website edit between them. No operation is qualified merely by these fixture
 results; production Tour writes remain unavailable until the exact operation's
 live qualification.
+
+Refreshing a bound tour compares its previous raw bodies, current draft and
+complete website observation. Equal versions adopt website truth without writes;
+two disjoint contiguous byte edits can merge. Overlap retains all three versions
+in the profile store and exposes explicit local/website choices. Source spans are
+mapped again from the fresh raw body. Unavailable or ambiguous observations keep
+local work visibly stale, and unresolved conflicts withhold publication. Store
+revision checks continue to serialize local windows independently of website
+conflicts. Description changes patch the mapped brief sections and preserve
+unrelated template bytes; imported custom stop layouts retain a whole-comment
+editor. Reimport from a clean profile retains only shared identities and source
+addresses, without private preparation provenance or inferred viewing history.

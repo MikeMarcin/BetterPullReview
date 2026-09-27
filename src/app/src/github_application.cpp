@@ -8906,6 +8906,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
 			case qt::tour_editor_action::retry_save:      TourHost->retry_save(); return;
 			case qt::tour_editor_action::use_saved_copy:  TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::keep_local_conflict:
+			case qt::tour_editor_action::use_remote_conflict:
+				if (const auto draft = Window->tour_editor()->shown().Draft) {
+					TourHost->resolve_remote_conflict(draft->Revision, aAction == qt::tour_editor_action::use_remote_conflict);
+				}
+				return;
 			case qt::tour_editor_action::undo_structure:  TourHost->undo(); return;
 			case qt::tour_editor_action::redo_structure:  TourHost->redo(); return;
 			case qt::tour_editor_action::navigate_stop:   {

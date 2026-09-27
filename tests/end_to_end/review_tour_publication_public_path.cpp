@@ -107,11 +107,13 @@ auto main(int argc, char** argv) -> int
 	if (!dataRoot) {
 		return EXIT_FAILURE;
 	}
-	auto server             = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make               = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=dataRoot,.ReviewSubmissionServer=server},[&](auto result){terminal=true;if(result){started=std::move(*result);
+	QTemporaryDir coldData;
+	auto          currentDataRoot = dataRoot;
+	auto          server          = std::make_shared<app::detail::review_submission_fixture_state>();
+	auto          make            = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true},[&](auto result){terminal=true;if(result){started=std::move(*result);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
-	server->StagedQualified = mode != "unsupported";
-	auto application        = make();
+	server->StagedQualified       = mode != "unsupported";
+	auto application              = make();
 	try {
 		open(*application);
 		auto&      window = application->window();
@@ -219,17 +221,94 @@ auto main(int argc, char** argv) -> int
 			}
 			expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
 		}
+		if (mode == "reconciliation") {
+			saved(editor);
+			const auto rootEntity = editor.shown().Draft->Remote->Entity;
+			editor.problem_editor()->setPlainText("Local overlapping problem.");
+			saved(editor);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				auto&            description = *server->StagedDescription;
+				description.replace(description.find("Avoid losing the original explanation."), std::string{ "Avoid losing the original explanation." }.size(), "Website overlapping problem.");
+				description.replace(description.find("Keep exact sources and a readable route."), std::string{ "Keep exact sources and a readable route." }.size(), "Website revised solution.");
+				description = "Website template preface.\n\n" + description + "\n\n## Testing\n\nKeep website template tail.\n";
+				server->StagedComments.front().Body.insert(0, "Website raw prefix.\n\n");
+				auto route = core::map_tour_markdown(server->StagedReview->Body).Lists.front();
+				std::reverse(route.Entries.begin(), route.Entries.end());
+				server->StagedReview->Body.replace(route.Source.Begin, route.Source.End - route.Source.Begin, *core::render_tour_index(route.Entries));
+			}
+			window.github_refresh_action()->trigger();
+			wait([&] { return editor.shown().Draft && editor.shown().Draft->Conflicts.size() == 1; }, "website/local overlap arrives through real snapshot parser");
+			expect(editor.problem_editor()->toPlainText() == "Local overlapping problem." && editor.solution_editor()->toPlainText().contains("Website revised solution."), "conflict preserves local problem and adopts unrelated website solution");
+			expect(editor.shown().Draft->Stops.front().Remote->DatabaseId == 602 && editor.shown().Draft->Stops.back().Baseline->Raw.starts_with("Website raw prefix."), "website index reorders stable comments and raw prefix survives");
+			expect(editor.findChild<QPlainTextEdit*>(QStringLiteral("tourConflict"))->toPlainText().contains("Website overlapping problem."), "editor exposes the exact remote conflict version");
+			saved(editor);
+			shutdown(*application);
+			application.reset();
+			application = make();
+			open(*application);
+			auto& restored = *application->window().tour_editor();
+			wait([&] { return restored.shown().Draft && restored.shown().Draft->Conflicts.size() == 1; }, "unresolved B/L/R conflict survives real application restart");
+			restored.findChild<QPushButton*>(QStringLiteral("tourKeepLocalConflict"))->click();
+			saved(restored);
+			expect(restored.shown().Draft->Conflicts.empty() && restored.shown().Draft->Problem == "Local overlapping problem.", "explicit local choice retains desired text");
+			application->window().github_refresh_action()->trigger();
+			wait([&] { return restored.shown().Draft && !restored.shown().Draft->RemoteStale; }, "resolved versions require fresh website observation");
+			saved(restored);
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "refresh and conflict choice invoke no AI");
+			shutdown(*application);
+			application.reset();
+			currentDataRoot = e2e::private_data_root(coldData);
+			expect(currentDataRoot.has_value(), "clean private profile admitted");
+			application = make();
+			open(*application);
+			auto& cold    = *application->window().tour_editor();
+			auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+			wait([&] { return choices->count() > 0; }, "clean profile discovers the actual shared published index");
+			int selected = -1;
+			for (int i = 0; i < choices->count(); ++i) {
+				if (choices->itemText(i).contains(QString::fromStdString(rootEntity))) {
+					selected = i;
+				}
+			}
+			expect(selected >= 0, "cold profile selects exact published root");
+			choices->setCurrentIndex(selected);
+			cold.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
+			wait([&] { return cold.shown().Draft && cold.shown().Draft->Remote; }, "explicit cold import fills editors");
+			expect(cold.shown().Draft->Problem.contains("Website overlapping problem.") && !cold.shown().Draft->Problem.contains("Local overlapping problem.") && cold.shown().Draft->Stops.front().Remote->DatabaseId == 602, "cold import uses website truth and authoritative route");
+			expect(!cold.shown().Draft->Stops.front().Original && cold.shown().Draft->Stops.front().Destination && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::editing, "cold profile fabricates no private preparation provenance");
+			saved(cold);
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "cold reconstruction uses no inference");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 5 && server->StagedCreates == 1 && server->StagedSubmits == 1, "refresh conflict resolution restart and cold import produce zero server mutations");
+			}
+			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(!cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "unchanged cold reimport cannot publish normalization edits");
+			cold.problem_editor()->setPlainText("Cold-profile deliberate revision.");
+			saved(cold);
+			cold.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(true);
+			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold-profile author can explicitly edit the existing tour");
+			cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
+			wait([&] { return cold.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "cold-profile body update preserves imported actor and source binding");
+			saved(cold);
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->StagedWrites == 7 && server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedDescription->starts_with("Website template preface.") && server->StagedDescription->ends_with("Keep website template tail.\n"), "two narrow cold-profile edits preserve template and every comment identity");
+		}
+
 		if (mode == "maintenance") {
 			saved(editor);
 			editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				auto             reply = server->StagedComments.front();
-				reply.Id               = 699;
-				reply.NodeId           = "reply699";
-				reply.WebUrl           = reply.WebUrl.substr(0, reply.WebUrl.find('#')) + "#discussion_r699";
-				reply.Body             = "Website reviewer discussion must survive.";
-				reply.Reply            = true;
+				auto             reply    = server->StagedComments.front();
+				server->ReplyParents[699] = reply.Id;
+				reply.Id                  = 699;
+				reply.NodeId              = "reply699";
+				reply.WebUrl              = reply.WebUrl.substr(0, reply.WebUrl.find('#')) + "#discussion_r699";
+				reply.Body                = "Website reviewer discussion must survive.";
+				reply.Reply               = true;
 				server->StagedComments.push_back(reply);
 			}
 			editor.outline()->setCurrentRow(1);
@@ -340,6 +419,8 @@ auto main(int argc, char** argv) -> int
 		std::cout << "review-tour-publication:" << mode << ":pass\n";
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {
+		std::cerr << "publication-status: " << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().toStdString() << "\n";
+        std::cerr << "read-status: " << application->window().github_status_text() << " writes=" << server->StagedWrites << "\n";
 		std::cerr << "review-tour-publication:fail " << error.what() << '\n';
 		shutdown(*application);
 		return EXIT_FAILURE;

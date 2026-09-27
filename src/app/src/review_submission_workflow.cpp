@@ -1,4 +1,5 @@
 #include "review_submission_workflow.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 
 #include "bpr/application/review_submission_recovery_port.hpp"
 #include "review_comment_permalink.hpp"
@@ -441,7 +442,21 @@ namespace bpr::app {
 			std::erase_if(value.Stops, [&](const auto& stop) {const auto found=std::ranges::find(draft.Stops,stop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
 		}
 		if (Editor.description_publication()) {
-			value.Description = application::staged_description_edit{ Description, value.Submission.Proposal.Body, true };
+			if (draft.Remote) {
+				const auto desired = core::propose_tour_description(draft, Description);
+				if (!desired) {
+					Plan.reset();
+					Previewed = false;
+					Status    = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
+					present();
+					return;
+				}
+				if (*desired != Description) {
+					value.Description = application::staged_description_edit{ Description, *desired, false };
+				}
+			} else {
+				value.Description = application::staged_description_edit{ Description, value.Submission.Proposal.Body, true };
+			}
 		}
 		if (!application::valid(value)) {
 			Status = "The publication exceeds an operation limit or has an invalid destination. Edit the draft and preview again.";
@@ -508,7 +523,7 @@ namespace bpr::app {
 		if (!Previewed || *Plan->Submission.LiveBinding != *Binding) {
 			return;
 		}
-		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || Plan->Description.has_value() != Editor.description_publication())) {
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
 			return;
 		}
 		if (Record && (State == application::staged_publication_state::outcome_unknown || State == application::staged_publication_state::conflict || State == application::staged_publication_state::published)) {

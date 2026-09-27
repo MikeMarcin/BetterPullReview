@@ -19,6 +19,8 @@ namespace bpr::qt {
 	enum class tour_editor_action : std::uint8_t { import_selected,
 												   retry_save,
 												   use_saved_copy,
+												   keep_local_conflict,
+												   use_remote_conflict,
 												   map_problem,
 												   map_solution,
 												   add_stop,
@@ -98,15 +100,17 @@ namespace bpr::qt {
 		application::tour_presentation               Shown;
 		std::function<void(core::tour_command)>      Dispatch;
 		std::function<void(tour_editor_action)>      Action;
-		QPlainTextEdit*                              Problem  = nullptr;
-		QPlainTextEdit*                              Solution = nullptr;
-		QPlainTextEdit*                              Conflict = nullptr;
-		QTabWidget*                                  Roadmap  = nullptr;
-		markdown_body_view*                          Preview  = nullptr;
-		QLabel*                                      Status   = nullptr;
-		QPushButton*                                 Retry    = nullptr;
-		QPushButton*                                 UseSaved = nullptr;
-		bool                                         Applying = false;
+		QPlainTextEdit*                              Problem           = nullptr;
+		QPlainTextEdit*                              Solution          = nullptr;
+		QPlainTextEdit*                              Conflict          = nullptr;
+		QTabWidget*                                  Roadmap           = nullptr;
+		markdown_body_view*                          Preview           = nullptr;
+		QLabel*                                      Status            = nullptr;
+		QPushButton*                                 Retry             = nullptr;
+		QPushButton*                                 UseSaved          = nullptr;
+		QPushButton*                                 KeepLocalConflict = nullptr;
+		QPushButton*                                 UseRemoteConflict = nullptr;
+		bool                                         Applying          = false;
 	};
 }
 #endif

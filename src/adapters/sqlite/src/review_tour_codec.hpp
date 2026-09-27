@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 4;
+		std::uint8_t                  Version = 5;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -160,6 +160,9 @@ namespace bpr::adapters::sqlite::detail {
 			text(aValue.ObservedVersion, 1024);
 			optional(aValue.SourceSpan, [&](auto& aSpan) {number(aSpan.first);number(aSpan.second); });
 			number(aValue.LocalGeneration);
+			if (Version >= 5) {
+				optional(aValue.DraftText, [&](auto& value) { text(value); });
+			}
 		}
 		void remote(core::tour_remote_binding& aValue)
 		{
@@ -204,7 +207,7 @@ namespace bpr::adapters::sqlite::detail {
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version != 1 && Version != 2 && Version != 3 && Version != 4) {
+			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5) {
 				Good = false;
 				return;
 			}
@@ -227,6 +230,11 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (Version >= 4) {
 				list(aTour.Retired, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+			}
+			if (Version >= 5) {
+				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& conflict) {enumeration(conflict.Field);id(conflict.Stop);text(conflict.Baseline);text(conflict.Local);text(conflict.Remote);baseline(conflict.Observation); });
+				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+				number(aTour.RemoteStale);
 			}
 		}
 	};

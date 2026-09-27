@@ -1,4 +1,5 @@
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 #include <algorithm>
 #include <deque>
 #include <utility>
@@ -95,6 +96,9 @@ namespace bpr::application {
 								self->State.Failure = result.error().Failure;
 							}
 						}
+						if (!self->Imports.empty()) {
+							self->refresh_bound_tour();
+						}
 						self->notify();
 					});
 				});
@@ -116,7 +120,39 @@ namespace bpr::application {
 			for (const auto& item : Imports) {
 				State.ImportChoices.push_back(item.Label);
 			}
+			refresh_bound_tour();
 			notify();
+		}
+		void adopt_observation(core::review_tour aCandidate)
+		{
+			if (!State.Draft) {
+				return;
+			}
+			const auto& draft    = *State.Draft;
+			const auto  accepted = core::apply(draft, { .Draft = draft.Id, .Owner = draft.Owner, .ExpectedRevision = draft.Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aCandidate) });
+			if (accepted.Changed) {
+				Undo.clear();
+				Redo.clear();
+				State.Draft = std::make_shared<core::review_tour>(accepted.Accepted);
+				pump();
+			}
+		}
+		void refresh_bound_tour()
+		{
+			if (State.Loading || !State.Draft || !State.Draft->Remote) {
+				return;
+			}
+			const auto& draft   = *State.Draft;
+			const auto  matches = std::ranges::count_if(Imports, [&](const auto& candidate) { return candidate.Draft.Remote && candidate.Draft.Remote->Entity == draft.Remote->Entity; });
+			if (matches == 1) {
+				const auto found = std::ranges::find_if(Imports, [&](const auto& candidate) { return candidate.Draft.Remote && candidate.Draft.Remote->Entity == draft.Remote->Entity; });
+				adopt_observation(core::reconcile_tour(draft, found->Draft));
+			} else {
+				auto retained         = draft;
+				retained.RemoteStale  = true;
+				retained.ImportNotice = "The bound website index is unavailable or needs a list choice. Retained text is stale; absence is not deletion.";
+				adopt_observation(std::move(retained));
+			}
 		}
 		void import_selected(std::size_t aIndex)
 		{
@@ -124,6 +160,11 @@ namespace bpr::application {
 				return;
 			}
 			const auto& draft = *State.Draft;
+			if (draft.Remote && Imports[aIndex].Draft.Remote && draft.Remote->Entity == Imports[aIndex].Draft.Remote->Entity) {
+				adopt_observation(core::reconcile_tour(draft, Imports[aIndex].Draft));
+				notify();
+				return;
+			}
 			if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote) {
 				State.ImportNotice = "A private draft already exists. Its text is preserved; importing cannot replace it.";
 				notify();
@@ -240,6 +281,17 @@ namespace bpr::application {
 		: Implementation{ std::make_shared<implementation>(std::move(aSeed), std::move(aStore), aEffects, aDecision, std::move(aPublish)) }
 	{ }
 	review_tour_host::~review_tour_host() { shutdown(); }
+	void review_tour_host::resolve_remote_conflict(std::uint64_t aRevision, bool aUseRemote)
+	{
+		auto& state = *Implementation;
+		if (state.Closing || !state.State.Draft || state.State.Draft->Revision != aRevision) {
+			return;
+		}
+		if (auto chosen = core::resolve_tour_conflict(*state.State.Draft, 0, aUseRemote)) {
+			state.adopt_observation(std::move(*chosen));
+			state.notify();
+		}
+	}
 	void review_tour_host::observe_publication(core::review_tour aPublished)
 	{
 		auto& state = *Implementation;

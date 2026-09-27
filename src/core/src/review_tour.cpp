@@ -17,11 +17,11 @@ namespace bpr::core {
 		auto source_bytes(const tour_source_range& aSource) noexcept -> std::size_t { return 192U + aSource.Path.size(); }
 		auto baseline_bytes(const std::optional<tour_field_baseline>& aValue) noexcept -> std::size_t
 		{
-			return aValue ? 64U + aValue->Raw.size() + aValue->RemoteEntity.size() + aValue->ObservedVersion.size() : 1U;
+			return aValue ? 64U + aValue->Raw.size() + aValue->RemoteEntity.size() + aValue->ObservedVersion.size() + (aValue->DraftText ? aValue->DraftText->size() : 0U) : 1U;
 		}
 		auto baseline_ok(const std::optional<tour_field_baseline>& aValue) noexcept -> bool
 		{
-			return !aValue || (field_ok(aValue->Raw) && aValue->RemoteEntity.size() <= 1024U && aValue->ObservedVersion.size() <= 1024U && (!aValue->SourceSpan || (aValue->SourceSpan->first <= aValue->SourceSpan->second && aValue->SourceSpan->second <= aValue->Raw.size())));
+			return !aValue || (field_ok(aValue->Raw) && (!aValue->DraftText || field_ok(*aValue->DraftText)) && aValue->RemoteEntity.size() <= 1024U && aValue->ObservedVersion.size() <= 1024U && (!aValue->SourceSpan || (aValue->SourceSpan->first <= aValue->SourceSpan->second && aValue->SourceSpan->second <= aValue->Raw.size())));
 		}
 		auto remote_bytes(const std::optional<tour_remote_binding>& aValue) noexcept -> std::size_t
 		{
@@ -304,6 +304,12 @@ namespace bpr::core {
 		for (const auto& stop : aTour.Retired) {
 			size += stop_bytes(stop);
 		}
+		for (const auto& stop : aTour.IncomingRoute) {
+			size += stop_bytes(stop);
+		}
+		for (const auto& conflict : aTour.Conflicts) {
+			size += 64 + conflict.Baseline.size() + conflict.Local.size() + conflict.Remote.size() + baseline_bytes(conflict.Observation);
+		}
 		return size;
 	}
 	auto ready(const tour_stop& aStop) noexcept -> bool
@@ -317,7 +323,7 @@ namespace bpr::core {
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
 			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
-			|| aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
+			|| aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}
 		for (std::size_t index = 0; index < aTour.Stops.size(); ++index) {
@@ -332,6 +338,16 @@ namespace bpr::core {
 		for (const auto& stop : aTour.Retired) {
 			if (!stop.Remote || stop_refusal(stop) != tour_refusal::none) {
 				return tour_refusal::invalid_command;
+			}
+		}
+		for (const auto& stop : aTour.IncomingRoute) {
+			if (stop_refusal(stop) != tour_refusal::none) {
+				return tour_refusal::invalid_command;
+			}
+		}
+		for (const auto& conflict : aTour.Conflicts) {
+			if (conflict.Field > tour_conflict_field::route || !field_ok(conflict.Baseline) || !field_ok(conflict.Local) || !field_ok(conflict.Remote) || !baseline_ok(conflict.Observation)) {
+				return tour_refusal::bounds;
 			}
 		}
 		return tour_refusal::none;

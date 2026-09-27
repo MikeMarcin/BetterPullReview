@@ -7,6 +7,7 @@
 #include "bpr/application/review_submission_recovery_port.hpp"
 #include <condition_variable>
 #include <filesystem>
+#include <map>
 #include <mutex>
 
 namespace bpr::app::detail {
@@ -14,6 +15,7 @@ namespace bpr::app::detail {
 	struct review_submission_fixture_state
 	{
 		std::mutex                                          Mutex;
+		std::map<std::uint64_t, std::uint64_t>              ReplyParents;
 		std::condition_variable_any                         StagedWait;
 		std::optional<application::staged_review_entity>    StagedReview;
 		std::vector<application::staged_review_entity>      PreviousReviews;

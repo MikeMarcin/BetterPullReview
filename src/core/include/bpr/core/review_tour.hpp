@@ -78,6 +78,7 @@ namespace bpr::core {
 		std::string                                        ObservedVersion;
 		std::optional<std::pair<std::size_t, std::size_t>> SourceSpan;
 		std::uint64_t                                      LocalGeneration                                      = 0;
+		std::optional<std::string>                         DraftText                                            = std::nullopt;
 		auto                                               operator==(const tour_field_baseline&) const -> bool = default;
 	};
 
@@ -117,6 +118,19 @@ namespace bpr::core {
 		std::optional<tour_code_destination> Destination;
 	};
 
+	enum class tour_conflict_field : std::uint8_t { problem,
+													solution,
+													stop,
+													route };
+	/// Durable exact versions of one unresolved website/local conflict.
+	struct tour_edit_conflict
+	{
+		tour_conflict_field Field = tour_conflict_field::problem;
+		tour_stop_id        Stop;
+		std::string         Baseline, Local, Remote;
+		tour_field_baseline Observation;
+		auto                operator==(const tour_edit_conflict&) const -> bool = default;
+	};
 	/// \brief A private draft; vector order is conceptual route order, never file or title order.
 	struct review_tour
 	{
@@ -136,8 +150,11 @@ namespace bpr::core {
 		std::string                        ImportNotice;
 		bool                               ReadOnly = false;
 		/// Published removals retain their original bodies until an explicit update completes.
-		std::vector<tour_stop> Retired;
-		auto                   operator==(const review_tour&) const -> bool = default;
+		std::vector<tour_stop>          Retired;
+		std::vector<tour_edit_conflict> Conflicts;
+		std::vector<tour_stop>          IncomingRoute;
+		bool                            RemoteStale                                  = false;
+		auto                            operator==(const review_tour&) const -> bool = default;
 	};
 
 	enum class tour_command_kind : std::uint8_t { problem,

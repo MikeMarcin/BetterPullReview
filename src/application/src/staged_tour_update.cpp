@@ -1,4 +1,5 @@
 #include "bpr/application/staged_review_publication.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 #include <algorithm>
 namespace bpr::application {
 	namespace {
@@ -165,6 +166,15 @@ namespace bpr::application {
 				result.Stops[i].Remote   = remote(aRecord.Comments[i], aRecord.Plan.Compatibility);
 				result.Stops[i].Baseline = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId };
 			}
+		}
+		if (aRecord.Plan.Description && aRecord.DescriptionDone) {
+			auto body = aRecord.Plan.Description->Desired;
+			if (aRecord.Plan.Description->AppendIndexLink) {
+				body += "\n\n[Review tour](" + result.Remote->WebUrl + ")";
+			}
+			core::retain_tour_brief_baselines(result, body, aRecord.Plan.Submission.LiveBinding->Target.PullRequestNodeId);
+		} else if ((!result.ProblemBaseline && !result.SolutionBaseline) || (result.ProblemBaseline && result.ProblemBaseline->RemoteEntity == result.Remote->Entity)) {
+			core::retain_tour_brief_baselines(result, result.IndexBaseline->Raw, result.Remote->Entity);
 		}
 		return result;
 	}

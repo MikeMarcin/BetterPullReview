@@ -1,5 +1,6 @@
 #include "github_public_path_fixture.hpp"
 #include "large_review_fixture.hpp"
+#include "review_submission_fixture.hpp"
 
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "github_capability_probe.hpp"
@@ -598,6 +599,126 @@ namespace bpr::app::detail {
 					nodes[i] = thread;
 				}
 				threads.insert("nodes", nodes);
+				pull.insert("reviewThreads", threads);
+				repo.insert("pullRequest", pull);
+				data.insert("repository", repo);
+				body.insert("data", data);
+				document = QJsonDocument{ body };
+			} else {
+				return;
+			}
+			aBody = document.toJson(QJsonDocument::Compact).toStdString();
+		}
+
+		void overlay_published_tour(std::string& aBody, read_operation aOperation, review_submission_fixture_state& aState)
+		{
+			const std::scoped_lock lock{ aState.Mutex };
+			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription) {
+				return;
+			}
+			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
+			auto reviews  = aState.PreviousReviews;
+			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
+				reviews.push_back(*aState.StagedReview);
+			}
+			auto comments = aState.PreviousComments;
+			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
+				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
+			}
+			const auto text = [](std::string_view value) { return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())); };
+			if (aOperation == read_operation::get_pull_request && aState.StagedDescription) {
+				auto pull = document.object();
+				pull.insert("body", text(*aState.StagedDescription));
+				document = QJsonDocument{ pull };
+			} else if (aOperation == read_operation::list_reviews) {
+				auto       nodes = document.array();
+				const auto seed  = nodes.first().toObject();
+				for (const auto& review : reviews) {
+					auto value = seed;
+					value.insert("id", static_cast<qint64>(review.Id.value()));
+					value.insert("node_id", text(review.NodeId));
+					value.insert("body", text(review.Body));
+					value.insert("state", "COMMENTED");
+					value.insert("commit_id", text(core::canonical_hex(review.Commit).view()));
+					value.insert("html_url", text(review.WebUrl));
+					value.insert("user", QJsonObject{ { "id", static_cast<qint64>(review.Actor.DatabaseId) }, { "node_id", text(review.Actor.NodeId) }, { "login", text(review.Actor.Login) } });
+					nodes.append(value);
+				}
+				document = QJsonDocument{ nodes };
+			} else if (aOperation == read_operation::list_review_threads) {
+				auto body = document.object(), data = body["data"].toObject(), repo = data["repository"].toObject(), pull = repo["pullRequest"].toObject(), threads = pull["reviewThreads"].toObject();
+				auto nodes = threads["nodes"].toArray();
+				for (qsizetype i = 0; i < nodes.size(); ++i) {
+					auto thread     = nodes[i].toObject();
+					auto connection = thread["comments"].toObject();
+					auto children   = connection["nodes"].toArray();
+					for (qsizetype j = 0; j < children.size(); ++j) {
+						auto child = children[j].toObject();
+						if (!child.contains("body")) {
+							child.insert("body", child["bodyText"]);
+						}
+						children[j] = child;
+					}
+					connection.insert("nodes", children);
+					thread.insert("comments", connection);
+					nodes[i] = thread;
+				}
+				const auto seed = nodes.first().toObject();
+				for (const auto& comment : comments) {
+					if (comment.Reply || !comment.Source) {
+						continue;
+					}
+					auto       thread     = seed;
+					auto       connection = thread["comments"].toObject();
+					auto       value      = connection["nodes"].toArray().first().toObject();
+					const auto review     = std::ranges::find(reviews, comment.Review, &application::staged_review_entity::Id);
+					if (review == reviews.end()) {
+						continue;
+					}
+					const auto& source = *comment.Source;
+					value.insert("id", text(comment.NodeId));
+					value.insert("fullDatabaseId", QString::number(comment.Id));
+					value.insert("body", text(comment.Body));
+					value.insert("url", text(comment.WebUrl));
+					value.insert("author", QJsonObject{ { "id", text(comment.Actor.NodeId) }, { "login", text(comment.Actor.Login) } });
+					value.insert("pullRequestReview", QJsonObject{ { "id", text(review->NodeId) } });
+					value.insert("commit", QJsonObject{ { "oid", text(core::canonical_hex(source.Commit).view()) } });
+					value.insert("originalCommit", value["commit"]);
+					value.insert("path", text(source.Path));
+					value.insert("line", static_cast<int>(source.LastLine + 1));
+					value.insert("originalLine", static_cast<int>(source.LastLine + 1));
+					value.insert("startLine", static_cast<int>(source.FirstLine + 1));
+					value.insert("originalStartLine", static_cast<int>(source.FirstLine + 1));
+					value.insert("replyTo", QJsonValue::Null);
+					value.insert("outdated", false);
+					QJsonArray discussion{ value };
+					for (const auto& reply : comments) {
+						if (reply.Reply && aState.ReplyParents.contains(reply.Id) && aState.ReplyParents.at(reply.Id) == comment.Id) {
+							auto child = value;
+							child.insert("id", text(reply.NodeId));
+							child.insert("fullDatabaseId", QString::number(reply.Id));
+							child.insert("body", text(reply.Body));
+							child.insert("url", text(reply.WebUrl));
+							child.insert("replyTo", QJsonObject{ { "id", text(comment.NodeId) } });
+							discussion.append(child);
+						}
+					}
+					connection.insert("nodes", discussion);
+					connection.insert("totalCount", discussion.size());
+					connection.insert("pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "published-" + text(comment.NodeId) } });
+					thread.insert("comments", connection);
+					thread.insert("id", "thread-" + text(comment.NodeId));
+					thread.insert("path", text(source.Path));
+					thread.insert("line", static_cast<int>(source.LastLine + 1));
+					thread.insert("originalLine", static_cast<int>(source.LastLine + 1));
+					thread.insert("diffSide", source.Side == core::diff_side::right ? "RIGHT" : "LEFT");
+					thread.insert("subjectType", "LINE");
+					thread.insert("isOutdated", false);
+					thread.insert("isResolved", false);
+					nodes.append(thread);
+				}
+				threads.insert("nodes", nodes);
+				threads.insert("totalCount", nodes.size());
 				pull.insert("reviewThreads", threads);
 				repo.insert("pullRequest", pull);
 				data.insert("repository", repo);
@@ -1272,6 +1393,7 @@ namespace bpr::app::detail {
 			bool                                        RepeatSessions           = false;
 			bool                                        LargeReviewForeignPosts  = false;
 			bool                                        ReviewTourCourse         = false;
+			std::shared_ptr<review_submission_fixture_state> PublishedTour;
 			bool                                        LargeReviewRepeatReads   = false;
 			bool                                        CliEnabled               = false;
 			bool                                        RefuseFirstSmartAcquire  = false;
@@ -1937,6 +2059,9 @@ namespace bpr::app::detail {
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
 				if (State->ReviewTourCourse) {
 					overlay_review_tour(response->Body, aRequest.Wire.Operation, State->Descriptor);
+				}
+				if (State->PublishedTour) {
+					overlay_published_tour(response->Body, aRequest.Wire.Operation, *State->PublishedTour);
 				}
 
 				// [[BPR-0978]]. A second profile's account is a different actor
@@ -3783,6 +3908,7 @@ namespace bpr::app::detail {
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
 			Recording->ReviewTourCourse        = aOptions.ReviewTourCourse;
+			Recording->PublishedTour           = aOptions.ReviewSubmissionServer;
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
