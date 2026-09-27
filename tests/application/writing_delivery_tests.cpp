@@ -80,5 +80,19 @@ int main()
 				   "tool block is protocol failure");
 		}
 	}
+	application::agent_protocol_decoder writingMetadata{ core::agent_protocol::claude_stream_json, true };
+	expect(writingMetadata.push(R"({"type":"system","subtype":"init","session_id":"writing","tools":[],"mcp_servers":[],"model":"reported-initial","claude_code_version":"2.0"})"
+								"\n")
+			   .has_value(),
+		   "restricted init retains dedicated runtime facts");
+	const auto output = writingMetadata.push(R"({"type":"assistant","session_id":"writing","message":{"role":"assistant","model":"reported-served","content":[{"type":"text","text":"exact writing bytes"}]}})"
+											 "\n");
+	expect(output && output->size() == 1 && output->front().Kind == application::agent_protocol_event_kind::output && output->front().Text == "exact writing bytes", "runtime metadata never enters captured writing text or emits a finding");
+	const auto metadata = writingMetadata.metadata();
+	expect(metadata.ProtocolReported.size() == 2 && metadata.ProtocolReported[0].Settings.Model == "reported-initial" && metadata.ProtocolReported[1].Settings.Model == "reported-served", "restricted writing preserves separately qualified model reports");
+	expect(!writingMetadata.push(R"({"type":"result","subtype":"success","session_id":"writing","is_error":false,"result":"summary","bprFindings":{}})"
+								 "\n")
+			   && writingMetadata.metadata() == metadata,
+		   "runtime facts cannot admit a prohibited finding carrier or change on its refusal");
 	std::cout << "writing-delivery-tests:pass\n";
 }
