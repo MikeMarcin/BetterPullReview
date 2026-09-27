@@ -1,0 +1,246 @@
+{
+  "assignment": "bpr-pr-tour-cli-extension-v1/publish-and-recover",
+  "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+  "run_id": "bpr-pr-tour-cli-20260927",
+  "segment_id": "publish-and-recover",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+  "status": "milestone-accepted-awaiting-local-main-fast-forward",
+  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "prior_main_revision": "37a90f0ba99d88ec15cf69d9e62afd4fa0cb6dd7",
+  "publication_source_revision": "5341b12e8a2f0f250d7251501473e81197664430",
+  "source_candidate_revision": "3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3",
+  "candidate_revision": "924f921721e609a1dc8bb63573ed5ce3200b6777",
+  "source_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+  "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "changed_paths": [
+    "docs/development/tour-cli.md",
+    "docs/issues/60-done/BPR-1059-compose-terminal-publication-maintenance-and-read-first-recovery.md",
+    "docs/issues/60-done/BPR-1063-verify-cold-published-recovery-and-incomplete-remote-observations.md",
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "docs/verification/RFC-BPR-0044-0046.publish-and-recover-checkpoint.json",
+    "src/app/CMakeLists.txt",
+    "src/app/src/github_application.cpp",
+    "src/app/src/review_submission_fixture.cpp",
+    "src/app/src/review_submission_fixture.hpp",
+    "src/app/src/review_submission_workflow.cpp",
+    "src/app/src/tour_cli.cpp",
+    "src/app/src/tour_decisions.hpp",
+    "src/app/src/tour_observation.hpp",
+    "src/app/src/tour_publication_plan.cpp",
+    "src/app/src/tour_publication_plan.hpp",
+    "src/app/src/tour_remote.cpp",
+    "src/app/src/tour_runtime.cpp",
+    "src/app/src/tour_runtime.hpp",
+    "src/application/include/bpr/application/review_tour_import.hpp",
+    "src/application/src/review_tour_import.cpp",
+    "tests/CMakeLists.txt",
+    "tests/application/tour_publication_cli_tests.cpp",
+    "tests/end_to_end/review_tour_publication_public_path.cpp",
+    "tests/scripts/tour_cli_publication_tests.py"
+  ],
+  "completed_cards": [
+    "BPR-1059",
+    "BPR-1063"
+  ],
+  "required_pending_in_milestone": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "docs/development/tour-cli.md"
+  ],
+  "accepted_observation": {
+    "run_id": "bpr-pr-tour-cli-20260927",
+    "segment_id": "publish-and-recover",
+    "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+    "selection": {
+      "schema": "implement-rfc.strategy-selection.v1",
+      "strategy": "coordinator-implementer",
+      "topology_id": "coordinator-implementer",
+      "recipe_revision": "2",
+      "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+      "routing": {},
+      "requirement_profile": "coordinator-implementer",
+      "owners": {
+        "engineering": "implementer",
+        "bookkeeping": "implementer",
+        "product_edits": "implementer"
+      },
+      "delegation": "recipe",
+      "instruction_paths": [
+        "references/engineering-contract.md",
+        "references/strategies/coordinator-implementer.md"
+      ],
+      "configuration_complete": true,
+      "missing_routes": [],
+      "host_load": "not_verified"
+    },
+    "binding": {
+      "plan_id": "bpr-pr-tour-cli-extension-v1",
+      "plan_path": "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json",
+      "milestone_id": "publish-and-recover",
+      "definition_fingerprint": "sha256:7d2211bc2a49fcfa7720a128f73fe984463dde97e4652ea36001f397c05f5ae4",
+      "obligations": [
+        {
+          "id": "BPR-1059:*",
+          "source": "BPR-1059",
+          "selector": null,
+          "source_fingerprint": "sha256:576e101a1558a2c6fb0cf3a49e517f4b197f7aff97427e117abffa6eedba5ad3"
+        },
+        {
+          "id": "BPR-1063:*",
+          "source": "BPR-1063",
+          "selector": null,
+          "source_fingerprint": "sha256:4dfdfc71e7389b38fb0f4602f01a96fb13e03188e19b3b630ee4f49886184583"
+        }
+      ],
+      "obligation_fingerprint": "sha256:fb47513e949f6608cf01216ebdf42082f12f1fd9e596884859cb161b3ffa21ce",
+      "exit_criteria": [
+        {
+          "id": "publish-and-recover:exit:1",
+          "text": "Preview/confirm/stage/submit/update/recover flow preserves exact authority and no-duplicate semantics in isolated fixtures."
+        },
+        {
+          "id": "publish-and-recover:exit:2",
+          "text": "Clean-profile GitHub reconstruction preserves current published content and reports absent/private/partial data honestly."
+        }
+      ],
+      "prerequisite_fingerprint": "sha256:6cf4e96e41d7b2d906fae0e669dcf29b8c6a23ad3e7734cce8e11115381ca2ea",
+      "structural": "valid",
+      "references": "resolved",
+      "semantic_coverage": "unknown",
+      "diagnostics": [],
+      "diagnostics_truncated": false
+    },
+    "milestone": "publish-and-recover",
+    "disposition": "milestone-complete",
+    "candidate_revision": "924f921721e609a1dc8bb63573ed5ce3200b6777",
+    "handoff_ref": "docs/verification/RFC-BPR-0044-0046.publish-and-recover-handoff.json",
+    "required_pending": [],
+    "evidence_refs": [
+      "docs/verification/RFC-BPR-0044-0046.md",
+      "docs/development/tour-cli.md"
+    ],
+    "acceptance_records": [
+      {
+        "id": "BPR-1059:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1063:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "publish-and-recover:exit:1",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "publish-and-recover:exit:2",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      }
+    ],
+    "continuation": {
+      "intent": "fresh",
+      "next_milestone": "same-machine-handoff",
+      "reason": "integrated-boundary",
+      "detail": "Publish-and-recover implementation exits accepted. Fast-forward local main, then a fresh implementer starts same-machine-handoff/BPR-1060 under the unchanged plan."
+    },
+    "ownership": "quiescent"
+  },
+  "engineering_acceptance": "Both scoped implementation obligations and both exits pass. Exact terminal authority, shared journal and no-duplicate recovery are fixture verified. Production host qualification remains fail-closed; no live mutation, credential use, second-machine/native/human/agent qualification or full-pack closure is claimed.",
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_bpr app_better_pull_review test_tour_publication_cli test_tour_cli_composition test_review_tour_publication_public_path test_review_tour_composition_public_path -j6",
+      "result": "Pass; final candidate CLI, desktop composition/public paths and desktop app built."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|application_review_tour_cold_import_public_path|application_review_tour_publication_maintenance|architecture_boundaries)$'",
+      "result": "8/8 pass, 55.86 seconds. CLI cold course includes two fresh roots, two actual fixture publication batches, website edits, current/left/historical sources, partial/deleted/unknown/stale/ambiguous cases and zero-write pending discovery. PTY course kills all four writes at three boundaries plus post-acknowledgement, recovers twice, refuses ambiguous resend and explicitly resumes safely."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(staged_review_session|staged_review_restart|application_review_tour_publication_(native|stop|unsupported))$'",
+      "result": "These five tests passed in the initial 9-test integration pass; unchanged provider/session evidence reused. Initial maintenance failure was separately reproduced on the previous workflow, fixture source/ID assertions corrected and final course passed."
+    },
+    {
+      "command": "cmake --build --preset core-only --target better_pull_review_application test_review_tour_host test_review_tour_import -j4; ctest --preset core-only --output-on-failure -R ^(core_review_tour_import|application_review_tour_host|core_dependency_boundary)$",
+      "result": "Build and 3/3 pass, 0.83 seconds. First importer test invocation lacked its binary; focused target built before successful rerun. Full default build baseline size assertion remains outside scope."
+    },
+    {
+      "command": "cmake --build --preset tour-cli -j6; cmake --install build/tour-cli --component TourCLI --prefix TASK_RUNTIME/install; installed bin/bpr tour capabilities --json with no DISPLAY/WAYLAND_DISPLAY, invalid QT_QPA_PLATFORM and DYLD_PRINT_LIBRARIES=1",
+      "result": "Pass at source 3a9a7fcc1dcfe053d1144292e2cfe7dc887c58c3. BUILD_TESTING=OFF; installed Qt Core/Network loaded; no GUI/Widgets/WebEngine/Quick/QPA images."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py CHANGED_CPP_PATHS; python3 _coding-standard/scripts/tidy.py --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm/bin/clang-tidy --warnings-as-errors --paths src/app/src/tour_runtime.cpp src/app/src/tour_remote.cpp src/app/src/tour_cli.cpp src/application/src/review_tour_import.cpp",
+      "result": "All 16 changed C++ files format clean; four final translation units pass warnings-as-errors; shared publication planner also passed during BPR-1059."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; git diff --check",
+      "result": "DOCUMENTATION_OK; 64/64 documentation contract tests pass; whitespace clean."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0044 --rfc RFC-BPR-0045 --rfc RFC-BPR-0046 --json",
+      "result": "valid:true, 1214 cards; BPR-1059 and BPR-1063 Done."
+    }
+  ],
+  "known_baseline_failure": {
+    "command": "cmake --build --preset core-only -j4",
+    "result": "Inherited unchanged tests/core/agent_profile_tests.cpp:138 size assertion expects 88 while existing agent_profile is 152 bytes. The affected core/application targets pass; the unrelated full-build failure is preserved."
+  },
+  "review_handoff": {
+    "required_for_this_implementation_milestone": false,
+    "server": null,
+    "protected_candidates": [],
+    "actual_human_native_website_agent_acceptance": "Pending later qualification cards and inherited parent follow-ups; not replaced by fixture decisions."
+  },
+  "ownership": {
+    "owner": "/root/publish_recover",
+    "source_tracker_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+    "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "detached",
+    "other_writers": "No other writer observed in assigned checkout; main verified clean at previous boundary. Unrelated worktrees and protected material untouched.",
+    "task_commands": [],
+    "background_commands": [],
+    "review_server": null,
+    "runtime_root": null,
+    "runtime_cleanup": "Removed task-owned temporary install root /Users/jaeger/.codex/worktrees/6ead/BetterPullReview/build/bpr-publish-rmz927q5 and explicit milestone logs, fixture baseline copy, acceptance/observation files and locator. Reusable build trees retained.",
+    "retained_resources": "Existing dev/core-only/tour-cli build directories and both existing checkouts; no new worktree.",
+    "released": true
+  },
+  "self_review": "Applied code-simplifier to touched composition. Reviewed exact plan/revision/account/head admission, released-lease TTY confirmation, bounded preview, uncertain-send refusal, existing journal attribution, completed keyed receipts and incomplete/cold/pending observation semantics. Baseline desktop fixture failure was demonstrated before correction. No independent reviewer requested or claimed.",
+  "pending_pack_obligations": [
+    "BPR-1060\u20131062 same-machine owner forwarding, deduplication, journal/IME and cross-client resumption; retain existing schema 3 tour journal.",
+    "BPR-1064\u20131067 hooks, scoped assistance, canonical pr-tour skill and distribution.",
+    "BPR-1068\u20131071 package/native/actual human/website/agent courses, independent review, documentation and RFC closure.",
+    "Parent BPR-1222\u20131226 live GitHub/GHES/native/provider/original-gap follow-ups remain unchanged."
+  ],
+  "next_action": "After local-main landing coordinator starts a fresh implementer for same-machine-handoff/BPR-1060; bind accepted intake, headless-manual and publish-and-recover. This owner stops at the milestone boundary.",
+  "next_eligible_milestone": "same-machine-handoff",
+  "next_eligible_card": "BPR-1060",
+  "operator_refusals": [
+    "Initial promotion used noncanonical lane name; corrected to 20-ready. Claim refused backlog/dirty promotion; promotion committed before claim.",
+    "Initial remote accessor compile error corrected to existing accepted mutation transport.",
+    "Initial PTY partial-resume/receipt attribution defects corrected and all kill/recovery courses pass.",
+    "Desktop maintenance fixture selected unchanged source and assumed manual-course comment ID; original workflow reproduced the failure before fixture correction.",
+    "Initial cold build named a test rather than its executable target; corrected to test_review_tour_composition_public_path.",
+    "Initial core importer invocation had no binary; focused target built and three tests pass."
+  ],
+  "checkpoint_check": {
+    "action": "fresh-context",
+    "detail": "Publish-and-recover implementation exits accepted. Fast-forward local main, then a fresh implementer starts same-machine-handoff/BPR-1060 under the unchanged plan.",
+    "engineering_acceptance": "not-evaluated"
+  }
+}
