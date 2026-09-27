@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1217"
 title: "Compose persisted diagnostic detail and privacy controls"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1216"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
