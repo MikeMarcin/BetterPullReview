@@ -2,6 +2,9 @@
 
 #include <QAccessible>
 #include <QAction>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QHideEvent>
@@ -79,7 +82,7 @@ namespace bpr::qt {
 					return QStringLiteral("The prepared profile data was purged. This runtime has ended; shared data and exported files remain.");
 				}
 				if (aProjection.Operation == command::export_diagnostics) {
-					return QStringLiteral("The previewed diagnostic metadata was saved locally. Nothing was uploaded.");
+					return QStringLiteral("The diagnostic preview was saved locally. Nothing was uploaded.");
 				}
 				return QStringLiteral("The prepared diagnostic files were cleared. Reopen the profile to resume work.");
 			case phase::stopped: return reason_text(reason::shutdown);
@@ -100,6 +103,29 @@ namespace bpr::qt {
 			}
 			const auto& selection = aProjection.State.Prepared->Selection;
 			if (const auto* snapshot = std::get_if<core::release_diagnostic_snapshot>(&selection)) {
+				if (snapshot->Options.Policy != core::diagnostic_export_policy::metadata) {
+					QStringList categories;
+					if ((snapshot->Categories & 1U) != 0U) {
+						categories << QStringLiteral("application");
+					}
+					if ((snapshot->Categories & 2U) != 0U) {
+						categories << QStringLiteral("GitHub");
+					}
+					if ((snapshot->Categories & 4U) != 0U) {
+						categories << QStringLiteral("Git/epochs");
+					}
+					const auto range = snapshot->Sessions == 0U ? QStringLiteral("No dated records") : QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->FirstUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs) + QStringLiteral(" to ") + QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->LastUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs);
+					return QStringLiteral("%1 · %2 · %3 sessions · %4 records · %5 bytes · %6 records omitted · %7 recent-context records.\n%8. Categories: %9.\n%10 records had identifiers removed at capture time; export cannot recover them. Explanations and operational facts may still reveal context. Originals are unchanged; nothing is uploaded.")
+						.arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
+						.arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
+						.arg(snapshot->Sessions)
+						.arg(snapshot->Records)
+						.arg(snapshot->Bytes)
+						.arg(snapshot->OmittedRecords)
+						.arg(snapshot->RecentRecords)
+						.arg(range, categories.isEmpty() ? QStringLiteral("none") : categories.join(QStringLiteral(", ")))
+						.arg(snapshot->CaptureRedactedRecords);
+				}
 				return QStringLiteral("%1 metadata records · %2 bytes · %3 records omitted. Free text, paths, identities, source, comments, credentials and crash memory are excluded.")
 					.arg(snapshot->Records)
 					.arg(snapshot->Bytes)
@@ -129,8 +155,29 @@ namespace bpr::qt {
 			label->setTextFormat(Qt::PlainText);
 			column->addWidget(label);
 		}
+		ExportScope = new QComboBox{ this };
+		ExportScope->setObjectName(QStringLiteral("diagnosticExportScope"));
+		ExportScope->setAccessibleName(QStringLiteral("Diagnostic export session scope"));
+		ExportScope->addItem(QStringLiteral("All retained sessions in this profile"));
+		ExportScope->addItem(QStringLiteral("Current session only"));
+		column->addWidget(ExportScope);
+		IncludeRecent = new QCheckBox{ QStringLiteral("Include recent sanitized context (up to 3 minutes, 512 events, 2 MiB)"), this };
+		IncludeRecent->setObjectName(QStringLiteral("diagnosticExportRecent"));
+		column->addWidget(IncludeRecent);
+		IdentifyingPreview = new QPushButton{ QStringLiteral("Preview with identifying details…"), this };
+		IdentifyingPreview->setObjectName(QStringLiteral("diagnosticIdentifyingPreview"));
+		IdentifyingPreview->setEnabled(false);
+		connect(IdentifyingPreview, &QPushButton::clicked, this, [this] { preview_diagnostics(core::diagnostic_export_policy::identifying); });
+		column->addWidget(IdentifyingPreview);
+		const auto changed = [this] {
+			if (Projection.State.Prepared || Projection.State.Pending) {
+				dispatch({ Projection.State.Authority, command::cancel, Projection.State.Pending ? Projection.State.Pending : Projection.State.Prepared });
+			}
+		};
+		connect(ExportScope, &QComboBox::currentIndexChanged, this, changed);
+		connect(IncludeRecent, &QCheckBox::toggled, this, changed);
 		auto*            buttons = new QGridLayout;
-		const std::array labels{ "Preview diagnostics", "Export preview…", "Prepare diagnostic cleanup…", "Clear prepared diagnostics…", "Prepare profile purge…", "Purge prepared profile data…", "Cancel maintenance" };
+		const std::array labels{ "Preview anonymized diagnostics", "Export anonymized preview…", "Prepare diagnostic cleanup…", "Clear prepared diagnostics…", "Prepare profile purge…", "Purge prepared profile data…", "Cancel maintenance" };
 		for (std::size_t item = 0; item < labels.size(); ++item) {
 			auto* action = new QAction{ QString::fromUtf8(labels[item]), this };
 			action->setEnabled(false);
@@ -144,6 +191,8 @@ namespace bpr::qt {
 			buttons->addWidget(button, static_cast<int>(item / 2U), static_cast<int>(item % 2U));
 			connect(action, &QAction::changed, button, [action, button] {
 				button->setEnabled(action->isEnabled());
+				button->setText(action->text());
+				button->setAccessibleName(action->text());
 				button->setToolTip(action->toolTip());
 				button->setAccessibleDescription(action->toolTip());
 			});
@@ -183,6 +232,11 @@ namespace bpr::qt {
 			Actions[item]->setEnabled(refusal == reason::none);
 			Actions[item]->setToolTip(reason_text(refusal));
 		}
+		IdentifyingPreview->setEnabled(action(command::preview_diagnostics)->isEnabled());
+		ExportScope->setEnabled(!Projection.State.Pending);
+		IncludeRecent->setEnabled(!Projection.State.Pending);
+		const auto* snapshot = Projection.State.Prepared ? std::get_if<core::release_diagnostic_snapshot>(&Projection.State.Prepared->Selection) : nullptr;
+		action(command::export_diagnostics)->setText(snapshot && snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Export with identifying details…") : QStringLiteral("Export anonymized preview…"));
 		if (previousPreview != aProjection.Preview) {
 			Preview->setPlainText(aProjection.Preview ? QString::fromStdString(*aProjection.Preview) : QString{ });
 		}
@@ -221,14 +275,48 @@ namespace bpr::qt {
 			return;
 		case command::export_diagnostics:
 			intent.Target = Projection.State.Prepared;
-			choose_export(intent);
+			if (intent.Target && std::get<core::release_diagnostic_snapshot>(intent.Target->Selection).Options.Policy == core::diagnostic_export_policy::identifying) {
+				confirm_identifying(intent);
+			} else {
+				choose_export(intent);
+			}
 			return;
 		case command::cancel:
 			intent.Target = Projection.State.Pending ? Projection.State.Pending : Projection.State.Prepared;
 			break;
-		case command::preview_diagnostics: break;
+		case command::preview_diagnostics: preview_diagnostics(core::diagnostic_export_policy::anonymized); return;
 		}
 		dispatch(intent);
+	}
+
+	void release_maintenance_panel::preview_diagnostics(core::diagnostic_export_policy aPolicy)
+	{
+		if (Dialog || !action(command::preview_diagnostics)->isEnabled()) {
+			return;
+		}
+		core::release_maintenance_intent intent{ Projection.State.Authority, command::preview_diagnostics, { } };
+		intent.ExportOptions = { aPolicy, ExportScope->currentIndex() == 1 ? core::diagnostic_export_scope::current_session : core::diagnostic_export_scope::retained_sessions, IncludeRecent->isChecked() };
+		dispatch(intent);
+	}
+	void release_maintenance_panel::confirm_identifying(core::release_maintenance_intent aIntent)
+	{
+		auto* box = new QMessageBox{ QMessageBox::Warning, QStringLiteral("Export with identifying details?"),
+									 QStringLiteral("This local file includes identifiers already retained in the exact preview. Capture-time omissions cannot be recovered. Credentials and review content remain excluded. Nothing is uploaded.\n\n") + selection_text(Projection), QMessageBox::Cancel, this };
+		box->setObjectName(QStringLiteral("diagnosticIdentifyingConfirmation"));
+		box->setTextFormat(Qt::PlainText);
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		auto* proceed = box->addButton(QStringLiteral("Export identifying preview"), QMessageBox::AcceptRole);
+		box->setDefaultButton(QMessageBox::Cancel);
+		box->setEscapeButton(QMessageBox::Cancel);
+		Dialog = box;
+		connect(box, &QDialog::finished, this, [this, box, proceed, aIntent]() mutable {
+			Dialog.clear();
+			if (box->clickedButton() == proceed) {
+				aIntent.IdentifyingConfirmed = true;
+				choose_export(aIntent);
+			}
+		});
+		box->open();
 	}
 
 	void release_maintenance_panel::confirm(core::release_maintenance_intent aIntent, bool aPreparation)
@@ -268,14 +356,14 @@ namespace bpr::qt {
 
 	void release_maintenance_panel::choose_export(core::release_maintenance_intent aIntent)
 	{
-		auto* chooser = new QFileDialog{ this, QStringLiteral("Save diagnostic metadata to a new local file") };
+		auto* chooser = new QFileDialog{ this, QStringLiteral("Save the exact diagnostic preview to a new local file") };
 		chooser->setObjectName(QStringLiteral("releaseMaintenanceSaveDialog"));
 		chooser->setAttribute(Qt::WA_DeleteOnClose);
 		chooser->setAcceptMode(QFileDialog::AcceptSave);
 		chooser->setFileMode(QFileDialog::AnyFile);
 		chooser->setSupportedSchemes({ QStringLiteral("file") });
 		chooser->setOption(QFileDialog::DontConfirmOverwrite);
-		chooser->setNameFilter(QStringLiteral("Diagnostic metadata (*.txt)"));
+		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
 		chooser->setDefaultSuffix(QStringLiteral("txt"));
 		chooser->selectFile(QStringLiteral("BetterPullReview-diagnostics.txt"));
 		Dialog = chooser;

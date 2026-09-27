@@ -9,6 +9,8 @@
 
 class QAction;
 class QDialog;
+class QCheckBox;
+class QComboBox;
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
@@ -30,16 +32,21 @@ namespace bpr::qt {
 	private:
 		void                                        activate(core::release_maintenance_command aCommand);
 		void                                        confirm(core::release_maintenance_intent aIntent, bool aPreparation);
+		void                                        preview_diagnostics(core::diagnostic_export_policy aPolicy);
+		void                                        confirm_identifying(core::release_maintenance_intent aIntent);
 		void                                        choose_export(core::release_maintenance_intent aIntent);
 		void                                        dismiss_dialog();
 		void                                        dispatch(core::release_maintenance_intent aIntent);
 		application::release_maintenance_dispatch   Dispatch;
 		application::release_maintenance_projection Projection;
 		std::array<QAction*, 7>                     Actions{ };
-		QLabel*                                     Scope   = nullptr;
-		QLabel*                                     Status  = nullptr;
-		QLabel*                                     Summary = nullptr;
-		QPlainTextEdit*                             Preview = nullptr;
+		QCheckBox*                                  IncludeRecent      = nullptr;
+		QComboBox*                                  ExportScope        = nullptr;
+		QPushButton*                                IdentifyingPreview = nullptr;
+		QLabel*                                     Scope              = nullptr;
+		QLabel*                                     Status             = nullptr;
+		QLabel*                                     Summary            = nullptr;
+		QPlainTextEdit*                             Preview            = nullptr;
 		QPointer<QDialog>                           Dialog;
 		QString                                     ProfileLabel;
 	};

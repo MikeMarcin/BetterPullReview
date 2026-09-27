@@ -38,10 +38,16 @@ namespace bpr::core {
 
 		auto validate_snapshot(const release_diagnostic_snapshot& aSnapshot) noexcept -> reason
 		{
+			if (!valid_diagnostic_export_options(aSnapshot.Options) || aSnapshot.FirstUtcMs > aSnapshot.LastUtcMs || aSnapshot.RecentRecords > aSnapshot.Records || aSnapshot.CaptureRedactedRecords > aSnapshot.Records || aSnapshot.Categories > 7U || aSnapshot.Sessions > aSnapshot.Records) {
+				return reason::invalid_selection;
+			}
 			if (aSnapshot.Revision.value() == 0U || !valid_digest(aSnapshot.Digest)) {
 				return reason::invalid_selection;
 			}
-			if (aSnapshot.Fields == 0U || (aSnapshot.Fields & ~release_diagnostic_default_fields) != 0U) {
+			const auto permitted = release_diagnostic_default_fields
+				| (aSnapshot.Options.Policy == diagnostic_export_policy::metadata ? 0U : release_diagnostic_classified_fields)
+				| (aSnapshot.Options.Policy == diagnostic_export_policy::identifying ? static_cast<std::uint32_t>(release_diagnostic_field::captured_identity) : 0U);
+			if (aSnapshot.Fields == 0U || (aSnapshot.Fields & ~permitted) != 0U) {
 				return reason::privacy_refusal;
 			}
 			if (aSnapshot.Records > release_diagnostic_record_limit || aSnapshot.Bytes == 0U || aSnapshot.Bytes > release_diagnostic_byte_limit) {
@@ -241,10 +247,19 @@ namespace bpr::core {
 			if (preparing(aIntent.Command) && aIntent.Target) {
 				return reject(reason::invalid_selection);
 			}
+			if (aIntent.Command == command::preview_diagnostics && !valid_diagnostic_export_options(aIntent.ExportOptions)) {
+				return reject(reason::invalid_selection);
+			}
+			if (aIntent.Command == command::export_diagnostics
+				&& std::get<release_diagnostic_snapshot>(aState.Prepared->Selection).Options.Policy == diagnostic_export_policy::identifying
+				&& !aIntent.IdentifyingConfirmed) {
+				return reject(reason::privacy_refusal);
+			}
+			const auto options   = executing(aIntent.Command) ? aState.Prepared->ExportOptions : aIntent.ExportOptions;
 			const auto selection = executing(aIntent.Command) ? aState.Prepared->Selection : release_maintenance_selection{ };
 			auto       result    = accepted(aState.Prepared.has_value());
 			advance_generation(aState);
-			aState.Pending     = release_maintenance_context{ aState.Authority, aState.NextRequest, aState.Generation, aIntent.Command, selection };
+			aState.Pending     = release_maintenance_context{ aState.Authority, aState.NextRequest, aState.Generation, aIntent.Command, selection, options };
 			aState.NextRequest = request_id{ aState.NextRequest.value() + 1U };
 			aState.Prepared.reset();
 			aState.Phase                 = preparing(aIntent.Command) ? phase::preparing : phase::running;
@@ -308,6 +323,10 @@ namespace bpr::core {
 			}
 			if (const auto refusal = validate_selection(aEvent.Context.Operation, aEvent.Selection); refusal != reason::none) {
 				return finish(aState, phase::failed, refusal);
+			}
+			if (const auto* snapshot = std::get_if<release_diagnostic_snapshot>(&aEvent.Selection);
+				snapshot && snapshot->Options != aEvent.Context.ExportOptions) {
+				return finish(aState, phase::failed, reason::selection_changed);
 			}
 			aState.Prepared            = aEvent.Context;
 			aState.Prepared->Selection = aEvent.Selection;
@@ -374,6 +393,13 @@ namespace bpr::core {
 			}
 			return finish(aState, phase::cancelled, reason::cancelled);
 		}
+	}
+
+	auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool
+	{
+		return (aOptions.Policy == diagnostic_export_policy::metadata || aOptions.Policy == diagnostic_export_policy::anonymized || aOptions.Policy == diagnostic_export_policy::identifying)
+			&& (aOptions.Scope == diagnostic_export_scope::retained_sessions || aOptions.Scope == diagnostic_export_scope::current_session)
+			&& (aOptions.Policy != diagnostic_export_policy::metadata || (aOptions.Scope == diagnostic_export_scope::retained_sessions && !aOptions.IncludeRecent));
 	}
 
 	auto exportable(const release_diagnostic_field aField) noexcept -> bool

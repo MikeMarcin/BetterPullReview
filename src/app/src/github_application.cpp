@@ -4031,7 +4031,7 @@ namespace bpr::app {
 				found->second.Settings(*Settings, aPage);
 			}
 			if (!Maintenance) {
-				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement);
+				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement, std::dynamic_pointer_cast<application::diagnostic_control_port>(DiagnosticLog));
 			}
 			Maintenance->attach(*Settings, Admission.Label);
 			if (Diagnostics) {

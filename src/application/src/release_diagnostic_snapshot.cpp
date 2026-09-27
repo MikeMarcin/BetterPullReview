@@ -4,7 +4,10 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <map>
 #include <optional>
+#include <set>
+#include <vector>
 
 namespace bpr::application {
 	namespace {
@@ -204,6 +207,279 @@ namespace bpr::application {
 			}
 			return true;
 		}
+		using export_policy = core::diagnostic_export_policy;
+		using export_scope  = core::diagnostic_export_scope;
+		using json_values   = std::array<std::string_view, 30>;
+
+		template <std::size_t N>
+		auto member(std::string_view aValue, const std::array<std::string_view, N>& aNames) -> bool
+		{
+			return std::ranges::find(aNames, aValue) != aNames.end();
+		}
+		auto hex_identity(std::string_view aValue, std::size_t aSize) -> bool
+		{
+			return aValue.size() == aSize && std::ranges::all_of(aValue, [](char aByte) { return (aByte >= '0' && aByte <= '9') || (aByte >= 'a' && aByte <= 'f'); });
+		}
+		auto capture_label(std::string_view aLabel, std::string_view aSession, std::string_view aPrefix) -> bool
+		{
+			if (aLabel == "none" || aLabel == "omitted_limit") {
+				return true;
+			}
+			if (!aLabel.starts_with(aPrefix)) {
+				return false;
+			}
+			aLabel.remove_prefix(aPrefix.size());
+			if (!aLabel.starts_with(aSession) || aLabel.size() <= aSession.size() || aLabel[aSession.size()] != '-') {
+				return false;
+			}
+			return number(aLabel.substr(aSession.size() + 1U)).value_or(0U) != 0U;
+		}
+		auto build_identity(std::string_view aBuild) -> bool
+		{
+			const auto first = aBuild.find('-');
+			if (first == std::string_view::npos || first == 0U || first > 32U) {
+				return false;
+			}
+			const auto version = aBuild.substr(0U, first);
+			if (!std::ranges::all_of(version, [](char aByte) { return (aByte >= '0' && aByte <= '9') || aByte == '.'; })) {
+				return false;
+			}
+			aBuild.remove_prefix(first + 1U);
+			constexpr std::array<std::string_view, 4> configurations{ "-Debug", "-Release", "-RelWithDebInfo", "-MinSizeRel" };
+			return aBuild.size() > 64U && hex_identity(aBuild.substr(0U, 64U), 64U) && member(aBuild.substr(64U), configurations);
+		}
+		auto classified_values(const json_values& aValues) -> bool
+		{
+			constexpr std::array<std::string_view, 10>  stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare" };
+			constexpr std::array<std::string_view, 8>   domains{ "none", "catalog", "cache", "transport", "protocol", "epoch", "github", "validation" };
+			constexpr std::array<std::string_view, 15>  gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read" };
+			constexpr std::array<std::string_view, 4>   transportSources{ "none", "native_transport", "http_response", "network_reply" };
+			constexpr std::array<std::string_view, 13>  pagedOperations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline" };
+			constexpr std::array<std::string_view, 5>   summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
+			constexpr std::array<std::string_view, 103> failures{ "allocation", "allocation_limit", "api_version", "authentication", "authority_mismatch", "authorization_mismatch", "busy", "cancelled", "capability", "catalog_conflict", "catalog_mismatch", "certificate", "cli_unavailable", "collection_too_large", "consumer_rejected", "duplicate_identity", "duplicate_ref", "identity_mismatch", "incomplete_response", "input_limit", "integrity_failure", "invalid_authority", "invalid_capability_revision", "invalid_commit_oid", "invalid_context", "invalid_enum", "invalid_limits", "invalid_line", "invalid_manifest", "invalid_path", "invalid_permissions", "invalid_pull_request_number", "invalid_rate_limit", "invalid_relationship", "invalid_repository", "invalid_request", "invalid_state", "invalid_text", "inventory_mismatch", "lock_unavailable", "malformed_observation", "malformed_pack", "malformed_packet", "malformed_response", "missing_capability", "missing_identity", "missing_required_text", "network", "none", "object_format_mismatch", "object_mismatch", "oid_mismatch", "operation_conflict", "operation_identity_conflict", "ordinal_exhausted", "pack_limit", "pack_sink", "permission", "phase_conflict", "platform_unsupported", "process_failure", "progress_limit", "proxy", "quota_exceeded", "rate_limit", "redirect", "ref_conflict", "relationship_actor_login", "relationship_file_previous_path", "relationship_file_viewed_capability", "relationship_review_comments_availability", "relationship_review_group_reply", "relationship_review_group_root", "relationship_review_threads_capability", "relationship_search_availability", "relationship_search_repository", "relationship_search_target_identity", "relationship_search_target_metadata", "relationship_thread_comment_path", "relationship_thread_permission_capability", "relationship_thread_reply", "relationship_timeline_availability", "relationship_timeline_event", "repair_required", "request_limit", "response_limit", "response_too_large", "revision_conflict", "schema_mismatch", "sideband_error", "source_observation_conflict", "spool_failure", "storage", "text_too_long", "timeout", "total_text_too_large", "unavailable", "unexpected_ref", "unexpected_section", "unknown", "unsupported_object", "unsupported_version", "vault" };
+			constexpr std::array<std::string_view, 8>   packFailures{ "none", "unknown", "invalid_request", "invalid_state", "input_limit", "storage", "malformed_pack", "cancelled" };
+			constexpr std::array<std::string_view, 37>  validationFailures{ "none", "invalid_context", "invalid_limits", "missing_identity", "identity_mismatch", "missing_required_text", "invalid_text", "text_too_long", "invalid_repository", "invalid_pull_request_number", "invalid_commit_oid", "invalid_line", "invalid_enum", "invalid_capability_revision", "invalid_rate_limit", "collection_too_large", "duplicate_identity", "invalid_relationship", "allocation_limit", "total_text_too_large", "relationship_file_previous_path", "relationship_thread_comment_path", "relationship_review_group_root", "relationship_review_group_reply", "relationship_actor_login", "relationship_thread_reply", "relationship_search_repository", "relationship_search_target_identity", "relationship_search_target_metadata", "relationship_timeline_availability", "relationship_timeline_event", "relationship_review_comments_availability", "relationship_review_threads_capability", "relationship_file_viewed_capability", "relationship_thread_permission_capability", "relationship_search_availability", "unknown" };
+			if (!hex_identity(aValues[6], 32U) || !build_identity(aValues[8]) || number(aValues[7]).value_or(0U) == 0U
+				|| number(aValues[4]).value_or(0U) > 253402300799999ULL) {
+				return false;
+			}
+			if (!member(aValues[13], summaries) || !member(aValues[16], stages) || !member(aValues[17], domains)
+				|| !member(aValues[18], failures) || !member(aValues[19], packFailures) || !member(aValues[20], pagedOperations)
+				|| !member(aValues[22], validationFailures) || !member(aValues[23], transportSources) || !member(aValues[24], gitSteps)) {
+				return false;
+			}
+			const auto category = aValues[9] == "application" ? "application" : aValues[9] == "epoch" ? "epoch"
+																									  : "github";
+			const auto severity = aValues[10] == "failed" ? "error" : *number(aValues[12]) >= 400U ? "warning"
+																								   : "info";
+			if (aValues[1] != std::string{ aValues[9] } + "." + std::string{ aValues[10] } || aValues[2] != category || aValues[3] != severity) {
+				return false;
+			}
+			if (aValues[0] == "3") {
+				if ((aValues[27] != "anonymized" && aValues[27] != "include_locally")
+					|| (aValues[28] != "standard" && aValues[28] != "verbose") || (aValues[29] != "standard" && aValues[29] != "verbose")
+					|| !capture_label(aValues[25], aValues[6], "request-") || !capture_label(aValues[26], aValues[6], "window-")
+					|| (aValues[27] == "anonymized" && (aValues[11] != "0" || aValues[21] != "0"))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		auto public_symbol(std::string_view aSymbol) -> bool
+		{
+			// Exact symbols from the shipped capability query vocabulary, never identifier shape.
+			constexpr std::array<std::string_view, 84> symbols{ "Actor", "BetterPullReviewCapabilityProbeV1Part0", "BetterPullReviewCapabilityProbeV1Part1", "BetterPullReviewCapabilityProbeV1Part2", "BetterPullReviewCapabilityProbeV1Part3", "BetterPullReviewCapabilityProbeV1Part4", "BetterPullReviewCapabilityProbeV1Part5", "BetterPullReviewCapabilityProbeV1Part6", "BetterPullReviewCapabilityProbeV1Part7", "BetterPullReviewCapabilityProbeV1Part8", "DiffSide", "EnumType", "FieldType", "FileViewedState", "InputType", "InterfaceType", "MarkFileAsViewedInput", "MarkFileAsViewedPayload", "Node", "PageInfo", "PossibleType", "PullRequest", "PullRequestChangedFile", "PullRequestChangedFileConnection", "PullRequestReviewComment", "PullRequestReviewCommentConnection", "PullRequestReviewThread", "PullRequestReviewThreadConnection", "PullRequestReviewThreadSubjectType", "Repository", "ResolveReviewThreadInput", "ResolveReviewThreadPayload", "TypeRef", "UnmarkFileAsViewedInput", "UnmarkFileAsViewedPayload", "UnresolveReviewThreadInput", "UnresolveReviewThreadPayload", "__Type", "__schema", "__type", "actor", "actorPossibleTypes", "args", "changedFile", "changedFileConnection", "commentConnection", "defaultValue", "diffSide", "enumValues", "fields", "fileViewedState", "fragment", "includeDeprecated", "inputFields", "interfaces", "kind", "markInput", "markPayload", "mutationType", "name", "node", "nodePossibleTypes", "ofType", "on", "pageInfo", "possibleTypes", "pullRequest", "query", "queryType", "repository", "resolveInput", "resolvePayload", "reviewComment", "reviewThread", "reviewThreadInterfaces", "schemaRoot", "threadConnection", "threadSubject", "true", "type", "unmarkInput", "unmarkPayload", "unresolveInput", "unresolvePayload" };
+			return aSymbol == "[omitted:unclassified-symbol]" || member(aSymbol, symbols);
+		}
+		auto safe_message(std::string_view aMessage) -> bool
+		{
+			constexpr std::string_view omission = "[omitted:unclassified-content]";
+			if (aMessage == omission) {
+				return true;
+			}
+			if (aMessage.ends_with(" [omitted:unclassified-content]")) {
+				aMessage.remove_suffix(omission.size() + 1U);
+			}
+			if (aMessage.starts_with("Unknown schema field ")) {
+				return public_symbol(aMessage.substr(21U));
+			}
+			if (!aMessage.starts_with("Field ")) {
+				return false;
+			}
+			aMessage.remove_prefix(6U);
+			constexpr std::string_view absent = " does not exist on type ";
+			const auto                 split  = aMessage.find(absent);
+			if (split != std::string_view::npos) {
+				return public_symbol(aMessage.substr(0U, split)) && public_symbol(aMessage.substr(split + absent.size()));
+			}
+			constexpr std::string_view repeated = " exceeds a service repetition limit";
+			return aMessage.ends_with(repeated) && public_symbol(aMessage.substr(0U, aMessage.size() - repeated.size()));
+		}
+		auto safe_detail(std::string_view aDetail) -> bool
+		{
+			constexpr std::array<std::string_view, 19> codes{ "FORBIDDEN", "UNAUTHORIZED", "NOT_FOUND", "MAX_NODE_LIMIT_EXCEEDED", "INTERNAL", "SERVICE_UNAVAILABLE", "GRAPHQL_PARSE_FAILED", "GRAPHQL_VALIDATION_FAILED", "undefinedField", "argumentNotAccepted", "undefinedType", "selectionMismatch", "variableMismatch", "variableNotUsed", "variableRequiresValidType", "variableNotDefined", "RATE_LIMITED", "[omitted:unclassified-code]", "[omitted:unclassified-content]" };
+			if (aDetail.size() > 4096U) {
+				return false;
+			}
+			while (!aDetail.empty()) {
+				const bool message = aDetail.starts_with("message=\\\"");
+				const auto prefix  = message ? 10U : (aDetail.starts_with("type=\\\"") || aDetail.starts_with("code=\\\"")) ? 7U
+																															: 0U;
+				if (prefix == 0U) {
+					return false;
+				}
+				aDetail.remove_prefix(prefix);
+				const auto end = aDetail.find("\\\" ");
+				if (end == std::string_view::npos) {
+					return false;
+				}
+				const auto value = aDetail.substr(0U, end);
+				if (message ? !safe_message(value) : !member(value, codes)) {
+					return false;
+				}
+				aDetail.remove_prefix(end + 3U);
+			}
+			return true;
+		}
+
+		struct export_builder
+		{
+			release_diagnostic_document                     Document;
+			std::string                                     Namespace;
+			std::map<std::string, std::string>              Labels;
+			std::set<std::pair<std::string, std::uint64_t>> Seen;
+			std::set<std::string>                           Sessions;
+			std::uint32_t                                   DuplicateRecords = 0U;
+			std::uint32_t                                   DetailOmissions  = 0U;
+			std::uint32_t                                   LegacyRecords    = 0U;
+			std::size_t                                     InputRecords     = 0U;
+
+			auto label(std::string_view aKind, std::string_view aSession, std::string_view aIdentity) -> std::string
+			{
+				if (aIdentity == "none" || aIdentity == "0" || aIdentity == "omitted_limit") {
+					return std::string{ aIdentity };
+				}
+				const auto key            = std::string{ aKind } + ":" + std::string{ aSession } + ":" + std::string{ aIdentity };
+				auto [position, inserted] = Labels.try_emplace(key);
+				if (inserted) {
+					position->second = std::string{ aKind } + "-" + Namespace + "-" + std::to_string(Labels.size());
+				}
+				return position->second;
+			}
+			auto render(const json_values& aValues, bool aRecent) -> std::string
+			{
+				const bool  identifying = Document.Descriptor.Options.Policy == export_policy::identifying;
+				std::string bytes       = "{\"record\":\"event\"";
+				const auto  text        = [&](std::string_view aKey, std::string_view aValue) { bytes.append(",\"").append(aKey).append("\":\"").append(aValue).append("\""); };
+				const auto  numeric     = [&](std::string_view aKey, std::string_view aValue) { bytes.append(",\"").append(aKey).append("\":").append(aValue); };
+				text("event", aValues[1]);
+				text("category", aValues[2]);
+				text("severity", aValues[3]);
+				numeric("utc_ms", aValues[4]);
+				numeric("elapsed_us", aValues[5]);
+				text("session", identifying ? std::string{ aValues[6] } : label("session", "", aValues[6]));
+				numeric("sequence", aValues[7]);
+				text("build", aValues[8]);
+				text("op", aValues[9]);
+				text("outcome", aValues[10]);
+				numeric("http_status", aValues[12]);
+				text("summary", aValues[13]);
+				numeric("dropped", aValues[14]);
+				const bool safe = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
+				text("detail", safe ? aValues[15] : "[omitted:unclassified-content]");
+				if (!safe) {
+					++DetailOmissions;
+				}
+				constexpr std::array<std::string_view, 9> keys{ "epoch_stage", "failure_domain", "failure", "pack_failure", "page_operation", "window_session", "relationship_detail", "transport_source", "git_step" };
+				for (std::size_t index = 0U; index < keys.size(); ++index) {
+					if (index != 5U) {
+						text(keys[index], aValues[16U + index]);
+					}
+				}
+				const auto request = aValues[0] == "3" ? aValues[25] : aValues[11];
+				const auto window  = aValues[0] == "3" ? aValues[26] : aValues[21];
+				text("request_label", label("request", aValues[6], request));
+				text("window_label", label("window", aValues[6], window));
+				if (identifying) {
+					numeric("request", aValues[11]);
+					numeric("window_session", aValues[21]);
+				}
+				text("capture_privacy", aValues[0] == "3" ? aValues[27] : "legacy_identifying");
+				text("capture_detail", aValues[0] == "3" ? aValues[28] : "legacy_unknown");
+				text("event_detail", aValues[0] == "3" ? aValues[29] : "standard");
+				text("source", aRecent ? "recent_context" : "file");
+				return bytes + "}\n";
+			}
+			auto add(std::string_view aLine, bool aRecent, const diagnostic_export_capture& aCapture) -> bool
+			{
+				if (++InputRecords > release_diagnostic_input_records) {
+					return false;
+				}
+				auto&      descriptor = Document.Descriptor;
+				const auto record     = classify(aLine);
+				const auto values     = json_fields(aLine);
+				if (!record || (aLine.starts_with('{') && (!values || !classified_values(*values)))) {
+					++descriptor.OmittedRecords;
+					return true;
+				}
+				if (!values) {
+					if (descriptor.Options.Scope == export_scope::current_session || aRecent) {
+						return true;
+					}
+					if (descriptor.Records == core::release_diagnostic_record_limit || Document.Bytes.size() + 256U > core::release_diagnostic_byte_limit) {
+						++descriptor.OmittedRecords;
+						return true;
+					}
+					Document.Bytes += "{\"record\":\"legacy_metadata\",\"operation\":" + std::to_string(record->Operation) + ",\"outcome\":" + std::to_string(record->Outcome) + ",\"http_status\":" + std::to_string(record->HttpStatus) + ",\"dropped\":" + std::to_string(record->Dropped) + "}\n";
+					++descriptor.Records;
+					descriptor.Categories |= record->Operation == 0U ? 1U : record->Operation == 4U ? 4U
+																									: 2U;
+					++LegacyRecords;
+					return true;
+				}
+				const auto& fields   = *values;
+				const auto  sequence = *number(fields[7]);
+				if ((descriptor.Options.Scope == export_scope::current_session && fields[6] != aCapture.Session)
+					|| (fields[6] == aCapture.Session && sequence > aCapture.Sequence)) {
+					return true;
+				}
+				if (descriptor.Records == core::release_diagnostic_record_limit || Document.Bytes.size() + 8192U > core::release_diagnostic_byte_limit - 2048U) {
+					++descriptor.OmittedRecords;
+					return true;
+				}
+				if (!Seen.emplace(std::string{ fields[6] }, sequence).second) {
+					++DuplicateRecords;
+					return true;
+				}
+				Document.Bytes += render(fields, aRecent);
+				++descriptor.Records;
+				descriptor.RecentRecords += aRecent ? 1U : 0U;
+				descriptor.CaptureRedactedRecords += fields[27] == "anonymized" ? 1U : 0U;
+				descriptor.Categories |= fields[2] == "application" ? 1U : fields[2] == "github" ? 2U
+																								 : 4U;
+				Sessions.emplace(fields[6]);
+				const auto utc        = *number(fields[4]);
+				descriptor.FirstUtcMs = Seen.size() == 1U ? utc : std::min(descriptor.FirstUtcMs, utc);
+				descriptor.LastUtcMs  = std::max(descriptor.LastUtcMs, utc);
+				return true;
+			}
+			auto collect(std::string_view aLog, bool aRecent, const diagnostic_export_capture& aCapture) -> bool
+			{
+				while (!aLog.empty()) {
+					const auto end = aLog.find('\n');
+					if (end == std::string_view::npos) {
+						++Document.Descriptor.OmittedRecords;
+						return ++InputRecords <= release_diagnostic_input_records;
+					}
+					if (!add(aLog.substr(0U, end), aRecent, aCapture)) {
+						return false;
+					}
+					aLog.remove_prefix(end + 1U);
+				}
+				return true;
+			}
+		};
+
 	}
 	auto prepare_release_diagnostics(std::string_view aLog, core::release_maintenance_revision aRevision)
 		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>
@@ -222,4 +498,58 @@ namespace bpr::application {
 		document.Descriptor.Digest = core::sha256({ reinterpret_cast<const std::uint8_t*>(document.Bytes.data()), document.Bytes.size() });
 		return document;
 	}
+	auto prepare_diagnostic_export(std::string_view aLog, core::release_maintenance_revision aRevision,
+								   core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace)
+		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>
+	{
+		using reason = core::release_maintenance_reason;
+		if (!core::valid_diagnostic_export_options(aOptions) || aOptions.Policy == export_policy::metadata || aRevision.value() == 0U || !hex_identity(aNamespace, 32U)
+			|| (aOptions.Scope == export_scope::current_session && !hex_identity(aCapture.Session, 32U))) {
+			return std::unexpected(reason::invalid_selection);
+		}
+		if (aLog.size() > release_diagnostic_input_limit || aCapture.Recent.size() > 512U) {
+			return std::unexpected(reason::limit_exceeded);
+		}
+		export_builder builder{ .Document = { { .Revision = aRevision, .Options = aOptions }, { } }, .Namespace = std::string{ aNamespace } };
+		if (!builder.collect(aLog, false, aCapture)) {
+			return std::unexpected(reason::limit_exceeded);
+		}
+		std::size_t recentBytes = 0U;
+		if (aOptions.IncludeRecent) {
+			for (const auto& record : aCapture.Recent) {
+				if (record.size() > 2U * 1024U * 1024U - recentBytes) {
+					return std::unexpected(reason::limit_exceeded);
+				}
+				recentBytes += record.size();
+				if (!builder.add(record, true, aCapture)) {
+					return std::unexpected(reason::limit_exceeded);
+				}
+			}
+		}
+		auto& document = builder.Document;
+		document.Descriptor.Fields |= core::release_diagnostic_classified_fields | (aOptions.Policy == export_policy::identifying ? static_cast<std::uint32_t>(core::release_diagnostic_field::captured_identity) : 0U);
+		document.Descriptor.Sessions = static_cast<std::uint32_t>(builder.Sessions.size());
+		std::string header           = "{\"format\":\"bpr-diagnostics-v2\",\"policy\":\"";
+		header += aOptions.Policy == export_policy::identifying ? "identifying" : "anonymized";
+		header += "\",\"scope\":\"";
+		header += aOptions.Scope == export_scope::current_session ? "current_session" : "retained_sessions";
+		header += "\",\"include_recent\":";
+		header += aOptions.IncludeRecent ? "true" : "false";
+		header += ",\"records\":" + std::to_string(document.Descriptor.Records) + ",\"omitted_records\":" + std::to_string(document.Descriptor.OmittedRecords)
+			+ ",\"duplicate_records\":" + std::to_string(builder.DuplicateRecords) + ",\"detail_omissions\":" + std::to_string(builder.DetailOmissions)
+			+ ",\"legacy_metadata_records\":" + std::to_string(builder.LegacyRecords)
+			+ ",\"capture_redacted_records\":" + std::to_string(document.Descriptor.CaptureRedactedRecords)
+			+ ",\"sessions\":" + std::to_string(document.Descriptor.Sessions) + ",\"categories\":" + std::to_string(document.Descriptor.Categories)
+			+ ",\"first_utc_ms\":" + std::to_string(document.Descriptor.FirstUtcMs) + ",\"last_utc_ms\":" + std::to_string(document.Descriptor.LastUtcMs)
+			+ ",\"recent_records\":" + std::to_string(document.Descriptor.RecentRecords)
+			+ ",\"notice\":\"Capture-time omissions cannot be recovered. Sanitized explanations and operational facts may still reveal context. Local file only; nothing is uploaded.\"}\n";
+		document.Bytes.insert(0U, header);
+		if (document.Bytes.size() > core::release_diagnostic_byte_limit) {
+			return std::unexpected(reason::limit_exceeded);
+		}
+		document.Descriptor.Bytes  = document.Bytes.size();
+		document.Descriptor.Digest = core::sha256({ reinterpret_cast<const std::uint8_t*>(document.Bytes.data()), document.Bytes.size() });
+		return std::move(document);
+	}
+
 }

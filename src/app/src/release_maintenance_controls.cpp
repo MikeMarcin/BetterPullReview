@@ -37,10 +37,10 @@ namespace bpr::app {
 		{
 		public:
 			profile_storage(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
-							core::bpr_profile_id aProfile, core::application_session_id aSession, bool aRetirement)
+							core::bpr_profile_id aProfile, core::application_session_id aSession, bool aRetirement, std::shared_ptr<application::diagnostic_control_port> aDiagnostics = { })
 				: Vault{ make_platform_vault(VaultEffects, aProfile) }
 				, Credentials{ Vault ? std::make_unique<application::release_profile_credentials>(aProfile, aSession, [root = aRoot, aProfile] { return adapters::sqlite::make_device_binding_store(root, aProfile); }, *Vault) : nullptr }
-				, Files{ std::move(aRoot), std::move(aLease), aProfile, aSession, Credentials.get() }
+				, Files{ std::move(aRoot), std::move(aLease), aProfile, aSession, Credentials.get(), std::move(aDiagnostics) }
 				, Retirement{ aRetirement }
 			{ }
 			auto authority() const noexcept -> core::release_maintenance_authority override { return Files.authority(); }
@@ -144,15 +144,15 @@ namespace bpr::app {
 			Host      = std::make_unique<application::release_maintenance_application_host>(*Storage, *Lifecycle, Effects, Decisions, *this);
 			publish({ Host->state(), core::release_maintenance_commands(Host->state()), { }, { }, reason::none });
 		}
-		void start_profile(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease, core::bpr_profile_id aProfile, release_maintenance_retirement aRetire)
+		void start_profile(std::filesystem::path aRoot, std::shared_ptr<application::profile_runtime_lease> aLease, core::bpr_profile_id aProfile, release_maintenance_retirement aRetire, std::shared_ptr<application::diagnostic_control_port> aDiagnostics)
 		{
 			Initializing = true;
-			Effects.post([self = shared_from_this(), root = std::move(aRoot), lease = std::move(aLease), aProfile, retire = std::move(aRetire)] {
+			Effects.post([self = shared_from_this(), root = std::move(aRoot), lease = std::move(aLease), aProfile, retire = std::move(aRetire), diagnostics = std::move(aDiagnostics)] {
 				std::shared_ptr<application::release_maintenance_storage_port> storage;
 				try {
 					const auto session = QRandomGenerator::securelySeeded().generate64();
 					if (session != 0U) {
-						storage = std::make_shared<profile_storage>(root, lease, aProfile, core::application_session_id{ session }, static_cast<bool>(retire));
+						storage = std::make_shared<profile_storage>(root, lease, aProfile, core::application_session_id{ session }, static_cast<bool>(retire), diagnostics);
 					}
 				} catch (...) { }
 				self->Decisions.post([self, admitted = std::move(storage), retire] { self->start(admitted, std::make_shared<desktop_lifecycle>(retire)); });
@@ -187,10 +187,10 @@ namespace bpr::app {
 		: Impl{ std::move(aImpl) }
 	{ }
 	auto release_maintenance_controls::start_profile(std::filesystem::path                               aRoot,
-													 std::shared_ptr<application::profile_runtime_lease> aLease, core::bpr_profile_id aProfile, release_maintenance_retirement aRetire) -> std::unique_ptr<release_maintenance_controls>
+													 std::shared_ptr<application::profile_runtime_lease> aLease, core::bpr_profile_id aProfile, release_maintenance_retirement aRetire, std::shared_ptr<application::diagnostic_control_port> aDiagnostics) -> std::unique_ptr<release_maintenance_controls>
 	{
 		auto impl = std::make_shared<implementation>();
-		impl->start_profile(std::move(aRoot), std::move(aLease), aProfile, std::move(aRetire));
+		impl->start_profile(std::move(aRoot), std::move(aLease), aProfile, std::move(aRetire), std::move(aDiagnostics));
 		return std::unique_ptr<release_maintenance_controls>{ new release_maintenance_controls{ std::move(impl) } };
 	}
 	release_maintenance_controls::~release_maintenance_controls()

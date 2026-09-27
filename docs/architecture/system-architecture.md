@@ -301,7 +301,17 @@ minutes, checked before exposure and retired by bounded idle backend maintenance
 Off, privacy/detail changes and Clear invalidate queued generations and reset
 transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
-scope-aware export and native/attended qualification remain later milestones.
+scope-aware export is described below; native/attended qualification remains open.
+
+BPR-1218 carries export policy, session scope and explicit recent-context selection
+through the existing maintenance core's exact preparation identity. The logging
+control port flushes and returns a sequence cutoff plus selected sanitized context
+on the effect lane. Native storage reads only admitted profile files; current-session
+selection filters filenames before reading. Application classification rebuilds
+bounded JSONL, validates every field and known explanation, and gives each export
+fresh opaque session/request/window joins. The core requires separate confirmation
+for identifying export. Preview and the native exclusive local writer consume the
+same digest-bound bytes; neither path composes a network capability.
 
 The entry point also owns one bounded terminal service before Qt startup and
 after producer quiescence. Its 64 slots hold at most 2 KiB each; ingress drops

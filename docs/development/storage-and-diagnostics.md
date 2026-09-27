@@ -118,9 +118,8 @@ Recent sanitized intermediate context remains in memory in either detail mode:
 at most three minutes, 512 events and 2 MiB. Expired entries cannot be read and
 idle backend maintenance retires them. Off, detail/privacy changes, Clear,
 Sign out and logger retirement clear transient context; privacy changes also
-reset identity joins. Off collects no hidden ring. Rich preview/export selection
-of this ring is the next RFC-BPR-0027 milestone; the existing metadata preview
-below reads persisted files only. Historical logs are never silently reprocessed
+reset identity joins. Off collects no hidden ring. Export includes this context
+only when its separate recent-context checkbox is selected. Historical logs are never silently reprocessed
 when a preference changes. Sanitized explanation text can still be contextual.
 
 Status shows availability, cumulative loss, recent context size and control
@@ -131,24 +130,38 @@ per-thread Quill queues can drop earlier. These are bounds, not delivery promise
 
 ## Preview and export diagnostics
 
-1. Open Settings for the intended profile, then **Storage & privacy** and
-   **Preview diagnostics**. This local operation is available without GitHub
-   sign-in when the profile and storage are admitted.
-2. Inspect the exact read-only preview and omission counts. It contains fixed
-   operation/outcome codes and numeric HTTP status/drop counts. It excludes the
-   readable log's prose, timestamps/request identities, paths, source/comment
-   bodies, private notes/drafts, agent output, databases and crash memory.
-3. Choose **Export preview…** and a new local filename. Existing files are
-   refused. Export writes those same frozen bytes; later log appends are not
-   silently added. Nothing is uploaded. Share only through your approved channel.
+1. Open **Help → Diagnostics** or **Settings → Storage & privacy** for the
+   intended profile. Choose all retained sessions or the current session. Recent
+   sanitized context is excluded unless its checkbox is selected.
+2. Choose **Preview anonymized diagnostics**. The host flushes accepted records
+   and freezes a bounded selection. The preview names its scope, session count,
+   UTC range, categories, record/byte totals and omissions, and shows the exact
+   file text. Session, request and window joins receive fresh opaque labels for
+   this export. Recognized sanitized explanations, build/timing and closed
+   operation/failure facts remain; these can still reveal context.
+3. Choose **Export anonymized preview…** and a new local filename. Existing files
+   are refused. Later appends are excluded and original files remain intact.
+   Changing the session or recent-context choice cancels the old preview.
+4. For retained numeric request/window identities, use **Preview with identifying
+   details…**, inspect it, then **Export with identifying details…**. A separate
+   default-Cancel disclosure precedes the save chooser. Export cannot recover
+   identities removed when the event was recorded. Current producers do not admit
+   names, paths, credentials or review content even in this mode.
+
+Every export is a local write. No upload, support message, repository attachment
+or transmission to an agent occurs. Closing Settings cancels its preview. A
+frozen preview can contain explicitly selected recent context until cancelled or
+consumed; it receives no new records after preparation.
 
 Input work across the selected directory is bounded to 16 MiB and 65,536 records; a larger retained set reports a limit instead of silently truncating. Each incomplete file tail is counted as one omitted record, independently of the next file. Legacy v1 lines admit at
 most 8,192 bytes; canonical v2/v3 JSONL records admit at most 16 KiB including the
 newline. The JSONL parser accepts the writer's exact field order and bounded ASCII
-scalar grammar, and omits unsupported encodings or extra fields. Output
-is at most 1,024 records and 256 KiB. Unknown/incomplete records are omitted and
-counted. A missing/unsafe log, changed target or limit refusal is not a successful
-empty export. After an export failure, preview again and choose a new filename.
+scalar grammar, and omits unsupported encodings or extra fields. Every rich
+field is classified again; legacy v1 retains only its small metadata prefix.
+Unrecognized detail is explicitly omitted. Output is at most 1,024 records and
+256 KiB; excess records are counted as omissions. Duplicate file/ring events
+are counted once. Unknown/incomplete records are omitted and counted. An unsafe source, changed target or limit refusal is not a successful export.
+An empty admitted selection explicitly reports zero records. After an export failure, preview again and choose a new filename.
 If publication succeeded before a final durability failure, the selected file
 may remain; inspect it before retrying. Cancel before the commit boundary is
 advisory, and an operation already committed may still report success.
@@ -167,7 +180,8 @@ monotonic time, stable event/category/severity and source/toolchain build identi
 The [local logging guide](build-and-test.md#basic-local-diagnostics) defines these
 fields and their bounds. Each newly constructed profile logger creates a fresh
 session; older records remain unchanged. These diagnostic identities grant no
-authority and are excluded from the current metadata preview/export.
+authority. Anonymized export remaps their joins independently for each preview;
+identifying export retains the session and captured numeric IDs.
 
 Epoch records carry originating `window_label` and `request_label` joins.
 Include locally additionally retains numeric `window_session` and epoch-local
@@ -178,8 +192,9 @@ store/pack work and pack reading. Other transports leave it `none`. These
 fields record where a refusal occurred, not its unobserved underlying cause:
 `clone` plus `unavailable` does not establish an authentication or size limit.
 They contain no executable path, command output, repository identity or source.
-The preview/export policy above continues to omit request identities and the
-readable diagnostic suffix. Older records are not retroactively enriched.
+Export applies the selected privacy policy to every classified field; the
+legacy metadata-only API remains available for compatibility. Older records
+are not retroactively enriched.
 
 ## Clear diagnostics or purge a profile
 
