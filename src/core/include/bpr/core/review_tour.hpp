@@ -31,6 +31,7 @@ namespace bpr::core {
 	};
 
 	/// \brief One contiguous interval in one exact source, never alignment rows.
+	/// source_line_ref keeps its zero-based convention; UI lines are one-based.
 	/// A historical or unchanged source remains representable without granting a write subject.
 	struct tour_source_range
 	{

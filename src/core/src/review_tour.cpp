@@ -212,7 +212,7 @@ namespace bpr::core {
 	{
 		return aRange.First.Comparison.valid() && aRange.First.Comparison == aRange.Last.Comparison
 			&& (aRange.First.Side == diff_side::left || aRange.First.Side == diff_side::right) && aRange.First.Side == aRange.Last.Side
-			&& aRange.First.Line > 0U && aRange.Last.Line >= aRange.First.Line && aRange.Commit.valid()
+			&& aRange.Last.Line < std::numeric_limits<std::uint32_t>::max() && aRange.Last.Line >= aRange.First.Line && aRange.Commit.valid()
 			&& (!aRange.Blob || aRange.Blob->valid()) && !aRange.Path.empty() && aRange.Path.size() <= maximum_tour_path_bytes
 			&& aRange.Path.front() != '/' && aRange.Path.find('\0') == std::string::npos;
 	}

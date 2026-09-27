@@ -125,7 +125,9 @@ namespace {
 		range = source(5, 3);
 		expect(!valid(range), "inverted source refused");
 		range = source(0, 3);
-		expect(!valid(range), "zero source refused");
+		expect(valid(range), "first semantic source line is zero-based");
+		range.Last.Line = std::numeric_limits<std::uint32_t>::max();
+		expect(!valid(range), "unrepresentable display line refused");
 		range            = source();
 		range.First.Side = range.Last.Side = diff_side::left;
 		expect(valid(range), "historical supporting source remains representable");
