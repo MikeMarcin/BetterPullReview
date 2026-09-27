@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0569"
 title: "Normalize compatibility comments to semantic source anchors"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0564","BPR-0565","BPR-0568"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
