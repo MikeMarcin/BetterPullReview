@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0570"
 title: "Present one representation-blind comment-anywhere UX"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0562","BPR-0563","BPR-0569"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c14888d2a7d65fed06d6780ab073637c88cc571","evidence":{"kind":"observation","detail":"Same source-line editor and typed outcome; exact resulting conversation in full workbench; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"}},{"criterion":"AC2","outcome":"pass","revision":"9c14888d2a7d65fed06d6780ab073637c88cc571","evidence":{"kind":"observation","detail":"Qt projection-only ownership; unchanged M1/M2 host publication gates; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"}},{"criterion":"AC3","outcome":"pass","revision":"9c14888d2a7d65fed06d6780ab073637c88cc571","evidence":{"kind":"observation","detail":"Collapsed Support details with exact server subject wording; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"}},{"criterion":"AC4","outcome":"pass","revision":"9c14888d2a7d65fed06d6780ab073637c88cc571","evidence":{"kind":"observation","detail":"Typed line-only refusal with retained text/no Qt dispatch; real session incompatible-body zero POST; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"}},{"criterion":"AC5","outcome":"pass","revision":"9c14888d2a7d65fed06d6780ab073637c88cc571","evidence":{"kind":"observation","detail":"Three-scale light/dark/high-contrast rendered workbench, keyboard/Tab, exact selection and no-reset bounds; see BPR-0570 implementation/evidence and m3-ux-final-tests.log, m3-editor-tests.log"}}]
 ---
 
 # Present one representation-blind comment-anywhere UX
