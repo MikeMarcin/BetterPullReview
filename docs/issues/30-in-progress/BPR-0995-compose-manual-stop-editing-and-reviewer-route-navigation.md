@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0995"
 title: "Compose manual stop editing and reviewer route navigation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040"]
 depends_on: ["BPR-0994"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-05","milestone":"manual-authoring","acceptance":["AC39-03","AC39-06","AC40-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
