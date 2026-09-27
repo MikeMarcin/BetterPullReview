@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1001"
 title: "Support the admitted gh api transport for tour operations"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0999", "BPR-1000"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-11","milestone":"staged-publication","acceptance":["AC41-04","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC41-04","outcome":"pass","revision":"fc86348e301cfda1d1b8670b0e8bd17a6746a2f5","evidence":{"kind":"observation","detail":"Exact 12-operation native/CLI contract table retains explicit verbs, actor/profile correlation, witness, bounded stdin, full integer bytes, error/cancel handling and existing platform confinement. 2/2 CLI/runner tests pass; live qualification remains unavailable.","ledger":"docs/verification/RFC-BPR-0039-0043.md#admitted-cli-operation-extension--bpr-1001"}},{"criterion":"AC41-08","outcome":"pass","revision":"fc86348e301cfda1d1b8670b0e8bd17a6746a2f5","evidence":{"kind":"observation","detail":"Exact 12-operation native/CLI contract table retains explicit verbs, actor/profile correlation, witness, bounded stdin, full integer bytes, error/cancel handling and existing platform confinement. 2/2 CLI/runner tests pass; live qualification remains unavailable.","ledger":"docs/verification/RFC-BPR-0039-0043.md#admitted-cli-operation-extension--bpr-1001"}}]
 ---
 
 # BPR-1001: Support the admitted gh api transport for tour operations
