@@ -90,3 +90,8 @@ privacy/limits and troubleshooting are updated. GitHub authority/UI semantics,
 credential handling, persistence databases and package dependencies have no changed
 behavior; provider sanitizer and core source are unchanged. The selected Quill
 version and existing provenance remain valid for this slice.
+
+M1 integration: `857d93624aa3acb1e7f590969ae25aecf93a8993` fast-forwarded the
+clean primary main checkout and pushed normally to origin/main. Concurrent
+review-tour documentation through `1248c0b1` was merged and preserved; no source
+or test input changed. The documentation gate passed again after integration.

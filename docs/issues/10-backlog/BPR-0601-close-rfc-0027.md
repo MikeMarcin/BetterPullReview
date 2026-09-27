@@ -93,3 +93,14 @@ was created for M1. All configure/build/test/tidy/documentation commands have
 completed and no task-owned subprocess or descendant remains. The preserved
 strategy and binding sit beside this continuation; the coordinator starts a
 fresh implementer for the next milestone after the main push is recorded.
+
+M1 landed and pushed as `857d93624aa3acb1e7f590969ae25aecf93a8993` (main and
+origin/main matched after push). Source behavior is `ac64e5ad`; the intermediate
+merge preserved concurrent review-tour documentation from `1248c0b1`. BPR-1215
+is Done. [Completion observation](../../rfcs/plans/rfc-bpr-0027-advanced/m1-observation.json)
+binds all M1 obligations/exits to that landed candidate. All commands are stopped;
+there is no review URL, session, event cursor or protected candidate to transfer.
+The appended handoff commit carries documentation only. The next engineer can
+reuse this worktree and its offline `build/dev` cache, promote/claim BPR-1216,
+and bind `session-retention` with `structured-events` accepted. Preserve the
+full RFC criteria, mandate r2 and the existing BPR-0971 privacy boundary.
