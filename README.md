@@ -78,6 +78,13 @@ complete release qualification. The private-PR smoke (BPR-0641) was accepted by
 the owner on 2026-09-25; the pull request opened read-only but showed no file
 comparison, which is BPR-1199.
 
+**Prepare review tour** opens private Problem and Solution Markdown fields and
+an ordered route of source-bound explanations. Add stops from selected code,
+reorder them with `Alt+Shift+Up/Down`, and use Previous, Next or Return to tour
+while exploring files. Drafts save locally and survive reopening; editing and
+preview require no AI and publish nothing. GitHub tour import and publication
+remain later milestones. See [private review-tour authoring](docs/architecture/review-tours.md).
+
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a

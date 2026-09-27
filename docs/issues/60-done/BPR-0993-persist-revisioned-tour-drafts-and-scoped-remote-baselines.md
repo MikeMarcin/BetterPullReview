@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0993"
 title: "Persist revisioned tour drafts and scoped remote baselines"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0042"]
 depends_on: ["BPR-0992"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-03","milestone":"manual-authoring","acceptance":["AC39-05","AC42-07"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"durability-isolation","outcome":"pass","revision":"ae59878e160dd948e991b3ebda5a281959c5cb9e","evidence":{"kind":"command","detail":"sqlite_review_tour_storage passed: real fresh schema/reopen, exact raw baselines, account/profile separation, CAS two-window conflicts, cancel and actual killed-COMMIT rollback, schema and corrupt-payload refusal."}},{"criterion":"serialized-save-host","outcome":"pass","revision":"ae59878e160dd948e991b3ebda5a281959c5cb9e","evidence":{"kind":"command","detail":"application_review_tour_host passed: off-lane save/coalescing, reentrant final edit, explicit retry after failure/throw, orderly final save and suppressed late projections. Real SQLite host course passed."}},{"criterion":"retention-purge","outcome":"pass","revision":"ae59878e160dd948e991b3ebda5a281959c5cb9e","evidence":{"kind":"command","detail":"sqlite_release_maintenance_files passed including admitted tour database and sidecar purge; storage/security/architecture docs updated. Cold remote reimport remains the later manual-maintenance milestone; local storage grants no remote authority."}}]
 ---
 
 # BPR-0993: Persist revisioned tour drafts and scoped remote baselines

@@ -61,12 +61,19 @@ recovery refuses anything whose recorded identity it cannot prove.
 
 | Data | Location relative to the admitted profile root | Removal behavior |
 |---|---|---|
-| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
+| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `review-tours.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
 | Retained Git data | Managed repository/cache/catalog layout and its identity manifests | No automatic TTL/LRU pruning. Exact epoch pruning leaves tombstones and does not promise immediate byte reclamation. Explicit repository-cache deletion removes that cache's bytes; never-observed history cannot be recovered. |
 | Agent and MCP material | Adjacent `<profile-root-leaf>-agent-workspaces-v1` ownership area; profile `agent-workspace-ownership-v1` and `mcp-snapshot` | Original owners reconcile active/interrupted work before purge. Populated or unknown workspace state can block it; no broad sweep is used. Existing developer checkouts are outside purge. |
 | Diagnostics | `logs/session-<opaque-session>-<segment>.jsonl`; legacy `logs/diagnostics.log` is read for compatibility | New files rotate before 5 MiB. Coordinated retention bounds the profile to 50 MiB and 64 files, pruning inactive history older than 30 days and oldest inactive files under pressure. Explicit cleanup removes the prepared logs; `logs/.retention.lock` remains. |
 | Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
 | Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
+
+Review tours retain private authored Markdown and editable raw remote baselines,
+bounded to 64 KiB per field, 4 MiB per encoded draft and 128 drafts per profile.
+There is no automatic eviction. The exact profile/account/host/repository/PR key
+is retained; a save conflict keeps both copies. These drafts are not server-backed.
+Profile purge removes the admitted tour store and sidecars without changing any
+GitHub comment. See the [tour storage contract](../architecture/review-tours.md).
 
 Manual-token sessions are session-only and remove their exact slots on orderly
 quit. Settled device grants survive orderly quit and are revalidated on restart.

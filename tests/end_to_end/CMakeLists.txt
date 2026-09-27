@@ -2696,6 +2696,31 @@ foreach(scenario full unavailable)
 endforeach()
 
 # Real normal controls, typed fake server, real SQLite; no live effects.
+bpr_add_executable(test_review_tour_composition_public_path review_tour_composition_public_path.cpp)
+target_link_libraries(test_review_tour_composition_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_tour_composition_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_review_tour_composition_public_path)
+bpr_enable_warnings(test_review_tour_composition_public_path)
+bpr_add_network_isolated_test(NAME application_review_tour_composition_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path "${CMAKE_CURRENT_BINARY_DIR}/review-tour-composition.png")
+set_tests_properties(application_review_tour_composition_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
+foreach(scale IN ITEMS 125 200)
+    if(scale EQUAL 125)
+        set(tour_scale_factor "1.25")
+    else()
+        set(tour_scale_factor "2")
+    endif()
+    bpr_add_network_isolated_test(NAME application_review_tour_composition_scale_${scale}
+        WINDOWS_UNCONTAINED
+        COMMAND test_review_tour_composition_public_path "${CMAKE_CURRENT_BINARY_DIR}/review-tour-${scale}.png")
+    set_tests_properties(application_review_tour_composition_scale_${scale} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${tour_scale_factor}"
+        TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
+endforeach()
+
 bpr_add_executable(test_better_pull_review_review_submission_composition_public_path review_submission_composition_public_path.cpp)
 target_link_libraries(test_better_pull_review_review_submission_composition_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_better_pull_review_review_submission_composition_public_path PRIVATE BPR_BUILD_TESTING=1)

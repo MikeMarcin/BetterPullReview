@@ -192,6 +192,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto select_conversation_line(core::diff_side aSide, std::uint32_t aLine) -> bool;
 		/// \brief Restores an exact core-validated selection and reveals its semantic line.
 		[[nodiscard]] auto restore_selection(const core::semantic_selection& aSelection) -> bool;
+		/// \brief Native text selection expressed as actual zero-based source endpoints.
+		[[nodiscard]] auto selected_source_range() const -> std::optional<std::pair<core::source_line_ref, core::source_line_ref>>;
+		/// \brief Reveals an exact interval after its owner validates commit/blob/path identity.
+		[[nodiscard]] auto restore_source_range(core::source_line_ref aFirst, core::source_line_ref aLast) -> bool;
 		[[nodiscard]] auto reveal_conversation_line(
 			core::diff_side aSide,
 			std::uint32_t   aLine) -> bool;

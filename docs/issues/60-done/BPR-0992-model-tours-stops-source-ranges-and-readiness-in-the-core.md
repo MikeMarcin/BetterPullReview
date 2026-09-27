@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0992"
 title: "Model tours, stops, source ranges and readiness in the core"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0039"]
 depends_on: ["BPR-0991"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-02","milestone":"manual-authoring","acceptance":["AC39-03","AC39-04","AC39-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"stable-identity-operations","outcome":"pass","revision":"12c496725d7fb1311e3ac67d7c64f110126bb327","evidence":{"kind":"command","detail":"core_review_tour passed: immutable owner; split/merge/undo; reorder inversion and duplicate titles; original/mapped destinations and moved head."}},{"criterion":"ranges-and-bounds","outcome":"pass","revision":"12c496725d7fb1311e3ac67d7c64f110126bb327","evidence":{"kind":"command","detail":"core_review_tour passed: invalid/cross-side/zero ranges; empty drafts; 64 KiB fields, 256 stops and aggregate bounds."}},{"criterion":"architecture-and-docs","outcome":"pass","revision":"12c496725d7fb1311e3ac67d7c64f110126bb327","evidence":{"kind":"command","detail":"core-only configure and focused build succeeded; architecture_boundaries and architecture_boundary_contract passed; verify_documentation.py DOCUMENTATION_OK."}}]
 ---
 
 # BPR-0992: Model tours, stops, source ranges and readiness in the core

@@ -33,6 +33,7 @@ add_library(
         src/agent_profile.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
+        src/review_tour.cpp
         src/review_round_trip.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
