@@ -50,7 +50,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-12 | [BPR-0587](../../issues/60-done/BPR-0587-composition-root-public-path.md) |
 | PACK-BPR-0022-13 | [BPR-0588](../../issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0589](../../issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md) |
-| PACK-BPR-0022-15 | [BPR-0590](../../issues/30-in-progress/BPR-0590-documentation-and-simplification.md) |
+| PACK-BPR-0022-15 | [BPR-0590](../../issues/60-done/BPR-0590-documentation-and-simplification.md) |
 | PACK-BPR-0022-16 | [BPR-0591](../../issues/10-backlog/BPR-0591-anchor-rfc-0023-verification.md) |
 
 The allocator claimed BPR-0561 through BPR-0591 in one operation and advanced
