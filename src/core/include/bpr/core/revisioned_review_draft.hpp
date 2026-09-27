@@ -1,5 +1,6 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_REVISIONED_REVIEW_DRAFT_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVISIONED_REVIEW_DRAFT_HPP
+#include "bpr/core/private_review.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include <cstddef>
 #include <optional>
@@ -10,10 +11,11 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_shared_draft_reply_bytes = 1024U;
 	struct revisioned_review_draft
 	{
-		review_comment_draft  Draft;
-		std::uint64_t         Revision                                                 = 1;
-		review_draft_scope_id Scope                                                    = { };
-		auto                  operator==(const revisioned_review_draft&) const -> bool = default;
+		review_comment_draft                   Draft;
+		std::uint64_t                          Revision                                                 = 1;
+		review_draft_scope_id                  Scope                                                    = { };
+		std::optional<review_composition_link> Composition                                              = { };
+		auto                                   operator==(const revisioned_review_draft&) const -> bool = default;
 	};
 	struct revisioned_review_draft_command
 	{
@@ -22,6 +24,8 @@ namespace bpr::core {
 		bool                       ChangeReplyTarget = false;
 		std::optional<std::string> ReplyToThread     = { };
 		review_draft_scope_id      Scope             = { };
+		/// New immutable candidate correlation, required when editing linked prose.
+		std::optional<review_composition_link> Composition = { };
 	};
 	enum class revisioned_draft_refusal : std::uint8_t { none,
 														 conflict,

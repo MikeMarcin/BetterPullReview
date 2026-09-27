@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0578"
 title: "Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0577"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"Strong identities and validation","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Exact typed subjects","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Local lifecycle with derived availability","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Typed reviewer/run/legacy actor","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Immutable reviewer edit successor","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Explicit completion eligibility","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}},{"criterion":"Replay property and refusal tests","outcome":"pass","revision":"5bbb256314f32fd9082a3abcfd7df13abcd7fa55","evidence":{"kind":"observation","detail":"Public core tests and architecture checks passed; see docs/verification/RFC-BPR-0023.md M3 transition table."}}]
 ---
 
 # Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model

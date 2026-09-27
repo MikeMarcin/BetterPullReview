@@ -614,3 +614,66 @@ The following normally stays in the Qt adapter rather than the core:
 - native menu/popup placement.
 
 The host may persist user settings, but that does not make the core or database the runtime owner of Qt mechanics.
+
+## Private review core foundation (RFC-BPR-0023 M3)
+
+`private_review.hpp` supplies deterministic local proposals; persistence and
+public application composition remain later RFC-0023 milestones. A durable
+private reference carries profile, ledger incarnation, host, account,
+repository and pull request. New threads retain exact base/head and epoch
+anchors; migrated notes use an explicit legacy variant and cannot acquire the
+currently displayed revision by restoration. Subjects reuse the immutable diff
+semantic index; no display coordinate or nearest-line fallback is accepted.
+
+Revisions are immutable values. Reply records an exact prior revision. Edit
+returns a reviewer successor and predecessor edge while retaining the original
+actor and body digest. Agent actors require an exact run observation; partial,
+failed and cancelled output is ineligible until explicitly adopted as reviewer
+text. Open, resolved-locally and archived govern only local lifecycle. Current,
+stale and unplaceable are observations and never replace the binding.
+
+The compact request state retains four fixed lanes and checked generations;
+terminal acceptance compares complete scope/session/window/request identities.
+The host must persist a proposed write atomically before projecting it and must
+supply authoritative allocation, latest-revision CAS and source-existence facts.
+This foundation has no database, invocation, publication or Qt capability.
+
+`review_composition.hpp` adds exact turn/finding/composition source references
+and versioned, length-framed selection/finding digests. A new derivation vertex
+may reference only observed, same-scope vertices with smaller creation
+ordinals. Edges are admitted with a new vertex; existing vertices reject
+later attachment. Transactional allocation and existence remain store duties.
+
+Run provenance snapshots session ID, profile, protocol, entry point, binding,
+selected references, input-selection/output digests and terminal facts.
+Requested, configured, protocol-reported and content-self-reported model/effort
+are separate optional fields. Reports retain their event/field basis; differing
+values yield typed conflicts with both locations. Missing values are not filled
+from profile labels. A conversation result must match the run's output digest.
+Finding snapshots retain all structured fields and the validation verdict;
+identity is run, ordinal and structured-content digest, independently of session
+catalogue retention.
+
+Composition admits at most 256 exact sources, rechecks digests and displayed
+tips, and requires explicit historical selection. Incomplete sources refuse;
+known stale sources remain usable locally. Exact target partitioning retains
+unassigned members. Only a unique target shared by every member is proposed
+automatically; explicit target choice is required otherwise. Reviewer-authored,
+exact-copy and explicit agent-assisted modes produce immutable local candidates.
+An exact copy retains its source actor, and every edit creates a reviewer
+successor. Candidate bodies are at most 16 KiB.
+
+Acceptance emits `accept_composition_as_draft_request` for the existing draft
+owner. It carries the exact candidate, target, prose and optional draft CAS;
+it cannot publish, resolve a thread or submit a review. Only a matching durable
+acknowledgement changes composition lifecycle to `accepted_as_draft`.
+`revisioned_review_draft` now carries an optional exact composition link.
+Editing linked prose requires a matching successor link; ordinary draft
+commands retain the link. Separate existing Publish semantics remain in the
+draft reducer. Duplicate source-set/body/target evidence is advisory only.
+
+These are M3 core contracts, tested without Qt or effect ports. M4/M5/M6/M7
+must supply transaction durability, source-use claims, protocol mappings,
+encoded-input bounds and the public host paths before end-to-end feature
+acceptance. The raw selected-private run budget is 2 MiB; its separate 8 MiB
+encoded process-input limit belongs to the later invocation boundary.
