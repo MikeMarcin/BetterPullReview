@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **M1–M9 integrated; designated publication, independent server read, final independent review and its repairs supplied; M10 board/RFC closeout pending**
+Status: **Auto-Verified 2026-09-27; M1–M10 integrated, all sixteen cards Done, all eighteen direct claims and the final independent review accepted**
 
 ### M10 preliminary finding repairs
 
@@ -1774,3 +1774,19 @@ PASS, and composed native private review public path 1/1 (25.99 seconds).
 The live course is one macOS/GitHub safe-target observation, not GHES/native
 parity or release qualification. M8/M9 native, vault, crash and vulnerability
 gaps outside this RFC remain explicit in operator claims.
+
+## M10 RFC closeout
+
+MASK finish moved BPR-0591 to Done at `e9559fe8ee702a0b5a9f472198e74d69773b46b9`.
+The scoped queue then reported sixteen selected cards, sixteen Done and no next
+or ambiguous in-progress card. RFC-BPR-0007, 0008, 0011 and 0012 are
+Auto-Verified; the required BPR-0242, 0245 and 0507 joins are Done. The final
+source and evidence are compared with immutable implementation base
+`899090f39304dca5a2c0b034c4684a50ca73605a` throughout the milestone
+records above. The imported source-only plan and retained pack remain immutable;
+the adopted live plan records the r2 review timing and evolved app allocation.
+
+The RFC frontmatter and index now agree on `Auto-Verified`. Final documentation
+and board validation are recorded in the closeout commit; no external push,
+release or production mutation beyond the owner-designated BPR-Test comment is
+part of this closeout.
