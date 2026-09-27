@@ -89,10 +89,13 @@ namespace bpr::application {
 			std::shared_ptr<std::stop_source>    Stop;
 			std::mutex                           WorkspaceMutex;
 			std::optional<owned_agent_workspace> OwnedWorkspace;
-			std::atomic_bool                     Superseded       = false;
-			std::atomic_bool                     TerminalComplete = false;
-			std::atomic_bool                     CleanupScheduled = false;
-			std::atomic_bool                     Retired          = false;
+			std::optional<private_run_admission> PrivateAdmission;
+			std::atomic_uint64_t                 DurableRun          = 0;
+			std::atomic_bool                     Superseded          = false;
+			std::atomic_bool                     TerminalComplete    = false;
+			std::atomic_bool                     CleanupScheduled    = false;
+			std::atomic_bool                     Retired             = false;
+			std::atomic_bool                     ExplicitlyCancelled = false;
 		};
 
 		implementation(
@@ -105,7 +108,8 @@ namespace bpr::application {
 			environment_reader                   aEnvironment,
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
-			agent_invocation_projection_port&    aProjection)
+			agent_invocation_projection_port&    aProjection,
+			private_agent_run_port*              aPrivateRuns)
 			: Profiles{ std::move(aProfiles) }
 			, Policies{ std::move(aPolicies) }
 			, WorkspaceParent{ std::move(aWorkspaceParent) }
@@ -116,6 +120,7 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
+			, PrivateRuns{ aPrivateRuns }
 		{
 		}
 
@@ -349,6 +354,17 @@ namespace bpr::application {
 			if (aRequest.WritingOnly && (profile->Protocol != core::agent_protocol::claude_stream_json || aRequest.ExistingCheckoutChosen || aRequest.ContinuedSession)) {
 				project_refuse("selected_agent_has_no_qualified_writing_protocol");
 				return;
+			}
+			if (aRequest.WritingOnly ? aRequest.PrivateRun.has_value() : ((PrivateRuns != nullptr) != aRequest.PrivateRun.has_value())) {
+				project_refuse("private_run_admission_unavailable");
+				return;
+			}
+			if (aRequest.PrivateRun) {
+				const auto& b = aRequest.PrivateRun->Binding;
+				if (b.Scope.Host != aRequest.Authority.Host || b.Scope.Account != aRequest.Authority.Account || b.Scope.Repository != aRequest.Authority.Repository || b.Scope.PullRequest != aRequest.Authority.PullRequest || b.HostAuthority != aRequest.Authority.HostAuthority || b.LeftAnchor.Authority != aRequest.Authority.Scope || b.RightAnchor.Authority != aRequest.Authority.Scope) {
+					project_refuse("private_run_authority_mismatch");
+					return;
+				}
 			}
 			const auto policy = core::policy_for_host(Policies, aRequest.Authority.Host);
 			++CoreDecisions;
@@ -604,81 +620,160 @@ namespace bpr::application {
 			workspace_preparation              aExisting,
 			const std::shared_ptr<invocation>& aInvocation)
 		{
-			auto workspace     = std::optional<prepared_workspace>{ };
-			auto lifetimeGuard = std::optional<agent_workspace_lifetime_guard>{ };
-			if (aInvocation->Stop->stop_requested()) {
-				complete(
-					{ .Session = aInvocation->Identity.Session.Id,
-					  .Outcome = agent_run_outcome::cancelled },
-					aInvocation);
-				return;
-			}
-			if (aRequest.ExistingCheckoutChosen) {
-				workspace = std::move(aExisting.Workspace);
-			} else {
-				++WorkspaceStarts;
-				auto materialized = Workspaces.materialize_agent_workspace(
-					agent_workspace_materialization_request{
-						.ApplicationSession = aRequest.ApplicationSession,
-						.Authority          = aRequest.Authority,
-						.Session            = aInvocation->Identity.Session,
-						.ParentDirectory    = WorkspaceParent,
-					},
-					aInvocation->Stop->get_token());
-				if (!materialized.has_value()) {
-					complete(
-						{ .Session       = aInvocation->Identity.Session.Id,
-						  .Outcome       = workspace_outcome(materialized.error()),
-						  .StandardError = std::move(materialized.error().Detail) },
+			try {
+				if (aRequest.PrivateRun && !aInvocation->Stop->stop_requested()) {
+					auto admitted = PrivateRuns->admit(*aRequest.PrivateRun, aProfile, aInvocation->Identity.Session, aRequest.Context, aRequest.RequestedSettings);
+					if (!admitted) {
+						post_private(aInvocation, { }, admitted.error());
+						finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::failed_to_start }, aInvocation);
+						return;
+					}
+					aInvocation->PrivateAdmission = std::move(*admitted);
+					aInvocation->DurableRun.store(aInvocation->PrivateAdmission->Delta.Run.value(), std::memory_order_release);
+					post_private(aInvocation, aInvocation->PrivateAdmission->Delta, { });
+				}
+				auto workspace     = std::optional<prepared_workspace>{ };
+				auto lifetimeGuard = std::optional<agent_workspace_lifetime_guard>{ };
+				if (aInvocation->Stop->stop_requested()) {
+					finish_run(
+						{ .Session = aInvocation->Identity.Session.Id,
+						  .Outcome = agent_run_outcome::cancelled },
 						aInvocation);
 					return;
 				}
-				workspace     = materialized->Workspace;
-				lifetimeGuard = materialized->LifetimeGuard;
-				track_workspace(aInvocation, std::move(*materialized));
-			}
-
-			if (aInvocation->Stop->stop_requested()) {
-				complete(
-					{ .Session = aInvocation->Identity.Session.Id,
-					  .Outcome = agent_run_outcome::cancelled },
-					aInvocation);
-				return;
-			}
-			auto launch = build_agent_launch(
-				aProfile, aSupplement, Environment,
-				{ .Requested   = aRequest.RequestedSettings,
-				  .EntryPoint  = aRequest.Context.EntryPoint,
-				  .WritingOnly = aRequest.WritingOnly });
-			if (!launch.has_value() || !workspace.has_value()) {
-				complete(
-					{ .Session = aInvocation->Identity.Session.Id,
-					  .Outcome = agent_run_outcome::failed_to_start },
-					aInvocation);
-				return;
-			}
-			launch->WorkingDirectory       = workspace->Path;
-			launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
-			if (aInvocation->Stop->stop_requested()) {
-				complete(
-					{ .Session = aInvocation->Identity.Session.Id,
-					  .Outcome = agent_run_outcome::cancelled },
-					aInvocation);
-				return;
-			}
-			post_start(aInvocation, *workspace);
-			++ProcessStarts;
-			const auto weak   = weak_from_this();
-			auto       result = Processes.run(
-				*launch,
-				120'000,
-				[weak, aInvocation](const agent_stream_event& aEvent) {
-					if (auto self = weak.lock()) {
-						self->post_stream(aInvocation, aEvent);
+				if (aRequest.ExistingCheckoutChosen) {
+					workspace = std::move(aExisting.Workspace);
+				} else {
+					++WorkspaceStarts;
+					auto materialized = Workspaces.materialize_agent_workspace(
+						agent_workspace_materialization_request{
+							.ApplicationSession = aRequest.ApplicationSession,
+							.Authority          = aRequest.Authority,
+							.Session            = aInvocation->Identity.Session,
+							.ParentDirectory    = WorkspaceParent,
+						},
+						aInvocation->Stop->get_token());
+					if (!materialized.has_value()) {
+						finish_run(
+							{ .Session       = aInvocation->Identity.Session.Id,
+							  .Outcome       = workspace_outcome(materialized.error()),
+							  .StandardError = std::move(materialized.error().Detail) },
+							aInvocation);
+						return;
 					}
-				},
-				aInvocation->Stop->get_token());
-			complete(std::move(result), aInvocation);
+					workspace     = materialized->Workspace;
+					lifetimeGuard = materialized->LifetimeGuard;
+					track_workspace(aInvocation, std::move(*materialized));
+				}
+
+				if (aInvocation->Stop->stop_requested()) {
+					finish_run(
+						{ .Session = aInvocation->Identity.Session.Id,
+						  .Outcome = agent_run_outcome::cancelled },
+						aInvocation);
+					return;
+				}
+				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly };
+				auto launch  = build_agent_launch(aProfile, aSupplement, Environment, options);
+				options.PrivateSources.clear();
+				if (aInvocation->PrivateAdmission) {
+					aInvocation->PrivateAdmission->Launch.PrivateSources.clear();
+				}
+				if (!launch.has_value() || !workspace.has_value()) {
+					finish_run(
+						{ .Session = aInvocation->Identity.Session.Id,
+						  .Outcome = agent_run_outcome::failed_to_start },
+						aInvocation);
+					return;
+				}
+				launch->WorkingDirectory       = workspace->Path;
+				launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
+				if (aInvocation->Stop->stop_requested()) {
+					finish_run(
+						{ .Session = aInvocation->Identity.Session.Id,
+						  .Outcome = agent_run_outcome::cancelled },
+						aInvocation);
+					return;
+				}
+				if (aInvocation->PrivateAdmission) {
+					auto claim = PrivateRuns->claim(*aInvocation->PrivateAdmission, aInvocation->Stop->get_token());
+					if (!claim) {
+						post_private(aInvocation, { }, claim.error());
+						finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::failed_to_start }, aInvocation);
+						return;
+					}
+					launch->PrivateInputClaim = std::move(*claim);
+				}
+				post_start(aInvocation, *workspace);
+				++ProcessStarts;
+				const auto weak   = weak_from_this();
+				auto       result = Processes.run(
+					*launch,
+					120'000,
+					[weak, aInvocation](const agent_stream_event& aEvent) {
+						if (auto self = weak.lock()) {
+							self->post_stream(aInvocation, aEvent);
+						}
+					},
+					aInvocation->Stop->get_token());
+				if (launch->PrivateInputClaim) {
+					launch->PrivateInputClaim->release();
+				}
+				finish_run(std::move(result), aInvocation, true);
+			} catch (...) {
+				finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::failed_to_start }, aInvocation);
+			}
+		}
+
+		void post_private(const std::shared_ptr<invocation>& aInvocation, std::optional<private_review_delta> aDelta, std::optional<private_run_error> aError)
+		{
+			const auto weak = weak_from_this();
+			try {
+				DecisionLane.post([weak, aInvocation, delta = std::move(aDelta), error = std::move(aError)] {
+					auto self = weak.lock();
+					if (!self || !self->enter_callback()) {
+						return;
+					}
+					auto guard = callback_guard{ self };
+					try {
+						if (delta) {
+							self->Projection.private_changed(aInvocation->Identity, *delta);
+						}
+						if (error) {
+							self->Projection.private_refused(aInvocation->Identity, *error);
+						}
+					} catch (...) { }
+				});
+			} catch (...) { }
+		}
+		void finish_run(agent_run_result aResult, const std::shared_ptr<invocation>& aInvocation, bool aProcessResult = false)
+		{
+			if (aInvocation->PrivateAdmission) {
+				if (aInvocation->ExplicitlyCancelled.load(std::memory_order_acquire) && aResult.Outcome == agent_run_outcome::success) {
+					aResult.Outcome = agent_run_outcome::cancelled;
+					aResult.Events.clear();
+					aResult.Findings.reset();
+				}
+				if (!aProcessResult) {
+					aResult.Run      = aInvocation->PrivateAdmission->Delta.Run;
+					aResult.Metadata = aInvocation->PrivateAdmission->Launch.AdmittedRun->Metadata;
+				}
+				auto stored = PrivateRuns->finish(*aInvocation->PrivateAdmission, aResult, aInvocation->Snapshot);
+				if (stored) {
+					post_private(aInvocation, *stored, { });
+					if (stored->Outcome == core::private_run_outcome::protocol_failure) {
+						aResult.Outcome = agent_run_outcome::protocol_failure;
+						aResult.Events.clear();
+						aResult.Findings.reset();
+					}
+				} else {
+					post_private(aInvocation, { }, stored.error());
+					aResult.Outcome = agent_run_outcome::private_storage_failure;
+					aResult.Events.clear();
+					aResult.Findings.reset();
+				}
+			}
+			complete(std::move(aResult), aInvocation);
 		}
 
 		void post_start(
@@ -717,7 +812,8 @@ namespace bpr::application {
 						auto guard = callback_guard{ self };
 						if (
 							self->current_matches(aInvocation)
-							&& event.Session == aInvocation->Identity.Session.Id) {
+							&& event.Session == aInvocation->Identity.Session.Id
+							&& event.Run.value() == aInvocation->DurableRun.load(std::memory_order_acquire)) {
 							self->project_stream(aInvocation->Identity, event);
 						}
 					});
@@ -780,7 +876,7 @@ namespace bpr::application {
 								  .Session = aInvocation->Identity.Session.Id,
 								  .Outcome = agent_run_outcome::stale_result,
 							  }
-							: judged.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *judged)
+							: judged.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *judged, core::agent_run_id{ aInvocation->DurableRun.load(std::memory_order_acquire) })
 												 : agent_run_result{
 													   .Session = aInvocation->Identity.Session.Id,
 													   .Outcome = agent_run_outcome::stale_result,
@@ -891,6 +987,7 @@ namespace bpr::application {
 			if (!active) {
 				return;
 			}
+			active->ExplicitlyCancelled.store(true, std::memory_order_release);
 			static_cast<void>(active->Stop->request_stop());
 			Processes.cancel();
 		}
@@ -960,6 +1057,7 @@ namespace bpr::application {
 		effect_executor&                     Effects;
 		decision_executor&                   DecisionLane;
 		agent_invocation_projection_port&    Projection;
+		private_agent_run_port*              PrivateRuns;
 
 		mutable std::mutex                          StateMutex;
 		std::optional<core::application_session_id> ApplicationSession;
@@ -995,7 +1093,8 @@ namespace bpr::application {
 		environment_reader                   aEnvironment,
 		effect_executor&                     aEffects,
 		decision_executor&                   aDecisionLane,
-		agent_invocation_projection_port&    aProjection)
+		agent_invocation_projection_port&    aProjection,
+		private_agent_run_port*              aPrivateRuns)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aProfiles),
 			  std::move(aPolicies),
@@ -1006,7 +1105,7 @@ namespace bpr::application {
 			  std::move(aEnvironment),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection) }
+			  aProjection, aPrivateRuns) }
 	{
 	}
 

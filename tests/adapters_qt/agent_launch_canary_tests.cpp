@@ -1,10 +1,14 @@
 /// \file
 /// \brief Hostile real-process coverage for agent protocol and teardown policy.
 
+#include "../core/private_review_fixture.hpp"
+#include "../sqlite_contract/scratch_root.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/private_review_application_host.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -260,6 +264,51 @@ namespace {
 				qEnvironmentVariableIsSet(name),
 				"the parent really holds each planted credential");
 		}
+	}
+
+	void test_durable_private_input_crosses_only_after_admission()
+	{
+		using namespace application;
+		using namespace core;
+		tests::sqlite_contract::scratch_root scratch{ "private-input-child" };
+		const auto                           profile = canary_profile(agent_protocol::codex_jsonl_exec);
+		const auto                           current = session();
+		auto                                 binding = private_review_fixture::binding();
+		binding.Revision                             = current.Binding;
+		adapters::sqlite::private_review_configuration config{ { scratch.path(), "github.com", "synthetic", "example", 30 }, bpr_profile_id{ 1 }, current.Binding.Host, github_account_id{ 3 }, current.Binding.Repository, current.Binding.PullRequest };
+		auto                                           opened = adapters::sqlite::make_private_review_store(config);
+		expect(opened.has_value(), "open durable child course");
+		auto& store   = **opened;
+		binding.Scope = store.frontier()->Scope;
+		auto seed     = [&](std::string body) {
+			auto next     = store.frontier()->NextIdentity;
+			auto revision = *create_private_thread(private_review_thread_id{ next }, { binding, private_pr_subject{ } }, { private_review_turn_id{ next + 1 }, private_review_turn_revision_id{ next + 2 }, private_vertex_order{ next + 2 }, private_reviewer_actor{ }, std::move(body) });
+			expect(store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision } }).has_value(), "commit child input fixture source");
+			return source_of(revision.Revision);
+		};
+		auto selected = seed("EXPLICIT_PRIVATE_CHILD_CANARY");
+		(void)seed("UNSELECTED_PRIVATE_CHILD_CANARY");
+		private_review_application_host host{ store };
+		agent_context_observation       context{ .ApplicationSession = application_session_id{ 11 }, .Binding = current.Binding, .PullRequestUrl = "https://github.example/octo/app/pull/30", .ChatMessage = "Synthetic private conversation" };
+		auto                            admitted = host.admit({ .Binding = binding, .Sources = { { selected, selected.Key, false } } }, profile, current, context, { });
+		expect(admitted.has_value(), "atomic private run admission");
+		auto supplementValue = build_agent_context_supplement(context, current);
+		expect(supplementValue.has_value(), "build admitted context");
+		auto launched = build_agent_launch(profile, *supplementValue, [](const std::string& name) -> std::optional<std::string> { return name == "BPR_CANARY_AGENT_IDENTITY" ? std::optional<std::string>{ "allowed" } : std::nullopt; }, admitted->Launch);
+		expect(launched.has_value(), "exact admitted private launch");
+		launched->WorkingDirectory = scratch.path().string();
+		auto claim                 = host.claim(*admitted, { });
+		expect(claim.has_value(), "claim current source before child input");
+		launched->PrivateInputClaim = *claim;
+		adapters::agent::agent_process_launcher launcher;
+		auto                                    result = launcher.run(*launched, 20'000);
+		expect(result.Outcome == agent_run_outcome::success && result.Run == admitted->Delta.Run, "real child produces exact durable run response");
+		const auto input = event_values(result, "stdin");
+		expect(input.size() == 1 && input.front().find("EXPLICIT_PRIVATE_CHILD_CANARY") != std::string::npos && input.front().find("UNSELECTED_PRIVATE_CHILD_CANARY") == std::string::npos, "real child reads selected private body and never unchecked body");
+		expect(!(*claim)->permitted(), "real transport releases source claim after write");
+		expect(host.finish(*admitted, result, { .Binding = current.Binding }).has_value(), "real correlated full child output commits as agent turn");
+		auto transcript = store.list_revisions(*admitted->Delta.Thread);
+		expect(transcript && transcript->Revisions.size() == 2 && transcript->Revisions.back().Revision.Body.find("canary-complete") != std::string::npos, "durable turn contains validated complete child output");
 	}
 
 	void test_all_four_protocols_stream_partial_frames_under_stderr_pressure()
@@ -1141,6 +1190,7 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	test_durable_private_input_crosses_only_after_admission();
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_output_before_input_does_not_stall_the_request();

@@ -162,7 +162,9 @@ namespace {
 
 	void emit(const protocol aProtocol, const std::string_view aMessage)
 	{
-		const auto escaped = json_escape(aMessage);
+		const auto           escaped  = json_escape(aMessage);
+		static std::uint64_t nextItem = 0;
+		const auto           itemId   = "item-" + std::to_string(++nextItem);
 		switch (aProtocol) {
 		case protocol::codex_app_server:
 			write_partial(
@@ -173,8 +175,8 @@ namespace {
 			break;
 		case protocol::codex_jsonl:
 			write_partial(
-				"{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\","
-				"\"type\":\"agent_message\",\"text\":\""
+				"{\"type\":\"item.completed\",\"item\":{\"id\":\"" + itemId + "\","
+																			  "\"type\":\"agent_message\",\"text\":\""
 				+ escaped + "\"}}\n");
 			break;
 		case protocol::claude_stream_json:

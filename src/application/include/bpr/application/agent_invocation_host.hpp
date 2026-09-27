@@ -5,6 +5,7 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/private_review_application_host.hpp"
 #include "bpr/core/agent_profile.hpp"
 
 #include <atomic>
@@ -67,6 +68,7 @@ namespace bpr::application {
 		std::optional<core::agent_session> ContinuedSession;
 		bool                               WritingOnly = false;
 		core::agent_setting_facts          RequestedSettings;
+		std::optional<private_run_intent>  PrivateRun;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -130,6 +132,8 @@ namespace bpr::application {
 			static_cast<void>(aIdentity);
 			static_cast<void>(aDelivery);
 		}
+		virtual void private_changed(const agent_invocation_projection_identity&, const private_review_delta&) { }
+		virtual void private_refused(const agent_invocation_projection_identity&, const private_run_error&) { }
 		virtual void present_session_catalog(
 			const agent_session_catalog_projection& aProjection) = 0;
 	};
@@ -161,7 +165,8 @@ namespace bpr::application {
 			environment_reader                   aEnvironment,
 			effect_executor&                     aEffects,
 			decision_executor&                   aDecisionLane,
-			agent_invocation_projection_port&    aProjection);
+			agent_invocation_projection_port&    aProjection,
+			private_agent_run_port*              aPrivateRuns = nullptr);
 		~agent_invocation_host();
 
 		agent_invocation_host(const agent_invocation_host&) = delete;

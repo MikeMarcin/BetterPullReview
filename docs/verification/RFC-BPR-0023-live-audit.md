@@ -874,3 +874,63 @@ accounting flow through the same builder and decoder. Focused writing-delivery,
 launch-panel and child-canary tests passed on the combined tree. This changes no
 RFC-BPR-0023 criterion or milestone order; M6 starts from the integrated main
 tip and must preserve both paths.
+
+## M6 invocation and retention reconciliation
+
+M6/BPR-0582 starts at integrated main `09bb9a75`, with ledger schema 7,
+mutation-recovery schema 5 and staged-tour codec 3. It adds the private run port
+to the existing invocation host; the host remains the only workspace/process
+owner. M8/BPR-0587 owns composition-root and UI connection of this port.
+The scoped `WritingOnly` path remains separate, refuses a private-run intent,
+and retains its Claude/tool/checkout/continuation restrictions.
+
+The concrete host reloads exact selected source descriptors, checks source
+revision/anchor authority, reads bounded full bodies, and atomically commits the
+reviewer prompt and immutable run before workspace preparation or child launch.
+After preparation it repeats source-tip/digest checks under a SQLite immediate
+transaction, held through the initial or deferred private input acknowledgement.
+The claim is cancelled through the invocation stop token and always releases
+on write, refusal or terminal. SQLite excludes writers across the ledger while
+that short claim exists; concurrent writes return typed `busy` after the existing
+bounded busy wait. App Server's existing 120-second process limit bounds a peer
+that never requests input. This deliberately coarse exclusion is not a claim of
+per-source SQLite row locking. Store/claim ownership stays on the serialized
+effect lane and the store must outlive the invocation.
+
+**M6 lifetime clarification, accepted under mandate r2 before acceptance:** raw
+selected-body vectors are dropped after encoding and before process launch. The
+existing immutable launch request retains its bounded encoded input until
+process retirement, including deferred App Server context. The acknowledgement
+releases the source-write exclusion, not the request allocation. No new durable
+supplement or canonical content buffer is introduced. This narrows the earlier
+M2 sentence about releasing body buffers at input delivery to the actual shared
+launcher lifetime; it preserves the 2 MiB selected-content/8 MiB wire bounds,
+explicit selection, cancellation and acknowledgement guarantees. It changes no
+RFC criterion, milestone exit or authored plan/source-pack bytes.
+
+Terminal processing preserves validated assistant items once per protocol item,
+with item byte boundaries in run provenance and a deterministic concatenation
+in the assistant turn. Provenance's opaque record advances to version 2 for
+those boundaries and still decodes version 1 with boundaries unknown. The SQLite
+schema remains 7, and no body copy is added to the run record. Finding snapshots
+retain their canonical identity and full structured fields; readable selected
+finding input has a separate labeled serialization checked against that exact
+snapshot. The selected-input bound covers that rendered size too.
+
+Correlated original output is persisted before stale navigation presentation.
+Explicit cancellation wins over a late success return; incomplete output cannot
+become eligible. Wrong run/session, malformed metadata, oversized output or
+malformed finding data produces a protocol failure, with no false complete
+turn. Duplicate terminals conflict. A terminal storage refusal remains visible
+as `private_storage_failure`; recovery marks outstanding admitted runs
+interrupted after producers quiesce, without rerunning. If an explicit archive,
+delete, purge or conflicting edit makes the response transaction ineligible,
+that transaction refuses rather than reopening or resurrecting the thread.
+This follows the same storage-failure/recovery boundary.
+
+The [M6 evidence](RFC-BPR-0023.md#m6-private-thread-application-host) binds the
+new SQLite/invocation course and real child canary. It establishes host/store
+reachability, not finished application UI or installed-provider qualification.
+M7 composition/publication, M8 UI, M9 native/designated publication and the one
+M10 independent review remain allocated as before. All eighteen criteria remain
+intact.

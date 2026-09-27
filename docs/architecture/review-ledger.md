@@ -438,3 +438,21 @@ encrypted store or a same-user tamper-proof authority.
 
 Removing it is a file deletion and needs no application feature to be
 trustworthy.
+
+## Private invocation retention
+
+The private host commits reviewer prompt and admitted run atomically, then
+uses a source-use claim through private input acknowledgement. The SQLite claim
+is an immediate transaction on the effect lane: a competing writer receives
+`busy`, and write/refusal/timeout releases the claim. Run terminal updates are
+one-way from admitted to a typed terminal. Complete assistant text is retained
+as a turn under that exact run; findings retain run/ordinal/digest and an explicit
+finding-linked thread retains a dependency edge to its snapshot.
+
+Run payload version 2 stores ordered assistant-item byte lengths alongside the
+output digest. Version 1 payloads still read exactly with boundaries absent;
+this is an opaque-record extension inside unchanged ledger schema 7. Text is
+not duplicated in run metadata. Bounded run pages (16 records/256 KiB) support
+recovery after producer quiescence; pending admitted runs become interrupted
+without launching an agent. The session catalog's 128-row pruning does not
+remove these separately retained runs or their transcript lineage.

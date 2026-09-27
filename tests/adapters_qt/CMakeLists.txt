@@ -849,6 +849,8 @@ target_link_libraries(
     test_better_pull_review_qt_agent_launch_canary_tests
     PRIVATE
         BetterPullReview::AdapterAgent
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::Platform
         Qt6::Core
         $<$<PLATFORM_ID:Windows>:Advapi32>
 )

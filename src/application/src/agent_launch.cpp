@@ -764,9 +764,26 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				return std::vector<agent_protocol_event>{ {
-					.Kind = agent_protocol_event_kind::output,
-					.Text = *delta,
+					.Kind         = agent_protocol_event_kind::output,
+					.Text         = *delta,
+					.Item         = *item,
+					.CompleteItem = false,
 				} };
+			}
+			if (*method == "item/completed") {
+				const auto* item = object_member(*params, "item");
+				const auto* type = item ? string_member(*item, "type") : nullptr;
+				if (type && *type == "agentMessage") {
+					const auto* thread = string_member(*params, "threadId");
+					const auto* turn   = string_member(*params, "turnId");
+					const auto* id     = string_member(*item, "id");
+					const auto* text   = string_member(*item, "text");
+					if (aPhase != 5U || !thread || *thread != aThread || !turn || *turn != aTurn || !id || id->empty() || !text) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::output, .Text = *text, .Item = *id } };
+				}
+				return no_protocol_events();
 			}
 			if (*method == "turn/completed") {
 				const auto* thread = string_member(*params, "threadId");
@@ -858,6 +875,7 @@ namespace bpr::application {
 					return std::vector<agent_protocol_event>{ {
 						.Kind = agent_protocol_event_kind::output,
 						.Text = *text,
+						.Item = *itemId,
 					} };
 				}
 				return no_protocol_events();
@@ -907,7 +925,14 @@ namespace bpr::application {
 					|| content->Kind != json_kind::array_value) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				auto events = std::vector<agent_protocol_event>{ };
+				auto        events    = std::vector<agent_protocol_event>{ };
+				const auto* messageId = string_member(*message, "id");
+				if (member(*message, "id") && (!messageId || messageId->empty())) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// Older envelopes omit id. Exact duplicate envelopes still coalesce.
+				const auto  identity   = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
+				std::size_t blockIndex = 0;
 				for (const auto& block : content->Elements) {
 					const auto* blockType = string_member(block, "type");
 					if (blockType == nullptr || (aWritingOnly && *blockType != "text")) {
@@ -923,8 +948,10 @@ namespace bpr::application {
 						events.push_back({
 							.Kind = agent_protocol_event_kind::output,
 							.Text = *text,
+							.Item = identity + ":" + std::to_string(blockIndex),
 						});
 					}
+					++blockIndex;
 				}
 				if (*type == "assistant") {
 					aSawAssistant = true;
@@ -2077,9 +2104,10 @@ namespace bpr::application {
 			std::size_t bytes = 0;
 			for (std::size_t index = 0; index < aOptions.PrivateSources.size(); ++index) {
 				const auto& source = aOptions.PrivateSources[index];
-				if (source.Source != run.SelectedPrivateSources[index].Source || source.Body.size() != source.Source.BodyBytes
-					|| source.Body.size() > core::maximum_selected_private_source_bytes - bytes
-					|| core::private_digest(source.Body) != source.Source.Digest) {
+				if (source.Source != run.SelectedPrivateSources[index].Source || source.Body.size() > core::maximum_selected_private_source_bytes - bytes
+					|| (std::holds_alternative<core::private_finding_source>(source.Source.Key)
+							? !source.Finding || source.Finding->Source != source.Source || !core::valid_retained_agent_finding(*source.Finding) || source.Body != serialize_private_finding(*source.Finding)
+							: source.Finding.has_value() || source.Body.size() != source.Source.BodyBytes || core::private_digest(source.Body) != source.Source.Digest)) {
 					return false;
 				}
 				bytes += source.Body.size();
@@ -2275,6 +2303,46 @@ namespace bpr::application {
 		return payload;
 	}
 
+	auto serialize_private_finding(const core::retained_agent_finding& aRetained) -> std::string
+	{
+		const auto& f = aRetained.Finding;
+		std::string result;
+		append_number(result, "provider", f.Provider.value());
+		append_field(result, "path", f.Path);
+		append_number(result, "line.begin", f.Lines.Begin);
+		append_number(result, "line.end", f.Lines.End);
+		append_field(result, "claim", f.Claim);
+		append_field(result, "evidence", f.Evidence);
+		append_field(result, "consequence", f.Consequence);
+		append_field(result, "required_context", f.RequiredContext);
+		if (f.SuggestedComment) {
+			append_field(result, "suggested_comment", *f.SuggestedComment);
+		}
+		append_field(result, "analyzed_base", core::canonical_hex(f.AnalyzedBaseOid).view());
+		append_field(result, "analyzed_head", core::canonical_hex(f.AnalyzedHeadOid).view());
+		append_number(result, "analyzed_commits", f.AnalyzedCommits.size());
+		for (const auto& oid : f.AnalyzedCommits) {
+			append_field(result, "analyzed_commit", core::canonical_hex(oid).view());
+		}
+		if (f.Anchor.Line) {
+			append_source_line(result, "anchor.line", *f.Anchor.Line);
+		}
+		if (f.Anchor.Boundary) {
+			append_field(result, "anchor.boundary.comparison", hex_identity(f.Anchor.Boundary->Comparison));
+			append_number(result, "anchor.boundary.side", static_cast<unsigned>(f.Anchor.Boundary->Side));
+			append_number(result, "anchor.boundary.position", f.Anchor.Boundary->Boundary);
+		}
+		append_optional_identity(result, "anchor.segment", f.Anchor.Segment);
+		append_optional_identity(result, "anchor.group", f.Anchor.Group);
+		append_optional_identity(result, "anchor.move", f.Anchor.Move);
+		append_number(result, "severity", static_cast<unsigned>(f.Severity));
+		append_number(result, "confidence", static_cast<unsigned>(f.Confidence));
+		append_number(result, "category", static_cast<unsigned>(f.Category));
+		append_number(result, "anchor_state", static_cast<unsigned>(aRetained.Verdict.State));
+		append_number(result, "anchor_refusal", static_cast<unsigned>(aRetained.Verdict.Refusal));
+		return result;
+	}
+
 	auto admit_agent_input(const agent_launch_request& aRequest) -> std::expected<std::size_t, agent_launch_failure>
 	{
 		if (!core::inspect_runtime_metadata(aRequest.Metadata) || !aRequest.Metadata.ProtocolReported.empty()
@@ -2371,7 +2439,7 @@ namespace bpr::application {
 			}
 			auto frame = Pending.substr(0U, newline);
 			Pending.erase(0U, newline + 1U);
-			const auto decoded = decode_structured_frame(
+			auto decoded = decode_structured_frame(
 				Protocol,
 				frame,
 				Phase,
@@ -2382,6 +2450,28 @@ namespace bpr::application {
 			if (!decoded) {
 				Failed = true;
 				return std::unexpected(decoded.error());
+			}
+			if (Protocol == core::agent_protocol::external_terminal) {
+				for (auto& event : *decoded) {
+					if (event.Kind == agent_protocol_event_kind::output) {
+						event.Text += '\n';
+						event.Item         = "stdout";
+						event.CompleteItem = false;
+					}
+				}
+			}
+			if (!retain_output(*decoded)) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			for (auto& event : *decoded) {
+				if (event.Kind == agent_protocol_event_kind::output) {
+					event.Item.clear();
+					event.CompleteItem = true;
+					if (Protocol == core::agent_protocol::external_terminal) {
+						event.Text.pop_back();
+					}
+				}
 			}
 			// A finding payload is deliberately not a control event. It asks
 			// the host for no follow-up write, so pausing the decode on it
@@ -2413,6 +2503,46 @@ namespace bpr::application {
 		return messages;
 	}
 
+	auto agent_protocol_decoder::retain_output(std::vector<agent_protocol_event>& aEvents) -> bool
+	{
+		for (auto it = aEvents.begin(); it != aEvents.end();) {
+			if (it->Kind != agent_protocol_event_kind::output) {
+				++it;
+				continue;
+			}
+			if (it->Item.empty() || it->Item.size() > core::maximum_remote_run_id_bytes) {
+				return false;
+			}
+			auto found = std::ranges::find(AssistantIds, it->Item);
+			if (found == AssistantIds.end()) {
+				if (AssistantIds.size() >= 256) {
+					return false;
+				}
+				AssistantIds.push_back(it->Item);
+				AssistantItems.emplace_back();
+				AssistantComplete.push_back(false);
+				found = AssistantIds.end() - 1;
+			}
+			const auto index = static_cast<std::size_t>(found - AssistantIds.begin());
+			if (AssistantComplete[index] || (it->CompleteItem && !AssistantItems[index].empty())) {
+				if (!it->CompleteItem || AssistantItems[index] != it->Text) {
+					return false;
+				}
+				AssistantComplete[index] = true;
+				it                       = aEvents.erase(it);
+				continue;
+			}
+			if (it->Text.size() > maximum_agent_stdout_bytes - AssistantBytes) {
+				return false;
+			}
+			AssistantItems[index] += it->Text;
+			AssistantBytes += it->Text.size();
+			AssistantComplete[index] = it->CompleteItem;
+			++it;
+		}
+		return true;
+	}
+
 	auto agent_protocol_decoder::finish()
 		-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 	{
@@ -2429,10 +2559,13 @@ namespace bpr::application {
 			}
 			auto message = std::move(Pending);
 			Pending.clear();
-			return std::vector<agent_protocol_event>{ {
-				.Kind = agent_protocol_event_kind::output,
-				.Text = std::move(message),
-			} };
+			auto events = std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::output, .Text = std::move(message), .Item = "stdout", .CompleteItem = false } };
+			if (!retain_output(events)) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			events.front().Item.clear();
+			events.front().CompleteItem = true;
+			return events;
 		}
 		const auto complete
 			= (Protocol == core::agent_protocol::codex_app_server && Phase == 6U)
@@ -2470,6 +2603,7 @@ namespace bpr::application {
 		switch (aOutcome) {
 		case agent_run_outcome::success:
 			return "success";
+		case agent_run_outcome::private_storage_failure: return "private_storage_failure";
 		case agent_run_outcome::failed_to_start:
 			return "failed_to_start";
 		case agent_run_outcome::workspace_unavailable:

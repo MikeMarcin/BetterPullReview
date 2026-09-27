@@ -82,6 +82,13 @@ namespace {
 		source_fixture f;
 		auto           admitted = admit_composition_sources(f.Binding.Scope, f.Selected, f.Observed);
 		expect(admitted.has_value(), "complete exact source admitted");
+		expect(admit_private_run_sources(f.Binding, { }, { }).has_value(), "ordinary agent run may select no private sources");
+		auto runObserved            = f.Observed;
+		runObserved.front().Binding = f.Binding;
+		expect(admit_private_run_sources(f.Binding, f.Selected, runObserved).has_value(), "same revision is eligible for explicit invocation");
+		runObserved.front().Binding->Revision.RightEpoch = epoch_ordinal{ 99 };
+		expect(!admit_private_run_sources(f.Binding, f.Selected, runObserved), "stale source cannot borrow current invocation binding");
+
 		auto changed             = f.Observed;
 		changed[0].Source.Digest = private_digest("changed");
 		expect(admit_composition_sources(f.Binding.Scope, f.Selected, changed).error() == private_review_refusal::digest_mismatch, "immutable digest mismatch refuses");
