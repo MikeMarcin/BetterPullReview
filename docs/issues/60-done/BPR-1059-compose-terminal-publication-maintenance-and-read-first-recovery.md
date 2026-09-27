@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1059"
 title: "Compose terminal publication maintenance and read-first recovery"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1055", "BPR-1056", "BPR-1058"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-08","milestone":"publish-and-recover","acceptance":["AC44-08","AC44-09","AC44-10"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-08","outcome":"pass","revision":"5341b12e8a2f0f250d7251501473e81197664430","evidence":{"kind":"observation","detail":"Shared finite plan, parent host/journal and native/admitted-gh composition. CLI isolated counters plus parent desktop native/maintenance/stop/unsupported and staged restart tests pass; production qualification remains refused.","reference":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"AC44-09","outcome":"pass","revision":"5341b12e8a2f0f250d7251501473e81197664430","evidence":{"kind":"observation","detail":"Actual POSIX PTY confirmation exact publish text, lease release and concurrent edit refusal; JSON and --yes do not authorize. Human/agent live qualification remains later scope.","reference":"docs/verification/RFC-BPR-0044-0046.md"}},{"criterion":"AC44-10","outcome":"pass","revision":"5341b12e8a2f0f250d7251501473e81197664430","evidence":{"kind":"observation","detail":"Actual SIGKILL at all four publication write boundaries before/after witness and applied effect, plus acknowledgement; recover twice leaves server bytes unchanged; explicit safe resume no duplicates, ambiguous sends refuse.","reference":"docs/verification/RFC-BPR-0044-0046.md"}}]
 ---
 
 # BPR-1059: Compose terminal publication maintenance and read-first recovery
