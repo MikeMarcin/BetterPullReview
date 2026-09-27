@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1007"
 title: "Add four versioned writing hooks to profile settings"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1006"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-17","milestone":"scoped-ai","acceptance":["AC43-01","AC43-02"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
