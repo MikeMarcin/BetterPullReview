@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1006"
 title: "Prove the complete manual workflow and prepare website acceptance"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042"]
 depends_on: ["BPR-1003", "BPR-1004", "BPR-1005"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-16","milestone":"manual-maintenance","acceptance":["AC39-01","AC40-03","AC40-07","AC41-09","AC42-01","AC42-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
