@@ -42,7 +42,7 @@ subsystem, and changes to `LOOPBACK_PORT_COUNT` must run
 
 ## Workflow and closeout
 
-Use canonical cards, shared allocation and claim/finish. The product documentation gate retains per-criterion closeout checks, RFC baseline and canonical index order. Ordinary slices use focused checks. At pack or milestone completion normally run one integration pass; full relevant suites and critical review are appropriate when warranted. No default exhaustive matrix, hermetic replay or manual approval.
+Use canonical cards, shared allocation and claim/finish. Close RFCs when their explicit dependencies and acceptance criteria are satisfied; index position is not a gate. Preserve separately recorded owner scheduling decisions. The product documentation gate retains per-criterion closeout checks, RFC baseline and index/status consistency. Ordinary slices use focused checks. At pack or milestone completion normally run one integration pass; full relevant suites and critical review are appropriate when warranted. No default exhaustive matrix, hermetic replay or manual approval.
 
 ## Attendance and platform eligibility
 

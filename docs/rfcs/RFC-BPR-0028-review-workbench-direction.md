@@ -13,7 +13,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Current state, 2026-09-24
 
-This RFC is not ready to close. It is the next RFC in canonical order.
+This RFC is not ready to close; its remaining acceptance and explicit dependencies govern closeout.
 [[BPR-1021]] is its closeout, in Backlog under the milestone `close-rfc-0028`
 of plan `ux-redesign-pack-0028` (see the
 [closeout planning record](plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md)).

@@ -93,7 +93,7 @@ credential disclosure, real-PR mutation or automatic diagnostic upload.
 | [BPR-0960](../issues/50-blocked/BPR-0960-qualify-windows-x64-package.md) | Clean Windows 10/11 ordinary-user desktop, auth, high-DPI/accessibility, Credential Manager and purge/removal; completed PE mechanics do not satisfy these. |
 | [BPR-0961](../issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md) | Ubuntu 24.04/RHEL 10 signed DEB/RPM, complete native fixture/auth/vault/purge/removal. |
 | [BPR-0962](../issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md) | Independent final trust, Windows/Linux licensing, source access/retention, unresolved vulnerabilities, external hardening/PE CFG, active-operation network/vault and foreign-user IPC, full sanitizer/fuzz coverage, resident-material crash/privacy and broader test failures. |
-| [BPR-0973](../issues/10-backlog/BPR-0973-close-rfc-0038.md) | Reconcile every original criterion against exact final artifacts, all follow-up decisions and canonical-order closeout. |
+| [BPR-0973](../issues/10-backlog/BPR-0973-close-rfc-0038.md) | Reconcile every original criterion against exact final artifacts, all follow-up decisions and explicit closeout dependencies. |
 
 ## Current evidence and stop conditions
 

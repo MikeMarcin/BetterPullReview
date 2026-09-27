@@ -1,9 +1,10 @@
 # RFC-BPR-0027 advanced implementation evidence
 
-Current result: all nine product criteria and the three human judgments are
-accepted. The final engineering round below records the main landing and the
-remaining canonical-order closeout hold. Earlier pending statements are dated
-checkpoints, not the current human-review state.
+Current result: RFC-BPR-0027 is Auto-Verified under owner amendment r3.
+All nine product criteria and the three human judgments are accepted. The owner
+removed the global canonical-order rule and directed terminal closeout. Earlier
+pending statements and the r2 hold are historical; the final r3 section records
+the resolved obligation and actual main landing.
 
 Mandate r2, 2026-09-26: implement the full advanced phase and land each accepted
 milestone on main. Immutable RFC base:
@@ -449,7 +450,7 @@ Source corrections are `92c983615d1ac23943a34f29327c2a78412c1c4c`,
 `189d24f937d16cfedba7990aff3837bcc1a2c5b0`, and
 `7ab119933439878d858100410083080ab4d1ea7b`. The full RFC is **not accepted**:
 three attended judgments remain pending. The reconciled nine-criterion map is
-[BPR-0601](../issues/50-blocked/BPR-0601-close-rfc-0027.md).
+[BPR-0601](../issues/60-done/BPR-0601-close-rfc-0027.md).
 
 ### Corrections and direct failure evidence
 
@@ -845,3 +846,59 @@ Proposed. The authored parent milestone is not falsely marked complete: its
 remaining BPR-0601/RFC terminal obligation is preserved in the final observation.
 All task-owned commands and the attended server are stopped. Accepted copied apps
 and local evidence remain retained. No release publication or live service ran.
+
+
+## Owner amendment r3 and terminal closeout
+
+Assignment `/root/rfc0027_closeout`, mandate r3, same bounded final milestone.
+The owner explicitly removed the obsolete global canonical-order rule and
+requested RFC-0027 closeout. This supersedes the r2 ordering hold; it changes no
+product acceptance criterion. RFC-0001/0002 are Auto-Verified, every required
+implementation card is Done, all nine full product criteria pass and all three
+human judgments remain accepted at cursor34. RFC/index now say Auto-Verified.
+
+The installed project schema and `project_config.py` support `dependency` and
+`ordered-index`; the consumer now selects `dependency`. `issue_board.py` applies
+index ranking only for `ordered-index`; prerequisite validation remains active.
+AGENTS.md, the consumer guide, CONTRIBUTING, the live RFC index, board and
+operator policy docs now express dependency/acceptance closeout. Current global
+rule echoes in RFC-0028/0035/0038 closeout instructions were reconciled. Historical
+source packets, bindings and observations remain unchanged; separately directed
+pack order/scheduling and human/native requirements remain authoritative.
+
+Inspection of `scripts/verify_documentation.py` confirms no global numeric-order
+enforcement: it validates RFC/index status consistency, card dependencies and
+criterion/baseline structure. It needs no code change. Its focused regression
+suite still checks missing/open/cyclic card dependencies and index mismatches.
+
+Main advanced independently to `6cff4914` and was fast-forwarded before edits.
+That incoming candidate preserves the accepted diagnostics implementation and
+records 11/11 combined tour/diagnostic/export integration passes at product source
+`ef05b58c`. This round adds no product change, so it reuses that integration and
+the original native/package/crash evidence within their exact limitations.
+
+
+Final r3 verification: `python3 -B scripts/verify_documentation.py --root .`
+returned `DOCUMENTATION_OK`; `python3 -B tests/scripts/verify_documentation_tests.py`
+passed **64/64** in 2.239 seconds. Scoped issue-board validation passed, and the
+installed `project_config.py` accepted the supported `dependency` configuration.
+The source gate and its tests need no implementation change. `git diff --check`
+passed. The no-code-change round reuses prior product/native evidence.
+
+The optional observational MASK workflow preflight returned `incomplete` with
+`state.drift`/`artifact.corrupt`: the shared installed artifact contains five
+extra Python bytecode entries. This is recorded separately from valid consumer
+configuration and passing repository gates; no shared skill repair/hot upgrade
+or claim of verified host loading was made. All helpers in this round ran with
+`python3 -B`. The already running assigned implementer completed the authorized
+closeout without changing shared skill storage.
+
+
+Terminal closeout and global policy removal landed and pushed normally on main
+at `0ad6b293e68301f2da3df101c6b266d8795a4ce3`; main and origin/main matched.
+All ten RFC-associated cards are Done and the scoped queue has no remaining
+work. RFC-0027 and its index row are Auto-Verified. The final r3 binding and
+completion observation preserve all accepted obligations and no pending exit.
+All task-owned commands are complete, no review server is running, and writer
+`/root/rfc0027_closeout` is released. Accepted artifacts are retained. There is
+no further RFC-0027 action; the final checkpoint commit contains bookkeeping only.

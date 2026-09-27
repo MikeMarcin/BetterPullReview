@@ -24,7 +24,7 @@ M5 qualified native behavior and packaging, fixed observed portability and
 revocation gaps, and received all three attended Accept judgments at cursor34. The provider sanitizer and
 no-authentication-body rule are unchanged.
 
-The complete evidence map is [BPR-0601](../50-blocked/BPR-0601-close-rfc-0027.md) and the
+The complete evidence map is [BPR-0601](BPR-0601-close-rfc-0027.md) and the
 [verification ledger](../../verification/RFC-BPR-0027.md). BPR-1219 is Done. The aggregate product acceptance is complete;
 BPR-0601 retains the separate canonical-order terminal RFC hold.
 

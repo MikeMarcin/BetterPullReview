@@ -46,8 +46,8 @@ across two windows and the empty desktop, and supplies the
 below closes [[BPR-0949]] using the accepted Apple Silicon course and current
 documentation/native-menu checks. [[BPR-0911]] is Blocked on unavailable live
 private-release/vault evidence; [[BPR-0912]] remains Backlog and
-also retains RFC-BPR-0014 and canonical-order gates. RFC-BPR-0014 remains Proposed
-and canonical closure still starts at RFC-BPR-0008.
+retains its explicit RFC-BPR-0014 dependency, which is now Auto-Verified.
+The global canonical-order gate was removed by the owner on 2026-09-27.
 The unchanged signed Apple Silicon helper evidence does not certify M4's menu
 correction in a new signed package, Intel execution or live private-service access.
 
@@ -56,15 +56,15 @@ to [[BPR-0950]], outside this RFC's M4 and closeout acceptance. AC-07 and
 BPR-0949:AC-01 now require the native Apple Silicon course. The follow-up must not
 block M4, BPR-0949, BPR-0911, BPR-0912 or this RFC's closeout. This is an owner
 decision to change acceptance, not Intel execution evidence. It waives no live
-private-release/vault criterion, RFC-BPR-0014 dependency or canonical closeout rule.
+private-release/vault criterion or RFC-BPR-0014 dependency.
 
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped
 native installers and evidence exist. Corporate-managed installations retain
 administrator-controlled updates. RFC-BPR-0014's initial manual-update policy
 remains in force; this proposal amends it only for explicitly enabled, qualified
-macOS packages when implemented. It does not waive canonical closeout order,
-change repository visibility, or authorize a release publication.
+macOS packages when implemented. It preserves explicit RFC dependencies and
+repository visibility, and does not authorize a release publication.
 
 ## Problem and outcome
 

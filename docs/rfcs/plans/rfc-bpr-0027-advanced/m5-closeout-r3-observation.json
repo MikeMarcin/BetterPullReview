@@ -1,0 +1,184 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m5-closeout-r3",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "native-closeout",
+    "definition_fingerprint": "sha256:c7da4e897378be3a34e93f18505b13be3b25e997ce6b516f3b1cb43583b194fa",
+    "obligations": [
+      {
+        "id": "BPR-1219:*",
+        "source": "BPR-1219",
+        "selector": null,
+        "source_fingerprint": "sha256:6c9f54e84ec50231507f24529cfadd7c1961aa518c2b6c7a0c014fcdfaff4625"
+      },
+      {
+        "id": "BPR-0603:*",
+        "source": "BPR-0603",
+        "selector": null,
+        "source_fingerprint": "sha256:863a3e0b780240e3b3bc8861f90b9dbeae473a607551288e615ff0f311012ce5"
+      },
+      {
+        "id": "BPR-0601:*",
+        "source": "BPR-0601",
+        "selector": null,
+        "source_fingerprint": "sha256:34329932c28417368eb9a774010c41bc1443a961e04d8dc4d79ebd59e8b7dcd3"
+      },
+      {
+        "id": "RFC-BPR-0027:*",
+        "source": "RFC-BPR-0027",
+        "selector": null,
+        "source_fingerprint": "sha256:6ab0c9b8d29ddebe4f40a86dbd311c122ec69d0979875d25e43ea85ef700a5a3"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e4f60141e94c387cc42e6c1b93a368bf4f38a593480059e051424bd73b4680c4",
+    "exit_criteria": [
+      {
+        "id": "native-closeout:exit:1",
+        "text": "AC1: Run focused integration and native logging/lifecycle/control courses on each claimed platform; bind dependency and package provenance."
+      },
+      {
+        "id": "native-closeout:exit:2",
+        "text": "AC2: Prepare required attended review with exact candidates and pending decisions; no live sign-in without separate authority."
+      },
+      {
+        "id": "native-closeout:exit:3",
+        "text": "AC3: Reconcile BPR-0603 and BPR-0601, RFC/index and all full criteria, land accepted scope on main."
+      },
+      {
+        "id": "native-closeout:exit:4",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:446ee572255671ce2d8281024502029417d3f052c4727d3e89ec41eb7ea110ee",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "native-closeout",
+  "disposition": "pack-complete",
+  "candidate_revision": "0ad6b293e68301f2da3df101c6b266d8795a4ce3",
+  "handoff_ref": "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+    "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+    "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+    "docs/issues/60-done/BPR-1219-native-closeout.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1219:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "BPR-0603:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "BPR-0601:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0027:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0601-close-rfc-0027.md#owner-amendment-r3-and-terminal-closeout",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/60-done/BPR-1219-native-closeout.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "Mandate r3 removed global canonical order; explicit dependencies and scoped scheduling preserved. All9 product criteria, all3 human accepts, all10 cards and all5 milestones complete. RFC0027 Auto-Verified and terminal closure pushed on main0ad6b293. Documentation/config/board gates and64 tests pass. Shared MASK artifact drift is separately recorded; accepted product/native limits remain. No commands/server/writer transferred."
+  },
+  "ownership": "quiescent"
+}

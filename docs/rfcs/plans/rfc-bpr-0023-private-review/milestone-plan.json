@@ -1,0 +1,225 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0023-private-review",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0023"
+    ],
+    "issues": [
+      "BPR-0576",
+      "BPR-0577",
+      "BPR-0578",
+      "BPR-0579",
+      "BPR-0580",
+      "BPR-0581",
+      "BPR-0582",
+      "BPR-0583",
+      "BPR-0584",
+      "BPR-0585",
+      "BPR-0586",
+      "BPR-0587",
+      "BPR-0588",
+      "BPR-0589",
+      "BPR-0590",
+      "BPR-0591"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "m1-live-audit",
+      "outcome": "Current baseline, owner mandate and evidence plan",
+      "work": [
+        {
+          "issue": "BPR-0576"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The immutable import, current implementation baseline, owner authorization and dependency statuses are distinguished and preserved.",
+        "Every retained source-audit surface has a live disposition, with architecture, schema, protocol, public-path and documentation evidence ownership.",
+        "The complete execution plan preserves all sixteen cards and eighteen RFC criteria; the next eligible milestone is explicit.",
+        "Documentation, scoped board, plan-binding, retained-pack integrity and whitespace checks pass."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m2-architecture",
+      "outcome": "Live contracts ready for implementation",
+      "work": [
+        {
+          "issue": "BPR-0577"
+        }
+      ],
+      "depends_on": [
+        "m1-live-audit"
+      ],
+      "exit_criteria": [
+        "The allocation defines authoritative state, compact core observations and typed requests, ports, identities, deltas and Qt projections at the current seams.",
+        "Ledger migration, durable draft ownership, run identity, immutable body continuations, total input admission and private/shared navigation are settled.",
+        "Every RFC criterion retains its direct evidence owner, and mandate r2 carries the authority-boundary review into the final integrated-candidate review at M10/BPR-0591."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m3-core",
+      "outcome": "Deterministic private threads and composition policy",
+      "work": [
+        {
+          "issue": "BPR-0578"
+        },
+        {
+          "issue": "BPR-0579"
+        }
+      ],
+      "depends_on": [
+        "m2-architecture"
+      ],
+      "exit_criteria": [
+        "Both core cards satisfy all required final states with focused replay, provenance, lineage, target-partition and forbidden-dependency evidence.",
+        "Authorship and source identity stay immutable; composition has no direct publication transition."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m4-storage",
+      "outcome": "One durable private authority and recoverable draft linkage",
+      "work": [
+        {
+          "issue": "BPR-0580"
+        }
+      ],
+      "depends_on": [
+        "m3-core"
+      ],
+      "exit_criteria": [
+        "Every supported ledger origin through the live frontier migrates atomically, including exact v5 notes and v6 revision/CAS state, with one private authority.",
+        "Monotonic IDs, bounded queries/body continuations, quotas, draft correlation, purge and crash recovery have direct evidence."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m5-protocol",
+      "outcome": "One typed provenance record per invocation",
+      "work": [
+        {
+          "issue": "BPR-0581"
+        }
+      ],
+      "depends_on": [
+        "m3-core"
+      ],
+      "exit_criteria": [
+        "Requested/configured/reported/self-reported facts remain separate and every invocation has its own durable run identity contract.",
+        "All current protocol paths preserve bounded full/partial/conflicting/unknown facts and process isolation; unsupported facts stay absent."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m6-thread-host",
+      "outcome": "Durable reviewer and agent turns through the existing invocation path",
+      "work": [
+        {
+          "issue": "BPR-0582"
+        }
+      ],
+      "depends_on": [
+        "m4-storage",
+        "m5-protocol"
+      ],
+      "exit_criteria": [
+        "Prompts and run admission commit before launch; complete responses and findings bind the exact run and immutable source.",
+        "Exact selected context, cancellation, stale/duplicate completions, session pruning and incremental deltas pass focused host evidence."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m7-compose-publish",
+      "outcome": "Durable local composition with separate ordinary publication",
+      "work": [
+        {
+          "issue": "BPR-0583"
+        },
+        {
+          "issue": "BPR-0584"
+        }
+      ],
+      "depends_on": [
+        "m6-thread-host"
+      ],
+      "exit_criteria": [
+        "All three composition modes retain sources and accept an exact candidate into the existing revisioned draft authority across restart with zero mutation.",
+        "Separate Publish uses RFC-0008 and RFC-0022 logical recovery, preserves approved prose and wire digests, and repairs local lineage without another POST.",
+        "BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m8-public-ui",
+      "outcome": "Private/shared conversation and composition in the shipped workbench",
+      "work": [
+        {
+          "issue": "BPR-0585"
+        },
+        {
+          "issue": "BPR-0586"
+        },
+        {
+          "issue": "BPR-0587"
+        }
+      ],
+      "depends_on": [
+        "m7-compose-publish"
+      ],
+      "exit_criteria": [
+        "The actual modality/drawer surfaces expose private history, qualified provenance, exact sources and distinct Accept as Draft and Publish actions.",
+        "The production composition supports the full create/agent/restart/compose/accept/separate-publish course in native and file-permalink representations.",
+        "Bounded updates, keyboard/accessibility, shutdown and configured dependency-boundary checks pass; helper-only behavior is insufficient."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m9-acceptance",
+      "outcome": "Focused failure, performance and rendered workflow evidence",
+      "work": [
+        {
+          "issue": "BPR-0588"
+        },
+        {
+          "issue": "BPR-0589"
+        }
+      ],
+      "depends_on": [
+        "m8-public-ui"
+      ],
+      "exit_criteria": [
+        "All required crash, migration, quota, security, exact-selection, remote-success/local-failure and performance claims have direct candidate-bound evidence.",
+        "Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    },
+    {
+      "id": "m10-closeout",
+      "outcome": "Documented RFC acceptance with one capability-critical independent review of the final integrated candidate under mandate r2",
+      "work": [
+        {
+          "issue": "BPR-0590"
+        },
+        {
+          "issue": "BPR-0591"
+        }
+      ],
+      "depends_on": [
+        "m9-acceptance"
+      ],
+      "exit_criteria": [
+        "Owning semantic/operator documents and the documentation ledger agree with the simplified implementation; affected checks pass.",
+        "Required independent capability-critical review is supplied and material findings are resolved.",
+        "Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied.",
+        "All sixteen cards and eighteen criteria, explicit RFC dependencies and pending decisions are satisfied before RFC/index Auto-Verified closeout."
+      ],
+      "boundary": "Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
