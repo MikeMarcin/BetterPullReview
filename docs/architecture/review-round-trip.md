@@ -892,3 +892,10 @@ one identity across refresh, including retained endpoints that have an exact
 semantic anchor but no native current-diff coordinate. Qt indexes those admitted
 anchors for reverse selection; it does not decode a permalink or decide a
 publication representation.
+
+A successful root publication requests an ordinary pull-request refresh. The
+receipt supplies only the identity to select once the accepted snapshot names
+that post. Selection is bound to the exact target, acting identity and retained
+comparison and is abandoned on a mismatch. Both native and file-subject
+publications use this path; the server read owns the remote subject, body and
+canonical thread identity.

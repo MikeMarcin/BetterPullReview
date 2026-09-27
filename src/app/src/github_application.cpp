@@ -8780,12 +8780,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		void select_published_conversation()
+		{
+			if (!PendingPublishedConversation || !Window || !WindowRead || !LastAcceptedHandoff
+				|| !WindowRead->accepted_snapshot() || !SelectedDiffPublication) {
+				return;
+			}
+			const auto  observed = select_observed_review_mutation(*LastAcceptedHandoff, *WindowRead->accepted_snapshot());
+			const auto& pending  = *PendingPublishedConversation;
+			if (!observed || observed->Target != pending.Target || observed->ActingIdentity != pending.Actor
+				|| core::comparison_digest(SelectedDiffPublication->Key) != pending.Anchor.Comparison) {
+				PendingPublishedConversation.reset();
+				return;
+			}
+			// A refreshed snapshot can arrive before its selected source is
+			// republished. Wait for that exact material before selecting the post.
+			if (!conversation_source()) {
+				return;
+			}
+			const auto identity = "review-comment:" + pending.Comment;
+			if (Window->conversation_model()->index_for_id(identity).isValid()
+				&& Window->reveal_conversation(identity)) {
+				PendingPublishedConversation.reset();
+			}
+		}
+
 		void publish_review_conversations(application::github_presentation_update aUpdate)
 		{
 			if (aUpdate.PullRequest && WindowRead && WindowRead->accepted_snapshot()) {
 				aUpdate.PullRequest = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
 			}
 			Window->publish(aUpdate);
+			select_published_conversation();
 		}
 
 		void refresh_review_conversations()
@@ -8794,6 +8820,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->publish(application::github_presentation_update{
 					.PullRequest              = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source()),
 					.PreserveWindowNavigation = true });
+				select_published_conversation();
 			} else {
 				ReviewCommentPlacement.clear();
 			}
@@ -9508,6 +9535,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
+				if (InlineReviewBinding) {
+					PendingPublishedConversation = published_conversation_selection{
+						.Target = InlineReviewBinding->Target, .Actor = InlineReviewBinding->ActingIdentity, .Anchor = ReviewDraft->Anchor, .Comment = aTerminal.Result->ServerCommentId
+					};
+					// The accepted server snapshot supplies the thread identity,
+					// raw body and placement. A receipt never fabricates a post.
+					QTimer::singleShot(0, Window.get(), [this] {
+						if (!Closing && Window && PendingPublishedConversation) {
+							if (auto* refresh = Window->github_refresh_action(); refresh && refresh->isEnabled()) {
+								refresh->trigger();
+							}
+						}
+					});
+				}
 			} else {
 				editor->present(aTerminal.Result.error());
 			}
@@ -13643,6 +13684,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
 
+		struct published_conversation_selection
+		{
+			application::review_mutation_target_binding  Target;
+			application::review_mutation_acting_identity Actor;
+			core::source_line_ref                        Anchor;
+			std::string                                  Comment;
+		};
+		std::optional<published_conversation_selection> PendingPublishedConversation;
+
 		application::review_comment_placement                       ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
@@ -13860,6 +13910,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_lost_effect,
 				awaiting_deferred_terminal,
 				awaiting_retry,
+				awaiting_native_conversation,
+				awaiting_fallback_conversation,
 				passed,
 				failed,
 			};
@@ -13868,6 +13920,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			phase                                                Phase = phase::awaiting_editor;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait                Wait;
+			bool                                      NativeLineChosen = false;
+			std::optional<core::source_line_ref>      OffHunkAnchor;
 			std::optional<core::semantic_selection>   PublishingSelection;
 			std::optional<core::semantic_selection>   DeferredSelection;
 			std::optional<core::review_comment_draft> PublishingDraft;
@@ -21251,6 +21305,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// the run's shutdown would wait for it until the harness killed the
 		// process, and the verdict would never print.
 		const auto fail = [&probe, implementation] {
+			const auto counts = implementation->Fixture ? implementation->Fixture->review_mutation_evidence() : detail::review_mutation_fixture_evidence{ };
+			QTextStream{ stdout } << "SEMANTIC_COMMENT_PROBE_FAILED phase=" << static_cast<int>(probe.Phase)
+								  << " submissions=" << counts.Submissions << " native=" << counts.NativePosts << " file=" << counts.FilePosts
+								  << " stored=" << counts.StoredComments << " duplicate=" << counts.DuplicateReturned << " durable=" << counts.DurableJournalReads
+								  << " sessions=" << counts.SessionConstructions << " draft=" << (implementation->ReviewDraft ? static_cast<int>(implementation->ReviewDraft->State) : -1) << '\n';
+
 			probe.Phase = state_type::phase::failed;
 			if (implementation->ReviewMutationDecisionGate != nullptr) {
 				implementation->ReviewMutationDecisionGate->release();
@@ -21288,6 +21348,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return "awaiting_deferred_terminal";
 			case state_type::phase::awaiting_retry:
 				return "awaiting_retry";
+			case state_type::phase::awaiting_native_conversation:
+				return "awaiting_native_conversation";
+			case state_type::phase::awaiting_fallback_conversation:
+				return "awaiting_fallback_conversation";
 			case state_type::phase::passed:
 				return "passed";
 			case state_type::phase::failed:
@@ -21350,6 +21414,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!block.isValid()) {
 				return false;
 			}
+			pane->setTextCursor(QTextCursor{ block });
+			pane->ensureCursorVisible();
 			const auto point = pane->cursorRect(QTextCursor{ block }).center();
 			auto       press = QMouseEvent{
 				QEvent::MouseButtonPress,
@@ -21373,6 +21439,85 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QCoreApplication::sendEvent(pane->viewport(), &release);
 			return true;
 		};
+
+		if (probe.Phase == state_type::phase::awaiting_native_conversation
+			|| probe.Phase == state_type::phase::awaiting_fallback_conversation) {
+			const bool fallback = probe.Phase == state_type::phase::awaiting_fallback_conversation;
+			const auto id       = fallback ? "review-comment:PRRC_composed_2" : "review-comment:PRRC_composed_1";
+			const auto index    = implementation->Window->conversation_model()->index_for_id(id);
+			const auto evidence = implementation->Fixture->review_mutation_evidence();
+			if (!index.isValid() || implementation->Window->conversation_model()->id_for_index(implementation->Window->conversation_view()->currentIndex()) != id
+				|| implementation->PendingPublishedConversation) {
+				return wait("SEMANTIC_COMMENT_SERVER_REFRESH_STALLED", [&](QTextStream& aStream) {
+					aStream << "fallback=" << fallback << " post=" << index.isValid() << " pending_selection=" << implementation->PendingPublishedConversation.has_value()
+							<< " native_posts=" << evidence.NativePosts << " file_posts=" << evidence.FilePosts << " stored=" << evidence.StoredComments
+							<< " snapshot=" << implementation->WindowRead->accepted_snapshot().has_value();
+				});
+			}
+			if (fallback) {
+				const auto  anchor   = implementation->Window->conversation_model()->semantic_anchor(index);
+				const auto& snapshot = *implementation->WindowRead->accepted_snapshot();
+				const auto  root     = std::ranges::find_if(snapshot.ReviewThreads, [](const auto& aThread) { return aThread.Thread.value() == "PRRT_composed_2"; });
+				QTextStream{ stdout } << "SEMANTIC_COMMENT_READBACK anchor=" << anchor.has_value() << " exact=" << (anchor == probe.OffHunkAnchor)
+									  << " source=" << implementation->conversation_source().has_value() << " root=" << (root != snapshot.ReviewThreads.end())
+									  << " body=" << (index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("BPR-0571 off-hunk publication.")) << '\n';
+				if (evidence.NativePosts != 2U || evidence.FilePosts != 1U || evidence.StoredComments != 2U
+					|| evidence.SessionConstructions != 2U || evidence.DurableJournalReads != 3U
+					|| anchor != probe.OffHunkAnchor || root == snapshot.ReviewThreads.end()
+					|| root->Subject != application::github_review_thread_subject::file || root->Line
+					|| index.data(qt::github_conversation_model::body_role).toString() != QStringLiteral("BPR-0571 off-hunk publication.")) {
+					return fail();
+				}
+				QTextStream{ stdout } << "SEMANTIC_COMMENT_COMPOSITION_OK:native-posts=2,file-posts=1,stored=2,journal-reopens=3,session-constructions=2\n";
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			if (evidence.NativePosts != 1U || evidence.FilePosts != 0U || evidence.DurableJournalReads != 2U
+				|| evidence.SessionConstructions != 2U || implementation->Window->conversation_model()->semantic_anchor(index)) {
+				return fail();
+			}
+			probe.Evidence.RetryIdempotent = evidence.Submissions == 2U && evidence.StoredComments == 1U && evidence.DuplicateReturned;
+			const auto& observed           = *implementation->WindowRead->accepted_snapshot();
+			const auto  native             = std::ranges::find_if(observed.ReviewThreads, [](const auto& aThread) { return aThread.Thread.value() == "PRRT_composed_1"; });
+			probe.Evidence.ServerAuthority = native != observed.ReviewThreads.end()
+				&& native->Subject == application::github_review_thread_subject::line && native->Comments.size() == 1U
+				&& native->Comments.front().Body == "BPR-0229 fixture publication.";
+			probe.Evidence.TypedQtProjection = index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("BPR-0229 fixture publication.")
+				&& !implementation->Window->conversation_model()->semantic_anchor(index);
+			if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority || !probe.Evidence.TypedQtProjection) {
+				return fail();
+			}
+			implementation->Window->choose_modality(qt::review_modality::review);
+			auto* const       comparison = implementation->Window->comparison_surface();
+			const auto* const left       = comparison->left_pane()->document();
+			const auto* const right      = comparison->right_pane()->document();
+			// An unchanged line with four unchanged neighbours on each side is
+			// outside the synthetic provider's three-line patch context.
+			for (int line = 4; line + 4 < std::min(left->blockCount(), right->blockCount()); ++line) {
+				bool unchanged = true;
+				for (int neighbour = line - 4; neighbour <= line + 4; ++neighbour) {
+					unchanged = unchanged && left->findBlockByNumber(neighbour).text() == right->findBlockByNumber(neighbour).text();
+				}
+				if (!unchanged || right->findBlockByNumber(line).text().isEmpty()) {
+					continue;
+				}
+				if (!clickRightLine(static_cast<std::uint32_t>(line)) || !comparison->selection()) {
+					return fail();
+				}
+				probe.OffHunkAnchor = comparison->selection()->PreferredLine;
+				break;
+			}
+			if (!probe.OffHunkAnchor || !editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
+				|| implementation->ReviewDraft->State != core::review_draft_state::drafting) {
+				return fail();
+			}
+			editor->body_editor()->setPlainText(QStringLiteral("BPR-0571 off-hunk publication."));
+			editor->publish_action()->trigger();
+			if (!implementation->ReviewDraft || implementation->ReviewDraft->State != core::review_draft_state::publishing) {
+				return fail();
+			}
+			return advance(state_type::phase::awaiting_fallback_conversation);
+		}
 
 		// The draft is anchored where the comparison's selection is, and the
 		// course needs it on the right side.
@@ -21421,6 +21566,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::sendEvent(pane->viewport(), &press);
 				QCoreApplication::sendEvent(pane->viewport(), &release);
 				return wait("REVIEW_ROUND_TRIP_EDITOR_SELECTION_STALLED", selectionFacts);
+			}
+			if (!probe.NativeLineChosen) {
+				const auto* left  = comparison->left_pane()->document();
+				const auto* right = comparison->right_pane()->document();
+				for (int line = 0; line < std::min(left->blockCount(), right->blockCount()); ++line) {
+					if (left->findBlockByNumber(line).text() != right->findBlockByNumber(line).text()
+						&& !right->findBlockByNumber(line).text().isEmpty()) {
+						probe.NativeLineChosen = clickRightLine(static_cast<std::uint32_t>(line));
+						break;
+					}
+				}
+				if (!probe.NativeLineChosen) {
+					return fail();
+				}
 			}
 			probe.Evidence.ExactDesignatedTarget
 				= implementation->ReviewMutationHost->designated() == designated;
@@ -21697,36 +21856,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return advance(state_type::phase::awaiting_retry);
 		}
 
-		const auto provider            = implementation->Fixture->review_mutation_evidence();
-		const auto statistics          = implementation->ReviewMutationHost->statistics();
-		probe.Evidence.RetryIdempotent = provider.Submissions == 2U
-			&& provider.StoredComments == 1U && provider.DuplicateReturned
-			&& statistics.EffectsQueued == 3U
-			&& statistics.TerminalsPublished == 3U
-			&& !implementation->RetryableReviewDraft.has_value()
-			&& implementation->ReviewDraft->State
-				== core::review_draft_state::published;
-		probe.Evidence.ServerAuthority
-			= implementation->ReviewProjection
-				== implementation->Fixture->review_comments()
-			&& implementation->ReviewProjection.size() == 1U
-			&& implementation->ReviewProjection.front().Body
-				== "BPR-0229 fixture publication.";
-		probe.Evidence.TypedQtProjection
-			= editor->shown_draft() == implementation->ReviewDraft
-			&& editor->mutation_status_text().contains(QStringLiteral("safe retry"))
-			&& editor->statistics().MutationUpdates >= 3U;
-		if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority
-			|| !probe.Evidence.TypedQtProjection
-			|| !probe.Evidence.SelectionDeferred
-			|| !probe.Evidence.LatestSelectionWins
-			|| !probe.Evidence.PendingCleared
-			|| !probe.Evidence.DeferredDraftExact
-			|| !probe.Evidence.StaleTerminalWithheld) {
+		// The receipt initiates a server refresh. That refresh can retire the
+		// editor's publication state before this observer runs, so the result
+		// is checked on the selected accepted conversation below.
+		const auto provider = implementation->Fixture->review_mutation_evidence();
+		if (provider.Submissions != 2U || provider.StoredComments != 1U || !provider.DuplicateReturned
+			|| provider.NativePosts != 1U || provider.FilePosts != 0U) {
 			return fail();
 		}
-		probe.Phase = state_type::phase::passed;
-		return result::passed;
+
+		return advance(state_type::phase::awaiting_native_conversation);
 	}
 
 	auto detail::github_application_fixture_access::exercise_threaded_reply(

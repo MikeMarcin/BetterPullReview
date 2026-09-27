@@ -1,3 +1,8 @@
+# BPR-0571: reviewed e12e0fda..this composition slice. Successful receipts
+# request the ordinary server read and select only the matching accepted
+# identity under the exact target, actor and comparison. No new write
+# authority; production mutation branch is unchanged. The fixture replaces
+# its root shortcut with the real protocol session and SQLite.
 # BPR-0569 reseal: reviewed 2deb889b..this normalization slice. Accepted read
 # and retained material now project file subjects through the strict codec;
 # exact selected context is rechecked and clears on source replacement. The
@@ -378,7 +383,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3026375f4e1eea0e5a34dc762f8f25623da82e234466ae3db68be408967eab4b"
+		"949e5f854d9c08f653cefc7e6a99c4a37ffef4a0afb51e8f804e0567745e113d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -529,7 +534,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "eb2ab5c2f3d58b7b3bcf7910a7e87ebe443a39a40541d37ecb652873b47f17f1"
+        "a9fdb06c517aa7389e72b362d4456e476beaab3a160b1a489af2dd3f6470cda9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -1119,6 +1124,7 @@ foreach(marker IN ITEMS
     GITHUB_FIXTURE_OK:github.com
     REVIEW_MUTATION_PROVIDER:fixture
     REVIEW_ROUND_TRIP_COMPOSITION_OK
+    SEMANTIC_COMMENT_COMPOSITION_OK:native-posts=2,file-posts=1,stored=2,journal-reopens=3,session-constructions=2
     REVIEW_ROUND_TRIP_COMPOSITION_EVIDENCE:11111111111111
     DORMANT_LIVE_PROVIDER_SELECTION:1:28/28:1:1
     WORKBENCH_HOST_COMPOSED_OK

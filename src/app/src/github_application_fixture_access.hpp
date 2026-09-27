@@ -331,11 +331,15 @@ namespace bpr::app::detail {
 
 	struct review_mutation_fixture_evidence
 	{
-		std::size_t TargetObservations = 0U;
-		std::size_t Submissions        = 0U;
-		std::size_t StoredComments     = 0U;
-		bool        LostResult         = false;
-		bool        DuplicateReturned  = false;
+		std::size_t TargetObservations   = 0U;
+		std::size_t Submissions          = 0U;
+		std::size_t StoredComments       = 0U;
+		std::size_t NativePosts          = 0U;
+		std::size_t FilePosts            = 0U;
+		std::size_t SessionConstructions = 0U;
+		std::size_t DurableJournalReads  = 0U;
+		bool        LostResult           = false;
+		bool        DuplicateReturned    = false;
 		/// [[BPR-0657]]. Replies published under a thread and thread
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;
