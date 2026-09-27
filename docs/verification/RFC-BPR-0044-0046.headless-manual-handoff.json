@@ -4,7 +4,7 @@
   "run_id": "bpr-pr-tour-cli-20260927",
   "segment_id": "headless-manual",
   "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
-  "status": "milestone-accepted-ready-to-land",
+  "status": "milestone-accepted-and-landed",
   "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
   "prior_main_revision": "f221373c8fafd69ae4ccdb0d6058b3fde079e061",
   "source_candidate_revision": "9c1c9447463d838e7306e3911316c28b8802dd76",
@@ -306,9 +306,10 @@
     "task_commands": [],
     "background_commands": [],
     "review_server": null,
-    "runtime_root": "build/bpr-headless-kx1ms8y9",
-    "runtime_cleanup": "Pending consumption of acceptance/checkpoint temporary files; remove only this task-owned runtime directory after durable handoff.",
-    "retained_resources": "Build directories dev/core-only/tour-cli and the two existing checkouts remain reusable. No new worktree."
+    "runtime_root": null,
+    "runtime_cleanup": "Consumed task-owned build/bpr-headless-kx1ms8y9 runtime/install/acceptance/log directory and its locator removed after checkpoint and evidence were committed. Build trees retained for continuation.",
+    "retained_resources": "Build directories dev/core-only/tour-cli and the two existing checkouts remain reusable. No new worktree.",
+    "released": true
   },
   "self_review": "Applied code-simplifier to the CLI adapter; reviewed exact target/revision admission, editor lease release and safe reopen, journal CAS/migration/crash recovery, pinned endpoint/blob identity, bounded output and cancellation. Final focused corrections verified. No independent reviewer was requested or claimed.",
   "pending_pack_obligations": [
@@ -329,5 +330,13 @@
   },
   "operator_refusals": [
     "An observational checkpoint check without its required observation file returned invalid; the complete exact-candidate observation returned fresh-context."
-  ]
+  ],
+  "main_landing": {
+    "revision": "a4cb0201aff96cd7626e6af2349291acbf99219a",
+    "method": "Safe fast-forward from clean local main at f221373c8fafd69ae4ccdb0d6058b3fde079e061; no push.",
+    "verified_on_main": true,
+    "result": "DOCUMENTATION_OK; scoped board valid:true (1214 cards); whitespace and worktree clean.",
+    "handoff_upkeep": "The documentation-only commit carrying this final cleanup/landing record is also fast-forwarded to main; resolve that final SHA from git history."
+  },
+  "post_landing_verification_revision": "a4cb0201aff96cd7626e6af2349291acbf99219a"
 }
