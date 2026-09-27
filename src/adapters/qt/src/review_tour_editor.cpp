@@ -63,18 +63,19 @@ namespace bpr::qt {
 			auto* column = new QVBoxLayout{ page };
 			column->addWidget(paragraph(aPrompt, page));
 			column->addWidget(paragraph(aHelp, page));
-			auto* editor = new QPlainTextEdit{ page };
+			auto* editor = new scoped_prose_editor{ page };
 			editor->setObjectName(aName);
 			editor->setAccessibleName(aTitle + tr(" Markdown source"));
 			editor->setTabChangesFocus(false);
 			editor->setMinimumHeight(130);
 			column->addWidget(editor, 1);
+			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, column);
 			auto* map = new QPushButton{ tr("Use selected description text"), page };
 			map->setObjectName(aName + QStringLiteral("Map"));
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
 			column->addWidget(map);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
-			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->toPlainText()); });
+			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->raw()); });
 			Roadmap->addTab(page, aTitle);
 			return editor;
 		};
@@ -111,7 +112,8 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 		Roadmap->addTab(previewPage, tr("Preview"));
-		connect(Roadmap, &QTabWidget::currentChanged, this, [this] { refresh_preview(); });
+		connect(Roadmap, &QTabWidget::currentChanged, this, [this] { if(WritingCancel){ WritingCancel();
+} refresh_preview(); });
 		layout->addWidget(Roadmap, 1);
 		Status = paragraph(tr("Open a pull request with an accepted account to prepare a private tour."), this);
 		Status->setObjectName(QStringLiteral("tourSaveStatus"));
@@ -166,13 +168,13 @@ namespace bpr::qt {
 		Action   = std::move(aAction);
 	}
 	auto review_tour_editor::import_choice() const -> std::size_t { return static_cast<std::size_t>(Imports->currentIndex()); }
-	void review_tour_editor::edit(core::tour_command_kind aKind, const QString& aText)
+	void review_tour_editor::edit(core::tour_command_kind aKind, const std::string& aText)
 	{
 		if (Applying || !Shown.Draft || !Dispatch) {
 			return;
 		}
 		EditingKind = aKind;
-		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Text = aText.toUtf8().toStdString() });
+		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Text = aText });
 	}
 	void review_tour_editor::present(const application::tour_presentation& aProjection)
 	{
@@ -203,11 +205,11 @@ namespace bpr::qt {
 		Title->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
 		Body->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
 		if (Shown.Draft && (Shown.Refusal == core::tour_refusal::none || !same)) {
-			update_text(Problem, Shown.Draft->Problem);
-			update_text(Solution, Shown.Draft->Solution);
+			Problem->present(Shown.Draft->Problem, !same);
+			Solution->present(Shown.Draft->Solution, !same);
 		} else if (!Shown.Draft) {
-			update_text(Problem, { });
-			update_text(Solution, { });
+			Problem->present({ }, !same);
+			Solution->present({ }, !same);
 		}
 		auto status = tr("Open a pull request with an accepted account to prepare a private tour.");
 		if (Shown.Loading) {
@@ -308,6 +310,34 @@ namespace bpr::qt {
 		}
 		Preview->set_body(std::move(body), std::to_string(Shown.Draft->Revision));
 	}
+	void review_tour_editor::set_writing_dispatch(std::function<void(core::writing_hook, prose_capture)> aRequest, std::function<void()> aCancel)
+	{
+		WritingRequest = std::move(aRequest);
+		WritingCancel  = std::move(aCancel);
+	}
+	auto review_tour_editor::writing_editor(core::writing_hook aHook) const -> scoped_prose_editor* { return aHook == core::writing_hook::problem ? Problem : aHook == core::writing_hook::solution ? Solution
+																										  : aHook == core::writing_hook::comment                                                    ? Body
+																																																	: nullptr; }
+	auto review_tour_editor::writing_visible(core::writing_hook aHook) const -> bool { return aHook == core::writing_hook::problem ? Roadmap->currentIndex() == 0 : aHook == core::writing_hook::solution ? Roadmap->currentIndex() == 1
+																																																		  : aHook == core::writing_hook::comment && Roadmap->currentIndex() == 2 && selected_stop(); }
+	void review_tour_editor::add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QVBoxLayout* aLayout)
+	{
+		auto* button = new QPushButton{ aEditor->parentWidget() };
+		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
+																																				: QStringLiteral("tourStopMagic"));
+		button->setFocusPolicy(Qt::NoFocus);
+		button->setToolTip(tr("Use the selected agent once. The result replaces only the captured text and can be undone."));
+		aLayout->addWidget(button);
+		const auto label = [aEditor, aHook, button] { button->setText(aEditor->textCursor().hasSelection() ? tr("Enhance selection") : core::writing_blank(aEditor->raw()) ? (aHook == core::writing_hook::comment ? tr("Generate comment") : tr("Recover explanation"))
+																																										   : tr("Enhance text")); };
+		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
+		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
+		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {if(!aEditor->isReadOnly() && WritingRequest) {if(auto captured=aEditor->capture()){ WritingRequest(aHook,std::move(*captured));
+}} });
+		aEditor->Invalidated = [this, label] {label();if(WritingCancel){ WritingCancel();
+} };
+		label();
+	}
 	void review_tour_editor::show_problem()
 	{
 		Roadmap->setCurrentIndex(0);
@@ -401,11 +431,12 @@ namespace bpr::qt {
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
 		fields->addWidget(Source);
-		Body = new QPlainTextEdit{ StopFields };
+		Body = new scoped_prose_editor{ StopFields };
 		Body->setObjectName(QStringLiteral("tourStopBody"));
 		Body->setAccessibleName(tr("Stop explanation Markdown source"));
 		Body->setMinimumHeight(130);
 		fields->addWidget(Body, 1);
+		add_writing_button(Body, core::writing_hook::comment, fields);
 		Related = new QListWidget{ StopFields };
 		Related->setObjectName(QStringLiteral("tourRelatedSources"));
 		Related->setAccessibleName(tr("Related source destinations"));
@@ -459,6 +490,9 @@ namespace bpr::qt {
 				}
 				show_notice(tr("Shorten the unsaved text or use native Undo before selecting another stop. Your full text is retained."));
 				return;
+			}
+			if (WritingCancel) {
+				WritingCancel();
 			}
 			Selected = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
 			Applying = true;
@@ -546,7 +580,7 @@ namespace bpr::qt {
 			if (Title->text() != QString::fromStdString(stop->Title)) {
 				Title->setText(QString::fromStdString(stop->Title));
 			}
-			update_text(Body, stop->Body);
+			Body->present(stop->Body);
 		}
 		if (changed) {
 			auto cursor = Body->textCursor();
@@ -602,7 +636,7 @@ namespace bpr::qt {
 		}
 		auto value  = *selected_stop();
 		value.Title = Title->text().toUtf8().toStdString();
-		value.Body  = Body->toPlainText().toUtf8().toStdString();
+		value.Body  = Body->raw();
 		EditingKind = core::tour_command_kind::edit_stop;
 		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
 	}
