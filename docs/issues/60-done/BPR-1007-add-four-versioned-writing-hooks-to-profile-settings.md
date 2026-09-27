@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1007"
 title: "Add four versioned writing hooks to profile settings"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1006"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-17","milestone":"scoped-ai","acceptance":["AC43-01","AC43-02"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC43-01","outcome":"pass","revision":"9b71342a02b44b1c9e22371d736d98a4e6febfed","evidence":{"kind":"observation","detail":"Manual Qt/Git composition passed13.75s; settings load/save/reset callback course launches no inference; explicit test uses existing host and no draft destination."}},{"criterion":"AC43-02","outcome":"pass","revision":"9b71342a02b44b1c9e22371d736d98a4e6febfed","evidence":{"kind":"observation","detail":"Four exact compiled defaults, independent profile overrides and monotonic revision, effective source/version, reset and explicit Test. Profile consumers, SQLite storage/migration and real Qt Settings pass3/3 in2.29s. Installed inference quality not claimed."}}]
 ---
 
 # BPR-1007: Add four versioned writing hooks to profile settings
