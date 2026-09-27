@@ -191,7 +191,8 @@ or passing manual-executor test is not evidence of composed desktop shutdown.
 
 ### Metadata snapshot and output
 
-`release_diagnostic_snapshot.cpp` classifies only the known Quill prefix into
+`release_diagnostic_snapshot.cpp` classifies the legacy Quill v1 prefix and
+BPR-1215's canonical flat JSONL v2 records into
 closed operation/outcome codes and numeric HTTP status/dropped counts. It omits
 timestamps, request/session identities and all free text. In particular,
 `detail=` is an unframed tail: even a later apparent `failure=` token can be
@@ -199,7 +200,11 @@ producer prose, so the default export omits the entire tail. This is a stricter
 subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
 Unknown, malformed and incomplete records are omitted and counted.
 
-Input is bounded to 16 MiB, 65,536 records and 8,192 bytes per line. Output is
+Input is bounded to 16 MiB and 65,536 records. The v1 line bound is 8,192
+bytes; v2 is at most 16 KiB including its newline. The v2 reader requires the
+writer's exact field order, bounded ASCII strings with quote/backslash escapes,
+and unsigned decimal integers. Unknown keys, duplicate keys, unsupported
+encodings, malformed syntax and partial tails are omitted without pass-through. Output is
 bounded to 1,024 records and 256 KiB. Input/work overflow refuses rather than
 silently scanning unbounded history. The host verifies the exact prepared
 bytes, count and SHA-256 against the descriptor. Preview and export share the
@@ -397,3 +402,22 @@ diagnostic-only clear, full populated-profile purge, preserved external export,
 lease release and corrupt-receipt startup refusal. The native vault is composed;
 real persistent credential/crash continuity and all-target acceptance remain
 M8/M9 evidence, not inferred from the fixture's synthetic sign-in.
+
+## RFC-BPR-0027 session retention integration
+
+BPR-1216 replaces the fixed-file sink with coordinated per-session segments.
+The application contract owns their closed leaf-name grammar so the logging and
+maintenance adapters agree without an adapter dependency. Preview enumerates
+only recognized private files under its existing 16 MiB/65,536-record bounds;
+unknown entries fail closed. An incomplete tail is made unparseable before the
+next file is considered and contributes one omission. The exact frozen metadata
+preview and local export authority remain unchanged.
+
+Clear/purge captures all recognized segments and the legacy file after producer
+retirement. It preserves `logs/.retention.lock` and the containing directory so
+another cooperating owner cannot acquire a replacement coordination inode.
+Regular session retention protects active current files, rechecks private native
+identities and bounds directory inspection to 128 entries. Tests cover separate
+processes, native write failure, rotation obstruction, age, capacity, public
+startup cancellation and ordinary shutdown. These Mac results do not supply
+Windows/Linux native acceptance, crash durability or later diagnostic controls.

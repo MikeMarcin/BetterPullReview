@@ -1,5 +1,6 @@
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "../../native/windows_private_storage.hpp"
+#include "bpr/application/diagnostic_log_files.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
@@ -213,7 +214,7 @@ namespace bpr::adapters::sqlite {
 			if (aPath == "logs") {
 				return aDirectory;
 			}
-			if (aPath == "logs/diagnostics.log") {
+			if (aPath.starts_with("logs/") && application::diagnostic_log_file(aPath.substr(5U))) {
 				return !aDirectory;
 			}
 			if (!aPurge) {
@@ -620,7 +621,7 @@ namespace bpr::adapters::sqlite {
 				fail(reason::selection_changed);
 			}
 			if (::unlinkat(directory.Value, leaf(aItem.Path).c_str(), aItem.Directory ? AT_REMOVEDIR : 0) != 0) {
-				if (aItem.Directory && errno == ENOTEMPTY && (aItem.Path == "state" || aItem.Path == "state/v1")) {
+				if (aItem.Directory && errno == ENOTEMPTY && (aItem.Path == "state" || aItem.Path == "state/v1" || aItem.Path == "logs")) {
 					return;
 				}
 				fail(reason::recovery_required);
@@ -656,7 +657,7 @@ namespace bpr::adapters::sqlite {
 					fail(reason::limit_exceeded);
 				}
 				const auto path = aPrefix.empty() ? std::string{ name } : std::string{ aPrefix } + "/" + std::string{ name };
-				if (excluded(path) || (!aPurge && aPrefix.empty() && path != "logs")) {
+				if (path == "logs/.retention.lock" || excluded(path) || (!aPurge && aPrefix.empty() && path != "logs")) {
 					continue;
 				}
 				auto observedEntry = inspect(aDirectory, name);
@@ -1080,7 +1081,7 @@ namespace bpr::adapters::sqlite {
 			// a removal there with "not empty", which is accepted below; Windows
 			// refuses the DELETE handle first, with a sharing violation. So they
 			// are kept, without asking, while they still hold anything.
-			if (aItem.Directory && (aItem.Path == "state" || aItem.Path == "state/v1") && !empty_directory(path_for(directory.Value, leaf(aItem.Path)))) {
+			if (aItem.Directory && (aItem.Path == "state" || aItem.Path == "state/v1" || aItem.Path == "logs") && !empty_directory(path_for(directory.Value, leaf(aItem.Path)))) {
 				return;
 			}
 			auto object = open_native(directory.Value, leaf(aItem.Path), DELETE, FILE_SHARE_READ);
@@ -1094,7 +1095,7 @@ namespace bpr::adapters::sqlite {
 			auto disposition  = FILE_DISPOSITION_INFO_EX{ };
 			disposition.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
 			if (!::SetFileInformationByHandle(object.Value, FileDispositionInfoEx, &disposition, sizeof(disposition))) {
-				if (aItem.Directory && ::GetLastError() == ERROR_DIR_NOT_EMPTY && (aItem.Path == "state" || aItem.Path == "state/v1")) {
+				if (aItem.Directory && ::GetLastError() == ERROR_DIR_NOT_EMPTY && (aItem.Path == "state" || aItem.Path == "state/v1" || aItem.Path == "logs")) {
 					return;
 				}
 				fail(reason::recovery_required);
@@ -1136,7 +1137,7 @@ namespace bpr::adapters::sqlite {
 				name.reserve(nativeName.size());
 				std::ranges::transform(nativeName, std::back_inserter(name), [](wchar_t aCharacter) { return static_cast<char>(aCharacter); });
 				const auto relative = aPrefix.empty() ? name : std::string{ aPrefix } + "/" + name;
-				if (excluded(relative) || (!aPurge && aPrefix.empty() && relative != "logs")) {
+				if (relative == "logs/.retention.lock" || excluded(relative) || (!aPurge && aPrefix.empty() && relative != "logs")) {
 					continue;
 				}
 				auto observed = inspect(aDirectory, name);
@@ -1230,6 +1231,31 @@ namespace bpr::adapters::sqlite {
 			}
 		};
 #endif
+		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop) -> std::string
+		{
+			if (!inspect(aRoot, "logs")) {
+				return { };
+			}
+			auto               logs = open_directory(aRoot, "logs");
+			std::vector<entry> entries;
+			scan(logs.Value, "logs", false, entries, aStop);
+			std::ranges::sort(entries, { }, &entry::Path);
+			std::string bytes;
+			std::size_t inputBytes = 0U;
+			for (const auto& item : entries) {
+				cancelled(aStop);
+				auto part = read_file(logs.Value, leaf(item.Path), application::release_diagnostic_input_limit - inputBytes);
+				inputBytes += part.size();
+				// Count original input even when discarding a tail. One empty line is
+				// one omission; no partial prefix can join the next file's first line.
+				if (!part.empty() && part.back() != '\n') {
+					part.resize(part.rfind('\n') + 1U);
+					part.push_back('\n');
+				}
+				bytes += part;
+			}
+			return bytes;
+		}
 		void validate_cache_manifests(native_handle aRoot, const std::vector<entry>& aEntries)
 		{
 			for (const auto& item : aEntries) {
@@ -1443,12 +1469,8 @@ namespace bpr::adapters::sqlite {
 				fail(reason::recovery_required);
 			}
 			if (aContext.Operation == command::preview_diagnostics) {
-				std::string bytes;
-				if (inspect(self.RootHandle.Value, "logs")) {
-					auto logs = open_directory(self.RootHandle.Value, "logs");
-					bytes     = read_file(logs.Value, "diagnostics.log", application::release_diagnostic_input_limit);
-				}
-				auto document = application::prepare_release_diagnostics(bytes, revision);
+				const auto bytes    = read_diagnostic_files(self.RootHandle.Value, aStop);
+				auto       document = application::prepare_release_diagnostics(bytes, revision);
 				if (!document) {
 					fail(document.error());
 				}

@@ -1,0 +1,56 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and standalone codec build pass. Canonical, hostile, SHA-256 and GHES codec fixtures plus core, composition, architecture and isolation selectors pass 5/5. Exact 64 KiB boundary and byte-preserved Unicode prose are exercised; parsing requires retained endpoint provenance and produces no mutation. Targeted tidy/format and documentation gates pass.",
+        "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and standalone codec build pass. Canonical, hostile, SHA-256 and GHES codec fixtures plus core, composition, architecture and isolation selectors pass 5/5. Exact 64 KiB boundary and byte-preserved Unicode prose are exercised; parsing requires retained endpoint provenance and produces no mutation. Targeted tidy/format and documentation gates pass.",
+        "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and standalone codec build pass. Canonical, hostile, SHA-256 and GHES codec fixtures plus core, composition, architecture and isolation selectors pass 5/5. Exact 64 KiB boundary and byte-preserved Unicode prose are exercised; parsing requires retained endpoint provenance and produces no mutation. Targeted tidy/format and documentation gates pass.",
+        "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and standalone codec build pass. Canonical, hostile, SHA-256 and GHES codec fixtures plus core, composition, architecture and isolation selectors pass 5/5. Exact 64 KiB boundary and byte-preserved Unicode prose are exercised; parsing requires retained endpoint provenance and produces no mutation. Targeted tidy/format and documentation gates pass.",
+        "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and standalone codec build pass. Canonical, hostile, SHA-256 and GHES codec fixtures plus core, composition, architecture and isolation selectors pass 5/5. Exact 64 KiB boundary and byte-preserved Unicode prose are exercised; parsing requires retained endpoint provenance and produces no mutation. Targeted tidy/format and documentation gates pass.",
+        "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    }
+  ]
+}

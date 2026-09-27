@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba",
+      "evidence": {
+        "kind": "observation",
+        "detail": "28 retained payloads match PACK-MANIFEST; immutable LIVE_IMPORT retains all 15 ID mappings."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba",
+      "evidence": {
+        "kind": "observation",
+        "detail": "RFC-0008 unchanged from assignment source revision."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba",
+      "evidence": {
+        "kind": "observation",
+        "detail": "All fifteen canonical RFC acceptance criteria remain in the live verification matrix."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba",
+      "evidence": {
+        "kind": "observation",
+        "detail": "33 source/test paths exist; recovery schema 3, current CTest inventory and open external/canonical obligations recorded in source-audit.json."
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba",
+      "evidence": {
+        "kind": "observation",
+        "detail": "verify_documentation.py and git diff --check pass."
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # RFC-BPR-0022 Verification Plan
 
-Status: **imported plan; implementation deferred; no criterion satisfied**
+Status: **implementation active under mandate r1; milestone A in progress; no full RFC criterion yet satisfied**
 
 RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -97,3 +97,33 @@ admission with no native attempt. Unresolved native attempts cannot use this rou
 Only pack integrity, mapping/dependency/status consistency, documentation checks,
 and diff whitespace are verified by this import. No build, CTest, UI, migration,
 agent, GitHub, or GHES feature evidence was run. See [import record](../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md).
+
+## Milestone A readiness — 2026-09-26
+
+The [authored four-milestone plan](../rfcs/plans/rfc-bpr-0022-off-hunk-comments/MILESTONES.md)
+is adopted; BPR-0561 records its current-source audit. The retained pack and
+legacy planning snapshot remain immutable. Recovery is now schema 3, so BPR-0567
+must preserve v1/v2 inline origins and v3 whole-review tables. Existing left-side
+replies and ordinary exact user-Publish grants remain supported.
+
+The readiness slice made no product claims. Milestone A adds the pure policy,
+exact source admission and isolated canonical codec; the provider fallback,
+transactional recovery, rehydration and Qt route remain milestone B/C work.
+The fifteen canonical claim rows above remain the final acceptance authority,
+subject to the explicit owner amendment below.
+
+### Owner amendments at milestone A
+
+The owner requested main integration after each milestone. Accepted milestone A
+returns to the coordinator for main integration before milestone B begins.
+The owner also narrowed direct live evidence to GitHub.com because no suitable
+GHES target is available. GHES automated contract/fixture checks remain required;
+native GHES behavior must be reported as unobserved, not passed.
+
+The owner authorized creation of a safe PR in `MikeMarcin/BPR-Test`; the
+coordinator designated [PR 2](https://github.com/MikeMarcin/BPR-Test/pull/2).
+Exact initial base/head and fixture lines are in
+[mandate r2](../issues/_checkpoints/BPR-0575/mandate-r2.json). Milestone A performed
+no live mutation. The later live course must refresh the PR/actor/head seal.
+Canonical RFC closeout sequencing is unchanged; this is implementation
+integration, not final RFC acceptance.

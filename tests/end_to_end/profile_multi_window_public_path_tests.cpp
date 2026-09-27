@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -843,14 +844,13 @@ try {
 	}();
 	expect(sinkStatus == application::diagnostic_log_status::available, "this platform reports its diagnostics file sink");
 	if (sinkStatus != application::diagnostic_log_status::available) {
-		expect(!std::filesystem::exists(root / "logs/diagnostics.log"), "no diagnostics file is written where the platform has no file sink");
+		expect(bpr::tests::diagnostic_files(root).empty(), "no diagnostics file is written where the platform has no file sink");
 	} else {
-		std::ifstream     stream{ root / "logs/diagnostics.log" };
-		const std::string log{ std::istreambuf_iterator<char>{ stream }, { } };
-		const auto        started = log.find("op=application outcome=started");
-		const auto        stopped = log.find("op=application outcome=shutdown");
-		expect(started != std::string::npos && log.find("op=application outcome=started", started + 1U) == std::string::npos, "one profile services startup");
-		expect(stopped != std::string::npos && log.find("op=application outcome=shutdown", stopped + 1U) == std::string::npos, "one profile services shutdown");
+		const auto log     = bpr::tests::read_diagnostic_logs(root);
+		const auto started = log.find("\"op\":\"application\",\"outcome\":\"started\"");
+		const auto stopped = log.find("\"op\":\"application\",\"outcome\":\"shutdown\"");
+		expect(started != std::string::npos && log.find("\"op\":\"application\",\"outcome\":\"started\"", started + 1U) == std::string::npos, "one profile services startup");
+		expect(stopped != std::string::npos && log.find("\"op\":\"application\",\"outcome\":\"shutdown\"", stopped + 1U) == std::string::npos, "one profile services shutdown");
 	}
 	std::cout << "profile-multi-window-public-path:pass\n";
 	return EXIT_SUCCESS;

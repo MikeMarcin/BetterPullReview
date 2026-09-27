@@ -122,6 +122,9 @@ namespace bpr::application {
 			-> const core::workbench_interaction_state&;
 		[[nodiscard]] auto layout() const noexcept
 			-> const workbench_layout_settings&;
+		/// \brief Returns an accepted changed-file entry through the retained identity index.
+		[[nodiscard]] auto file_observation(core::workbench_file_id aFile) const -> std::optional<workbench_file_observation_entry>;
+
 		[[nodiscard]] auto contains_file(core::workbench_file_id aFile) const noexcept -> bool;
 		[[nodiscard]] auto actionable() const noexcept
 			-> std::span<const core::workbench_file_id>;

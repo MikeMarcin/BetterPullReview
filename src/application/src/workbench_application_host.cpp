@@ -2097,6 +2097,12 @@ namespace bpr::application {
 		return Implementation->Layout;
 	}
 
+	auto workbench_application_host::file_observation(const core::workbench_file_id aFile) const -> std::optional<workbench_file_observation_entry>
+	{
+		const auto position = Implementation->file_position(aFile);
+		return position ? std::optional{ Implementation->Files[*position] } : std::nullopt;
+	}
+
 	auto workbench_application_host::contains_file(const core::workbench_file_id aFile) const noexcept -> bool
 	{
 		return Implementation->file_position(aFile).has_value();

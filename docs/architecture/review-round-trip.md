@@ -741,3 +741,127 @@ The three new SQLite-backed fixtures use the existing Windows DOS-volume-name
 exception because they call the unchanged retained-ancestor path. That cause
 reuses BPR-0362 evidence; no new native Windows run is claimed. macOS/Linux
 registrations remain network-contained.
+
+## Semantic source-line publication policy (RFC-BPR-0022)
+
+Milestone A adds the provider-free `review_publication_policy` contract. It
+consumes exact host eligibility and bounded placement/capability/body facts.
+Legacy placement always selects native publication; unknown placement also
+selects native even when the repository's off-hunk capability is unsupported.
+Fresh scoped unsupported evidence plus proven off-hunk placement first asks
+for durable evidence admission. It cannot directly prepare a fallback child.
+
+Durable native rejection and first-attempt evidence admission are distinct
+states. Only either committed authorization can prepare a fallback. A native
+transmission witness selects native reconciliation and cannot enter either
+fallback admission path. Unknown results, cancellation, timeout, malformed
+success and GET absence supply no terminal event. An exact non-creation terminal
+may retire a witness; only the exact unsupported event authorizes fallback.
+Success is terminal and retains its representation for duplicate receipt replay.
+
+Fenced suggestion bodies require a line subject. The core conservatively
+recognizes backtick/tilde fences and whitespace in the info string; a required
+fallback returns typed incompatibility. Native publication remains available.
+This pure contract is preparatory: the provider and transactional recovery
+integration remain milestone B work. Existing ordinary publication continues
+through RFC-BPR-0008's coordinator and exact user or attended authority.
+
+### Immutable permalink codec (BPR-0564)
+
+The GitHub adapter's `review_comment_permalink` codec accepts an exact retained
+right-side endpoint minted by the epoch host, its file-comparison key, the
+connected target, and the text line count observed for that blob. It checks the
+endpoint's authority, comparison, algorithm, path and blob before interpreting
+a remote line. Compilation additionally requires the current target head;
+rehydration can use an exact historical retained endpoint. The caller still
+proves changed-file membership and a file-subject root in the expected PR.
+Parsing alone never grants publication authority.
+
+The visible grammar is one bare canonical HTTPS permalink, two LF bytes, then
+non-empty UTF-8 reviewer prose. The codec preserves accepted prose byte for byte
+and caps the combined body at 64 KiB. It rejects leading extra blank lines,
+control bytes, and a second code-permalink-shaped URL in the prose, preserving
+one unambiguous semantic anchor. It never follows a URL or performs a mutation.
+
+Path segments use uppercase percent escapes, with slash only between segments.
+Dot segments, backslashes, controls, malformed UTF-8 and paths over 4 KiB are
+refused. The parser compares the complete authority/path/commit/query prefix to
+its canonical compiler form; alternate ports, userinfo, escaped separators,
+foreign repositories, abbreviated OIDs and query/fragment additions therefore
+cannot normalize into a trusted anchor. Fragments are canonical positive decimal
+`#L` numbers, converted to zero-based semantic lines only after the exact blob's
+line bound passes.
+
+The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`,
+`.mkd`, `.mdwn`, `.mdx` and `.litcoffee`, matched without case. These use
+`?plain=1`; other source paths have no query. This set follows the [GitHub
+Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
+observed on 2026-09-26. Provider publication, recovery and read normalization
+connect this codec in the subsequent authored milestones.
+
+### RFC-0022 logical journal (schema 4)
+
+Schema 4 adds `logical_publication` transactionally after exact validation of
+schemas 1–3. Existing native attempts, baselines, whole-review attempts and
+receipts keep their original bytes and semantics. Legacy recovery remains the
+native path; a migrated unresolved attempt is never turned into fresh admission.
+The new journal stores one versioned bounded binary parent with at most two
+children and a SHA-256 digest covering the complete record, including baselines.
+Both journals share the 1,024-publication limit per authority scope.
+
+A parent retains its logical fingerprint and legacy alias. The alias is unique
+within its scope: an existing legacy row refuses new logical admission, and a
+logical parent refuses legacy admission under that alias. Each child key is
+SHA-256 over `bpr-review-child-v1:`, the parent key and either
+`:native-wire-v1` or `:file-wire-v1:permalink-v1:body-v1`. Child fingerprints bind
+the exact canonical wire; the parent fingerprint binds the logical contract.
+All integers in the stored binary format are unsigned 64-bit little-endian;
+text is an eight-byte length followed by exact bytes and digests are 32 bytes.
+The binary format starts with revision 1. Stored enum and text bounds are checked
+before use; a digest-valid but invalid state is still refused.
+
+Compare-and-swap commits exactly one core-legal state transition and its child
+witness or receipt. Fallback requires a previously committed exact native
+non-creation rejection, or an initial scoped-evidence admission with no native
+child. Its authorization stores the contract/scope digests and, for cached
+observations, generation and observed/expiry seconds. A native transmission
+witness cannot be replaced by cached evidence. A succeeded child and its receipt
+commit together; a baseline ID cannot become that receipt. Prepared children
+that survive interruption remain conservatively non-retryable. The session may
+reconcile only a possibly transmitted child; it never treats GET absence as
+permission for another POST.
+
+### RFC-0022 serialized negotiation
+
+The mutation host passes the retained endpoint, comparison key, text extent and
+placement only after its exact-source check. The existing coordinator carries
+that source through the consumed gesture grant to the serialized provider
+session. New root publications use the logical journal; replies retain the
+existing thread path and legacy identities resolve through their old rows.
+
+Each child observes actor and target before admission and again immediately
+before POST. The transport's one-shot witness commits the corresponding
+possibly-transmitted state before permitting the write. A complete exact
+non-creation response commits native rejection before the file child can be
+prepared. First-attempt cache evidence instead commits its own admission without
+a native child. Prepared children found on restart do not POST; possibly-sent
+children reconcile through GET and their persisted baseline. Successful parents
+return their exact receipt. Neither a lost response nor a generic 422 can enable
+fallback. Cancellation after transmission retains one bounded reconciliation.
+
+Capability evidence is session-owned, expires within 300 monotonic seconds, and
+is keyed by the full authority, operation/API/classifier revisions and identity
+generation. The key also binds the exact commit, path and line: a successful or
+unsupported anchor does not establish repository-wide behavior. A new session
+starts unknown for new logical attempts; already committed evidence admission
+remains authority for that same immutable attempt after restart.
+
+`github_review_comment_permalink` composes the actual session and SQLite journal
+with canonical fixture wire exchanges, including GitHub.com/GHES routes,
+negotiation, exact-anchor cache reuse, interruption at each durable boundary,
+legacy/logical alias protection, cancellation and lost-response recovery.
+`application_review_mutation_application_host` pins the retained-source handoff;
+`native_https_transport_fixture` pins complete 422 delivery and truncated 422
+refusal. These are synthetic evidence. Production still supplies no admitted
+unsupported-response contract; BPR-0573 must establish any such exact tuple
+before production fallback is enabled.

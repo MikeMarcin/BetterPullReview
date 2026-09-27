@@ -1,0 +1,40 @@
+{
+  "revision": "fa20ff5868a7b59b5df5771b688370fe26672365",
+  "pack_payload_count": 28,
+  "pack_payload_integrity": "pass",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "recovery_schema": 3,
+  "future_migration": "Preserve v1/v2 native attempts and v3 whole-review submission tables; next schema allocation belongs to BPR-0567.",
+  "public_course": "application_review_round_trip_composition_contract",
+  "focused_selectors": [
+    "architecture_boundaries",
+    "live_mutation_isolation",
+    "live_mutation_isolation_contract",
+    "core_review_round_trip",
+    "core_revisioned_review_draft",
+    "application_review_mutation_application_host",
+    "application_review_mutation",
+    "sqlite_review_mutation_recovery_storage",
+    "qt_composed_github_scale_100",
+    "qt_composed_github_scale_125",
+    "qt_composed_github_scale_200",
+    "qt_github_thread_map_scale_100",
+    "qt_github_thread_map_scale_125",
+    "qt_github_thread_map_scale_200",
+    "qt_review_draft_editor",
+    "github_mutation_contract",
+    "live_review_mutation_provider",
+    "live_review_mutation_restart_recovery",
+    "application_review_round_trip_composition_contract"
+  ],
+  "external_obligations": [
+    "No designated live target supplied; BPR-0573 remains pending.",
+    "RFC-0020/0021 remain Deferred in canonical index; no out-of-order closeout.",
+    "Existing RFC-0008 live followups retain their own scope; Auto-Verified is an owner-amended status."
+  ],
+  "source_drift": [
+    "Left replies are supported under BPR-0657; RFC0022 root eligibility must not remove them.",
+    "Ordinary tests-disabled user Publish now has a one-use exact-request grant; attended launch is a separate qualification route. BPR-0571 import wording must be reconciled when implemented.",
+    "Recovery schema is 3, not pack v2; includes whole-review submission recovery."
+  ]
+}

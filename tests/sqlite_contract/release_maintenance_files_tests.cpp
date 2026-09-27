@@ -166,6 +166,10 @@ namespace {
 		scratch root;
 		scratch destination;
 		seed(root.Path);
+		const auto segment = root.Path / "logs/session-00000000000000000000000000000001-00000001.jsonl";
+		write(segment, "2026-09-20T01:00:00Z v=1 op=application outcome=started request=99 http_status=0 summary=absent dropped=0 detail=partial diagnostic tail");
+		write(root.Path / "logs/session-00000000000000000000000000000002-00000001.jsonl", "2026-09-20T01:00:00Z v=1 op=application outcome=shutdown request=1 http_status=0 summary=absent dropped=0 detail=\n");
+		write(root.Path / "logs/.retention.lock", "");
 		auto                                              owner = lease(root.Path);
 		credentials                                       vault;
 		adapters::sqlite::release_maintenance_files       files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U }, &vault };
@@ -179,6 +183,9 @@ namespace {
 		drain();
 		expect(host.state().Prepared && projection.Last.Preview, "native snapshot reaches host projection");
 		auto expected = *projection.Last.Preview;
+		expect(expected.find("outcome=5") != std::string::npos && expected.find("partial") == std::string::npos, "a partial session tail cannot swallow the following file or escape classification");
+		const auto snapshot = std::get<core::release_diagnostic_snapshot>(host.state().Prepared->Selection);
+		expect(snapshot.Records == 2U && snapshot.OmittedRecords == 2U, "one partial tail is counted once alongside the malformed legacy record");
 		expect(expected.find("CANARY") == std::string::npos && expected.find("99") == std::string::npos, "actual snapshot has no source, comment, token or request id");
 		auto output = adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.txt");
 		expect(output.has_value(), "local output admitted");
@@ -200,7 +207,7 @@ namespace {
 		host.dispatch({ files.authority(), command::clear_diagnostics, host.state().Prepared });
 		drain();
 		expect(host.state().Phase == core::release_maintenance_phase::completed && vault.Erased == 0
-				   && !fs::exists(root.Path / "logs") && fs::exists(root.Path / "state/v1/appearance-settings.sqlite3"),
+				   && fs::exists(root.Path / "logs/.retention.lock") && !fs::exists(segment) && !fs::exists(root.Path / "logs/diagnostics.log") && fs::exists(root.Path / "state/v1/appearance-settings.sqlite3"),
 			   "clear owns only log artifacts and leaves credentials and stores");
 		host.dispatch({ files.authority(), command::prepare_purge, { } });
 		drain();

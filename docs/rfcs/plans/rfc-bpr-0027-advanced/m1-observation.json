@@ -1,0 +1,130 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m1",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "structured-events",
+    "definition_fingerprint": "sha256:d1f8847e3af95ae7bd1c229256634fa186b20a750bdb9e6238ea19ced5bc6ca8",
+    "obligations": [
+      {
+        "id": "BPR-1215:*",
+        "source": "BPR-1215",
+        "selector": null,
+        "source_fingerprint": "sha256:2fd15f687a0ab3ee8b78c10050c17d8d40d5866792e574638b78a83d702086b1"
+      }
+    ],
+    "obligation_fingerprint": "sha256:5f49c58c6a8950ba45e1421a8612a448d1afe258cea3b5e28b9bdd46522484d4",
+    "exit_criteria": [
+      {
+        "id": "structured-events:exit:1",
+        "text": "AC1: Persist parseable bounded structured records with explicit event identity, times, session, sequence, build and existing typed facts."
+      },
+      {
+        "id": "structured-events:exit:2",
+        "text": "AC2: Preserve BPR-0971 sanitizer and fail-closed malformed input, loss and file boundaries."
+      },
+      {
+        "id": "structured-events:exit:3",
+        "text": "AC3: Exercise provider-to-file public composition and existing diagnostic export; update owning docs."
+      },
+      {
+        "id": "structured-events:exit:4",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "structured-events",
+  "disposition": "milestone-complete",
+  "candidate_revision": "857d93624aa3acb1e7f590969ae25aecf93a8993",
+  "handoff_ref": "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#M1-checkpoint",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md",
+    "docs/issues/60-done/BPR-1215-structured-events.md",
+    "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1215:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1215-structured-events.md",
+        "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "structured-events:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1215-structured-events.md",
+        "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "structured-events:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1215-structured-events.md",
+        "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "structured-events:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1215-structured-events.md",
+        "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "structured-events:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1215-structured-events.md",
+        "git:857d93624aa3acb1e7f590969ae25aecf93a8993:main-and-origin/main"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "session-retention",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1215 accepted and pushed on main; fresh implementer owns BPR-1216. Later full-RFC/native/human obligations remain open."
+  },
+  "ownership": "quiescent"
+}

@@ -1,0 +1,163 @@
+{
+  "schema": "rfc0022.milestone-evidence.v1",
+  "assignment": "/root/rfc0022_m1",
+  "mandate_revision": "r2",
+  "milestone": "a-semantic-contract",
+  "source_candidate": "71a6e54b82812e4fbf657d358b4eb69f52949f00",
+  "board_candidate": "8734b90710ea97fab7131316aacd32a35288e7c5",
+  "accepted_cards": [
+    "BPR-0561",
+    "BPR-0562",
+    "BPR-0563",
+    "BPR-0564"
+  ],
+  "commits": [
+    "d8afb257979dd986c2a9f7be8d59d3c64d528903 docs: activate RFC-0022 and adopt authored milestones",
+    "46bee02229eafbffcd08eea7fabb7d8961114cf7 docs: make RFC-0022 readiness slice eligible",
+    "e4c946bc2551fd9e36fdfdb74e64598b411bd2ba Claim BPR-0561",
+    "8b5da857cedbda2cc59c75431691462f9cb3d3d8 Finish BPR-0561",
+    "20c7d81a86948a75d46e38ffd51ce6b4e63ad908 docs: make RFC-0022 core policy eligible",
+    "e668e471be9287c51ea9a97de9b98a369cee2b40 Claim BPR-0562",
+    "1bc5b10984753ac933ceeae76a0f4e3c5f37faf3 feat: define off-hunk publication policy and durable transitions",
+    "9805ba58a92348b01c1a9b83dd79efb57dfac45d Finish BPR-0562",
+    "d32bc8c65c2dbf5483c626708bd1e93a13514549 docs: make RFC-0022 anchor binding eligible",
+    "9ee0350f1131210bf1cb8387f45388d8b9651416 Claim BPR-0563",
+    "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a feat: bind publication to accepted exact source material",
+    "753282758696ab10e4931874891704d44d90a89f Finish BPR-0563",
+    "7e3a3454c790671b192ab43aea471476f1bfb22b docs(rfc0027): reserve advanced diagnostic milestone cards",
+    "7cf4c5d2f8d228f64dd26e1d32e46f6cf447b511 docs: make RFC-0022 permalink codec eligible",
+    "94e90834bfd582316285eab6ccd321202926930f Claim BPR-0564",
+    "71a6e54b82812e4fbf657d358b4eb69f52949f00 feat: compile and parse exact immutable review permalinks",
+    "8734b90710ea97fab7131316aacd32a35288e7c5 Finish BPR-0564"
+  ],
+  "changed_paths": [
+    "docs/architecture/review-round-trip.md",
+    "docs/issues/10-backlog/BPR-0561-plan-import-and-architecture.md",
+    "docs/issues/10-backlog/BPR-0562-core-publication-placement-policy.md",
+    "docs/issues/10-backlog/BPR-0563-exact-anchor-and-placement-observations.md",
+    "docs/issues/10-backlog/BPR-0564-canonical-permalink-contract.md",
+    "docs/issues/10-backlog/BPR-0565-github-wire-and-unsupported-classifier.md",
+    "docs/issues/10-backlog/BPR-0566-publication-capability-evidence.md",
+    "docs/issues/10-backlog/BPR-0567-logical-publication-recovery.md",
+    "docs/issues/10-backlog/BPR-0568-native-fallback-negotiation.md",
+    "docs/issues/10-backlog/BPR-0569-fallback-normalization-thread-map.md",
+    "docs/issues/10-backlog/BPR-0570-qt-comment-anywhere-ux.md",
+    "docs/issues/10-backlog/BPR-0571-compose-public-path.md",
+    "docs/issues/10-backlog/BPR-0572-automated-security-recovery-verification.md",
+    "docs/issues/10-backlog/BPR-0573-designated-live-native-fallback-evidence.md",
+    "docs/issues/10-backlog/BPR-0574-documentation-and-simplification.md",
+    "docs/issues/10-backlog/BPR-0575-anchor-rfc-0022-verification.md",
+    "docs/issues/60-done/BPR-0561-plan-import-and-architecture.md",
+    "docs/issues/60-done/BPR-0562-core-publication-placement-policy.md",
+    "docs/issues/60-done/BPR-0563-exact-anchor-and-placement-observations.md",
+    "docs/issues/60-done/BPR-0564-canonical-permalink-contract.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_checkpoints/BPR-0575/bpr0561-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0562-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0563-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0564-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/m1-binding-r2.json",
+    "docs/issues/_checkpoints/BPR-0575/m1-binding.json",
+    "docs/issues/_checkpoints/BPR-0575/m1-evidence.json",
+    "docs/issues/_checkpoints/BPR-0575/m1-frontier.md",
+    "docs/issues/_checkpoints/BPR-0575/mandate-r1.json",
+    "docs/issues/_checkpoints/BPR-0575/mandate-r2.json",
+    "docs/issues/_checkpoints/BPR-0575/preparation/IMPLEMENTATION_ORDER.md",
+    "docs/issues/_checkpoints/BPR-0575/preparation/legacy-source.json",
+    "docs/issues/_checkpoints/BPR-0575/preparation/prepare-receipt.json",
+    "docs/issues/_checkpoints/BPR-0575/preparation/proposal.json",
+    "docs/issues/_checkpoints/BPR-0575/source-audit.json",
+    "docs/issues/_checkpoints/BPR-0575/strategy-selection.json",
+    "docs/issues/_reservations/BPR-1215--BPR-1219--addfcd48a907.json",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+    "docs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md",
+    "docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/source.json",
+    "docs/verification/RFC-BPR-0022.md",
+    "src/adapters/github/CMakeLists.txt",
+    "src/adapters/github/src/review_comment_permalink.cpp",
+    "src/adapters/github/src/review_comment_permalink.hpp",
+    "src/app/src/github_application.cpp",
+    "src/application/include/bpr/application/review_mutation_application_host.hpp",
+    "src/application/include/bpr/application/workbench_application_host.hpp",
+    "src/application/src/review_mutation_application_host.cpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/core/CMakeLists.txt",
+    "src/core/include/bpr/core/review_publication_policy.hpp",
+    "src/core/src/review_publication_policy.cpp",
+    "tests/application/review_mutation_application_host_tests.cpp",
+    "tests/core/review_round_trip_tests.cpp",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/github_contract/CMakeLists.txt",
+    "tests/github_contract/review_comment_permalink_tests.cpp"
+  ],
+  "commands": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_review_comment_permalink_tests test_better_pull_review_review_round_trip_core_tests -j 6",
+      "result": "pass",
+      "log": "build/rfc0022/m1-final-build.log"
+    },
+    {
+      "command": "ctest --preset dev -R '^(core_review_round_trip|github_review_comment_permalink|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure",
+      "result": "5/5 pass",
+      "log": "build/rfc0022/m1-final-tests.log"
+    },
+    {
+      "command": "ctest --preset dev -R '^application_review_mutation_application_host$' --output-on-failure",
+      "result": "1/1 pass; source unchanged after e96a62f4",
+      "log": "build/rfc0022/host-tests.log"
+    },
+    {
+      "command": "ctest --preset core-only -R '^core_review_round_trip$' --output-on-failure",
+      "result": "1/1 pass after exact source rebuild",
+      "log": "build/rfc0022/core-only-final-tests.log"
+    },
+    {
+      "command": "ctest --preset core-only -R '^(core_review_round_trip|architecture_boundaries|architecture_boundary_contract)$' --output-on-failure",
+      "result": "3/3 pass earlier; naming-only correction replayed separately",
+      "log": "build/rfc0022/core-only-tests.log"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm/bin/clang-tidy --warnings-as-errors --paths src/core/src/review_publication_policy.cpp src/adapters/github/src/review_comment_permalink.cpp tests/github_contract/review_comment_permalink_tests.cpp",
+      "result": "pass; application host/workbench and core/host test TUs passed in preceding seven-TU run",
+      "log": "build/rfc0022/tidy-final.log"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py --clang-format /opt/homebrew/opt/llvm/bin/clang-format [all 12 milestone C++ paths, then final new codec test and naming-only core correction]",
+      "result": "pass",
+      "logs": [
+        "build/rfc0022/format.log",
+        "build/rfc0022/format-final.log"
+      ]
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "pass",
+      "log": "build/rfc0022/documentation.log"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64 tests pass",
+      "log": "build/rfc0022/documentation-tests.log"
+    }
+  ],
+  "failures_corrected": [
+    "Initial misspelled core build target performed no compilation; corrected target passed.",
+    "Host fixture changed accepted path without changing its source observation; fixed fixture and added zero-provider hostile cases.",
+    "Codec initial signed-byte/string_view compilation diagnostics corrected.",
+    "Tidy caught new core declaration parameter naming and a redundant test conversion; corrected. Existing legacy fixture-header violations remain untouched; codec tests now have their own isolated target."
+  ],
+  "review": "Implementer self-review only; no required independent or human acceptance belongs to A. No external final acceptance inferred.",
+  "ownership": "Quiescent; no spawned agents, review server, live mutation process or other writer in this checkout. Build/test sessions finished.",
+  "pending": [
+    "Coordinator integrates and pushes milestone A to main before B per user amendment.",
+    "Milestone B provider/cache/schema-3-preserving recovery/coordinator implementation, cards BPR-0565..0568.",
+    "Milestone C read normalization, Qt composition, fixture matrix, cards BPR-0569..0572.",
+    "Milestone D GitHub.com live course on designated PR2, docs, canonical closeout, cards BPR-0573..0575.",
+    "GHES automated contract/fixture coverage remains required; native GHES explicitly unobserved under owner amendment.",
+    "RFC0020/0021 canonical index status remains a final closeout sequencing obligation, not a blocker to accepted implementation integration."
+  ],
+  "next_milestone": "b-provider-recovery"
+}

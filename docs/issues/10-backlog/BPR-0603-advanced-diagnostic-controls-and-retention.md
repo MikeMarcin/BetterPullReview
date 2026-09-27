@@ -4,14 +4,15 @@ id: "BPR-0603"
 title: "Add advanced diagnostic retention privacy and controls"
 status: "Backlog"
 rfcs: ["RFC-BPR-0027"]
-depends_on: ["BPR-0602"]
+depends_on: ["BPR-1215", "BPR-1216", "BPR-1217", "BPR-1218", "BPR-1219"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
 ---
 
 # Add advanced diagnostic retention privacy and controls
 
-Explicitly deferred by the owner while BPR-0602 supplies basic logging.
-This umbrella entry must be split into bounded implementation cards only when
-that later phase is requested; it is not permission to begin now.
+The owner reauthorized the full advanced phase on 2026-09-26. Mandate r2
+requires each accepted milestone to land on main. BPR-1215 through BPR-1219
+split the remaining work; no live sign-in or PR mutation is authorized.
 
 ## Remaining scope
 
@@ -19,9 +20,8 @@ Implement RFC-BPR-0027's rotation/age/aggregate retention; typed identity
 anonymization; Standard/Verbose, privacy and Off controls; recent-context ring;
 previewed anonymized/identifying exports; Open logs and Clear UI; expanded
 operation coverage and applicable Settings/profile integration. Preserve the
-foundation's credential filtering and no-authentication-body rule. BPR-0602's
-macOS implementation is complete; add Windows file support and obtain native
-Linux/Windows evidence before claiming those platforms. The initial fixed log
+foundation's credential filtering and no-authentication-body rule. The logger now has POSIX and Windows file adapters; qualify the revised path
+on each claimed platform rather than inferring native support from source. The initial fixed log
 uses typed availability states without a UI indicator.
 
 ## Acceptance and verification
@@ -31,5 +31,5 @@ reusing unchanged foundation evidence where valid. Allocate needed slices and
 update closeout dependencies before implementation. Record actual native and
 attended evidence; no full RFC or platform claim comes from phase 1.
 
-Not run; advanced phase deferred. No dependency acquisition or live run is
-needed merely to retain this backlog card.
+Advanced acceptance is pending under the adopted milestone plan. Unchanged
+foundation and BPR-0971 audit evidence remain reusable within their original scope.

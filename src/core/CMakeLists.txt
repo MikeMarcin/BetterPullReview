@@ -35,6 +35,7 @@ add_library(
         src/review_queue_attention.cpp
         src/review_tour.cpp
         src/review_round_trip.cpp
+    src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/review_submission.cpp
         src/sha256.cpp

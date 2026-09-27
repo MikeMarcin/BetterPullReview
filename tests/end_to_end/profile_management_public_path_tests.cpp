@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -236,14 +237,13 @@ try {
 	expect(sinkStatus == application::diagnostic_log_status::available, "this platform reports its diagnostics file sink");
 	for (const auto& logRoot : { root, root / "profiles" / ("profile-" + std::to_string(workId.value())), root / "profiles" / ("profile-" + std::to_string(personalId.value())) }) {
 		if (sinkStatus != application::diagnostic_log_status::available) {
-			expect(!std::filesystem::exists(logRoot / "logs/diagnostics.log"),
+			expect(bpr::tests::diagnostic_files(logRoot).empty(),
 				   "no concurrent profile writes a diagnostics file where the platform has no file sink");
 			continue;
 		}
-		std::ifstream     stream{ logRoot / "logs/diagnostics.log" };
-		const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };
-		expect(text.find("op=application outcome=started") != std::string::npos
-				   && text.find("op=application outcome=shutdown") != std::string::npos,
+		const auto text = bpr::tests::read_diagnostic_logs(logRoot);
+		expect(text.find("\"op\":\"application\",\"outcome\":\"started\"") != std::string::npos
+				   && text.find("\"op\":\"application\",\"outcome\":\"shutdown\"") != std::string::npos,
 			   "each concurrent profile retains its own startup and shutdown diagnostics");
 	}
 

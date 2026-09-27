@@ -5927,6 +5927,7 @@ namespace bpr::app {
 		  public application::workbench_selected_diff_projection_port,
 		  public application::workbench_projection_port,
 		  public application::review_mutation_projection_port,
+		  public application::review_mutation_source_port,
 		  public application::receipt_projection_port,
 		  public application::queue_landing_projection_port,
 		  public application::agent_session_catalog_port,
@@ -7247,6 +7248,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			DiffProjections = std::make_unique<composition_diff_projection>(
 				*Window->comparison_surface(),
 				[this](const application::diff_publication& aPublication) {
+					ReviewSourceMaterial.reset();
+					if (aPublication.Result && aPublication.Result->Alignment.Key == aPublication.Context.Key) {
+						ReviewSourceMaterial = application::review_mutation_source_material{
+							.Key        = aPublication.Context.Key,
+							.LeftLines  = aPublication.Result->LeftDocument ? std::optional{ aPublication.Result->Alignment.LeftLineCount } : std::nullopt,
+							.RightLines = aPublication.Result->RightDocument ? std::optional{ aPublication.Result->Alignment.RightLineCount } : std::nullopt,
+						};
+					}
+
 					if (SelectedDiffPublication.has_value()) {
 						Window->set_conversation_endpoint_placement(
 							false,
@@ -8979,6 +8989,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		[[nodiscard]] auto observe_review_source(const core::workbench_file_id aFile) const
+			-> std::optional<application::review_mutation_source_observation> override
+		{
+			if (Closing || !WorkbenchHost || !WindowRead || !LastAcceptedHandoff
+				|| !SelectedDiffPublication || !SelectedDiffRequest || !ReviewSourceMaterial
+				|| !WindowRead->accepted_snapshot() || !EpochHost
+				|| EpochHost->context(SelectedDiffPublication->Request.WorkbenchAuthority)
+					!= std::optional{ SelectedDiffPublication->Request.Diff }) {
+				return std::nullopt;
+			}
+			const auto file    = WorkbenchHost->file_observation(aFile);
+			const auto binding = select_observed_review_mutation(*LastAcceptedHandoff, *WindowRead->accepted_snapshot());
+			if (!file || !binding) {
+				return std::nullopt;
+			}
+			return application::review_mutation_source_observation{
+				.Authority      = workbench_authority(*LastAcceptedHandoff),
+				.File           = *file,
+				.Target         = binding->Target,
+				.ActingIdentity = binding->ActingIdentity,
+				.Material       = *ReviewSourceMaterial,
+				// Full-file alignment is not a provider patch-domain observation.
+				.Placement = core::review_placement::unknown,
+			};
+		}
+
 		void retire_review_mutation_host()
 		{
 			complete_shared_draft(false);
@@ -9047,7 +9083,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				application::review_mutation_execution_grant{ },
 				ReviewMutationEffects,
 				*ReviewMutationDecisionGate,
-				*this);
+				*this,
+				this);
 			FixtureReviewMutationHostComposed = true;
 #else
 			if (Host == nullptr || WorkbenchHost == nullptr
@@ -9102,7 +9139,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					std::move(LiveReviewMutationGrant),
 					ReviewMutationEffects,
 					DecisionLane,
-					*this);
+					*this,
+					this);
 			} else {
 				LiveReviewMutationGrant.reset();
 			}
@@ -13818,11 +13856,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
-																  ReviewMutationDecisionGate;
-		std::optional<application::accepted_pull_request_handoff> LastAcceptedHandoff;
-		std::size_t                                               EpochPruneIntentDispatchCount  = 0U;
-		std::size_t                                               EpochDeleteIntentDispatchCount = 0U;
-		std::size_t                                               EpochCancelIntentDispatchCount = 0U;
+																	ReviewMutationDecisionGate;
+		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
+		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
+		std::size_t                                                 EpochPruneIntentDispatchCount  = 0U;
+		std::size_t                                                 EpochDeleteIntentDispatchCount = 0U;
+		std::size_t                                                 EpochCancelIntentDispatchCount = 0U;
 		struct appearance_theme_probe_state
 		{
 			enum class phase {

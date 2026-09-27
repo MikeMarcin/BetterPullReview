@@ -360,7 +360,8 @@ namespace {
 	};
 
 	class recording_projection final
-		: public application::review_mutation_projection_port
+		: public application::review_mutation_projection_port,
+		  public application::review_mutation_source_port
 	{
 	public:
 		void publish(const application::review_mutation_terminal& aTerminal) override
@@ -372,6 +373,17 @@ namespace {
 			Resolutions.push_back(aTerminal);
 		}
 
+		std::optional<application::review_mutation_source_observation> Source = [] {
+			const auto request = publication_request();
+			return application::review_mutation_source_observation{
+				.Authority      = request.SelectedDiff.Request.WorkbenchAuthority,
+				.File           = request.SelectedDiff.Request.File,
+				.Target         = live_target(),
+				.ActingIdentity = acting_identity(),
+				.Material       = { .Key = request.SelectedDiff.Key, .LeftLines = 100U, .RightLines = 100U },
+			};
+		}();
+		auto                                                        observe_review_source(core::workbench_file_id) const -> std::optional<application::review_mutation_source_observation> override { return Source; }
 		std::vector<application::review_mutation_terminal>          Published;
 		std::vector<application::review_thread_resolution_terminal> Resolutions;
 	};
@@ -532,6 +544,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 		auto left                         = publication_request();
 		left.Selection.PreferredLine.Side = core::diff_side::left;
@@ -574,6 +587,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 		const auto request = application::review_thread_resolution_publication_request{
 			.Thread = "PRRT_fixture_1", .Resolve = true
@@ -647,6 +661,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 
 		const auto context = host.publish(publication_request());
@@ -672,6 +687,13 @@ namespace {
 					   == target().ExpectedHead,
 			   "the production-bound path uses the exact resolved right path and head");
 
+		expect(observed->Submitted.front().Source
+				   && observed->Submitted.front().Source->Endpoint == publication_request().SelectedDiff.RightEndpoint
+				   && observed->Submitted.front().Source->Comparison == projection.Source->Material.Key
+				   && observed->Submitted.front().Source->LineCount == *projection.Source->Material.RightLines
+				   && observed->Submitted.front().Source->Placement == projection.Source->Placement,
+			   "the provider receives the exact retained source and placement accepted by the host");
+
 		const auto retry = host.publish(publication_request());
 		effects.run_next();
 		decisions.run_next();
@@ -688,6 +710,7 @@ namespace {
 		copied.SelectedDiff.LeftPath                  = "copied/current.cpp";
 		copied.SelectedDiff.RightPath                 = "copied/current.cpp";
 		bind_resolved_endpoints(copied);
+		projection.Source->File = copied.SelectedDiff.Request.File;
 		static_cast<void>(host.publish(std::move(copied)));
 		effects.run_next();
 		decisions.run_next();
@@ -695,6 +718,59 @@ namespace {
 				   && observed->Submitted.back().LiveBinding->Anchor.Path
 					   == "copied/current.cpp",
 			   "a copied file publishes only its exact epoch-resolved right endpoint");
+	}
+
+	void test_source_observations_fail_closed_before_provider_work()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider), live_target(), acting_identity(),
+			core::application_session_id{ 3U }, core::request_generation{ 8U },
+			testing_grant(), effects, decisions, projection, &projection
+		};
+		const auto exact       = *projection.Source;
+		const auto corruptions = std::vector<std::function<void(application::review_mutation_source_observation&)>>{
+			[](auto& aSource) { aSource.Authority.Snapshot           = core::provider_snapshot_id{ 61U }; },
+			[](auto& aSource) { aSource.Authority.IdentityGeneration = core::github_identity_generation{ 71U }; },
+			[](auto& aSource) { aSource.File.File                    = opaque<core::file_identity>(45U); },
+			[](auto& aSource) { aSource.File.CurrentPath             = "other.cpp"; },
+			[](auto& aSource) { aSource.Material.Key.RightBlob       = oid<core::git_blob_oid>(51U); },
+			[](auto& aSource) { aSource.Target.Semantic.ExpectedHead = oid<core::git_commit_oid>(31U); },
+			[](auto& aSource) { aSource.ActingIdentity.NodeId        = "U_other"; },
+			[](auto& aSource) { aSource.Material.RightLines.reset(); },
+			[](auto& aSource) { aSource.Material.RightLines = 12U; },
+			[](auto& aSource) { aSource.Material.RightLines = 0U; },
+			[](auto& aSource) { aSource.Placement           = static_cast<core::review_placement>(99); },
+		};
+		const auto refused = [&] {
+			static_cast<void>(host.publish(publication_request()));
+			expect(effects.pending() == 0U && decisions.pending() == 1U,
+				   "ineligible source is refused before provider work");
+			decisions.run_next();
+			expect(!projection.Published.back().Result, "ineligible source cannot publish");
+		};
+		projection.Source.reset();
+		refused();
+		for (const auto& corrupt : corruptions) {
+			projection.Source = exact;
+			corrupt(*projection.Source);
+			refused();
+		}
+		expect(observed->Observations == 0U && observed->Submitted.empty(),
+			   "absent catalogue and stale or unavailable material perform zero provider calls");
+		projection.Source                      = exact;
+		projection.Source->Material.RightLines = 13U;
+		static_cast<void>(host.publish(publication_request()));
+		expect(effects.pending() == 1U, "last valid line with unknown placement may negotiate natively");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 1U && projection.Published.back().Result,
+			   "unknown placement is not fabricated rejection evidence");
+		host.shutdown();
 	}
 
 	void test_attempted_failure_publishes_authoritative_reconciliation()
@@ -721,6 +797,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 
 		static_cast<void>(host.publish(publication_request()));
@@ -752,6 +829,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 		static_cast<void>(host.publish(publication_request()));
 		expect(effects.pending() == 0U && provider.Observations == 0U,
@@ -776,6 +854,7 @@ namespace {
 			grantedEffects,
 			grantedDecisions,
 			grantedProjection,
+			&grantedProjection,
 		};
 		auto left                         = publication_request();
 		left.Selection.PreferredLine.Side = core::diff_side::left;
@@ -822,6 +901,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 
 		const auto first             = host.publish(publication_request());
@@ -875,6 +955,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 
 		static_cast<void>(host.publish(publication_request()));
@@ -904,7 +985,7 @@ namespace {
 		auto  decisions  = application::manual_executor{ };
 		auto  projection = recording_projection{ };
 		auto  host       = application::review_mutation_application_host{
-			std::move(provider), live_target(), acting_identity(), core::application_session_id{ 3U }, core::request_generation{ 8U }, { }, effects, decisions, projection
+			std::move(provider), live_target(), acting_identity(), core::application_session_id{ 3U }, core::request_generation{ 8U }, { }, effects, decisions, projection, &projection
 		};
 		auto request = publication_request();
 		auto issue   = [&](const application::review_mutation_publication_request& aRequest) {
@@ -978,6 +1059,7 @@ namespace {
 			effects,
 			decisions,
 			projection,
+			&projection,
 		};
 
 		auto invalid                         = publication_request();
@@ -1026,6 +1108,7 @@ namespace {
 			expiredEffects,
 			expiredDecisions,
 			expiredProjection,
+			&expiredProjection,
 		};
 		static_cast<void>(expiredHost.publish(publication_request()));
 		expect(expiredEffects.pending() == 0U,
@@ -1049,6 +1132,7 @@ namespace {
 				effects,
 				decisions,
 				projection,
+				&projection,
 			};
 			host.shutdown();
 
@@ -1066,6 +1150,7 @@ namespace {
 				replacementEffects,
 				replacementDecisions,
 				replacementProjection,
+				&replacementProjection,
 			};
 			static_cast<void>(replacementHost.publish(publication_request()));
 			expect(replacementEffects.pending() == 0U,
@@ -1090,6 +1175,7 @@ namespace {
 				effects,
 				decisions,
 				projection,
+				&projection,
 			};
 			auto invalid                         = publication_request();
 			invalid.Selection.PreferredLine.Side = core::diff_side::left;
@@ -1118,6 +1204,7 @@ namespace {
 			effectsOne,
 			decisionsOne,
 			projectionOne,
+			&projectionOne,
 		};
 		auto providerTwo   = std::make_unique<fake_provider>();
 		auto effectsTwo    = application::manual_executor{ };
@@ -1133,6 +1220,7 @@ namespace {
 			effectsTwo,
 			decisionsTwo,
 			projectionTwo,
+			&projectionTwo,
 		};
 		static_cast<void>(hostOne.publish(publication_request()));
 		expect(effectsOne.pending() == 1U && effectsTwo.pending() == 0U,
@@ -1160,6 +1248,7 @@ namespace {
 			wrongEffects,
 			wrongDecisions,
 			wrongProjection,
+			&wrongProjection,
 		};
 		static_cast<void>(wrongHost.publish(publication_request()));
 		expect(wrongEffects.pending() == 0U,
@@ -1179,6 +1268,7 @@ namespace {
 			exactEffects,
 			exactDecisions,
 			exactProjection,
+			&exactProjection,
 		};
 
 		auto wrongActor = acting_identity();
@@ -1197,6 +1287,7 @@ namespace {
 			actorEffects,
 			actorDecisions,
 			actorProjection,
+			&actorProjection,
 		};
 		static_cast<void>(actorHost.publish(publication_request()));
 		expect(actorEffects.pending() == 0U,
@@ -1210,6 +1301,7 @@ namespace {
 auto main() -> int
 {
 	test_user_grants_bind_exact_requests_and_allow_successive_gestures();
+	test_source_observations_fail_closed_before_provider_work();
 	test_live_binding_uses_exact_right_resolved_path_asynchronously();
 	test_attempted_failure_publishes_authoritative_reconciliation();
 	test_missing_grant_and_invalid_bindings_queue_no_effect();

@@ -1,11 +1,12 @@
 ---
 id: "RFC-BPR-0022"
 title: "Semantic Source-Line Comments and Off-Hunk Publication Compatibility"
-status: "Deferred"
+status: "Proposed"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0008"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0022: Semantic Source-Line Comments and Off-Hunk Publication Compatibility
@@ -23,9 +24,11 @@ comment may be any eligible current-head source line in a file already changed
 by the pull request, even when GitHub's connected API cannot create a native
 thread on that off-hunk line.
 
-The 2026-09-04 import request explicitly defers implementation. This RFC and
-all imported cards remain deferred/backlog until a later implementation request;
-the source pack's frontier language grants no current implementation authority.
+The 2026-09-26 owner mandate activates implementation and main integration
+through implement-rfc, superseding the 2026-09-04 import-only deferral. The
+[adopted milestone plan](plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json)
+preserves the source pack's four authored milestones. It waives no criterion,
+live authority or canonical closeout requirement.
 RFC-BPR-0022 cannot become `Auto-Verified` before every listed dependency is
 `Auto-Verified`. Its direct live-mutation criteria also require
 a designated safe GitHub.com target and, for the legacy enterprise claim, a

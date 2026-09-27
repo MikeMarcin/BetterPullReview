@@ -6,6 +6,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/application/review_publication_capability_cache.hpp"
 #include "bpr/application/review_submission_contract.hpp"
 
 #include <array>
@@ -129,6 +130,29 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const review_mutation_wire_response&) const -> bool = default;
 	};
 
+	inline constexpr std::uint32_t off_hunk_classifier_revision = 1U;
+	/// \brief A pinned complete non-creation contract selected by the adapter.
+	/// Production has no admitted contract until direct evidence establishes it.
+	/// Synthetic fixture contracts exercise the mechanism without enabling a host.
+	struct off_hunk_unsupported_contract
+	{
+		application::github_server_contract Server             = application::github_server_contract::github_com_2022_11_28;
+		review_mutation_operation           Operation          = review_mutation_operation::create_review_comment;
+		std::string                         ApiRevision        = "2022-11-28";
+		std::uint32_t                       ClassifierRevision = off_hunk_classifier_revision;
+		std::string                         Resource;
+		std::string                         Field;
+		std::string                         Code;
+		std::string                         Message;
+		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
+	};
+
+	/// \brief Matches only the fully received exact structured non-creation response.
+	[[nodiscard]] auto definitive_off_hunk_unsupported(
+		const review_mutation_wire_response& aResponse,
+		const review_mutation_wire_request&  aRequest,
+		const off_hunk_unsupported_contract& aContract) -> bool;
+
 	struct review_mutation_target_observation
 	{
 		application::review_mutation_target_binding Target;
@@ -151,6 +175,7 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_anchor_binding  Anchor;
 		std::string                                  Body;
 		application::review_mutation_acting_identity Author;
+		application::review_remote_comment_subject   RemoteSubject = application::review_remote_comment_subject::line;
 
 		auto operator<=>(const review_mutation_comment_observation&) const = default;
 	};
@@ -403,7 +428,8 @@ namespace bpr::adapters::github::detail {
 			live_review_mutation_configuration     aConfiguration,
 			application::review_mutation_transport aLease,
 			std::unique_ptr<application::review_mutation_recovery_port>
-				aRecovery) noexcept;
+														 aRecovery,
+			std::optional<off_hunk_unsupported_contract> aUnsupportedContract = std::nullopt) noexcept;
 
 		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -423,6 +449,9 @@ namespace bpr::adapters::github::detail {
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>;
 
 	private:
+		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;
+		[[nodiscard]] auto recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
+		[[nodiscard]] auto execute_publication_child(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto observe_exact(std::stop_token aStop)
 			-> std::expected<void, application::review_mutation_failure>;
 		/// \brief [[BPR-0879]]. Refuses a thread outside the designated pull
@@ -450,6 +479,8 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_transport                      Lease;
 		std::unique_ptr<application::review_mutation_recovery_port> Recovery;
 		std::mutex                                                  Mutex;
+		std::optional<off_hunk_unsupported_contract>                UnsupportedContract;
+		application::review_publication_capability_cache            PublicationCapabilities;
 	};
 } // namespace bpr::adapters::github::detail
 
