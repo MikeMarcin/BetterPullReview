@@ -1,6 +1,7 @@
 #ifndef BPR_LOGGING_QUILL_LOG_HPP
 #define BPR_LOGGING_QUILL_LOG_HPP
 #include "bpr/application/diagnostic_log_port.hpp"
+#include <chrono>
 #include <filesystem>
 #include <memory>
 namespace bpr::adapters::logging {
@@ -9,11 +10,19 @@ namespace bpr::adapters::logging {
 														invalid_permissions,
 														busy,
 														io_failure };
-	/// \brief Explicit owner of the bounded Quill backend and one append-only local file.
+	/// \brief Storage budgets shared by all cooperating sessions in one profile directory.
+	struct diagnostic_file_limits
+	{
+		std::uint64_t        FileBytes  = 5U * 1024U * 1024U;
+		std::uint64_t        TotalBytes = 50U * 1024U * 1024U;
+		std::size_t          Files      = 64U;
+		std::chrono::seconds MaximumAge{ std::chrono::hours{ 24 * 30 } };
+	};
+	/// \brief Explicit owner of the bounded Quill backend and rotating private session files.
 	class quill_log final : public application::diagnostic_log_port
 	{
 	public:
-		explicit quill_log(const std::filesystem::path& aRoot, std::uint64_t aMaximumBytes = 16U * 1024U * 1024U) noexcept;
+		explicit quill_log(const std::filesystem::path& aRoot, diagnostic_file_limits aLimits = { }) noexcept;
 		~quill_log() override;
 		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override;
 		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override;

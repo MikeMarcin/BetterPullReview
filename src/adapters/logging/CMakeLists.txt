@@ -1,5 +1,5 @@
 if(BPR_BUILD_QT)
-    add_library(better_pull_review_adapter_logging STATIC src/quill_log.cpp)
+    add_library(better_pull_review_adapter_logging STATIC src/quill_log.cpp src/session_files.cpp)
     add_library(BetterPullReview::AdapterLogging ALIAS better_pull_review_adapter_logging)
     target_include_directories(better_pull_review_adapter_logging PUBLIC include)
     target_link_libraries(better_pull_review_adapter_logging PUBLIC BetterPullReview::Application PRIVATE quill::quill)

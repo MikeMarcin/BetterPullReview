@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/github_public_path_fixture.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "large_review_observers.hpp"
 #include "private_data_root.hpp"
 
@@ -2055,8 +2056,7 @@ namespace bpr::e2e::large_review {
 						"pathological fallback completion/input budget exceeded");
 			}
 			application.reset();
-			std::ifstream     diagnosticFile{ dataRoot / "logs/diagnostics.log" };
-			const std::string diagnostics{ std::istreambuf_iterator<char>{ diagnosticFile }, { } };
+			const auto diagnostics = bpr::tests::read_diagnostic_logs(dataRoot);
 			require(diagnostics.find("\"op\":\"application\",\"outcome\":\"shutdown\"") != std::string::npos, "large public course closes the actual diagnostic file");
 			const auto exported = application::prepare_release_diagnostics(diagnostics, core::release_maintenance_revision{ 1U });
 			require(exported && exported->Descriptor.Records != 0U, "large public course reaches the actual export classifier");

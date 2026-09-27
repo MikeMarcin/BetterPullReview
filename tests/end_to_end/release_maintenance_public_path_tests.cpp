@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
@@ -113,6 +114,7 @@ try {
 		adapters::logging::quill_log created{ root };
 		expect(created.open_failure() == adapters::logging::diagnostic_file_failure::none, "the product logger creates the native log");
 		created.close();
+		std::filesystem::rename(tests::diagnostic_files(root).front(), root / "logs/diagnostics.log");
 	}
 	{
 		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app | std::ios::binary };
@@ -150,6 +152,8 @@ try {
 	{
 		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app };
 		hostile << hostileLegacyLines;
+		hostile.close();
+		std::filesystem::permissions(root / "logs/diagnostics.log", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
 	}
 #endif
 	expect(read(root / "logs/diagnostics.log").find("BPR_CANARY_SOURCE_2") != std::string::npos, "hostile legacy diagnostics actually reach the selected native log");

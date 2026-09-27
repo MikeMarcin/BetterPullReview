@@ -1,7 +1,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/terminal_diagnostics.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/diagnostic_json.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "private_data_root.hpp"
 #include <QAction>
@@ -72,20 +74,20 @@ try {
 	expect(temporary.isValid(), "private test root");
 	const auto root = bpr::e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "native private root before composed startup");
-	const auto scenario = aArgc == 2 ? std::string_view{ aArgv[1] } : std::string_view{ };
+	const auto                                         scenario = aArgc == 2 ? std::string_view{ aArgv[1] } : std::string_view{ };
+	std::unique_ptr<bpr::adapters::logging::quill_log> protectedLog;
+	std::filesystem::path                              protectedFile;
 	if (scenario == "--recovery-log") {
 		std::ofstream registry{ root / "agent-workspace-ownership-v1" };
 		registry << "BPR_DIAGNOSTIC_PRIVATE_CANARY malformed synthetic registry";
 		registry.close();
 		std::filesystem::permissions(root / "agent-workspace-ownership-v1", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
 	} else if (scenario == "--full-log") {
-		std::filesystem::create_directory(root / "logs");
-		std::filesystem::permissions(root / "logs", std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
-		std::ofstream full{ root / "logs/diagnostics.log", std::ios::binary };
-		full.seekp(16U * 1024U * 1024U - 1U);
-		full.put('x');
-		full.close();
-		std::filesystem::permissions(root / "logs/diagnostics.log", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
+		protectedLog = std::make_unique<bpr::adapters::logging::quill_log>(root);
+		expect(protectedLog->status() == bpr::application::diagnostic_log_status::available, "protected concurrent session admitted");
+		protectedFile = bpr::tests::diagnostic_files(root).front();
+		// An active foreign session consumes the entire aggregate allowance.
+		std::filesystem::resize_file(protectedFile, 50U * 1024U * 1024U);
 	} else if (scenario == "--unavailable-log") {
 		std::ofstream unavailable{ root / "logs" };
 		unavailable << "synthetic logger obstruction";
@@ -103,7 +105,15 @@ try {
 				app = std::move(*aResult);
 			}
 		});
+		if (scenario == "--cancel-startup") {
+			startup->cancel();
+		}
 		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); });
+		if (scenario == "--cancel-startup") {
+			expect(!app, "cancelled startup cannot publish an application");
+			std::cout << "application-logging-cancel:pass\n";
+			return EXIT_SUCCESS;
+		}
 		expect(app != nullptr, "application startup succeeds");
 		app->select_device_authorization();
 		wait_for([&app] { return app->window().session_panel()->status() == bpr::core::github_status::session_ready; });
@@ -123,12 +133,11 @@ try {
 	}
 	if (!scenario.empty() && scenario != "--recovery-log") {
 		expect(scenario == "--full-log" || scenario == "--unavailable-log", "known failure scenario");
-		expect(scenario == "--full-log" ? std::filesystem::file_size(root / "logs/diagnostics.log") == 16U * 1024U * 1024U : std::filesystem::is_regular_file(root / "logs"), "refused diagnostic target is unchanged after authenticated workflow and shutdown");
+		expect(scenario == "--full-log" ? std::filesystem::file_size(protectedFile) == 50U * 1024U * 1024U : std::filesystem::is_regular_file(root / "logs"), "refused diagnostic target is unchanged after authenticated workflow and shutdown");
 		std::cout << "application-logging-failure-isolation:pass\n";
 		return EXIT_SUCCESS;
 	}
-	std::ifstream     stream{ root / "logs/diagnostics.log" };
-	const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };
+	const auto text = bpr::tests::read_diagnostic_logs(root);
 	for (const auto* marker : { "\"op\":\"application\",\"outcome\":\"started\"", "\"op\":\"github.viewer\",\"outcome\":\"succeeded\"", "\"op\":\"github.capability\"", "\"op\":\"application\",\"outcome\":\"shutdown\"", "\"epoch_stage\":\"cache_open\",\"failure_domain\":\"cache\",\"failure\":\"invalid_path\"" }) {
 		expect(text.find(marker) != std::string::npos, "startup/provider/shutdown persisted through real composition");
 	}

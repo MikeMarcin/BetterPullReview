@@ -1,4 +1,5 @@
 #include "../support/capability_error_content_canaries.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/diagnostic_json.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -25,11 +26,6 @@
 #endif
 namespace {
 	using bpr::tests::expect;
-	auto read(const std::filesystem::path& aPath) -> std::string
-	{
-		std::ifstream stream{ aPath };
-		return { std::istreambuf_iterator<char>{ stream }, { } };
-	}
 	auto private_root(const std::filesystem::path& aPath) -> std::filesystem::path
 	{
 		std::filesystem::create_directory(aPath);
@@ -49,7 +45,7 @@ namespace {
 			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 200U, .Summary = summary }) == application::diagnostic_log_status::available, "content audit reaches the real diagnostic sink");
 		}
 		log.close();
-		const auto bytes    = read(aRoot / "logs/diagnostics.log");
+		const auto bytes    = tests::read_diagnostic_logs(aRoot);
 		const auto exported = application::prepare_release_diagnostics(bytes, core::release_maintenance_revision{ 1U });
 		expect(exported && exported->Descriptor.Records == tests::capability_error_content_canaries.size(), "content audit reaches the actual export classifier");
 		const bool credentialRetained = bytes.find(tests::capability_error_canary_credential) != std::string::npos;
@@ -91,7 +87,7 @@ namespace {
 			adapters::logging::quill_log log{ aRoot };
 			expect(log.record({ }) == status::available, "next logger session admitted");
 		}
-		const auto bytes   = read(aRoot / "logs/diagnostics.log");
+		const auto bytes   = tests::read_diagnostic_logs(aRoot);
 		const auto records = tests::diagnostic_json_records(bytes);
 		expect(records.size() == 4U && records[0].value("detail").toString().toStdString() == escaped.text(), "escaping round trips one full classified field without extra records");
 		expect(records[0].value("severity") == "error" && records[1].value("severity") == "warning" && records[2].value("severity") == "info", "error, warning and cancellation severity survive JSON");
@@ -138,7 +134,7 @@ namespace {
 			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Summary = summary }) == application::diagnostic_log_status::available, "omitted summary reaches the real diagnostic file without raw fallback");
 		}
 		log.close();
-		const auto bytes = read(aRoot / "logs/diagnostics.log");
+		const auto bytes = tests::read_diagnostic_logs(aRoot);
 		expect(bytes.find("canary") == std::string::npos && bytes.find("xxxxxxxx") == std::string::npos, "malformed and oversized source is absent from retained diagnostics");
 	}
 
@@ -147,8 +143,8 @@ namespace {
 		using namespace bpr;
 		using clock                               = std::chrono::steady_clock;
 		using status                              = application::diagnostic_log_status;
-		constexpr std::uint64_t      maximumBytes = 256U * 1024U * 1024U;
-		adapters::logging::quill_log log{ aRoot, maximumBytes };
+		constexpr std::uint64_t      maximumBytes = 50U * 1024U * 1024U;
+		adapters::logging::quill_log log{ aRoot };
 		std::atomic<std::uint64_t>   dropped{ 0U };
 		std::barrier                 ready{ 8 };
 		std::vector<std::jthread>    writers;
@@ -182,7 +178,7 @@ namespace {
 		const auto closeStarted = clock::now();
 		log.close();
 		const auto closeMs = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - closeStarted).count();
-		const auto bytes   = read(aRoot / "logs/diagnostics.log");
+		const auto bytes   = tests::read_diagnostic_logs(aRoot);
 		const auto marker  = bytes.find("\"request\":971,");
 		expect(marker != std::string::npos, "final accepted record survives ordinary close");
 		const auto    count    = bytes.find("\"dropped\":", marker);
@@ -199,7 +195,7 @@ int main(int aArgc, char** aArgv)
 try {
 	if (aArgc == 4 && std::string_view{ aArgv[1] } == "--failure-child") {
 		const auto                        root = std::string_view{ aArgv[3] } == "full" ? std::filesystem::path{ aArgv[2] } : std::filesystem::path{ "relative" };
-		bpr::adapters::logging::quill_log log{ root, 1U };
+		bpr::adapters::logging::quill_log log{ root, { .FileBytes = 1U } };
 		static_cast<void>(log.record({ }));
 		log.close();
 		expect(log.status() == (std::string_view{ aArgv[3] } == "full" ? bpr::application::diagnostic_log_status::full : bpr::application::diagnostic_log_status::unavailable), "failure child status");
@@ -263,7 +259,7 @@ try {
 		{
 			adapters::logging::quill_log unavailable{ "relative" };
 			expect(unavailable.status() == status::unavailable, "invalid sibling stays unavailable");
-			adapters::logging::quill_log full{ private_root(root / "profile-full"), 1U };
+			adapters::logging::quill_log full{ private_root(root / "profile-full"), { .FileBytes = 1U } };
 			static_cast<void>(full.record({ }));
 			full.close();
 			expect(full.status() == status::full, "one profile's cap is isolated");
@@ -275,8 +271,8 @@ try {
 		}
 		expect(secondLog.record({ .Request = 7004 }) == status::available, "closing initial logger leaves sibling recording");
 		secondLog.close();
-		const auto firstText  = read(firstRoot / "logs/diagnostics.log");
-		const auto secondText = read(secondRoot / "logs/diagnostics.log");
+		const auto firstText  = tests::read_diagnostic_logs(firstRoot);
+		const auto secondText = tests::read_diagnostic_logs(secondRoot);
 		expect(firstText.find("\"request\":7001,") != std::string::npos && firstText.find("\"request\":7003,") != std::string::npos
 				   && firstText.find("\"request\":7002,") == std::string::npos && firstText.find("\"request\":7004,") == std::string::npos,
 			   "first log contains only its own events");
@@ -288,7 +284,7 @@ try {
 		secondAgain.close();
 		expect(firstAgain.record({ .Request = 7005 }) == status::available, "reverse close order also keeps survivor live");
 		firstAgain.close();
-		expect(read(firstRoot / "logs/diagnostics.log").find("\"request\":7005,") != std::string::npos, "backend restarts after final owner closes");
+		expect(tests::read_diagnostic_logs(firstRoot).find("\"request\":7005,") != std::string::npos, "backend restarts after final owner closes");
 	}
 	{
 		std::barrier              ready{ 4 };
@@ -305,12 +301,12 @@ try {
 		}
 		writers.clear();
 		for (auto index = 0; index < 4; ++index) {
-			const auto text = read(root / ("concurrent-" + std::to_string(index)) / "logs/diagnostics.log");
+			const auto text = tests::read_diagnostic_logs(root / ("concurrent-" + std::to_string(index)));
 			expect(text.find("\"request\":" + std::to_string(8000 + index) + ",") != std::string::npos, "concurrent close drains each owned logger");
 		}
 	}
 	{
-		adapters::logging::quill_log busy{ private_root(root / "busy-profile"), 256U * 1024U * 1024U };
+		adapters::logging::quill_log busy{ private_root(root / "busy-profile") };
 		adapters::logging::quill_log healthy{ private_root(root / "healthy-profile") };
 		auto                         event = application::diagnostic_event{ };
 		event.Summary.Text.fill('x');
@@ -326,9 +322,9 @@ try {
 		healthy.close();
 		// Final backend drainage checks Quill's delayed failure counters too.
 		expect(healthy.status() == status::available, "informational queue-drop report is not a shared backend failure");
-		expect(read(root / "healthy-profile/logs/diagnostics.log").find("\"request\":9001,") != std::string::npos, "healthy sibling event survives overflow drainage");
+		expect(tests::read_diagnostic_logs(root / "healthy-profile").find("\"request\":9001,") != std::string::npos, "healthy sibling event survives overflow drainage");
 	}
-	const auto first    = read(file);
+	const auto first    = tests::read_diagnostic_logs(root);
 	const auto exported = application::prepare_release_diagnostics(first, core::release_maintenance_revision{ 1U });
 	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
@@ -353,21 +349,7 @@ try {
 		adapters::logging::quill_log log{ root };
 		expect(log.record({ .Outcome = application::diagnostic_outcome::shutdown }) == status::available, "append after reopen");
 	}
-	expect(read(file).starts_with(first) && read(file).find("\"outcome\":\"shutdown\"") != std::string::npos, "reopen preserves prior records");
-	{
-		const auto                   original = read(file);
-		adapters::logging::quill_log log{ root, original.size() + 1U };
-		static_cast<void>(log.record({ }));
-		log.close();
-		expect(log.status() == status::full, "file cap reports full");
-		expect(read(file) == original, "crossing-cap record is refused without changing bytes");
-	}
-	const auto before = std::filesystem::file_size(file);
-	{
-		adapters::logging::quill_log log{ root, before - 1U };
-		expect(log.status() == status::full, "existing full file refused");
-	}
-	expect(std::filesystem::file_size(file) == before, "cap never appends beyond ceiling");
+	expect(tests::read_diagnostic_logs(root).find(first) != std::string::npos && tests::read_diagnostic_logs(root).find("\"outcome\":\"shutdown\"") != std::string::npos, "reopen preserves prior records");
 	using failure = adapters::logging::diagnostic_file_failure;
 	// [[BPR-0885]]. Every refusal names its cause. POSIX pins the exact cause.
 	// Windows admits a root through its own chain of checks, which can name
@@ -410,7 +392,7 @@ try {
 	}
 #endif
 	{
-		adapters::logging::quill_log log{ file };
+		adapters::logging::quill_log log{ tests::diagnostic_files(root).front() };
 		expect(refusedNaming(log, failure::invalid_root), "non-directory root refused, and named");
 	}
 	{
@@ -422,7 +404,7 @@ try {
 		expect(refusedNaming(missing, failure::invalid_root) && !std::filesystem::exists(root / "missing-parent"), "logger never creates unowned ancestors or root");
 		adapters::logging::quill_log firstWriter{ root };
 		adapters::logging::quill_log secondWriter{ root };
-		expect(firstWriter.status() == status::available && secondWriter.open_failure() == failure::busy, "native sink has exactly one writer");
+		expect(firstWriter.status() == status::available && secondWriter.status() == status::available, "native sessions have independent files in the same root");
 	}
 #if !defined(_WIN32)
 	{
