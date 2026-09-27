@@ -9,10 +9,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -252,6 +254,27 @@ auto main(int argc, char** argv) -> int
 	test_large_page_scrolls_without_growing_the_window();
 	test_close_cancels_preview_without_destroying_accepted_controls();
 	test_every_page_exists_with_a_notice();
+	{
+		qt::workbench_window        window;
+		auto*                       panel = window.writing_hooks();
+		auto*                       hook  = panel->findChild<QComboBox*>("writingHookChoice");
+		auto*                       text  = panel->findChild<QPlainTextEdit*>("writingHookInstructions");
+		unsigned                    tests = 0, saves = 0;
+		core::writing_hook_settings settings;
+		panel->set_dispatch([&](core::writing_hook selected, std::string instructions) { ++saves;settings.Overrides[static_cast<std::size_t>(selected)]=std::move(instructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
+		expect(hook->count() == 4 && !text->toPlainText().isEmpty(), "four shipped hooks preview without inference");
+		for (int i = 0; i < 4; ++i) {
+			hook->setCurrentIndex(i);
+			text->setPlainText("precise");
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+		}
+		expect(tests == 0 && saves == 4, "loading and changing hooks never launches test");
+		panel->findChild<QPushButton*>("writingHookReset")->click();
+		expect(settings.Overrides[3].empty() && settings.Overrides[0] == "precise", "restore only current hook");
+		panel->findChild<QPushButton*>("writingHookTest")->click();
+		expect(tests == 1, "explicit test produces exactly one intent");
+	}
+
 	test_adopting_a_panel_replaces_the_notice();
 	test_the_workbench_mounts_settings_with_the_preferences_shortcut();
 	test_settings_shortcut_selects_the_active_workbench();

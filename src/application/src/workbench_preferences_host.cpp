@@ -196,6 +196,25 @@ namespace bpr::application {
 		}
 		return Implementation->submit(candidate);
 	}
+	auto workbench_preferences_host::apply_writing_hook(core::writing_hook aHook, std::string aInstructions) -> bool
+	{
+		auto&      host  = *Implementation;
+		const auto index = static_cast<std::size_t>(aHook);
+		if (host.Closing || !host.Accepted || index >= core::writing_hook_count) {
+			return false;
+		}
+		auto candidate                          = host.QueuedCandidate.value_or(host.PendingCandidate.value_or(*host.Accepted));
+		candidate.WritingHooks.Overrides[index] = std::move(aInstructions);
+		++candidate.WritingHooks.Revision;
+		if (!core::valid(candidate.WritingHooks)) {
+			return false;
+		}
+		if (host.Pending) {
+			host.QueuedCandidate = std::move(candidate);
+			return true;
+		}
+		return host.submit(candidate);
+	}
 	void workbench_preferences_host::cancel() { Implementation->cancel(); }
 	void workbench_preferences_host::shutdown()
 	{

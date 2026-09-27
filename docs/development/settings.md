@@ -185,3 +185,12 @@ that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
 `upstream-wslg`) reruns the Linux full focus/lifetime course once WSLg ships
 the fix. The finding is not declared a false positive, and neither the Linux
 inventory-only pass nor the WSLg diagnosis course is a complete native course.
+
+Review preparation instructions live under Agents & context → AI assistance.
+Problem statement, Solution summary, Tour outline and Tour-stop comment have
+separate profile overrides, Restore default, and effective source/version labels.
+Save and Restore do not run an agent. Test saved hook uses the selected allowed
+agent for one explicit, nonpublishing request in the current review; its result
+is private and changes no tour field. An unavailable agent or source context
+leaves manual preparation available. Overrides contain text instructions only;
+they grant no tool, publication or broader editing authority.

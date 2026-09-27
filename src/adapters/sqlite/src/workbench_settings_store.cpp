@@ -73,7 +73,9 @@ namespace bpr::adapters::sqlite {
 					if (!preferences) {
 						return std::unexpected(preferences.error());
 					}
-					return Database.store(application::combined_layout(application::window_layout(aSettings), preferences->Behaviour), aStop);
+					auto settings         = application::combined_layout(application::window_layout(aSettings), preferences->Behaviour);
+					settings.WritingHooks = preferences->WritingHooks;
+					return Database.store(settings, aStop);
 				}();
 				if (!stored) {
 					return std::unexpected(application::workbench_settings_error{
@@ -91,12 +93,14 @@ namespace bpr::adapters::sqlite {
 				if (!loaded) {
 					return std::unexpected(application::workbench_settings_error{ translate(loaded.error()) });
 				}
-				return application::workbench_profile_preferences{ loaded->Behaviour, application::window_layout(*loaded) };
+				return application::workbench_profile_preferences{ loaded->Behaviour, application::window_layout(*loaded), loaded->WritingHooks };
 			}
 			[[nodiscard]] auto store_preferences(const application::workbench_profile_preferences& aPreferences, std::stop_token aStop) -> application::workbench_settings_result<void> override
 			{
 				const std::scoped_lock lock{ Mutex };
-				auto                   stored = Database.store(application::combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour), aStop);
+				auto                   settings = application::combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour);
+				settings.WritingHooks           = aPreferences.WritingHooks;
+				auto stored                     = Database.store(settings, aStop);
 				if (!stored) {
 					return std::unexpected(application::workbench_settings_error{ translate(stored.error()) });
 				}

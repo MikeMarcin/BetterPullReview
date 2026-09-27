@@ -7006,6 +7006,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						if (Closing) {
 							return;
 						}
+						if (WritingHookTest) {
+							WritingHookTest  = false;
+							std::string text = aResult.Outcome == application::agent_run_outcome::success ? "Hook test completed. Private result:\n" : "Hook test did not complete: ";
+							if (aResult.Outcome == application::agent_run_outcome::success) {
+								for (const auto& event : aResult.Events) {
+									if (text.size() + event.Text.size() <= 8192) {
+										text += event.Text;
+									}
+								}
+							} else {
+								text += application::name(aResult.Outcome);
+							}
+							Window->writing_hooks()->show_notice(text);
+						}
 						settle_comment_workshop(
 							aIdentity.Session.Id, aResult.Outcome);
 						Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -7412,6 +7426,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				SessionWorkbenchSettings = std::make_unique<session_workbench_settings>(std::move(initial));
 			}
+			WritingHookSubscription = Profile->WorkbenchPreferences->subscribe(DraftWindow.Profile, [this](const auto& aPreferences) {
+				if (!Closing) {
+					Window->writing_hooks()->present(aPreferences.WritingHooks);
+				}
+			});
+			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -8680,6 +8700,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		std::unique_ptr<application::review_tour_host>    TourHost;
+		std::uint64_t                                     WritingHookSubscription = 0;
+		bool                                              WritingHookTest         = false;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		struct retained_tour_host
 		{
@@ -8908,6 +8930,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return source;
 			}));
 		}
+		void test_writing_hook(core::writing_hook aHook)
+		{
+			const auto& preferences = Profile->WorkbenchPreferences->accepted();
+			const auto  selected    = Window->agent_panel()->selected_profile();
+			if (!preferences || !selected || !AgentHost || !AgentHost->is_quiescent()) {
+				Window->writing_hooks()->show_notice("Choose an available agent in an open review; wait for any running request.");
+				return;
+			}
+			auto prompt = std::string{ application::writing_application_contract() } + "\nWriting instructions:\n" + std::string{ application::effective_writing_hook(preferences->WritingHooks, aHook) }
+				+ "\nThis is an explicit nonpublishing hook test. Explain one focused uncertainty when the supplied context is insufficient. Do not change files or invoke tools. Return a tagged JSON result only.";
+			WritingHookTest = true;
+			if (!dispatch_agent_invocation(*selected, { }, { }, false, prompt, { }, core::agent_entry_point::ask_about_selection, { })) {
+				WritingHookTest = false;
+				Window->writing_hooks()->show_notice("Assistance requires available agent and exact approved PR source context. Manual editing is available.");
+			} else {
+				Window->writing_hooks()->show_notice("Testing saved hook… Drafts and publication are unchanged.");
+			}
+		}
+
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
 			if (Closing || !TourHost || !current(DraftWindow)) {
@@ -8923,18 +8964,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					TourPublication->dispatch(aAction);
 				}
 				return;
-			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
-			case qt::tour_editor_action::retry_save:      TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy:  TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::import_selected:     TourHost->import_selected(Window->tour_editor()->import_choice()); return;
+			case qt::tour_editor_action::retry_save:          TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy:      TourHost->use_saved_copy(); return;
 			case qt::tour_editor_action::keep_local_conflict:
 			case qt::tour_editor_action::use_remote_conflict:
 				if (const auto draft = Window->tour_editor()->shown().Draft) {
 					TourHost->resolve_remote_conflict(draft->Revision, aAction == qt::tour_editor_action::use_remote_conflict);
 				}
 				return;
-			case qt::tour_editor_action::undo_structure:  TourHost->undo(); return;
-			case qt::tour_editor_action::redo_structure:  TourHost->redo(); return;
-			case qt::tour_editor_action::navigate_stop:   {
+			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
+			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
+			case qt::tour_editor_action::navigate_stop:  {
 				const auto*                                stop = Window->tour_editor()->selected_stop();
 				std::optional<core::tour_code_destination> source;
 				if (stop) {
@@ -8973,8 +9014,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 					auto value = *selected;
 					if (aAction == qt::tour_editor_action::retarget_stop) {
-						value.Mapped  = *source;
-						value.Mapping = core::tour_mapping::author_selected;
+						value.Mapped         = *source;
+						value.Mapping        = core::tour_mapping::author_selected;
 						value.ReaffirmedHead = draft->ObservedHead.value_or(draft->Head);
 					} else {
 						value.Related.push_back(*source);
@@ -13837,6 +13878,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			Profile->WorkbenchPreferences->unsubscribe(WritingHookSubscription);
 			if (TourHost) {
 				TourHost->shutdown();
 			}

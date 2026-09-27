@@ -2880,6 +2880,8 @@ namespace bpr::qt {
 		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);
 		connect(AgentPanel->draft_selector(), &QCheckBox::toggled, agents, refresh);
 		AgentPanel->set_configuration_observer(refresh);
+		WritingHooks = new writing_hooks_panel{ agents };
+		column->addWidget(WritingHooks);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 
 		auto* const storage       = new QWidget;

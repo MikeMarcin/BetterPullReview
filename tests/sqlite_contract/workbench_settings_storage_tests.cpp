@@ -87,6 +87,8 @@ namespace {
 		// [[BPR-0721]]. Away from its hidden default, so the column is
 		// written and read rather than merely defaulted on both sides.
 		chosen.Behaviour.DrawerControls = application::review_drawer_controls::shown;
+		chosen.WritingHooks.Revision    = 8;
+		chosen.WritingHooks.Overrides   = { "problem — preserve meaning", "solution", "outline", "comment" };
 
 		{
 			auto opened = workbench_settings_database::open(path, { });
@@ -105,6 +107,30 @@ namespace {
 			"every stored field survives a close and reopen, compared whole");
 	}
 
+	void test_writing_hook_migration_and_rejection()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("hooks.sqlite3");
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "hooks store opens");
+			expect(db->store(distinct_layout(), { }).has_value(), "profile seed stores");
+			application::workbench_window_layout window;
+			window.UpdatesLine = core::workbench_updates_line::open;
+			expect(db->store_window(core::bpr_window_id{ 1 }, window, { }).has_value(), "version10 window seed");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
+		}
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "version10 migration opens");
+			expect(db->load({ })->WritingHooks == core::writing_hook_settings{ } && db->load_window(core::bpr_window_id{ 1 }, { })->UpdatesLine == core::workbench_updates_line::open, "migration defaults hooks and preserves Updates line");
+			auto invalid                      = *db->load({ });
+			invalid.WritingHooks.Overrides[0] = std::string(8193, 'x');
+			expect(!db->store(invalid, { }), "oversize instructions refused");
+			expect(sqlite3_exec(db->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET writing_problem=CAST(X'FF' AS TEXT)", nullptr, nullptr, nullptr) == SQLITE_OK, "malformed config injected");
+		}
+		expect(!workbench_settings_database::open(path, { }), "malformed UTF8 hook config fails closed");
+	}
 	auto test_the_layout_is_a_singleton() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1194,7 +1220,7 @@ namespace {
 		// [[BPR-0721]]. Version four predates the drawer-controls column, and
 		// DROP COLUMN rewrites the stored definition back to the text a
 		// version-four build wrote.
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -1427,7 +1453,7 @@ namespace {
 								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_y;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_x;"
-								"UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
+								"ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-eight window fixture");
@@ -1486,7 +1512,7 @@ namespace {
 			// The exact version-nine definition, as a version-nine build wrote it.
 			expect(sqlite3_exec(database->handle(),
 								"ALTER TABLE window_layout DROP COLUMN updates_line;"
-								"UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
+								"ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-nine window fixture");
@@ -1544,6 +1570,7 @@ try {
 	test_legacy_metadata_and_shape_refuse_before_migration();
 	test_nothing_stored_answers_the_defaults();
 	test_the_layout_round_trips_whole();
+	test_writing_hook_migration_and_rejection();
 	test_the_layout_is_a_singleton();
 	test_widths_are_bounded_by_the_published_range();
 	test_a_stored_state_outside_the_vocabulary_is_refused();

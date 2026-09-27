@@ -49,7 +49,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Ten since [[BPR-1130]]: each window's Updates line, folded or open, in
 	/// the per-window table only. Every new window starts folded, so the
 	/// profile row answers no fold, and a migrated row reads folded.
-	inline constexpr std::int64_t workbench_settings_schema_version = 10;
+	inline constexpr std::int64_t workbench_settings_schema_version = 11;
 
 	/// \brief Owns the durable workbench layout database.
 	///
