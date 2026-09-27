@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+parked_on: "awaiting-live-github"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -278,3 +279,17 @@ before any UI action. The coordinator is handling that OS prerequisite. All
 five journal hashes still match after app start. No Publish or feature acceptance
 has occurred; [current course progress](../_checkpoints/BPR-0575/m4-r3-schema-live-progress.json)
 tracks the active command and limits.
+
+### Schema-compatible course retired without Publish
+
+The explicit unlock response did not arrive. The coordinator requested bounded
+retirement; course54984 stopped after457.51s before expiry. No UI action or
+Publish occurred, and all five previous journal hashes are unchanged. App and
+supervisor are stopped; the consumed approval cannot be reused. Ordinary detach
+returned Resource busy and the read-only task image remains mounted, with no
+lsof holder identified. No force or lifecycle acceptance was asserted.
+[Exact evidence](../_checkpoints/BPR-0575/m4-r3-schema-locked-attempt.json) records
+cleanup and continuation. After explicit unlock, ordinary-detach the held image,
+revalidate ownership/target/artifacts/journals and create fresh one-use authority
+for the already verified schema-compatible capsule. Actual fallback, collaborator
+continuity and independent acceptance remain pending.

@@ -140,3 +140,26 @@ record hashes remain unchanged after app start. [Progress](m4-r3-schema-live-pro
 [identities](m4-r3-schema-capsule-identities.json) and
 [command](m4-r3-schema-live-command.json) supersede earlier current-state notes.
 BPR-0573 is In Progress; exclusive writing ownership remains with this owner.
+
+## Schema-compatible course retired; unlock still pending
+
+Course54984 was interrupted before expiry after457.51s, with no UI action or
+Publish. Stage-zero87481/app87592/supervisor87495 are stopped. All five prior
+journal hashes are unchanged. The approval was consumed and its empty parent
+removed. [Exact no-POST evidence](m4-r3-schema-locked-attempt.json) binds the
+unchanged bbf0b23eb source and source8bb5c315/image3ffb12a8 capsule.
+
+Ordinary detach failed with Resource busy, including three direct ordinary retries;
+read-only lsof showed no holder. The task-owned read-only image remains mounted
+at the exact path in the evidence. No forced detach was attempted, and no normal
+lifecycle or feature pass is claimed. After explicit unlock, first recheck UI
+ownership and ordinary-detach this retained image before a fresh one-use course.
+The inherited review server72886 is no longer running; its session metadata is
+stale. All recorded three decisions remain accepted/unprotected at sequence14,
+with no new review candidate pending. No review host is currently needed.
+
+BPR-0573 is Parked awaiting-live-github;0574 Done;0575 Backlog. Actual fallback,
+GitHub-only continuity and independent acceptance remain pending. All task-owned
+production/build/test commands are finished. The accompanying checkpoint releases
+exclusive repository writing ownership; the OS image helper retains only this
+read-only mount. Continue the same owner once the user explicitly confirms unlock.
