@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0999"
 title: "Extend native GitHub ports for staged review batches"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0997", "BPR-0998"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-09","milestone":"staged-publication","acceptance":["AC41-01","AC41-02","AC41-06","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC41-01","outcome":"pass","revision":"f00c47610db4a3235dd2529f0d404e095c8b4593","evidence":{"kind":"observation","detail":"Finite pending creation omits event; exact returned review ID COMMENT submission compiles independently; native physical verb fixture and existing summary/source-line regressions pass. Coordinator is BPR-1000/1002.","ledger":"docs/verification/RFC-BPR-0039-0043.md#typed-pending-ports--bpr-0999"}},{"criterion":"AC41-02","outcome":"pass","revision":"f00c47610db4a3235dd2529f0d404e095c8b4593","evidence":{"kind":"observation","detail":"Raw decoder preserves returned exact IDs/URLs/actors/membership/source ranges and pagination obligations; duplicate/foreign identities fail. Complete multiset reconciliation is BPR-1000.","ledger":"docs/verification/RFC-BPR-0039-0043.md#typed-pending-ports--bpr-0999"}},{"criterion":"AC41-06","outcome":"pass","revision":"f00c47610db4a3235dd2529f0d404e095c8b4593","evidence":{"kind":"observation","detail":"Only documented line/range batch fields compile. No pending file-thread operation is qualified or enabled; live qualification remains later assigned scope.","ledger":"docs/verification/RFC-BPR-0039-0043.md#typed-pending-ports--bpr-0999"}},{"criterion":"AC41-08","outcome":"pass","revision":"f00c47610db4a3235dd2529f0d404e095c8b4593","evidence":{"kind":"observation","detail":"5/5 focused contract/native/regression/boundary checks pass; exact paths and payloads, budgets, pagination, redirects and non-success responses covered. No live endpoint qualification claimed.","ledger":"docs/verification/RFC-BPR-0039-0043.md#typed-pending-ports--bpr-0999"}}]
 ---
 
 # BPR-0999: Extend native GitHub ports for staged review batches
