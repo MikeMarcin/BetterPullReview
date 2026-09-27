@@ -373,10 +373,15 @@ namespace {
 		auto load_publication(const std::string& aKey) -> std::expected<std::optional<journal_record>, recovery_failure> override { return Inner->load_publication(aKey); }
 		auto advance_publication(const std::optional<journal_record>& aExpected, const journal_record& aNext) -> std::expected<journal_record, recovery_failure> override
 		{
+			if (InterruptBefore == aNext.State) {
+				Interrupted = true;
+				throw std::runtime_error{ "simulated process interruption before durable commit" };
+			}
 			auto saved = Inner->advance_publication(aExpected, aNext);
 			if (saved) {
 				Saved.push_back(*saved);
 				if (InterruptAfter == saved->State) {
+					Interrupted = true;
 					throw std::runtime_error{ "simulated process interruption after durable commit" };
 				}
 			}
@@ -385,6 +390,8 @@ namespace {
 		std::unique_ptr<application::review_mutation_recovery_port> Inner;
 		std::vector<journal_record>                                 Saved;
 		std::optional<journal_state>                                InterruptAfter;
+		std::optional<journal_state>                                InterruptBefore;
+		bool                                                        Interrupted = false;
 	};
 	class publication_lease final : public application::review_mutation_transport_lease
 	{
@@ -403,6 +410,7 @@ namespace {
 	public:
 		auto perform_review_mutation(const github_mutation_wire_request& aRequest, const std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			boundary();
 			using operation  = review_mutation_operation;
 			const auto& wire = aRequest.Wire;
 			expect(validate_outbound_review_mutation_request(wire).has_value(), "session emits canonical request");
@@ -431,9 +439,11 @@ namespace {
 				expect(wire.Operation == operation::create_review_comment, "only root write in publication fixture");
 				expect(!aStop.stop_requested(), "cancellation checked before POST");
 				expect(Operations.size() >= 3U && Operations[Operations.size() - 2U] == operation::observe_pull_request && Operations[Operations.size() - 3U] == operation::observe_viewer, "viewer then exact target immediately precede each POST");
+				boundary();
 				if (!aWitness || !aWitness()) {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
 				}
+				boundary();
 				expect(!aWitness(), "transmission witness cannot be consumed twice");
 				Posts.push_back(wire);
 				const bool file = std::get<application::review_mutation_request>(wire.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
@@ -457,8 +467,19 @@ namespace {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate };
 				}
 			}
+			boundary();
 			return github_mutation_wire_success{ .Response = std::move(response) };
 		}
+		void boundary()
+		{
+			++Boundaries;
+			if (InterruptAt == Boundaries) {
+				InterruptAt.reset();
+				throw std::runtime_error{ "simulated process interruption at wire boundary" };
+			}
+		}
+		std::size_t                               Boundaries = 0U;
+		std::optional<std::size_t>                InterruptAt;
 		std::vector<review_mutation_operation>    Operations;
 		std::vector<review_mutation_wire_request> Posts;
 		std::vector<std::string>                  Comments;
@@ -616,6 +637,93 @@ namespace {
 		expect(recovered && recovered->Duplicate && transport.Posts.size() == 1U, "restart reconciles exact native receipt with zero POST");
 	}
 
+	void test_interruption_boundaries()
+	{
+		std::size_t courses = 0U;
+		for (const bool fallback : { false, true }) {
+			auto request              = publication_request(permalink_source());
+			request.Source->Placement = core::review_placement::off_hunk;
+			const auto configuration  = session_configuration(request);
+			const auto contract       = fixture_contract(request.LiveBinding->Target.ServerContract);
+			// Count the actual protocol course, then interrupt on both sides of
+			// every read/response and every transmission witness in that course.
+			auto baselineRoot         = tests::sqlite_contract::scratch_root{ "boundary-baseline" };
+			auto baselineWire         = publication_transport{ };
+			baselineWire.RejectNative = fallback;
+			{
+				auto session = review_mutation_session{ baselineWire, configuration, std::make_shared<publication_lease>(), open_journal(baselineRoot.path()), contract };
+				expect(session.submit_and_reconcile(request).Result.has_value(), "boundary census follows successful native or fallback course");
+			}
+			const auto resume = [&](publication_transport& aWire, const std::filesystem::path& aRoot) {
+				for (unsigned restart = 0U; restart < 3U; ++restart) {
+					auto session = review_mutation_session{ aWire, configuration, std::make_shared<publication_lease>(), open_journal(aRoot), contract };
+					static_cast<void>(session.submit_and_reconcile(request));
+					expect(aWire.Comments.size() <= 1U, "interruption and repeated restart leave at most one remote candidate");
+					const auto files = std::ranges::count_if(aWire.Posts, [](const auto& aPost) {
+						return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+					});
+					expect(files <= 1 && aWire.Posts.size() - static_cast<std::size_t>(files) <= 1U, "neither child is blindly retransmitted after restart");
+				}
+			};
+			for (std::size_t point = 1U; point <= baselineWire.Boundaries; ++point) {
+				auto scratch      = tests::sqlite_contract::scratch_root{ "wire-boundary" };
+				auto wire         = publication_transport{ };
+				wire.RejectNative = fallback;
+				wire.InterruptAt  = point;
+				{
+					auto session = review_mutation_session{ wire, configuration, std::make_shared<publication_lease>(), open_journal(scratch.path()), contract };
+					static_cast<void>(session.submit_and_reconcile(request));
+				}
+				expect(!wire.InterruptAt, "every counted wire interruption was reached");
+				resume(wire, scratch.path());
+				++courses;
+			}
+			const auto states = fallback
+				? std::vector{ journal_state::native_prepared, journal_state::native_possibly_transmitted, journal_state::native_definitively_unsupported, journal_state::fallback_prepared, journal_state::fallback_possibly_transmitted, journal_state::succeeded_fallback }
+				: std::vector{ journal_state::native_prepared, journal_state::native_possibly_transmitted, journal_state::succeeded_native };
+			for (const auto state : states) {
+				for (const bool before : { false, true }) {
+					auto scratch      = tests::sqlite_contract::scratch_root{ "journal-boundary" };
+					auto wire         = publication_transport{ };
+					wire.RejectNative = fallback;
+					{
+						auto journal                                                  = open_journal(scratch.path());
+						(before ? journal->InterruptBefore : journal->InterruptAfter) = state;
+						auto* observed                                                = journal.get();
+						auto  session                                                 = review_mutation_session{ wire, configuration, std::make_shared<publication_lease>(), std::move(journal), contract };
+						static_cast<void>(session.submit_and_reconcile(request));
+						expect(observed->Interrupted, "every before/after journal interruption was reached");
+					}
+					resume(wire, scratch.path());
+					++courses;
+				}
+			}
+		}
+		for (const bool before : { false, true }) {
+			auto request              = publication_request(permalink_source());
+			request.Source->Placement = core::review_placement::off_hunk;
+			auto scratch              = tests::sqlite_contract::scratch_root{ "cached-boundary" };
+			auto wire                 = publication_transport{ };
+			wire.RejectNative         = true;
+			{
+				auto  journal  = open_journal(scratch.path());
+				auto* observed = journal.get();
+				auto  session  = review_mutation_session{ wire, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal), fixture_contract(request.LiveBinding->Target.ServerContract) };
+				expect(session.submit(request).has_value(), "first logical publication establishes scoped cache evidence");
+				next_draft(request);
+				(before ? observed->InterruptBefore : observed->InterruptAfter) = journal_state::unsupported_evidence_admitted;
+				static_cast<void>(session.submit(request));
+				expect(observed->Interrupted && wire.Comments.size() == 1U, "cached admission boundary is reached before any new write");
+			}
+			for (unsigned restart = 0U; restart < 3U; ++restart) {
+				auto session = review_mutation_session{ wire, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(request.LiveBinding->Target.ServerContract) };
+				expect(session.submit(request).has_value() && wire.Comments.size() == 2U, "cached admission restart leaves exactly one candidate for each logical publication");
+			}
+			++courses;
+		}
+		std::cout << "publication-interruption-courses:" << courses << '\n';
+	}
+
 	void test_evidence_admission_restart_and_legacy_aliases()
 	{
 		auto request              = publication_request(permalink_source());
@@ -751,6 +859,7 @@ auto main() -> int
 	test_session_negotiation_and_cache();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();
+	test_interruption_boundaries();
 	test_evidence_admission_restart_and_legacy_aliases();
 	test_canonical_permalink_round_trip_and_bounds();
 	test_wire_representations_and_classifier();
