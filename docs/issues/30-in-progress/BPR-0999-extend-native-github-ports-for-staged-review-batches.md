@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0999"
 title: "Extend native GitHub ports for staged review batches"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0997", "BPR-0998"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-09","milestone":"staged-publication","acceptance":["AC41-01","AC41-02","AC41-06","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
