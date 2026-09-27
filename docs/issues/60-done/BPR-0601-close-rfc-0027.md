@@ -438,3 +438,13 @@ configuration and passing repository gates; no shared skill repair/hot upgrade
 or claim of verified host loading was made. All helpers in this round ran with
 `python3 -B`. The already running assigned implementer completed the authorized
 closeout without changing shared skill storage.
+
+
+Terminal closeout and global policy removal landed and pushed normally on main
+at `0ad6b293e68301f2da3df101c6b266d8795a4ce3`; main and origin/main matched.
+All ten RFC-associated cards are Done and the scoped queue has no remaining
+work. RFC-0027 and its index row are Auto-Verified. The final r3 binding and
+completion observation preserve all accepted obligations and no pending exit.
+All task-owned commands are complete, no review server is running, and writer
+`/root/rfc0027_closeout` is released. Accepted artifacts are retained. There is
+no further RFC-0027 action; the final checkpoint commit contains bookkeeping only.
