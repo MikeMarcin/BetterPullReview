@@ -24,7 +24,7 @@ reviewer's progress would also discard the derived git cache. A test asserts
 the independence directly and fails if the two are ever pointed at one path.
 
 `application_id` is `0x42505244` (`BPRD`) and the current `user_version` is
-**3**.
+**7**.
 
 ## Ownership
 
@@ -106,7 +106,10 @@ policy the epoch catalog uses — `configure_connection`, shared rather than
 copied, because a copied policy drifts until the two databases are hardened
 differently. It sets defensive mode, disables extensions, views, and triggers,
 enables foreign keys, selects WAL with `synchronous = FULL`, and pins the page
-size and a page-count ceiling.
+size and a page-count ceiling. The ledger then raises only its SQLite row/string
+ceiling to 2 MiB so a complete 1 MiB assistant body and bounded metadata fit in
+one row. Per-field and per-scope private-content bounds remain stricter; other
+databases retain their existing connection ceiling.
 
 The build sets `SQLITE_OMIT_AUTOINIT`, so `sqlite3_initialize` must run before
 any other call. Both stores go through one `sqlite_runtime_ready`. A store that
@@ -133,7 +136,7 @@ coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening versions 3, 4, and 5 compares every non-internal `sqlite_schema`
+such check. Opening supported versions 3 through 7 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.
@@ -146,10 +149,13 @@ newest 128 records commit atomically. The high-water row is never derived from
 the retained maximum, so pruning, restart, and two simultaneously opened stores
 cannot reuse an ID. Signed 64-bit exhaustion is a typed quota refusal.
 
-`local_note` has either no attachment or both a 256-bit file identity and a
-256-bit comparison identity. The note identifier is unique within the review
-scope, and text bytes are refused when empty or beyond 16 KiB. Notes store the
-reviewer's own private text; they never store a GitHub comment or source body.
+Version 6 added note revision/CAS and its non-pruned revision sequence.
+Version 7 replaces `local_note` and `local_note_sequence` with the private
+review authority below. The temporary `local_note_record` facade maps each
+legacy note to its original turn in a canonical thread. Reads project that
+turn's current revision; writes append reviewer revisions. Canonical thread
+updates invalidate the facade's CAS token as well. The mapping holds no text.
+Legacy attachments remain either absent or an exact file/comparison pair.
 
 `last_reviewed_head` holds exactly one algorithm-tagged, padded Git object ID
 per review scope. Replacing it changes no receipt, note, or defect row, so
@@ -167,10 +173,66 @@ conversation, current anchor, or original anchor is a typed conflict and leaves
 the row unchanged. `(scope, conversation)` is unique, so a thread cannot
 silently acquire two competing local classifications.
 
+### Private review authority (version 7)
+
+The application `private_review_store_port` and SQLite factory expose bounded
+storage operations; they have no agent, GitHub or publish capability. The
+existing shared draft host remains the owner of draft decisions and fan-out.
+Its persistent value uses the existing `revisioned_review_draft`; restoring
+bytes does not restore runtime scope or publication grants. Host and UI wiring
+is tracked by RFC-BPR-0023's later milestones.
+
+| Tables | Durable responsibility |
+|---|---|
+| `private_store_identity`, `private_scope_state` | Ledger incarnation, stable review binding, non-pruned allocation/CAS high waters, catalog generation, count and byte counters. |
+| `private_thread`, `private_turn`, `private_content` | Thread/version/binding, turn tip and immutable turn, finding or candidate content with digest and typed metadata. |
+| `private_run`, `private_run_source` | Run admission and terminal provenance independent of the pruned session catalog; exact selected source pins. |
+| `private_edge` | Scope-qualified immutable derivation edges; source order precedes destination order. |
+| `private_composition`, `private_composition_source` | Versioned composition and ordered exact source selection. |
+| `private_draft` | Existing draft state and exact target; linked drafts reference candidate bodies instead of duplicating them. |
+| `private_publication` | Local pending join and receipt correlation, including separate approved-prose and wire-body digests. |
+| `private_legacy_note` | Bodyless old-note mapping and original revision/CAS compatibility. |
+
+A write contains at most 256 records. New objects consume consecutive IDs from
+one scope frontier under `BEGIN IMMEDIATE`; edits carry expected versions.
+Source existence/digest/tip checks, accepted composition and draft correlation,
+quota counters and the allocation frontier commit together. IDs never come
+from retained maxima and never wrap at signed 64-bit exhaustion. Immutable run
+terminals keep their admitted source set even when a later reviewer edit has
+advanced a source tip; the retained predecessor remains pinned.
+
+Catalog pages hold at most 64 headers/64 KiB metadata. Transcript pages hold
+64 revisions/512 KiB body text. An oversized body returns its exact identity,
+digest, full byte count and a continuation; each chunk advances by at most
+512 KiB and never changes the full body's completion or eligibility. Cursors
+bind the scope/incarnation and catalog generation or thread version; stale
+cursors refuse. Revision pages use a tested scope/thread/order index and no
+OFFSET scan. Run detail requests hold at most 16 runs/256 KiB; source requests
+hold at most 256 exact references. Publication and dependency pages have at
+most 64 entries. The bounded draft collection has at most 64 records.
+
+Per scope, the store admits 4,096 threads, 65,536 turn revisions, 65,536 runs,
+65,536 findings, 4,096 compositions, 65,536 candidate revisions and 65,536
+publication records. Reviewer/candidate text is at most 16 KiB, assistant text
+1 MiB and ordinary draft text 64 KiB. Thread bodies have a 64 MiB aggregate
+budget; other private payloads have a separate 64 MiB budget. Admission refuses
+the entire transaction without truncation or implicit pruning.
+
+Migration traverses every supported v1–v6 origin atomically. Each old note
+becomes one thread/turn/revision with exact bytes, attachment and
+`legacy_unknown` actor; v6 note revision and the deleted-highest revision
+sequence survive. `local_note` and its sequence are dropped only within the
+successful migration transaction. Receipt, defect and session migrations keep
+their existing behavior. Canonical validation includes all v7 tables and
+constraints.
+
 ### Identity scoping
 
-`review_scope` is unique on `(host, account, repository, pull_request)` and
-every other row references it with `ON DELETE CASCADE`. All four fields are
+`review_scope` is unique on `(host, account, repository, pull_request)`.
+Scope-owned rows use scope-qualified keys and foreign keys. The v7 private
+store uses ordered deletion inside one transaction, preserving the hardened
+connection's trigger-depth limit and refusing external references. Older
+receipt tables retain their existing schema. All four scope fields are
 required: a pull request number is unique only within a repository, a
 repository name only within an account, and an account only within a host.
 Reusing pull request 7 on a second host must not surface the first host's
@@ -336,10 +398,18 @@ authority.
 
 ## Backups, retention, and purge
 
-**Purge is deletion.** Removing `review-ledger.sqlite3` with its `-wal` and
-`-shm` companions destroys all private review state; the next launch recreates
-a clean ledger and the epoch catalog beside it is untouched. Both halves are
-tested.
+Removing `review-ledger.sqlite3` with its `-wal` and `-shm` companions destroys
+all ledger state. The next open creates a new private incarnation, so retained
+references cannot attach to reused numeric IDs. The neighboring epoch catalog
+and separate mutation-recovery journal are untouched.
+
+The v7 private-store scope purge is narrower: after producer quiescence it
+removes that scope's threads, runs, findings, compositions, drafts and local
+publication records in one transaction, retaining incarnation and high-water
+tombstones. It leaves receipt/defect/session data and external publication
+recovery authority to their existing owners. Individual thread deletion refuses
+while another retained object or run needs it; bounded dependency pages support
+explicit cleanup. Neither operation invokes a GitHub capability.
 
 **No backup is taken, and no time-based retention policy runs.** Receipts,
 notes, reviewed heads, and defects are not pruned. Only the agent-session
@@ -349,21 +419,22 @@ inferred from that narrow bound.
 
 ## Privacy
 
-Everything in the ledger is private to the person using this machine. It is
-never uploaded, never synchronised, and never turned into a GitHub action.
-Local acceptance is not an approval; a reviewer who accepts a file here has
-told themselves something, not GitHub.
+The ledger is private to the person using this machine and performs no upload,
+synchronization or GitHub action. Later host operations may send only explicitly
+selected private sources to an agent or separately approved candidate prose to
+GitHub through their established capabilities. Local acceptance of file material
+is never a GitHub approval.
 
-Apart from the reviewer's explicitly created private-note text, the ledger
-records identities and progress rather than content: file and material
-digests, comment identities and edit versions, defect classification and
-semantic anchors, agent revision bindings, and the flags above. It does not
-record file paths, source text, GitHub comment text, agent input/output/results,
-argv, environment, workspace paths, credentials, or anything about who wrote
-what. A
-person reading the database can see the private notes and which opaque material
-a reviewer marked read, but not the source or shared discussion those
-identities refer to.
+The v7 private authority retains explicitly authored reviewer and assistant
+turns, structured finding snapshots, composition candidates, draft text and
+bounded run metadata. Typed actor, requested/configured/reported provenance and
+exact source lineage remain inspectable. Finding snapshots can contain their
+reported repository-relative path and evidence; the store does not duplicate
+source files or shared GitHub threads. Selection lists retain exact references,
+not copied transcripts. Credentials, argv, environment, workspace roots and
+presentation coordinates are excluded. A reader of the owner-private database
+can read retained private prose as well as progress identities; this is not an
+encrypted store or a same-user tamper-proof authority.
 
 Removing it is a file deletion and needs no application feature to be
 trustworthy.

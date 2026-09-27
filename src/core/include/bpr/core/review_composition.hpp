@@ -199,6 +199,8 @@ namespace bpr::core {
 		agent_finding_verdict    Verdict;
 		auto                     operator<=>(const retained_agent_finding&) const = default;
 	};
+	/// \brief Revalidates persisted finding shape and canonical digest without reinterpreting its historical verdict.
+	[[nodiscard]] auto valid_retained_agent_finding(const retained_agent_finding& aFinding) -> bool;
 	[[nodiscard]] auto retain_agent_finding(const agent_run_provenance& aRun, std::uint32_t aOrdinal,
 											private_vertex_order aOrder, const agent_finding& aFinding, const agent_finding_snapshot& aSnapshot)
 		-> std::expected<retained_agent_finding, private_review_refusal>;

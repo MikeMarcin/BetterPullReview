@@ -10,6 +10,7 @@ add_library(
         src/catalog_database.cpp
         src/sqlite_connection.cpp
         src/review_ledger_database.cpp
+        src/private_review_store.cpp
         src/queue_enrollment_database.cpp
         src/queue_enrollment_store.cpp
         src/device_binding_store.cpp

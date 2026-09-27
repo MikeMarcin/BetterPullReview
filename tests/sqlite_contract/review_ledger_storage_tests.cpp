@@ -6,6 +6,7 @@
 
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "review_ledger_legacy_fixture.hpp"
 #include "scratch_root.hpp"
 
 #include <sqlite3.h>
@@ -567,8 +568,6 @@ namespace {
 			std::string_view{ "password" },
 			std::string_view{ "secret" },
 			std::string_view{ "credential" },
-			std::string_view{ "body" },
-			std::string_view{ "content" },
 		};
 
 		for (const auto& column : *columns) {
@@ -595,7 +594,7 @@ namespace {
 				}),
 			"the enumeration reached the receipt table rather than nothing");
 		for (const auto required : {
-				 std::string_view{ "local_note.comparison_id" },
+				 std::string_view{ "private_thread.comparison_id" },
 				 std::string_view{ "last_reviewed_head.head_oid" },
 				 std::string_view{ "local_defect.original_comparison" },
 				 std::string_view{ "agent_session.head_oid" },
@@ -864,6 +863,7 @@ namespace {
 					&& opened->store_note(scope, storedNote).has_value()
 					&& opened->store_last_reviewed_head(scope, storedHead).has_value(),
 				"version-three records are seeded before migration");
+			bpr::tests::sqlite_contract::restore_v6_fixture(opened->handle());
 			for (const auto sql : {
 					 std::string_view{ "DROP TABLE agent_session" },
 					 std::string_view{ "DROP TABLE agent_session_sequence" },
@@ -964,6 +964,7 @@ namespace {
 					&& opened->store_defect(scope, zeroBoundary)
 					&& opened->store_note(scope, storedNote),
 				"the unsafe legacy anchor shapes and unrelated private state are seeded");
+			bpr::tests::sqlite_contract::restore_v6_fixture(opened->handle());
 			for (const auto sql : {
 					 std::string_view{ "ALTER TABLE local_note DROP COLUMN revision" },
 					 std::string_view{ "DROP TABLE local_note_sequence" },
@@ -1044,6 +1045,7 @@ namespace {
 		{
 			auto opened = review_ledger_database::open(path, { });
 			expect(opened_ok(opened), "the wrong-application fixture opens");
+			bpr::tests::sqlite_contract::restore_v6_fixture(opened->handle());
 			for (const auto sql : {
 					 std::string_view{ "DROP TABLE agent_session" },
 					 std::string_view{ "DROP TABLE agent_session_sequence" },
@@ -1440,7 +1442,7 @@ namespace {
 
 	void test_a_stamped_current_database_with_a_malformed_column_fails_closed()
 	{
-		constexpr std::string_view noteTextColumn = "note_text TEXT NOT NULL";
+		constexpr std::string_view noteTextColumn = "record BLOB NOT NULL";
 		const scratch_directory    directory;
 		const auto                 path = directory.file("l.db");
 
@@ -1450,7 +1452,7 @@ namespace {
 			auto definition = scalar_text(
 				opened->handle(),
 				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
-				"AND name = 'local_note'");
+				"AND name = 'private_draft'");
 			expect(definition.has_value(), "the canonical note DDL is readable");
 			const auto noteText = definition->find(noteTextColumn);
 			expect(
@@ -1458,7 +1460,7 @@ namespace {
 				"the fixture found the exact note-text column");
 			definition->insert(noteText, "injected INTEGER,");
 			expect(
-				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+				execute(opened->handle(), "DROP TABLE private_draft", { }).has_value()
 					&& execute(opened->handle(), *definition, { }).has_value(),
 				"the malformed fixture recreates the same table name with an extra column");
 		}
@@ -1519,7 +1521,7 @@ namespace {
 			auto definition = scalar_text(
 				opened->handle(),
 				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
-				"AND name = 'local_note'");
+				"AND name = 'private_draft'");
 			expect(definition.has_value(), "the canonical strict DDL is readable");
 			const auto strict = definition->rfind(strictSuffix);
 			expect(
@@ -1528,7 +1530,7 @@ namespace {
 				"the fixture found the exact strict-table suffix");
 			definition->erase(strict, strictSuffix.size());
 			expect(
-				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+				execute(opened->handle(), "DROP TABLE private_draft", { }).has_value()
 					&& execute(opened->handle(), *definition, { }).has_value(),
 				"the fixture recreates the same table name without strict mode");
 		}
@@ -1542,8 +1544,8 @@ namespace {
 
 	void test_a_stamped_current_database_with_an_altered_check_fails_closed()
 	{
-		constexpr std::string_view canonicalLimit = "BETWEEN 1 AND 16384";
-		constexpr std::string_view alteredLimit   = "BETWEEN 1 AND 16383";
+		constexpr std::string_view canonicalLimit = "length(body)<=65536";
+		constexpr std::string_view alteredLimit   = "length(body)<=65535";
 		const scratch_directory    directory;
 		const auto                 path = directory.file("l.db");
 
@@ -1553,7 +1555,7 @@ namespace {
 			auto definition = scalar_text(
 				opened->handle(),
 				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
-				"AND name = 'local_note'");
+				"AND name = 'private_draft'");
 			expect(definition.has_value(), "the canonical checked DDL is readable");
 			const auto limit = definition->find(canonicalLimit);
 			expect(
@@ -1561,7 +1563,7 @@ namespace {
 				"the fixture found the exact note-size check constraint");
 			definition->replace(limit, canonicalLimit.size(), alteredLimit);
 			expect(
-				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+				execute(opened->handle(), "DROP TABLE private_draft", { }).has_value()
 					&& execute(opened->handle(), *definition, { }).has_value(),
 				"the fixture recreates the same table name with one altered check");
 		}
@@ -1909,16 +1911,10 @@ namespace {
 			opened->erase_note(*scope, maximumNote.Id, maximumNote.Revision).has_value(),
 			"the boundary note is removed before filling the exact scope cap");
 
-		expect(
-			execute(
-				opened->handle(),
-				"WITH RECURSIVE ids(value) AS (SELECT 1 UNION ALL SELECT "
-				"value + 1 FROM ids WHERE value < 4096) INSERT INTO local_note"
-				"(scope_id, note_id, note_text, revision) SELECT "
-					+ std::to_string(*scope) + ", value, 'bounded', 1 FROM ids",
-				{ })
-				.has_value(),
-			"the note-cap fixture fills one exact scope in one transaction");
+		for (std::uint64_t id = 1; id <= 4096; ++id) {
+			expect(opened->store_note(*scope, note(id, 113U, "bounded")).has_value(), "the public facade reaches the exact scope cap");
+		}
+
 		const auto boundedNotes = opened->load_private(*scope);
 		expect(
 			boundedNotes
@@ -2114,7 +2110,7 @@ namespace {
 		if (!scope || !execute(opened->handle(), "BEGIN IMMEDIATE", { })) {
 			::_exit(3);
 		}
-		if (!execute(opened->handle(), "INSERT INTO local_note(scope_id,note_id,note_text,revision) VALUES(" + std::to_string(*scope) + ",2,'abandoned',2)", { })
+		if (!execute(opened->handle(), "UPDATE private_content SET body=CAST('abandoned' AS BLOB) WHERE scope_id=" + std::to_string(*scope), { })
 			|| !opened->store_last_reviewed_head(*scope, head('2'))
 			|| !opened->store_defect(*scope, defect(2U, 202U, 134U))) {
 			::_exit(4);
@@ -2553,7 +2549,7 @@ namespace {
 		expect(reopened.has_value(), "the simultaneous result reopens");
 		const auto durable = reopened->load_private(*scope);
 		expect(durable && durable->Notes == std::vector{ accepted }, "only the simultaneous winner survives restart");
-		expect(execute(first->handle(), "DELETE FROM local_note_sequence", { }).has_value(), "the sequence corruption fixture is designated");
+		expect(execute(first->handle(), "UPDATE private_scope_state SET note_revision=0", { }).has_value(), "the sequence corruption fixture is designated");
 		const auto corruptDelete = second->erase_note(*scope, accepted.Id, accepted.Revision);
 		expect(!corruptDelete && corruptDelete.error().Reason == application::ledger_store_failure::integrity_failure,
 			   "a missing allocator cannot erase the evidence needed to prevent revision reuse");
@@ -2571,6 +2567,7 @@ namespace {
 			expect(id.has_value(), "the migration scope resolves");
 			scope = *id;
 			expect(database->store_note(scope, note(1U, 55U, "preserved")).has_value(), "the old note is seeded");
+			bpr::tests::sqlite_contract::restore_v6_fixture(database->handle());
 			for (const auto sql : { "ALTER TABLE local_note DROP COLUMN revision",
 									"DROP TABLE local_note_sequence", "UPDATE ledger_meta SET schema_format=5",
 									"PRAGMA user_version=5", "PRAGMA ignore_check_constraints=ON",
@@ -2659,7 +2656,7 @@ namespace {
 		auto       reopened = review_ledger_database::open(path, { });
 		const auto durable  = reopened->load_private(*scope);
 		expect(durable && durable->Notes == std::vector{ *recreated }, "restart retains only the accepted note and revision");
-		expect(execute(first->handle(), "UPDATE local_note_sequence SET last_revision=9223372036854775807", { }).has_value(), "the exhaustion fixture advances its sequence");
+		expect(execute(first->handle(), "UPDATE private_scope_state SET note_revision=9223372036854775807", { }).has_value(), "the exhaustion fixture advances its sequence");
 		const auto exhausted = second->store_note(*scope, loser, recreated->Revision);
 		expect(!exhausted && exhausted.error().Reason == application::ledger_store_failure::quota_exceeded,
 			   "revision exhaustion refuses instead of wrapping");
