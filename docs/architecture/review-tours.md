@@ -47,6 +47,11 @@ an explicit retry; a conflicting save preserves both copies and never overwrites
 the other writer automatically. Local structural undo keeps at most 16 snapshots
 within 8 MiB per history direction; native text editors own text undo. Editing text
 clears structural history so a later structural undo cannot erase a newer edit.
+Qt routes standard Undo/Redo in the stop editor and outline to that history while
+available, then to native text editing. Right-click reuses the Arrange actions
+for the clicked stable stop. An internal drag emits one revision-bound semantic
+move; only the accepted projection reorders rows. Tab traverses the form in all
+three prose fields.
 
 Authored text and bounded raw remote baselines are explicit private retention
 classes, outside the metadata ledger. Baselines retain raw body, source span,

@@ -4,8 +4,11 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDrag>
+#include <QDropEvent>
 #include <QHBoxLayout>
 #include <QHideEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -21,6 +24,53 @@
 #include <limits>
 namespace bpr::qt {
 	namespace {
+		// The list translates a drag to one semantic move. Only the accepted
+		// projection may reorder its rows, so a refused drop leaves them intact.
+		class tour_outline final : public QListWidget
+		{
+		public:
+			using QListWidget::QListWidget;
+			std::function<void(qulonglong, std::size_t)> Move;
+
+		protected:
+			void startDrag(Qt::DropActions) override
+			{
+				Dragged = currentItem() ? currentItem()->data(Qt::UserRole).toULongLong() : 0;
+				if (!Dragged) {
+					return;
+				}
+				// QAbstractItemView's default drag removes source rows after a
+				// successful Move. Projection already performed that semantic move.
+				auto* drag = new QDrag{ this };
+				drag->setMimeData(model()->mimeData(selectedIndexes()));
+				drag->exec(Qt::MoveAction, Qt::MoveAction);
+				drag->deleteLater();
+				Dragged = 0;
+			}
+			void dropEvent(QDropEvent* aEvent) override
+			{
+				if (aEvent->source() != this || !Dragged || !currentItem() || currentItem()->data(Qt::UserRole).toULongLong() != Dragged) {
+					aEvent->ignore();
+					return;
+				}
+				const auto index       = indexAt(aEvent->position().toPoint());
+				auto       destination = index.isValid() ? index.row() : count();
+				if (dropIndicatorPosition() == QAbstractItemView::BelowItem) {
+					++destination;
+				}
+				if (destination > currentRow()) {
+					--destination;
+				}
+				if (destination >= 0 && destination < count() && destination != currentRow() && Move) {
+					Move(Dragged, static_cast<std::size_t>(destination));
+				}
+				aEvent->setDropAction(Qt::MoveAction);
+				aEvent->accept();
+			}
+
+		private:
+			qulonglong Dragged = 0;
+		};
 		auto paragraph(const QString& aText, QWidget* aParent) -> QLabel*
 		{
 			auto* label = new QLabel{ aText, aParent };
@@ -73,7 +123,7 @@ namespace bpr::qt {
 			auto* editor = new scoped_prose_editor{ page };
 			editor->setObjectName(aName);
 			editor->setAccessibleName(aTitle + tr(" Markdown source"));
-			editor->setTabChangesFocus(false);
+			editor->setTabChangesFocus(true);
 			editor->setMinimumHeight(130);
 			column->addWidget(editor, 1);
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, column);
@@ -409,6 +459,24 @@ namespace bpr::qt {
 		}
 		QWidget::hideEvent(aEvent);
 	}
+	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
+	{
+		if ((aWatched == Body || aWatched == Title || aWatched == Outline) && (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress)) {
+			auto* key    = static_cast<QKeyEvent*>(aEvent);
+			auto* action = key->matches(QKeySequence::Undo) ? UndoStructure : key->matches(QKeySequence::Redo) ? RedoStructure
+																											   : nullptr;
+			if (action && action->isEnabled() && Shown.Refusal != core::tour_refusal::bounds) {
+				// Structural history is newer than native text history: the host
+				// clears it on the next text edit. Otherwise native editing owns Undo.
+				key->accept();
+				if (aEvent->type() == QEvent::KeyPress) {
+					action->trigger();
+				}
+				return true;
+			}
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
+	}
 	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
@@ -456,6 +524,7 @@ namespace bpr::qt {
 		more->setPopupMode(QToolButton::InstantPopup);
 		top->addWidget(more);
 		auto* menu = new QMenu{ more };
+		menu->setObjectName(QStringLiteral("tourArrangeMenu"));
 		more->setMenu(menu);
 		const auto action = [&](const QString& aText, const QString& aName, const QString& aKeys, auto aCallback) {
 			auto* value = menu->addAction(aText);
@@ -477,7 +546,27 @@ namespace bpr::qt {
 		menu->addSeparator();
 		UndoStructure = action(tr("Undo arrangement"), QStringLiteral("tourUndo"), QStringLiteral("Ctrl+Alt+Z"), [this] { trigger(tour_editor_action::undo_structure); });
 		RedoStructure = action(tr("Redo arrangement"), QStringLiteral("tourRedo"), QStringLiteral("Ctrl+Alt+Shift+Z"), [this] { trigger(tour_editor_action::redo_structure); });
-		Outline       = new QListWidget{ page };
+		UndoStructure->setShortcuts({ QKeySequence::Undo, QKeySequence{ QStringLiteral("Ctrl+Alt+Z") } });
+		RedoStructure->setShortcuts({ QKeySequence::Redo, QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+Z") } });
+		auto* outline = new tour_outline{ page };
+		Outline       = outline;
+		outline->Move = [this](qulonglong aId, std::size_t aPosition) {
+			if (Selected.value() == aId) {
+				structural(core::tour_command_kind::move, aPosition);
+			}
+		};
+		Outline->setDragDropMode(QAbstractItemView::InternalMove);
+		Outline->installEventFilter(this);
+		Outline->setDefaultDropAction(Qt::MoveAction);
+		Outline->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
+			if (auto* item = Outline->itemAt(aPosition)) {
+				Outline->setCurrentItem(item);
+				if (item->data(Qt::UserRole).toULongLong() == Selected.value()) {
+					menu->popup(Outline->viewport()->mapToGlobal(aPosition));
+				}
+			}
+		});
 		Outline->setObjectName(QStringLiteral("tourOutline"));
 		Outline->setAccessibleName(tr("Ordered tour stops; Alt+Shift+Up and Alt+Shift+Down move the selected stop"));
 		Outline->setWordWrap(true);
@@ -511,6 +600,7 @@ namespace bpr::qt {
 		Title->setAccessibleName(tr("Stop title"));
 		Title->setPlaceholderText(tr("What should the reviewer notice?"));
 		Title->setMaxLength(std::numeric_limits<int>::max());
+		Title->installEventFilter(this);
 		fields->addWidget(Title);
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
@@ -519,6 +609,8 @@ namespace bpr::qt {
 		Body->setObjectName(QStringLiteral("tourStopBody"));
 		Body->setAccessibleName(tr("Stop explanation Markdown source"));
 		Body->setMinimumHeight(130);
+		Body->setTabChangesFocus(true);
+		Body->installEventFilter(this);
 		fields->addWidget(Body, 1);
 		add_writing_button(Body, core::writing_hook::comment, fields);
 		Related = new QListWidget{ StopFields };
@@ -615,6 +707,7 @@ namespace bpr::qt {
 			}
 			if (found == Outline->count()) {
 				auto* item = new QListWidgetItem;
+				item->setFlags(item->flags() & ~Qt::ItemIsDropEnabled);
 				item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(stop.Id.value()));
 				Outline->insertItem(row, item);
 			} else if (found != row) {

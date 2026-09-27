@@ -21,9 +21,10 @@ comment action as support for a pending tour batch.
 2. Select actual code lines and use **Add tour stop** (`Alt+Shift+T`). Give the
    stop a meaningful title and explain a decision, invariant, tradeoff, uncertainty
    or point that needs scrutiny. Related source links can supply supporting context.
-3. Use **Arrange** to insert, duplicate, split at the cursor, merge, remove or move
-   stops. `Alt+Shift+Up/Down` changes conceptual order while keeping the stop
-   selected. Stops need not follow file order or cover every file.
+3. Use **Arrange**, or right-click a stop, to insert, duplicate, split at the
+   cursor, merge, remove or move stops. Drag a stop between outline rows, or use
+   `Alt+Shift+Up/Down`, to change conceptual order while keeping the stop selected.
+   Stops need not follow file order or cover every file.
 4. Use **Ready and next** (`Alt+Return`) after reading the current explanation
    against its source. This is private preparation state. It does not mark code
    reviewed, resolve a thread or approve a change. Previous, Next and Return to
@@ -34,9 +35,13 @@ comment action as support for a pending tour batch.
 
 Local saves are automatic and profile/account scoped. A failed save says that
 text is not yet durable; keep the editor open and use the offered retry/recovery.
-Conflicting windows retain both versions. Text Undo/Redo uses the native editor.
-Arrange has separate bounded structural undo; subsequent text editing clears
-that structural history to prevent restoring older prose over a newer edit.
+Conflicting windows retain both versions. Tab and Shift+Tab move between controls
+without inserting tabs into prose. Standard Undo/Redo (`Cmd+Z` / `Cmd+Shift+Z`
+on macOS) reverses the latest arrangement while its history is available,
+including adding a stop or dragging it. Subsequent text editing clears that
+bounded structural history and gives Undo/Redo to the native text editor, so
+restoring an older arrangement cannot erase newer prose. Arrange also exposes
+explicit Undo arrangement and Redo arrangement actions.
 Undo after publication changes only the local draft.
 
 The local ceiling is 256 stops, 64 KiB UTF-8 per field, 32 related sources per

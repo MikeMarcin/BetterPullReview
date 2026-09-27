@@ -76,6 +76,7 @@ namespace bpr::qt {
 
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
+		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
 
 	private:
 		void                                                   edit(core::tour_command_kind aKind, const std::string& aText);

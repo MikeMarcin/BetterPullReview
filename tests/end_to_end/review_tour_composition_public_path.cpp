@@ -17,6 +17,11 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QContextMenuEvent>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QElapsedTimer>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -24,6 +29,9 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMenu>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -77,6 +85,52 @@ namespace {
 	void saved(qt::review_tour_editor& aEditor)
 	{
 		wait([&] { const auto& p = aEditor.shown(); return p.Draft && !p.Saving && p.SavedRevision == p.Draft->Revision; }, "tour saved through admitted SQLite store");
+	}
+	void key(QWidget* aTarget, QKeyCombination aKey)
+	{
+		aTarget->setFocus();
+		QApplication::processEvents();
+		QKeyEvent press{ QEvent::KeyPress, aKey.key(), aKey.keyboardModifiers() };
+		QApplication::sendEvent(aTarget, &press);
+		QApplication::processEvents();
+	}
+	void tab_leaves(QPlainTextEdit* aEditor)
+	{
+		const auto before = aEditor->toPlainText();
+		key(aEditor, QKeyCombination{ Qt::Key_Tab });
+		expect(!aEditor->hasFocus() && aEditor->toPlainText() == before, "Tab traverses the native form without inserting a tab into prose");
+		key(aEditor, QKeyCombination{ Qt::ShiftModifier, Qt::Key_Backtab });
+		expect(!aEditor->hasFocus() && aEditor->toPlainText() == before, "Shift+Tab leaves prose without changing its bytes");
+	}
+	void drag_stop(qt::review_tour_editor& aEditor)
+	{
+		auto* list = aEditor.outline();
+		list->setCurrentRow(0);
+		QApplication::processEvents();
+		const auto                       before = aEditor.shown().Draft->Stops;
+		const auto                       from   = list->visualItemRect(list->item(0)).center();
+		const auto                       to     = list->visualItemRect(list->item(2)).bottomLeft() + QPoint{ 12, -1 };
+		const std::unique_ptr<QMimeData> mime{ list->model()->mimeData({ list->model()->index(0, 0) }) };
+		bool                             delivered = false;
+		QTimer::singleShot(100, list, [&] {
+			QDragEnterEvent enter{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(list->viewport(), &enter);
+			QDragMoveEvent move{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(list->viewport(), &move);
+			QDropEvent drop{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(list->viewport(), &drop);
+			delivered = drop.isAccepted();
+			QDrag::cancel();
+		});
+		QMouseEvent press{ QEvent::MouseButtonPress, from, list->viewport()->mapToGlobal(from), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(list->viewport(), &press);
+		const auto  next = from + QPoint{ QApplication::startDragDistance() + 5, 0 };
+		QMouseEvent motion{ QEvent::MouseMove, next, list->viewport()->mapToGlobal(next), Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(list->viewport(), &motion);
+		wait([&] { return delivered; }, "native internal drag delivers a drop");
+		expect(aEditor.shown().Draft->Stops[2].Id == before.front().Id && aEditor.selected_stop()->Id == before.front().Id && list->count() == static_cast<int>(before.size()) && list->item(2)->data(Qt::UserRole).toULongLong() == before.front().Id.value(), "drag reorders through the host while preserving selected identity and projected rows");
+		key(list, QKeySequence{ QKeySequence::Undo }[0]);
+		expect(aEditor.shown().Draft->Stops == before, "a drop creates one ordinary undoable arrangement");
 	}
 	void select_file(qt::workbench_window& aWindow, const std::string& aPath)
 	{
@@ -499,6 +553,7 @@ auto main(int argc, char** argv) -> int
 		const auto agentBefore    = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 		expect(agentBefore == 0U, "no agent configured or launched for authoring");
 		const auto problem = QStringLiteral("## Before\n\nLiteral <details><summary>why</summary>\n\n```cpp\nreturn 1;\n```\n</details>\n\n| A | B |\n| - | - |\n| x | y |\n");
+		tab_leaves(editor.problem_editor());
 		editor.problem_editor()->insertPlainText(problem);
 		saved(editor);
 		editor.problem_editor()->undo();
@@ -506,6 +561,7 @@ auto main(int argc, char** argv) -> int
 		editor.problem_editor()->redo();
 		expect(editor.shown().Draft->Problem == problem.toStdString(), "native redo restores exact Markdown source");
 		editor.roadmap()->setCurrentIndex(1);
+		tab_leaves(editor.solution_editor());
 		editor.solution_editor()->setFocus();
 		QInputMethodEvent preedit{ QStringLiteral("に"), { } };
 		QApplication::sendEvent(editor.solution_editor(), &preedit);
@@ -526,8 +582,17 @@ auto main(int argc, char** argv) -> int
 		window.add_tour_stop_action()->trigger();
 		expect(editor.shown().Draft->Stops.size() == 1U && editor.selected_stop() && editor.selected_stop()->Original->First.Line == 2U && editor.selected_stop()->Original->Last.Line == 4U && editor.selected_stop()->Original->Blob, "Add tour stop captures exact range and blob through normal source action");
 		const auto firstId = editor.selected_stop()->Id;
+		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		expect(editor.shown().Draft->Stops.empty(), "standard Undo after Add tour stop removes that stop even with its editor focused");
+		key(editor.outline(), QKeySequence{ QKeySequence::Redo }[0]);
+		expect(editor.shown().Draft->Stops.size() == 1 && editor.selected_stop()->Id == firstId, "standard Redo restores the same source and stable stop identity");
+		tab_leaves(editor.stop_body());
 		editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
 		editor.stop_body()->insertPlainText(QStringLiteral("First thought.\n\nSecond thought."));
+		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		expect(editor.selected_stop()->Body.empty() && editor.shown().Draft->Stops.size() == 1, "later typing gives standard Undo back to the native text editor");
+		key(editor.stop_body(), QKeySequence{ QKeySequence::Redo }[0]);
+		expect(editor.selected_stop()->Body == "First thought.\n\nSecond thought.", "native redo replays prose without another structural action");
 		select_range(window, core::diff_side::left, 1, 1);
 		editor.findChild<QPushButton*>(QStringLiteral("tourAddRelated"))->click();
 		expect(editor.selected_stop()->Related.size() == 1 && editor.selected_stop()->Related.front().First.Side == core::diff_side::left, "related base source is retained without new native write authority");
@@ -542,13 +607,27 @@ auto main(int argc, char** argv) -> int
 		editor.stop_title()->insert(QStringLiteral("Cross-file invariant"));
 		editor.stop_body()->insertPlainText(QStringLiteral("Keep this relationship intact."));
 		const auto thirdId = editor.selected_stop()->Id;
+		window.raise();
 		window.activateWindow();
+		wait([&] { return window.isActiveWindow(); }, "native window receives keyboard focus before shortcut course");
 		editor.outline()->setFocus();
 		QApplication::processEvents();
 		QKeyEvent moveUp{ QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier };
 		QApplication::sendEvent(editor.outline(), &moveUp);
 		expect(editor.shown().Draft->Stops[1].Id == thirdId && editor.selected_stop()->Id == thirdId && editor.outline()->currentRow() == 1, "keyboard reorder retains stable selected identity and independent cross-file route order");
 		expect(editor.shown().Draft->Stops[0].Id == firstId && editor.shown().Draft->Stops[2].Id == secondId, "duplicate titles remain distinct stops");
+		drag_stop(editor);
+		const auto        beforeMenu   = editor.shown().Draft->Stops;
+		const auto        menuPosition = editor.outline()->visualItemRect(editor.outline()->item(0)).center();
+		QContextMenuEvent context{ QContextMenuEvent::Mouse, menuPosition, editor.outline()->viewport()->mapToGlobal(menuPosition) };
+		QApplication::sendEvent(editor.outline()->viewport(), &context);
+		auto* arrange = editor.findChild<QMenu*>(QStringLiteral("tourArrangeMenu"));
+		expect(arrange && arrange->isVisible() && editor.selected_stop()->Id == firstId && arrange->actions().contains(editor.findChild<QAction*>(QStringLiteral("tourDuplicate"))), "right-click opens native stop actions bound to the clicked identity");
+		arrange->hide();
+		editor.findChild<QAction*>(QStringLiteral("tourDuplicate"))->trigger();
+		expect(editor.shown().Draft->Stops.size() == beforeMenu.size() + 1 && editor.selected_stop()->Body == beforeMenu.front().Body, "context action duplicates the clicked stop through the application host");
+		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		expect(editor.shown().Draft->Stops == beforeMenu, "standard Undo restores a context-menu structural edit");
 		editor.outline()->setCurrentRow(0);
 		wait([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp") && window.comparison_surface()->selected_source_range() && window.comparison_surface()->selected_source_range()->first.Line == 2U; }, "outline returns to first stop source");
 		expect(editor.stop_body()->toPlainText() == QStringLiteral("First thought.\n\nSecond thought."), "stop text and native document survive excursions");
