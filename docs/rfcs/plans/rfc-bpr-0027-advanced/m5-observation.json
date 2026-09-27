@@ -174,7 +174,7 @@
     "intent": "wait",
     "next_milestone": "native-closeout",
     "reason": "pending-obligation",
-    "detail": "Engineering writer released; coordinator takes attended session c1565558e5fd3fdc277e62622604873b at cursor19 and review server64739/PID8289. Resume a fresh engineering round on recorded human handback. Only the explicitly transferred review server remains active; no native/build/test writer remains."
+    "detail": "Engineering writer released; coordinator takes attended session c1565558e5fd3fdc277e62622604873b at cursor19 and review server64739/PID8289. Resume a fresh engineering round on recorded human handback. Only the explicitly transferred review server remains active; no native/build/test writer remains. The original binding predates the expanded acceptance-map/card evidence; its observational check asks to renew the assignment. Rebind native-closeout against the current cards before applying human verdicts; the authored milestone, mandate and full RFC criteria are unchanged."
   },
   "ownership": "quiescent"
 }
