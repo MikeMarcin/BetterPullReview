@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0992"
 title: "Model tours, stops, source ranges and readiness in the core"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039"]
 depends_on: ["BPR-0991"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-02","milestone":"manual-authoring","acceptance":["AC39-03","AC39-04","AC39-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
