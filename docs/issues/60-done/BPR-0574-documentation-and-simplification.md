@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0574"
 title: "Reconcile RFC-BPR-0022 documentation and simplify the implementation"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ff0f7711eae2f9e2a57bd919810d8147b2b4cb06","evidence":{"kind":"observation","detail":"Owning round-trip and provider boundaries distinguish semantic and remote subject and single state machine."}},{"criterion":"AC2","outcome":"pass","revision":"ff0f7711eae2f9e2a57bd919810d8147b2b4cb06","evidence":{"kind":"observation","detail":"Scope/classifier revisions/migration/cancellation/limits/mixed-client/database-loss/support documented."}},{"criterion":"AC3","outcome":"pass","revision":"ff0f7711eae2f9e2a57bd919810d8147b2b4cb06","evidence":{"kind":"observation","detail":"Current docs consistently say production unsupported tuple absent and generic422 cannot enable fallback."}},{"criterion":"AC4","outcome":"pass","revision":"ff0f7711eae2f9e2a57bd919810d8147b2b4cb06","evidence":{"kind":"observation","detail":"Bounded simplification review confirms centralized policy, narrow ports and changed-root parsing outside paint/scroll; stale docs removed, mechanical format only."}},{"criterion":"AC5","outcome":"pass","revision":"ff0f7711eae2f9e2a57bd919810d8147b2b4cb06","evidence":{"kind":"observation","detail":"Final composed2/2, authority checks, strict scoped tidy,7-file format, Mac manifest+66 tests, documentation+64 tests and whitespace pass."}}]
 ---
 
 # Reconcile RFC-BPR-0022 documentation and simplify the implementation
