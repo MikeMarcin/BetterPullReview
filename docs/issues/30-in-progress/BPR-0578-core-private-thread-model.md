@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0578"
 title: "Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0577"]
 milestone: "Post-Pack v2"
