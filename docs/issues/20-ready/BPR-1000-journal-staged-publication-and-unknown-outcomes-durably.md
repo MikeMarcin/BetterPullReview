@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1000"
 title: "Journal staged publication and unknown outcomes durably"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0999", "BPR-0993"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-10","milestone":"staged-publication","acceptance":["AC41-02","AC41-03","AC41-05","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
