@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1053"
 title: "Expose the shared tour service facade and semantic commands"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1052"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-02","milestone":"headless-manual","acceptance":["AC44-02"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-02","outcome":"pass","revision":"434b34af8","evidence":{"kind":"command","detail":"application_review_tour_host and architecture_boundaries pass in core-only; exact typed owner/draft/revision service executes the parent host and store; desktop primary editor invokes it directly. Existing observe_review_tours and staged publication services remain sole importer/publisher; public CLI composition follows in BPR-1054."}}]
 ---
 
 # BPR-1053: Expose the shared tour service facade and semantic commands
