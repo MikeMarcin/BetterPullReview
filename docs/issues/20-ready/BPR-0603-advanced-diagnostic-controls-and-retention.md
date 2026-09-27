@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0603"
 title: "Add advanced diagnostic retention privacy and controls"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1215", "BPR-1216", "BPR-1217", "BPR-1218", "BPR-1219"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
@@ -23,7 +23,7 @@ M5 qualifies native behavior and packaging, fixes observed portability and
 revocation gaps, and prepares attended review. The provider sanitizer and
 no-authentication-body rule are unchanged.
 
-The complete evidence map is [BPR-0601](BPR-0601-close-rfc-0027.md) and the
+The complete evidence map is [BPR-0601](../10-backlog/BPR-0601-close-rfc-0027.md) and the
 [verification ledger](../../verification/RFC-BPR-0027.md). This aggregate card
 remains pending BPR-1219 and actual attended acceptance; no metadata-only
 completion is claimed.
