@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1053"
 title: "Expose the shared tour service facade and semantic commands"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1052"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-02","milestone":"headless-manual","acceptance":["AC44-02"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
