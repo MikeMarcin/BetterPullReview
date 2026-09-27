@@ -928,7 +928,7 @@ volatile edits and volatile allocation once durable storage is selected. New
 ordinary inline drafts use `allocate_draft` on the same monotonic store frontier.
 Storage refusal produces no accepted acknowledgement or projection. Restore
 reattaches exact durable values; a `publishing` value remains pending and carries
-no execution grant. M8 owns asynchronous production wiring and UI translation.
+no execution grant. M8 supplied asynchronous production wiring and UI translation.
 
 Agent-assisted composition obtains an exact workspace intent and uses the one
 `agent_invocation_host`. Admission revalidates workspace version, source set and
@@ -966,7 +966,7 @@ target advisories, with server IDs. An advisory cannot suppress intentional Publ
 
 The store, lineage host and all borrowing providers must share one serialized
 effect lane and outlive its drained invocations. The existing mutation terminal
-carries lineage state to the decision lane; M8 owns production construction,
+carries lineage state to the decision lane; M8 supplied production construction,
 recovery discovery and rendering. M7 fixture courses exercise the actual store,
 coordinator, provider and journal, but do not supply designated live-target or
 signed-recording acceptance. Public prose stays byte-preserved; the authorized

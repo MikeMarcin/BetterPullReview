@@ -90,7 +90,14 @@ namespace bpr::qt {
 		Body->setObjectName(QStringLiteral("privateCompositionBody"));
 		Body->setAccessibleName(tr("Candidate prose, no automatic public metadata"));
 		layout->addWidget(Body);
-		auto button = [&](const QString& aLabel, const QString& aName, application::private_composition_action aAction) { auto* b = new QPushButton(aLabel, page); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aAction] { dispatch(aAction); }); return b; };
+		auto button = [&](const QString& aLabel, const QString& aName, application::private_composition_action aAction) {
+			auto* result = new QPushButton(aLabel, page);
+			result->setObjectName(aName);
+			result->setAccessibleName(aLabel);
+			layout->addWidget(result);
+			connect(result, &QPushButton::clicked, this, [this, aAction] { dispatch(aAction); });
+			return result;
+		};
 		button(tr("Create local candidate"), QStringLiteral("privateCompositionCreate"), application::private_composition_action::create);
 		button(tr("Split into exact target drafts"), QStringLiteral("privateCompositionSplit"), application::private_composition_action::split);
 		button(tr("Use selected exact target"), QStringLiteral("privateCompositionSetTarget"), application::private_composition_action::target);
@@ -103,8 +110,8 @@ namespace bpr::qt {
 	}
 	bool private_composition_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
-		if (aWatched == parentWidget() && aEvent->type() == QEvent::PaletteChange) {
-			setPalette(parentWidget()->palette());
+		if (auto* parent = parentWidget(); aWatched == parent && aEvent->type() == QEvent::PaletteChange) {
+			setPalette(parent->palette());
 		}
 		return QDialog::eventFilter(aWatched, aEvent);
 	}

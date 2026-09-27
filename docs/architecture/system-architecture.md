@@ -24,6 +24,15 @@ The governing rule is:
 
 > **The core decides. The host performs. Qt presents.**
 
+RFC-BPR-0023's private review follows the same split: core proposals bind
+immutable thread/revision/run/composition identities; application hosts own
+SQLite transactions, exact source admission, serialized effects, and publication
+recovery; Qt owns the Private history panel and incremental projection. The
+[state model](domain-and-state-model.md), [private ledger](review-ledger.md),
+[round trip](review-round-trip.md), and [agent boundary](ai-agent-boundary.md)
+define the ports and limits. The [operator workflow](../ux/private-review-workflow.md)
+describes the separate local draft and public Publish actions.
+
 The Qt presentation adapter is part of the imperative shell. It is not an architectural peer that bypasses the host or the core.
 
 ## Technology baseline

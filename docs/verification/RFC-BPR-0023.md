@@ -2,6 +2,49 @@
 
 Status: **implementation authorized under mandate r2; M1–M9 local work integrated; external publication evidence and final independent review pending**
 
+### BPR-0590 documentation and simplification
+
+M10 updated the operator path in
+[`docs/ux/private-review-workflow.md`](../ux/private-review-workflow.md) and
+linked it from the README and product contract. It covers Private history,
+qualified model/effort facts, exact sources, three composition modes, target
+split, stale/unplaceable anchors, local Accept as Draft, separate Publish,
+public text, deletion, and the pending BPR-0584 live readback. The owning
+architecture documents now describe implemented core, host, SQLite/protocol
+ports and Qt wiring: `domain-and-state-model.md`, `review-ledger.md`,
+`review-round-trip.md`, `ai-agent-boundary.md`, and `system-architecture.md`.
+`storage-and-diagnostics.md` records schema/migration, quota, crash and purge
+behavior; `build-and-test.md` and `fixture-catalog.md` name focused selectors
+and the secret-free fixture boundary.
+
+Impact reconciliation: GitHub and GHES use the existing authenticated review
+authority and the explicit Publish path; the mutation/readback proof is still
+pending BPR-0584. Acting identity and native/file body semantics are documented
+in `review-round-trip.md` and the operator guide. The Git cache, credential
+vault, network isolation, and packaging/install graph have no new RFC-0023
+owner or artifact; M8/M9 public-path and canary records support no-impact for
+those surfaces. `review-ledger.md` and `storage-and-diagnostics.md` own the
+new private store, migration, backup/purge and privacy implications. M9 render
+and Qt records cover accessibility, themes, scales and native macOS behavior;
+other native platform parity remains unclaimed. The M9 bounded-page and memory
+record covers performance limits. The operator guide states local deletion
+cannot remove a server comment.
+
+The conservative cleanup in `private_composition_editor.cpp` expands a dense
+button factory and reuses the matched parent pointer in palette handling. It
+changes no policy, serialized form, public text or Qt action. The M9 audit found
+the policy in core, effect access in application hosts, one durable store
+authority and incremental Qt projection; no duplicate policy owner, broad
+service access, dual authoritative representation, unnecessary serialization
+or whole-model reset was found to remove. Focused post-cleanup checks and
+documentation gate results: `cmake --build --preset dev --target
+test_private_review_panel` PASS; `ctest --test-dir build/dev -R
+'^qt_private_review_panel$' --output-on-failure` 1/1 PASS;
+`python3 scripts/verify_documentation.py --root .` DOCUMENTATION_OK;
+`python3 tests/scripts/verify_documentation_tests.py` 64/64 PASS;
+`git diff --check` PASS. M9 render bytes and their SHA-256 manifest were not
+changed by this documentation and Qt refactor.
+
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
 Immutable implementation RFC_BASE_SHA: `899090f39304dca5a2c0b034c4684a50ca73605a`.

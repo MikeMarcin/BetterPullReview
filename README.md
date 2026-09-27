@@ -89,6 +89,14 @@ Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path.
+
+The **Private history** panel keeps review threads, agent runs, and composition
+sources in the local profile ledger. **Squash to Draft** saves a local draft;
+publication remains a separate action in the draft editor. The
+[private review workflow](docs/ux/private-review-workflow.md) explains actor and
+model qualifications, stale anchors, split targets, deletion, and public text.
+RFC-BPR-0023's [verification ledger](docs/verification/RFC-BPR-0023.md) records
+local evidence and the pending designated GitHub readback.
 RFC-BPR-0009 is Auto-Verified under the owner's r4 closeout amendment. Its
 [ledger](docs/verification/RFC-BPR-0009.md) records the verified local defect
 workflow while BPR-0153 remains parked for an unfamiliar GitHub collaborator's

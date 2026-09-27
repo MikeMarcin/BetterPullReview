@@ -1078,8 +1078,8 @@ also checks the actual cumulative bytes before each write. An invalid late
 thread ID can receive the initialization handshake, but receives no private
 context. Neither layer clips the input to make it fit.
 
-M5 supplied this launch snapshot contract. M6 implements the durable host path
-below; M8 owns its connection to the production composition root and UI.
+M5 supplied this launch snapshot contract. M6 implemented the durable host path
+below, and M8 connected it to the production composition root and UI.
 Storage schema 7 persists the typed facts; mutation-recovery remains unchanged.
 
 ### Durable private conversation host
