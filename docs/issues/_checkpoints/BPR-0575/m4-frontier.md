@@ -118,3 +118,8 @@ to coordinate the other task's UI ownership. After a concrete handoff, prepare
 a fresh nonce for the unchanged signed capsule. Actual fallback, collaborator
 continuity and independent acceptance remain pending. All task-owned commands
 are finished except inherited review server72886/session52232.
+
+The coordination-input wait is handed back quiescent: BPR-0573 is Parked on
+`awaiting-live-github`, and exclusive repository writing ownership is released.
+Continue this same implementer after coordinator confirms the explicit UI
+handoff. No approval from the previous courses remains available for reuse.
