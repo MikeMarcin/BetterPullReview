@@ -54,6 +54,7 @@ namespace bpr::qt {
 		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
+		void               show_writing_notice(const QString& aText);
 		void               show_stops();
 		void               trigger(tour_editor_action aAction);
 		[[nodiscard]] auto selected_stop() const -> const core::tour_stop*;
@@ -68,6 +69,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto publication_preview() const -> markdown_body_view* { return PublicationPreview; }
 		[[nodiscard]] auto shown() const -> const application::tour_presentation& { return Shown; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void hideEvent(QHideEvent* aEvent) override;
 
 	private:
 		void                                                   edit(core::tour_command_kind aKind, const std::string& aText);
@@ -116,6 +120,7 @@ namespace bpr::qt {
 		markdown_body_view*                                    Preview           = nullptr;
 		QLabel*                                                RevisionChanges   = nullptr;
 		QPushButton*                                           NextChanged       = nullptr;
+		QLabel*                                                WritingStatus     = nullptr;
 		QLabel*                                                Status            = nullptr;
 		QPushButton*                                           Retry             = nullptr;
 		QPushButton*                                           UseSaved          = nullptr;

@@ -12,7 +12,7 @@ namespace bpr::qt {
 		auto* column  = new QVBoxLayout{ this };
 		auto* heading = new QLabel{ tr("AI assistance · Review preparation"), this };
 		column->addWidget(heading);
-		auto* explanation = new QLabel{ tr("These instructions apply only when you explicitly ask for assistance. Test uses the selected agent and current approved PR context, changes no draft and publishes nothing."), this };
+		auto* explanation = new QLabel{ tr("These instructions apply only when you explicitly ask for assistance. Test uses a sample passage with the selected agent in the open review, changes no draft and publishes nothing."), this };
 		explanation->setWordWrap(true);
 		column->addWidget(explanation);
 		Hook = new QComboBox{ this };

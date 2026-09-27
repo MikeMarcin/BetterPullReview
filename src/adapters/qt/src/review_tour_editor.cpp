@@ -1,9 +1,11 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -43,6 +45,11 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("reviewTourEditor"));
 		setAccessibleName(tr("Prepare review tour"));
+		connect(qApp, &QGuiApplication::focusWindowChanged, this, [this](QWindow* aWindow) {
+			if (aWindow != window()->windowHandle() && WritingCancel) {
+				WritingCancel();
+			}
+		});
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(8, 8, 8, 8);
 		layout->addWidget(paragraph(tr("Prepare a private review tour. Publishing requires Preview and Publish."), this));
@@ -115,6 +122,9 @@ namespace bpr::qt {
 		connect(Roadmap, &QTabWidget::currentChanged, this, [this] { if(WritingCancel){ WritingCancel();
 } refresh_preview(); });
 		layout->addWidget(Roadmap, 1);
+		WritingStatus = paragraph({ }, this);
+		WritingStatus->setObjectName(QStringLiteral("tourWritingStatus"));
+		layout->addWidget(WritingStatus);
 		Status = paragraph(tr("Open a pull request with an accepted account to prepare a private tour."), this);
 		Status->setObjectName(QStringLiteral("tourSaveStatus"));
 		RevisionChanges = new QLabel{ this };
@@ -318,8 +328,20 @@ namespace bpr::qt {
 	auto review_tour_editor::writing_editor(core::writing_hook aHook) const -> scoped_prose_editor* { return aHook == core::writing_hook::problem ? Problem : aHook == core::writing_hook::solution ? Solution
 																										  : aHook == core::writing_hook::comment                                                    ? Body
 																																																	: nullptr; }
-	auto review_tour_editor::writing_visible(core::writing_hook aHook) const -> bool { return aHook == core::writing_hook::problem ? Roadmap->currentIndex() == 0 : aHook == core::writing_hook::solution ? Roadmap->currentIndex() == 1
-																																																		  : aHook == core::writing_hook::comment && Roadmap->currentIndex() == 2 && selected_stop(); }
+	auto review_tour_editor::writing_visible(core::writing_hook aHook) const -> bool
+	{
+		if (!isVisible()) {
+			return false;
+		}
+		switch (aHook) {
+		case core::writing_hook::problem:  return Roadmap->currentIndex() == 0;
+		case core::writing_hook::solution: return Roadmap->currentIndex() == 1;
+		case core::writing_hook::comment:  return Roadmap->currentIndex() == 2 && selected_stop();
+		case core::writing_hook::outline:  return false;
+		}
+		return false;
+	}
+
 	void review_tour_editor::add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QVBoxLayout* aLayout)
 	{
 		auto* button = new QPushButton{ aEditor->parentWidget() };
@@ -332,10 +354,19 @@ namespace bpr::qt {
 																																										   : tr("Enhance text")); };
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
-		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {if(!aEditor->isReadOnly() && WritingRequest) {if(auto captured=aEditor->capture()){ WritingRequest(aHook,std::move(*captured));
-}} });
-		aEditor->Invalidated = [this, label] {label();if(WritingCancel){ WritingCancel();
-} };
+		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {
+			if (!aEditor->isReadOnly() && WritingRequest) {
+				if (auto captured = aEditor->capture()) {
+					WritingRequest(aHook, std::move(*captured));
+				}
+			}
+		});
+		aEditor->Invalidated = [this, label] {
+			label();
+			if (WritingCancel) {
+				WritingCancel();
+			}
+		};
 		label();
 	}
 	void review_tour_editor::show_problem()
@@ -343,6 +374,14 @@ namespace bpr::qt {
 		Roadmap->setCurrentIndex(0);
 		Problem->setFocus();
 	}
+	void review_tour_editor::hideEvent(QHideEvent* aEvent)
+	{
+		if (WritingCancel) {
+			WritingCancel();
+		}
+		QWidget::hideEvent(aEvent);
+	}
+	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
 	{

@@ -8,7 +8,7 @@ namespace bpr::qt {
 	namespace {
 		auto visible(std::string_view aRaw) -> QString
 		{
-			return QString::fromUtf8(aRaw.data(), static_cast<qsizetype>(aRaw.size())).replace(QStringLiteral("\r\n"), QStringLiteral("\n")).replace(QChar{ '\r' }, QChar{ '\n' });
+			return QString::fromUtf8(aRaw.data(), static_cast<qsizetype>(aRaw.size())).replace(QStringLiteral("\r\n"), QStringLiteral("\n")).replace(QChar{ '\r' }, QChar{ '\n' }).replace(QChar{ 0x2029 }, QChar{ '\n' });
 		}
 		// A native paragraph occupies one UTF-16 position; CRLF occupies two raw bytes.
 		auto offset(std::string_view aRaw, int aPosition) -> std::optional<std::size_t>
@@ -88,7 +88,7 @@ namespace bpr::qt {
 		}
 		Presenting = true;
 		const QSignalBlocker block{ this };
-		if (toPlainText() != visible(aRaw)) {
+		if (document()->toRawText().replace(QChar{ 0x2029 }, QChar{ '\n' }) != visible(aRaw)) {
 			setPlainText(visible(aRaw));
 		}
 		document()->clearUndoRedoStacks();
@@ -106,7 +106,7 @@ namespace bpr::qt {
 	{
 		const auto cursor = textCursor();
 		const auto begin = offset(raw(), cursor.selectionStart()), end = offset(raw(), cursor.selectionEnd());
-		if (!begin || !end || !core::valid_writing_utf8(raw()) || toPlainText() != visible(raw())) {
+		if (!begin || !end || !core::valid_writing_utf8(raw()) || document()->toRawText().replace(QChar{ 0x2029 }, QChar{ '\n' }) != visible(raw())) {
 			return std::nullopt;
 		}
 		return prose_capture{ raw(), { *begin, *end, cursor.anchor(), cursor.position(), FocusRevision, cursor.hasSelection() ? 1U : 0U }, TextGeneration, EditorGeneration };
@@ -118,7 +118,7 @@ namespace bpr::qt {
 		}
 		auto&      state    = Documents.at(document());
 		const auto steps    = document()->availableUndoSteps();
-		const auto now      = toPlainText();
+		const auto now      = document()->toRawText().replace(QChar{ 0x2029 }, QChar{ '\n' });
 		const auto oldSteps = state.Steps;
 		const auto old      = visible(state.Raw);
 		const auto history  = state.History.find(steps);

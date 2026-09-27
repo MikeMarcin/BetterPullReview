@@ -65,6 +65,7 @@ namespace bpr::application {
 		/// admits a new identity, and a caller-named revision is refused as
 		/// `stale_or_mismatched_agent_context` exactly as before.
 		std::optional<core::agent_session> ContinuedSession;
+		bool                               WritingOnly = false;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};

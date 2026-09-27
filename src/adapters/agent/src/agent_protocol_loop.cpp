@@ -25,7 +25,7 @@ namespace bpr::adapters::agent::detail {
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session }
-				, Decoder{ aRequest.Protocol }
+				, Decoder{ aRequest.Protocol, aRequest.WritingOnly }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}

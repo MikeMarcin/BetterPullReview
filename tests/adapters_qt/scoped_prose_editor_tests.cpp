@@ -90,6 +90,23 @@ namespace {
 		expect(!rewrite(e, e.raw()), "equal replacement is no-op");
 		expect(e.document()->availableUndoSteps() == steps, "equal creates no native undo entry");
 	}
+	void unicode_paragraphs()
+	{
+		qt::scoped_prose_editor editor;
+		const std::string       raw = "A B C D\r\nE";
+		editor.present(raw);
+		auto cursor = editor.textCursor();
+		cursor.setPosition(2);
+		cursor.setPosition(7, QTextCursor::KeepAnchor);
+		editor.setTextCursor(cursor);
+		const auto capture = editor.capture();
+		expect(capture.has_value(), "Unicode separators and NBSP have exact raw mapping");
+		expect(rewrite(editor, "X Y"), "Unicode separator selection is replaceable");
+		expect(editor.raw() == raw.substr(0, capture->Selection.Begin) + "X Y" + raw.substr(capture->Selection.End), "Unicode raw prefix/suffix remain exact");
+		editor.undo();
+		drain();
+		expect(editor.raw() == raw, "Unicode separator/space undo restores exact raw bytes");
+	}
 	void moved_caret_and_stale()
 	{
 		qt::scoped_prose_editor e;
@@ -129,9 +146,10 @@ namespace {
 		editor.present(p);
 		editor.show();
 		editor.show_problem();
-		unsigned                         calls = 0;
+		unsigned                         calls         = 0;
+		unsigned                         cancellations = 0;
 		std::optional<qt::prose_capture> captured;
-		editor.set_writing_dispatch([&](core::writing_hook hook, qt::prose_capture c) {expect(hook==core::writing_hook::problem,"clicked field owns request");++calls;captured=std::move(c); }, [] { });
+		editor.set_writing_dispatch([&](core::writing_hook hook, qt::prose_capture c) {expect(hook==core::writing_hook::problem,"clicked field owns request");++calls;captured=std::move(c); }, [&] { ++cancellations; });
 		auto* prose  = editor.writing_editor(core::writing_hook::problem);
 		auto  cursor = prose->textCursor();
 		cursor.setPosition(2);
@@ -150,12 +168,21 @@ namespace {
 		prose->moveCursor(QTextCursor::End);
 		prose->insertPlainText("x");
 		expect(persisted == "A\r\n  \tBx", "manual native edits persist untouched CRLF");
+		QWidget other;
+		editor.activateWindow();
+		drain();
+		const auto previous = cancellations;
+		other.show();
+		other.activateWindow();
+		drain();
+		expect(cancellations > previous && calls == 1, "switching windows cancels without invoking assistance");
 	}
 }
 int main(int argc, char** argv)
 {
 	QApplication app(argc, argv);
 	native_history();
+	unicode_paragraphs();
 	moved_caret_and_stale();
 	real_tour_buttons();
 	std::cout << "scoped-prose-editor-tests:pass\n";
