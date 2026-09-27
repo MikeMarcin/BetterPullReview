@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1056"
 title: "Implement revisioned local commands and machine result contract"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045"]
 depends_on: ["BPR-1053", "BPR-1054", "BPR-1055"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-05","milestone":"headless-manual","acceptance":["AC44-04"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
