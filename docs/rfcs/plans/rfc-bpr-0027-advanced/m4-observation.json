@@ -1,0 +1,117 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m4",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "diagnostic-export",
+    "definition_fingerprint": "sha256:9e46f3fa2afcc007b2062780c58dff7bc77ceb9c1769658e30b0821a00d71532",
+    "obligations": [
+      {
+        "id": "BPR-1218:*",
+        "source": "BPR-1218",
+        "selector": null,
+        "source_fingerprint": "sha256:59bc86cd7a0730514e3ea36846ca9c6cb7617a68373d2d259ddb1be1bfe3713c"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b293c73a30a6ad84f30e250c0313d71900c69e52d74f6ea20c0da8095d79e4a9",
+    "exit_criteria": [
+      {
+        "id": "diagnostic-export:exit:1",
+        "text": "AC1: Freeze and reprocess every selected field, preserve joins, disclose capture-time omissions and keep originals intact."
+      },
+      {
+        "id": "diagnostic-export:exit:2",
+        "text": "AC2: Verify malformed/mixed-mode/session/ring selection, local-only writes and negative content cases through public UI."
+      },
+      {
+        "id": "diagnostic-export:exit:3",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:5d74180ae4bcfbdb9df5502aeb3568a9fd1a5ceb379603f94de772a664f65e5b",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "diagnostic-export",
+  "disposition": "milestone-complete",
+  "candidate_revision": "5ef925d960c958509f535651e4ed3f4b72d8719a",
+  "handoff_ref": "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m4-checkpoint",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md",
+    "docs/issues/60-done/BPR-1218-diagnostic-export.md",
+    "git:5ef925d960c958509f535651e4ed3f4b72d8719a:main-and-origin/main"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1218:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1218-diagnostic-export.md",
+        "git:5ef925d960c958509f535651e4ed3f4b72d8719a:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-export:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1218-diagnostic-export.md",
+        "git:5ef925d960c958509f535651e4ed3f4b72d8719a:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-export:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1218-diagnostic-export.md",
+        "git:5ef925d960c958509f535651e4ed3f4b72d8719a:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-export:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1218-diagnostic-export.md",
+        "git:5ef925d960c958509f535651e4ed3f4b72d8719a:main-and-origin/main"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "native-closeout",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1218 accepted and pushed on main; fresh sole implementer owns BPR-1219. Full-RFC native, package, crash and human obligations remain open."
+  },
+  "ownership": "quiescent"
+}

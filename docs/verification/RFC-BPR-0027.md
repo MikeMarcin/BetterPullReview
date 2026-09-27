@@ -426,3 +426,10 @@ Merged-source build passed; all **5/5** integration checks passed in 26.45
 seconds at `9a46ddd8`, including native file maintenance and the full public
 export course. Scoped board validation passed. No product edit followed that
 verification. All task-owned build/test/tidy commands completed.
+
+M4 accepted and pushed on main as `5ef925d960c958509f535651e4ed3f4b72d8719a`;
+BPR-1218 is Done. Source behavior is `3fd1224e`, tested merged source `9a46ddd8`.
+Main and origin/main matched after push. The final checkpoint/observation is
+documentation only and releases the writer. No review URL, session, event cursor,
+protected candidate or server exists; all task-owned commands have finished.
+Next: fresh BPR-1219 / `native-closeout`, preserving all full-RFC limitations.

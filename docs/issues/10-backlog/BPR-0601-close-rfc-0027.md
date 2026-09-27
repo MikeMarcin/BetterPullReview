@@ -66,9 +66,9 @@ no blocker remains in that subset. Opposite-family review was unavailable.
 The owner requests full RFC implementation and landing on main after each
 accepted milestone. The old advanced-phase deferral is superseded; full criteria
 and immutable RFC base remain unchanged. No live sign-in or PR mutation is
-authorized. BPR-1215–1219 are the required source-owned milestones. Current owner:
-`/root/rfc0027_m4`, sole writer in worktree `57ed`, branch
-`codex/rfc0027-advanced`; current milestone `diagnostic-export`.
+authorized. BPR-1215–1219 are the required source-owned milestones. Current ownership: released at the accepted M4 boundary; worktree `57ed`,
+branch `codex/rfc0027-advanced`, is available to the next sole implementer.
+Next milestone: `native-closeout`.
 
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
 rows describe their original not-run state; advanced acceptance stays pending
@@ -203,3 +203,15 @@ The exact merged-source rebuild passed and integration passed 5/5 in 26.45
 seconds at `9a46ddd8`. No product edit followed verification. BPR-1218 acceptance
 is bound to that candidate. All task-owned build/test/tidy commands are finished;
 there is no attended review URL, session, cursor, protected candidate or server.
+
+M4 landed and pushed as `5ef925d960c958509f535651e4ed3f4b72d8719a`; main and
+origin/main match. This checkpoint releases `/root/rfc0027_m4` writer ownership.
+The [completion observation](../../rfcs/plans/rfc-bpr-0027-advanced/m4-observation.json)
+binds all M4 obligations and exits to that accepted landing. The final handoff
+commit carries documentation only. No source writer, background command,
+protected candidate or review server is transferred. Reuse the clean checkout
+and existing offline dev/core-only caches. Bind `native-closeout` with M1–M4
+accepted, then promote/claim BPR-1219 under mandate r2. Preserve every pending
+native, package, crash and attended criterion; required human acceptance must
+be prepared through the configured attended-review companion rather than
+self-certified. No further M4 work is owed.
