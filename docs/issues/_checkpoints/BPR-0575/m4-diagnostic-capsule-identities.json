@@ -1,0 +1,55 @@
+{
+  "source_revision": "3a517b866f5c8a5fe461167eb044890e50b61a12",
+  "source_sha256": "66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "116a553acbc0ca2980ab08f12ecf6c5835e60f45fb342d858aa5db12b4117fc2",
+      "bytes": 15302992
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "54e4c779ba6f41e2043ff6a41183be074c7b68412aac59d421108216a50c0d82",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565/capsule.inventory",
+      "sha256": "936b4445205e1e40846a2d59356029e49179fd0143a9a0f3d59ceac589038bf1",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565/capsule.dmg",
+      "sha256": "0ca4ac5e267ee906c9b07b07e1c79ab5ae923d93b9e73d72029ac81acc41f162",
+      "bytes": 34925514
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565/source-manifest.txt",
+      "sha256": "66e1917b2b3e9f0c20cacf3601bd218c705418aa19259ca32703af0bb5e88565",
+      "bytes": 6875
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "d0fde46284745db231d7764ce61fef5a87a24fca6ff022adf871db630dd28c41",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-diagnostic-approval-parent/approval.txt",
+  "subject_sha256": "c7b0d9581db0aded369c7fe8505314052cb11920099b6704109833758d1b2bf9",
+  "subject_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/docs/issues/_checkpoints/BPR-0575/m4-diagnostic-approval-subject.txt",
+  "profile": 2,
+  "replay_namespace": "/Users/jaeger/Library/Application Support/BetterPullReview/BetterPullReview/profiles/profile-2/designated-live-review-replay-state-v1",
+  "replay_state_unchanged": true,
+  "replay_marker_hashes_before_new_approval": {
+    ".bpr-replay-namespace": "925bf8224daf8b1c569473993205aaf0f6b1b4407952884bed1504414ad62c16",
+    "93f2c3d5f4578a8c4a1ee470d3b53e7765b2397ad02e64df4f9dad7d5887ab22": "e699f919219d61f5ca70c91f6ecc9eee35601ac293c023d7c2688a97944c18ae"
+  },
+  "intended_independent_publication": {
+    "path": "off_hunk_fixture.md",
+    "side": "RIGHT",
+    "line": 60,
+    "body": "BetterPullReview Markdown source-line verification at line 60."
+  },
+  "original_text_publication": "Remains native_possibly_transmitted; no retry, body change or fallback. Separate Markdown anchor explicitly authorized by coordinator under user safe-PR mandate.",
+  "approval_materialization_authority": "Standing mandate r2; fresh exact one-use subject, no new human hash verdict asserted."
+}

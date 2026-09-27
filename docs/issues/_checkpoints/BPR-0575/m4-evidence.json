@@ -6,7 +6,7 @@
   "milestone": "d-evidence-closeout",
   "start_revision": "dc1a836b55c718040a6e467245afc8ee6600d4f9",
   "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
-  "production_candidate": "0ff88046",
+  "production_candidate": "3a517b86",
   "manifest_candidate": "bd9eb897",
   "commands": [
     {
@@ -117,7 +117,7 @@
       "sha256": "96caa0049de764096cb50973775cb1ca0381e81cd4967e95622d8fa05311677d"
     }
   ],
-  "source_review": "Only exact compiled attended target constants and mechanical inherited application formatting; bootstrap/observer/app agree. Production mutation-branch digest unchanged. No independent review report claimed.",
+  "source_review": "PR2 target rebind0ff88046, audited pending inventorybd9eb897, optional exact profile selector6526f525, and bounded diagnostic3a517b86. Each has scoped source review and gates in linked evidence. No independent review report claimed.",
   "simplification": "Reviewed core policy, session/SQLite boundary, cached source-normalization and Qt incremental projection; no new behavior refactor warranted. Removed stale preparatory docs and linked one owning state-machine/codec contract.",
   "reuse": "M1/M2/M3 evidence retains unchanged policy, wire, journal, normalization and3-scale3-theme claims; D reran affected real composition and exact authority.",
   "limits": [
@@ -127,5 +127,14 @@
     "23 pre-existing Windows source registration patterns remain unqualified; source-count inventory grants no configured Windows exception.",
     "Canonical0020/0021 remain Deferred; no sequencing amendment yet."
   ],
-  "live": "No live write performed during unattended preparation. Prepared exact58-source capsule and private one-use approval; standing owner authorization applied without inventing new hash approval."
+  "live": "Default run stopped before draft/POST on legacy populated-cache manifest refusal. Fresh profile2 source6526f525 reached one approved text-line60 Publish; journal native_possibly_transmitted with no receipt or fallback. Original remains GET-only; see m4-profile-live-attempt.json. Diagnostic candidate3a517b86 being prepared for separately authorized independent Markdown line60.",
+  "prior_production_candidate": "0ff88046",
+  "profile_selector_candidate": "6526f525",
+  "supplementary_evidence": [
+    "m4-default-live-attempt.json",
+    "m4-profile-control-evidence.json",
+    "m4-profile-capsule-identities.json",
+    "m4-profile-live-attempt.json",
+    "m4-diagnostic-evidence.json"
+  ]
 }
