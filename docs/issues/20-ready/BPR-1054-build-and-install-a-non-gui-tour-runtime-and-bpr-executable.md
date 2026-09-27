@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1054"
 title: "Build and install a non-GUI tour runtime and bpr executable"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1053"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-03","milestone":"headless-manual","acceptance":["AC44-01"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
