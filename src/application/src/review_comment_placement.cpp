@@ -68,13 +68,14 @@ namespace bpr::application {
 				continue;
 			}
 			const auto* root = root_comment(thread);
-			if (!root || root->Path != path) {
+			if (!root || root->Path != path || !root->Observation.RawBody) {
 				continue;
 			}
+			const auto& body  = *root->Observation.RawBody;
 			const auto found  = Roots.find(std::string{ thread.Thread.value() });
-			auto       cached = found != Roots.end() && found->second.Identity == root->Comment.value() && found->second.Body == root->Body
+			auto       cached = found != Roots.end() && found->second.Identity == root->Comment.value() && found->second.Body == body
 				? found->second
-				: cached_root{ std::string{ root->Comment.value() }, root->Body, Decode(*Source, root->Body) };
+				: cached_root{ std::string{ root->Comment.value() }, body, Decode(*Source, body) };
 			auto&      kept   = nextRoots.emplace(thread.Thread.value(), std::move(cached)).first->second;
 			if (!kept.Parsed) {
 				continue;

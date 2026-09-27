@@ -1,16 +1,22 @@
 /// \file
 /// \brief Hostile real-process coverage for agent protocol and teardown policy.
 
+#include "../core/private_review_fixture.hpp"
+#include "../sqlite_contract/scratch_root.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/private_review_application_host.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -261,6 +267,51 @@ namespace {
 		}
 	}
 
+	void test_durable_private_input_crosses_only_after_admission()
+	{
+		using namespace application;
+		using namespace core;
+		tests::sqlite_contract::scratch_root scratch{ "private-input-child" };
+		const auto                           profile = canary_profile(agent_protocol::codex_jsonl_exec);
+		const auto                           current = session();
+		auto                                 binding = private_review_fixture::binding();
+		binding.Revision                             = current.Binding;
+		adapters::sqlite::private_review_configuration config{ { scratch.path(), "github.com", "synthetic", "example", 30 }, bpr_profile_id{ 1 }, current.Binding.Host, github_account_id{ 3 }, current.Binding.Repository, current.Binding.PullRequest };
+		auto                                           opened = adapters::sqlite::make_private_review_store(config);
+		expect(opened.has_value(), "open durable child course");
+		auto& store   = **opened;
+		binding.Scope = store.frontier()->Scope;
+		auto seed     = [&](std::string body) {
+			auto next     = store.frontier()->NextIdentity;
+			auto revision = *create_private_thread(private_review_thread_id{ next }, { binding, private_pr_subject{ } }, { private_review_turn_id{ next + 1 }, private_review_turn_revision_id{ next + 2 }, private_vertex_order{ next + 2 }, private_reviewer_actor{ }, std::move(body) });
+			expect(store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision } }).has_value(), "commit child input fixture source");
+			return source_of(revision.Revision);
+		};
+		auto selected = seed("EXPLICIT_PRIVATE_CHILD_CANARY");
+		(void)seed("UNSELECTED_PRIVATE_CHILD_CANARY");
+		private_review_application_host host{ store };
+		agent_context_observation       context{ .ApplicationSession = application_session_id{ 11 }, .Binding = current.Binding, .PullRequestUrl = "https://github.example/octo/app/pull/30", .ChatMessage = "Synthetic private conversation" };
+		auto                            admitted = host.admit({ .Binding = binding, .Sources = { { selected, selected.Key, false } } }, profile, current, context, { });
+		expect(admitted.has_value(), "atomic private run admission");
+		auto supplementValue = build_agent_context_supplement(context, current);
+		expect(supplementValue.has_value(), "build admitted context");
+		auto launched = build_agent_launch(profile, *supplementValue, [](const std::string& name) -> std::optional<std::string> { return name == "BPR_CANARY_AGENT_IDENTITY" ? std::optional<std::string>{ "allowed" } : std::nullopt; }, admitted->Launch);
+		expect(launched.has_value(), "exact admitted private launch");
+		launched->WorkingDirectory = scratch.path().string();
+		auto claim                 = host.claim(*admitted, { });
+		expect(claim.has_value(), "claim current source before child input");
+		launched->PrivateInputClaim = *claim;
+		adapters::agent::agent_process_launcher launcher;
+		auto                                    result = launcher.run(*launched, 20'000);
+		expect(result.Outcome == agent_run_outcome::success && result.Run == admitted->Delta.Run, "real child produces exact durable run response");
+		const auto input = event_values(result, "stdin");
+		expect(input.size() == 1 && input.front().find("EXPLICIT_PRIVATE_CHILD_CANARY") != std::string::npos && input.front().find("UNSELECTED_PRIVATE_CHILD_CANARY") == std::string::npos, "real child reads selected private body and never unchecked body");
+		expect(!(*claim)->permitted(), "real transport releases source claim after write");
+		expect(host.finish(*admitted, result, { .Binding = current.Binding }).has_value(), "real correlated full child output commits as agent turn");
+		auto transcript = store.list_revisions(*admitted->Delta.Thread);
+		expect(transcript && transcript->Revisions.size() == 2 && transcript->Revisions.back().Revision.Body.find("canary-complete") != std::string::npos, "durable turn contains validated complete child output");
+	}
+
 	void test_all_four_protocols_stream_partial_frames_under_stderr_pressure()
 	{
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
@@ -273,6 +324,10 @@ namespace {
 		};
 		for (const auto protocol : protocols) {
 			auto launched = request(protocol);
+			launched.Run  = core::agent_run_id{ 71U };
+			if (protocol == core::agent_protocol::codex_app_server) {
+				launched.Metadata.Requested = { "canary-requested", "high" };
+			}
 			launched.Arguments.emplace_back("--stderr-pressure");
 			auto streamed     = std::vector<application::agent_stream_event>{ };
 			auto firstEventAt = std::optional<qint64>{ };
@@ -289,6 +344,23 @@ namespace {
 					streamed.push_back(aEvent);
 				});
 			const auto finishedAt = timer.elapsed();
+			expect(result.Run == launched.Run, "real process result preserves exact invocation identity");
+			if (protocol == core::agent_protocol::codex_app_server) {
+				expect(result.Metadata.Requested.Model == "canary-requested" && result.Metadata.ProtocolReported.size() == 2
+						   && result.Metadata.ProtocolReported[0].Settings.Model == "canary-reported" && result.ProvenanceConflicts.size() == 2,
+					   "real App Server IPC retains requested/reported disagreement");
+			} else if (protocol == core::agent_protocol::claude_stream_json) {
+				expect(result.Metadata.ProtocolReported.size() == 2 && result.Metadata.ProtocolReported[0].ToolVersion == "fixture-1"
+						   && result.Metadata.ProtocolReported[1].Settings.Model == "canary-served" && result.ProvenanceConflicts.size() == 1,
+					   "real Claude IPC retains version, session and conflicting reported models");
+			} else if (protocol == core::agent_protocol::codex_jsonl_exec) {
+				expect(result.Metadata.ProtocolReported.size() == 1 && !result.Metadata.ProtocolReported[0].Settings.Model,
+					   "real JSONL reports its thread and leaves model absent");
+			} else {
+				expect(result.Metadata.ProtocolReported.empty(), "real terminal leaves unsupported metadata unknown");
+			}
+			expect(result.Metadata.ContentSelfReported == core::agent_setting_facts{ }, "output prose never supplies runtime facts");
+
 			expect(
 				result.Outcome == application::agent_run_outcome::success
 					&& result.ExitCode == 0,
@@ -311,6 +383,7 @@ namespace {
 			for (auto index = std::size_t{ 0U }; index < result.Events.size(); ++index) {
 				expect(
 					result.Events[index].Session == session().Id
+						&& result.Events[index].Run == launched.Run
 						&& result.Events[index].Sequence == index,
 					"every streamed frame carries exact ordered session identity");
 			}
@@ -356,28 +429,52 @@ namespace {
 		}
 	}
 
+	void test_private_claim_waits_for_buffered_input_delivery()
+	{
+		struct observed_claim final : application::agent_input_claim
+		{
+			std::atomic_bool   Released = false;
+			[[nodiscard]] auto permitted() const noexcept -> bool override { return !Released.load(); }
+			void               release() noexcept override { Released.store(true); }
+		};
+		QTemporaryDir directory;
+		expect(directory.isValid(), "private input drain scratch directory");
+		const auto marker   = (std::filesystem::path{ directory.path().toStdString() } / "child-started").string();
+		auto       launched = request(core::agent_protocol::codex_jsonl_exec, std::string(12U * 1024U, 'p'));
+		launched.Input.append(512U * 1024U, 'x');
+		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", marker, "--stderr-before-input", "--delay-input-ms", "400" });
+		auto claim                 = std::make_shared<observed_claim>();
+		launched.PrivateInputClaim = claim;
+		adapters::agent::agent_process_launcher      launcher;
+		std::optional<application::agent_run_result> result;
+		auto                                         child = std::jthread{ [&] { result = launcher.run(launched, 20'000); } };
+		for (int attempt = 0; attempt < 100 && !std::filesystem::exists(marker); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+		}
+		expect(std::filesystem::exists(marker), "child reaches delayed-input checkpoint");
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+		expect(claim->permitted(), "source claim remains held while Qt has queued private input for a backpressured child");
+		child.join();
+		expect(result && result->Outcome == application::agent_run_outcome::success && !claim->permitted(), "child receives all input and claim releases after pipe drain");
+		expect(event_values(*result, "stdin-bytes") == std::vector{ std::to_string(launched.Input.size()) }, "backpressured child receives complete private input");
+	}
+
 	void test_real_child_receives_no_parent_credential_or_context_in_argv()
 	{
 		plant_parent_secrets();
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		auto       launched         = request(core::agent_protocol::codex_jsonl_exec);
-		const auto workingDirectory = std::filesystem::temp_directory_path()
-			/ ("bpr-agent-cwd-"
-			   + std::to_string(
-				   std::chrono::steady_clock::now().time_since_epoch().count()));
+		auto          launched = request(core::agent_protocol::codex_jsonl_exec);
+		QTemporaryDir scratch;
+		expect(scratch.isValid(), "the canary owns a random scratch root");
+		const auto      workingDirectory = std::filesystem::path{ scratch.path().toStdString() };
 		std::error_code filesystemError;
-		expect(
-			std::filesystem::create_directory(workingDirectory, filesystemError)
-				&& !filesystemError,
-			"the canary receives a dedicated accepted working directory");
-		// [[BPR-1121]]. Owned from here, so a failure below removes it.
-		const bpr::tests::scratch_guard ownedWorkingDirectory{ workingDirectory };
+		std::filesystem::permissions(workingDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, filesystemError);
+		expect(!filesystemError, "canary root is owner private");
 
 		launched.WorkingDirectory = workingDirectory.string();
 		auto       launcher       = adapters::agent::agent_process_launcher{ };
 		const auto result         = launcher.run(launched, 20'000);
-		static_cast<void>(std::filesystem::remove(workingDirectory, filesystemError));
 		expect(
 			result.Outcome == application::agent_run_outcome::success,
 			"the boundary canary succeeds");
@@ -437,6 +534,27 @@ namespace {
 					!= std::string::npos;
 			}),
 			"the child reads every required local context class only from stdin");
+	}
+
+	void test_input_budget_refuses_before_real_child_effect()
+	{
+		QTemporaryDir scratch;
+		expect(scratch.isValid(), "budget course owns its random root");
+		const auto root = std::filesystem::path{ scratch.path().toStdString() };
+		std::filesystem::permissions(root, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto marker         = root / "child-started";
+		auto       launched       = request(core::agent_protocol::external_terminal);
+		launched.WorkingDirectory = root.string();
+		launched.Arguments        = { "--pre-assignment-side-effect", marker.string() };
+		launched.Input.assign(application::maximum_agent_input_bytes + 1, 'x');
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto refused  = launcher.run(launched, 20'000);
+		expect(refused.ProtocolFailure == application::agent_protocol_failure::input_too_large && !std::filesystem::exists(marker),
+			   "over-limit input cannot reach even the child's first side effect");
+		launched.Input     = "small context\n";
+		const auto control = launcher.run(launched, 20'000);
+		expect(control.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker),
+			   "negative control proves the same child creates the marker when admitted");
 	}
 
 	void test_independent_agent_identity_alone_controls_canary_authority()
@@ -1103,8 +1221,11 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
+	test_durable_private_input_crosses_only_after_admission();
+	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_output_before_input_does_not_stall_the_request();
+	test_private_claim_waits_for_buffered_input_delivery();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();
 	test_independent_agent_identity_alone_controls_canary_authority();
 	test_every_terminal_condition_is_typed_and_failed_runs_publish_no_result();

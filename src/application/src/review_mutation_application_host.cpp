@@ -556,6 +556,7 @@ namespace bpr::application {
 						.Result            = std::move(aSubmission.Result),
 						.Reconciliation    = std::move(aSubmission.Reconciliation),
 						.MutationAttempted = aSubmission.MutationAttempted,
+						.Lineage           = aSubmission.Lineage,
 					});
 				} catch (...) {
 				}
@@ -880,6 +881,7 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
+			static_cast<void>(RepairStop.request_stop());
 			if (Grant != nullptr) {
 				Grant->revoke();
 			}
@@ -922,6 +924,8 @@ namespace bpr::application {
 		std::atomic<std::uint64_t>                                  NextRequest    = 1U;
 		bool                                                        Closing        = false;
 		bool                                                        DrainScheduled = false;
+		bool                                                        RepairPending  = false;
+		std::stop_source                                            RepairStop;
 	};
 
 	review_mutation_application_host::review_mutation_application_host(
@@ -1000,6 +1004,29 @@ namespace bpr::application {
 	{
 		Implementation->cancel(aContext);
 	}
+	void review_mutation_application_host::repair_pending_publications()
+	{
+		auto self = Implementation;
+		{
+			std::scoped_lock lock{ self->Mutex };
+			if (self->Closing || self->RepairPending || !self->OwnedProvider) {
+				return;
+			}
+			self->RepairPending = true;
+		}
+		try {
+			self->Effects.post([self] {
+				if (!self->RepairStop.stop_requested()) {
+					self->OwnedProvider->repair_pending_publications(self->RepairStop.get_token());
+				}
+				std::scoped_lock lock{ self->Mutex };
+				self->RepairPending = false;
+			});
+		} catch (...) {
+			std::scoped_lock lock{ self->Mutex };
+			self->RepairPending = false;
+		}
+	}
 
 	void review_mutation_application_host::shutdown() noexcept
 	{
@@ -1025,7 +1052,8 @@ namespace bpr::application {
 		std::scoped_lock lock{ Implementation->Mutex };
 		return Implementation->Outstanding.empty()
 			&& Implementation->EffectQueue.empty()
-			&& !Implementation->DrainScheduled;
+			&& !Implementation->DrainScheduled
+			&& !Implementation->RepairPending;
 	}
 
 	auto review_mutation_application_host::outstanding_requests() const noexcept

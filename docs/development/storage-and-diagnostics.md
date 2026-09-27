@@ -59,6 +59,19 @@ recovery refuses anything whose recorded identity it cannot prove.
 
 ## Inventory and retention
 
+The profile's `review-ledger.sqlite3` stores RFC-BPR-0023 private threads,
+immutable turns, run provenance, exact composition sources, local drafts and
+publication lineage. Schema 7 migrates supported v1–v6 ledgers atomically;
+old notes retain their bytes and become `legacy_unknown` revisions. Pages and
+scope quotas are bounded; an oversized admission refuses the whole transaction.
+The [ledger contract](../architecture/review-ledger.md) lists exact page, body
+and scope limits. A killed writer leaves the last committed state; remote success
+with a failed local lineage commit is reconciled from the existing request and
+server truth without a second POST. Profile purge removes this private store
+through the admitted inventory, not a GitHub comment or shared updater state.
+Diagnostic output uses identities and digests rather than private bodies or
+credentials. See the [operator workflow](../ux/private-review-workflow.md).
+
 | Data | Location relative to the admitted profile root | Removal behavior |
 |---|---|---|
 | Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `review-tours.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
@@ -68,7 +81,8 @@ recovery refuses anything whose recorded identity it cannot prove.
 | Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
 | Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
 
-Review tours retain private authored Markdown and editable raw remote baselines,
+Review tours retain private authored Markdown, editable raw remote baselines and
+outline provenance (supplied anchor identifier, private reason/question and visit state),
 bounded to 64 KiB per field, 4 MiB per encoded draft and 128 drafts per profile.
 There is no automatic eviction. The exact profile/account/host/repository/PR key
 is retained; a save conflict keeps both copies. These drafts are not server-backed.
@@ -137,26 +151,25 @@ per-thread Quill queues can drop earlier. These are bounds, not delivery promise
 
 ## Preview and export diagnostics
 
-1. Open **Help → Diagnostics** or **Settings → Storage & privacy** for the
-   intended profile. Choose all retained sessions or the current session. Recent
-   sanitized context is excluded unless its checkbox is selected.
-2. Choose **Preview anonymized diagnostics**. The host flushes accepted records
-   and freezes a bounded selection. The preview names its scope, session count,
-   UTC range, categories, record/byte totals and omissions, and shows the exact
-   file text. Session, request and window joins receive fresh opaque labels for
-   this export. Recognized sanitized explanations, build/timing and closed
-   operation/failure facts remain; these can still reveal context.
-3. Choose **Export anonymized preview…** and a new local filename. Existing files
-   are refused. Later appends are excluded and original files remain intact.
-   Changing the session or recent-context choice cancels the old preview.
-4. For retained numeric request/window identities, use **Preview with identifying
-   details…**, inspect it, then **Export with identifying details…**. A separate
-   default-Cancel disclosure precedes the save chooser. Export cannot recover
-   identities removed when the event was recorded. Current producers do not admit
-   names, paths, credentials or review content even in this mode.
+1. Choose **Help → Export anonymized diagnostics…**, available while signed out.
+   The same action is in **Settings → Storage & privacy**. It automatically
+   freezes a bounded selection of retained logs for this profile and opens the
+   preview. Session, request and window joins receive fresh opaque labels.
+2. Inspect the scope, time range, categories, size and omissions. **Show records**
+   expands the exact file text. Recognized sanitized explanations and operational
+   facts remain; these can still reveal context.
+3. Choose **Save…** and a new local filename, or **Cancel**. Existing files are
+   refused. Later appends are excluded; original files remain intact.
+4. **Export options** offers current-session selection and optional recent
+   sanitized context (excluded by default). Changing an option cancels the old
+   snapshot; **Update preview** freezes the revised selection before Save enables.
+5. **Help → Export with identifying details…** uses the same short flow with
+   an explicit disclosure and **Save with identifying details…** confirmation.
+   Cancel is the default. Export cannot recover identities removed during
+   recording. Credentials and review content are excluded in either mode.
 
 Every export is a local write. No upload, support message, repository attachment
-or transmission to an agent occurs. Closing Settings cancels its preview. A
+or transmission to an agent occurs. Closing the export dialog or its Settings window cancels its preview. A
 frozen preview can contain explicitly selected recent context until cancelled or
 consumed; it receives no new records after preparation.
 

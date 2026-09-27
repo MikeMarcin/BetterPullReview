@@ -1,5 +1,15 @@
 # Build and Test
 
+For RFC-BPR-0023, run the focused `qt_private_review_panel`, private store/host
+rows, and `application_private_review_native`, `_file`, and `_retry` public
+paths through CTest after building the dev preset. The public-path courses use
+local safe fixtures and canary inputs; do not put credentials or private PR
+contents in fixture logs. Run `python3 scripts/verify_documentation.py --root .`
+and `python3 tests/scripts/verify_documentation_tests.py` with Python 3.10+
+before closeout. [The verification ledger](../verification/RFC-BPR-0023.md)
+contains the exact selectors, measured bounds, render digest manifest and
+remaining designated live-server readback requirement.
+
 ## Prerequisites
 
 - CMake 4.4.2
@@ -2987,6 +2997,23 @@ BPR-0602 uses pinned Quill v13.0.0 through a dedicated logging adapter. The
 provider verifies the archive hash and size, stages its headers, and does not
 execute upstream tests, examples or install rules. The core-only graph does not
 acquire Quill. License and bundled fmt notices are in `third_party/quill/`.
+
+The focused native recovery courses are `logging_session_retention` and
+`logging_crash_recovery`. The latter kills a live child after a confirmed flush,
+then verifies fresh session ownership and preservation of the terminated session.
+It makes no promise about unflushed records. On macOS, run actual disk exhaustion
+outside the ordinary test sandbox with:
+
+```sh
+python3 tests/logging/verify_logging_disk_full.py build/dev/tests/logging/session_retention
+```
+
+That course creates and mounts its own 32 MiB HFS+ image, verifies that the mount
+is a different device, observes ENOSPC, checks logger unavailability and restart
+after freeing space, then detaches and removes the image. It never fills the host
+filesystem. `application_logging_capability-failure` drives a recorded failed
+sign-in through the public composition and reads its correlated sanitized error
+from the actual file; it contacts no live service.
 
 The Mac app writes separate session segments beneath:
 

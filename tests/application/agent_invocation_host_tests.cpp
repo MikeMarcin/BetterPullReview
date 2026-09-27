@@ -627,6 +627,26 @@ namespace {
 		}
 	};
 
+	void test_explicit_settings_cross_the_existing_invocation_host()
+	{
+		const auto hostId = core::git_host_id{ 1 };
+		for (const auto profileId : { core::codex_app_server_profile_id, core::codex_jsonl_profile_id }) {
+			auto test = harness{ };
+			test.Host.observe(core::application_session_id{ 1 }, authority(hostId), binding(hostId));
+			auto input              = request(hostId, profileId);
+			input.RequestedSettings = { "requested-model", "high" };
+			test.Host.dispatch(input);
+			test.settle();
+			if (profileId == core::codex_app_server_profile_id) {
+				expect(test.Processes.Starts == 1 && test.Processes.LastRequest->Metadata.Requested == input.RequestedSettings,
+					   "production invocation host passes explicitly requested settings to its existing launcher");
+			} else {
+				expect(test.Processes.Starts == 0 && !test.Projection.Finished.empty(), "unsupported setting reaches a refusal with no process start");
+			}
+			expect(test.Host.is_quiescent(), "settings refusal/success finishes owned work");
+		}
+	}
+
 	void test_ghes_policy_refuses_codex_before_effects()
 	{
 		auto test = harness{ };
@@ -1556,6 +1576,7 @@ namespace {
 
 auto main() -> int
 {
+	test_explicit_settings_cross_the_existing_invocation_host();
 	test_ghes_policy_refuses_codex_before_effects();
 	test_context_refusal_precedes_durable_admission();
 	test_durable_admission_refusal_precedes_every_downstream_effect();

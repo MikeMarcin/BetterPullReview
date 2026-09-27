@@ -936,7 +936,7 @@ session (BPR-0500, `application_agent_invocation_host`).
 | A session without the per-session opt-in carries zero notes and zero drafts | `core_agent_context_supplement`, `core_agent_chat_scope` |
 | The host builds the supplement through the gated overload only | `application_agent_launch` |
 | A structured payload decodes once, in the shared loop, on each carrying protocol | `application_agent_finding_protocol`, `application_agent_protocol_loop` |
-| Every bound and malformation has its own typed cause, and all twelve are pairwise distinct | `application_agent_finding_protocol` |
+| Every bound and malformation has its own typed cause, and all declared causes are pairwise distinct | `application_agent_finding_protocol` |
 | The external terminal refuses a payload as `unsupported_finding_transport` | `application_agent_finding_protocol` |
 | Deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `application_agent_finding_protocol` |
 | A payload arriving after an accepted head move is stale with its analyzed OIDs intact | `application_agent_invocation_host` |
@@ -1014,3 +1014,127 @@ session (BPR-0500, `application_agent_invocation_host`).
   code; the Windows process lifecycle remains claimed only on the strength of
   BPR-0240's 2026-08-26/27 target-native runs, exactly as the RFC-BPR-0011
   sections above say.
+
+## RFC-BPR-0023 runtime facts and input admission
+
+M5 extends the existing invocation/launch/decoder/result path. Requested
+settings are explicit invocation inputs; configured settings are explicit
+profile defaults. Both remain separate from protocol reports. The effective
+wire setting uses the request when present, otherwise the default. Neither a
+profile display name, executable path, assistant prose, stderr nor environment
+value supplies a runtime fact. Content-self-reported settings remain absent:
+none of these four transports has a typed content-self-report field.
+
+### Tested protocol capability boundary
+
+| Protocol | Requested/default settings sent | Reported facts admitted | Unknown facts |
+|---|---|---|---|
+| Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
+| Codex JSONL exec | Explicit settings refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
+| Claude stream JSON | Explicit settings refuse as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
+| External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
+
+These are field-specific observations, not provider-execution attestation.
+App Server's thread result can describe its configured default before the turn
+setting takes effect; its report retains that exact basis. `initialize`'s
+`userAgent` is never scraped into a version. The adapter does not discover a
+model catalog or promise that an agent supports every bounded model/effort
+value; a tool-side rejection remains a failed protocol operation. The public
+App Server contract describes the [request and result fields](https://learn.chatgpt.com/docs/app-server);
+the Claude field mapping is grounded in the publisher's
+[SDK 0.3.211 type declarations](https://unpkg.com/@anthropic-ai/claude-agent-sdk@0.3.211/sdk.d.ts).
+The local canary fixtures exercise these envelopes; they do not qualify an
+installed vendor release or infer facts absent from its messages.
+
+A decoder admits metadata only after its normal phase and remote-identity
+checks. Each distinct report retains its protocol/event/field basis. Identical
+reports coalesce; conflicting requested, configured and reported values remain
+separate and produce the core's typed conflicts. Scalars retain the M3 limits:
+256 bytes per model/effort/version/basis, 1,024 per remote ID, at most 16 reports
+and 16 KiB aggregate metadata. Empty, control-containing, invalid UTF-8,
+wrong-type and oversized fields refuse the frame, without truncation. Missing
+fields remain absent, including nullable App Server effort. Raw JSON and
+credential-related neighboring fields are not persisted as provenance.
+
+### One invocation snapshot and one bounded wire input
+
+`agent_launch_options::AdmittedRun` accepts the store-issued durable run
+snapshot. The builder validates its session, profile identity/display snapshot,
+protocol, entry point, exact revision binding, requested/default facts and
+ordered private source set. Each supplied full body must match its admitted
+source reference, byte count and digest. Unadmitted, missing or changed private
+bodies refuse. The request, stream events and terminal result carry the same
+`agent_run_id`; reusing a session does not reuse its invocation identity.
+Finalization can require the expected run, discarding foreign-run/session facts
+while retaining same-run facts on revision staleness, cancellation and failure.
+
+Private selection remains capped at 256 sources and 2 MiB raw body bytes. A
+separate **8 MiB aggregate encoded stdin** admission counts supplement fields,
+TSV escaping, selected full bodies, protocol JSON escaping, fixed wrappers and
+App Server follow-ups before allocating the encoded context. App Server
+reserves the maximum escaped size of a 1,024-byte remote thread ID. The process
+adapter repeats admission before starting a child; the shared protocol loop
+also checks the actual cumulative bytes before each write. An invalid late
+thread ID can receive the initialization handshake, but receives no private
+context. Neither layer clips the input to make it fit.
+
+M5 supplied this launch snapshot contract. M6 implemented the durable host path
+below, and M8 connected it to the production composition root and UI.
+Storage schema 7 persists the typed facts; mutation-recovery remains unchanged.
+
+### Durable private conversation host
+
+`private_review_application_host` implements the invocation host's optional
+`private_agent_run_port`. When configured, ordinary invocations require an
+exact private-run intent; admission reloads store-owned source bodies and
+commits the reviewer prompt and run before the existing workspace/process path.
+The final source claim serializes edits and deletion through input delivery.
+Only changed thread/revision/run/finding identities are posted to the decision
+lane. A projection retrieves full content through bounded store queries.
+
+The shared decoder retains complete assistant items: App Server deltas and
+matching completed items, JSONL completed agent-message IDs, Claude assistant
+text blocks, and terminal stdout including line endings. Identical completed
+items coalesce; conflicts refuse. Claude's result summary is not appended as a
+second answer. At most 256 items and 1 MiB assistant bytes are retained; the
+existing frame/stdout bounds can impose a smaller representable answer.
+The run stores item byte lengths and digest, while its assistant turn stores the
+single concatenated body. Errors retain only validated incomplete text.
+
+The host persists a correlated original response before the existing stale
+presentation step. Explicit cancellation cannot be overwritten by a late
+success. Admission failure starts no child; terminal storage failure reports
+`private_storage_failure`, and bounded recovery marks remaining admitted runs
+interrupted after producer quiescence. There is no automatic retry or rerun.
+Finding replies preserve their original run/ordinal/digest as the thread subject.
+
+The claim and SQLite store live on the invocation effect lane. SQLite's immediate
+transaction temporarily excludes all writers to the ledger and returns `busy`
+for contention; the process timeout bounds the claim. Raw selected-body vectors
+are released before launch. The immutable encoded request remains bounded and
+lives until process retirement; source exclusion releases at input acknowledgement.
+The launcher creates no durable supplement copy.
+
+M8 connects these APIs to the production composition root and drawer/workshop.
+Until then, callers without the private run port keep their legacy zero-run path
+and cannot supply private source bodies. The separate `WritingOnly` review-tour
+path refuses private-run intents and keeps its existing restricted protocol.
+M6 adds no GitHub capability, publisher or second process launcher.
+
+## Review-tour writing boundary
+
+An explicit tour field button captures one raw-text interval and permits one
+local undoable replacement. This purpose-specific contract does not change the
+ordinary comment workshop's separate acceptance flow. The selected approved
+Claude stream JSON route disables tools, MCP, hooks, repository settings and
+session persistence and rejects protocol frames that violate that mode. Other
+unqualified protocols refuse writing assistance. This application contract and
+its deterministic process canaries do not attest an installed vendor binary or
+model's semantic quality.
+
+Only bounded admitted context accompanies the request; credentials, general
+private notes, unrelated drafts and linked-ticket retrieval are excluded. Current
+editor/owner/hook/source generations must still match at delivery. Outline output
+contains no comment bodies, Ready flags or publication authority; retained entries
+need individual visible author completion. See the [settings contract](../development/settings.md)
+and [tour operator guide](../development/review-tours.md) for exact limits and undo.

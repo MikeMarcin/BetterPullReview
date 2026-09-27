@@ -82,13 +82,23 @@ comparison, which is BPR-1199.
 an ordered route of source-bound explanations. Add stops from selected code,
 reorder them with `Alt+Shift+Up/Down`, and use Previous, Next or Return to tour
 while exploring files. Drafts save locally and survive reopening; editing and
-preview require no AI and publish nothing. GitHub tour import and publication
-remain later milestones. See [private review-tour authoring](docs/architecture/review-tours.md).
+preview require no AI and publish nothing. Import, publication and recovery are
+implemented through production-port fixtures; production Tour writes remain
+unavailable until exact host/transport qualification. See
+[private review-tour authoring](docs/architecture/review-tours.md).
 
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path.
+
+The **Private history** panel keeps review threads, agent runs, and composition
+sources in the local profile ledger. **Squash to Draft** saves a local draft;
+publication remains a separate action in the draft editor. The
+[private review workflow](docs/ux/private-review-workflow.md) explains actor and
+model qualifications, stale anchors, split targets, deletion, and public text.
+RFC-BPR-0023's [verification ledger](docs/verification/RFC-BPR-0023.md) records
+local evidence and the pending designated GitHub readback.
 RFC-BPR-0009 is Auto-Verified under the owner's r4 closeout amendment. Its
 [ledger](docs/verification/RFC-BPR-0009.md) records the verified local defect
 workflow while BPR-0153 remains parked for an unfamiliar GitHub collaborator's
@@ -163,7 +173,7 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each write, and
+a separate exact-host/account/PR/operation confirmation for each ordinary write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -172,6 +182,14 @@ Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+Tour Publish is a bounded grouped-confirmation extension: the preview binds one
+immutable plan to the exact actor, head, sources, prose and allowed returned-link
+slots. Each journaled write consumes its own one-use child grant. Stop or an
+identity/draft change revokes remaining authority; restart reconciles read-only
+and needs an explicit preview and Resume. Compatibility comments are explicitly
+non-atomic, and an optional description edit is a separately named operation.
+These Tour operations remain unavailable on an unqualified host/transport.
 
 After a CLI profile connects, pasting a PR link for that exact host reuses the
 accepted CLI session, including when an unconnected native profile also exists
@@ -251,14 +269,33 @@ failure returns to those defaults. Done BPR-0237 adds semantic-role preview,
 cancel, persistence, restart restoration, and bounded safe theme import against
 the selected comparison. BPR-0233 owns its recorded selected-diff pixels.
 
-The current Home and explicit `AI tools and Findings` surface compose the
-accepted ten-clip Dif catalog from RFC-BPR-0030/0031. Profile-owned visibility
+The current workbench composes the accepted ten-clip Dif catalog from
+RFC-BPR-0030/0031. One decorative sprite rests in the status bar's 28-pixel
+leading corner, moving to the first-time Home or Compose workshop prime spot
+when that surface is presented. Profile-owned visibility
 and motion preferences apply through the existing Appearance controls; reduced
 motion selects static `rest`, and a refused catalog leaves the Home and review
 controls functional without art. Dif is decorative and consumes only accepted
 presentation facts. Both RFCs are `Auto-Verified` after the focused native,
 rendered, memory, resource, and core-only closeout. The selected-graph evidence
-does not certify a signed, notarized, or installable package.
+does not certify a signed, notarized, or installable package. RFC-BPR-0020's
+[foundation closeout](docs/verification/RFC-BPR-0020.md) reconciles its original
+criteria with those accepted successor requirements and placement decisions.
+
+## Review tours
+
+Use **Prepare review tour** in Overview or the Pull Request menu to write a
+Problem, Solution and ordered source explanations without AI. The
+[operator guide](docs/development/review-tours.md) covers native editing, optional
+writing hooks, cold import and partial maintenance. Production Tour writes remain
+unavailable until exact server/transport qualification; the
+[execution ledger](docs/verification/RFC-BPR-0039-0043.md) distinguishes tested
+composition from unobserved native, website and installed-model qualification.
+RFC-BPR-0039–0043 are Auto-Verified under the owner's
+[r2 implementation-scope amendment](docs/verification/RFC-BPR-0039-0043.owner-closeout-r2.md).
+Standalone Blocked BPR-1222–1226 retain GitHub.com/GHES live operations and website
+courses, remaining native stations, installed-provider/model evidence and original
+predecessor acceptance. RFC status enables no unavailable operation.
 
 ## Installation, privacy and release status
 

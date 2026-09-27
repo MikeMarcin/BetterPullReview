@@ -153,6 +153,6 @@ The current recorded package course is Apple Silicon only. Owner amendment r3
 defers Intel updater validation to [[BPR-0950]], outside M4 and RFC-BPR-0035
 closeout; it does not report Intel success or amend RFC-BPR-0014's wider matrix.
 Authorized live private-service/vault evidence remains on [[BPR-0911]], with
-RFC-BPR-0014 and canonical-order gates on [[BPR-0912]]. Building, signing or notarizing a
+the explicit RFC-BPR-0014 dependency on [[BPR-0912]]. Building, signing or notarizing a
 local artifact grants no tag, push, GitHub release or installed-app replacement
 authority. Publication is a separate authorized operation.

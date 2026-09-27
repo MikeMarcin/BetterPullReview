@@ -1,6 +1,14 @@
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/application-contract.md" WRITING_CONTRACT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/problem-statement.md" WRITING_PROBLEM)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/solution-summary.md" WRITING_SOLUTION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline.md" WRITING_OUTLINE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
+configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
 add_library(
     better_pull_review_application
     STATIC
+        src/writing_hooks.cpp
+        src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/window_review_restoration_host.cpp
         src/document_tab_host.cpp
@@ -14,6 +22,8 @@ add_library(
 		src/review_mutation_contract.cpp
         src/review_submission_application_host.cpp
         src/review_submission_contract.cpp
+        src/staged_tour_update.cpp
+        src/staged_review_publication.cpp
         src/review_submission_recovery_contract.cpp
         src/review_mutation_coordinator.cpp
 		src/review_mutation_application_host.cpp
@@ -39,6 +49,9 @@ add_library(
         src/agent_finding_host.cpp
         src/agent_launch.cpp
 		src/agent_invocation_host.cpp
+        src/private_review_application_host.cpp
+    src/review_composition_application_host.cpp
+    src/private_publication_application_host.cpp
         src/agent_realignment.cpp
         src/agent_workspace.cpp
         src/mcp_context_helper_supervisor.cpp
@@ -107,3 +120,5 @@ endif()
 
 bpr_enable_hardening(better_pull_review_application)
 bpr_enable_warnings(better_pull_review_application)
+
+target_include_directories(better_pull_review_application PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

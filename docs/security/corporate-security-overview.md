@@ -137,6 +137,25 @@ are separately trusted applications; their own tools may execute code. See
 the [AI contract](../architecture/ai-agent-boundary.md) and
 [threat model](../architecture/security-threat-model.md) for residual risks.
 
+## Review-tour authority and retained text
+
+Tour drafts and bounded editable remote baselines are private authored content,
+not metadata-only ledger records. The profile store and publication-recovery
+store retain conflict versions and exact pending operations; purge removes known
+local files and never shared GitHub discussion. An explicit Publish freezes one
+finite plan and issues separate one-use journaled grants. Compatibility comments,
+maintenance and description-body edits have multiple visibility boundaries.
+Read-before-write reduces concurrent-writer risk but is not server compare-and-swap.
+Production operations remain unavailable until their exact live qualification.
+
+Optional tour writing uses a separate restricted text-only contract on the existing
+agent host: captured local scope, no tools/MCP/hooks, bounded context and one native
+undo entry. Installed agent enforcement and model quality are still unqualified;
+ordinary broader agent trust remains as described above. Tour navigation and
+preparation never publish, resolve, approve or mark files viewed. See the
+[tour contract](../architecture/review-tours.md) and
+[operator guide](../development/review-tours.md).
+
 ## Diagnostics, removal and distribution
 
 Local logs contain fixed events and bounded credential-owner-sanitized detail;

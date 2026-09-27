@@ -36,22 +36,22 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 
 | Provisional card (within this pack) | Live card |
 |---|---|
-| PACK-BPR-0022-01 | [BPR-0576](../../issues/10-backlog/BPR-0576-import-reconcile-and-plan.md) |
-| PACK-BPR-0022-02 | [BPR-0577](../../issues/10-backlog/BPR-0577-architecture-allocation-and-live-contract.md) |
-| PACK-BPR-0022-03 | [BPR-0578](../../issues/10-backlog/BPR-0578-core-private-thread-model.md) |
-| PACK-BPR-0022-04 | [BPR-0579](../../issues/10-backlog/BPR-0579-core-provenance-lineage-and-composition.md) |
-| PACK-BPR-0022-05 | [BPR-0580](../../issues/10-backlog/BPR-0580-sqlite-schema-migration-and-paged-store.md) |
-| PACK-BPR-0022-06 | [BPR-0581](../../issues/10-backlog/BPR-0581-agent-runtime-provenance-capture.md) |
-| PACK-BPR-0022-07 | [BPR-0582](../../issues/10-backlog/BPR-0582-private-thread-application-host.md) |
-| PACK-BPR-0022-08 | [BPR-0583](../../issues/10-backlog/BPR-0583-squash-to-draft-host-and-durable-draft.md) |
-| PACK-BPR-0022-09 | [BPR-0584](../../issues/10-backlog/BPR-0584-publication-lineage-correlation.md) |
-| PACK-BPR-0022-10 | [BPR-0585](../../issues/10-backlog/BPR-0585-qt-private-shared-conversation-model.md) |
-| PACK-BPR-0022-11 | [BPR-0586](../../issues/10-backlog/BPR-0586-qt-composition-and-provenance-workflow.md) |
-| PACK-BPR-0022-12 | [BPR-0587](../../issues/10-backlog/BPR-0587-composition-root-public-path.md) |
-| PACK-BPR-0022-13 | [BPR-0588](../../issues/10-backlog/BPR-0588-focused-security-migration-crash-and-performance-evidence.md) |
-| PACK-BPR-0022-14 | [BPR-0589](../../issues/10-backlog/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md) |
-| PACK-BPR-0022-15 | [BPR-0590](../../issues/10-backlog/BPR-0590-documentation-and-simplification.md) |
-| PACK-BPR-0022-16 | [BPR-0591](../../issues/10-backlog/BPR-0591-anchor-rfc-0023-verification.md) |
+| PACK-BPR-0022-01 | [BPR-0576](../../issues/60-done/BPR-0576-import-reconcile-and-plan.md) |
+| PACK-BPR-0022-02 | [BPR-0577](../../issues/60-done/BPR-0577-architecture-allocation-and-live-contract.md) |
+| PACK-BPR-0022-03 | [BPR-0578](../../issues/60-done/BPR-0578-core-private-thread-model.md) |
+| PACK-BPR-0022-04 | [BPR-0579](../../issues/60-done/BPR-0579-core-provenance-lineage-and-composition.md) |
+| PACK-BPR-0022-05 | [BPR-0580](../../issues/60-done/BPR-0580-sqlite-schema-migration-and-paged-store.md) |
+| PACK-BPR-0022-06 | [BPR-0581](../../issues/60-done/BPR-0581-agent-runtime-provenance-capture.md) |
+| PACK-BPR-0022-07 | [BPR-0582](../../issues/60-done/BPR-0582-private-thread-application-host.md) |
+| PACK-BPR-0022-08 | [BPR-0583](../../issues/60-done/BPR-0583-squash-to-draft-host-and-durable-draft.md) |
+| PACK-BPR-0022-09 | [BPR-0584](../../issues/60-done/BPR-0584-publication-lineage-correlation.md) |
+| PACK-BPR-0022-10 | [BPR-0585](../../issues/60-done/BPR-0585-qt-private-shared-conversation-model.md) |
+| PACK-BPR-0022-11 | [BPR-0586](../../issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md) |
+| PACK-BPR-0022-12 | [BPR-0587](../../issues/60-done/BPR-0587-composition-root-public-path.md) |
+| PACK-BPR-0022-13 | [BPR-0588](../../issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md) |
+| PACK-BPR-0022-14 | [BPR-0589](../../issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md) |
+| PACK-BPR-0022-15 | [BPR-0590](../../issues/60-done/BPR-0590-documentation-and-simplification.md) |
+| PACK-BPR-0022-16 | [BPR-0591](../../issues/60-done/BPR-0591-anchor-rfc-0023-verification.md) |
 
 The allocator claimed BPR-0561 through BPR-0591 in one operation and advanced
 `docs/issues/NEXT_ID` from BPR-0561 to BPR-0592. No reservation or schema number

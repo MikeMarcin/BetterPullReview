@@ -1,8 +1,60 @@
+# BPR-0573 r3 storage compatibility merge: reviewed 829291bec plus main89f23eeec.
+# Main's schema5 recovery, durable draft/lineage and tour semantics are preserved.
+# Against main, github_application.cpp changes only the exact approved PR2 target
+# constants and passes the existing diagnostic logger after the private lineage
+# port. The provider retains both independent dependencies; diagnostics confer
+# no authority. Off-hunk classifier2 and its exact scope remain unchanged.
+# These three pins bind that reviewed composition; independent acceptance pending.
 # BPR-0573: reviewed dc1a836b..this bounded target reassignment. Only the
 # compiled attended target changes from PR1 to owner-designated PR2; application,
 # bootstrap and independent observer agree on exact IDs, refs and OIDs. No grant,
 # transport, classifier or production mutation-branch change. The touched TU also
 # receives mechanical format of inherited tour fields/branches. Card records review.
+
+# BPR-1016 final integration reseal: reviewed main 93235bee plus tour 22763dc10.
+# The only additional production-manifest changes against main are 5ca53796a
+# (review_submission_workflow.cpp) and 54ba51bf8 (github_application.cpp).
+# Initial descriptions use the same core mapped-byte preservation as maintenance;
+# the separately previewed initial backlink retains its existing journal/grants.
+# Insert-after resolves the selected stable stop identity and supplies it to core
+# position validation. Neither change adds publication authority or private input.
+# Retain main's BPR-0587 private workflow inventory and recorded M8 source review;
+# WritingOnly still rejects private-run intent. Main's later M10 fixes 8cd73d96c
+# and d4404fc44 are also covered: their source and independent review are recorded
+# in RFC-BPR-0023.md. They restore interrupted runs and reconcile pending private
+# publications through the existing host with GET-only recovery and no new POST.
+# The mutation branch matches main exactly; reseal its stale M8 pin for the
+# already-reviewed repair_pending_publications() call added by 8cd73d96c.
+# Prior exact runtime/native evidence and the owner scope amendment are recorded
+# on BPR-1013/BPR-1016 and in the RFC-BPR-0039-0043 qualification ledger.
+# BPR-0587 reseal: scoped engineering self-review of 5b9080fb6..this M8 slice.
+# Intervening pinned-source commits 9b71342a0, 1d84e59c2 and 1ef7a98c3 retain
+# their recorded BPR-1007/BPR-1010/BPR-1011 writing acceptance; WritingOnly
+# still bypasses private-run admission. M8 composes the existing private store,
+# run and publication hosts, serializes durable draft updates, preserves frozen
+# retry identities and waits for the durable receipt before shared refresh.
+# The production provider gains only its storage lineage port. Existing user
+# grants, target/actor/source checks and sole mutation-host publication remain.
+# Add the private workflow to the production manifest and its testing-only
+# executable course to inventory. This is self-review, not the independent
+# RFC review reserved for M10. Evidence: RFC-BPR-0023.md M8 section.
+# BPR-1002 staged-publication merge reseal: reviewed f1e0c652..ef05b58c.
+# Pinned-scope commits: 36d535eb, 505c942d, 189d24f9, e0a870b3,
+# 0fb249a2 and ef05b58c. Tour preview freezes the exact plan and grants
+# bounded child operations through the existing host/journal; pending live
+# operations remain unavailable until qualified. Diagnostic Help exports use
+# the existing current-window/profile maintenance owner. Production lambda
+# capture repairs preserve the fixture branch. Five changed manifest paths
+# are reviewed on BPR-1002 and in the RFC-BPR-0039-0043 merged checkpoint.
+# No new source inventory entry; ordinary mutation-branch pin is unchanged.
+# BPR-0998 github-round-trip integration: reviewed dc1a836b..18c23cdd,
+# pinned-scope product commits f44c95dd and 757e8b9b, plus this merge resolution.
+# Raw tour imports and exact commit/path/side/range navigation retain existing
+# source admission. Conversation refresh runs before tour range restoration;
+# imports neither publish nor authorize an operation. Raw description selection
+# retains exact UTF-8 spans. A duplicate codec include is removed. Other main
+# composition/diagnostic behavior is retained. Mutation-branch pin is unchanged.
+# Review and direct combined evidence: BPR-0998 and RFC-BPR-0039-0043 ledger.
 # BPR-0571 merged integration: reviewed b8543067..a3533195, product commits
 # f442ca2b, 791decea, 75700f4d and 3fd1224e plus their merge resolutions.
 # Tour authoring/navigation and diagnostic controls add no publication grant;
@@ -47,6 +99,19 @@ function(bpr_require_literal_count source_variable token expected description)
     endif()
 endfunction()
 
+# BPR-1015 qualification correction: reviewed from 2e2aca96 through this
+# recorded correction commit. Only review_submission_workflow.cpp changed inside
+# the production app manifest: initial and maintenance descriptions now share
+# core mapped-byte preservation. Initial backlink remains separately named and
+# journaled; no operation support/grant/actor/head/recovery boundary changed.
+# Source-line mutation branch hash is unchanged. The final integration also
+# found the full-application pin still at the manual-maintenance revision.
+# Reviewed 5b9080fb..2e2aca96: 9b71342a, 1d84e59c, 1ef7a98c are the only
+# intervening manifest-source commits, all in github_application.cpp. Profile
+# hook restore, explicit bounded writing/cancel/delivery and visible per-stop
+# completion retain captured identity; no implicit inference or publish grant.
+# Prior scoped-AI/outline reviews and the final real-process course are recorded
+# on BPR-1015 and the pack ledger. Reseal their unchanged composed source here.
 # Resealing the pinned digests ([[BPR-0383]], [[BPR-0819]])
 #
 # The three digests below are review tripwires, not build products. A pin that
@@ -65,6 +130,11 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1006 reseal: 6cff4914..22fd2150 (b56cad7e, 9a7ba459, 22fd2150).
+# Reviewed Tour update preview/journal handoff, same-owner observed conflicts,
+# immutable original versus proposed source and deliberate retarget/reaffirmation.
+# Existing source-line mutation branch is unchanged. Production-mode syntax checks
+# and the complete manual production-port course are recorded in the pack ledger.
 # BPR-1210 reseal: 44bd1266..the BPR-1210 product commit. No intervening
 # pinned-scope changes. Private ledger presentation/CRUD reuses its existing
 # lifetime and capabilities; one owned item enters the core's revisioned edit
@@ -400,7 +470,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"84b8814f2198c1d248a378a9676b7568b1c9d4c7e8947a16a96e6dd6bf4c288f"
+		"74b4c9390b4faab80abfdf5cf68b09daabec5b0633a271612a495b5e1cda9d1a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -438,6 +508,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/installed_runtime.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/private_review_workflow.cpp"
+        "src/private_review_workflow.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -512,6 +584,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/large_review_fixture.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/private_review_fixture_course.cpp"
+        "src/private_review_fixture_course.hpp"
+        "src/private_review_workflow.cpp"
+        "src/private_review_workflow.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -555,7 +631,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4ed2e63d8093d12c4316777926b6c8a5367ae0265fea03bf82ca8a716c8c9513"
+        "94c18da2cfe89b80826a77d8bff63db332a82c3f57c3291f1929c37ce1b3955c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -876,7 +952,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "dac6b593b35c39e24a2aa108ef1a46450877ff08b932d0e420240d37423e3f66"
+        "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

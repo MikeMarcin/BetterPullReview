@@ -8,7 +8,14 @@
 #include <optional>
 
 namespace bpr::application {
-	enum class review_publication_operation : std::uint8_t { create_off_hunk_line };
+	enum class review_publication_operation : std::uint8_t {
+		create_off_hunk_line,
+		create_pending_line_batch,
+		create_pending_off_hunk_batch,
+		add_pending_file_thread,
+		create_standalone_file_comment,
+		create_tour_conversation_comment
+	};
 	/// \brief Complete authority for one operation; unrelated read facts use their own cache.
 	struct review_publication_capability_key
 	{

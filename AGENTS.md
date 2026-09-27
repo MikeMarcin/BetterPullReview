@@ -35,7 +35,7 @@ network, or process effects.
 
 ## Workflow
 
-- RFCs close sequentially in the canonical index order.
+- RFCs close when their explicit dependencies and acceptance criteria are satisfied; index position is not a gate.
 - Issue folder placement is status. `60-done/` is terminal.
 - Use MASK-managed implement-rfc with `.mask/skill-config/implement-rfc/` context.
 - Allocate issue IDs with `python3 scripts/allocate_issue_id.py`; commit returned counter and receipt paths.

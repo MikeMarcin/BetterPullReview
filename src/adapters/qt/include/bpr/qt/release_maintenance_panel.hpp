@@ -26,6 +26,9 @@ namespace bpr::qt {
 		void               adopt(const application::release_maintenance_projection& aProjection);
 		[[nodiscard]] auto action(core::release_maintenance_command aCommand) const -> QAction*;
 
+		/// \brief Opens the local export preview and requests its frozen selection.
+		void open_export(core::diagnostic_export_policy aPolicy);
+
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
 
@@ -33,7 +36,6 @@ namespace bpr::qt {
 		void                                        activate(core::release_maintenance_command aCommand);
 		void                                        confirm(core::release_maintenance_intent aIntent, bool aPreparation);
 		void                                        preview_diagnostics(core::diagnostic_export_policy aPolicy);
-		void                                        confirm_identifying(core::release_maintenance_intent aIntent);
 		void                                        choose_export(core::release_maintenance_intent aIntent);
 		void                                        dismiss_dialog();
 		void                                        dispatch(core::release_maintenance_intent aIntent);
@@ -48,6 +50,11 @@ namespace bpr::qt {
 		QLabel*                                     Summary            = nullptr;
 		QPlainTextEdit*                             Preview            = nullptr;
 		QPointer<QDialog>                           Dialog;
+		QDialog*                                    ExportDialog      = nullptr;
+		QLabel*                                     Disclosure        = nullptr;
+		QLabel*                                     MaintenanceStatus = nullptr;
+		core::diagnostic_export_policy              ExportPolicy      = core::diagnostic_export_policy::anonymized;
+		bool                                        StartExport       = false;
 		QString                                     ProfileLabel;
 	};
 }

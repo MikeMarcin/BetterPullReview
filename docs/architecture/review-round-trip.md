@@ -797,6 +797,14 @@ The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`
 Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
 observed on 2026-09-26. Provider publication, recovery and read normalization use this one codec.
 
+The review-tour extension (BPR-0998) calls the same canonical path/prefix builder
+through a separate read-only codec. It admits full commit-pinned single lines or
+inclusive `#Lfirst-Llast` ranges, LF/CRLF first-line separation and historical
+source. The old single-line publication parser retains its existing contract.
+Tour parsing has no retained blob or comparison authority: the host binds the
+address to exact admitted material before selecting source lines. See
+[review tours](review-tours.md#exact-source-and-compatibility).
+
 ### RFC-0022 logical journal (schema 4)
 
 Schema 4 adds `logical_publication` transactionally after exact validation of
@@ -871,13 +879,15 @@ The accepted read model retains GitHub's `FILE` or `LINE` subject. The
 application's `review_comment_placement` adds a separate semantic anchor only
 for a file thread with one undeleted root whose visible canonical permalink
 matches the selected, sealed retained text endpoint and changed-file catalogue.
-It keeps the authoritative body and a separate byte-preserved prose projection;
-replies inherit root placement without decoding their own bodies. Closed pull
+It decodes the retained raw Markdown observation and keeps display text and
+byte-preserved reviewer prose separate. Missing raw Markdown leaves the thread
+at file level; rendered `bodyText` cannot establish or retain an anchor.
+Replies inherit root placement without decoding their own bodies. Closed pull
 requests remain readable, while the permalink publication compiler still
 requires an open target.
 
 The per-window decoder cache is bound to the complete selected source and each
-root's canonical identity/body. Refresh starts from server truth: link edits
+root's canonical identity/raw body. Refresh starts from server truth: link edits
 remap or remove placement, deletion removes the thread, and missing source
 material leaves file-level placement. No local database or publication journal
 is required to reconstruct the link. The Qt model preserves canonical IDs and
@@ -908,3 +918,92 @@ results remain evidence for their original builds and targets; they do not
 authorize this candidate or a new PR1 launch. Any queued PR1 course needs its
 own source/artifact reconciliation before execution. The ordinary user-publish
 route and dynamic actor validation are unchanged.
+
+## Durable composition drafts (RFC-BPR-0023 M7)
+
+`review_composition_application_host` performs bounded local operations on the
+private store's serialized effect lane. It reloads exact selected identities,
+creates reviewer/copy candidates, returns exact target partitions and unassigned
+sources, and accepts a selected batch in one transaction. Accepted candidates
+are the body authority for the existing `revisioned_review_draft`; an edit adds
+an immutable reviewer successor and advances the draft CAS in the same commit.
+No mutation or process port is available to this host.
+
+A `durable_draft_commit` is the store acknowledgement passed to
+`shared_draft_application_host::adopt` on the decision lane. The existing shared
+owner binds the runtime scope, validates profile/account/PR/head and ledger
+incarnation, then fans out accepted revisions. It refuses stale acknowledgements,
+volatile edits and volatile allocation once durable storage is selected. New
+ordinary inline drafts use `allocate_draft` on the same monotonic store frontier.
+Storage refusal produces no accepted acknowledgement or projection. Restore
+reattaches exact durable values; a `publishing` value remains pending and carries
+no execution grant. M8 supplied asynchronous production wiring and UI translation.
+
+Agent-assisted composition obtains an exact workspace intent and uses the one
+`agent_invocation_host`. Admission revalidates workspace version, source set and
+revision binding before retaining the run. A correlated complete output can
+append only a proposal; a changed/deleted workspace or advanced source retains
+the run terminal without attaching a candidate. Accept and Publish remain
+separate operations. The store and private run port outlive all invocation
+claims and effects, as specified by the M6 lifecycle contract.
+
+
+### Separate durable publication join
+
+`private_publication_application_host` loads an already publishing draft into
+the existing core proposal. Its optional local identity binds the private ledger
+incarnation and exact draft revision into the idempotency key. Legacy proposals
+keep their existing keys. These local fields never enter a GitHub request body.
+A separate explicit Publish still traverses the existing coordinator, exact
+source/actor/target validation and RFC-BPR-0022 logical journal.
+
+Before a child is admitted, a storage-only lineage port commits the exact draft
+and composition revision, private binding, actor, logical ID, idempotency key,
+approved-prose digest and compiled wire-body digest. Native-to-file negotiation
+updates that same pending row. Pending rows are not successful publication.
+An exact server reread must agree with the receipt before the join and matching
+publishing draft are completed in one transaction. A failed local commit leaves
+the remote success visible with lineage pending.
+
+The provider's explicit `reconcile_publication` operation loads an existing
+logical journal and performs only reconciliation reads and local commits. It
+cannot admit or POST a child. A reopened caller supplies the retained exact
+original request and source endpoint; fresh text alone cannot reconstruct
+recovery authority. Repeated repair uses the original canonical server identity.
+Production also queues a read-only pending-join pass when the live mutation host
+opens or reports pending lineage. It reads the current PR and viewer identity,
+then the bounded comment collection. Each historical pending row must match its
+own journal child, wire digest, actor, path, accepted commit, subject and line;
+an outdated line can use the server's exact original commit and original line;
+an unresolved child also needs its pre-write comment baseline. This pass may
+finish a local join after the PR head advances. Missing, ambiguous or mismatched
+observations leave the join pending, and the pass has no POST branch.
+The local host exposes bounded lineage pages by draft and duplicate-source/body/
+target advisories, with server IDs. An advisory cannot suppress intentional Publish.
+
+The store, lineage host and all borrowing providers must share one serialized
+effect lane and outlive its drained invocations. The existing mutation terminal
+carries lineage state to the decision lane; M8 supplied production construction,
+recovery discovery and rendering. M7 fixture courses exercise the actual store,
+coordinator, provider and journal, but do not supply designated live-target or
+signed-recording acceptance. Public prose stays byte-preserved; the authorized
+file representation adds only its canonical visible permalink.
+
+
+### Durable workbench drafts (RFC-BPR-0023 M8)
+
+The workbench serializes private draft persistence before adopting its projection
+into the shared in-process draft owner. Each incoming gesture must still name the
+current runtime scope, draft and revision. A text edit awaiting acknowledgement
+cannot be published; conflicting local text remains available for explicit
+Reapply or Reload. Reply captures the exact thread and comparison line while a
+draft loads, and navigation clears that continuation. Ordinary replies may name
+an exact left-side thread; composition acceptance continues to require a current
+right-side target.
+
+A definite preflight failure returns a draft to editing. A submitted operation
+whose result is uncertain keeps its durable publishing revision and read-only
+body. Retry publication reuses that exact identity through the existing logical
+journal. A request retired before delivery to the mutation host is compensated
+on its original storage context. A successful terminal adopts the committed
+receipt before requesting ordinary shared conversation synchronization.

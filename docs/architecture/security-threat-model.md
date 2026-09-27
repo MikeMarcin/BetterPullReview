@@ -347,7 +347,7 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each write, and
+a separate exact-host/account/PR/operation confirmation for each ordinary write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -356,6 +356,14 @@ Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+Tour Publish is a bounded grouped-confirmation extension: the preview binds one
+immutable plan to the exact actor, head, sources, prose and allowed returned-link
+slots. Each journaled write consumes its own one-use child grant. Stop or an
+identity/draft change revokes remaining authority; restart reconciles read-only
+and needs an explicit preview and Resume. Compatibility comments are explicitly
+non-atomic, and an optional description edit is a separately named operation.
+These Tour operations remain unavailable on an unqualified host/transport.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -1316,7 +1324,7 @@ An ambiguous native result followed by a file POST can create two public
 comments. RFC-BPR-0022 prevents that transition through one logical parent,
 at most two deterministic children and durable authorization before fallback.
 Only the exact completed non-creation contract can retire a native witness into
-fallback authority; current production admits none. Broad server labels and
+fallback authority; production admits only the owner-approved exact PR2 recorded contract described in the RFC-0022 ledger. Broad server labels and
 status codes are insufficient.
 
 An attacker-controlled FILE comment may resemble a code link. Rehydration checks
@@ -1327,3 +1335,16 @@ The SQLite digest detects corruption within the owner-private store; it is not
 a defense against a malicious process running as the same user. See the
 [owning protocol](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
 for migration, capacity, cancellation and restart rules.
+
+
+### Review-tour outline assistance
+
+Outline results contain only bounded titles, references to supplied context and
+private reasons/questions. The application maps source references to its retained
+exact-source observations; the model supplies no destination authority, body,
+readiness, tool grant or publication instruction. Skeleton insertion is explicit,
+local and undoable. Generated ancestry persists through structural edits and both
+publication admission paths require a separate current visible author completion.
+The restricted process protocol and profile/owner/generation checks remain the
+existing writing-assistance boundary. Deterministic process fixtures establish
+these application behaviors, not installed provider enforcement or model quality.

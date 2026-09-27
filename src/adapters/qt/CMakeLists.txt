@@ -2,6 +2,8 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/review_tour_editor.cpp
+        src/scoped_prose_editor.cpp
+        src/writing_hooks_panel.cpp
         src/release_maintenance_panel.cpp
         src/release_update_panel.cpp
         src/release_update_recovery_dialog.cpp
@@ -62,6 +64,8 @@ add_library(
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
+        src/private_review_panel.cpp
+        src/private_composition_editor.cpp
         src/side_chat_panel.cpp
         src/usage_ring.cpp
         src/workbench_drawer.cpp

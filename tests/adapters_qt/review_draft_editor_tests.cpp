@@ -94,6 +94,45 @@ namespace {
 		delete editor;
 	}
 
+	void test_own_observation_can_precede_edit_acknowledgement()
+	{
+		intent_log                                         legacy;
+		auto*                                              editor = editor_for(legacy);
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor->set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+		const auto initial = core::revisioned_review_draft{ a_draft("before"), 1, core::review_draft_scope_id{ 1 } };
+		editor->present(initial);
+		editor->body_editor()->setPlainText(QStringLiteral("after"));
+		expect(commands.size() == 1, "edit command is pending");
+		auto committed       = initial;
+		committed.Revision   = 2;
+		committed.Draft.Body = "after";
+		editor->present(committed);
+		expect(editor->rejected_candidate().has_value(), "observation alone retains the candidate");
+		editor->acknowledge(commands.front(), committed);
+		expect(!editor->rejected_candidate() && editor->shown_draft() && editor->shown_draft()->Body == "after", "explicit acknowledgement resolves own earlier observation");
+		delete editor;
+	}
+
+	void test_confirmed_publication_retires_only_matching_candidate()
+	{
+		intent_log legacy;
+		auto*      editor = editor_for(legacy);
+		editor->set_revisioned_dispatch([](auto) { });
+		const auto initial = core::revisioned_review_draft{ a_draft("before"), 1, core::review_draft_scope_id{ 1 } };
+		editor->present(initial);
+		editor->body_editor()->setPlainText(QStringLiteral("published body"));
+		expect(editor->rejected_candidate().has_value(), "edit remains pending");
+		auto published       = initial;
+		published.Draft.Body = "different body";
+		editor->acknowledge_published_body(published);
+		expect(editor->rejected_candidate().has_value(), "different published bytes retain the candidate");
+		published.Draft.Body = "published body";
+		editor->acknowledge_published_body(published);
+		expect(!editor->rejected_candidate(), "confirmed exact published body retires its candidate");
+		delete editor;
+	}
+
 	void test_revision_conflicts_retain_exact_candidate()
 	{
 		intent_log                                         legacy;
@@ -1063,7 +1102,7 @@ namespace {
 					 workshopOriginal,
 					 workshopProposal,
 					 workshopOperation,
-					 publish,
+					 publish, retryPublication,
 					 discard,
 					 markRead,
 					 accept,
@@ -1076,6 +1115,7 @@ namespace {
 					 shownProposal,
 					 statistics, revisioned] = members;
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
+		static_assert(std::is_same_v<decltype(retryPublication), const bool>);
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
@@ -1204,6 +1244,31 @@ namespace {
 		delete editor;
 	}
 
+	void test_retry_preserves_the_frozen_publication_revision()
+	{
+		intent_log                                         legacy;
+		auto*                                              editor = editor_for(legacy);
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor->set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+		auto draft  = a_draft("The exact previously submitted body.");
+		draft.State = core::review_draft_state::publishing;
+		editor->present(core::revisioned_review_draft{ draft, 7, core::review_draft_scope_id{ 4 } });
+		expect(!editor->publish_action()->isEnabled(), "an in-flight publication cannot be repeated");
+		editor->allow_publication_retry(true);
+		expect(editor->publish_action()->isEnabled() && editor->body_editor()->isReadOnly()
+				   && !editor->discard_action()->isEnabled(),
+			   "an uncertain publication can retry without editing its frozen body");
+		editor->publish_action()->trigger();
+		expect(commands.size() == 1 && commands.front().ExpectedRevision == 7
+				   && commands.front().Scope == core::review_draft_scope_id{ 4 }
+				   && commands.front().Command.Kind == core::review_draft_command_kind::begin_publish
+				   && editor->shown_draft()->Body == draft.Body,
+			   "retry emits the original revision and leaves the body untouched");
+		editor->allow_publication_retry(false);
+		expect(!editor->publish_action()->isEnabled(), "the host closes retry while its request is in flight");
+		delete editor;
+	}
+
 	void test_typed_clear_removes_stale_selection_bound_state()
 	{
 		auto  log    = intent_log{ };
@@ -1245,6 +1310,8 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	test_empty_panels_wait_for_draft_or_proposal();
+	test_own_observation_can_precede_edit_acknowledgement();
+	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
 
 	test_publishing_emits_an_intent_and_changes_nothing();
@@ -1257,6 +1324,7 @@ auto main(int argc, char** argv) -> int
 	test_left_new_comment_keeps_text_without_offering_publish();
 	test_target_and_server_failures_are_distinct();
 	test_typed_clear_removes_stale_selection_bound_state();
+	test_retry_preserves_the_frozen_publication_revision();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();
 	test_workshop_acceptance_is_explicit_during_its_dispatch();
 	test_accepting_a_revision_emits_exactly_one_command_and_stores_nothing();

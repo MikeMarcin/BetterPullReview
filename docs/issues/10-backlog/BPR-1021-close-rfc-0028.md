@@ -15,8 +15,8 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 Reconcile [RFC-BPR-0028](../../rfcs/RFC-BPR-0028-review-workbench-direction.md)
 against direct evidence, all of its linked cards and the shipped workbench.
-Close it only under the canonical index order. RFC-BPR-0028 is the next RFC in
-that order; every RFC before it is Auto-Verified or Deferred.
+Close it when its acceptance criteria and explicit RFC dependencies are satisfied.
+Index position is not a closeout gate.
 
 RFC base: `58a853dd23cbbb7a7e4d28ff0ec39d405593d838`.
 
@@ -95,7 +95,7 @@ course. Limit attended, native and platform claims to the evidence actually
 taken. A superseded or amended criterion is recorded as such, never as passed.
 
 Run the documentation gate and `git diff --check`. Reconcile the RFC's status
-and its index row only when the canonical order and the dependencies allow.
+and its index row only when its acceptance criteria and explicit dependencies allow.
 
 ## Closeout assessment, 2026-09-25 (main, Mac)
 

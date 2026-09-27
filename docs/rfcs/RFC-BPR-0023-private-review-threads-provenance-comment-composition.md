@@ -1,26 +1,40 @@
 ---
 id: "RFC-BPR-0023"
 title: "Private Review Threads, Provenance, and Comment Composition"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0011","RFC-BPR-0012"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0023: Private Review Threads, Provenance, and Comment Composition
 
 ## Status and scope
 
-This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
-pack-v2 sequence and cannot become `Auto-Verified` before every dependency is
-`Auto-Verified`.
+The owner activated implementation on 2026-09-26 under mandate r1: implement
+RFC-BPR-0023, revise its plan for the evolved application, and land each accepted
+milestone on main. This supersedes the 2026-09-04 import-only deferral and is an
+authorization amendment, not acceptance evidence. Explicit RFC/card dependencies,
+native/human/independent evidence and designated mutation policy remain in force.
+Owner amendment r2 (2026-09-26) moves the independent architecture review from
+M2 to one capability-critical independent review of the final integrated candidate
+at M10/BPR-0591, and directs implementation to continue now. The final review must
+cover both the allocated authority boundaries and their implemented public paths;
+it remains a closeout requirement and is not satisfied by M2 self-review.
+All listed RFC dependencies are Auto-Verified. BPR-0591 closed the final
+eighteen-criterion claim matrix and independent review on 2026-09-27. A signed
+designated GitHub publication and independent server read are recorded in the
+[verification ledger](../verification/RFC-BPR-0023.md); no GHES live mutation or
+release qualification is claimed.
 
-The product owner's 2026-09-04 request authorizes reconciliation and import
-only and explicitly defers implementation. All imported cards remain in backlog
-until a later implementation request. This supersedes the retained pack's claim
-of implementation authority. Import waives no dependency ordering, target-native
-evidence, owner-attended gate, or designated GitHub mutation-target policy.
+The [live audit and execution amendment](../verification/RFC-BPR-0023-live-audit.md)
+reconciles current source, schema, draft and protocol ownership. The
+[adopted milestone plan](plans/rfc-bpr-0023-private-review/milestone-plan.json)
+is the execution plan; the imported issue plan remains an immutable source-only
+snapshot. The canonical eighteen acceptance criteria below are unchanged.
+
 The source pack called this RFC-BPR-0022; import assigned RFC-BPR-0023 because
 the companion off-hunk publication pack takes RFC-BPR-0022 in the requested order.
 
@@ -75,7 +89,8 @@ layer without weakening the GitHub boundary.
 ## Findings established from the 2026-09-04 source baseline
 
 These findings were read from the source dump identified by the pack manifest.
-The implementation card must re-audit them against the live tree before editing.
+BPR-0576 has re-audited all of them in the linked live audit; the observations
+below remain historical source provenance, not current implementation claims.
 
 1. `local_note_record` in
    `src/application/include/bpr/application/review_ledger_port.hpp:75-81`
@@ -547,6 +562,16 @@ publication lineage.
 
 ## Architectural allocation
 
+The [M2 live architecture contract](../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
+binds this allocation to the current source under mandate r2. It specifies
+request/terminal identities, per-window compact state, atomic draft acceptance,
+v1–v6 migration/CAS, retention and source-use admission, immutable body paging,
+8 MiB total encoded invocation input, protocol fact bases and the RFC-0022
+logical-publication join. These are implementation contracts, not claims of shipped functionality.
+Amendment r2 assigns their required independent authority review to the final
+integrated-candidate review at M10/BPR-0591.
+The eighteen acceptance criteria and all explicit dependencies remain unchanged.
+
 ### Functional core
 
 The core owns:
@@ -590,11 +615,12 @@ facts, or publish because an agent completed.
 
 ### SQLite adapter
 
-The SQLite adapter implements narrow application ports. At the source baseline,
-schema `5` is current and was confirmed during import. Allocate the next live
-schema version during implementation after rechecking the tree; this import
-reserves no schema number. The separate mutation-recovery database is version
-`2` and remains RFC-BPR-0022's migration authority.
+The SQLite adapter implements narrow application ports. The implementation baseline
+uses ledger schema `6` (note revision/CAS and durable revision high water), and
+mutation-recovery schema `5` (including RFC-BPR-0022 logical recovery). Recheck
+and allocate each authority's own next version when needed; no version is
+reserved by planning. Preserve all supported origins and the existing shared
+revisioned draft host when adding durable draft/composition linkage.
 
 The schema must use `STRICT` tables, foreign keys, transactions, prepared
 statements, the existing review-scope authority, and monotonic sequence rows.

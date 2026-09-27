@@ -1,0 +1,174 @@
+{
+  "assignment": "bpr-review-tour-v1/qualification-closeout",
+  "mandate_revision": "r2-20260927-close-implemented-scope",
+  "run_id": "bpr-review-tour-20260926",
+  "segment_id": "qualification-closeout-owner-r2",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "entry_revision": "7437a4fb7935b878defec83dad579990b345a935",
+  "closeout_revision": "276b3d8580d2b7fda884800d7f1e781ea9207bf8",
+  "commits": {
+    "reserved_on_main": "d63160432",
+    "reservation_cherry_pick": "bea745514",
+    "qualification_and_blocked_followups": "96e1623dff72730eb92b66011b5ddedaa49d2587",
+    "closeout_ready": "00e66c6d7",
+    "closeout_claim": "8f518b510ccf7bf33886d620d6851c2df4ab346f",
+    "closeout_done": "276b3d8580d2b7fda884800d7f1e781ea9207bf8"
+  },
+  "accepted_scope": "All eight milestones complete under explicit owner r2 implemented-scope amendment; BPR-1013/1016/1221 Done and RFC-BPR-0039\u20130043 Auto-Verified. Six terminal criteria narrowed explicitly; every original external requirement remains unobserved on standalone blocked follow-ups. No production capability enabled.",
+  "changed_paths": [
+    "README.md",
+    "docs/development/review-tours.md",
+    "docs/issues/10-backlog/BPR-1016-close-rfc-0043.md",
+    "docs/issues/50-blocked/BPR-1222-qualify-live-github-review-tours.md",
+    "docs/issues/50-blocked/BPR-1223-qualify-live-ghes-review-tours.md",
+    "docs/issues/50-blocked/BPR-1224-qualify-remaining-native-review-tour-stations.md",
+    "docs/issues/50-blocked/BPR-1225-qualify-installed-review-tour-writing-provider.md",
+    "docs/issues/50-blocked/BPR-1226-reconcile-review-tour-predecessor-acceptance.md",
+    "docs/issues/60-done/BPR-1013-qualify-native-authoring-and-website-only-review-paths.md",
+    "docs/issues/60-done/BPR-1016-close-rfc-0043.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1222--BPR-1226--500f6073af25.json",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+    "docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+    "docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+    "docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+    "docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+    "docs/rfcs/assets/bpr-review-tour-v1.LIVE_IMPORT.md",
+    "docs/verification/RFC-BPR-0039-0043.manual-course.md",
+    "docs/verification/RFC-BPR-0039-0043.md",
+    "docs/verification/RFC-BPR-0039-0043.owner-closeout-r2.md",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-owner-r2-checkpoint.json",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-owner-r2-handoff.json"
+  ],
+  "blocked_followups": {
+    "github": "docs/issues/50-blocked/BPR-1222-qualify-live-github-review-tours.md",
+    "ghes": "docs/issues/50-blocked/BPR-1223-qualify-live-ghes-review-tours.md",
+    "native": "docs/issues/50-blocked/BPR-1224-qualify-remaining-native-review-tour-stations.md",
+    "model": "docs/issues/50-blocked/BPR-1225-qualify-installed-review-tour-writing-provider.md",
+    "predecessors": "docs/issues/50-blocked/BPR-1226-reconcile-review-tour-predecessor-acceptance.md"
+  },
+  "original_dependency_states": {
+    "RFC-BPR-0021": "Deferred",
+    "RFC-BPR-0022": "Proposed",
+    "RFC-BPR-0036": "Proposed",
+    "RFC-BPR-0037": "Proposed"
+  },
+  "dependency_audit": [
+    {
+      "rfc": "RFC-BPR-0039",
+      "dependencies": {
+        "RFC-BPR-0003": "Auto-Verified",
+        "RFC-BPR-0008": "Auto-Verified",
+        "RFC-BPR-0024": "Auto-Verified"
+      },
+      "result": "Auto-Verified under owner r2 implemented scope"
+    },
+    {
+      "rfc": "RFC-BPR-0040",
+      "dependencies": {
+        "RFC-BPR-0039": "Auto-Verified"
+      },
+      "result": "Auto-Verified under owner r2 implemented scope"
+    },
+    {
+      "rfc": "RFC-BPR-0041",
+      "dependencies": {
+        "RFC-BPR-0008": "Auto-Verified",
+        "RFC-BPR-0015": "Auto-Verified",
+        "RFC-BPR-0013": "Auto-Verified",
+        "RFC-BPR-0040": "Auto-Verified"
+      },
+      "result": "Auto-Verified under owner r2 implemented scope"
+    },
+    {
+      "rfc": "RFC-BPR-0042",
+      "dependencies": {
+        "RFC-BPR-0029": "Auto-Verified",
+        "RFC-BPR-0041": "Auto-Verified"
+      },
+      "result": "Auto-Verified under owner r2 implemented scope"
+    },
+    {
+      "rfc": "RFC-BPR-0043",
+      "dependencies": {
+        "RFC-BPR-0011": "Auto-Verified",
+        "RFC-BPR-0012": "Auto-Verified",
+        "RFC-BPR-0018": "Auto-Verified",
+        "RFC-BPR-0042": "Auto-Verified"
+      },
+      "result": "Auto-Verified under owner r2 implemented scope"
+    }
+  ],
+  "required_pending_in_amended_scope": [],
+  "verification": [
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK after amendment and after ordered RFC status/index/closeout edits."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0039 --rfc RFC-BPR-0040 --rfc RFC-BPR-0041 --rfc RFC-BPR-0042 --rfc RFC-BPR-0043 --include BPR-1222 --include BPR-1223 --include BPR-1224 --include BPR-1225 --include BPR-1226 --json",
+      "result": "valid:true, 1214 cards, no errors."
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass."
+    },
+    {
+      "command": "git diff --exit-code 7437a4fb7 -- src tests cmake CMakeLists.txt packaging resources",
+      "result": "No product or verification input changes; relevant prior public-path/native/integration evidence reused."
+    },
+    {
+      "command": "Focused amendment consistency assertions",
+      "result": "All six original criteria preserved verbatim on correct blocked follow-ups; all five selected RFCs Auto-Verified; four original external predecessors unchanged; all five selected cards Done; ten obligations and three exits retained."
+    },
+    {
+      "command": "milestone_checkpoint.py check --execution quiescent with final owner-r2 binding and complete observation",
+      "result": {
+        "action": "report-closeout",
+        "detail": "All eight review-tour milestones accepted under owner r2 implemented scope; coordinator integrates main. Standalone Blocked BPR-1222\u20131226 retain original external qualification and predecessor obligations.",
+        "engineering_acceptance": "not-evaluated"
+      }
+    }
+  ],
+  "reused_evidence": "docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r5-handoff.json",
+  "review": {
+    "session": "7834eb10dc5260f8cc14257a669c1109",
+    "cursor": 99,
+    "accepted_candidates": 7,
+    "pending_prepared_decisions": 0,
+    "host": "stopped by coordinator; current status has no host",
+    "candidate_protection": "All exact source/binary fingerprints and verdicts preserved; no new candidate required."
+  },
+  "ownership": {
+    "root": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview",
+    "branch": "codex/review-tour-pack",
+    "writer": "This leaf relinquishes on return; unrelated primary main preserved.",
+    "commands": "All task foreground commands completed before return; no background app/build/test/server command.",
+    "remote_effects": "No live GitHub/GHES mutation, inference, main merge, push or publication."
+  },
+  "continuation": "Coordinator integrates the clean accepted feature tip on local main under the owner mandate. BPR-1222\u20131226 resume only with their missing authorized external inputs; this scope amendment does not activate RFC-BPR-0044\u20130051.",
+  "runtime_observation": "/tmp/bpr-review-tour-run/qualification-owner-r2-observation.json"
+}

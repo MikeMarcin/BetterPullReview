@@ -16,7 +16,8 @@ or palette override.
 
 The clip descriptions are deliberately nonsemantic. Home uses `calm_idle`,
 `greet`, `blink`, and static `rest`; the six contextual gestures consume only
-accepted presentation facts in the explicit AI surface. None means that Dif
+accepted presentation facts and play in the current corner or prime spot.
+None means that Dif
 reviewed, approved, rejected, or found a defect. The runtime preserves
 equivalent text and controls when the mascot is absent or motion is reduced;
 animation cannot become the only carrier of application state.
@@ -29,9 +30,13 @@ digest-bound asset verdict.
 
 RFC-BPR-0031 owns the current widget, timer, motion-preference,
 accessibility-tree, focus, layout, high-DPI, palette-change,
-platform-observation, and public-path behavior. Dif is present on Home and in
-one explicit AI tools slot. Its final supported-appearance and native
-qualification are recorded in the RFC-BPR-0031 closeout ledger.
+platform-observation, and public-path behavior. Its later owner amendment,
+implemented and accepted by [[BPR-1209]], places the same sprite at 28 logical
+pixels in the status bar's leading corner, outside the drawer. First-time
+Home and the Compose workshop retain their prime spots. A transient status
+message hides the corner art; hidden/reduced preferences and focus/input
+exclusion remain unchanged. The RFC-BPR-0031 closeout ledger and BPR-1209's
+exact later verdict retain their separate native and visual evidence.
 
 ## Current system-native presentation
 

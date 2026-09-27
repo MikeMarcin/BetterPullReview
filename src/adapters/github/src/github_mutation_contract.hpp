@@ -10,6 +10,7 @@
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/review_publication_capability_cache.hpp"
 #include "bpr/application/review_submission_contract.hpp"
+#include "bpr/application/staged_review_contract.hpp"
 
 #include <array>
 #include <cstddef>
@@ -47,6 +48,18 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-0896]]. GraphQL: the comments of the thread a reply landed
 		/// in, observed for reconciliation.
 		observe_review_thread_comments,
+		staged_list_reviews,
+		staged_read_review,
+		staged_list_comments,
+		staged_create_pending,
+		staged_update_comment,
+		staged_update_summary,
+		staged_submit_comment,
+		staged_discard_pending,
+		staged_update_description,
+		staged_list_issue_comments,
+		staged_create_issue_comment,
+		staged_update_issue_comment,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -110,6 +123,7 @@ namespace bpr::adapters::github::detail {
 			application::review_mutation_acting_identity,
 			application::review_mutation_request,
 			review_submission_request,
+			application::staged_review_request,
 			application::review_thread_resolution_request>;
 
 		semantic_type                       Semantic;
@@ -241,6 +255,14 @@ namespace bpr::adapters::github::detail {
 		TValue,
 		review_mutation_contract_failure>;
 
+	/// \brief Compiles only the finite exact-identity staged review REST catalog.
+	[[nodiscard]] auto compile_staged_review_request(const application::staged_review_request& aRequest)
+		-> review_mutation_request_result;
+	/// \brief Validates authority, returned IDs/URLs, raw bodies and exact bounded pagination.
+	[[nodiscard]] auto parse_staged_review_response(const review_mutation_wire_response&      aResponse,
+													const application::staged_review_request& aExpected)
+		-> review_mutation_parse_result<application::staged_review_observation>;
+
 	/// \brief Compiles the bounded ordinary REST review-list observation.
 	[[nodiscard]] auto compile_review_submission_observation_request(const review_submission_request& aRequest, application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28) -> review_mutation_request_result;
 	[[nodiscard]] auto compile_target_observation_request(
@@ -296,6 +318,10 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto compile_review_comment_observation_request(
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	[[nodiscard]] auto compile_review_comment_collection_request(
+		const application::review_mutation_target_binding& aTarget,
+		application::github_server_contract                aServer)
 		-> review_mutation_request_result;
 	/// \brief Checks wire consistency with the supplied semantic request and server.
 	///
@@ -443,9 +469,9 @@ namespace bpr::adapters::github::detail {
 			live_review_mutation_configuration     aConfiguration,
 			application::review_mutation_transport aLease,
 			std::unique_ptr<application::review_mutation_recovery_port>
-															  aRecovery,
-			std::optional<off_hunk_unsupported_contract>      aUnsupportedContract = std::nullopt,
-			std::shared_ptr<application::diagnostic_log_port> aLog                 = { }) noexcept;
+														  aRecovery,
+			std::optional<off_hunk_unsupported_contract>  aUnsupportedContract = std::nullopt,
+			application::review_publication_lineage_port* aLineage = nullptr, std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept;
 
 		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -457,6 +483,9 @@ namespace bpr::adapters::github::detail {
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop = { })
 			-> application::review_mutation_submission;
+		/// \brief Reads an existing logical journal and server identity; has no admission/POST branch.
+		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token = { }) -> application::review_mutation_submission;
+		void               repair_pending_publications(std::stop_token = { });
 		/// \brief [[BPR-0657]]. Resolves or unresolves one thread through the
 		/// leased transport; idempotent on the server, so no recovery record.
 		[[nodiscard]] auto resolve_thread(
@@ -465,6 +494,7 @@ namespace bpr::adapters::github::detail {
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>;
 
 	private:
+		[[nodiscard]] auto finish_lineage(const application::review_mutation_request&, application::review_mutation_submission, std::stop_token) -> application::review_mutation_submission;
 		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto execute_publication_child(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
@@ -497,6 +527,7 @@ namespace bpr::adapters::github::detail {
 		std::mutex                                                  Mutex;
 		std::optional<off_hunk_unsupported_contract>                UnsupportedContract;
 		application::review_publication_capability_cache            PublicationCapabilities;
+		application::review_publication_lineage_port*               Lineage = nullptr;
 		std::shared_ptr<application::diagnostic_log_port>           Log;
 	};
 } // namespace bpr::adapters::github::detail

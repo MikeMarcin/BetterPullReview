@@ -1,11 +1,13 @@
 #include "bpr/qt/diagnostic_settings_panel.hpp"
+#include <QButtonGroup>
 #include <QCheckBox>
-#include <QComboBox>
-#include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 namespace bpr::qt {
 	diagnostic_settings_panel::diagnostic_settings_panel(QWidget* aParent)
@@ -13,26 +15,59 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("diagnosticSettingsPanel"));
 		auto* layout = new QVBoxLayout{ this };
-		layout->addWidget(new QLabel{ QStringLiteral("Local diagnostics"), this });
-		auto* explanation = new QLabel{ QStringLiteral("These controls affect future records in this profile. Anonymized replaces request and window identifiers with session labels. Include locally keeps those identifiers; credentials and review content are never recorded. Existing files keep their captured mode. Sanitized explanations can still reveal context."), this };
-		explanation->setWordWrap(true);
-		layout->addWidget(explanation);
-		Enabled = new QCheckBox{ QStringLiteral("Record local diagnostics"), this };
+		layout->setContentsMargins(0, 0, 0, 0);
+		auto*      group = new QGroupBox{ QStringLiteral("Diagnostics"), this };
+		auto*      rows  = new QVBoxLayout{ group };
+		const auto row   = [group, rows](const QString& aTitle, const QString& aDetail, QWidget* aControl) {
+			auto* line  = new QHBoxLayout;
+			auto* words = new QVBoxLayout;
+			auto* title = new QLabel{ aTitle, group };
+			auto  font  = title->font();
+			font.setBold(true);
+			title->setFont(font);
+			words->addWidget(title);
+			auto* detail = new QLabel{ aDetail, group };
+			detail->setWordWrap(true);
+			words->addWidget(detail);
+			line->addLayout(words, 1);
+			line->addWidget(aControl);
+			rows->addLayout(line);
+		};
+		const auto selector = [this, group](const QString& aName, const QStringList& aChoices, QButtonGroup*& aButtons) {
+			auto* control  = new QWidget{ group };
+			auto* segments = new QHBoxLayout{ control };
+			segments->setContentsMargins(0, 0, 0, 0);
+			segments->setSpacing(0);
+			aButtons = new QButtonGroup{ this };
+			aButtons->setObjectName(aName);
+			for (int item = 0; item < aChoices.size(); ++item) {
+				auto* button = new QPushButton{ aChoices[item], control };
+				button->setCheckable(true);
+				button->setAutoDefault(false);
+				button->setAccessibleName(aName == QStringLiteral("diagnosticDetail") ? QStringLiteral("Diagnostic detail: %1").arg(aChoices[item]) : QStringLiteral("Identifying details: %1").arg(aChoices[item]));
+				aButtons->addButton(button, item);
+				segments->addWidget(button);
+			}
+			return control;
+		};
+		Enabled = new QCheckBox{ QStringLiteral("Record local diagnostics"), group };
 		Enabled->setObjectName(QStringLiteral("diagnosticEnabled"));
-		layout->addWidget(Enabled);
-		auto* form = new QFormLayout;
-		Detail     = new QComboBox{ this };
-		Detail->setObjectName(QStringLiteral("diagnosticDetail"));
-		Detail->addItems({ QStringLiteral("Standard"), QStringLiteral("Verbose") });
-		Privacy = new QComboBox{ this };
-		Privacy->setObjectName(QStringLiteral("diagnosticPrivacy"));
-		Privacy->addItems({ QStringLiteral("Anonymized"), QStringLiteral("Include locally") });
-		form->addRow(QStringLiteral("Diagnostic detail"), Detail);
-		form->addRow(QStringLiteral("Identifying details"), Privacy);
-		layout->addLayout(form);
-		auto* context = new QLabel{ QStringLiteral("Standard keeps sanitized intermediate detail in recent context for up to 3 minutes (512 events / 2 MiB). Recent context is separate from the metadata-only export. Off, privacy changes, Clear and Sign out discard this context. Off keeps older files."), this };
+		rows->addWidget(Enabled);
+		row(QStringLiteral("Diagnostic detail"), QStringLiteral("Choose how much diagnostic detail is saved locally."), selector(QStringLiteral("diagnosticDetail"), { QStringLiteral("Standard"), QStringLiteral("Verbose") }, Detail));
+		row(QStringLiteral("Identifying details"), QStringLiteral("Choose whether new records keep identifiers. Existing logs are unchanged."), selector(QStringLiteral("diagnosticPrivacy"), { QStringLiteral("Anonymized"), QStringLiteral("Include locally") }, Privacy));
+		layout->addWidget(group);
+		auto* more = new QToolButton{ this };
+		more->setText(QStringLiteral("About local diagnostics"));
+		more->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		more->setArrowType(Qt::RightArrow);
+		more->setCheckable(true);
+		more->setAutoRaise(true);
+		layout->addWidget(more);
+		auto* context = new QLabel{ QStringLiteral("Credentials and review content are never recorded. Anonymized replaces identifiers with session labels; sanitized explanations can still reveal context. Standard keeps recent sanitized detail for up to 3 minutes (512 events / 2 MiB), included in exports only when selected. Off, privacy changes, Clear and Sign out discard this context. Off keeps older files."), this };
 		context->setWordWrap(true);
+		context->hide();
 		layout->addWidget(context);
+		connect(more, &QToolButton::toggled, context, [more, context](bool aExpanded) { more->setArrowType(aExpanded ? Qt::DownArrow : Qt::RightArrow); context->setVisible(aExpanded); });
 		Open = new QPushButton{ QStringLiteral("Open logs folder"), this };
 		Open->setObjectName(QStringLiteral("diagnosticOpen"));
 		Clear = new QPushButton{ QStringLiteral("Clear local diagnostics…"), this };
@@ -44,8 +79,8 @@ namespace bpr::qt {
 		Status->setWordWrap(true);
 		layout->addWidget(Status);
 		connect(Enabled, &QCheckBox::toggled, this, [this] { apply(); });
-		connect(Detail, &QComboBox::currentIndexChanged, this, [this] { apply(); });
-		connect(Privacy, &QComboBox::currentIndexChanged, this, [this] { apply(); });
+		connect(Detail, &QButtonGroup::idClicked, this, [this] { apply(); });
+		connect(Privacy, &QButtonGroup::idClicked, this, [this] { apply(); });
 		connect(Open, &QPushButton::clicked, this, [this] { if (Dispatch.Open) { Dispatch.Open(); } });
 		connect(Clear, &QPushButton::clicked, this, [this] {
 			if (Confirming) {
@@ -75,11 +110,14 @@ namespace bpr::qt {
 		Applying   = true;
 		Projection = aProjection;
 		Enabled->setChecked(Projection.Capture.Preferences.Enabled);
-		Detail->setCurrentIndex(static_cast<int>(Projection.Capture.Preferences.Detail));
-		Privacy->setCurrentIndex(static_cast<int>(Projection.Capture.Preferences.Privacy));
+		Detail->button(static_cast<int>(Projection.Capture.Preferences.Detail))->setChecked(true);
+		Privacy->button(static_cast<int>(Projection.Capture.Preferences.Privacy))->setChecked(true);
 		Enabled->setEnabled(Projection.Writable && !Projection.Busy);
-		Detail->setEnabled(Projection.Writable && !Projection.Busy);
-		Privacy->setEnabled(Projection.Writable && !Projection.Busy);
+		for (auto* group : { Detail, Privacy }) {
+			for (auto* button : group->buttons()) {
+				button->setEnabled(Projection.Writable && !Projection.Busy);
+			}
+		}
 		Clear->setEnabled(!Projection.Busy);
 		Open->setEnabled(!Projection.Busy);
 		const auto availability = !Projection.Capture.Preferences.Enabled                ? QStringLiteral("Off")
@@ -122,7 +160,7 @@ namespace bpr::qt {
 		if (Applying || Confirming || !Dispatch.Apply) {
 			return;
 		}
-		const application::diagnostic_preferences next{ Enabled->isChecked(), static_cast<application::diagnostic_detail>(Detail->currentIndex()), static_cast<application::diagnostic_privacy>(Privacy->currentIndex()) };
+		const application::diagnostic_preferences next{ Enabled->isChecked(), static_cast<application::diagnostic_detail>(Detail->checkedId()), static_cast<application::diagnostic_privacy>(Privacy->checkedId()) };
 		const bool                                disclosure = next.Privacy == application::diagnostic_privacy::include_locally && next.Privacy != Projection.Capture.Preferences.Privacy;
 		adopt(Projection);
 		if (!disclosure) {

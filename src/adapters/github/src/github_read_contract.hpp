@@ -109,6 +109,9 @@ namespace bpr::adapters::github::detail {
 	enum class http_method : std::uint8_t {
 		get,
 		post,
+		put,
+		patch,
+		delete_,
 	};
 
 	[[nodiscard]] constexpr auto parse_recorded_http_method(

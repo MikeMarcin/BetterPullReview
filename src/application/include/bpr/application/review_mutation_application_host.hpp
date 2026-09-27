@@ -76,10 +76,11 @@ namespace bpr::application {
 		std::expected<
 			std::vector<review_comment_projection>,
 			review_mutation_failure>
-			 Reconciliation{
-				 std::unexpected(review_mutation_failure::unavailable)
-			 };
-		bool MutationAttempted = false;
+							 Reconciliation{
+								 std::unexpected(review_mutation_failure::unavailable)
+							 };
+		bool                 MutationAttempted = false;
+		review_lineage_state Lineage           = review_lineage_state::absent;
 
 		auto operator==(const review_mutation_terminal&) const -> bool = default;
 	};
@@ -245,6 +246,8 @@ namespace bpr::application {
 			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
 		void cancel(review_mutation_request_context aContext) noexcept;
+		/// Queues a read-only repair pass on the serialized mutation effect lane.
+		void repair_pending_publications();
 		void shutdown() noexcept;
 
 		[[nodiscard]] auto designated() const noexcept

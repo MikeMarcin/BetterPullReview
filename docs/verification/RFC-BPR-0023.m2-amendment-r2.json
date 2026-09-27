@@ -1,0 +1,13 @@
+{
+  "state": "amendment-checked",
+  "reason": "User amendment r2 moves the M2 authority-boundary review to one final capability-critical independent review at M10/BPR-0591; implementation continues now.",
+  "source_basis": "Owner instruction 2026-09-26 relayed by coordinator /root to /root/rfc0023_m2; prior candidate b98ddfd477962c4768ab291e646a3fecd4e1600e and handoff ba8cb88e942981ee925ef77a2d05d689fe8ae13f.",
+  "before_fingerprint": "sha256:458d6a01e5953b5ce2f38915c805b32be68a73d63244198c59fa9140ab9d4a06",
+  "after_fingerprint": "sha256:ef863f0276dedb26ac96b81adf9c237d46d47175bbd2c774953c9bd1703f44f4",
+  "affected_milestones": [
+    "m10-closeout",
+    "m2-architecture"
+  ],
+  "semantic_coverage": "unknown",
+  "next": "reconcile affected assignments before publication"
+}

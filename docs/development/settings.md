@@ -138,14 +138,19 @@ comparison unavailable. These operations do not change GitHub or a developer
 working copy. They are separate from resetting preferences.
 
 Help → Diagnostics raises this page while signed out. Profile capture controls
-own On/Off, Standard/Verbose and independent identifying-detail privacy.
-**Preview anonymized diagnostics** selects retained or current-session files
-and optional recent context. It displays exact frozen bytes, range, categories,
-counts and omissions. **Export anonymized preview…** saves those bytes locally.
-**Preview with identifying details…** has a separate identifying export action
-and confirmation; capture-time redaction cannot be reversed. Neither mode admits
-credentials, review content or crash memory, and nothing is uploaded. See the
+show Standard/Verbose and independent Anonymized/Include locally choices as
+paired buttons. On/Off and the accepted Open logs/Clear controls remain nearby;
+About local diagnostics explains recent context and recording limits.
+
+Help also offers **Export anonymized diagnostics…** and **Export with identifying
+details…** directly, without opening Settings. Each opens a compact frozen
+preview with **Save…** and **Cancel**. Export options and exact records expand
+on request. The identifying preview discloses irreversible capture omissions;
+**Save with identifying details…** confirms that policy before choosing a file.
+Nothing is uploaded. See the
 [diagnostics guide](storage-and-diagnostics.md#preview-and-export-diagnostics).
+
+Expand **Profile maintenance** for the destructive preparation controls below.
 
 **Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
 the selected profile and all its producers will stop before an exact inventory
@@ -180,3 +185,48 @@ that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
 `upstream-wslg`) reruns the Linux full focus/lifetime course once WSLg ships
 the fix. The finding is not declared a false positive, and neither the Linux
 inventory-only pass nor the WSLg diagnosis course is a complete native course.
+
+### Review preparation writing hooks
+
+Review preparation instructions live under Agents & context → AI assistance.
+Problem statement, Solution summary, Tour outline and Tour-stop comment have
+separate profile overrides, Restore default, and effective source/version labels.
+Save and Restore do not run an agent. Test saved hook uses the selected allowed
+agent for one explicit, nonpublishing request in the current review; its result
+is private and changes no tour field. An unavailable agent or source context
+leaves manual preparation available. Overrides contain text instructions only;
+they grant no tool, publication or broader editing authority.
+
+#### Tool-free review-preparation delivery
+
+The writing buttons use the currently selected agent profile. The bounded writing
+path currently supports **Approved Claude stream JSON** with explicit empty tools,
+a deny-all tool rule, an empty strict MCP configuration, no settings-source discovery,
+bare mode and disabled hooks/session persistence. The response protocol must confirm
+an empty tool/MCP list; tool blocks and finding payloads are refused. Other profiles,
+including the Codex profiles, report writing assistance unavailable until their
+protocol has an enforceable and qualified tool-exclusion boundary. Ordinary manual
+writing and the separately explicit agent controls retain their existing behavior.
+The application's flags do not change the developer's installed global configuration.
+The CLI flag contract is documented in the [provider's CLI reference](https://code.claude.com/docs/en/cli-reference);
+actual installed-provider and model-quality qualification is still required.
+
+A request captures one selection (including whitespace), otherwise its whole field.
+Empty Problem/Solution fields first recover an unambiguous existing description
+section, byte for byte, without inference. Other empty requests need approved
+evidence; an empty stop also needs its exact currently available pinned source.
+Context is collected only on that gesture: bounded author description/comments,
+private brief text, surrounding prose and the selected stop's code. No linked
+resource is fetched. Input selection is capped at 6,000 UTF-8 bytes, supplied
+evidence at 8,192, and the complete existing agent message at 16,384. Over-limit
+requests ask for a smaller selection. Returned replacement text is capped at
+16,384 bytes and the complete result at 32,768; extra keys, invalid provenance,
+malformed UTF-8, duplicate or stale responses cannot alter the field.
+
+One accepted result is one native undo transaction. Undo restores raw Markdown
+and selection; redo uses received bytes and never runs the agent again. Private
+Recovered/Inferred/Unclear notes stay outside the tour body. A saved-hook test
+uses a synthetic sample bound to the open review and has no draft destination.
+The outline hook returns body-free suggestions. Insert selected skeleton stops
+from the Tour stops page, then visit and complete each current explanation against
+its source. See [Prepare and maintain a review tour](review-tours.md).

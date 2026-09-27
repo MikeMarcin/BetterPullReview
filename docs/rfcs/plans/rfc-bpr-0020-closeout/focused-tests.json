@@ -1,0 +1,13 @@
+{
+  "criterion": "RFC0020-focused-motion-appearance",
+  "outcome": "pass",
+  "revision": "2723138b7425a63c040b250d746c08fdc9065168",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"-j1\", \"--output-on-failure\", \"--no-tests=error\", \"-R\", \"^(core_appearance_policy|application_appearance_host|application_appearance_profile_consumers|sqlite_appearance_settings_storage|qt_appearance_settings_panel|qt_dif_runtime|qt_motion_observer)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 4.157,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start  77: core_appearance_policy\n1/7 Test  #77: core_appearance_policy .....................   Passed    0.39 sec\n    Start 121: application_appearance_host\n2/7 Test #121: application_appearance_host ................   Passed    0.29 sec\n    Start 151: application_appearance_profile_consumers\n3/7 Test #151: application_appearance_profile_consumers ...   Passed    0.28 sec\n    Start 167: sqlite_appearance_settings_storage\n4/7 Test #167: sqlite_appearance_settings_storage .........   Passed    0.74 sec\n    Start 219: qt_appearance_settings_panel\n5/7 Test #219: qt_appearance_settings_panel ...............   Passed    0.64 sec\n    Start 258: qt_dif_runtime\n6/7 Test #258: qt_dif_runtime .............................   Passed    1.48 sec\n    Start 259: qt_motion_observer\n7/7 Test #259: qt_motion_observer .........................   Passed    0.31 sec\n\n100% tests passed out of 7\n\nLabel Time Summary:\nbpr_network_isolated    =   4.13 sec*proc (7 tests)\n\nTotal Test time (real) =   4.15 sec\n",
+    "stderr_tail": ""
+  }
+}

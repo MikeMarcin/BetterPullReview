@@ -1,6 +1,8 @@
 #include "review_submission_workflow.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 
 #include "bpr/application/review_submission_recovery_port.hpp"
+#include "review_comment_permalink.hpp"
 
 #include <QUuid>
 #include <algorithm>
@@ -310,5 +312,316 @@ namespace bpr::app {
 			}
 		}
 		present();
+	}
+}
+
+namespace bpr::app {
+	review_tour_publication_workflow::review_tour_publication_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::review_tour_editor& aEditor, grant_factory aIssueGrant, review_submission_workflow::write_confirmation aConfirmWrite, receipt_sink aReceiptSink)
+		: Effects{ aEffects }
+		, Decisions{ aDecisions }
+		, Editor{ aEditor }
+		, IssueGrant{ std::move(aIssueGrant) }
+		, ConfirmWrite{ std::move(aConfirmWrite) }
+		, ReceiptSink{ std::move(aReceiptSink) }
+	{ }
+	void review_tour_publication_workflow::invalidate()
+	{
+		if (Host) {
+			Host->shutdown();
+			Retired.push_back(std::move(Host));
+		}
+		std::erase_if(Retired, [](const auto& h) { return h->is_quiescent(); });
+		Context.reset();
+		Binding.reset();
+		Plan.reset();
+		Record.reset();
+		Ready     = false;
+		Previewed = false;
+		Status    = "Publication authority changed. Refresh and prepare a new preview.";
+		present();
+	}
+	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aFixtureQualified)
+	{
+		if (Closing) {
+			return;
+		}
+		aAuthority.Snapshot              = { };
+		aAuthority.PullRequestGeneration = { };
+		if (Binding == aBinding && Authority == aAuthority && Host) {
+			Description = std::move(aDescription);
+			return;
+		}
+		invalidate();
+		Binding     = std::move(aBinding);
+		Authority   = aAuthority;
+		Description = std::move(aDescription);
+#if defined(BPR_BUILD_TESTING)
+		FixtureQualified = aFixtureQualified;
+#else
+		static_cast<void>(aFixtureQualified);
+		FixtureQualified = false;
+#endif
+		Generation = core::request_generation{ Generation.value() + 1 };
+		Host       = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+		Context    = Host->discover_tours();
+		Status     = "Checking saved publication state. No writes are scheduled.";
+		present();
+	}
+	void review_tour_publication_workflow::observe(const application::tour_presentation& aDraft)
+	{
+		Draft                          = aDraft;
+		const auto publishedEntity     = Record && Record->Published ? (Record->Plan.Update ? Record->Plan.Update->Remote->Entity : (Record->Index ? Record->Index->NodeId : Record->Review->NodeId)) : std::string{ };
+		const bool observedPublication = aDraft.Draft && aDraft.Draft->Remote && !publishedEntity.empty() && aDraft.Draft->Remote->Entity == publishedEntity;
+		if (Plan && aDraft.Draft && !observedPublication && (Plan->Owner != aDraft.Draft->Owner || Plan->Generation != aDraft.Draft->Revision)) {
+			if (Context && Host) {
+				Host->cancel(*Context);
+			}
+			Previewed = false;
+			if (!Record && !Context) {
+				Plan.reset();
+			}
+			Status = "Draft changed. Prepare a fresh preview before publishing or resuming the captured plan.";
+		}
+		present();
+	}
+	void review_tour_publication_workflow::prepare()
+	{
+		if (!Ready || !Binding || !Host || Context || !Draft.Draft) {
+			return;
+		}
+		if (Draft.Refusal != core::tour_refusal::none || Draft.Conflict) {
+			Previewed = false;
+			Status    = "Resolve the refused edit or saved-copy conflict before previewing publication.";
+			present();
+			return;
+		}
+		if (Record && Record->Published && State == application::staged_publication_state::published) {
+			Record.reset();
+			Plan.reset();
+		}
+		if (Record) {
+			Plan      = Record->Plan;
+			Previewed = true;
+			Status    = "Previewing the captured publication. Resume only continues this exact text and destinations.";
+			present();
+			return;
+		}
+		const auto&                                draft         = *Draft.Draft;
+		const bool                                 compatibility = Editor.compatibility_publication();
+		std::vector<core::tour_destination_plan>   decisions;
+		std::vector<application::staged_tour_stop> stops;
+		for (const auto& stop : draft.Stops) {
+			const auto found  = std::ranges::find(Draft.Destinations, stop.Id, &application::tour_stop_destination::Stop);
+			auto       source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
+			if (found == Draft.Destinations.end() || !source) {
+				decisions.push_back({ });
+				continue;
+			}
+			core::tour_destination_observation observed{ .Source = *source, .Subject = source->Commit == (source->Side == core::diff_side::right ? draft.ObservedHead.value_or(draft.Head) : draft.Base) ? core::tour_subject::current_diff : core::tour_subject::historical, .SourceAvailable = source->Blob.has_value(), .Body = core::classify_review_body(stop.Body), .CompatibilityRequested = compatibility };
+			if (FixtureQualified) {
+				observed.PendingLineBatch = core::tour_operation_support::supported;
+				observed.Conversation     = core::tour_operation_support::supported;
+			}
+			decisions.push_back(core::plan_tour_destination(observed));
+			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ Binding->Target.Hostname.value() }, Binding->Target.Repository }, *source);
+			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
+		}
+		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, FixtureQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
+		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
+			Previewed = false;
+			Plan.reset();
+			Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "This route needs visible compatibility comments. Keep one review by relocating destinations, or explicitly choose compatibility comments."
+																																																													 : "Publication is unavailable for these destinations on this host and transport. Keep preparing locally; operation qualification is still required.";
+			present();
+			return;
+		}
+		application::review_submission_request submission{ .Proposal = { .Draft = core::review_submission_draft_id{ draft.Id.value() }, .Attempt = core::review_submission_attempt_id{ draft.Revision }, .Target = Binding->Target.Semantic, .ActingAccount = Binding->ActingIdentity.Account, .Body = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution, .Disposition = core::review_disposition::comment }, .IdempotencyKey = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision), .LiveBinding = *Binding };
+		application::staged_review_plan        value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
+		if (draft.Remote) {
+			value.Update = draft;
+			std::erase_if(value.Stops, [&](const auto& stop) {const auto found=std::ranges::find(draft.Stops,stop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
+		}
+		if (Editor.description_publication()) {
+			const auto desired = core::propose_tour_description(draft, Description);
+			if (!desired) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
+				present();
+				return;
+			}
+			if (*desired != Description || !draft.Remote) {
+				value.Description = application::staged_description_edit{ Description, *desired, !draft.Remote };
+			}
+		}
+		if (!application::valid(value)) {
+			Status = "The publication exceeds an operation limit or has an invalid destination. Edit the draft and preview again.";
+			Plan.reset();
+			Previewed = false;
+			present();
+			return;
+		}
+		if (value.Update && value.Stops.empty()) {
+			const auto bodies = application::staged_update_bodies({ .Plan = value });
+			if (!bodies) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "The website layout needs explicit mapping before this update.";
+				present();
+				return;
+			}
+			if (bodies->Edits.empty() && !value.Description) {
+				Plan.reset();
+				Previewed = false;
+				Status    = "No published changes. Existing comments and discussions are unchanged.";
+				present();
+				return;
+			}
+		}
+		Plan      = std::move(value);
+		Previewed = true;
+		State     = application::staged_publication_state::ready;
+		Status    = draft.Remote ? "Preview ready: non-atomic update. New destinations first, affected comments next, original index last. Website concurrent writes cannot be locked; conflicts retain your proposed text." : compatibility ? "Preview ready: visible compatibility comments, then index and navigation. This is non-atomic."
+																																																											 : "Preview ready: one pending review, verified navigation, then one COMMENT submission.";
+		present();
+	}
+	void review_tour_publication_workflow::dispatch(qt::tour_editor_action aAction)
+	{
+		using action = qt::tour_editor_action;
+		if (Closing || !Host) {
+			return;
+		}
+		if (aAction == action::stop_publication) {
+			if (Context) {
+				Host->cancel(*Context);
+			}
+			Status    = "Stopping. Confirmed receipts are retained; check status before Resume.";
+			Previewed = false;
+			present();
+			return;
+		}
+		if (aAction == action::preview_publication) {
+			prepare();
+			return;
+		}
+		if (Context || !Plan) {
+			return;
+		}
+		if (aAction == action::reconcile_publication) {
+			Context = Host->reconcile_tour(*Plan);
+			Status  = "Checking exact saved identities. No writes are scheduled.";
+			present();
+			return;
+		}
+		if (aAction != action::publish_publication && aAction != action::resume_publication) {
+			return;
+		}
+		if (!Previewed || *Plan->Submission.LiveBinding != *Binding) {
+			return;
+		}
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || Plan->Compatibility != Editor.compatibility_publication() || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+			return;
+		}
+		if (Record && (State == application::staged_publication_state::outcome_unknown || State == application::staged_publication_state::conflict || State == application::staged_publication_state::published)) {
+			return;
+		}
+		if (ConfirmWrite && !ConfirmWrite(*Binding, core::review_disposition::comment)) {
+			return;
+		}
+		const auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, *Plan) : application::review_submission_execution_grant{ };
+		Context          = Host->publish_tour(*Plan, grant);
+		Previewed        = false;
+		Status           = Context ? "Publishing the captured tour. Stop preserves completed operations." : "Publication authority is unavailable. Prepare a new preview.";
+		present();
+	}
+	void review_tour_publication_workflow::publish(const application::review_submission_host_terminal& aTerminal)
+	{
+		std::erase_if(Retired, [](const auto& h) { return h->is_quiescent(); });
+		if (Closing || !Context || aTerminal.Context != *Context) {
+			return;
+		}
+		Context.reset();
+		if (const auto* discovered = std::get_if<application::staged_review_discovery>(&aTerminal.Outcome)) {
+			Ready = discovered->has_value();
+			if (!Ready) {
+				Status = "Saved publication state is unavailable. Local preparation remains available.";
+				present();
+				return;
+			}
+			if (discovered->value().size() > 1) {
+				Ready  = false;
+				Status = "Multiple saved publications require reconciliation before starting another tour.";
+				present();
+				return;
+			}
+			if (!discovered->value().empty()) {
+				Plan    = discovered->value().front();
+				Context = Host->reconcile_tour(*Plan);
+				Status  = "Reconciling the captured publication. Resume requires a fresh preview.";
+			} else {
+				Status = "Saved locally. Prepare a publication preview.";
+			}
+		} else if (const auto* result = std::get_if<application::staged_publication_result>(&aTerminal.Outcome)) {
+			Record = result->Record;
+			if (Record && Record->Published && ReceiptSink) {
+				ReceiptSink(*Record);
+			}
+			State       = result->State;
+			Previewed   = false;
+			using state = application::staged_publication_state;
+			if (Record && Record->Published && State != state::published) {
+				Status = "Tour published; description update needs attention. The tour will not be posted again.";
+			} else {
+				switch (State) {
+				case state::published:             Status = Plan && Plan->Compatibility ? "Published as compatibility comments. All returned links are wired." : "Published: one COMMENT review with verified tour links."; break;
+				case state::ready:                 Status = "Prepared locally. Preview the captured plan before Resume."; break;
+				case state::staged:                Status = "Staged on GitHub (visible to you). Preview the captured plan before Resume."; break;
+				case state::partial:               Status = "Partially published compatibility comments. Completed identities are retained. Preview before Resume."; break;
+				case state::outcome_unknown:       Status = "Outcome unknown. Check publication status; no write will be repeated blindly."; break;
+				case state::conflict:              Status = "Publication conflict. The pending review, body, actor or head changed. No further writes are authorized."; break;
+				case state::description_attention: Status = "Tour published; description update needs attention."; break;
+				case state::unavailable:           Status = "Publication is unavailable. The private draft is retained."; break;
+				}
+			}
+		}
+		present();
+	}
+	void review_tour_publication_workflow::present()
+	{
+		application::tour_publication_presentation view{ .Status = Status };
+		if (Plan) {
+			view.Markdown = "### " + std::string{ Plan->Update ? "Update existing tour — non-atomic" : Plan->Compatibility ? "Compatibility comments — non-atomic"
+																														   : "One COMMENT review" }
+				+ "\n\nHost: " + std::string{ Plan->Submission.LiveBinding->Target.Hostname.value() } + " · Actor: " + Plan->Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(Plan->Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(Plan->Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + Plan->Submission.Proposal.Body;
+			for (const auto& stop : Plan->Stops) {
+				view.Markdown += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
+			}
+			view.Markdown += Plan->Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + Plan->Description->Desired + (Plan->Description->AppendIndexLink ? "\n\nThe returned tour index URL will be appended." : "") : "\n\nThe PR description will not be edited.";
+			if (Record) {
+				const auto bodies = application::staged_final_bodies(*Record);
+				if (bodies) {
+					view.Markdown += "\n\n### Observed index\n\n" + bodies->first;
+				}
+			}
+		}
+		view.Publish   = Ready && Previewed && Plan && !Record && !Context;
+		view.Resume    = Ready && Previewed && Record && !Context && (State == application::staged_publication_state::ready || State == application::staged_publication_state::staged || State == application::staged_publication_state::partial || State == application::staged_publication_state::description_attention);
+		view.Reconcile = Plan.has_value() && !Context;
+		view.Stop      = Context.has_value();
+		Editor.present_publication(view);
+	}
+	void review_tour_publication_workflow::shutdown()
+	{
+		Closing = true;
+		if (Host) {
+			Host->shutdown();
+		}
+		for (auto& h : Retired) {
+			h->shutdown();
+		}
+	}
+	auto review_tour_publication_workflow::is_quiescent() const -> bool
+	{
+		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& h) { return h->is_quiescent(); });
 	}
 }

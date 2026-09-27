@@ -520,6 +520,18 @@ namespace {
 	{
 		using operation = review_mutation_operation;
 		switch (aOperation) {
+		case operation::staged_list_reviews:         return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "" };
+		case operation::staged_read_review:          return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_list_comments:        return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "" };
+		case operation::staged_create_pending:       return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "" };
+		case operation::staged_update_comment:       return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/comments/44", "" };
+		case operation::staged_update_summary:       return request_shape{ http_method::put, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_submit_comment:       return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "" };
+		case operation::staged_discard_pending:      return request_shape{ http_method::delete_, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_update_description:   return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
+		case operation::staged_list_issue_comments:  return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "" };
+		case operation::staged_create_issue_comment: return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/issues/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments", "" };
+		case operation::staged_update_issue_comment: return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/issues/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/issues/comments/44", "" };
 		case operation::observe_pull_request:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
 		case operation::observe_viewer:
@@ -575,6 +587,24 @@ namespace {
 		}
 	}
 
+	auto staged_request(application::staged_review_operation aOperation, application::review_mutation_target_binding aTarget = target()) -> application::staged_review_request
+	{
+		using op = application::staged_review_operation;
+		application::staged_review_request result{ .Binding = { aTarget, identity() }, .Operation = aOperation };
+		if (aOperation == op::read_review || aOperation == op::list_comments || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::discard_pending) {
+			result.Review = application::review_database_id{ 45 };
+		}
+		if (aOperation == op::update_comment || aOperation == op::update_issue_comment) {
+			result.Comment = 44;
+		}
+		if (aOperation == op::create_pending || aOperation == op::update_comment || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::update_description || aOperation == op::create_issue_comment || aOperation == op::update_issue_comment) {
+			result.Body = "Raw **tour** `$(literal)`";
+		}
+		if (aOperation == op::create_pending) {
+			result.Lines.push_back({ .Source = { .Commit = aTarget.Semantic.ExpectedHead, .Path = "fixture/review.txt", .Side = core::diff_side::right, .FirstLine = 10, .LastLine = 12 }, .Body = "First stop" });
+		}
+		return result;
+	}
 	[[nodiscard]] auto compile_exchange_fixtures(const application::github_server_contract aServer)
 	{
 		auto serverTarget           = target();
@@ -614,6 +644,19 @@ namespace {
 			compile_thread_resolution_request(unresolution, aServer),
 			compile_thread_target_observation_request(resolution, aServer),
 			compile_review_comment_observation_request(reply, aServer),
+			compile_staged_review_request(staged_request(application::staged_review_operation::list_reviews, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::read_review, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::list_comments, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::create_pending, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::update_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::update_summary, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::submit_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::discard_pending, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::update_description, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::list_issue_comments, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::create_issue_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
+
 		};
 	}
 
@@ -643,6 +686,19 @@ namespace {
 			row{ operation::unresolve_review_thread, http_method::post, true, 200, false },
 			row{ operation::observe_review_thread, http_method::post, true, 200, false },
 			row{ operation::observe_review_thread_comments, http_method::post, true, 200, false },
+			row{ operation::staged_list_reviews, http_method::get, false, 200, false },
+			row{ operation::staged_read_review, http_method::get, false, 200, false },
+			row{ operation::staged_list_comments, http_method::get, false, 200, false },
+			row{ operation::staged_create_pending, http_method::post, false, 200, true },
+			row{ operation::staged_update_comment, http_method::patch, false, 200, true },
+			row{ operation::staged_update_summary, http_method::put, false, 200, true },
+			row{ operation::staged_submit_comment, http_method::post, false, 200, true },
+			row{ operation::staged_discard_pending, http_method::delete_, false, 200, true },
+			row{ operation::staged_update_description, http_method::patch, false, 200, true },
+			row{ operation::staged_list_issue_comments, http_method::get, false, 200, false },
+			row{ operation::staged_create_issue_comment, http_method::post, false, 201, true },
+			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
+
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
@@ -1401,6 +1457,89 @@ namespace {
 					.has_value(),
 			   "redirect response is rejected");
 	}
+	void test_staged_batch_contract()
+	{
+		using op         = application::staged_review_operation;
+		auto       input = staged_request(op::create_pending);
+		const auto wire  = compile_staged_review_request(input);
+		expect(wire && wire->Body == R"({"body":"Raw **tour** `$(literal)`","commit_id":"1111111111111111111111111111111111111111","comments":[{"path":"fixture/review.txt","body":"First stop","line":13,"side":"RIGHT","start_line":11,"start_side":"RIGHT"}]})", "pending batch exact literal bytes with no event, position, subject_type or per-comment review id");
+		auto tampered = *wire;
+		tampered.Body.insert(1, "\"event\":\"APPROVE\",");
+		expect(!validate_outbound_review_mutation_request(tampered), "batch cannot acquire a submission event");
+		input.Lines[0].Source.FirstLine = input.Lines[0].Source.LastLine;
+		auto single                     = compile_staged_review_request(input);
+		expect(single && single->Body.find("start_line") == std::string::npos, "single source line omits optional range fields");
+		input.Lines[0].Source.Side = core::diff_side::left;
+		expect(!compile_staged_review_request(input), "left subject cannot silently borrow right head identity");
+		input.Lines[0].Source.Commit = target().BaseOid;
+		expect(compile_staged_review_request(input).has_value(), "left source binds exact base while batch commit remains head");
+		input.Lines.resize(101, input.Lines.front());
+		expect(!compile_staged_review_request(input), "batch never silently partitions provider comment bound");
+		input                    = staged_request(op::create_pending);
+		input.Lines.front().Body = std::string(maximum_review_mutation_body_bytes, 'x');
+		expect(!compile_staged_review_request(input), "serialized overhead counts toward body bound");
+		for (auto operation : { op::update_comment, op::update_summary, op::submit_comment, op::discard_pending }) {
+			auto request    = staged_request(operation);
+			request.Comment = 0;
+			request.Review  = application::review_database_id{ };
+			expect(!compile_staged_review_request(request), "object operation refuses missing exact identity");
+		}
+		const auto submit = compile_staged_review_request(staged_request(op::submit_comment));
+		expect(submit && submit->Body == R"({"body":"Raw **tour** `$(literal)`","event":"COMMENT"})", "prepared review only submits COMMENT by exact returned review ID");
+	}
+	void test_staged_response_contract()
+	{
+		using op     = application::staged_review_operation;
+		auto request = staged_request(op::list_reviews);
+		auto object  = parse_fixture_object(review_body());
+		object.insert_or_assign("state", "PENDING");
+		object.insert_or_assign("submitted_at", nullptr);
+		object.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-45");
+		auto response = review_mutation_wire_response{ .Status = 200, .Body = "[" + fixture_json(object) + "]" };
+		auto observed = parse_staged_review_response(response, request);
+		expect(observed && observed->Reviews.size() == 1 && observed->Reviews.front().State == application::staged_review_state::pending, "pending review is a distinct observed state");
+		response.Headers.push_back({ .Name = "Link", .Value = "<https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=2>; rel=\"next\", <https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=2>; rel=\"last\"" });
+		observed = parse_staged_review_response(response, request);
+		expect(observed && observed->HasNext, "complete pagination obligation is retained");
+		response.Headers.front().Value = "<https://evil.invalid/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=2>; rel=\"next\"";
+		expect(!parse_staged_review_response(response, request), "foreign continuation is never followed");
+		response.Headers.clear();
+		response.Body = "[" + fixture_json(object) + "," + fixture_json(object) + "]";
+		expect(!parse_staged_review_response(response, request), "duplicate remote identity invalidates complete page");
+		constexpr auto maximum = std::numeric_limits<std::uint64_t>::max();
+		object.insert_or_assign("id", maximum);
+		object.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-18446744073709551615");
+		response.Body = "[" + fixture_json(object) + "]";
+		observed      = parse_staged_review_response(response, request);
+		expect(observed && observed->Reviews.front().Id.value() == maximum, "full decimal REST review ID survives normalization");
+		for (int status : { 301, 401, 403, 422, 429, 503 }) {
+			response.Status = status;
+			expect(!parse_staged_review_response(response, request), "non-success cannot qualify fallback");
+		}
+		response.Status  = 200;
+		response.Headers = { { .Name = "Location", .Value = "https://evil.invalid" } };
+		expect(!parse_staged_review_response(response, request), "success carrying redirect metadata refused");
+		response.Headers.clear();
+		response.Body = std::string(maximum_review_mutation_response_bytes + 1, ' ');
+		expect(!parse_staged_review_response(response, request), "wire response byte budget enforced");
+		request      = staged_request(op::list_comments);
+		auto comment = parse_fixture_object(comment_body());
+		comment.insert_or_assign("pull_request_review_id", 45U);
+		comment.insert_or_assign("pull_request_url", "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1");
+		comment.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r44");
+		comment.insert_or_assign("start_line", 11U);
+		comment.insert_or_assign("start_side", "RIGHT");
+		response.Body = "[" + fixture_json(comment) + "]";
+		observed      = parse_staged_review_response(response, request);
+		expect(observed && observed->Comments.size() == 1 && observed->Comments.front().Source->FirstLine == 10 && observed->Comments.front().Source->LastLine == 12, "range response preserves inclusive source identity");
+		comment.insert_or_assign("pull_request_review_id", 46U);
+		response.Body = "[" + fixture_json(comment) + "]";
+		expect(!parse_staged_review_response(response, request), "comment from another review refuses membership");
+		comment.insert_or_assign("pull_request_review_id", 45U);
+		comment.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r44");
+		response.Body = "[" + fixture_json(comment) + "]";
+		expect(!parse_staged_review_response(response, request), "cross-PR returned web link refused");
+	}
 } // namespace
 
 auto main() -> int
@@ -1414,6 +1553,8 @@ auto main() -> int
 	expect(fixture_json(fixture)
 			   == R"({"fraction":1.5,"large":9007199254740993,"negative":-1,"null":null})",
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
+	test_staged_batch_contract();
+	test_staged_response_contract();
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();

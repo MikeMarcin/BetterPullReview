@@ -46,7 +46,7 @@ namespace {
 	struct provider_state
 	{
 		bool                                                        InEffect = false;
-		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U;
+		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U, Tours = 0U;
 		std::vector<application::review_submission_request>         Pending;
 		std::function<void(application::review_submission_result&)> Answer;
 	};
@@ -63,6 +63,20 @@ namespace {
 		{
 			expect(State->InEffect, "provider/storage teardown runs off decision lane");
 			++State->Destroyed;
+		}
+		auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token, application::staged_child_authorizer aAuthorize) -> application::staged_publication_result override
+		{
+			expect(State->InEffect, "tour publication stays on effect lane");
+			++State->Tours;
+			application::staged_publication_record record{ .Plan = aPlan, .Pending = application::staged_initial_request(aPlan) };
+			auto                                   changed = record;
+			changed.Plan.Generation++;
+			expect(!aAuthorize(changed), "child grant refuses different draft generation");
+			changed = record;
+			changed.Pending->Body += "changed";
+			expect(!aAuthorize(changed), "child grant refuses unpreviewed body");
+			expect(aAuthorize(record) && !aAuthorize(record), "one exact durable child revision consumes once");
+			return { application::staged_publication_state::ready, record };
 		}
 		auto pending(std::stop_token) -> application::review_submission_discovery override
 		{
@@ -156,6 +170,41 @@ namespace {
 			drain();
 		}
 	};
+	void test_staged_authority()
+	{
+		auto input                 = request();
+		input.Proposal.Disposition = core::review_disposition::comment;
+		input.Proposal.Body        = "Tour summary";
+		auto fingerprint           = std::array<std::uint8_t, 32>{ };
+		fingerprint.fill(1);
+		application::staged_review_plan plan{ .Submission = input, .Owner = { core::bpr_profile_id{ 1 }, input.Proposal.Target.Host, core::host_authority_fingerprint{ fingerprint }, input.Proposal.ActingAccount, input.Proposal.Target.Repository, input.Proposal.Target.PullRequest }, .Generation = 1, .Stops = { { core::tour_stop_id{ 1 }, { .Commit = input.Proposal.Target.ExpectedHead, .Path = "a.cpp" }, "First", "Why", "https://github.com/fixture-owner/fixture-repo/blob/exact/a.cpp#L1" } } };
+		expect(application::valid(plan), "valid bounded tour plan");
+		fixture f;
+		expect(!f.Host.publish_tour(plan, { }), "preview alone cannot publish");
+		expect(!f.Host.publish_tour(plan, f.grant(input)), "summary authority is not tour authority");
+		expect(!application::detail::review_submission_user_authority_issuer::issue(f.Session, f.Generation, plan), "test build cannot issue production tour authority");
+		auto grant   = application::make_review_submission_testing_grant(f.Session, f.Generation, plan);
+		auto changed = plan;
+		changed.Generation++;
+		expect(!f.Host.publish_tour(changed, grant), "changed draft generation cannot consume parent");
+		expect(!f.Host.submit(input, grant), "tour grant cannot authorize ordinary submission");
+		expect(f.Host.publish_tour(plan, grant).has_value() && f.State->Tours == 0, "Publish queues exact immutable plan without inline write");
+		f.drain();
+		expect(f.State->Tours == 1 && std::holds_alternative<application::staged_publication_result>(f.Projection.Terminals.back().Outcome), "exact tour reaches one decision-lane terminal");
+		expect(!f.Host.publish_tour(plan, grant), "bounded parent cannot replay");
+		auto expired = application::make_review_submission_testing_grant(f.Session, f.Generation, plan, std::chrono::steady_clock::now() - std::chrono::seconds{ 1 });
+		expect(!f.Host.publish_tour(plan, expired), "expired parent refuses");
+		auto revoked = application::make_review_submission_testing_grant(f.Session, f.Generation, plan);
+		revoked->revoke();
+		expect(!f.Host.publish_tour(plan, revoked), "revoked parent refuses");
+		auto       stopped = application::make_review_submission_testing_grant(f.Session, f.Generation, plan);
+		const auto queued  = f.Host.publish_tour(plan, stopped);
+		expect(queued.has_value(), "fresh explicit Resume grants only new bounded work");
+		f.Host.cancel(*queued);
+		f.drain();
+		expect(f.State->Tours == 1, "Stop revokes parent before any effect");
+	}
+
 	void test_exact_authority_and_async_delivery()
 	{
 		for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
@@ -264,6 +313,7 @@ auto main() -> int
 {
 	static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, bpr::application::review_submission_execution_grant>);
 	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
+	test_staged_authority();
 	test_exact_authority_and_async_delivery();
 	test_recovery_and_bad_results();
 	test_cancellation_shutdown_and_reentrancy();

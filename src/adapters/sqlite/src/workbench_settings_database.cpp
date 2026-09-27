@@ -8,6 +8,7 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -105,7 +106,12 @@ namespace bpr::adapters::sqlite::detail {
 				  // controls, schema version 6. Defaulted hidden, the owner's
 				  // direction, so a rebuilt older row hides them too.
 				  "drawer_controls INTEGER NOT NULL DEFAULT 0 "
-				  "CHECK(drawer_controls BETWEEN 0 AND 1)) STRICT";
+				  "CHECK(drawer_controls BETWEEN 0 AND 1),"
+				  "writing_revision INTEGER NOT NULL DEFAULT 1 CHECK(writing_revision > 0),"
+				  "writing_problem TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_problem AS BLOB)) <= 8192),"
+				  "writing_solution TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_solution AS BLOB)) <= 8192),"
+				  "writing_outline TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_outline AS BLOB)) <= 8192),"
+				  "writing_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_stop AS BLOB)) <= 8192)) STRICT";
 		}
 
 		void remove_one_pane_column(std::string& aSql)
@@ -213,6 +219,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion == 2                        ? ",repositories_state"
 				: aVersion == 3                        ? ",open_modality"
 				: aVersion <= 5                        ? ",drawer_controls"
+				: aVersion <= 10                       ? ",writing_revision"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -256,7 +263,8 @@ namespace bpr::adapters::sqlite::detail {
 				const auto windowColumns = std::string{ "window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width" }
 					+ (aVersion >= 7 ? ",one_pane" : "")
 					+ (aVersion >= 8 ? ",home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort" : "")
-					+ (aVersion >= 9 ? ",geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized" : "");
+					+ (aVersion >= 9 ? ",geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized" : "")
+					+ (aVersion >= 10 ? ",updates_line" : "");
 				statements.push_back("INSERT INTO window_layout(" + windowColumns + ") SELECT " + windowColumns + " FROM old_window_layout");
 				statements.emplace_back("DROP TABLE old_window_layout");
 			}
@@ -298,7 +306,7 @@ namespace bpr::adapters::sqlite::detail {
 		};
 		void limit_connection(::sqlite3* aDatabase)
 		{
-			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 16384));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 65536));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 16384));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, static_cast<int>(MaximumTableColumns)));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_VDBE_OP, 10000));
@@ -357,6 +365,22 @@ namespace bpr::adapters::sqlite::detail {
 						std::uint64_t id     = 0;
 						const auto    parsed = std::from_chars(bytes, bytes + size, id);
 						if (parsed.ec != std::errc{ } || parsed.ptr != bytes + size || id == 0 || std::to_string(id) != std::string_view{ bytes, static_cast<std::size_t>(size) }) {
+							return false;
+						}
+						continue;
+					}
+					const auto columnName = std::string_view{ sqlite3_column_name(rows->Value, column) };
+					if (columnName.starts_with("writing_") && columnName != "writing_revision") {
+						const auto  size = sqlite3_column_bytes(rows->Value, column);
+						const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(rows->Value, column));
+						if (sqlite3_column_type(rows->Value, column) != SQLITE_TEXT || !text || size < 0 || size > 8192 || !core::valid_writing_utf8({ text, static_cast<std::size_t>(size) })) {
+							return false;
+						}
+						continue;
+					}
+					if (columnName == "writing_revision") {
+						const auto revision = sqlite3_column_int64(rows->Value, column);
+						if (sqlite3_column_type(rows->Value, column) != SQLITE_INTEGER || revision <= 0 || revision >= std::numeric_limits<std::int64_t>::max()) {
 							return false;
 						}
 						continue;
@@ -547,7 +571,7 @@ namespace bpr::adapters::sqlite::detail {
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 9) {
+			if (*current < 0 || *current > 10) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -878,7 +902,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (aStop.stop_requested()) {
 			return std::unexpected(failure::cancelled);
 		}
-		if (!application::valid(application::window_layout(aSettings)) || !application::valid(aSettings.Behaviour)) {
+		if (!application::valid(application::window_layout(aSettings)) || !application::valid(aSettings.Behaviour) || !core::valid(aSettings.WritingHooks)) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
@@ -893,8 +917,8 @@ namespace bpr::adapters::sqlite::detail {
 			"singleton, files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -909,11 +933,20 @@ namespace bpr::adapters::sqlite::detail {
 			"return_comparison = excluded.return_comparison,"
 			"drawer_filter = excluded.drawer_filter,"
 			"drawer_controls = excluded.drawer_controls,"
-			"one_pane = excluded.one_pane");
+			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
 
+		if (sqlite3_bind_int64(statement->Value, 15, static_cast<sqlite3_int64>(aSettings.WritingHooks.Revision)) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		for (std::size_t i = 0; i < core::writing_hook_count; ++i) {
+			const auto& text = aSettings.WritingHooks.Overrides[i];
+			if (sqlite3_bind_text(statement->Value, static_cast<int>(16 + i), text.data(), static_cast<int>(text.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
 		if (::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value, 1, static_cast<std::int64_t>(aSettings.Files))
@@ -1196,7 +1229,7 @@ namespace bpr::adapters::sqlite::detail {
 			"SELECT files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1261,6 +1294,20 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::integrity_failure);
 		}
 
+		core::writing_hook_settings hooks;
+		hooks.Revision = static_cast<std::uint64_t>(sqlite3_column_int64(statement->Value, 14));
+		for (std::size_t i = 0; i < core::writing_hook_count; ++i) {
+			const auto  column = static_cast<int>(15 + i);
+			const auto  count  = sqlite3_column_bytes(statement->Value, column);
+			const auto* text   = reinterpret_cast<const char*>(sqlite3_column_text(statement->Value, column));
+			if (!text || count < 0 || count > static_cast<int>(core::maximum_writing_instruction_bytes)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			hooks.Overrides[i].assign(text, static_cast<std::size_t>(count));
+		}
+		if (!core::valid(hooks)) {
+			return std::unexpected(failure::integrity_failure);
+		}
 		return application::workbench_layout_settings{
 			.Files         = *files,
 			.Conversations = *conversations,
@@ -1281,6 +1328,7 @@ namespace bpr::adapters::sqlite::detail {
 				.CommentsFilter   = *commentsFilter,
 				.DrawerControls   = *drawerControls,
 			},
+			.WritingHooks = std::move(hooks),
 		};
 	}
 

@@ -1,0 +1,87 @@
+{
+  "schema": "bpr.rfc0020.closeout-evidence.v1",
+  "mandate_revision": "r1",
+  "candidate_revision": "c62c2fcbffa78251b7ca60f886f815e1ebf2bc5b",
+  "production_revision": "a028dcee40729457066129c73edd34f1d1820bdf",
+  "source_equal_to_entry": true,
+  "unchanged_evidence_inputs": [
+    {
+      "path": "src/adapters/qt/src/motion_observer.cpp",
+      "accepted_revision": "62354ed6",
+      "accepted_git_object": "bab4bae3fd87ec255246e68c38ca0cc67cdcbada",
+      "current_git_object": "bab4bae3fd87ec255246e68c38ca0cc67cdcbada",
+      "unchanged": true
+    },
+    {
+      "path": "src/adapters/qt/src/motion_observer_mac.mm",
+      "accepted_revision": "62354ed6",
+      "accepted_git_object": "dd029015726ad53b26389796fe380b28db512d10",
+      "current_git_object": "dd029015726ad53b26389796fe380b28db512d10",
+      "unchanged": true
+    },
+    {
+      "path": "src/adapters/qt/assets/dif",
+      "accepted_revision": "b03fc9fd",
+      "accepted_git_object": "a9660c11ef1fb591855a44e63cc2cf11b111f33e",
+      "current_git_object": "a9660c11ef1fb591855a44e63cc2cf11b111f33e",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/dif_assets.py",
+      "accepted_revision": "b03fc9fd",
+      "accepted_git_object": "e26056b978d65668bbe3f1681f2acbcfd15767cc",
+      "current_git_object": "e26056b978d65668bbe3f1681f2acbcfd15767cc",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/verify_dif_asset_boundaries.py",
+      "accepted_revision": "b03fc9fd",
+      "accepted_git_object": "525f1b8f8818f7157ad6ca4b5281e2badee1ef20",
+      "current_git_object": "525f1b8f8818f7157ad6ca4b5281e2badee1ef20",
+      "unchanged": true
+    }
+  ],
+  "binary_sha256": {
+    "src/app/better_pull_review.app/Contents/MacOS/better_pull_review": "8ad96674f7e6186efd2e58627468f823fce05e6f62ab42e2fba50e790f5cfc12",
+    "tests/end_to_end/profile_multi_window_public_path": "5ddfa9b359dbf7e6b3c60236e562752ab5027226daa4821c99dfe673e9bd9eb1",
+    "tests/adapters_qt/better_pull_review_qt_workbench_window_tests": "045250aa7ae119812ab4e43a7df765d2008a25a01ff3684c528465706ce3b1fe",
+    "tests/adapters_qt/better_pull_review_qt_dif_runtime_tests": "2be837551488d36a5458faf672656422c9e3d1ee975b46f9ae9d773568101181",
+    "tests/adapters_qt/better_pull_review_qt_motion_observer_tests": "0556ffc61d3d401aef36c04c478dfebfd7df94d6ab250ad702dea8213bed209d"
+  },
+  "public_composition": {
+    "command": [
+      "ctest",
+      "--test-dir",
+      "build/dev",
+      "-R",
+      "^application_profile_multi_window_public_path$",
+      "--output-on-failure"
+    ],
+    "exit_code": 0,
+    "passed": 1,
+    "elapsed_seconds": 82.18,
+    "optional_memory_report_enabled": false
+  },
+  "build_results": [
+    {
+      "target": "test_profile_multi_window_public_path",
+      "exit_code": 0
+    },
+    {
+      "target": "app_better_pull_review and focused appearance/runtime/workbench tests",
+      "exit_code": 0
+    },
+    {
+      "target": "test_better_pull_review_qt_workbench_window_tests after tray assertion repair",
+      "exit_code": 0
+    }
+  ],
+  "fresh_native_or_human_verdict": false,
+  "independent_review": "Reused consumed runtime-foundation, home-integration and d14/d15 reports; no fresh independent reviewer.",
+  "limits": [
+    "Windows/Linux System observation unsupported.",
+    "BPR-0966 Windows semantic-cue course remains Backlog.",
+    "No signed, notarized, installed or release qualification.",
+    "Historical graph binary digests and native decisions retain their original candidate identities."
+  ]
+}

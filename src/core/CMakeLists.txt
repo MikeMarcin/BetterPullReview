@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/review_preparation.cpp
         src/window_review_restoration.cpp
         src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp
@@ -22,6 +23,8 @@ add_library(
         src/cached_review_overview.cpp
         src/markdown_navigation.cpp
         src/model.cpp
+        src/review_composition.cpp
+        src/private_review.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
         src/release_update.cpp
@@ -33,6 +36,12 @@ add_library(
         src/agent_profile.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
+        src/review_tour_import.cpp
+        src/review_tour_destination.cpp
+        src/review_tour_markdown.cpp
+        src/review_tour_reconciliation.cpp
+    src/review_tour_revision.cpp
+        src/review_tour_update.cpp
         src/review_tour.cpp
         src/review_round_trip.cpp
     src/review_publication_policy.cpp

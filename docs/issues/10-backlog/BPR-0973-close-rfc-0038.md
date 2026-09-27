@@ -28,7 +28,7 @@ All BPR-0958–0962 criteria remain pending until actually supplied.
 - AC2: Reconcile the final scoped diff against the immutable baseline and
   inherited RFC-0014 evidence, with every failed scan, changed candidate,
   platform, license/source-access/retention and privacy obligation accounted for.
-- AC3: Finish all dependencies and respect canonical RFC order; update RFC/index,
+- AC3: Finish all explicit dependencies and acceptance criteria; update RFC/index,
   documentation and exact-candidate evidence together, recording final integrated
   revision, protected candidates and command cleanup. No distribution is implied
   by closeout without separate explicit publication authority.

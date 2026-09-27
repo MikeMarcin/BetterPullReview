@@ -1,5 +1,9 @@
 #include "review_submission_fixture.hpp"
 
+#include "review_submission_session.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 
 namespace bpr::app::detail {
@@ -125,4 +129,242 @@ namespace bpr::app::detail {
 	{
 		return std::make_unique<fixture_provider>(std::move(aState), std::move(aStore), std::move(aBinding));
 	}
+}
+
+namespace bpr::app::detail {
+	namespace {
+		namespace wire = adapters::github::detail;
+		auto json_text(const std::string& aText) -> std::string
+		{
+			const auto json = QJsonDocument{ QJsonArray{ QString::fromStdString(aText) } }.toJson(QJsonDocument::Compact).toStdString();
+			return json.substr(1, json.size() - 2);
+		}
+		struct staged_fixture_lease final : application::review_mutation_transport_lease
+		{ };
+		class staged_fixture_wire final : public wire::github_mutation_wire_transport
+		{
+		public:
+			std::shared_ptr<review_submission_fixture_state> State;
+			application::review_submission_live_binding      Binding;
+			std::string                                      Description;
+			staged_fixture_wire(std::shared_ptr<review_submission_fixture_state> aState, application::review_submission_live_binding aBinding, std::string aDescription)
+				: State{ std::move(aState) }
+				, Binding{ std::move(aBinding) }
+				, Description{ std::move(aDescription) }
+			{ }
+			auto actor() const -> application::staged_review_actor
+			{
+				const auto& a = Binding.ActingIdentity;
+				return { a.DatabaseId, a.NodeId, a.Login };
+			}
+			auto root() const -> std::string
+			{
+				const auto& t = Binding.Target;
+				return "https://" + std::string{ t.Hostname.value() } + "/" + t.Repository.Owner + "/" + t.Repository.Name + "/pull/" + std::to_string(t.Number.value());
+			}
+			auto repository() const -> std::string { return std::string{ Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/repos/" : "/api/v3/repos/" } + Binding.Target.Repository.Owner + "/" + Binding.Target.Repository.Name; }
+			auto api() const -> std::string { return Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "https://api.github.com" : "https://" + std::string{ Binding.Target.Hostname.value() }; }
+			auto pull() const -> std::string { return repository() + "/pulls/" + std::to_string(Binding.Target.Number.value()); }
+			auto user_json() const -> std::string
+			{
+				const auto a = actor();
+				return "{\"id\":" + std::to_string(a.DatabaseId) + ",\"node_id\":" + json_text(a.NodeId) + ",\"login\":" + json_text(a.Login) + "}";
+			}
+			auto review_json(const application::staged_review_entity& r) const -> std::string
+			{
+				return "{\"id\":" + std::to_string(r.Id.value()) + ",\"node_id\":" + json_text(r.NodeId) + ",\"html_url\":" + json_text(r.WebUrl) + ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"user\":" + user_json() + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(r.Commit).view() }) + ",\"body\":" + json_text(r.Body) + ",\"state\":\"" + (r.State == application::staged_review_state::pending ? "PENDING" : "COMMENTED") + "\"" + (r.State == application::staged_review_state::pending ? "" : ",\"submitted_at\":\"2026-09-26T12:34:56Z\"") + "}";
+			}
+			auto comments_json(const std::vector<application::staged_review_comment>& comments) const -> std::string
+			{
+				std::string result = "[";
+				for (auto i = comments.rbegin(); i != comments.rend(); ++i) {
+					const auto& c = *i;
+					if (result.size() > 1) {
+						result += ",";
+					}
+					result += "{\"id\":" + std::to_string(c.Id) + ",\"node_id\":" + json_text(c.NodeId) + ",\"html_url\":" + json_text(c.WebUrl) + ",\"user\":" + user_json() + ",\"body\":" + json_text(c.Body);
+					if (c.Source) {
+						const auto& source = *c.Source;
+						const auto  side   = source.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+						result += ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"pull_request_review_id\":" + std::to_string(c.Review.value()) + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(Binding.Target.Semantic.ExpectedHead).view() }) + ",\"path\":" + json_text(source.Path) + ",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
+						if (source.FirstLine != source.LastLine) {
+							result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
+						}
+					} else {
+						result += ",\"issue_url\":" + json_text(api() + repository() + "/issues/" + std::to_string(Binding.Target.Number.value()));
+					}
+					if (c.Reply) {
+						result += ",\"in_reply_to_id\":601";
+					}
+					result += "}";
+				}
+				return result + "]";
+			}
+			auto perform_review_mutation(const wire::github_mutation_wire_request& request, std::stop_token stop, wire::github_mutation_transmission_witness witness) -> wire::github_mutation_wire_completion override
+			{
+				std::unique_lock lock{ State->Mutex };
+				const auto&      w         = request.Wire;
+				const auto       success   = [](std::string body) { return wire::github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(body) } }; };
+				const auto       issuePath = repository() + "/issues/" + std::to_string(Binding.Target.Number.value()) + "/comments";
+				if (w.Method == wire::http_method::get) {
+					if (w.Path == (Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/user" : "/api/v3/user")) {
+						return success(user_json());
+					}
+					if (w.Path == pull()) {
+						const auto& t = Binding.Target;
+						return success("{\"id\":" + std::to_string(t.PullRequestDatabaseId) + ",\"node_id\":" + json_text(t.PullRequestNodeId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"state\":\"open\",\"body\":" + json_text(State->StagedDescription.value_or(Description)) + ",\"head\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() }) + ",\"ref\":" + json_text(t.HeadRef) + "},\"base\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + ",\"ref\":" + json_text(t.BaseRef) + ",\"repo\":{\"id\":" + std::to_string(t.BaseRepositoryDatabaseId) + ",\"node_id\":" + json_text(t.RepositoryNodeId) + ",\"full_name\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}");
+					}
+					if (w.Path == pull() + "/reviews?per_page=100&page=1") {
+						if (State->StagedConflict) {
+							application::staged_review_entity existing{ application::review_database_id{ 99 }, "PRR_99", root() + "#pullrequestreview-99", actor(), Binding.Target.Semantic.ExpectedHead, "Existing website review", application::staged_review_state::pending };
+							return success("[" + review_json(existing) + "]");
+						}
+						std::string all = "[";
+						for (const auto& review : State->PreviousReviews) {
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(review);
+						}
+						if (State->StagedReview) {
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(*State->StagedReview);
+						}
+						return success(all + "]");
+					}
+					if (State->StagedReview) {
+						const auto r = pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value());
+						if (w.Path == r) {
+							return success(review_json(*State->StagedReview));
+						}
+						if (w.Path == r + "/comments?per_page=100&page=1") {
+							return success(comments_json(State->StagedComments));
+						}
+					}
+					for (const auto& review : State->PreviousReviews) {
+						const auto path = pull() + "/reviews/" + std::to_string(review.Id.value());
+						if (w.Path == path) {
+							return success(review_json(review));
+						}
+						if (w.Path == path + "/comments?per_page=100&page=1") {
+							std::vector<application::staged_review_comment> comments;
+							for (const auto& c : State->PreviousComments) {
+								if (c.Review == review.Id) {
+									comments.push_back(c);
+								}
+							}
+							return success(comments_json(comments));
+						}
+					}
+					if (w.Path == issuePath + "?per_page=100&page=1") {
+						return success(comments_json(State->CompatibilityComments));
+					}
+					return wire::github_mutation_wire_error{ };
+				}
+				if (!witness || !witness()) {
+					return wire::github_mutation_wire_error{ };
+				}
+				if (w.Path == pull() && State->StagedRejectDescription) {
+					return wire::github_mutation_wire_success{ .Response = { .Status = 403, .Body = "{}" } };
+				}
+				const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(w.Body)).object();
+				const auto body   = object["body"].toString().toStdString();
+				if (w.Method == wire::http_method::post && w.Path == pull() + "/reviews" && !object.contains("event")) {
+					if (State->StagedReview) {
+						State->PreviousReviews.push_back(*State->StagedReview);
+						State->PreviousComments.insert(State->PreviousComments.end(), State->StagedComments.begin(), State->StagedComments.end());
+					}
+					const auto id       = 501 + State->StagedCreates;
+					State->StagedReview = application::staged_review_entity{ application::review_database_id{ id }, "PRR_" + std::to_string(id), root() + "#pullrequestreview-" + std::to_string(id), actor(), Binding.Target.Semantic.ExpectedHead, body, application::staged_review_state::pending };
+					State->StagedComments.clear();
+					for (const auto& entry : object["comments"].toArray()) {
+						const auto c     = entry.toObject();
+						const auto cid   = 601 + State->PreviousComments.size() + State->StagedComments.size();
+						const auto left  = c["side"] == "LEFT";
+						const auto last  = static_cast<std::uint32_t>(c["line"].toInt() - 1);
+						const auto first = c.contains("start_line") ? static_cast<std::uint32_t>(c["start_line"].toInt() - 1) : last;
+						State->StagedComments.push_back({ cid, "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? Binding.Target.BaseOid : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
+					}
+					++State->StagedCreates;
+				} else if (w.Method == wire::http_method::post && State->StagedReview && w.Path == pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value()) + "/events" && object["event"] == "COMMENT") {
+					State->StagedReview->Body  = body;
+					State->StagedReview->State = application::staged_review_state::commented;
+					++State->StagedSubmits;
+				} else if (w.Method == wire::http_method::put) {
+					bool found = false;
+					if (State->StagedReview && w.Path == pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value())) {
+						State->StagedReview->Body = body;
+						found                     = true;
+					}
+					for (auto& review : State->PreviousReviews) {
+						if (w.Path == pull() + "/reviews/" + std::to_string(review.Id.value())) {
+							review.Body = body;
+							found       = true;
+						}
+					}
+					if (!found) {
+						return wire::github_mutation_wire_error{ };
+					}
+				} else if (w.Method == wire::http_method::post && w.Path == issuePath) {
+					const auto id = 701 + State->CompatibilityComments.size();
+					State->CompatibilityComments.push_back({ id, "IC_" + std::to_string(id), root() + "#issuecomment-" + std::to_string(id), actor(), { }, { }, body, false });
+				} else if (w.Method == wire::http_method::patch && w.Path == pull()) {
+					State->StagedDescription = body;
+				} else if (w.Method == wire::http_method::patch) {
+					bool found = false;
+					for (auto& c : State->StagedComments) {
+						if (w.Path == repository() + "/pulls/comments/" + std::to_string(c.Id)) {
+							c.Body = body;
+							found  = true;
+						}
+					}
+					for (auto& c : State->PreviousComments) {
+						if (w.Path == repository() + "/pulls/comments/" + std::to_string(c.Id)) {
+							c.Body = body;
+							found  = true;
+						}
+					}
+					for (auto& c : State->CompatibilityComments) {
+						if (w.Path == repository() + "/issues/comments/" + std::to_string(c.Id)) {
+							c.Body = body;
+							found  = true;
+						}
+					}
+					if (!found) {
+						return wire::github_mutation_wire_error{ };
+					}
+				} else {
+					return wire::github_mutation_wire_error{ };
+				}
+				State->StagedWritePaths.push_back(w.Path);
+				++State->StagedWrites;
+				if (State->StagedBlockNext) {
+					State->StagedBlockNext = false;
+					State->StagedBlocked   = true;
+					State->StagedWait.wait(lock, stop, [&] { return !State->StagedBlocked; });
+					State->StagedBlocked = false;
+				}
+				return success("{}");
+			}
+		};
+		class staged_fixture_provider final : public application::review_submission_port
+		{
+		public:
+			staged_fixture_wire             Wire;
+			wire::review_submission_session Session;
+			staged_fixture_provider(std::shared_ptr<review_submission_fixture_state> state, std::unique_ptr<application::review_submission_recovery_port> store, application::review_submission_live_binding binding, std::string description)
+				: Wire{ std::move(state), binding, std::move(description) }
+				, Session{ Wire, { .CredentialContext = { .Request = core::request_id{ 1 }, .ApplicationSession = core::application_session_id{ 1 }, .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = binding.Target.Semantic.Host, .Hostname = binding.Target.Hostname, .Account = binding.ActingIdentity.Account, .ServerContract = binding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1 } }, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity }, std::make_shared<staged_fixture_lease>(), std::move(store) }
+			{ }
+			auto pending(std::stop_token) -> application::review_submission_discovery override { return std::vector<application::review_submission_request>{ }; }
+			auto submit_and_reconcile(const application::review_submission_request& request, std::stop_token) -> application::review_submission_result override { return { .Request = request }; }
+			auto reconcile(const application::review_submission_request& request, std::stop_token) -> application::review_submission_result override { return { .Request = request }; }
+			auto pending_tours(std::stop_token stop) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure> override { return Session.pending_tours(stop); }
+			auto publish_tour(const application::staged_review_plan& plan, std::stop_token stop, application::staged_child_authorizer authorize) -> application::staged_publication_result override { return Session.publish_tour(plan, stop, std::move(authorize)); }
+			auto reconcile_tour(const application::staged_review_plan& plan, std::stop_token stop) -> application::staged_publication_result override { return Session.reconcile_tour(plan, stop); }
+		};
+	}
+	auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state> state, std::unique_ptr<application::review_submission_recovery_port> store, application::review_submission_live_binding binding, std::string description) -> std::unique_ptr<application::review_submission_port> { return std::make_unique<staged_fixture_provider>(std::move(state), std::move(store), std::move(binding), std::move(description)); }
 }

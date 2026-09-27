@@ -24,6 +24,15 @@ The governing rule is:
 
 > **The core decides. The host performs. Qt presents.**
 
+RFC-BPR-0023's private review follows the same split: core proposals bind
+immutable thread/revision/run/composition identities; application hosts own
+SQLite transactions, exact source admission, serialized effects, and publication
+recovery; Qt owns the Private history panel and incremental projection. The
+[state model](domain-and-state-model.md), [private ledger](review-ledger.md),
+[round trip](review-round-trip.md), and [agent boundary](ai-agent-boundary.md)
+define the ports and limits. The [operator workflow](../ux/private-review-workflow.md)
+describes the separate local draft and public Publish actions.
+
 The Qt presentation adapter is part of the imperative shell. It is not an architectural peer that bypasses the host or the core.
 
 ## Technology baseline
@@ -301,7 +310,16 @@ minutes, checked before exposure and retired by bounded idle backend maintenance
 Off, privacy/detail changes and Clear invalidate queued generations and reset
 transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
-scope-aware export is described below; native/attended qualification remains open.
+scope-aware export is described below. RFC-0027 native developer courses and
+attended controls are accepted; its verification ledger retains the separate
+package/release limitations. RFC-0027 is Auto-Verified under its explicit
+dependencies and owner amendment r3.
+
+Diagnostic refresh requests made while a capture is in flight coalesce into one
+fresh observation after its completion. Reopening Settings after Sign out therefore
+cannot leave a prior capture as the final displayed recent-context count. Queued
+epoch effects retain the logger generation observed when they were submitted, so
+later protocol steps cannot repopulate a revoked account context.
 
 BPR-1218 carries export policy, session scope and explicit recent-context selection
 through the existing maintenance core's exact preparation identity. The logging
@@ -310,7 +328,9 @@ on the effect lane. Native storage reads only admitted profile files; current-se
 selection filters filenames before reading. Application classification rebuilds
 bounded JSONL, validates every field and known explanation, and gives each export
 fresh opaque session/request/window joins. The core requires separate confirmation
-for identifying export. Preview and the native exclusive local writer consume the
+for identifying export, supplied by the explicit Save action in its disclosure
+dialog. Direct Help exports use the same profile host without opening Settings.
+Preview and the native exclusive local writer consume the
 same digest-bound bytes; neither path composes a network capability.
 
 The entry point also owns one bounded terminal service before Qt startup and
@@ -1489,7 +1509,7 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each write, and
+a separate exact-host/account/PR/operation confirmation for each ordinary write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -1498,6 +1518,14 @@ Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+Tour Publish is a bounded grouped-confirmation extension: the preview binds one
+immutable plan to the exact actor, head, sources, prose and allowed returned-link
+slots. Each journaled write consumes its own one-use child grant. Stop or an
+identity/draft change revokes remaining authority; restart reconciles read-only
+and needs an explicit preview and Resume. Compatibility comments are explicitly
+non-atomic, and an optional description edit is a separately named operation.
+These Tour operations remain unavailable on an unqualified host/transport.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

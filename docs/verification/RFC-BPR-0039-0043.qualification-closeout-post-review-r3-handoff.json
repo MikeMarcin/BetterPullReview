@@ -1,0 +1,307 @@
+{
+  "assignment": "bpr-review-tour-v1/qualification-closeout",
+  "mandate_revision": "r1-20260926-land-each-milestone",
+  "run_id": "bpr-review-tour-20260926",
+  "segment_id": "qualification-closeout-post-review-r3",
+  "selected_recipe": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "source": {
+    "source_revision": "54ba51bf8b833925ddf58354275e13bde2f669e3",
+    "binary": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r3",
+    "sha256": "1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6"
+  },
+  "bookkeeping_revision": "7f3c41969aa7b0f6b7d9a95f4831bf67e5fc9463",
+  "session": "7834eb10dc5260f8cc14257a669c1109",
+  "cursor": 86,
+  "candidates": [
+    {
+      "id": "BPR-1013-ime",
+      "revision": "54ba51bf8b833925ddf58354275e13bde2f669e3;binary-sha256:1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+      "fingerprint": "9e053708e61172c8bb2750002f1f65f9aa8b07518e300f15a324826e0326cc87",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-1013-keyboard",
+      "revision": "54ba51bf8b833925ddf58354275e13bde2f669e3;binary-sha256:1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+      "fingerprint": "a4182549e6f5323b883cf946e61b554f76e919f4234954c65546d7c473f2cef2",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-1013-layout-ordinary",
+      "revision": "54ba51bf8b833925ddf58354275e13bde2f669e3;binary-sha256:1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+      "fingerprint": "494f11091d3d21c6190a02444cd5f567298fa7a4ca5d76d2723ae79acfbdc51d",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-1013-accessibility",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "cc7bf2a07a651af69cea8b115dd134893ec76863829c121922ec563d7e63a2c4",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-accessibility",
+        "fingerprint": "cc7bf2a07a651af69cea8b115dd134893ec76863829c121922ec563d7e63a2c4",
+        "decision_id": "5333a4a5-f89a-495b-b3dd-5ab29a1a6280",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:24:19.930216+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-conflict",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:7453ec2ec0d017bcea4abfec885cee5cb68f57c4d030bc613e970bde88e280be",
+      "fingerprint": "51a3b1f116ec635678e1ef0e0d381f1d7087411b6d4281e992f42616705748a3",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-conflict",
+        "fingerprint": "51a3b1f116ec635678e1ef0e0d381f1d7087411b6d4281e992f42616705748a3",
+        "decision_id": "df559d8c-7b9e-487e-ad7f-07ee81356cc1",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:26:55.550532+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-layout-large",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "d4213ab9654cda3dc14dc0cbc121e10911ce0e26dd90732d8d973b4f2ea951dd",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-layout-large",
+        "fingerprint": "d4213ab9654cda3dc14dc0cbc121e10911ce0e26dd90732d8d973b4f2ea951dd",
+        "decision_id": "2be22d67-57b0-4a32-8625-9f8bd70cbf9c",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:28:43.998358+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-responsiveness",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "3e4b52dce8963451b88c4871c2546380fd1bbc407d8e74a30726b040355027b7",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-responsiveness",
+        "fingerprint": "3e4b52dce8963451b88c4871c2546380fd1bbc407d8e74a30726b040355027b7",
+        "decision_id": "d689659e-a442-4fa0-a2ed-2c26c9751389",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:28:13.380169+00:00",
+        "actor": "human"
+      }
+    }
+  ],
+  "verification": [
+    {
+      "name": "native",
+      "environment": {
+        "BPR_AUTOMATED_TEST_BOUNDARY": "1",
+        "QT_QPA_PLATFORM": "cocoa",
+        "QT_SCALE_FACTOR": "1"
+      },
+      "argv": [
+        "/opt/homebrew/bin/python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r3",
+        "/tmp/bpr-review-tour-run/r3-native.png"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/bpr-review-tour-run/r3-native.log"
+    },
+    {
+      "name": "offscreen",
+      "environment": {
+        "BPR_AUTOMATED_TEST_BOUNDARY": "1",
+        "QT_QPA_PLATFORM": "offscreen",
+        "QT_SCALE_FACTOR": "1"
+      },
+      "argv": [
+        "/opt/homebrew/bin/python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r3",
+        "/tmp/bpr-review-tour-run/r3-offscreen.png"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/bpr-review-tour-run/r3-offscreen.log"
+    },
+    {
+      "name": "cold",
+      "environment": {
+        "BPR_AUTOMATED_TEST_BOUNDARY": "1",
+        "QT_QPA_PLATFORM": "offscreen",
+        "QT_SCALE_FACTOR": "1"
+      },
+      "argv": [
+        "/opt/homebrew/bin/python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r3",
+        "--cold"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/bpr-review-tour-run/r3-cold.log"
+    },
+    {
+      "name": "writing",
+      "environment": {
+        "BPR_AUTOMATED_TEST_BOUNDARY": "1",
+        "QT_QPA_PLATFORM": "offscreen",
+        "QT_SCALE_FACTOR": "1"
+      },
+      "argv": [
+        "/opt/homebrew/bin/python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r3",
+        "--writing",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/scoped_writing_agent",
+        "/tmp/bpr-review-tour-run/r3-outline.png"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/bpr-review-tour-run/r3-writing.log"
+    },
+    {
+      "name": "dev core+host",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-R",
+        "^(core_review_tour|application_review_tour_host)$",
+        "--output-on-failure"
+      ],
+      "result": "2/2 pass",
+      "log": "/tmp/bpr-review-tour-run/r3-core-host.log"
+    },
+    {
+      "name": "core-only required boundaries",
+      "result": "5/5 pass including architecture_boundaries and architecture_boundary_contract; final core/host/update rerun3/3",
+      "logs": [
+        "/tmp/bpr-review-tour-run/r3-core-only-tests.log",
+        "/tmp/bpr-review-tour-run/r3-core-final.log"
+      ]
+    },
+    {
+      "name": "format",
+      "result": "all ten changed C++ files formatted; final course format pass"
+    },
+    {
+      "name": "tidy",
+      "result": "six core/host/Qt/test units pass; final Qt/course reruns pass. Seven-unit command exit1 only for ten existing github_application.cpp naming diagnostics at unchanged6791/6799/7460/9086; source blocks byte-identical to claimed parent",
+      "logs": [
+        "/tmp/bpr-review-tour-run/r3-tidy.log",
+        "/tmp/bpr-review-tour-run/r3-qt-final-tidy.log",
+        "/tmp/bpr-review-tour-run/r3-course-tidy.log"
+      ]
+    },
+    {
+      "name": "documentation",
+      "result": "verify_documentation.py and verify_documentation_tests.py pass",
+      "logs": [
+        "/tmp/bpr-review-tour-run/r3-docs.log",
+        "/tmp/bpr-review-tour-run/r3-docs-tests.log"
+      ]
+    }
+  ],
+  "changed_paths": [
+    "docs/architecture/review-tours.md",
+    "docs/development/review-tours.md",
+    "docs/issues/10-backlog/BPR-1016-close-rfc-0043.md",
+    "docs/issues/40-parked/BPR-1013-qualify-native-authoring-and-website-only-review-paths.md",
+    "docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+    "docs/verification/RFC-BPR-0039-0043.md",
+    "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp",
+    "src/adapters/qt/src/review_tour_editor.cpp",
+    "src/app/src/github_application.cpp",
+    "src/application/include/bpr/application/review_tour_projection.hpp",
+    "src/application/src/review_tour_host.cpp",
+    "src/core/include/bpr/core/review_tour.hpp",
+    "src/core/src/review_tour.cpp",
+    "tests/application/review_tour_host_tests.cpp",
+    "tests/core/review_tour_tests.cpp",
+    "tests/end_to_end/review_tour_composition_public_path.cpp",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r3-checkpoint.json",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r3-handoff.json"
+  ],
+  "protected_original_binaries": {
+    "build/dev/tests/end_to_end/review_tour_composition_public_path": "91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+    "build/dev/tests/end_to_end/review_tour_publication_public_path": "7453ec2ec0d017bcea4abfec885cee5cb68f57c4d030bc613e970bde88e280be"
+  },
+  "required_pending": [
+    "Three revised native human verdicts; four original accepts preserved",
+    "Approved safe live GitHub.com/GHES host/transport/website qualification",
+    "Installed restricted-provider enforcement and real-model quality",
+    "BPR-1016 and explicit RFC dependencies"
+  ],
+  "ownership": "leaf writer released; builds, tests, tidy, native apps complete; existing coordinator loopback review server PID66418 retained",
+  "protection_recovery": "Selectors union; accidental overlapping release71\u201373 before source edits was repaired for exactly four original accepted claims with fingerprint/verdict/hash unchanged; recovery observations74\u201377. Only revised three registered thereafter.",
+  "next_action": "Coordinator arm installed attended-review wait after86 kind handed-back, present runtime URL, and yield. Next engineering round reads only new events; preserve original four verdicts. Do not infer main landing or acceptance.",
+  "runtime_handoff": "/tmp/bpr-review-tour-run/qualification-r3-handoff.json",
+  "temporary_work": "Retain final r3 executable and runtime evidence/manifest/offline page for review. No bundle or new persistent daemon. No remote/model effects; no push or main merge."
+}

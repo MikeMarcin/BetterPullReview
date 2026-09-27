@@ -258,6 +258,11 @@ namespace bpr::qt {
 		return Members.MutationStatus->text();
 	}
 
+	void review_draft_editor::allow_publication_retry(bool aAllowed)
+	{
+		Members.RetryPublication = aAllowed;
+		refresh_enablement();
+	}
 	auto review_draft_editor::publish_action() const noexcept -> QAction*
 	{
 		return Members.Publish;
@@ -610,7 +615,9 @@ namespace bpr::qt {
 	void review_draft_editor::acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted)
 	{
 		auto& state = Members.Revisioned;
-		if (!state.Dispatch || !state.Selected || state.Replacement || !state.Candidate || !state.Accepted) {
+		if (!state.Dispatch || !state.Candidate || !state.Accepted
+			|| (!(state.Selected && !state.Replacement)
+				&& (!state.Replacement || *state.Replacement != aAccepted))) {
 			return;
 		}
 		const auto& candidate = *state.Candidate;
@@ -627,6 +634,20 @@ namespace bpr::qt {
 		state.Accepted = aAccepted;
 		Members.MutationStatus->clear();
 		render_draft(aAccepted.Draft);
+	}
+	void review_draft_editor::acknowledge_published_body(const core::revisioned_review_draft& aPublished)
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Candidate || state.Candidate->Command.Kind != core::review_draft_command_kind::edit
+			|| state.Candidate->Scope != aPublished.Scope
+			|| state.Candidate->Command.Id != aPublished.Draft.Id
+			|| state.Candidate->Command.Body != aPublished.Draft.Body) {
+			return;
+		}
+		state.Candidate.reset();
+		state.Conflict = false;
+		state.Replacement.reset();
+		refresh_enablement();
 	}
 
 	void review_draft_editor::present_conflict(const core::revisioned_draft_outcome& aOutcome)
@@ -836,14 +857,17 @@ namespace bpr::qt {
 		const auto drafting = revisionReady && Members.ShownDraft
 			&& Members.ShownDraft->State == core::review_draft_state::drafting;
 		const auto supportedTarget = Members.ShownDraft && core::supported_comment_target(Members.ShownDraft->Anchor.Side, Members.ShownDraft->ReplyToThread.has_value());
-		Members.Publish->setEnabled(drafting && supportedTarget);
+		const auto retry           = revisionReady && Members.RetryPublication && Members.ShownDraft && Members.ShownDraft->State == core::review_draft_state::publishing;
+		Members.Publish->setText(retry ? tr("Retry publication") : tr("Publish"));
+		Members.Publish->setEnabled((drafting || retry) && supportedTarget && !Members.Revisioned.Candidate);
 		Members.Discard->setEnabled(drafting);
 		Members.Body->setReadOnly(!drafting);
 		Members.Body->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
 		Members.TargetLabel->setVisible(!Members.TargetLabel->text().isEmpty());
 		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
-		Members.Publish->setToolTip(!drafting ? unavailable : supportedTarget ? tr("Publish this draft comment.")
-																			  : tr("New comments need a line on the right, current-head side. Your draft text is kept."));
+		Members.Publish->setToolTip(retry ? tr("Retry this exact publication identity; already transmitted work is reconciled.") : !drafting ? unavailable
+										: supportedTarget                                                                                    ? tr("Publish this draft comment.")
+																																			 : tr("New comments need a line on the right, current-head side. Your draft text is kept."));
 		Members.Discard->setToolTip(drafting ? tr("Discard this local draft.") : unavailable);
 
 		const auto receipt = Members.ShownReceipt.has_value();

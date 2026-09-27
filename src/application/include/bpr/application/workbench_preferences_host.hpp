@@ -25,6 +25,7 @@ namespace bpr::application {
 		void               adopt_loaded(const workbench_profile_preferences& aPreferences);
 		[[nodiscard]] auto apply_behaviour(review_behaviour_settings aBehaviour) -> bool;
 		[[nodiscard]] auto apply_defaults(workbench_window_layout aDefaults) -> bool;
+		[[nodiscard]] auto apply_writing_hook(core::writing_hook aHook, std::string aInstructions) -> bool;
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto accepted() const noexcept -> const std::optional<workbench_profile_preferences>&;

@@ -161,6 +161,11 @@ namespace bpr::application {
 		const core::review_mutation_target&      aTarget) -> std::string
 	{
 		auto material = std::string{ };
+		if (aProposal.Durable) {
+			material = "bpr-durable-review-publication-v1";
+			append(material, aProposal.Durable->Incarnation);
+			append(material, aProposal.Durable->DraftRevision);
+		}
 		append(material, aProposal.Draft.value());
 		append(material, aTarget.Host.value());
 		append(material, aTarget.Repository.value());

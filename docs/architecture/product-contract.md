@@ -1,5 +1,14 @@
 # BetterPullReview Product Contract
 
+Private review conversations are local profile state. In the workbench's
+**Private history** panel, the reviewer can inspect immutable revisions and
+actor qualifications, select exact sources, and compose a local draft. Publishing
+is a separate action through the existing review editor. Local deletion does
+not remove GitHub comments. The [operator workflow](../ux/private-review-workflow.md)
+explains stale anchors, provenance, split targets, and public-body behavior;
+the [RFC-BPR-0023 ledger](../verification/RFC-BPR-0023.md) records the remaining
+designated live-publication acceptance gap.
+
 Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
 
 ## Definition
@@ -114,7 +123,9 @@ explicit diagnostic cleanup/profile purge. Diagnostic export saves only the
 exact previewed classified metadata to a new local file; it uploads nothing.
 The readable log and external OS crash reports have separate privacy limits.
 
-Help → Diagnostics opens the same profile Settings while signed out. Recording
+Help → Diagnostics opens the same profile Settings while signed out. Help also
+offers anonymized and identifying export actions directly. Each presents a
+frozen preview with Save and Cancel, without requiring Settings navigation. Recording
 starts On, Standard and Anonymized. Detail and identity privacy are separate
 persistent choices, with an explicit disclosure before Include locally. Off
 stops new records and recent context after acknowledgement, preserving existing
@@ -174,7 +185,7 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each write, and
+a separate exact-host/account/PR/operation confirmation for each ordinary write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -183,6 +194,14 @@ Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+Tour Publish is a bounded grouped-confirmation extension: the preview binds one
+immutable plan to the exact actor, head, sources, prose and allowed returned-link
+slots. Each journaled write consumes its own one-use child grant. Stop or an
+identity/draft change revokes remaining authority; restart reconciles read-only
+and needs an explicit preview and Resume. Compatibility comments are explicitly
+non-atomic, and an optional description edit is a separately named operation.
+These Tour operations remain unavailable on an unqualified host/transport.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -196,9 +215,23 @@ returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
 
+## Review-tour preparation
+
+Authors can prepare and privately save Problem, Solution and an ordered source
+tour without AI. The [operator workflow](../development/review-tours.md) describes
+editing, exact source/fallback subjects, cold import, website conflicts and
+partial recovery. Explicit description updates are a narrow **body-only**
+extension; the original title, draft status and other PR-management state have
+no tour mutation operation. Production Tour writes remain unavailable until the
+exact connected operations are qualified.
+
+An explicit tour writing action may replace one captured local editor span as
+one native undo transaction. It grants no publication authority. Outline entries
+have no generated bodies and require visible per-stop author completion.
+
 ## Explicit non-goals
 
-- Creating, editing, merging, closing, or rebasing pull requests.
+- Creating, changing PR metadata other than the explicitly previewed description body, merging, closing, or rebasing pull requests.
 - Replacing GitHub notifications for all repository activity.
 - Running builds, tests, repository scripts, hooks, filters, or arbitrary code.
 - Maintaining a hosted BetterPullReview account or synchronization service.

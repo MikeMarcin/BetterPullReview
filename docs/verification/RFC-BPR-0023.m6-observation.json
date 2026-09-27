@@ -1,0 +1,124 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m6-thread-host-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m6-thread-host",
+    "definition_fingerprint": "sha256:4a6d7aeb99004725d43e27889767334b47f577e64f65ac8514d255ee0e18236b",
+    "obligations": [
+      {
+        "id": "BPR-0582:*",
+        "source": "BPR-0582",
+        "selector": null,
+        "source_fingerprint": "sha256:0578f0378937c93c7312d10b283c82594e00c019c3306f1370ec5b362a3bdc47"
+      }
+    ],
+    "obligation_fingerprint": "sha256:3eea3b5bd1ffa7476c27977abc834c7d6225cbe573f027b7a7b6ffea4a3d3873",
+    "exit_criteria": [
+      {
+        "id": "m6-thread-host:exit:1",
+        "text": "Prompts and run admission commit before launch; complete responses and findings bind the exact run and immutable source."
+      },
+      {
+        "id": "m6-thread-host:exit:2",
+        "text": "Exact selected context, cancellation, stale/duplicate completions, session pruning and incremental deltas pass focused host evidence."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:ca0070a0ca87c0fd8b9e22b81e4795bb85d2f3f7d43f26ea906e070c473d3ba2",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m6-thread-host",
+  "disposition": "milestone-complete",
+  "candidate_revision": "1aba50e3bf72a3d4523a58572cbe79d8e814a9cc",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m6-durable-handoff",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023-live-audit.md",
+    "docs/architecture/ai-agent-boundary.md",
+    "docs/architecture/review-ledger.md",
+    "tests/sqlite_contract/private_review_host_tests.cpp",
+    "tests/sqlite_contract/private_review_storage_tests.cpp",
+    "tests/application/agent_protocol_loop_tests.cpp",
+    "tests/adapters_qt/agent_launch_canary_tests.cpp"
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m7-compose-publish",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates accepted M6 on local main, preserving ledger 7/recovery 5/tour 3 and WritingOnly. Start fresh M7/BPR-0583 and BPR-0584 for composition acceptance, durable draft projection and separate publication join. M8 owns composition-root/UI run-port wiring; M9 native/designated publication and M10 final independent review remain pending under mandate r2."
+  },
+  "ownership": "quiescent",
+  "acceptance_records": [
+    {
+      "id": "BPR-0582:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp"
+      ]
+    },
+    {
+      "id": "m6-thread-host:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp"
+      ]
+    },
+    {
+      "id": "m6-thread-host:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/architecture/ai-agent-boundary.md",
+        "docs/architecture/review-ledger.md",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/application/agent_protocol_loop_tests.cpp",
+        "tests/adapters_qt/agent_launch_canary_tests.cpp"
+      ]
+    }
+  ]
+}

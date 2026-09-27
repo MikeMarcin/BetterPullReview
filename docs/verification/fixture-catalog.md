@@ -1,5 +1,14 @@
 # Fixture Catalog
 
+RFC-BPR-0023's local private-review courses use synthetic identities, exact
+source digests and canary bodies. The native/file/retry public-path courses
+exercise draft separation, mutation admission and recovery without a live
+repository. The M9 render set and SHA-256 manifest live in
+[`rfc-bpr-0023-m9-rendered/`](rfc-bpr-0023-m9-rendered/); the
+[evidence ledger](RFC-BPR-0023.md) names the full focused commands. Designated
+GitHub mutation and independent server readback remain BPR-0584 evidence, and
+fixture results must not be relabeled as that observation.
+
 The implementation must maintain sanitized deterministic fixtures covering at least:
 
 ## Implemented GitHub read contract v1

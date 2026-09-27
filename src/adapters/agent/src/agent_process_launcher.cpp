@@ -156,12 +156,37 @@ namespace bpr::adapters::agent {
 			[[nodiscard]] auto write(const std::string_view aBytes)
 				-> detail::agent_protocol_write_status override
 			{
+				if (Cancelled()) {
+					return detail::agent_protocol_write_status::cancelled;
+				}
 				const auto bytes = QByteArray{
 					aBytes.data(), static_cast<qsizetype>(aBytes.size())
 				};
-				return State.Process.write(bytes) == bytes.size()
-					? detail::agent_protocol_write_status::success
-					: detail::agent_protocol_write_status::failed;
+				if (State.Process.write(bytes) != bytes.size()) {
+					static_cast<void>(end_process_tree(State));
+					return detail::agent_protocol_write_status::failed;
+				}
+				// QProcess::write only queues bytes. Keep the source claim until Qt
+				// has drained its buffer into the child pipe or the child is stopped.
+				while (State.Process.bytesToWrite() > 0) {
+					if (Cancelled()) {
+						static_cast<void>(end_process_tree(State));
+						return detail::agent_protocol_write_status::cancelled;
+					}
+					const auto slice = wait_slice(Elapsed, TimeoutMilliseconds);
+					if (slice == 0) {
+						static_cast<void>(end_process_tree(State));
+						return detail::agent_protocol_write_status::timeout;
+					}
+					if (!State.Process.waitForBytesWritten(slice) && State.Process.state() == QProcess::NotRunning) {
+						return detail::agent_protocol_write_status::process_exited;
+					}
+					if (State.Process.error() == QProcess::WriteError) {
+						static_cast<void>(end_process_tree(State));
+						return detail::agent_protocol_write_status::failed;
+					}
+				}
+				return detail::agent_protocol_write_status::success;
 			}
 
 			void close_input() noexcept override
@@ -276,7 +301,13 @@ namespace bpr::adapters::agent {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
-		auto       result                 = application::agent_run_result{ .Session = aRequest.Session };
+		auto result = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run };
+		if (const auto admitted = application::admit_agent_input(aRequest); !admitted) {
+			result.Outcome         = application::agent_run_outcome::protocol_failure;
+			result.ProtocolFailure = admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata;
+			return result;
+		}
+		result.Metadata                   = aRequest.Metadata;
 		auto&      control                = *Implementation;
 		const auto cancellationGeneration = control.CancellationGeneration.load(
 			std::memory_order_acquire);

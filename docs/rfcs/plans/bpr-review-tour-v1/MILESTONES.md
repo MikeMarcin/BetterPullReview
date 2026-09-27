@@ -117,7 +117,7 @@ Outline-only suggestions require per-stop author attention; security/crash/confl
 
 Claimed native and server behaviors have real evidence, documentation matches and each RFC has truthful dependency-ordered status.
 
-**Work:** `BPR-1013`, `BPR-1014`, `BPR-1015`, `BPR-1016`, `RFC-BPR-0039`, `RFC-BPR-0040`, `RFC-BPR-0041`, `RFC-BPR-0042`, `RFC-BPR-0043`
+**Work:** `BPR-1013`, `BPR-1014`, `BPR-1015`, `BPR-1016`, `BPR-1221`, `RFC-BPR-0039`, `RFC-BPR-0040`, `RFC-BPR-0041`, `RFC-BPR-0042`, `RFC-BPR-0043`
 
 **Prerequisites:** outline-and-adversaries
 

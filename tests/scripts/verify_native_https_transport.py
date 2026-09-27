@@ -283,6 +283,10 @@ REVIEW_COURSES: dict[str, tuple[ReviewExchange, ...]] = {
     ),
     "mutation-review-submission": (
         ReviewExchange(REVIEW_WRITE, 200, json_bytes({"id": 80, "node_id": "PRR_fixture_80"}), "core"),
+        ReviewExchange(f"PUT {REVIEW_PULL_REQUEST_PATH}/reviews/80", 200, b"{}", "core"),
+        ReviewExchange("PATCH /repos/octo-org/review-repository/pulls/comments/44", 200, b"{}", "core"),
+        ReviewExchange(f"POST {REVIEW_PULL_REQUEST_PATH}/reviews/80/events", 200, b"{}", "core"),
+        ReviewExchange(f"DELETE {REVIEW_PULL_REQUEST_PATH}/reviews/80", 200, b"{}", "core"),
     ),
     "mutation-graphql-witness-failure": (
         ReviewExchange(REPLY_TO_THREAD, 200, reply_answer(), "graphql"),
@@ -1039,14 +1043,14 @@ class LoopbackConnectTlsFixture:
         if self.scenario in REVIEW_COURSES:
             with self.observation.lock:
                 self.observation.exchange_keys.append(request.exchange_key())
-            if request.method == "POST":
+            if request.method in {"POST", "PUT", "PATCH"}:
                 if (
                     request.body_size == 0
                     or one_header(request.headers, "content-type")
                     != b"application/json"
                 ):
                     self.observation.violate("review-exchange-post")
-            elif request.method != "GET" or request.body_size != 0:
+            elif request.method not in {"GET", "DELETE"} or request.body_size != 0:
                 self.observation.violate("review-exchange-get")
         elif self.scenario in {
             "mutation-witness",

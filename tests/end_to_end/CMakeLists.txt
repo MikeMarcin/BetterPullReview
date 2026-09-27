@@ -2690,7 +2690,7 @@ bpr_enable_warnings(test_application_logging)
 bpr_add_network_isolated_test(NAME application_logging WINDOWS_UNCONTAINED COMMAND test_application_logging)
 bpr_add_network_isolated_test(NAME application_logging_cancel_startup WINDOWS_UNCONTAINED COMMAND test_application_logging --cancel-startup)
 set_tests_properties(application_logging application_logging_cancel_startup PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 30)
-foreach(scenario full unavailable)
+foreach(scenario full unavailable capability-failure)
     bpr_add_network_isolated_test(NAME application_logging_${scenario} WINDOWS_UNCONTAINED COMMAND test_application_logging --${scenario}-log)
     set_tests_properties(application_logging_${scenario} PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 30)
 endforeach()
@@ -3233,3 +3233,60 @@ target_compile_definitions(test_diagnostic_controls_public_path PRIVATE BPR_BUIL
 bpr_enable_hardening(test_diagnostic_controls_public_path)
 bpr_enable_warnings(test_diagnostic_controls_public_path)
 bpr_add_network_isolated_test(NAME application_diagnostic_controls_public_path WINDOWS_UNCONTAINED COMMAND test_diagnostic_controls_public_path)
+
+bpr_add_network_isolated_test(NAME application_review_tour_cold_import_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path --cold)
+set_tests_properties(application_review_tour_cold_import_public_path PROPERTIES
+    TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "review-tour-cold-import:pass")
+
+bpr_add_executable(test_review_tour_publication_public_path review_tour_publication_public_path.cpp)
+target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_tour_publication_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_review_tour_publication_public_path)
+bpr_enable_warnings(test_review_tour_publication_public_path)
+foreach(course native compat stop description conflict unsupported maintenance reconciliation manual)
+    bpr_add_network_isolated_test(NAME application_review_tour_publication_${course} WINDOWS_UNCONTAINED COMMAND test_review_tour_publication_public_path ${course} "${CMAKE_CURRENT_BINARY_DIR}/review-tour-publication-${course}.png")
+    set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
+endforeach()
+
+
+bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
+bpr_enable_hardening(test_scoped_writing_agent)
+bpr_enable_warnings(test_scoped_writing_agent)
+bpr_add_network_isolated_test(NAME application_review_tour_writing
+    COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")
+set_tests_properties(application_review_tour_writing PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")
+
+# RFC-BPR-0023 / BPR-0587: three fresh processes use the actual workbench,
+# private profile, existing process launcher and designated synthetic wire.
+foreach(representation IN ITEMS native file)
+    bpr_add_network_isolated_test(NAME application_private_review_${representation}
+        WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/private_review_public_path.py"
+            --application $<TARGET_FILE:app_better_pull_review>
+            --agent $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+            --representation ${representation}
+            --render "${CMAKE_CURRENT_BINARY_DIR}/private-review-${representation}.png")
+    set_tests_properties(application_private_review_${representation} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "PRIVATE_REVIEW_PUBLIC_PATH_OK ${representation}"
+        RESOURCE_LOCK bpr_private_review_course)
+    bpr_bound_automated_run(application_private_review_${representation}
+        TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)
+endforeach()
+
+bpr_add_network_isolated_test(NAME application_private_review_retry
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/private_review_public_path.py"
+        --application $<TARGET_FILE:app_better_pull_review>
+        --agent $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+        --representation native --lose-first-result)
+set_tests_properties(application_private_review_retry PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "PRIVATE_REVIEW_PUBLIC_PATH_OK native"
+    RESOURCE_LOCK bpr_private_review_course)
+bpr_bound_automated_run(application_private_review_retry
+    TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)

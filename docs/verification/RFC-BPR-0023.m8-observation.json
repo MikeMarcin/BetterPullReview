@@ -1,0 +1,196 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m8-public-ui-direct-recovery-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "direct",
+    "topology_id": "direct",
+    "recipe_revision": "1",
+    "recipe_fingerprint": "sha256:838abf11a8cb4483b359d884f911d7d31d49f5354867eafdb28394a61520a010",
+    "routing": {},
+    "requirement_profile": "direct",
+    "owners": {
+      "engineering": "primary",
+      "bookkeeping": "primary",
+      "product_edits": "primary"
+    },
+    "delegation": "none",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/direct.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m8-public-ui",
+    "definition_fingerprint": "sha256:e1642a0ca27974c54b31a1693f94820afae5775d3a59604a28821abf11e244c3",
+    "obligations": [
+      {
+        "id": "BPR-0585:*",
+        "source": "BPR-0585",
+        "selector": null,
+        "source_fingerprint": "sha256:d7f3667818341f69e310023ff786a48ecb81b950d176a67846185ca85a98e3b8"
+      },
+      {
+        "id": "BPR-0586:*",
+        "source": "BPR-0586",
+        "selector": null,
+        "source_fingerprint": "sha256:37f04e61ac1e5a225302f73bb462b7528cd713ef2c0af12f4912db93939a766f"
+      },
+      {
+        "id": "BPR-0587:*",
+        "source": "BPR-0587",
+        "selector": null,
+        "source_fingerprint": "sha256:624eb87ee809d1519f0dde2959eb6ec5768f7dabe3944e03d914fea21bdcec5e"
+      }
+    ],
+    "obligation_fingerprint": "sha256:854b570654b879c482c95c65daf7623358c0c02e2cb34a4fa07c6c9221d72cfd",
+    "exit_criteria": [
+      {
+        "id": "m8-public-ui:exit:1",
+        "text": "The actual modality/drawer surfaces expose private history, qualified provenance, exact sources and distinct Accept as Draft and Publish actions."
+      },
+      {
+        "id": "m8-public-ui:exit:2",
+        "text": "The production composition supports the full create/agent/restart/compose/accept/separate-publish course in native and file-permalink representations."
+      },
+      {
+        "id": "m8-public-ui:exit:3",
+        "text": "Bounded updates, keyboard/accessibility, shutdown and configured dependency-boundary checks pass; helper-only behavior is insufficient."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:a713ca6ee1ba910b4e2caa05db584ec25fcd04166eed4e96410c339c82457926",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m8-public-ui",
+  "disposition": "milestone-complete",
+  "candidate_revision": "ccf3f9bea0bf10b7690bfe425ba7cc35ad30a634",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m8-integration-on-current-main",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+    "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+    "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+    "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+    "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+    "tests/end_to_end/private_review_public_path.py",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/adapters_qt/private_review_panel_tests.cpp",
+    "tests/adapters_qt/review_draft_editor_tests.cpp"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0585:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    },
+    {
+      "id": "BPR-0586:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    },
+    {
+      "id": "BPR-0587:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    },
+    {
+      "id": "m8-public-ui:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    },
+    {
+      "id": "m8-public-ui:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    },
+    {
+      "id": "m8-public-ui:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m8-checkpoint.json",
+        "docs/verification/RFC-BPR-0023.m8-recovery-checkpoint.json",
+        "docs/issues/60-done/BPR-0585-qt-private-shared-conversation-model.md",
+        "docs/issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md",
+        "docs/issues/60-done/BPR-0587-composition-root-public-path.md",
+        "tests/end_to_end/private_review_public_path.py",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/adapters_qt/review_draft_editor_tests.cpp"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m9-acceptance",
+    "reason": "integrated-boundary",
+    "detail": "M8 local implementation and shipped executable course are integrated on main; M9 proceeds while BPR-0584 external evidence and M10 independent review remain open."
+  },
+  "ownership": "quiescent"
+}

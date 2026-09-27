@@ -584,6 +584,50 @@ namespace bpr::qt {
 	auto markdown_body_view::rendered_available() const noexcept -> bool { return RenderedAvailable; }
 	auto markdown_body_view::fallback_reason() const -> QString { return Fallback; }
 	auto markdown_body_view::rendered_view() const noexcept -> QTextEdit* { return Rendered; }
+	auto markdown_body_view::selected_source_bytes() const -> std::optional<std::pair<std::size_t, std::size_t>>
+	{
+		const auto cursor = Source->textCursor();
+		if (!cursor.hasSelection()) {
+			return std::nullopt;
+		}
+		const auto raw = QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size()));
+		if (raw.toUtf8().toStdString() != Body) {
+			return std::nullopt;
+		}
+		QString                  normalized;
+		std::vector<std::size_t> offsets{ 0 };
+		std::size_t              bytes = 0;
+		for (qsizetype i = 0; i < raw.size(); ++i) {
+			if (raw[i] == '\r') {
+				bytes += 1;
+				if (i + 1 < raw.size() && raw[i + 1] == '\n') {
+					++i;
+					++bytes;
+				}
+				normalized += '\n';
+				offsets.push_back(bytes);
+			} else if (raw[i].isHighSurrogate() && i + 1 < raw.size() && raw[i + 1].isLowSurrogate()) {
+				normalized += raw[i];
+				normalized += raw[i + 1];
+				offsets.push_back(bytes);
+				bytes += 4;
+				offsets.push_back(bytes);
+				++i;
+			} else {
+				normalized += raw[i];
+				bytes += static_cast<std::size_t>(QString{ raw[i] }.toUtf8().size());
+				offsets.push_back(bytes);
+			}
+		}
+		const auto first = static_cast<std::size_t>(cursor.selectionStart());
+		const auto last  = static_cast<std::size_t>(cursor.selectionEnd());
+		if (normalized != Source->toPlainText() || last >= offsets.size()
+			|| (first && offsets[first] == offsets[first - 1]) || (last && offsets[last] == offsets[last - 1])) {
+			return std::nullopt;
+		}
+		return std::pair{ offsets[first], offsets[last] };
+	}
+
 	auto markdown_body_view::source_view() const noexcept -> QPlainTextEdit* { return Source; }
 	auto markdown_body_view::minimumSizeHint() const -> QSize { return { 0, 0 }; }
 

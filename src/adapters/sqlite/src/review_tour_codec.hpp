@@ -13,6 +13,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
+		std::uint8_t                  Version = 7;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -39,7 +40,7 @@ namespace bpr::adapters::sqlite::detail {
 				result = (result << 8U) | value;
 			}
 			if (Reading) {
-				if (result > std::numeric_limits<T>::max()) {
+				if (result > static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
 					Good = false;
 				}
 				aValue = static_cast<T>(result);
@@ -159,7 +160,32 @@ namespace bpr::adapters::sqlite::detail {
 			text(aValue.ObservedVersion, 1024);
 			optional(aValue.SourceSpan, [&](auto& aSpan) {number(aSpan.first);number(aSpan.second); });
 			number(aValue.LocalGeneration);
+			if (Version >= 5) {
+				optional(aValue.DraftText, [&](auto& value) { text(value); });
+			}
 		}
+		void remote(core::tour_remote_binding& aValue)
+		{
+			enumeration(aValue.Kind);
+			number(aValue.DatabaseId);
+			text(aValue.Entity, 1024);
+			text(aValue.Actor, 1024);
+			text(aValue.WebUrl, core::maximum_tour_path_bytes);
+			text(aValue.Review, 1024);
+			number(aValue.Own);
+			number(aValue.Resolved);
+			number(aValue.Outdated);
+		}
+		void destination(core::tour_code_destination& aValue)
+		{
+			oid(aValue.Commit);
+			optional(aValue.Blob, [this](auto& aBlob) { oid(aBlob); });
+			text(aValue.Path, core::maximum_tour_path_bytes);
+			enumeration(aValue.Side);
+			number(aValue.FirstLine);
+			number(aValue.LastLine);
+		}
+
 		void stop(core::tour_stop& aStop)
 		{
 			id(aStop.Id);
@@ -171,12 +197,23 @@ namespace bpr::adapters::sqlite::detail {
 			enumeration(aStop.Preparation);
 			list(aStop.Related, core::maximum_tour_related_sources, [&](auto& aSource) { source(aSource); });
 			optional(aStop.Baseline, [&](auto& aBaseline) { baseline(aBaseline); });
+			if (Version >= 2) {
+				optional(aStop.Remote, [&](auto& aValue) { remote(aValue); });
+			}
+			if (Version >= 3) {
+				optional(aStop.Destination, [this](auto& aValue) { destination(aValue); });
+			}
+			if (Version >= 6) {
+				optional(aStop.ReaffirmedHead, [&](auto& value) { oid(value); });
+			}
+			if (Version >= 7) {
+				optional(aStop.Suggestion, [&](auto& value) { text(value.AnchorRef, 128); text(value.Reason, 240); text(value.Question, 240); number(value.Visited); });
+			}
 		}
 		void tour(core::review_tour& aTour)
 		{
-			std::uint8_t version = 1;
-			byte(version);
-			if (version != 1) {
+			byte(Version);
+			if (Version != 1 && Version != 2 && Version != 3 && Version != 4 && Version != 5 && Version != 6 && Version != 7) {
 				Good = false;
 				return;
 			}
@@ -191,6 +228,25 @@ namespace bpr::adapters::sqlite::detail {
 			optional(aTour.ProblemBaseline, [&](auto& aValue) { baseline(aValue); });
 			optional(aTour.SolutionBaseline, [&](auto& aValue) { baseline(aValue); });
 			list(aTour.Stops, core::maximum_tour_stops, [&](auto& aStop) { stop(aStop); });
+			if (Version >= 2) {
+				optional(aTour.Remote, [&](auto& aValue) { remote(aValue); });
+				optional(aTour.IndexBaseline, [&](auto& aValue) { baseline(aValue); });
+				text(aTour.ImportNotice);
+				number(aTour.ReadOnly);
+			}
+			if (Version >= 4) {
+				list(aTour.Retired, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+			}
+			if (Version >= 5) {
+				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& conflict) {enumeration(conflict.Field);id(conflict.Stop);text(conflict.Baseline);text(conflict.Local);text(conflict.Remote);baseline(conflict.Observation); });
+				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+				number(aTour.RemoteStale);
+			}
+			if (Version >= 6) {
+				optional(aTour.ObservedHead, [&](auto& value) { oid(value); });
+				number(aTour.HasPriorObservation);
+				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& value) {enumeration(value.Kind);id(value.Stop);text(value.Title); });
+			}
 		}
 	};
 }

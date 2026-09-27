@@ -11,6 +11,7 @@
 namespace bpr::application {
 	class review_submission_execution_authority;
 	using review_submission_execution_grant = std::shared_ptr<review_submission_execution_authority>;
+	using staged_review_discovery           = std::expected<std::vector<staged_review_plan>, review_mutation_failure>;
 	using review_submission_discovery       = std::expected<std::vector<review_submission_request>, review_mutation_failure>;
 	/// \brief Creates and opens provider storage only on the effect executor.
 	using review_submission_provider_factory = std::function<std::expected<std::unique_ptr<review_submission_port>, review_mutation_failure>()>;
@@ -24,8 +25,8 @@ namespace bpr::application {
 	};
 	struct review_submission_host_terminal
 	{
-		review_submission_host_context                                      Context;
-		std::variant<review_submission_discovery, review_submission_result> Outcome;
+		review_submission_host_context                                                                                          Context;
+		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result> Outcome;
 	};
 	class review_submission_projection_port
 	{
@@ -39,6 +40,7 @@ namespace bpr::application {
 		core::application_session_id aSession, core::request_generation aGeneration,
 		const review_submission_request&      aRequest,
 		std::chrono::steady_clock::time_point aExpiresAt = std::chrono::steady_clock::time_point::max()) -> review_submission_execution_grant;
+	[[nodiscard]] auto make_review_submission_testing_grant(core::application_session_id aSession, core::request_generation aGeneration, const staged_review_plan& aPlan, std::chrono::steady_clock::time_point aExpiresAt = std::chrono::steady_clock::time_point::max()) -> review_submission_execution_grant;
 #endif
 
 	/// \brief Owns serialized whole-review effects and exactly-once decision-lane terminals.
@@ -61,6 +63,9 @@ namespace bpr::application {
 		[[nodiscard]] auto discover() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto submit(const review_submission_request& aRequest, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto reconcile(const review_submission_request& aRequest) -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto discover_tours() -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;
 		void               cancel(review_submission_host_context aContext) noexcept;
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

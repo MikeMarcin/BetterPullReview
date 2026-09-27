@@ -150,7 +150,7 @@ namespace {
 			.Protocol        = aProtocol,
 			.Session         = core::agent_session_id{ 41U },
 			.Input           = "initial-input",
-			.DeferredContext = "selected-context",
+			.DeferredContext = aProtocol == core::agent_protocol::codex_app_server ? "selected-context" : "",
 		};
 	}
 
@@ -695,10 +695,123 @@ namespace {
 		expect_single_termination(nonzero, "a payload-bearing failure terminates once");
 	}
 
+	void test_run_metadata_and_input_admission()
+	{
+		auto launched        = request(core::agent_protocol::claude_stream_json);
+		launched.Run         = core::agent_run_id{ 71 };
+		const auto init      = std::string{ R"({"type":"system","subtype":"init","session_id":"session","model":"initial","claude_code_version":"2.0"})"
+											"\n" };
+		const auto body      = std::string{ R"({"type":"assistant","session_id":"session","message":{"role":"assistant","model":"served","content":[{"type":"text","text":"response"}]}})"
+											"\n" };
+		const auto terminal  = std::string{ R"({"type":"result","session_id":"session","subtype":"success","is_error":false,"result":"response"})"
+											"\n" };
+		auto       transport = fake_transport{ };
+		transport.Output     = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = init + body + terminal } };
+		const auto result    = run_agent_protocol_loop(launched, { }, transport);
+		expect(result.Outcome == application::agent_run_outcome::success && result.Run == launched.Run
+				   && result.Events.size() == 1 && result.Events[0].Run == launched.Run && result.Metadata.ProtocolReported.size() == 2
+				   && result.ProvenanceConflicts.size() == 1,
+			   "protocol loop delivers exact run and conflicting reports");
+		for (const auto status : { agent_protocol_wait_status::cancelled, agent_protocol_wait_status::timeout }) {
+			auto stopped       = fake_transport{ };
+			stopped.Output     = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = init } };
+			stopped.Waits      = { { .Status = status } };
+			const auto partial = run_agent_protocol_loop(launched, { }, stopped);
+			expect(partial.Run == launched.Run && partial.Metadata.ProtocolReported.size() == 1 && partial.Events.empty()
+					   && partial.Outcome != application::agent_run_outcome::success,
+				   "cancelled/timeout retains admitted facts without complete response");
+		}
+		auto oversized       = request(core::agent_protocol::external_terminal);
+		oversized.Input      = std::string(application::maximum_agent_input_bytes + 1, 'x');
+		auto       untouched = fake_transport{ };
+		const auto refused   = run_agent_protocol_loop(oversized, { }, untouched);
+		expect(refused.ProtocolFailure == application::agent_protocol_failure::input_too_large && untouched.Writes.empty(), "oversized input makes zero writes");
+		auto invalid                     = request(core::agent_protocol::codex_app_server);
+		invalid.Metadata.Requested.Model = std::string(257, 'x');
+		auto       unstarted             = fake_transport{ };
+		const auto invalidResult         = run_agent_protocol_loop(invalid, { }, unstarted);
+		expect(invalidResult.ProtocolFailure == application::agent_protocol_failure::invalid_runtime_metadata && unstarted.Writes.empty()
+				   && invalidResult.Metadata == core::agent_runtime_metadata{ },
+			   "invalid launch facts are refused without copying into result");
+		auto late   = fake_transport{ };
+		late.Output = {
+			{ .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":0,\"result\":{}}\n" },
+			{ .Status = agent_protocol_pipe_read_status::no_data },
+			{ .Status = agent_protocol_pipe_read_status::data, .Bytes = R"({"id":1,"result":{"thread":{"id":")" + std::string(1025, 'x') + "\"}}}\n" }
+		};
+		late.Waits           = { { .Status = agent_protocol_wait_status::running } };
+		const auto badThread = run_agent_protocol_loop(request(core::agent_protocol::codex_app_server), { }, late);
+		expect(badThread.ProtocolFailure == application::agent_protocol_failure::invalid_runtime_metadata && late.Writes.size() == 2,
+			   "invalid late thread permits handshake but no private context write");
+	}
+
+	void test_complete_assistant_items_and_claims()
+	{
+		using namespace application;
+		using core::agent_protocol;
+		const auto     prefix = std::string{ R"({"type":"thread.started","thread_id":"t"})" } + "\n" + R"({"type":"turn.started"})" + "\n";
+		const auto     item   = std::string{ R"({"type":"item.completed","item":{"id":"a","type":"agent_message","text":"first\r\n"}})" } + "\n";
+		const auto     second = std::string{ R"({"type":"item.completed","item":{"id":"b","type":"agent_message","text":"second"}})" } + "\n";
+		const auto     end    = std::string{ R"({"type":"turn.completed","usage":{}})" } + "\n";
+		fake_transport jsonl;
+		jsonl.Output = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = prefix + item + second + item + end } };
+		auto result  = run(agent_protocol::codex_jsonl_exec, jsonl);
+		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "first\r\n", "second" } && result.Events.size() == 2, "duplicate item coalesces while full ordered body boundaries persist");
+		fake_transport conflict;
+		conflict.Output = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = prefix + item + R"({"type":"item.completed","item":{"id":"a","type":"agent_message","text":"conflict"}})" + "\n" + end } };
+		expect(run(agent_protocol::codex_jsonl_exec, conflict).Outcome == agent_run_outcome::protocol_failure, "same item with different body refuses complete output");
+		fake_transport claude;
+		const auto     message = std::string{ R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"one"},{"type":"text","text":"two"}]}})" } + "\n";
+		claude.Output          = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n" + message + message + R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"summary must not repeat"})" + "\n" } };
+		result                 = run(agent_protocol::claude_stream_json, claude);
+		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "one", "two" }, "Claude keeps assistant blocks once and excludes result summary");
+		agent_protocol_decoder app{ agent_protocol::codex_app_server };
+		expect(app.push("{\"id\":0,\"result\":{}}\n").has_value() && app.acknowledge_followup(agent_protocol_event_kind::initialization_complete).has_value(), "App Server initialization");
+		expect(app.push("{\"id\":1,\"result\":{\"thread\":{\"id\":\"t\"}}}\n").has_value() && app.acknowledge_followup(agent_protocol_event_kind::context_channel_ready).has_value(), "App Server thread");
+		expect(app.push("{\"id\":2,\"result\":{\"turn\":{\"id\":\"v\",\"status\":\"inProgress\",\"items\":[]}}}\n").has_value(), "App Server turn");
+		const auto delta     = std::string{ R"({"method":"item/agentMessage/delta","params":{"threadId":"t","turnId":"v","itemId":"a","delta":"part"}})" } + "\n";
+		const auto completed = std::string{ R"({"method":"item/completed","params":{"threadId":"t","turnId":"v","item":{"id":"a","type":"agentMessage","text":"part"}}})" } + "\n";
+		expect(app.push(delta + completed + completed).has_value(), "App Server deltas agree with deduplicated complete item");
+		expect(app.push(std::string{ R"({"method":"turn/completed","params":{"threadId":"t","turn":{"id":"v","status":"completed","items":[]}}})" } + "\n").has_value() && app.finish().has_value() && app.assistant_items() == std::vector<std::string>{ "part" }, "App Server complete bytes contain no doubled delta or item");
+		fake_transport terminal;
+		terminal.Output = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = "first\r\nsecond\ntrailing" } };
+		result          = run(agent_protocol::external_terminal, terminal);
+		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "first\r\nsecond\ntrailing" }, "terminal preserves exact newline and trailing bytes");
+		struct claim final : agent_input_claim
+		{
+			bool     Allowed  = true;
+			unsigned Releases = 0;
+			auto     permitted() const noexcept -> bool override { return Allowed; }
+			void     release() noexcept override
+			{
+				++Releases;
+				Allowed = false;
+			}
+		};
+		auto held                      = std::make_shared<claim>();
+		held->Allowed                  = false;
+		auto requestValue              = request(agent_protocol::codex_jsonl_exec);
+		requestValue.PrivateInputClaim = held;
+		fake_transport revoked;
+		result = run_agent_protocol_loop(requestValue, { }, revoked);
+		expect(result.Outcome == agent_run_outcome::cancelled && revoked.Writes.empty() && held->Releases > 0, "revoked claim refuses initial private input");
+		held                           = std::make_shared<claim>();
+		held->Allowed                  = false;
+		requestValue                   = request(agent_protocol::codex_app_server);
+		requestValue.PrivateInputClaim = held;
+		fake_transport deferred;
+		deferred.Output = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":0,\"result\":{}}\n" }, { .Status = agent_protocol_pipe_read_status::no_data }, { .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":1,\"result\":{\"thread\":{\"id\":\"t\"}}}\n" } };
+		deferred.Waits  = { { .Status = agent_protocol_wait_status::running } };
+		result          = run_agent_protocol_loop(requestValue, { }, deferred);
+		expect(result.Outcome == agent_run_outcome::cancelled && deferred.Writes.size() == 2 && held->Releases > 0, "revoked App Server claim permits handshake but no deferred private write");
+	}
+
 } // namespace
 
 int main()
 {
+	test_complete_assistant_items_and_claims();
+	test_run_metadata_and_input_admission();
 	test_all_write_statuses_are_classified();
 	test_app_server_phases_follow_successful_writes_only();
 	test_partial_and_oversized_stdout();

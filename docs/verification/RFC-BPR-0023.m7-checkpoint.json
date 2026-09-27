@@ -1,0 +1,92 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m7-compose-publish-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0023",
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m7-compose-publish",
+    "definition_fingerprint": "sha256:75c73808f8a97f102abf733d9eb2600a06c40e9b9780a66665f609f325a567f7",
+    "obligations": [
+      {
+        "id": "BPR-0583:*",
+        "source": "BPR-0583",
+        "selector": null,
+        "source_fingerprint": "sha256:8dc70b83036e61d3b5e5c7513931ebb1116a68791570a20b9b35d6ae9bea783e"
+      },
+      {
+        "id": "BPR-0584:*",
+        "source": "BPR-0584",
+        "selector": null,
+        "source_fingerprint": "sha256:141627d043a4f4c55177ef6d8f07d85b4eee11dc26c045438e978e864b9eaafb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:66050bba0f1ff120bf50253c42e402d6ca0b98cc281968c177d1a5a26b5da6b2",
+    "exit_criteria": [
+      {
+        "id": "m7-compose-publish:exit:1",
+        "text": "All three composition modes retain sources and accept an exact candidate into the existing revisioned draft authority across restart with zero mutation."
+      },
+      {
+        "id": "m7-compose-publish:exit:2",
+        "text": "Separate Publish uses RFC-0008 and RFC-0022 logical recovery, preserves approved prose and wire digests, and repairs local lineage without another POST."
+      },
+      {
+        "id": "m7-compose-publish:exit:3",
+        "text": "Local BPR-0584 implementation and recovery fixtures pass. Designated or signed recorded evidence plus independent body/actor read remains explicitly pending until supplied and blocks RFC closeout, but does not block M8 implementation."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:a713ca6ee1ba910b4e2caa05db584ec25fcd04166eed4e96410c339c82457926",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-live-audit",
+    "m2-architecture",
+    "m3-core",
+    "m4-storage",
+    "m5-protocol",
+    "m6-thread-host",
+    "m7-compose-publish",
+    "m8-public-ui",
+    "m9-acceptance",
+    "m10-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/15a6/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/15a6/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/rfc-bpr-0023",
+    "source_revision": "19c1c3aed6c99f3a4bdaa5355b85b2a065d62d64",
+    "workflow_branch": "codex/rfc-bpr-0023",
+    "workflow_revision": "19c1c3aed6c99f3a4bdaa5355b85b2a065d62d64"
+  }
+}

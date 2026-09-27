@@ -159,6 +159,7 @@ namespace bpr::app::detail {
 		bool                      LargeReviewHistory = false;
 		/// BPR-0972: the synthetic large-review posts belong to another fixture actor.
 		bool LargeReviewForeignPosts = false;
+		bool ReviewTourCourse        = false;
 		/// BPR-0972: each read session of the paged large review replays its
 		/// complete script from the repository read, as the strict scripts do
 		/// with `RepeatReadSessions`, so a sibling window can load it again.
@@ -207,6 +208,7 @@ namespace bpr::app::detail {
 		/// protocol is the one with a result frame a finding payload can ride
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
+		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
@@ -216,6 +218,8 @@ namespace bpr::app::detail {
 		bool SetupUnconfiguredEnterprise = false;
 
 		bool RegisteredDeviceCourse = false;
+		/// RFC-0027: fail the recorded capability probe with a useful unfamiliar error.
+		bool CapabilityDiagnosticFailure = false;
 		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
 		// a rotation needs that the read-path fixture has no use for: a real
 		// second vault slot and the documented renewal answer on the

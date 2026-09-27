@@ -849,6 +849,8 @@ target_link_libraries(
     test_better_pull_review_qt_agent_launch_canary_tests
     PRIVATE
         BetterPullReview::AdapterAgent
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::Platform
         Qt6::Core
         $<$<PLATFORM_ID:Windows>:Advapi32>
 )
@@ -1535,3 +1537,17 @@ bpr_enable_hardening(test_better_pull_review_qt_private_notes_panel_tests)
 bpr_enable_warnings(test_better_pull_review_qt_private_notes_panel_tests)
 bpr_add_network_isolated_test(NAME qt_private_notes_panel COMMAND test_better_pull_review_qt_private_notes_panel_tests)
 set_tests_properties(qt_private_notes_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "private-notes-panel-tests:pass" TIMEOUT 30)
+
+bpr_add_executable(test_scoped_prose_editor scoped_prose_editor_tests.cpp)
+target_link_libraries(test_scoped_prose_editor PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_scoped_prose_editor)
+bpr_enable_warnings(test_scoped_prose_editor)
+bpr_add_network_isolated_test(NAME qt_scoped_prose_editor COMMAND test_scoped_prose_editor)
+set_tests_properties(qt_scoped_prose_editor PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 30)
+
+bpr_add_executable(test_private_review_panel private_review_panel_tests.cpp)
+target_link_libraries(test_private_review_panel PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_private_review_panel)
+bpr_enable_warnings(test_private_review_panel)
+bpr_add_network_isolated_test(NAME qt_private_review_panel COMMAND test_private_review_panel)
+set_tests_properties(qt_private_review_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" RUN_SERIAL TRUE)

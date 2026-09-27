@@ -1,0 +1,130 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m1-initial",
+  "mandate_revision": "r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "m1-live-audit",
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m1-live-audit",
+    "definition_fingerprint": "sha256:6505015cbe614939955b23d8f51bd77e53373a89a2a757af85597d263516b558",
+    "obligations": [
+      {
+        "id": "BPR-0576:*",
+        "source": "BPR-0576",
+        "selector": null,
+        "source_fingerprint": "sha256:3bcecceec50eef45a1d5233ac4559be583d9500386b0cdcb34a66f704d118f10"
+      }
+    ],
+    "obligation_fingerprint": "sha256:d021fbdb6c4313db6ba954d1621de8e6aa1c8678bacd7d531237d84b30718fab",
+    "exit_criteria": [
+      {
+        "id": "m1-live-audit:exit:1",
+        "text": "The immutable import, current implementation baseline, owner authorization and dependency statuses are distinguished and preserved."
+      },
+      {
+        "id": "m1-live-audit:exit:2",
+        "text": "Every retained source-audit surface has a live disposition, with architecture, schema, protocol, public-path and documentation evidence ownership."
+      },
+      {
+        "id": "m1-live-audit:exit:3",
+        "text": "The complete execution plan preserves all sixteen cards and eighteen RFC criteria; the next eligible milestone is explicit."
+      },
+      {
+        "id": "m1-live-audit:exit:4",
+        "text": "Documentation, scoped board, plan-binding, retained-pack integrity and whitespace checks pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "920bb62b526d900c049415b8ea88910c033fe1f3",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m1-durable-handoff",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023-live-audit.md",
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023.plan-preparation.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0576:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.plan-preparation.json"
+      ]
+    },
+    {
+      "id": "m1-live-audit:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.plan-preparation.json"
+      ]
+    },
+    {
+      "id": "m1-live-audit:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.plan-preparation.json"
+      ]
+    },
+    {
+      "id": "m1-live-audit:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.plan-preparation.json"
+      ]
+    },
+    {
+      "id": "m1-live-audit:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023-live-audit.md",
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.plan-preparation.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m2-architecture",
+    "reason": "integrated-boundary",
+    "detail": "Coordinator integrates accepted M1 to main and starts a fresh M2 implementer; BPR-0577 detailed allocation and independent review remain pending."
+  },
+  "ownership": "quiescent"
+}

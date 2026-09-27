@@ -13,13 +13,23 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 
+		[[nodiscard]] auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>;
+		[[nodiscard]] auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
+		[[nodiscard]] auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }) -> application::staged_publication_result;
+
 	private:
-		[[nodiscard]] auto                                            execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
-		[[nodiscard]] auto                                            perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
-		[[nodiscard]] auto                                            observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
-		[[nodiscard]] auto                                            observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
-		[[nodiscard]] auto                                            finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
-		[[nodiscard]] auto                                            resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result;
+		[[nodiscard]] auto execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
+		[[nodiscard]] auto perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
+		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
+		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
+		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
+		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result;
+		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> review_mutation_parse_result<application::staged_review_observation>;
+		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> application::staged_publication_state;
+		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> bool;
+		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
+		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
+
 		github_mutation_wire_transport&                               Transport;
 		const live_review_mutation_configuration                      Configuration;
 		application::review_mutation_transport                        Lease;

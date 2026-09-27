@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0027"
 title: "Structured Diagnostic Logging, Verbosity, and Privacy"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0001","RFC-BPR-0002"]
@@ -13,25 +13,27 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Basic logging foundation implemented; advanced phase active.**
-The owner requested this RFC on 2026-09-04, using AllTheThings' verbosity and
-privacy controls as the reference. The owner subsequently requested basic Quill logging now, deferring fancy
-rotation, anonymization and Settings controls. This authorizes the foundation
-implementation and its pinned Quill dependency, not a new live sign-in or
-publication. The full design below remains the later target, not a claim of
-implemented or owner-tested behavior.
+**Auto-Verified under owner amendment r3, 2026-09-27.**
+All nine product criteria and all three human judgments are accepted. M1–M5
+implementation is landed on main. The owner removed the obsolete global
+canonical-order rule and explicitly directed RFC-0027 closeout; its declared
+RFC-0001/0002 dependencies are Auto-Verified. [BPR-0601](../issues/60-done/BPR-0601-close-rfc-0027.md)
+and the [final ledger](../verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout)
+bind the complete acceptance and actual main landing. Native developer, package
+and crash evidence keeps its exact limitations. Historical phase descriptions
+below record provenance; they do not defer the implemented advanced phase.
 
 Registration baseline: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
 Entry: [[BPR-0600]]. Foundation: [[BPR-0602]]. Advanced phase: [[BPR-0603]].
-Closeout: [[BPR-0601]]. Partial implementation does not close this RFC. This
-additional RFC blocks no original-pack work and changes no canonical ordering.
+Closeout: [[BPR-0601]]. Full acceptance closes this RFC under its explicit
+dependencies; the global canonical-order rule was removed by amendment r3.
 Its logging foundation can be implemented without the later Settings center or
 multiple-profile system; those integrations use the same typed ports when
 available, without creating reverse dependencies.
 
 ## Authorized implementation phases
 
-**Phase 1, now — BPR-0602:** pin Quill; explicitly own its backend lifetime;
+**Historical phase 1 — BPR-0602:** pin Quill; explicitly own its backend lifetime;
 write startup/shutdown and GitHub viewer/capability operation outcomes to one
 fixed owner-local log file; retain a bounded useful capability GraphQL error
 summary before response disposal. Use a nonblocking bounded queue, capped
@@ -49,7 +51,7 @@ Retained prose may still identify the service or account; local logs are not
 anonymized or automatically safe to share. This distinction replaces the full
 phase-2 anonymization default for the limited initial implementation.
 
-**Phase 2, later — BPR-0603:** rotation/age/aggregate retention, identity
+**Phase 2, implemented under mandate r2 — BPR-0603:** rotation/age/aggregate retention, identity
 anonymization, Standard/Verbose and privacy/Off Settings controls, recent-context
 ring, preview/export/Clear/Open-logs UI, expanded operation coverage and later
 profile integration. The full acceptance criteria below remain the RFC closeout
@@ -346,3 +348,29 @@ after each accepted milestone. This supersedes the earlier advanced-phase
 deferral, preserves all full acceptance criteria and the BPR-0971 sanitizer
 clarification, and grants no live sign-in or PR mutation. BPR-1215–1219 bind
 the remaining work and native/attended acceptance.
+
+
+## M5 attended UI amendment — 2026-09-27
+
+Under mandate r2, the owner accepted Open logs/Clear for source `7ab11993`
+and requested two presentation changes in session
+`c1565558e5fd3fdc277e62622604873b`, hand-back cursor 23: Settings should resemble
+AllTheThings’ visible paired selectors, and exports should follow its simple
+Help actions. This authorizes the compact Settings rows and direct Help export
+dialog, retaining the same frozen preview, privacy and local-write boundaries.
+The identifying dialog’s explicit Save confirms the displayed scope and policy;
+Cancel remains the default. This amendment changes presentation, waives no
+acceptance criterion, and requires new controls/export judgments. The accepted
+files decision remains bound to its unchanged copied candidate.
+
+
+## Owner amendment r3 — 2026-09-27
+
+The owner directed: “the canonical order rule is outdated and should be removed
+from the AGENTS.md. Go ahead and do that and close out 0027”. This removes the
+global rule, rather than granting a one-RFC exception. Project sequencing now
+uses the supported `dependency` mode. Explicit RFC/card dependencies, authored
+milestone prerequisites, separately directed scheduling holds and actual
+acceptance remain required. No product criterion, native claim or release
+boundary changes. The r2 ordering hold is resolved; all three human Accept
+judgments and their candidate identities remain unchanged.

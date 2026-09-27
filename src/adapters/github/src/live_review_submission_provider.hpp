@@ -33,6 +33,10 @@ namespace bpr::adapters::github {
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
 
+		[[nodiscard]] auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure> override;
+		[[nodiscard]] auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result override;
+		[[nodiscard]] auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }) -> application::staged_publication_result override;
+
 	private:
 		friend auto make_live_review_submission_provider(
 			application::review_mutation_transport       aLease,

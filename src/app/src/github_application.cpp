@@ -5,6 +5,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -22,6 +23,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
 #include "live_review_submission_provider.hpp"
+#include "private_review_workflow.hpp"
 #include "review_mutation_execution_authority.hpp"
 #include "review_submission_execution_authority.hpp"
 #include "review_submission_workflow.hpp"
@@ -3373,7 +3375,7 @@ namespace bpr::app {
 			admit_sink                                     aAdmissions,
 			run_sink                                       aRuns,
 			workspace_sink                                 aWorkspaces,
-			start_sink                                     aStarts)
+			start_sink aStarts, std::function<void(std::string_view)> aRefused)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
@@ -3381,6 +3383,7 @@ namespace bpr::app {
 			, Runs{ std::move(aRuns) }
 			, Workspaces{ std::move(aWorkspaces) }
 			, Starts{ std::move(aStarts) }
+			, Refused{ std::move(aRefused) }
 		{
 		}
 
@@ -3392,6 +3395,9 @@ namespace bpr::app {
 		void refuse(const std::string_view aReason) override
 		{
 			Panel.refuse(aReason);
+			if (Refused) {
+				Refused(aReason);
+			}
 		}
 
 		void admit(
@@ -3461,14 +3467,35 @@ namespace bpr::app {
 			Panel.present_session_catalog(aProjection);
 		}
 
+		void set_private_sink(std::function<void(const application::private_review_delta&)> aChanged, std::function<void(const application::private_run_error&)> aFailed)
+		{
+			PrivateChanged = std::move(aChanged);
+			PrivateFailed  = std::move(aFailed);
+		}
+		void private_changed(const application::agent_invocation_projection_identity&, const application::private_review_delta& aDelta) override
+		{
+			if (PrivateChanged) {
+				PrivateChanged(aDelta);
+			}
+		}
+		void private_refused(const application::agent_invocation_projection_identity&, const application::private_run_error& aError) override
+		{
+			if (PrivateFailed) {
+				PrivateFailed(aError);
+			}
+		}
+
 	private:
-		application::agent_invocation_projection_port& Panel;
-		finding_sink                                   Findings;
-		session_sink                                   Sessions;
-		admit_sink                                     Admissions;
-		run_sink                                       Runs;
-		workspace_sink                                 Workspaces;
-		start_sink                                     Starts;
+		std::function<void(const application::private_review_delta&)> PrivateChanged;
+		std::function<void(const application::private_run_error&)>    PrivateFailed;
+		application::agent_invocation_projection_port&                Panel;
+		finding_sink                                                  Findings;
+		session_sink                                                  Sessions;
+		admit_sink                                                    Admissions;
+		run_sink                                                      Runs;
+		workspace_sink                                                Workspaces;
+		start_sink                                                    Starts;
+		std::function<void(std::string_view)>                         Refused;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -3916,6 +3943,7 @@ namespace bpr::app {
 		worker_executor                                         AppearanceEffects;
 		worker_executor                                         QueueEffects;
 		worker_executor                                         ReviewMutationEffects;
+		private_review_recovery_registry                        PrivateRecovery;
 		worker_executor                                         ReviewSubmissionEffects;
 		qt::event_loop_executor                                 DecisionLane;
 		std::shared_ptr<application::github_read_admission>     ReadAdmission = std::make_shared<application::github_read_admission>();
@@ -4043,6 +4071,21 @@ namespace bpr::app {
 			if (Diagnostics) {
 				Diagnostics->attach(*Settings);
 			}
+		}
+		void present_diagnostic_export(core::bpr_window_context aContext, core::diagnostic_export_policy aPolicy)
+		{
+			if (!current_window(aContext)) {
+				return;
+			}
+			if (!Settings) {
+				Settings = std::make_unique<qt::settings_window>();
+				Settings->set_profile_label(QString::fromStdString(Admission.Label));
+			}
+			if (!Maintenance) {
+				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement, std::dynamic_pointer_cast<application::diagnostic_control_port>(DiagnosticLog));
+			}
+			Maintenance->attach(*Settings, Admission.Label);
+			Maintenance->open_export(aPolicy);
 		}
 		std::optional<core::bpr_window_context> Focused;
 		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
@@ -4521,6 +4564,7 @@ namespace bpr::app {
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
+				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
@@ -4853,8 +4897,10 @@ namespace bpr::app {
 				throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 			}
 
-			EpochActors           = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
-			WorkbenchPreferences  = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
+			EpochActors          = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+			WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
+			// The shared owner also serves defaults-only windows, which have no window-record restore.
+			WorkbenchPreferences->restore();
 			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 			SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 			QueueStore            = adapters::sqlite::make_queue_enrollment_store({
@@ -5721,6 +5767,7 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		std::optional<std::filesystem::path> CodexAgentExecutable;
+		std::optional<std::filesystem::path> ClaudeAgentExecutable;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool UseGrantedNotificationSink = false;
@@ -6610,6 +6657,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Window->choose_home(true);
 				}
 			});
+			Window->set_diagnostic_exporter([this, weak](core::diagnostic_export_policy aPolicy) {
+				if (!weak.expired() && !Closing) {
+					Profile->present_diagnostic_export(DraftWindow, aPolicy);
+				}
+			});
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
 } });
 			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
@@ -6678,7 +6730,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				nullptr,
 				aConfig.DifCatalog);
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
-			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {if(!Closing && TourHost && current(DraftWindow)){TourHost->dispatch(aCommand);} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
+			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
+				if (!Closing && TourHost && current(DraftWindow)) {
+					aCommand.Attention = current_tour_attention();
+					TourHost->dispatch(aCommand);
+				} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -6741,7 +6797,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aRequest) : application::review_submission_execution_grant{ };
 			};
 #else
-			review_submission_workflow::grant_factory issueReviewGrant = application::detail::review_submission_user_authority_issuer::issue;
+			review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
 #endif
 			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
 																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
@@ -6753,6 +6809,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																					: QStringLiteral("Submit comment review");
 																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
 																			});
+#if defined(BPR_BUILD_TESTING)
+			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
+				return Fixture ? application::make_review_submission_testing_grant(session, generation, plan) : application::review_submission_execution_grant{ };
+			};
+#else
+			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto session, auto generation, const application::staged_review_plan& plan) {
+				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
+			};
+#endif
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
+                if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
+                if(!draft){return;}
+                if(auto published=application::published_tour(record,*draft)){TourHost->observe_publication(std::move(*published));} });
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
@@ -6885,6 +6954,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
+			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
+					if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
+						return false;
+					}
+					const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
+					ExplicitPrivateRun = std::move(aIntent);
+					PrivateRequested = std::move(aRequested);
+					const auto sent = dispatch_agent_invocation(aAgentProfile, {}, std::nullopt, false, aPrompt, std::nullopt,
+						composing ? core::agent_entry_point::workshop_comment : core::agent_entry_point::ask_about_selection,
+						composing ? std::optional{core::workshop_operation::clarify} : std::nullopt);
+					ExplicitPrivateRun.reset();
+					PrivateRequested = {};
+					return sent; });
 			// The one new edge out of the agent host. The launch panel still
 			// receives every projection it already did; this adds the typed
 			// finding delivery, and nothing else. There is deliberately no
@@ -6956,6 +7038,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						const application::agent_invocation_projection_identity&
 							aIdentity) {
 						if (!Closing && Window != nullptr) {
+							if (PendingWriting && !PendingWriting->Invocation) {
+								PendingWriting->Invocation = aIdentity;
+							}
 							Window->admit_dif_invocation(aIdentity);
 						}
 					},
@@ -6972,6 +7057,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						if (Closing) {
 							return;
 						}
+						finish_writing(aIdentity, aResult);
 						settle_comment_workshop(
 							aIdentity.Session.Id, aResult.Outcome);
 						Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -6984,6 +7070,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							aIdentity) {
 						if (!Closing && Window != nullptr) {
 							Window->start_dif_invocation(aIdentity);
+						}
+					},
+					[this](std::string_view) {
+						if (!PendingWriting) {
+							return;
+						}
+						const bool test = PendingWriting->Test;
+						PendingWriting.reset();
+						WritingState.cancel();
+						if (test) {
+							Window->writing_hooks()->show_notice("Writing request was refused by the selected agent host.");
+						} else {
+							Window->tour_editor()->show_writing_notice(QStringLiteral("Writing request was refused by the selected agent host. Manual editing is available."));
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
@@ -7007,6 +7106,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&core::agent_profile::Id);
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
+				}
+			}
+			if (ClaudeAgentExecutable) {
+				const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
+				if (claude != agentProfiles.end()) {
+					claude->Executable = ClaudeAgentExecutable->string();
 				}
 			}
 			if (CodexAgentExecutable.has_value()) {
@@ -7061,8 +7166,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					},
 					AgentEffects,
 					DecisionLane,
-					*AgentProjections);
+					*AgentProjections, PrivateReview.get());
 			}
+			PrivateReview->profiles(agentProfiles);
+			AgentProjections->set_private_sink([this](const auto& aDelta) {if(!Closing && PrivateReview){PrivateReview->changed(aDelta);} }, [this](const auto&) {if(!Closing && Window){Window->private_review()->show_status(QStringLiteral("Private run admission or retention refused; no missing provenance is inferred."));} });
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
 #if defined(BPR_BUILD_TESTING)
@@ -7286,6 +7393,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
 					finish_tour_navigation();
+					observe_tour_comparison();
 					correlate_defects();
 					retain_reading_position();
 					schedule_reading_restoration();
@@ -7377,6 +7485,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				SessionWorkbenchSettings = std::make_unique<session_workbench_settings>(std::move(initial));
 			}
+			WritingHookSubscription = Profile->WorkbenchPreferences->subscribe(DraftWindow.Profile, [this](const auto& aPreferences) {
+				if (!Closing) {
+					if (PendingWriting && PendingWriting->Request.Target.HookRevision != aPreferences.WritingHooks.Revision) {
+						cancel_writing();
+					}
+					Window->writing_hooks()->present(aPreferences.WritingHooks);
+				}
+			});
+			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
+			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -8644,18 +8762,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 		}
 
-		std::unique_ptr<application::review_tour_host> TourHost;
+		std::unique_ptr<application::review_tour_host>    TourHost;
+		std::uint64_t                                     WritingHookSubscription = 0;
+		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host>        RetiredTourHosts;
-		std::optional<core::tour_owner>        TourOwner;
-		core::git_commit_oid                   TourHead;
-		core::git_commit_oid                   TourAttentionHead;
-		std::optional<core::tour_source_range> PendingTourSource;
-		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
+		std::vector<retained_tour_host>            RetiredTourHosts;
+		std::optional<core::tour_owner>            TourOwner;
+		core::git_commit_oid                       TourHead;
+		core::git_commit_oid                       TourAttentionHead;
+		std::optional<core::tour_code_destination> PendingTourSource;
+		auto                                       selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
 			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
@@ -8681,6 +8801,56 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto       source = core::tour_source_range{ range->first, range->second, left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit, blob, std::string{ bytes.begin(), bytes.end() } };
 			return core::valid(source) ? std::optional{ std::move(source) } : std::nullopt;
 		}
+		auto current_tour_attention() const -> core::tour_attention
+		{
+			core::tour_attention attention;
+			attention.EditorVisible = Window->tour_editor()->writing_visible(core::writing_hook::comment);
+			const auto* surface     = Window->comparison_surface();
+			if (attention.EditorVisible && surface->isVisible()) {
+				const auto source = selected_tour_source();
+				if (source && surface->source_line_visible(source->First.Side, source->First.Line)) {
+					attention.Source = source;
+				}
+			}
+			return attention;
+		}
+		void observe_tour_visit()
+		{
+			const auto* stop  = Window->tour_editor()->selected_stop();
+			const auto  draft = TourHost ? TourHost->presentation().Draft : nullptr;
+			if (!stop || !stop->Suggestion || !draft) {
+				return;
+			}
+			auto attention = current_tour_attention();
+			if (!attention.EditorVisible) {
+				return;
+			}
+			if (!core::visible_tour_stop(*stop, attention, true)) {
+				attention.Source.reset();
+				attention.SourceUnavailable = true;
+				Window->tour_editor()->show_notice(QStringLiteral("This stop's exact source is not visible. Inspect or retarget its source before marking it Ready."));
+			}
+			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::visit, .Stop = stop->Id, .Attention = attention });
+		}
+		void observe_tour_comparison()
+		{
+			if (!TourHost || !TourOwner || !SelectedDiffPublication) {
+				return;
+			}
+			const auto* surface = Window->comparison_surface();
+			const auto& p       = *SelectedDiffPublication;
+			const auto  index   = surface->current_semantic_index();
+			if (!index || !surface->current_context() || surface->current_context()->Key != p.Key || !p.LeftPath || !p.RightPath || !p.Key.LeftBlob || !p.Key.RightBlob) {
+				return;
+			}
+			const auto& owner = p.Request.WorkbenchAuthority;
+			if (owner.Host != TourOwner->Host || owner.HostAuthority != TourOwner->HostAuthority || owner.Account != TourOwner->Account || owner.Repository != TourOwner->Repository || owner.PullRequest != TourOwner->PullRequest) {
+				return;
+			}
+			const auto left = p.LeftPath->generic_u8string(), right = p.RightPath->generic_u8string();
+			TourHost->observe_comparison(*index, { p.Request.Diff.Comparison.Left.Commit, p.Key.LeftBlob, std::string{ left.begin(), left.end() }, core::diff_side::left, 0, 0 }, { p.Request.Diff.Comparison.Right.Commit, p.Key.RightBlob, std::string{ right.begin(), right.end() }, core::diff_side::right, 0, 0 });
+		}
+
 		void finish_tour_navigation()
 		{
 			if (!PendingTourSource || !TourHost || !TourOwner || Closing || !WorkbenchHost) {
@@ -8697,7 +8867,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto& p      = *SelectedDiffPublication;
-			const bool  left   = source.First.Side == core::diff_side::left;
+			const bool  left   = source.Side == core::diff_side::left;
 			const auto& commit = left ? p.Request.Diff.Comparison.Left.Commit : p.Request.Diff.Comparison.Right.Commit;
 			const auto& blob   = left ? p.Key.LeftBlob : p.Key.RightBlob;
 			const auto& path   = left ? p.LeftPath : p.RightPath;
@@ -8705,22 +8875,30 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingTourSource.reset();
 			if (commit != source.Commit || (source.Blob && blob != source.Blob) || std::string{ bytes.begin(), bytes.end() } != source.Path) {
 				Window->tour_editor()->show_notice(QStringLiteral("The original source revision is not in this comparison. The stop and its pinned destination are retained; choose its revision to inspect it."));
+				observe_tour_visit();
 				return;
 			}
-			auto first = source.First;
-			auto last  = source.Last;
+			auto first = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.FirstLine };
+			auto last  = core::source_line_ref{ core::comparison_digest(p.Key), source.Side, source.LastLine };
 			// Restart changes runtime scope. Reuse lines only after the immutable
 			// commit, blob, path and side match the newly admitted material.
 			first.Comparison = last.Comparison = core::comparison_digest(p.Key);
 			const bool placed                  = surface->restore_source_range(first, last);
+			if (placed) {
+				auto observed = source;
+				observed.Blob = blob;
+				TourHost->observe_source(std::move(observed));
+			}
+			observe_tour_visit();
 			Window->tour_editor()->show_notice(placed ? QStringLiteral("Tour source selected. Visiting a stop does not mark code reviewed.") : QStringLiteral("Source lines unavailable. The explanation and original destination are retained."));
 		}
-		void navigate_tour_source(const std::optional<core::tour_source_range>& aSource)
+		void navigate_tour_source(const std::optional<core::tour_code_destination>& aSource)
 		{
 			Window->open_review_tour();
 			Window->tour_editor()->show_stops();
 			if (!aSource || !WorkbenchHost || !WorkbenchHost->contains_file(core::file_identity_of(aSource->Path))) {
 				Window->tour_editor()->show_notice(QStringLiteral("Source is unavailable in this comparison. The stop stays editable and the normal file path remains available."));
+				observe_tour_visit();
 				return;
 			}
 			abandon_tab_load();
@@ -8738,7 +8916,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto draft = TourHost->presentation().Draft;
-			if (draft && draft->Head != TourHead && TourAttentionHead != TourHead) {
+			if (draft && draft->ObservedHead.value_or(draft->Head) != TourHead && TourAttentionHead != TourHead) {
 				TourAttentionHead = TourHead;
 				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::observe_head, .Head = TourHead });
 			}
@@ -8769,6 +8947,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TourHead = aHandoff.Head;
 			if (TourOwner == owner && TourHost) {
 				observe_tour_head();
+				refresh_tour_imports();
 				return;
 			}
 			suspend_review_tour();
@@ -8795,31 +8974,489 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																			   return;
 																		   }
-																		   Window->tour_editor()->present(aProjection);
+																		   auto projected = aProjection;
+																		   if (projected.Draft && WindowRead->accepted_snapshot()) {
+																			   const auto& snapshot = *WindowRead->accepted_snapshot();
+																			   if (const auto* profile = find_profile(snapshot.Profile)) {
+																				   const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+																				   for (auto& destination : projected.Destinations) {
+																					   const auto stop = std::ranges::find(projected.Draft->Stops, destination.Stop, &core::tour_stop::Id);
+																					   if (stop == projected.Draft->Stops.end()) {
+																						   continue;
+																					   }
+																					   auto source = stop->Destination;
+																					   if (stop->Original) {
+																						   source = core::destination_of(*stop->Original);
+																					   }
+																					   if (source) {
+																						   destination.SourceLink = adapters::github::detail::compile_tour_permalink(scope, *source).value_or(std::string{ });
+																					   }
+																				   }
+																			   }
+																		   }
+																		   Window->tour_editor()->present(projected);
+																		   if (TourPublication) {
+																			   TourPublication->observe(projected);
+																		   }
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
 			TourHost->start();
+			refresh_tour_imports();
 		}
+		void refresh_tour_imports()
+		{
+			if (!TourHost || !WindowRead->accepted_snapshot() || !TourOwner) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto* profile  = find_profile(snapshot.Profile);
+			const auto  base     = core::parse_git_commit_oid(snapshot.PullRequest.BaseOid.value());
+			const auto  head     = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			if (!profile || !base || !head) {
+				return;
+			}
+			const auto seed  = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
+			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname(), [scope, seed](std::string_view aBody) {
+				auto source = adapters::github::detail::parse_tour_permalink(scope, aBody);
+				if (source && source->Commit == seed.Base) {
+					source->Side = core::diff_side::left;
+				}
+				return source;
+			}));
+		}
+		struct writing_operation
+		{
+			core::writing_request                                            Request;
+			std::vector<application::writing_source>                         Sources;
+			std::optional<application::agent_invocation_projection_identity> Invocation;
+			bool                                                             Test = false;
+		};
+		struct tour_outline_proposal
+		{
+			core::writing_target                  Target;
+			std::vector<core::tour_outline_entry> Entries;
+		};
+		std::optional<tour_outline_proposal> OutlineProposal;
+		core::scoped_writing_state           WritingState;
+		std::optional<writing_operation>     PendingWriting;
+		void                                 cancel_writing()
+		{
+			WritingState.cancel();
+			if (OutlineProposal) {
+				OutlineProposal.reset();
+				Window->tour_editor()->present_outline({ });
+			}
+			if (!PendingWriting) {
+				return;
+			}
+			PendingWriting.reset();
+			if (AgentHost) {
+				AgentHost->cancel();
+			}
+			if (Window) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Assistance cancelled. Your text is unchanged."));
+			}
+		}
+		auto writing_context_key() const -> std::array<std::uint8_t, 32>
+		{
+			std::string key;
+			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+				key = std::to_string(snapshot->Snapshot.value()) + ":" + std::string{ snapshot->PullRequest.HeadOid.value() };
+			}
+			if (const auto& draft = Window->tour_editor()->shown().Draft; draft) {
+				key += ":" + std::to_string(draft->Revision);
+			}
+			if (SelectedDiffPublication) {
+				const auto digest = core::comparison_digest(SelectedDiffPublication->Key);
+				key.append(reinterpret_cast<const char*>(digest.bytes().data()), digest.bytes().size());
+			}
+			if (const auto range = Window->comparison_surface()->selected_source_range()) {
+				key += ":" + std::to_string(static_cast<unsigned>(range->first.Side)) + ":" + std::to_string(range->first.Line) + ":" + std::to_string(range->second.Line);
+			}
+			return core::writing_digest(key);
+		}
+		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>
+		{
+			const auto& draft = Window->tour_editor()->shown().Draft;
+			const auto& prefs = Profile->WorkbenchPreferences->accepted();
+			const auto  agent = Window->agent_panel()->selected_profile();
+			if (!draft || !prefs || !agent || !EpochHost || !TourOwner || draft->Owner != *TourOwner || !current(DraftWindow)) {
+				return std::nullopt;
+			}
+			const auto* stop = Window->tour_editor()->selected_stop();
+			if (aHook == core::writing_hook::comment && !stop) {
+				return std::nullopt;
+			}
+			return core::writing_target{ .Owner = draft->Owner, .Draft = draft->Id, .Stop = aHook == core::writing_hook::comment ? stop->Id : core::tour_stop_id{ }, .Hook = aHook, .Window = DraftWindow, .Session = EpochHost->state().ApplicationSession, .Agent = *agent, .HookRevision = prefs->WritingHooks.Revision, .TextGeneration = aCapture.TextGeneration, .EditorGeneration = aCapture.EditorGeneration, .ContextDigest = writing_context_key() };
+		}
+		auto selected_writing_source(bool aOutline) const -> std::optional<application::writing_source>
+		{
+			const auto  selected = selected_tour_source();
+			const auto& result   = Window->comparison_surface()->current_result();
+			if (!selected || !result || !SelectedDiffPublication || result->Alignment.Key != SelectedDiffPublication->Key) {
+				return std::nullopt;
+			}
+			const auto* stop = Window->tour_editor()->selected_stop();
+			if (!aOutline && (!stop || !core::visible_tour_stop(*stop, { .EditorVisible = true, .Source = selected }, true))) {
+				return std::nullopt;
+			}
+			const auto& document = selected->First.Side == core::diff_side::left ? result->LeftDocument : result->RightDocument;
+			if (!document || selected->Last.Line >= document->Lines.size()) {
+				return std::nullopt;
+			}
+			const auto begin = document->Lines[selected->First.Line].Content.Begin, end = document->Lines[selected->Last.Line].Content.End;
+			if (end < begin || end > document->Bytes.size() || end - begin > (aOutline ? 3072U : 4096U)) {
+				return std::nullopt;
+			}
+			auto text = std::string{ reinterpret_cast<const char*>(document->Bytes.data() + begin), static_cast<std::size_t>(end - begin) };
+			if (aOutline) {
+				text = selected->Path + " · lines " + std::to_string(selected->First.Line + 1) + "–" + std::to_string(selected->Last.Line + 1) + "\n" + text;
+			}
+			return application::writing_source{ aOutline ? "selected-source" : "stop-source", std::move(text), selected };
+		}
+		auto writing_sources(core::writing_hook aHook, const core::writing_request& aRequest) const -> std::vector<application::writing_source>
+		{
+			std::vector<application::writing_source> sources;
+			std::size_t                              total = 0;
+			const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {
+				if (text.empty() || sources.size() == 8) {
+					return;
+				}
+				auto size = std::min({ text.size(), limit, 8192 - total });
+				while (size && !core::writing_boundary(text, size)) {
+					--size;
+				}
+				if (!size || !core::valid_writing_utf8(text.substr(0, size))) {
+					return;
+				}
+				sources.push_back({ std::move(id), std::string{ text.substr(0, size) } });
+				total += size;
+			};
+			if (aHook == core::writing_hook::outline) {
+				if (const auto source = selected_writing_source(true)) {
+					add(source->Id, source->Text, 4096);
+					if (!sources.empty()) {
+						sources.back().Source = source->Source;
+					}
+				}
+			}
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (snapshot) {
+				add("pr-description", snapshot->PullRequest.Body, 4096);
+				for (const auto& comment : snapshot->IssueComments) {
+					if (snapshot->PullRequest.Author && comment.Author && comment.Author->Actor == snapshot->PullRequest.Author->Actor && !comment.Deleted) {
+						add("author-comment-" + std::string{ comment.Comment.value() }, comment.Observation.RawBody.value_or(comment.Body), 1024);
+					}
+				}
+			}
+			const auto& draft = Window->tour_editor()->shown().Draft;
+			if (draft) {
+				if (aHook != core::writing_hook::problem) {
+					add("private-problem", draft->Problem, 1024);
+				}
+				if (aHook != core::writing_hook::solution) {
+					add("private-solution", draft->Solution, 1024);
+				}
+			}
+			if (aRequest.Scope == core::writing_scope::selection) {
+				add("field-before", std::string_view{ aRequest.Raw }.substr(0, aRequest.Selection.Begin), 512);
+				add("field-after", std::string_view{ aRequest.Raw }.substr(aRequest.Selection.End), 512);
+			}
+			if (aHook == core::writing_hook::comment) {
+				if (const auto source = selected_writing_source(false)) {
+					add(source->Id, source->Text, 4096);
+				}
+			}
+			return sources;
+		}
+		void request_writing(core::writing_hook aHook, qt::prose_capture aCapture)
+		{
+			cancel_writing();
+			if (Closing || !TourHost || !WindowRead->accepted_snapshot() || !Window->tour_editor()->writing_visible(aHook)) {
+				return;
+			}
+			if (aHook == core::writing_hook::comment) {
+				observe_tour_visit();
+				const auto* stop  = Window->tour_editor()->selected_stop();
+				const auto  draft = TourHost->presentation().Draft;
+				if (draft && stop && stop->Suggestion && stop->Preparation == core::tour_preparation::ready) {
+					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = stop->Id, .Value = *stop });
+				}
+			}
+			const auto target = writing_target(aHook, aCapture);
+			if (!target || !AgentHost || !AgentHost->is_quiescent()) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Choose an available agent and wait for its current request. Manual editing is available."));
+				return;
+			}
+			const auto request = WritingState.begin(*target, std::move(aCapture.Raw), aCapture.Selection);
+			if (!request) {
+				return;
+			}
+			auto sources = writing_sources(aHook, *request);
+			// Recover an unambiguous existing author section before asking a model.
+			if (request->Scope == core::writing_scope::empty_field && (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution)) {
+				const auto&                         description = WindowRead->accepted_snapshot()->PullRequest.Body;
+				const auto                          map         = core::map_tour_markdown(description);
+				std::optional<core::tour_text_span> recovered;
+				bool                                ambiguous = false;
+				for (const auto& section : map.Sections) {
+					if (section.Name == (aHook == core::writing_hook::problem ? "Problem" : "Solution")) {
+						if (recovered) {
+							ambiguous = true;
+						}
+						recovered = section.Content;
+					}
+				}
+				if (recovered && !ambiguous && map.Bounded) {
+					auto edit = WritingState.complete(request->Id, *target, request->Raw, description.substr(recovered->Begin, recovered->End - recovered->Begin));
+					if (edit && Window->tour_editor()->writing_editor(aHook)->apply(*edit)) {
+						Window->tour_editor()->show_writing_notice(QStringLiteral("Recovered — pr-description. Existing author text; no inference."));
+					}
+					return;
+				}
+			}
+			if (target->Agent != core::claude_stream_json_profile_id) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This selected agent has no qualified tool-free writing mode. Select Approved Claude stream JSON in Agents & context, or keep writing manually."));
+				return;
+			}
+			if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
+				return;
+			}
+			const auto prompt = application::build_writing_prompt(Profile->WorkbenchPreferences->accepted()->WritingHooks, *request, sources);
+			if (!prompt) {
+				WritingState.cancel();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions."));
+				return;
+			}
+			PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Writing assistance running… Your text remains editable."));
+			if (!dispatch_agent_invocation(target->Agent, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+				cancel_writing();
+			}
+		}
+		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
+		{
+			std::vector<core::tour_outline_entry> entries;
+			for (const auto& stop : aResult.Stops) {
+				const auto source = std::ranges::find(aOperation.Sources, stop.Anchor, &application::writing_source::Id);
+				if (source == aOperation.Sources.end()) {
+					return std::nullopt;
+				}
+				core::tour_outline_entry entry{ .Title = stop.Title, .Source = source->Source, .Suggestion = { stop.Anchor, stop.Reason, stop.Question } };
+				for (const auto& ref : stop.Related) {
+					const auto related = std::ranges::find(aOperation.Sources, ref, &application::writing_source::Id);
+					if (related == aOperation.Sources.end() || !related->Source) {
+						return std::nullopt;
+					}
+					entry.Related.push_back(*related->Source);
+				}
+				entries.push_back(std::move(entry));
+			}
+			return entries;
+		}
+		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string
+		{
+			if (aResult.Insufficient) {
+				return "More context needed: " + aResult.Reason;
+			}
+			const auto hook = aOperation.Request.Target.Hook;
+			if (aOperation.Test) {
+				if (hook == core::writing_hook::outline) {
+					return "Hook test completed: valid outline skeleton. Nothing inserted.";
+				}
+				return "Hook test completed. Private result:\n" + aResult.Replacement;
+			}
+			if (!Window->tour_editor()->writing_visible(hook)) {
+				return "The captured editor is no longer active. Your text is unchanged.";
+			}
+			if (hook == core::writing_hook::outline) {
+				const auto target = current_outline_target();
+				if (!target || !WritingState.complete_outline(aOperation.Request.Id, *target)) {
+					return "The captured tour changed. No skeletons were inserted.";
+				}
+				auto entries = outline_entries(aOperation, aResult);
+				if (!entries) {
+					return "An outline source or related destination is unavailable. No skeletons were inserted.";
+				}
+				Window->tour_editor()->present_outline(*entries);
+				OutlineProposal = tour_outline_proposal{ *target, std::move(*entries) };
+				return "Choose the skeletons to insert. Each starts empty and needs your individual completion.";
+			}
+			auto*      editor  = Window->tour_editor()->writing_editor(hook);
+			const auto capture = editor->capture();
+			const auto target  = capture ? writing_target(hook, *capture) : std::nullopt;
+			if (!target) {
+				return "The captured owner or editor changed. Your text is unchanged.";
+			}
+			auto edit = WritingState.complete(aOperation.Request.Id, *target, editor->raw(), aResult.Replacement);
+			if (!edit || !editor->apply(*edit)) {
+				return "Result made no change or the captured text is no longer current.";
+			}
+			std::string message = "Updated captured text. Undo restores it. Nothing published.";
+			for (const auto& note : aResult.Notes) {
+				auto label = std::string{ "Unclear" };
+				if (note.Kind == "recovered") {
+					label = "Recovered";
+				} else if (note.Kind == "inferred") {
+					label = "Inferred";
+				}
+				message += "\n" + label + ": " + note.Text;
+				for (const auto& ref : note.SourceRefs) {
+					message += " [" + ref + "]";
+				}
+			}
+			return message;
+		}
+		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult)
+		{
+			if (!PendingWriting || PendingWriting->Invocation != aIdentity) {
+				return;
+			}
+			auto operation = std::move(*PendingWriting);
+			PendingWriting.reset();
+			std::string message = "Assistance did not complete; your text is unchanged.";
+			std::string json;
+			bool        bounded = true;
+			for (const auto& event : aResult.Events) {
+				if (json.size() + event.Text.size() > 32768) {
+					bounded = false;
+					break;
+				}
+				json += event.Text;
+			}
+			const auto  result = aResult.Outcome == application::agent_run_outcome::success && bounded ? application::decode_writing_result(json, operation.Request.Target.Hook, operation.Sources, operation.Request.Scope == core::writing_scope::empty_field) : std::nullopt;
+			const auto& prefs  = Profile->WorkbenchPreferences->accepted();
+			if (result && prefs && prefs->WritingHooks.Revision == operation.Request.Target.HookRevision && writing_context_key() == operation.Request.Target.ContextDigest) {
+				message = apply_writing_result(operation, *result);
+			} else if (aResult.Outcome == application::agent_run_outcome::success) {
+				message = "Assistance returned an invalid, unsupported or stale result. Your text is unchanged.";
+			}
+			WritingState.cancel();
+			if (operation.Test) {
+				Window->writing_hooks()->show_notice(message);
+			} else {
+				Window->tour_editor()->show_writing_notice(QString::fromStdString(message));
+			}
+		}
+		auto current_outline_target() const -> std::optional<core::writing_target>
+		{
+			const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+			if (!draft || draft->ReadOnly) {
+				return std::nullopt;
+			}
+			return writing_target(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
+		}
+		void insert_tour_outline()
+		{
+			const auto target = current_outline_target();
+			if (!OutlineProposal || !target || *target != OutlineProposal->Target || !Window->tour_editor()->writing_visible(core::writing_hook::outline)) {
+				cancel_writing();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("The captured tour changed. Request a new outline before inserting stops."));
+				return;
+			}
+			const auto         draft = TourHost->presentation().Draft;
+			core::tour_command command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert_outline, .Position = draft->Stops.size() };
+			for (const auto index : Window->tour_editor()->retained_outline_entries()) {
+				if (index >= OutlineProposal->Entries.size()) {
+					return;
+				}
+				command.Outline.push_back(OutlineProposal->Entries[index]);
+			}
+			if (command.Outline.empty()) {
+				return;
+			}
+			OutlineProposal.reset();
+			Window->tour_editor()->present_outline({ });
+			TourHost->dispatch(command);
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Skeleton stops inserted. Undo arrangement removes this insertion. Visit each stop, write or explicitly generate its comment, then choose Ready and next."));
+		}
+		void test_writing_hook(core::writing_hook aHook)
+		{
+			cancel_writing();
+			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
+			const auto  selected = Window->agent_panel()->selected_profile();
+			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !AgentHost || !AgentHost->is_quiescent()) {
+				Window->writing_hooks()->show_notice("Select Approved Claude stream JSON for tool-free writing tests; wait for any running request.");
+				return;
+			}
+			core::writing_request request;
+			request.Target.Hook                              = aHook;
+			request.Target.HookRevision                      = prefs->WritingHooks.Revision;
+			request.Target.ContextDigest                     = writing_context_key();
+			request.Raw                                      = "The cache reduces repeated work.";
+			request.Selection.End                            = request.Raw.size();
+			std::vector<application::writing_source> sources = { { "test-source", "The cache reuses previously computed results. No performance or test-success claim is supplied." } };
+			const auto                               prompt  = application::build_writing_prompt(prefs->WritingHooks, request, sources);
+			if (!prompt) {
+				Window->writing_hooks()->show_notice("Hook instructions exceed the test context limit.");
+				return;
+			}
+			PendingWriting = writing_operation{ request, std::move(sources), { }, true };
+			Window->writing_hooks()->show_notice("Testing saved hook… Nothing will be inserted or published.");
+			if (!dispatch_agent_invocation(*selected, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+				PendingWriting.reset();
+				Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
+			}
+		}
+
 		void dispatch_tour_action(qt::tour_editor_action aAction)
 		{
 			if (Closing || !TourHost || !current(DraftWindow)) {
 				return;
 			}
 			switch (aAction) {
-			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::suggest_outline:
+				if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
+					request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
+				}
+				return;
+			case qt::tour_editor_action::insert_outline:        insert_tour_outline(); return;
+			case qt::tour_editor_action::preview_publication:
+			case qt::tour_editor_action::publish_publication:
+			case qt::tour_editor_action::resume_publication:
+			case qt::tour_editor_action::reconcile_publication:
+			case qt::tour_editor_action::stop_publication:
+				if (TourPublication) {
+					TourPublication->dispatch(aAction);
+				}
+				return;
+			case qt::tour_editor_action::import_selected:     TourHost->import_selected(Window->tour_editor()->import_choice()); return;
+			case qt::tour_editor_action::retry_save:          TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy:      TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::keep_local_conflict:
+			case qt::tour_editor_action::use_remote_conflict:
+				if (const auto draft = Window->tour_editor()->shown().Draft) {
+					TourHost->resolve_remote_conflict(draft->Revision, aAction == qt::tour_editor_action::use_remote_conflict);
+				}
+				return;
 			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
 			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
 			case qt::tour_editor_action::navigate_stop:  {
-				const auto* stop = Window->tour_editor()->selected_stop();
-				navigate_tour_source(stop ? (stop->Mapped ? stop->Mapped : stop->Original) : std::nullopt);
+				const auto*                                stop = Window->tour_editor()->selected_stop();
+				std::optional<core::tour_code_destination> source;
+				if (stop) {
+					source = stop->Destination;
+					if (stop->Mapped || stop->Original) {
+						source = core::destination_of(stop->Mapped ? *stop->Mapped : *stop->Original);
+					}
+				}
+				navigate_tour_source(source);
 				return;
 			}
-			case qt::tour_editor_action::navigate_related: navigate_tour_source(Window->tour_editor()->selected_related()); return;
+			case qt::tour_editor_action::navigate_related: {
+				const auto related = Window->tour_editor()->selected_related();
+				navigate_tour_source(related ? std::optional{ core::destination_of(*related) } : std::nullopt);
+				return;
+			}
 			case qt::tour_editor_action::add_stop:
-			case qt::tour_editor_action::insert_before:
-			case qt::tour_editor_action::add_related:      {
+			case qt::tour_editor_action::insert_after:
+			case qt::tour_editor_action::retarget_stop:
+			case qt::tour_editor_action::add_related:   {
 				const auto source = selected_tour_source();
 				const auto draft  = TourHost->presentation().Draft;
 				if (!draft) {
@@ -8831,24 +9468,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Window->tour_editor()->show_notice(QStringLiteral("Select a line or contiguous range in an available source pane, then add it to the tour. Your draft remains saved."));
 					return;
 				}
-				if (aAction == qt::tour_editor_action::add_related) {
+				if (aAction == qt::tour_editor_action::add_related || aAction == qt::tour_editor_action::retarget_stop) {
 					const auto* selected = Window->tour_editor()->selected_stop();
 					if (!selected) {
 						return;
 					}
 					auto value = *selected;
-					value.Related.push_back(*source);
+					if (aAction == qt::tour_editor_action::retarget_stop) {
+						value.Mapped         = *source;
+						value.Mapping        = core::tour_mapping::author_selected;
+						value.ReaffirmedHead = draft->ObservedHead.value_or(draft->Head);
+					} else {
+						value.Related.push_back(*source);
+					}
 					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
 					return;
 				}
-				auto position = draft->Stops.size();
-				if (aAction == qt::tour_editor_action::insert_before) {
-					if (const auto* stop = Window->tour_editor()->selected_stop()) {
-						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
-						position         = static_cast<std::size_t>(found - draft->Stops.begin());
-					}
+				auto        position = draft->Stops.size();
+				const auto* selected = Window->tour_editor()->selected_stop();
+				if (selected) {
+					const auto found = std::ranges::find(draft->Stops, selected->Id, &core::tour_stop::Id);
+					position         = static_cast<std::size_t>(found - draft->Stops.begin()) + 1U;
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Stop = selected ? selected->Id : core::tour_stop_id{ }, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
 				Window->open_review_tour();
 				Window->tour_editor()->show_stops();
 				return;
@@ -8859,12 +9501,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!draft) {
 					return;
 				}
-				const auto selected = Window->overview_page()->body_view()->source_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
-				if (selected.isEmpty()) {
+				const auto* view     = Window->overview_page()->body_view();
+				const auto  span     = view->selected_source_bytes();
+				const auto& snapshot = WindowRead->accepted_snapshot();
+				if (!span || !snapshot || view->original_body() != snapshot->PullRequest.Body) {
 					Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
 					return;
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = selected.toUtf8().toStdString() });
+				const auto& raw = view->original_body();
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = raw.substr(span->first, span->second - span->first), .Baseline = core::tour_field_baseline{ .Raw = raw, .RemoteEntity = std::string{ snapshot->PullRequest.Node.value() }, .SourceSpan = span } });
 				return;
 			}
 			}
@@ -8873,11 +9518,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 #if defined(BPR_BUILD_TESTING)
 			if (!Fixture) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 #endif
@@ -8887,6 +9538,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->invalidate(closed
 												 ? QStringLiteral("This pull request is closed. You can read its review, but cannot submit a new review. Open an active pull request to compose a review.")
 												 : QStringLiteral("The current account or pull request revision is not ready for review submission. Refresh this pull request and wait for it to finish loading."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 			auto binding       = application::review_submission_live_binding{ selection->Target, selection->ActingIdentity };
@@ -8905,6 +9559,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto acceptedLease = WindowRead->mutation_transport();
 			if (!acceptedLease) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 			auto factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
@@ -8919,6 +9576,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
 			};
 #endif
+			if (TourPublication) {
+#if defined(BPR_BUILD_TESTING)
+				auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+					auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+					if (!store) {
+						return std::unexpected(application::review_mutation_failure::unavailable);
+					}
+					return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description);
+				};
+				TourPublication->adopt(binding, workbench_authority(aHandoff), std::move(tourFactory), WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
+#else
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body);
+#endif
+			}
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
 		}
 
@@ -8936,6 +9607,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReviewDraftRevision = aAccepted.Revision;
 			if (Window && Window->review_editor()) {
 				Window->review_editor()->present(aAccepted);
+				Window->review_editor()->allow_publication_retry(PrivateReview && !PendingReviewMutation && aAccepted.Draft.State == core::review_draft_state::publishing);
 			}
 			refresh_agent_private_context_choices();
 		}
@@ -8991,13 +9663,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return true;
 		}
 
-		void complete_shared_draft(const bool aSuccess)
+		void complete_shared_draft(const bool aSuccess, std::function<void()> aAfter = { }, bool aPreserveForRetry = false)
 		{
 			if (!SharedDrafts || !PublishingDraft) {
 				return;
 			}
 			const auto publishing = std::exchange(PublishingDraft, std::nullopt);
-			auto       outcome    = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
+			if (PrivateReview && PrivateDraftsReady) {
+				const auto owner    = SharedDrafts;
+				auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
+					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						const auto accepted = owner->read(DraftConsumer, publishing->Draft.Id);
+						if (accepted.Accepted && ReviewDraft && ReviewDraft->Id == publishing->Draft.Id) {
+							accept_shared_draft(*accepted.Accepted);
+						}
+					}
+					if (after) {
+						after();
+					}
+				};
+				if ((aSuccess || aPreserveForRetry) && !publishing->Draft.ReplyToThread) {
+					PrivateReview->restore(std::move(complete));
+				} else {
+					PrivateReview->change_draft({ { publishing->Draft.Id, aSuccess ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish, { } }, publishing->Revision, false, { }, publishing->Scope }, std::move(complete));
+				}
+				return;
+			}
+
+			auto outcome = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
 			}
@@ -9097,7 +9790,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void retire_review_mutation_host()
 		{
-			complete_shared_draft(false);
+			complete_shared_draft(false, { }, PendingReviewMutation.has_value());
 			if (ReviewMutationHost != nullptr) {
 				ReviewMutationHost->shutdown();
 				RetiredReviewMutationHosts.push_back(
@@ -9149,6 +9842,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			InlineReviewBinding = *selection;
 			const auto target   = selection->Target.Semantic;
 			Fixture->prepare_review_mutation(target);
+			Fixture->set_private_lineage(PrivateReview);
 			if (ReviewMutationDecisionGate == nullptr) {
 				ReviewMutationDecisionGate = std::make_unique<
 					gated_review_mutation_decision_executor>(DecisionLane);
@@ -9203,7 +9897,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(lease),
 				selection->Target,
 				selection->ActingIdentity,
-				std::move(*recovery), DiagnosticLog);
+				std::move(*recovery), PrivateReview.get(), DiagnosticLog);
 			if (provider.has_value()) {
 				InlineReviewBinding = *selection;
 				auto erased         = std::unique_ptr<application::review_mutation_port>{
@@ -9221,6 +9915,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					DecisionLane,
 					*this,
 					this);
+				ReviewMutationHost->repair_pending_publications();
 			} else {
 				LiveReviewMutationGrant.reset();
 			}
@@ -9442,6 +10137,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (!Closing && !ReviewDraft && PrivateReview && aIdentity.starts_with(prefix) && SelectedSemanticSelection
+				&& draft_on_thread_line(core::review_comment_draft{ .Anchor = SelectedSemanticSelection->PreferredLine }, aIdentity)) {
+				const auto anchor = SelectedSemanticSelection->PreferredLine;
+				if (PrivateDraftSelectionPending || !PrivateDraftsReady) {
+					// Await only this exact selected line; navigation clears the continuation.
+					PendingPrivateReply = std::pair{ anchor, aIdentity };
+					return;
+				}
+				const auto owner             = SharedDrafts;
+				PrivateDraftSelectionPending = true;
+				PrivateReview->select_reply(anchor, std::string{ aIdentity.substr(prefix.size()) }, [this, owner, anchor](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || !owner || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
+						return;
+					}
+					const auto accepted = owner->read(DraftConsumer, aCommit->records().back().Draft.Draft.Id);
+					if (accepted.Accepted) {
+						accept_shared_draft(*accepted.Accepted);
+						Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
+					}
+				});
+				return;
+			}
 			if (Closing || Window == nullptr || !SharedDrafts || !aIdentity.starts_with(prefix)
 				|| !ReviewDraft.has_value()
 				|| ReviewDraft->State != core::review_draft_state::drafting
@@ -9454,6 +10175,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced aggregate
 			// member twice when a later member initializer throws.
+			if (PrivateReview && PrivateDraftsReady) {
+				dispatch_review_draft({ .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
+				return;
+			}
 			auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
 			if (outcome.Failure || !outcome.Accepted) {
 				return;
@@ -9496,19 +10221,60 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
 				Window->begin_dif_draft(aRevisionedCommand);
 			}
+			if (PrivateReview && PrivateDraftsReady) {
+				if (aRevisionedCommand.Scope != DraftScope || aRevisionedCommand.ExpectedRevision != ReviewDraftRevision || aCommand.Id != ReviewDraft->Id) {
+					Window->review_editor()->present_conflict({ .Accepted = { *ReviewDraft, ReviewDraftRevision, DraftScope }, .Refusal = core::revisioned_draft_refusal::conflict });
+					return;
+				}
+				if (aCommand.Kind == core::review_draft_command_kind::begin_publish && ReviewDraft->State == core::review_draft_state::publishing) {
+					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
+						const auto retained = SharedDrafts->read(DraftConsumer, ReviewDraft->Id);
+						if (retained.Accepted) {
+							finish_review_draft_command(aRevisionedCommand, retained);
+						}
+					}
+					return;
+				}
+				if (PrivateDraftCommandPending) {
+					return;
+				}
+				PrivateDraftCommandPending = true;
+				const auto owner           = SharedDrafts;
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand](auto aCommit) {
+					PrivateDraftCommandPending = false;
+					if (Closing || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
+					if (accepted.Accepted) {
+						finish_review_draft_command(aRevisionedCommand, accepted);
+					}
+				});
+				return;
+			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
-			if (outcome.Failure || !outcome.Accepted) {
+			finish_review_draft_command(aRevisionedCommand, outcome);
+		}
+		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
+		void                                                         finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		{
+			const auto& aCommand = aRevisionedCommand.Command;
+
+			if (aOutcome.Failure || !aOutcome.Accepted) {
 				Window->cancel_dif_draft(aRevisionedCommand);
-				if (outcome.Accepted && outcome.Refusal == core::revisioned_draft_refusal::conflict) {
-					Window->review_editor()->present_conflict({ .Accepted = *outcome.Accepted, .Refusal = outcome.Refusal });
+				if (aOutcome.Accepted && aOutcome.Refusal == core::revisioned_draft_refusal::conflict) {
+					Window->review_editor()->present_conflict({ .Accepted = *aOutcome.Accepted, .Refusal = aOutcome.Refusal });
 				}
 				return;
 			}
-			Window->review_editor()->acknowledge(aRevisionedCommand, *outcome.Accepted);
-			accept_shared_draft(*outcome.Accepted);
-			Window->accept_dif_draft(aRevisionedCommand, *outcome.Accepted);
+			Window->review_editor()->acknowledge(aRevisionedCommand, *aOutcome.Accepted);
+			accept_shared_draft(*aOutcome.Accepted);
+			if (aRevisionedCommand.ChangeReplyTarget && aRevisionedCommand.ReplyToThread) {
+				Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
+			}
+			Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
-				PublishingDraft = *outcome.Accepted;
+				PublishingDraft = *aOutcome.Accepted;
 			}
 
 			if (RetryableReviewDraft.has_value()
@@ -9525,8 +10291,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
 				return;
 			}
-			const auto proposal = core::propose_publication(
+			auto proposal = core::propose_publication(
 				*ReviewDraft, core::review_disposition::comment);
+			if (proposal && PrivateReview && PrivateDraftsReady && !ReviewDraft->ReplyToThread) {
+				const auto bound = PrivateReview->binding();
+				if (bound) {
+					proposal->Durable = core::durable_review_publication_identity{ bound->Scope.Incarnation.bytes(), ReviewDraftRevision };
+				}
+			}
 			if (!proposal.has_value()) {
 				complete_shared_draft(false);
 				return;
@@ -9562,6 +10334,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation = context;
+			Window->review_editor()->allow_publication_retry(false);
 		}
 
 		void adopt_review_selection(
@@ -9569,6 +10342,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const qt::review_draft_editor_clear_reason     aReason)
 		{
 			SelectedSemanticSelection = aSelection;
+			PendingPrivateReply.reset();
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
 			if (Window != nullptr && Window->review_editor() != nullptr) {
@@ -9678,9 +10452,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void present_review_draft(const core::semantic_selection& aSelection)
 		{
+			observe_private_review();
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr
 				|| WorkbenchHost == nullptr || !SelectedDiffPublication.has_value()
+				|| aSelection.PreferredLine.Side != core::diff_side::right
 				|| aSelection.Comparison
 					!= core::comparison_digest(SelectedDiffPublication->Key)
 				|| aSelection.PreferredLine.Comparison != aSelection.Comparison
@@ -9715,6 +10491,51 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!SharedDrafts) {
 				return;
 			}
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || PrivateDraftSelectionPending) {
+					return;
+				}
+				PrivateDraftSelectionPending = true;
+				const auto owner             = SharedDrafts;
+				const auto anchor            = aSelection.PreferredLine;
+				PrivateReview->select_draft(anchor, [this, owner, anchor](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					const auto adopted = aCommit && owner->adopt(owner->authority(), *aCommit);
+					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
+						if (SelectedSemanticSelection) {
+							present_review_draft(*SelectedSemanticSelection);
+						}
+						return;
+					}
+					if (!adopted) {
+						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
+							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
+							begin_review_reply(reply->second);
+							return;
+						}
+						Window->review_editor()->present(application::review_mutation_failure::unavailable);
+						return;
+					}
+					// Durable storage can contain an earlier empty inline draft and a
+					// later accepted composition at this same exact line. Reopen
+					// the latest active committed draft without allocating a new ID.
+					const auto candidates = aCommit->records();
+					const auto found      = std::ranges::find_if(candidates.rbegin(), candidates.rend(), [&](const auto& aRecord) { return aRecord.Draft.Draft.Anchor == anchor && !aRecord.Draft.Draft.ReplyToThread && (aRecord.Draft.Draft.State == core::review_draft_state::drafting || aRecord.Draft.Draft.State == core::review_draft_state::publishing); });
+					const auto selected   = found == candidates.rend() ? owner->select(DraftConsumer, anchor) : owner->read(DraftConsumer, found->Draft.Draft.Id);
+					if (selected.Accepted) {
+						accept_shared_draft(*selected.Accepted);
+						refresh_agent_private_context_choices();
+						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
+							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
+							begin_review_reply(reply->second);
+						}
+					}
+				});
+				return;
+			}
 			const auto created = SharedDrafts->select(DraftConsumer, aSelection.PreferredLine);
 			if (!created.Accepted || (created.Failure && created.Failure != application::shared_draft_failure::conflict)) {
 				return;
@@ -9726,6 +10547,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void publish(
 			const application::review_mutation_terminal& aTerminal) override
 		{
+			if (!Closing && aTerminal.Lineage == application::review_lineage_state::pending && ReviewMutationHost) {
+				ReviewMutationHost->repair_pending_publications();
+			}
+			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
+				if (aTerminal.Result && Window && Window->review_editor()) {
+					Window->review_editor()->acknowledge_published_body(*PublishingDraft);
+				}
+				const auto uncertain = !aTerminal.Result && (aTerminal.Result.error() == application::review_mutation_failure::unavailable || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable || aTerminal.Result.error() == application::review_mutation_failure::malformed_response || aTerminal.Result.error() == application::review_mutation_failure::cancelled);
+				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal] { finish_review_terminal(terminal); }, uncertain);
+				return;
+			}
+			finish_review_terminal(aTerminal);
+		}
+		void finish_review_terminal(const application::review_mutation_terminal& aTerminal)
+		{
+
 			if (Closing
 				|| PendingReviewMutation != std::optional{ aTerminal.Context }) {
 				return;
@@ -9734,8 +10571,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
-			if (!ReviewDraft.has_value()
-				|| ReviewDraft->State != core::review_draft_state::publishing) {
+			if (!ReviewDraft.has_value()) {
 				if (deferred.has_value()) {
 					adopt_review_selection(
 						*deferred,
@@ -9776,6 +10612,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto* const editor = Window->review_editor();
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+			editor->allow_publication_retry(PrivateReview && !aTerminal.Result && ReviewDraft->State == core::review_draft_state::publishing);
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
 				if (InlineReviewBinding) {
@@ -9799,6 +10636,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void retire_review_ledger()
 		{
+			if (PrivateReview) {
+				PrivateReview->invalidate();
+			}
+			PrivateDraftsReady = false;
 			if (PrivateNoteScope < std::numeric_limits<std::uint64_t>::max()) {
 				++PrivateNoteScope;
 			}
@@ -9827,10 +10668,56 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		std::shared_ptr<private_review_workflow>       PrivateReview;
+		std::optional<application::private_run_intent> ExplicitPrivateRun;
+		core::agent_setting_facts                      PrivateRequested;
+		bool                                           PrivateDraftsReady           = false;
+		bool                                           PrivateDraftSelectionPending = false;
+		bool                                           PrivateDraftCommandPending   = false;
+		void                                           observe_private_review()
+		{
+			if (!PrivateReview || !EpochHost || !Window) {
+				return;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+				return;
+			}
+			const auto& authority  = *state.Authority;
+			const auto& revision   = *state.AcceptedRevision;
+			const auto& comparison = *state.AcceptedComparison;
+			auto        binding    = core::private_review_binding{ .Access = LastAcceptedHandoff ? LastAcceptedHandoff->Mode : core::github_access_mode::authenticated, .HostAuthority = authority.HostAuthority, .Revision = { authority.Host, authority.Repository, authority.PullRequest, revision.Base, revision.Head, comparison.Left.Identity.Epoch, comparison.Right.Identity.Epoch }, .LeftAnchor = comparison.Left.Identity, .RightAnchor = comparison.Right.Identity };
+			const auto  index      = Window->comparison_surface()->current_semantic_index();
+			if (index) {
+				binding.Comparison = index->diff().Alignment.Digest;
+			}
+			PrivateReview->observe(binding, index, SelectedSemanticSelection ? std::optional{ SelectedSemanticSelection->PreferredLine } : std::nullopt);
+			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
+				PrivateDraftsReady = true;
+				const auto owner   = SharedDrafts;
+				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}}else{PrivateDraftsReady=false;} });
+			}
+		}
+		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
+		{
+			if (Closing || !SharedDrafts || !SharedDrafts->adopt(SharedDrafts->authority(), aCommit)) {
+				return;
+			}
+			if (aOpen && !aCommit.records().empty()) {
+				const auto& value = aCommit.records().front().Draft;
+				const auto  read  = SharedDrafts->read(DraftConsumer, value.Draft.Id);
+				if (read.Accepted && SelectedSemanticSelection && value.Draft.Anchor == SelectedSemanticSelection->PreferredLine) {
+					accept_shared_draft(*read.Accepted);
+					Window->open_review_composition(true);
+				}
+			}
+		}
 		void compose_review_ledger(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
 			retire_review_ledger();
+			PrivateDraftsReady = false;
+
 			const auto repository
 				= aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name;
 			auto       opened    = adapters::sqlite::make_review_ledger_store({
@@ -9860,6 +10747,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->clear_review_ledger(!available);
 			}
 			publish_read_state();
+			if (PrivateReview) {
+				PrivateReview->open({ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest }, [this] {
+					observe_private_review();
+					if (ReviewMutationHost) {
+						ReviewMutationHost->repair_pending_publications();
+					}
+				});
+			}
 		}
 
 		void refresh_shared_ledger(const application::workbench_pull_request_authority& aSource, ledger_changes aChanges)
@@ -10662,6 +11557,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 			if (ReviewSubmission) {
 				ReviewSubmission->invalidate(aInvalidation);
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 			}
 			if (TourOwner && TourOwner->Host == aInvalidation.Host && TourOwner->Account == aInvalidation.Account && TourOwner->Repository == aInvalidation.Repository && TourOwner->PullRequest == aInvalidation.PullRequest) {
 				suspend_review_tour();
@@ -11698,6 +12596,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void refresh_agent_authority()
 		{
+			observe_private_review();
 			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
 				return;
 			}
@@ -11819,7 +12718,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const std::string_view                                aChatMessage,
 			const std::optional<core::agent_session>&             aTurnSession,
 			const core::agent_entry_point                         aEntryPoint,
-			const std::optional<core::workshop_operation>&        aWorkshopOperation)
+			const std::optional<core::workshop_operation>& aWorkshopOperation, bool aWritingOnly = false)
 			-> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
@@ -11952,6 +12851,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					*aTurnSession,
 					pointedAt);
 			}
+			if (aWritingOnly) {
+				observation.Files.clear();
+				observation.Selection.reset();
+				observation.CurrentDraft.reset();
+				observation.Private.Notes.clear();
+				observation.Private.Defects.clear();
+			}
 			return launch_agent_invocation(
 				aProfile,
 				authority,
@@ -11959,7 +12865,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(observation),
 				aExistingCheckoutChosen,
 				std::nullopt,
-				frozen_snapshot_files());
+				aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly);
 		}
 
 		/// \brief Freezes one turn's identities, pins them, and dispatches it.
@@ -11986,18 +12892,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			application::agent_context_observation         aObservation,
 			const bool                                     aExistingCheckoutChosen,
 			const std::optional<core::agent_session>&      aContinuedSession,
-			std::vector<core::agent_finding_snapshot_file> aFrozen) -> bool
+			std::vector<core::agent_finding_snapshot_file> aFrozen, bool aWritingOnly = false) -> bool
 		{
 			if (Closing || AgentHost == nullptr) {
 				return false;
 			}
-			if (McpHelper != nullptr) {
+			if (McpHelper != nullptr && !aWritingOnly) {
 				const auto encoded = adapters::mcp::encode_revision_binding(
 					aObservation.Binding);
 				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, aFrozen)) {
 					++FrozenSnapshotWrites;
 					McpHelper->pin(McpSnapshotRoot, encoded);
 				}
+			}
+			if (!aWritingOnly && (!aObservation.IncludedNotes.empty() || aObservation.IncludedDraft)) {
+				Window->agent_panel()->refuse("Choose immutable revisions or findings in Private history, then Ask agent using selected sources.");
+				return false;
+			}
+			auto privateRun = aWritingOnly ? std::optional<application::private_run_intent>{ } : ExplicitPrivateRun;
+			if (!aWritingOnly && !privateRun && PrivateReview) {
+				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
 			}
 			AgentHost->dispatch(application::agent_invocation_request{
 				.ApplicationSession     = aApplicationSession,
@@ -12008,6 +12922,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.ExistingCheckout       = ExistingCheckout,
 				.FrozenFiles            = std::move(aFrozen),
 				.ContinuedSession       = aContinuedSession,
+				.WritingOnly            = aWritingOnly,
+				.RequestedSettings      = PrivateRequested,
+				.PrivateRun             = std::move(privateRun),
 			});
 			return true;
 		}
@@ -13664,6 +14581,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			if (PrivateReview) {
+				PrivateReview->shutdown();
+			}
+			Profile->WorkbenchPreferences->unsubscribe(WritingHookSubscription);
 			if (TourHost) {
 				TourHost->shutdown();
 			}
@@ -13677,6 +14598,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			if (ReviewSubmission) {
 				ReviewSubmission->shutdown();
+				if (TourPublication) {
+					TourPublication->shutdown();
+				}
 			}
 			// Every composed host must be told, or the shutdown poll waits on a
 			// host that was never asked to stop and the application never
@@ -13742,8 +14666,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
+				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
+				|| (PrivateReview && !PrivateReview->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
 				|| std::ranges::any_of(
 					RetiredReviewMutationHosts,
@@ -13832,6 +14758,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			ReviewSubmission.reset();
+			TourPublication.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
 			if (!McpSnapshotRoot.empty()) {
@@ -14164,6 +15091,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			enum class phase {
 				awaiting_editor,
+				awaiting_edited_body,
+				awaiting_fallback_draft,
+				awaiting_fallback_body,
 				awaiting_stale_refusal,
 				awaiting_lost_effect,
 				awaiting_deferred_terminal,
@@ -14175,7 +15105,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 
 			detail::review_round_trip_composition_probe_evidence Evidence;
-			phase                                                Phase = phase::awaiting_editor;
+			std::uint64_t                                        PriorDraftRevision = 0;
+			std::size_t                                          DraftIntents       = 0;
+			phase                                                Phase              = phase::awaiting_editor;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait                Wait;
 			bool                                      NativeLineChosen = false;
@@ -14254,6 +15186,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
+		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;
@@ -21596,6 +22529,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		const auto phaseName = [](const state_type::phase aPhase) {
 			switch (aPhase) {
+			case state_type::phase::awaiting_edited_body:    return "awaiting_edited_body";
+			case state_type::phase::awaiting_fallback_draft: return "awaiting_fallback_draft";
+			case state_type::phase::awaiting_fallback_body:  return "awaiting_fallback_body";
 			case state_type::phase::awaiting_editor:
 				return "awaiting_editor";
 			case state_type::phase::awaiting_stale_refusal:
@@ -21629,6 +22565,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					<< " workbench_host=" << present(implementation->WorkbenchHost != nullptr)
 					<< " mutation_host=" << present(implementation->ReviewMutationHost != nullptr)
 					<< " review_draft=" << draftState()
+					<< " private_ready=" << present(implementation->PrivateDraftsReady)
+					<< " private_selection_pending=" << present(implementation->PrivateDraftSelectionPending)
+					<< " semantic_selection=" << present(implementation->SelectedSemanticSelection.has_value())
+					<< " pending_reply=" << present(implementation->PendingPrivateReply.has_value())
 					<< " accepted_handoff=" << present(implementation->LastAcceptedHandoff.has_value())
 					<< " last_selected_diff=" << present(implementation->LastSelectedDiff.has_value())
 					<< " review_editor=" << present(implementation->Window != nullptr && implementation->Window->review_editor() != nullptr)
@@ -21637,10 +22577,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
 					<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures);
 		};
+		if (probe.Phase == state_type::phase::awaiting_editor && implementation->Window && implementation->LastSelectedDiff) {
+			implementation->Window->choose_modality(qt::review_modality::review);
+			auto* comparison = implementation->Window->comparison_surface();
+			if (comparison->current_semantic_index() && !comparison->geometry_pending()
+				&& (!comparison->selection() || comparison->selection()->PreferredLine.Side != core::diff_side::right)) {
+				(void)comparison->select_conversation_line(core::diff_side::right, 0);
+			}
+		}
+		// A successful retry can retire the selected draft while the server refresh
+		// is still reaching this probe. Conversation checks use the accepted server
+		// snapshot; they do not need the editor's former draft selection.
+		const auto needsDraft = probe.Phase != state_type::phase::awaiting_retry
+			&& probe.Phase != state_type::phase::awaiting_native_conversation
+			&& probe.Phase != state_type::phase::awaiting_fallback_draft
+			&& probe.Phase != state_type::phase::awaiting_fallback_conversation;
 		if (implementation->Fixture != nullptr && implementation->Window != nullptr
 			&& implementation->WorkbenchHost != nullptr
 			&& implementation->ReviewMutationHost != nullptr
-			&& !implementation->ReviewDraft.has_value()
+			&& needsDraft && !implementation->ReviewDraft.has_value()
 			&& implementation->WorkbenchHost->outstanding_requests() == 0U) {
 			auto* const view = implementation->Window->files_drawer()->contents_view();
 			if (view != nullptr && view->model() != nullptr
@@ -21652,7 +22607,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
 			|| implementation->ReviewMutationHost == nullptr
-			|| !implementation->ReviewDraft.has_value()
+			|| (needsDraft && !implementation->ReviewDraft.has_value())
 			|| !implementation->LastAcceptedHandoff.has_value()
 			|| !implementation->LastSelectedDiff.has_value()
 			|| implementation->Window->review_editor() == nullptr) {
@@ -21759,21 +22714,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!unchanged || right->findBlockByNumber(line).text().isEmpty()) {
 					continue;
 				}
-				if (!clickRightLine(static_cast<std::uint32_t>(line)) || !comparison->selection()) {
+				if (!clickRightLine(static_cast<std::uint32_t>(line))
+					|| !comparison->select_conversation_line(core::diff_side::right, static_cast<std::uint32_t>(line))
+					|| !comparison->selection()
+					|| comparison->selection()->PreferredLine.Side != core::diff_side::right) {
 					return fail();
 				}
 				probe.OffHunkAnchor = comparison->selection()->PreferredLine;
 				break;
 			}
+			return advance(state_type::phase::awaiting_fallback_draft);
+		}
+		if (probe.Phase == state_type::phase::awaiting_fallback_draft) {
+			auto* const files = implementation->Window->files_drawer()->contents_view();
+			if (files && files->model() && files->model()->rowCount() > 0 && !files->currentIndex().isValid()) {
+				files->setCurrentIndex(files->model()->index(0, 0));
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_DRAFT_STALLED", draftFacts);
+			}
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (probe.OffHunkAnchor && (!comparison->selection() || comparison->selection()->PreferredLine != *probe.OffHunkAnchor)) {
+				(void)comparison->select_conversation_line(core::diff_side::right, probe.OffHunkAnchor->Line);
+			}
 			if (!probe.OffHunkAnchor || !editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
 				|| implementation->ReviewDraft->State != core::review_draft_state::drafting) {
-				return fail();
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_DRAFT_STALLED", draftFacts);
 			}
 			editor->body_editor()->setPlainText(QStringLiteral("BPR-0571 off-hunk publication."));
-			editor->publish_action()->trigger();
-			if (!implementation->ReviewDraft || implementation->ReviewDraft->State != core::review_draft_state::publishing) {
-				return fail();
+			return advance(state_type::phase::awaiting_fallback_body);
+		}
+		if (probe.Phase == state_type::phase::awaiting_fallback_body) {
+			if (implementation->ReviewDraft->Body != "BPR-0571 off-hunk publication." || !editor->publish_action()->isEnabled()) {
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_BODY_STALLED", draftFacts);
 			}
+			editor->publish_action()->trigger();
 			return advance(state_type::phase::awaiting_fallback_conversation);
 		}
 
@@ -21839,6 +22812,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return fail();
 				}
 			}
+			if (!editor->shown_draft() || editor->shown_draft()->Anchor != comparison->selection()->PreferredLine) {
+				return wait("REVIEW_ROUND_TRIP_SELECTED_DRAFT_STALLED", draftFacts);
+			}
 			probe.Evidence.ExactDesignatedTarget
 				= implementation->ReviewMutationHost->designated() == designated;
 			probe.Evidence.EditorComposed = editor->shown_draft().has_value()
@@ -21862,12 +22838,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail();
 			}
 
-			const auto draftIntents       = editor->statistics().DraftIntents;
-			const auto priorDraftRevision = implementation->ReviewDraftRevision;
+			probe.DraftIntents       = editor->statistics().DraftIntents;
+			probe.PriorDraftRevision = implementation->ReviewDraftRevision;
 			editor->body_editor()->setPlainText(
 				QStringLiteral("BPR-0229 fixture publication."));
+			return advance(state_type::phase::awaiting_edited_body);
+		}
+		if (probe.Phase == state_type::phase::awaiting_edited_body) {
+			if (implementation->ReviewDraft->Body != "BPR-0229 fixture publication." || !editor->publish_action()->isEnabled()) {
+				return wait("REVIEW_ROUND_TRIP_EDIT_ACK_STALLED", draftFacts);
+			}
 			probe.Evidence.SemanticEdit
-				= editor->statistics().DraftIntents == draftIntents + 1U
+				= editor->statistics().DraftIntents == probe.DraftIntents + 1U
 				&& implementation->ReviewDraft->Body
 					== "BPR-0229 fixture publication.";
 			if (!probe.Evidence.SemanticEdit) {
@@ -21881,7 +22863,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-0822]]. Named nested types, as in the shared draft edit.
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
 				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
-				.ExpectedRevision = priorDraftRevision,
+				.ExpectedRevision = probe.PriorDraftRevision,
 				.Scope            = implementation->DraftScope });
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
 				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
@@ -21907,6 +22889,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_stale_refusal) {
+			if (implementation->PendingReviewMutation || implementation->PrivateDraftCommandPending) {
+				return wait("REVIEW_ROUND_TRIP_STALE_TERMINAL_STALLED", draftFacts);
+			}
 			const auto provider = implementation->Fixture->review_mutation_evidence();
 			probe.Evidence.StaleHeadRefused
 				= implementation->ReviewDraft->State
@@ -22016,8 +23001,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		if (implementation->ReviewMutationHost->outstanding_requests() != 0U
-			|| implementation->ReviewDraft->State
-				== core::review_draft_state::publishing) {
+			|| implementation->PendingReviewMutation || implementation->PrivateDraftCommandPending) {
 			// The released or retried publication reaches its terminal.
 			return wait(probe.Phase == state_type::phase::awaiting_retry
 							? "REVIEW_ROUND_TRIP_RETRY_STALLED"
@@ -22071,7 +23055,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					== probe.PublishingSelection
 				&& comparison->selection() == probe.PublishingSelection
 				&& implementation->ReviewDraft->State
-					== core::review_draft_state::drafting
+					== core::review_draft_state::publishing
 				&& implementation->ReviewDraft->Anchor
 					== probe.PublishingSelection->PreferredLine
 				&& implementation->ReviewDraft->Id == probe.PublishingDraft->Id

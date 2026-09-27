@@ -143,7 +143,7 @@ exact-target/head checks, persistence and mutation recovery intact. A concrete
 data-loss, wrong-target, duplicate-publication or credential defect blocks the
 affected alpha path; speculative hardening does not.
 
-RFCs still close in canonical order. The owner's alpha priority permits this
+RFCs close when their explicit dependencies and acceptance criteria are satisfied. The owner's alpha priority permits this
 bounded delivery work without completing the entire pack first; it does not
 mark open criteria passed or activate the deferred redesign RFCs. On resume,
 start with step 1, then allocate/claim only the next essential implementation

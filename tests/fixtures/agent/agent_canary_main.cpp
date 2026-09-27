@@ -162,7 +162,9 @@ namespace {
 
 	void emit(const protocol aProtocol, const std::string_view aMessage)
 	{
-		const auto escaped = json_escape(aMessage);
+		const auto           escaped  = json_escape(aMessage);
+		static std::uint64_t nextItem = 0;
+		const auto           itemId   = "item-" + std::to_string(++nextItem);
 		switch (aProtocol) {
 		case protocol::codex_app_server:
 			write_partial(
@@ -173,14 +175,14 @@ namespace {
 			break;
 		case protocol::codex_jsonl:
 			write_partial(
-				"{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\","
-				"\"type\":\"agent_message\",\"text\":\""
+				"{\"type\":\"item.completed\",\"item\":{\"id\":\"" + itemId + "\","
+																			  "\"type\":\"agent_message\",\"text\":\""
 				+ escaped + "\"}}\n");
 			break;
 		case protocol::claude_stream_json:
 			write_partial(
 				"{\"type\":\"assistant\",\"session_id\":\"canary-session\","
-				"\"message\":{\"role\":\"assistant\",\"content\":[{"
+				"\"message\":{\"role\":\"assistant\",\"model\":\"canary-served\",\"content\":[{"
 				"\"type\":\"text\",\"text\":\""
 				+ escaped + "\"}]}}\n");
 			break;
@@ -201,7 +203,7 @@ namespace {
 		case protocol::claude_stream_json:
 			write_partial(
 				"{\"type\":\"system\",\"subtype\":\"init\","
-				"\"session_id\":\"canary-session\"}\n");
+				"\"session_id\":\"canary-session\",\"model\":\"canary-configured\",\"claude_code_version\":\"fixture-1\"}\n");
 			break;
 		case protocol::codex_app_server:
 		case protocol::external_terminal:
@@ -308,7 +310,7 @@ namespace {
 			// protocol loop already refuses.
 			write_partial("{\"id\":0,\"result\":{}}\n");
 			write_partial(
-				"{\"id\":1,\"result\":{\"thread\":{\"id\":\"canary-thread\"}}}\n");
+				"{\"id\":1,\"result\":{\"model\":\"canary-reported\",\"reasoningEffort\":\"low\",\"thread\":{\"id\":\"canary-thread\"}}}\n");
 			write_partial(
 				"{\"id\":2,\"result\":{\"turn\":{\"id\":\"canary-turn\","
 				"\"items\":[],\"status\":\"inProgress\"}}}\n");
@@ -337,7 +339,7 @@ namespace {
 		if (aPreemptiveAppServer) {
 			const auto preemptive = std::string{
 				"{\"id\":0,\"result\":{}}\n"
-				"{\"id\":1,\"result\":{\"thread\":{\"id\":\"canary-thread\"}}}\n"
+				"{\"id\":1,\"result\":{\"model\":\"canary-reported\",\"reasoningEffort\":\"low\",\"thread\":{\"id\":\"canary-thread\"}}}\n"
 				"{\"id\":2,\"result\":{\"turn\":{\"id\":\"canary-turn\","
 				"\"items\":[],\"status\":\"inProgress\"}}}\n"
 				"{\"method\":\"item/agentMessage/delta\",\"params\":{"
@@ -365,7 +367,7 @@ namespace {
 			input += line + '\n';
 		}
 		write_partial(
-			"{\"id\":1,\"result\":{\"thread\":{\"id\":\"canary-thread\"}}}\n");
+			"{\"id\":1,\"result\":{\"model\":\"canary-reported\",\"reasoningEffort\":\"low\",\"thread\":{\"id\":\"canary-thread\"}}}\n");
 
 		if (std::getline(std::cin, line)) {
 			input += line + '\n';
@@ -643,6 +645,9 @@ auto main(int argc, char** argv) -> int
 	if (has_argument(argc, argv, "--stderr-before-input")) {
 		std::cerr << std::string(64U * 1024U, 'e');
 		std::cerr.flush();
+	}
+	if (argument_after(argc, argv, "--delay-input-ms") == "400") {
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 400 });
 	}
 	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));

@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_PORT_HPP
 
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/application/private_review_store.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/github_model.hpp"
@@ -232,6 +233,23 @@ namespace bpr::application {
 		auto operator<=>(const review_mutation_receipt&) const = default;
 	};
 
+	enum class review_lineage_state : std::uint8_t { absent,
+													 pending,
+													 recorded };
+	/// \brief Local correlation only. A refusal never grants or retries a remote write.
+	class review_publication_lineage_port
+	{
+	public:
+		virtual ~review_publication_lineage_port() = default;
+		/// Called before recovery-journal admission/transmission on the serialized effect lane.
+		[[nodiscard]] virtual auto prepare(const review_mutation_request&, std::string_view aLogical, std::string_view aWireBody) -> bool = 0;
+		/// Called only after receipt plus exact actor/body/target reconciliation.
+		[[nodiscard]] virtual auto complete(const review_mutation_request&, std::string_view aLogical, std::string_view aWireBody, const review_mutation_receipt&) -> bool = 0;
+		/// Pending rows are read on the serialized mutation lane. No row grants a write.
+		[[nodiscard]] virtual auto pending(const core::review_mutation_target&, core::github_account_id) -> std::vector<private_publication_record> { return { }; }
+		/// Records only a separately observed exact server comment.
+		[[nodiscard]] virtual auto complete_observed(const private_publication_record&, std::string_view, const review_mutation_receipt&) -> bool { return false; }
+	};
 	/// \brief Carries both the write outcome and its authoritative server refresh.
 	struct review_mutation_submission
 	{
@@ -241,10 +259,11 @@ namespace bpr::application {
 		std::expected<
 			std::vector<review_comment_projection>,
 			review_mutation_failure>
-			 Reconciliation{
-				 std::unexpected(review_mutation_failure::unavailable)
-			 };
-		bool MutationAttempted = false;
+							 Reconciliation{
+								 std::unexpected(review_mutation_failure::unavailable)
+							 };
+		bool                 MutationAttempted = false;
+		review_lineage_state Lineage           = review_lineage_state::absent;
 
 		auto operator==(const review_mutation_submission&) const -> bool = default;
 	};
@@ -348,6 +367,10 @@ namespace bpr::application {
 			static_cast<void>(aStop);
 			return std::unexpected(review_mutation_failure::unavailable);
 		}
+		/// \brief Repairs a previously admitted logical attempt using only reads; never submits.
+		[[nodiscard]] virtual auto reconcile_publication(const review_mutation_request&, std::stop_token = { }) -> review_mutation_submission { return { }; }
+		/// One read-only pass over retained private publication joins.
+		virtual void               repair_pending_publications(std::stop_token = { }) { }
 		[[nodiscard]] virtual auto capabilities() const
 			-> review_provider_capabilities = 0;
 	};

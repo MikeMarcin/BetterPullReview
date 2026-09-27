@@ -5,21 +5,30 @@ Current delivery priority (owner direction, 2026-09-06): follow the
 for GitHub.com and GitHub Enterprise. Reuse implemented surfaces, address only
 the essential reading/publication gaps, and defer nonessential features and
 hardening. This bounded delivery priority does not change RFC statuses or
-canonical closeout order, and does not by itself activate the deferred redesign RFCs.
+explicit RFC dependencies, and does not by itself activate the deferred redesign RFCs.
 
-The RFCs normally begin and always close in the order below. A dependent RFC
-does not become `Auto-Verified` before every listed dependency is
-`Auto-Verified`.
+RFCs close when their acceptance criteria and every explicit RFC dependency are
+satisfied. Index position and RFC number do not impose a global start or closeout
+order. A dependent RFC does not become `Auto-Verified` before every listed
+dependency is `Auto-Verified`.
+
+Owner amendment, 2026-09-27: the canonical-order rule is outdated and removed
+globally. The project workflow now uses dependency sequencing. Historical order
+statements in cards, plans and evidence do not reinstate that obsolete global
+gate. Separately recorded owner scheduling decisions, authored milestone
+prerequisites, scoped pack order and required human/native acceptance remain in
+force; this amendment alone does not activate deferred work.
 
 All live RFCs reside directly in `docs/rfcs/`, regardless of status or milestone.
 There is no `future/` status folder. RFC front matter and this index carry RFC
 status; issue-card lanes carry implementation backlog and progress. `plans/`
 and imported `assets/` remain source/reference material, not alternate live RFCs.
 
-Product-owner exception: real Windows x64 evidence retained by BPR-0036 is
-temporarily unavailable. RFC-BPR-0002 therefore remains the closure frontier,
+Historical original-pack delivery exception (retained for provenance): real
+Windows x64 evidence retained by BPR-0036 was
+temporarily unavailable. RFC-BPR-0002 was then the closure frontier,
 but that hardware-only gate does not block implementation, tests,
-documentation, security review, simplification, or later-RFC work on
+documentation, security review, simplification, or otherwise authorized work on
 available targets. RFC-BPR-0003 and RFC-BPR-0004 retain explicit closeout
 cards.
 
@@ -37,9 +46,8 @@ checks that need a person at the keyboard, and external authority such as a
 designated safe GitHub mutation target or a signing identity.
 
 The exception does not waive any Windows claim, change an RFC status, permit
-out-of-order Auto-Verified closeout, or make GitHub Actions an evidence
-surface. Closure remains strictly ordered: no RFC becomes `Auto-Verified`
-before every listed dependency is `Auto-Verified`.
+closeout with unmet explicit dependencies, or make GitHub Actions an evidence
+surface. Every listed dependency must be `Auto-Verified` before closeout.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
@@ -136,7 +144,7 @@ keeps M1–M11 unchanged, amends M12 under r4 and adds RFC0038's M13. Its
 [verification ledger](../verification/RFC-BPR-0014.md) distinguishes inherited
 icon/private-macOS-release evidence from pending clean Windows, macOS
 Intel/Apple Silicon and Linux package/security acceptance. BPR-0965 retains
-RFC-BPR-0013 and canonical closeout ordering. M8/M9 remain unaccepted under
+the explicit RFC-BPR-0013 dependency. M8/M9 remain unaccepted under
 the successor; completing RFC0014 does not complete the shared qualification plan.
 
 ## Additional RFCs
@@ -153,14 +161,14 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0017](RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Auto-Verified | Closed 2026-09-04 by BPR-0309 after RFC-BPR-0002 eligibility, validated owner build decision, focused macOS evidence and clean review of `d9006237`; macOS enabled, Linux/Windows unavailable |
 | [RFC-BPR-0018](RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Auto-Verified | RFC-0014 foundation dependency satisfied. BPR-0593 closes the recorded accepted scope under owner amendment r2; standalone BPR-0974 remains Blocked for Windows Defender/security disposition, full native course/current inventory, and BPR-0975 remains Blocked for Linux native focus/lifetime. No false-positive verdict, Linux course pass or RFC-0038 release qualification is inferred |
 | [RFC-BPR-0019](RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Auto-Verified | Closed 2026-09-26 through [BPR-0295](../issues/60-done/BPR-0295-anchor-rfc-0019-verification.md) after RFC-BPR-0006/0013 and all earlier canonical RFCs. The exact v008 AC1 amendment accepts disclosed provenance gaps; RFC-0030/0031 govern changed clips, budgets, regeneration and runtime selection. The [final ledger](../verification/RFC-BPR-0019.md#final-reconciliation--2026-09-26) binds fresh graph evidence and resolved independent findings; no package or new native visual qualification |
-| [RFC-BPR-0020](RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |
+| [RFC-BPR-0020](RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Auto-Verified | Closed 2026-09-26 through [BPR-1220](../issues/60-done/BPR-1220-close-rfc-0020.md) after RFC-BPR-0019 and every earlier canonical RFC. The [ledger](../verification/RFC-BPR-0020.md) reconciles all eleven original criteria with accepted RFC-0030/0031 deltas and the later 28-pixel corner verdict; fresh motion, appearance, public composition and scale checks pass. Windows/Linux System observation remains unsupported; BPR-0966's Windows cue follow-up and package qualification remain separate |
 | [RFC-BPR-0021](RFC-BPR-0021-conversation-revision-identity.md) | Conversation Revision Identity and the Comment-Code History Join | Deferred | RFC-BPR-0002 and RFC-BPR-0003 closed, and recorded probe evidence that a real service returns a per-comment commit — including unauthenticated and on GHES 3.18 |
-| [RFC-BPR-0022](RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) | Semantic Source-Line Comments and Off-Hunk Publication Compatibility | Proposed | Activated by the owner on 2026-09-26; authored milestones A–D adopted. Listed dependencies 0004/0005/0008 are Auto-Verified; canonical closeout order and exact designated native/fallback evidence remain required |
-| [RFC-BPR-0023](RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) | Private Review Threads, Provenance, and Comment Composition | Deferred | Later explicit implementation request; RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0011, and RFC-BPR-0012; shared publication integration follows RFC-BPR-0022 cards |
+| [RFC-BPR-0022](RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) | Semantic Source-Line Comments and Off-Hunk Publication Compatibility | Proposed | Activated by the owner on 2026-09-26; authored milestones A–D adopted. Listed dependencies 0004/0005/0008 are Auto-Verified; explicit dependencies and exact designated native/fallback evidence remain required |
+| [RFC-BPR-0023](RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) | Private Review Threads, Provenance, and Comment Composition | Auto-Verified | Closed 2026-09-27 by [BPR-0591](../issues/60-done/BPR-0591-anchor-rfc-0023-verification.md): all sixteen cards Done, eighteen direct criteria and architecture claims passed, final independent review findings resolved, designated GitHub publication/readback and linked ledger-loss read supplied; dependencies 0007/0008/0011/0012 Auto-Verified |
 | [RFC-BPR-0024](RFC-BPR-0024-bpr-profiles-multiple-windows.md) | BPR Profiles and Multiple Windows | Auto-Verified | RFC-BPR-0018 closed first. BPR-0595 closes the recorded accepted scope under owner amendment r3 with owner accepts on the exact signed-out and native-geometry candidates and passing Windows station rows at `1cd7f2f1`; standalone BPR-0980 took the deferred native Windows desktop activation/`--new-window` observation on 2026-09-23, after correcting the owner's foreground right in `f73aa135`; that is the card's observation, not part of this RFC's closure, and no RFC-0038 release qualification is inferred. Owner amendment r4 (2026-09-23) keeps AC-07 closed although its restoration course was red at the close; the course passes again at `0ddf929b` and is bound on BPR-0595 as AC-07's current evidence |
 | [RFC-BPR-0025](RFC-BPR-0025-review-workspace-navigation-browser-tabs.md) | Review Workspace Navigation and Browser-Style Tabs | Auto-Verified | Closed 2026-09-22 for the scope reconciled under RFC-BPR-0028 (plan `ux-redesign-pack-0028`): BPR-0981 (resident fuzzy filters with retained selection) and BPR-0985 (the reading-position restoration repair) are Done, and closeout [BPR-0597](../issues/60-done/BPR-0597-close-rfc-0025.md) records direct evidence for every surviving criterion. AC-04, the tab parts of AC-03, AC-05–AC-07 and AC-09, and AC-01's superseded chrome are recorded as superseded or unscheduled, not implemented and not passed; browser-style file tabs stay registered but unscheduled; RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0006, and RFC-BPR-0024 |
 | [RFC-BPR-0026](RFC-BPR-0026-personal-review-home-pr-url-navigation.md) | Personal Review Home and PR URL Navigation | Auto-Verified | Closed 2026-09-23 for the scope reconciled under plan `ux-redesign-pack-0028` ([BPR-0598](../issues/60-done/BPR-0598-inventory-personal-discovery-url-flow-and-plan.md)): BPR-0987 (exact link locations), BPR-0988 (personal discovery read), BPR-0989 (discovery scheduler and membership) and BPR-0990 (Home refresh, status, Follow and Save Repository, answering BPR-0801) are Done, and closeout [BPR-0599](../issues/60-done/BPR-0599-close-rfc-0026.md) records direct evidence for every criterion. AC-01's automatic restoration of other windows and its tabs are superseded by the owner's 2026-09-11 Home direction and RFC-BPR-0028, not passed; BPR-1017 (a new window's sign-in card, RFC-BPR-0024) was recorded outside this scope and is Done at `bfd927e7`; RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, and RFC-BPR-0025 |
-| [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Proposed | Owner reauthorized full implementation on 2026-09-26 and requires each accepted milestone to land on main; BPR-1215–1219 own structured events, retention, controls, export and native closeout. RFC-BPR-0001 and RFC-BPR-0002; BPR-0602 and BPR-0971 foundation retained |
+| [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Auto-Verified | Closed under owner amendment r3, 2026-09-27: the obsolete global canonical-order rule is removed; explicit RFC-BPR-0001/0002 dependencies are Auto-Verified. BPR-0601 records all nine product criteria and the three exact human Accept judgments. M1–M5 are landed; the RFC-0027 ledger preserves native developer, unpublished package and crash limits |
 | [RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md) | Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation | Proposed | Owner-locked 2026-09-06; supersedes the RFC-BPR-0025 layout and RFC-BPR-0026 Home presentation where they conflict; Settings, explorers and file tree designs follow. 62 of 63 cards Done under plan `ux-redesign-pack-0028`. Open on 2026-09-24: closeout [BPR-1021](../issues/10-backlog/BPR-1021-close-rfc-0028.md) is in Backlog under milestone `close-rfc-0028`, waiting only on BPR-0653 (the Windows title row, parked on human-review for its Windows attended capture). The owner's verdicts of 2026-09-24 amended AC-01 to admit the review surface's entry rows between the strip and the epoch line (with the standalone design follow-up BPR-1106), accepted Qt's private Windows native interface, and withdrew BPR-0746's unobtainable AC1 and AC2 by amendment, so BPR-0746 is Done |
 | [RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md) | Machine-Independent Epoch Identity and Pull Request Update History | Auto-Verified | Closed 2026-09-23 by [BPR-0750](../issues/60-done/BPR-0750-close-rfc-0029.md) once RFC-BPR-0008 closed and its own dependencies RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017 were `Auto-Verified`. All nine criteria have direct evidence; the closing pass at `58a2d885` was 24/24 across core, host, provider, SQLite, migration, Qt and composed-application rows. Only evidenced update occurrences receive portable identities; incomplete history and unknown historical bases remain explicit; migration is lossless even where identity is unresolved. Supersedes RFC-BPR-0003 in part. The GHES-origin legacy catalogue is synthetic and the agent-process course is macOS-local |
 | [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Auto-Verified | Closed in canonical order by BPR-0769: the exact ten-clip production revision, provenance, deterministic regeneration, measured bounds, and bound art/derivative decisions pass after RFC-BPR-0006 |
@@ -168,16 +176,16 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) | Calm Home and Accounts & Hosts: One Language for the Surfaces Before a Review | Proposed | Imported 2026-09-13 from the owner's brief for later implementation, Home revised the same day after owner review; a presentation revision that implements the accepted RFC-BPR-0028 Settings and Home statements as one card per server and state-ordered Home panels with grouping, and records the owner's amendment placing Home's Group, State headers, Filter and refresh in the strip; RFC-BPR-0016, RFC-BPR-0018 and RFC-BPR-0028 |
 | [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Auto-Verified | Closed 2026-09-23 by [BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md) once RFC-BPR-0024 was `Auto-Verified`. Closing the last window presents no chooser; macOS stays resident with its full menu bar, and Windows and Linux quit at exit 0 ([BPR-0798](../issues/60-done/BPR-0798-windows-native-empty-desktop-quit-evidence.md), [BPR-0799](../issues/60-done/BPR-0799-linux-native-empty-desktop-quit-evidence.md), and BPR-0817 under the owner-delegated amendment). The chooser is a sheet of rows. The closing recheck at `871c1185` passed 18/18 after [BPR-1035](../issues/60-done/BPR-1035-the-windowless-macos-menu-bar-drops-the-pull-request-menu.md) restored the windowless bar's Pull Request menu. The owner's 2026-09-16 verdicts stay bound to their candidates, and native activation was last observed unlocked at `a78eefcf` |
 | [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Auto-Verified | Closed 2026-09-22 by [BPR-0791](../issues/60-done/BPR-0791-close-rfc-0034.md) once RFC-BPR-0006 and RFC-BPR-0018 were `Auto-Verified`. The page is a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and the store keeps one customised palette per theme after a migration. The owner accepted the macOS candidate built from `ed2b3f14`, and the focused and end-to-end appearance courses pass again at `f06088b8`. The real macOS colour panel has no automated course, C1's two storage limitations stand, and C4's painter drift is standalone [BPR-0986](../issues/60-done/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md). On 2026-09-24 the owner amended C5 from 47 offered roles to 45 (the two hunk-header roles leave the card, not the theme documents; BPR-0986 builds it) and rejected the panes' tab markers for Sublime Text's white-space model with a setting (BPR-1107) |
-| [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Milestones 1–3 accepted; M4 source `518c384a` fixes the native menu and documents recovery/security. Owner amendment r3 defers Intel validation to nonblocking BPR-0950; BPR-0949 is Done under its Apple Silicon scope. BPR-0911 is Blocked on live private-release/vault AC-03; BPR-0912 remains Backlog with RFC-BPR-0014/canonical-order gates. Full M4/RFC acceptance remains open |
-| [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
+| [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Milestones 1–3 accepted; M4 source `518c384a` fixes the native menu and documents recovery/security. Owner amendment r3 defers Intel validation to nonblocking BPR-0950; BPR-0949 is Done under its Apple Silicon scope. BPR-0911 is Blocked on live private-release/vault AC-03; BPR-0912 remains Backlog with the explicit RFC-BPR-0014 dependency. Full M4/RFC acceptance remains open |
+| [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed; final acceptance reconciliation remains on BPR-0917 under the explicit dependencies |
 | [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Original technical closeout accepted at `e4096e05`; BPR-0934/AC-10 folder controls accepted at `a88c0d19` and landed on main by merge `0ddf929b`, with test-only correction `b6e14081`. RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and RFC-BPR-0029 are now closed, while RFC-BPR-0028 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
-| [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and canonical predecessors |
+| [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and its explicit RFC0014 dependency |
 | [RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md) | Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs | Proposed | Registered 2026-09-24 from the owner's decision on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md): ordered after RFC-BPR-0038 and before the review-tour pack, which builds on it; supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tabs; BPR-1129 to BPR-1134 are its slices and BPR-1135 owns the closeout. Owner amendment 2026-09-25: active now, ahead of canonical order ("The design session is complete, add RFC-BPR-0052 to the active work which should include BPR-1129 to BPR-1135"); decision `1d9104f8` originally held RFC-BPR-0039 to 0051 until RFC-BPR-0028 to 0038 close; the 2026-09-26 amendment below activates RFC-BPR-0039 to 0043 only. [Milestone plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md): BPR-1129, 1131 and 1134, then 1130, 1132 and 1133, then 1201 to 1207 (owner-approved plan amendment, 2026-09-25), then the closeout. On 2026-09-25 the owner answered all fourteen macOS questions on the m2 build (session 06ad5734): AC-03 amended to file before change, the tab strip amended (the plus activates its tab; tabs fill, shrink, then scroll), the kept-draft page and the Findings name rejected, and seven follow-up slices BPR-1201 to 1207 added before closeout; BPR-1206's width floor decided under the owner's delegation (Xcode's tabs). Owner amendment the same day on the second tray tab: it is the reviewer's private space for non-public notes and AI conversations and review feedback, promoted to drafts in Comments; its name (Notes), the thread controls' form and Dif's placement were decided under the owner's delegation, and BPR-1208 to 1210 join m2b |
-| [RFC-BPR-0039](RFC-BPR-0039-manual-first-review-tour-authoring.md) | Manual-First Review Tour Authoring | Proposed | Imported 2026-09-23 from the review-tour pack for later implementation; author prepares Problem, Solution and ordered tour stops without AI; RFC-BPR-0003, 0008, 0024, 0036 and 0037 |
-| [RFC-BPR-0040](RFC-BPR-0040-github-native-tour-format-import-and-navigation.md) | GitHub-Native Tour Format, Import, and Navigation | Proposed | Imported 2026-09-23; the published tour is ordinary GitHub comments with a Start here index and Previous/Next/overview links, re-importable without hidden metadata |
-| [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Proposed | Imported 2026-09-23; one native pending review staged, wired and submitted as COMMENT, with unknown outcomes reconciled rather than retried |
-| [RFC-BPR-0042](RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md) | Published Tour Maintenance and Reconciliation | Proposed | Imported 2026-09-23; later updates preserve comment identity and discussion, website edits are remote truth with preserved local conflicts |
-| [RFC-BPR-0043](RFC-BPR-0043-scoped-review-preparation-ai-assistance.md) | Scoped Review Preparation AI Assistance | Proposed | Imported 2026-09-23; optional in-place undoable writing commands and skeleton-only outlines after the manual lifecycle; no bulk Ready or autonomous publication |
+| [RFC-BPR-0039](RFC-BPR-0039-manual-first-review-tour-authoring.md) | Manual-First Review Tour Authoring | Auto-Verified | Closed under [owner amendment r2](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md), 2026-09-27, by [BPR-1016](../issues/60-done/BPR-1016-close-rfc-0043.md). Manual authoring and seven exact Mac candidates accepted; other stations remain Blocked BPR-1224; original 0036/0037 formal acceptance remains BPR-1226. |
+| [RFC-BPR-0040](RFC-BPR-0040-github-native-tour-format-import-and-navigation.md) | GitHub-Native Tour Format, Import, and Navigation | Auto-Verified | Closed under [owner amendment r2](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md), 2026-09-27, by [BPR-1016](../issues/60-done/BPR-1016-close-rfc-0043.md). Ordinary Markdown, exact links, cold import and navigation verified through production-port fixtures; live GitHub.com/GHES website courses remain Blocked BPR-1222/1223; original 0021/0022 acceptance remains BPR-1226. |
+| [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Auto-Verified | Closed under [owner amendment r2](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md), 2026-09-27, by [BPR-1016](../issues/60-done/BPR-1016-close-rfc-0043.md). Staging, exact submission, compatibility and recovery verified through production-port fixtures; all unqualified production Tour operations remain unavailable pending Blocked BPR-1222/1223. |
+| [RFC-BPR-0042](RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md) | Published Tour Maintenance and Reconciliation | Auto-Verified | Closed under [owner amendment r2](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md), 2026-09-27, by [BPR-1016](../issues/60-done/BPR-1016-close-rfc-0043.md). Maintenance, conflict/restart, identity/reply preservation and cold reimport verified through production-port fixtures; real website continuation remains Blocked BPR-1222/1223. |
+| [RFC-BPR-0043](RFC-BPR-0043-scoped-review-preparation-ai-assistance.md) | Scoped Review Preparation AI Assistance | Auto-Verified | Closed under [owner amendment r2](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md), 2026-09-27, by [BPR-1016](../issues/60-done/BPR-1016-close-rfc-0043.md). Scoped writing, native undo/settings/process delivery and outline/adversarial policy verified; installed-provider/model evidence remains Blocked BPR-1225. |
 | [RFC-BPR-0044](RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md) | Headless Tour Runtime and Terminal CLI | Proposed | Imported 2026-09-23 from the pr-tour CLI extension pack; an AI-free `bpr tour` terminal frontend over the RFC-BPR-0039 to 0042 tour services, with no GUI or display requirement |
 | [RFC-BPR-0045](RFC-BPR-0045-shared-local-tour-drafts-and-cross-interface-recovery.md) | Shared Local Tour Drafts and Cross-Interface Recovery | Proposed | Imported 2026-09-23; one same-machine WIP draft shared by desktop, CLI and skill through a single profile owner; published tours recover from GitHub alone |
 | [RFC-BPR-0046](RFC-BPR-0046-thin-pr-tour-agent-skill.md) | Thin pr-tour Agent Skill | Proposed | Imported 2026-09-23; a thin `pr-tour` skill over `bpr tour` that uses the active agent and the RFC-BPR-0043 hooks, distributed through the shared skill workflow |
@@ -251,8 +259,8 @@ must also be readable unauthenticated for RFC-BPR-0017 and identically on GHES
 
 RFC-BPR-0019 and RFC-BPR-0020 are the ordered Dif mascot program. RFC-BPR-0019
 creates the original, provenance-complete BPR asset and clip contract;
-RFC-BPR-0020 alone may compose those reviewed assets into the Qt workbench and
-real application. The product owner's Nib bootstrap contributes process
+RFC-BPR-0020 defines their original Qt workbench composition, now closed through
+the accepted RFC-BPR-0030/0031 successor implementation. The product owner's Nib bootstrap contributes process
 guidance only. Neither RFC authorizes importing Nib, Mel, AllTheThings art or
 code, foreign animation architecture, or mascot-authored review conclusions.
 
@@ -331,6 +339,17 @@ applies to RFC-BPR-0044 through RFC-BPR-0051. Formal dependency-ordered
 closure, required human/native/server evidence and the existing remote-effect
 boundary remain in force; this amendment supplies no acceptance verdict.
 
+Owner closeout amendment r2, 2026-09-27: “Just close and land it on main anyways,
+can file the GHE stuff as blocked follow-ups.” This accepts the verified
+RFC-BPR-0039–0043 implementation and seven exact Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) transfers
+GitHub.com live qualification to BPR-1222, GHES to BPR-1223, remaining native
+stations to BPR-1224, installed-provider/model evidence to BPR-1225 and formal
+RFC-0021/0022/0036/0037 predecessor acceptance to BPR-1226. Those standalone cards
+are Blocked; the original predecessor RFCs remain Proposed/Deferred. Other
+explicit dependencies and all unavailable production capability flags remain.
+The r1 start hold for RFC-BPR-0044–0051 remains outside this amendment.
+
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
 chooser are cluttered, that the chooser must stop appearing when the last
@@ -364,8 +383,8 @@ card says so.
 RFC-BPR-0034 closed on 2026-09-22. Its own criteria were already met and its
 closeout rows complete, and its only gate was RFC-BPR-0018. [BPR-0791](../issues/60-done/BPR-0791-close-rfc-0034.md)
 records the recheck at the closing head. RFC-BPR-0032's own criteria are met
-and its closeout rows are complete. It stays `Proposed` only because closure
-is strictly ordered and RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 closed on
+and its closeout rows are complete. It stays `Proposed` because its explicit dependency
+RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 closed on
 2026-09-23. Its recorded gate, RFC-BPR-0024, is `Auto-Verified`, and
 [BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md) records the recheck of
 its closeout rows at the closing head `871c1185`. That recheck first found the
@@ -404,16 +423,26 @@ publication cards consume one logical receipt and distinguish approved prose
 from the permalink-prefixed public body. RFC-BPR-0021 keeps the general
 historical comment/revision join. The imported pack prompts and earlier
 frontier language grant no implementation authority. On 2026-09-26 the owner
-explicitly activated RFC-BPR-0022 implementation and main integration; RFC-BPR-0023
-remains Deferred. Canonical closeout order is unchanged.
+explicitly activated RFC-BPR-0022 implementation and main integration, then
+RFC-BPR-0023 implementation, plan revision and milestone integration under mandate
+r1. The RFC-0023 [live audit](../verification/RFC-BPR-0023-live-audit.md) preserves
+the earlier import boundary as history. RFC-0023 amendment r2 moves the M2
+authority-boundary review to one capability-critical independent review of the
+final integrated candidate at M10/BPR-0591 and directs implementation to continue.
+Explicit dependencies and all eighteen feature criteria remain in force; final
+independent review was supplied at M10, its findings resolved, and BPR-0591
+closed the RFC on 2026-09-27 with designated publication evidence.
 
 RFC-BPR-0027 records the owner's request for useful local diagnostic logging,
 Standard/Verbose detail and privacy/export controls inspired by AllTheThings.
-Quill v13.0.0 supplies the implemented basic foundation in
-[[BPR-0602]], after [[BPR-0600]] planning. [[BPR-0603]] retains deferred advanced
-controls; [[BPR-0601]] remains the full closeout. No new live-run authority is
-granted and partial implementation does not close the RFC. The foundation does not wait for RFC-BPR-0018 or
-RFC-BPR-0024; those RFCs later compose the same diagnostic controls and scope.
+Quill v13.0.0 supplies the foundation in [[BPR-0602]], after [[BPR-0600]]
+planning. Mandate r2 activated the full advanced implementation, now qualified
+through BPR-1215–1219 with all three owner judgments accepted at cursor34.
+[[BPR-0603]] records aggregate acceptance; [[BPR-0601]] closes the RFC after
+the owner removed the global ordering rule in amendment r3. Exact native, package
+and crash limits remain in the
+[verification ledger](../verification/RFC-BPR-0027.md). No live-run authority
+or release approval is granted by this acceptance.
 
 RFC-BPR-0029 is the owner's own request. It grew from the RFC-BPR-0028 epoch
 line he rejected in v008: an epoch is an update to the pull request, and its

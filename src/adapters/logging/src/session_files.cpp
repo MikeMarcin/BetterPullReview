@@ -268,7 +268,7 @@ namespace bpr::adapters::logging {
 				if (!security || !attributes.initialize(*security, win::windows_object_kind::regular_file)) {
 					fail(failure::invalid_permissions);
 				}
-				handle file{ ::CreateFileW((Path / aName).c_str(), GENERIC_READ | GENERIC_WRITE | DELETE | READ_CONTROL,
+				handle file{ ::CreateFileW((Path / aName).c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL,
 										   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, aCreate ? attributes.attributes() : nullptr,
 										   aExclusive ? CREATE_NEW : aCreate ? OPEN_ALWAYS
 																			 : OPEN_EXISTING,
@@ -304,8 +304,18 @@ namespace bpr::adapters::logging {
 			void remove(const handle& aFile, const std::string& aName) const
 			{
 				verify(aFile, aName);
+				// Live append handles omit DELETE access so ordinary local readers do
+				// not have to opt into deletion sharing. Retention holds the inactive
+				// session lock and acquires deletion authority for this exact object.
+				handle removal{ ::CreateFileW((Path / aName).c_str(), DELETE | FILE_READ_ATTRIBUTES | READ_CONTROL,
+											  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+											  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+				if (!removal.valid() || information(removal).Identity != information(aFile).Identity) {
+					fail(failure::invalid_permissions);
+				}
+				verify(removal, aName);
 				FILE_DISPOSITION_INFO disposition{ TRUE };
-				if (!::SetFileInformationByHandle(aFile.Value, FileDispositionInfo, &disposition, sizeof(disposition))) {
+				if (!::SetFileInformationByHandle(removal.Value, FileDispositionInfo, &disposition, sizeof(disposition))) {
 					fail(failure::io_failure);
 				}
 			}

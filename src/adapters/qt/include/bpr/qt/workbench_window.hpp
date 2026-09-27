@@ -13,6 +13,7 @@
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/release_maintenance.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
@@ -32,6 +33,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
+#include "bpr/qt/writing_hooks_panel.hpp"
 #if defined(_WIN32)
 	#include "bpr/qt/windows_caption_buttons.hpp"
 #endif
@@ -96,6 +98,7 @@ namespace bpr::qt {
 	// delivery and chat-scope vocabularies along with it.
 	class finding_queue_view;
 	class side_chat_panel;
+	class private_review_panel;
 	class private_notes_panel;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
@@ -726,6 +729,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
+		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
 		/// \brief The side chat, placed beside the agent launcher it belongs to.
 		///
 		/// \details BPR-0513. The panel is composed here because the drawer is
@@ -734,6 +738,7 @@ namespace bpr::qt {
 		/// Placement adds nothing to what the panel holds — the aggregate its
 		/// own tests bind by name is untouched.
 		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
+		[[nodiscard]] auto private_review() const noexcept -> private_review_panel* { return PrivateReview; }
 		[[nodiscard]] auto private_notes() const noexcept -> private_notes_panel*;
 		/// \brief The finding queue, placed above the draft the promotion fills.
 		///
@@ -900,6 +905,8 @@ namespace bpr::qt {
 		/// \brief Shows the Settings window on a page; a no-op before composition.
 		/// \brief Lets the profile owner route every Settings gesture to its single shell.
 		void set_settings_presenter(std::function<void(settings_page)> aPresenter);
+		/// \brief Routes direct Help exports to the profile-owned maintenance host.
+		void set_diagnostic_exporter(std::function<void(core::diagnostic_export_policy)> aExporter);
 		/// \brief Mounts this live window's pages into a profile-owned shell.
 		/// \details The shell must outlive this mount; unmount its previous session first.
 		/// Destruction restores pages before destroying their callback-owning workbench.
@@ -1499,6 +1506,7 @@ namespace bpr::qt {
 		review_tour_editor*                    TourEditor                       = nullptr;
 		QAction*                               PrepareTourAction                = nullptr;
 		QAction*                               AddTourStopAction                = nullptr;
+		private_review_panel*                 PrivateReview = nullptr;
 		side_chat_panel*                       SideChat                         = nullptr;
 		finding_queue_view*                    FindingQueue                     = nullptr;
 		review_draft_editor*                   ReviewEditor                     = nullptr;
@@ -1638,6 +1646,7 @@ namespace bpr::qt {
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
+		writing_hooks_panel*                               WritingHooks = nullptr;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;
 		QWidget*                                           AccountsPanel  = nullptr;
@@ -1669,6 +1678,8 @@ namespace bpr::qt {
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
 		bool                                               HasCachedOverview      = false;
+
+		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::string                                                                  MarkdownAuthority;

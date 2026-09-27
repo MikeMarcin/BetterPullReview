@@ -21,6 +21,8 @@
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/private_review_panel.hpp"
+#include <QTabWidget>
 #include "bpr/qt/usage_ring.hpp"
 
 #include <QAbstractButton>
@@ -1233,7 +1235,7 @@ namespace bpr::qt {
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
 		// follower-scroll coupling, and no synthetic alignment rows.
-		ComparisonSurface  = new diff_workbench{ CentreSurface };
+		ComparisonSurface = new diff_workbench{ CentreSurface };
 		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
@@ -1852,7 +1854,13 @@ namespace bpr::qt {
 		CommentsScroll     = makeTabColumn(commentsContents, QStringLiteral("workbenchCommentsScroll"));
 		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchNotesScroll"));
 		// Keep the purpose within the visible page even when tools scroll sideways.
-		notesPageLayout->addWidget(ConversationScroll, 1);
+		auto* privateTabs = new QTabWidget{ notesPage };
+		privateTabs->setObjectName(QStringLiteral("privateConversationTabs"));
+		privateTabs->setAccessibleName(tr("Private history and agent tools"));
+		PrivateReview = new private_review_panel{ notesPage };
+		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
+		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
+		notesPageLayout->addWidget(privateTabs, 1);
 
 		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
 		// and Tour. The drawer still
@@ -2880,6 +2888,8 @@ namespace bpr::qt {
 		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);
 		connect(AgentPanel->draft_selector(), &QCheckBox::toggled, agents, refresh);
 		AgentPanel->set_configuration_observer(refresh);
+		WritingHooks = new writing_hooks_panel{ agents };
+		column->addWidget(WritingHooks);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 
 		auto* const storage       = new QWidget;
@@ -9535,6 +9545,14 @@ namespace bpr::qt {
 		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
 		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
+		diagnosticMenu->addSeparator();
+		const auto addExport = [this, diagnosticMenu](const QString& aLabel, const QString& aName, core::diagnostic_export_policy aPolicy) {
+			auto* action = diagnosticMenu->addAction(aLabel);
+			action->setObjectName(aName);
+			connect(action, &QAction::triggered, this, [this, aPolicy] { if (DiagnosticExporter) { DiagnosticExporter(aPolicy); } });
+		};
+		addExport(QStringLiteral("Export anonymized diagnostics…"), QStringLiteral("exportAnonymizedDiagnosticsAction"), core::diagnostic_export_policy::anonymized);
+		addExport(QStringLiteral("Export with identifying details…"), QStringLiteral("exportIdentifyingDiagnosticsAction"), core::diagnostic_export_policy::identifying);
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
 		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
 		SettingsAction->setMenuRole(QAction::PreferencesRole);
@@ -9628,6 +9646,11 @@ namespace bpr::qt {
 	auto workbench_window::profiles_menu() const noexcept -> QMenu*
 	{
 		return ProfilesMenu;
+	}
+
+	void workbench_window::set_diagnostic_exporter(std::function<void(core::diagnostic_export_policy)> aExporter)
+	{
+		DiagnosticExporter = std::move(aExporter);
 	}
 
 	void workbench_window::set_settings_presenter(std::function<void(settings_page)> aPresenter)

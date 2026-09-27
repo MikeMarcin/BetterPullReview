@@ -1610,6 +1610,8 @@ namespace bpr::adapters::github::detail {
 				return aSemantic.Account == authority.Account;
 			} else if constexpr (std::same_as<semantic_type, review_submission_request>) {
 				return targetMatches(aSemantic.Target) && aSemantic.ActingIdentity.Account == authority.Account;
+			} else if constexpr (std::same_as<semantic_type, application::staged_review_request>) {
+				return targetMatches(aSemantic.Binding.Target) && aSemantic.Binding.ActingIdentity.Account == authority.Account;
 			} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.ActingIdentity == authority.Account;
@@ -1618,7 +1620,7 @@ namespace bpr::adapters::github::detail {
 			}
 		},
 										   aRequest.Wire.Semantic);
-		// The CLI publication milestone admits REST review and inline-comment shapes only.
+		// Only the finite admitted REST mutation catalog may use this route.
 		// [[BPR-0896]]. A reply's reconciliation observes its thread at the
 		// GraphQL root too. This transport never writes a reply, so its own
 		// writes never need it; a reply attempt written through another
@@ -1641,10 +1643,23 @@ namespace bpr::adapters::github::detail {
 		if (!safe_relative_endpoint(endpoint)) {
 			return github_mutation_wire_error{ };
 		}
-		const bool                 post = aRequest.Wire.Method == http_method::post;
+		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
+		if (!exchange || exchange->Graphql) {
+			return github_mutation_wire_error{ };
+		}
+		std::string method;
+		switch (aRequest.Wire.Method) {
+		case http_method::get:     method = "GET"; break;
+		case http_method::post:    method = "POST"; break;
+		case http_method::put:     method = "PUT"; break;
+		case http_method::patch:   method = "PATCH"; break;
+		case http_method::delete_: method = "DELETE"; break;
+		default:                   return github_mutation_wire_error{ };
+		}
+		const bool                 writes = exchange->Witnessed;
 		github_cli_process_request invocation{
 			.Executable              = path_bytes(Configuration.Executable),
-			.Arguments               = { "api", endpoint, "--hostname", std::string{ Profile.hostname() }, "--include", "--method", post ? "POST" : "GET" },
+			.Arguments               = { "api", endpoint, "--hostname", std::string{ Profile.hostname() }, "--include", "--method", method },
 			.Environment             = Configuration.Environment,
 			.WorkingDirectory        = path_bytes(Configuration.NeutralWorkingDirectory),
 			.StandardInput           = aRequest.Wire.Body,
@@ -1659,7 +1674,7 @@ namespace bpr::adapters::github::detail {
 			invocation.Arguments.emplace_back("--header");
 			invocation.Arguments.emplace_back(header.Name + ": " + header.Value);
 		}
-		if (post) {
+		if (!aRequest.Wire.Body.empty()) {
 			invocation.Arguments.emplace_back("--input");
 			invocation.Arguments.emplace_back("-");
 		}
@@ -1668,10 +1683,10 @@ namespace bpr::adapters::github::detail {
 		}
 		// Persist possible transmission before launch. Even launch failure is treated
 		// conservatively; no caller may repeat an ambiguous POST.
-		if (post && (!aWitness || !aWitness())) {
+		if (writes && (!aWitness || !aWitness())) {
 			return github_mutation_wire_error{ };
 		}
-		const auto sent   = post ? transmission::indeterminate : transmission::definitely_not_sent;
+		const auto sent   = writes ? transmission::indeterminate : transmission::definitely_not_sent;
 		const auto result = Process.run(constrain_gh_writes(std::move(invocation)), aStop);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_mutation_wire_cancelled{ .Transmission = sent };

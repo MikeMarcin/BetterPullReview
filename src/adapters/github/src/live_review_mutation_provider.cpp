@@ -10,12 +10,11 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                      aLease,
 		detail::github_mutation_wire_transport&                     aTransport,
 		detail::live_review_mutation_configuration                  aConfiguration,
-		std::unique_ptr<application::review_mutation_recovery_port> aRecovery,
-		std::shared_ptr<application::diagnostic_log_port>           aLog) noexcept
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery, application::review_publication_lineage_port* aLineage, std::shared_ptr<application::diagnostic_log_port> aLog) noexcept
 		: Session{ aTransport,
 				   std::move(aConfiguration),
 				   std::move(aLease),
-				   std::move(aRecovery), std::nullopt, std::move(aLog) }
+				   std::move(aRecovery), std::nullopt, aLineage, std::move(aLog) }
 	{
 	}
 
@@ -62,6 +61,14 @@ namespace bpr::adapters::github {
 		return Session.resolve_thread(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
+	{
+		return Session.reconcile_publication(aRequest, aStop);
+	}
+	void live_review_mutation_provider::repair_pending_publications(std::stop_token aStop)
+	{
+		Session.repair_pending_publications(aStop);
+	}
 	auto live_review_mutation_provider::capabilities() const
 		-> application::review_provider_capabilities
 	{
@@ -77,8 +84,7 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                      aLease,
 		application::review_mutation_target_binding                 aTarget,
 		application::review_mutation_acting_identity                aActingIdentity,
-		std::unique_ptr<application::review_mutation_recovery_port> aRecovery,
-		std::shared_ptr<application::diagnostic_log_port>           aLog) noexcept
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery, application::review_publication_lineage_port* aLineage, std::shared_ptr<application::diagnostic_log_port> aLog) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>
@@ -98,6 +104,7 @@ namespace bpr::adapters::github {
 			*admission->Transport,
 			std::move(admission->Configuration),
 			std::move(aRecovery),
+			aLineage,
 			std::move(aLog),
 		};
 		if (provider == nullptr) {

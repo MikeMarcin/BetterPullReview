@@ -188,13 +188,14 @@ namespace bpr::qt {
 		/// shown. Separate from both texts because it is neither of them.
 		QLabel* WorkshopOperation = nullptr;
 
-		QAction* Publish        = nullptr;
-		QAction* Discard        = nullptr;
-		QAction* MarkRead       = nullptr;
-		QAction* Accept         = nullptr;
-		QAction* Exclude        = nullptr;
-		QAction* AcceptRevision = nullptr;
-		QAction* RejectRevision = nullptr;
+		QAction* Publish          = nullptr;
+		bool     RetryPublication = false;
+		QAction* Discard          = nullptr;
+		QAction* MarkRead         = nullptr;
+		QAction* Accept           = nullptr;
+		QAction* Exclude          = nullptr;
+		QAction* AcceptRevision   = nullptr;
+		QAction* RejectRevision   = nullptr;
 		/// One action per declared operation, indexed by the enumerator, and
 		/// exactly as many as there are operations. A seventh operation grows
 		/// this array rather than being offered from somewhere else, and an
@@ -247,6 +248,7 @@ namespace bpr::qt {
 		void present_conflict(const core::revisioned_draft_outcome& aOutcome);
 		/// Acknowledges only the exact command the host accepted, including no-op edits.
 		void               acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted);
+		void               acknowledge_published_body(const core::revisioned_review_draft& aPublished);
 		[[nodiscard]] auto reload_draft_action() const noexcept -> QAction*;
 		[[nodiscard]] auto reapply_draft_action() const noexcept -> QAction*;
 		[[nodiscard]] auto rejected_candidate() const noexcept -> const std::optional<core::revisioned_review_draft_command>&;
@@ -301,6 +303,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto mutation_status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto mutation_status_text() const -> QString;
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
+		void               allow_publication_retry(bool);
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
 		[[nodiscard]] auto mark_read_action() const noexcept -> QAction*;
 		[[nodiscard]] auto accept_action() const noexcept -> QAction*;
