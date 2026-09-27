@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0588"
 title: "Complete focused correctness, security, migration, crash, quota, and performance evidence"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0580","BPR-0581","BPR-0582","BPR-0583","BPR-0585","BPR-0586","BPR-0587"]
 milestone: "Post-Pack v2"
