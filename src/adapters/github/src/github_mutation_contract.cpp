@@ -1768,7 +1768,7 @@ namespace bpr::adapters::github::detail {
 			const auto& target = aExpected.Binding.Target;
 			const auto  actor  = staged_actor(aComment.User);
 			const auto  commit = core::parse_git_commit_oid(aComment.Commit);
-			if (!actor || !commit || !aComment.Id || !aComment.Review || !bounded_text(aComment.NodeId, 256)
+			if (!actor || !commit || *commit != target.Semantic.ExpectedHead || !aComment.Id || !aComment.Review || !bounded_text(aComment.NodeId, 256)
 				|| !utf8_round_trip(aComment.Body) || aComment.Body.size() > maximum_review_mutation_body_bytes
 				|| aComment.PullRequestUrl != staged_api_origin(target) + pull_request_path(target, target.ServerContract)
 				|| aComment.WebUrl != staged_web_root(target) + "#discussion_r" + std::to_string(aComment.Id)
@@ -1784,7 +1784,7 @@ namespace bpr::adapters::github::detail {
 				|| (aComment.StartLine && (*aComment.StartLine == 0 || *aComment.StartLine >= *aComment.Line || aComment.StartSide != aComment.Side))) {
 				return std::nullopt;
 			}
-			const auto source = core::tour_code_destination{ .Commit = *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
+			const auto source = core::tour_code_destination{ .Commit = aComment.Side == "LEFT" ? target.BaseOid : *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
 			if (!core::valid(source)) {
 				return std::nullopt;
 			}
@@ -1939,7 +1939,7 @@ namespace bpr::adapters::github::detail {
 		if (aExpected.Operation == staged_operation::update_description) {
 			const auto target = parse_target_observation(aResponse, aExpected.Binding.Target);
 			const auto body   = document<staged_body_json>(aResponse);
-			if (!target || !body || body->Body != aExpected.Body) {
+			if (!target || !body || !utf8_round_trip(body->Body) || body->Body.size() > maximum_review_mutation_body_bytes) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
 			result.Description = body->Body;

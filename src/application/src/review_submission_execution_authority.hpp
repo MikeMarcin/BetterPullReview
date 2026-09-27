@@ -18,6 +18,7 @@ namespace bpr::application::detail {
 		[[nodiscard]] static auto issue(core::application_session_id aSession,
 										core::request_generation aGeneration, const review_submission_request& aRequest)
 			-> review_submission_execution_grant;
+		[[nodiscard]] static auto issue(core::application_session_id aSession, core::request_generation aGeneration, const staged_review_plan& aPlan) -> review_submission_execution_grant;
 	};
 }
 namespace bpr::application {
@@ -35,10 +36,14 @@ namespace bpr::application {
 											  std::chrono::steady_clock::time_point aExpiresAt);
 		[[nodiscard]] auto                    consume(core::application_session_id aSession,
 													  core::request_generation aGeneration, const review_submission_request& aRequest) -> bool;
+		[[nodiscard]] auto                    consume(core::application_session_id aSession, core::request_generation aGeneration, const staged_review_plan& aPlan) -> bool;
+		[[nodiscard]] auto                    consume_child(const staged_publication_record& aRecord) -> bool;
 		[[nodiscard]] auto                    active() const noexcept -> bool;
 		core::application_session_id          Session;
 		core::request_generation              Generation;
 		review_submission_request             Request;
+		std::optional<staged_review_plan>     Plan;
+		std::atomic_uint64_t                  LastChild{ 0 };
 		std::chrono::steady_clock::time_point ExpiresAt;
 		std::atomic_bool                      Consumed{ false };
 		std::atomic_bool                      Revoked{ false };
@@ -48,6 +53,7 @@ namespace bpr::application {
 		friend auto make_review_submission_testing_grant(core::application_session_id,
 														 core::request_generation, const review_submission_request&,
 														 std::chrono::steady_clock::time_point) -> review_submission_execution_grant;
+		friend auto make_review_submission_testing_grant(core::application_session_id, core::request_generation, const staged_review_plan&, std::chrono::steady_clock::time_point) -> review_submission_execution_grant;
 #endif
 	};
 }

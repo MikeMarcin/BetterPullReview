@@ -1293,3 +1293,11 @@ bpr_add_network_isolated_test(
     NAME github_review_comment_permalink
     COMMAND test_better_pull_review_review_comment_permalink_tests
 )
+
+bpr_add_executable(test_staged_review_session staged_review_session_tests.cpp)
+target_link_libraries(test_staged_review_session PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterSQLite BetterPullReview::Application Qt6::Core)
+target_include_directories(test_staged_review_session PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+bpr_enable_hardening(test_staged_review_session)
+bpr_enable_warnings(test_staged_review_session)
+bpr_add_network_isolated_test(NAME staged_review_session WINDOWS_UNCONTAINED COMMAND test_staged_review_session)
+bpr_add_network_isolated_test(NAME staged_review_restart WINDOWS_UNCONTAINED COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/staged_review_restart_tests.py" --executable "$<TARGET_FILE:test_staged_review_session>")

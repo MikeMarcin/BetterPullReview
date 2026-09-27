@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_SUBMISSION_PORT_HPP
 
 #include "bpr/application/review_submission_contract.hpp"
+#include "bpr/application/staged_review_publication.hpp"
 
 namespace bpr::application {
 
@@ -32,6 +33,24 @@ namespace bpr::application {
 		review_submission_port(review_submission_port&&)                         = delete;
 		auto operator=(review_submission_port&&) -> review_submission_port&      = delete;
 
+		[[nodiscard]] virtual auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<staged_review_plan>, review_mutation_failure>
+		{
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unavailable);
+		}
+		[[nodiscard]] virtual auto publish_tour(const staged_review_plan& aPlan, std::stop_token aStop = { }, staged_child_authorizer aAuthorize = { }) -> staged_publication_result
+		{
+			static_cast<void>(aPlan);
+			static_cast<void>(aStop);
+			static_cast<void>(aAuthorize);
+			return { };
+		}
+		[[nodiscard]] virtual auto reconcile_tour(const staged_review_plan& aPlan, std::stop_token aStop = { }) -> staged_publication_result
+		{
+			static_cast<void>(aPlan);
+			static_cast<void>(aStop);
+			return { };
+		}
 		/// \brief Discovers bounded original pending requests on the effect lane; includes prepared attempts.
 		[[nodiscard]] virtual auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<review_submission_request>, review_mutation_failure> = 0;
 

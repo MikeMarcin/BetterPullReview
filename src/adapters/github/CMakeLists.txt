@@ -74,6 +74,7 @@ if(BPR_BUILD_QT)
 			src/live_review_mutation_provider.cpp
             src/live_review_submission_provider.cpp
             src/review_submission_session.cpp
+            src/staged_review_session.cpp
 			src/review_mutation_provider_admission.cpp
             src/native_https_transport.cpp
             src/github_release_update.cpp

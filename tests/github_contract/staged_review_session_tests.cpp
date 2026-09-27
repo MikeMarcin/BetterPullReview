@@ -1,0 +1,452 @@
+#include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "live_review_submission_provider.hpp"
+#include "review_submission_session.hpp"
+
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <random>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+
+namespace {
+	using namespace bpr;
+	using namespace bpr::adapters::github::detail;
+	using bpr::tests::expect;
+	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		std::fill_n(bytes.begin(), 20U, aSeed);
+		return core::git_commit_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto target() -> application::review_mutation_target_binding
+	{
+		return {
+			.Semantic = {
+				.Host         = core::git_host_id{ 11U },
+				.Repository   = core::repository_id{ 12U },
+				.PullRequest  = core::pull_request_id{ 13U },
+				.ExpectedHead = commit(0x11U),
+			},
+			.Hostname                 = application::github_canonical_hostname{ "github.com" },
+			.ServerContract           = application::github_server_contract::github_com_2022_11_28,
+			.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" },
+			.Number                   = core::pull_request_number{ 1U },
+			.RepositoryDatabaseId     = 1'328'277'631U,
+			.RepositoryNodeId         = "R_kgDOTyvofw",
+			.PullRequestDatabaseId    = 4'246'446'933U,
+			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = commit(0x10U),
+			.BaseRef                  = "main",
+			.HeadRef                  = "codex/disposable-live-review-20260810",
+			.Open                     = true,
+		};
+	}
+
+	[[nodiscard]] auto identity() -> application::review_mutation_acting_identity
+	{
+		return {
+			.Account    = core::github_account_id{ 21U },
+			.DatabaseId = 22U,
+			.NodeId     = "MDQ6VXNlcjIy",
+			.Login      = "fixture-reviewer",
+		};
+	}
+
+	[[nodiscard]] auto credential_context()
+		-> application::github_credential_operation_context
+	{
+		return {
+			.Request            = core::request_id{ 31U },
+			.ApplicationSession = core::application_session_id{ 32U },
+			.Authority          = {
+				.Profile         = core::host_profile_id{ 33U },
+				.ProfileRevision = application::github_profile_revision{ 34U },
+				.Host            = target().Semantic.Host,
+				.Hostname        = application::github_canonical_hostname{ "github.com" },
+				.Account         = identity().Account,
+				.ServerContract  = application::github_server_contract::github_com_2022_11_28,
+			},
+			.IdentityGeneration = core::github_identity_generation{ 35U },
+		};
+	}
+
+	[[nodiscard]] auto configuration() -> live_review_mutation_configuration
+	{
+		return {
+			.CredentialContext = credential_context(),
+			.Target            = target(),
+			.ActingIdentity    = identity(),
+		};
+	}
+
+	[[nodiscard]] auto target_response(
+		const std::uint64_t         aRepository = 1'328'277'631U,
+		const core::git_commit_oid& aHead       = target().Semantic.ExpectedHead)
+		-> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::string{ "{\"id\":4246446933,"
+									   "\"node_id\":\"PR_kwDOTyvof879G6NV\",\"number\":1,"
+									   "\"state\":\"open\",\"head\":{\"sha\":\"" }
+					+ std::string{ core::canonical_hex(aHead).view() }
+					+ "\",\"ref\":\"codex/disposable-live-review-20260810\"},"
+					  "\"base\":{\"sha\":\""
+					+ std::string{ core::canonical_hex(target().BaseOid).view() }
+					+ "\",\"ref\":\"main\",\"repo\":{\"id\":"
+					+ std::to_string(aRepository)
+					+ ",\"node_id\":\"R_kgDOTyvofw\","
+					  "\"full_name\":\"MikeMarcin/BPR-Test\"}}}",
+			},
+		};
+	}
+
+	[[nodiscard]] auto viewer_response() -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = "{\"login\":\"fixture-reviewer\",\"id\":22,"
+						  "\"node_id\":\"MDQ6VXNlcjIy\"}",
+			},
+		};
+	}
+
+	class lease final : public application::review_mutation_transport_lease
+	{ };
+	auto request() -> application::review_submission_request
+	{
+		return { .Proposal = { .Draft = core::review_submission_draft_id{ 41U }, .Attempt = core::review_submission_attempt_id{ 1U }, .Target = target().Semantic, .ActingAccount = identity().Account, .Body = "Review summary.", .Disposition = core::review_disposition::comment }, .IdempotencyKey = "review-attempt-1", .LiveBinding = application::review_submission_live_binding{ .Target = target(), .ActingIdentity = identity() } };
+	}
+	using publication_state = application::staged_publication_state;
+	constexpr auto Pull     = "/repos/MikeMarcin/BPR-Test/pulls/1";
+	constexpr auto Web      = "https://github.com/MikeMarcin/BPR-Test/pull/1";
+	auto           json_quote(const std::string& aText) -> std::string
+	{
+		auto bytes = QJsonDocument{ QJsonArray{ QString::fromStdString(aText) } }.toJson(QJsonDocument::Compact).toStdString();
+		return bytes.substr(1, bytes.size() - 2);
+	}
+	auto plan() -> application::staged_review_plan
+	{
+		auto authority = std::array<std::uint8_t, 32>{ };
+		authority.fill(1);
+		application::staged_review_plan result{ .Submission = request(), .Owner = { core::bpr_profile_id{ 1 }, target().Semantic.Host, core::host_authority_fingerprint{ authority }, identity().Account, target().Semantic.Repository, target().Semantic.PullRequest }, .Generation = 7 };
+		result.Submission.IdempotencyKey = "staged-tour-1";
+		result.Stops                     = {
+			{ core::tour_stop_id{ 1 }, { .Commit = target().Semantic.ExpectedHead, .Path = "src/right.cpp", .Side = core::diff_side::right, .FirstLine = 3, .LastLine = 4 }, "First stop", "Explain `$(touch nope)` & <why>.", "https://github.com/MikeMarcin/BPR-Test/blob/1111111111111111111111111111111111111111/src/right.cpp#L4-L5" },
+			{ core::tour_stop_id{ 2 }, { .Commit = target().BaseOid, .Path = "src/left.cpp", .Side = core::diff_side::left, .FirstLine = 7, .LastLine = 7 }, "Second stop", "Removed behavior.", "https://github.com/MikeMarcin/BPR-Test/blob/1010101010101010101010101010101010101010/src/left.cpp#L8" }
+		};
+		result.Description = application::staged_description_edit{ "Original description.", "Original description.\n\nTour link separately authorized." };
+		expect(application::valid(result), "fixture immutable plan is valid");
+		return result;
+	}
+	struct server final : github_mutation_wire_transport
+	{
+		bool                                               Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
+		std::string                                        Summary, Description = "Original description.";
+		std::array<std::string, 2>                         Bodies;
+		std::filesystem::path                              Root;
+		std::function<void(std::size_t, std::string_view)> Boundary;
+		std::optional<std::size_t>                         LoseAt;
+		std::optional<std::size_t>                         SuppressAt;
+		std::stop_source*                                  Stop = nullptr;
+		std::optional<std::size_t>                         StopAt;
+		std::function<void(server&)>                       AfterWrite;
+		auto                                               review_json(std::uint64_t aId = 501) const -> std::string
+		{
+			return "{\"id\":" + std::to_string(aId) + ",\"node_id\":\"PRR_" + std::to_string(aId) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#pullrequestreview-" + std::to_string(aId)) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"commit_id\":\"1111111111111111111111111111111111111111\",\"body\":" + json_quote(Summary) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"state\":\"" + (Submitted || EarlySubmit ? "COMMENTED" : "PENDING") + "\"" + (Submitted || EarlySubmit ? ",\"submitted_at\":\"2026-09-26T12:34:56Z\"" : "") + "}";
+		}
+		auto comment_json(std::size_t aIndex, std::uint64_t aReview = 501) const -> std::string
+		{
+			const auto id = 601 + aIndex;
+			return "{\"id\":" + std::to_string(id) + ",\"node_id\":\"PRRC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#discussion_r" + std::to_string(id)) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"pull_request_review_id\":" + std::to_string(aReview) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(Bodies[aIndex]) + ",\"commit_id\":\"1111111111111111111111111111111111111111\",\"path\":\"src/" + (aIndex ? "left" : "right") + ".cpp\",\"side\":\"" + (aIndex ? "LEFT" : "RIGHT") + "\",\"line\":" + (aIndex ? "8" : "5") + (aIndex ? "" : ",\"start_line\":4,\"start_side\":\"RIGHT\"") + "}";
+		}
+		void save() const
+		{
+			if (Root.empty()) {
+				return;
+			}
+			std::ofstream file{ Root / "server-state", std::ios::binary };
+			file << QJsonDocument{ QJsonObject{ { "created", Created }, { "submitted", Submitted }, { "summary", QString::fromStdString(Summary) }, { "first", QString::fromStdString(Bodies[0]) }, { "second", QString::fromStdString(Bodies[1]) }, { "description", QString::fromStdString(Description) } } }.toJson(QJsonDocument::Compact).toStdString();
+			file.flush();
+			expect(file.good(), "server state persists before checkpoint");
+		}
+		void load()
+		{
+			QFile file{ QString::fromStdString((Root / "server-state").string()) };
+			if (!file.exists()) {
+				return;
+			}
+			expect(file.open(QIODevice::ReadOnly), "server fixture reopens");
+			const auto json = QJsonDocument::fromJson(file.readAll()).object();
+			Created         = json["created"].toBool();
+			Submitted       = json["submitted"].toBool();
+			Summary         = json["summary"].toString().toStdString();
+			Bodies          = { json["first"].toString().toStdString(), json["second"].toString().toStdString() };
+			Description     = json["description"].toString().toStdString();
+		}
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			const bpr::tests::exit_on_failure insideSession;
+			const auto&                       wire = aRequest.Wire;
+			const auto                        ok   = [](std::string aBody) { return github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(aBody) } }; };
+			if (wire.Method == http_method::get) {
+				if (ReadFailure) {
+					return github_mutation_wire_error{ };
+				}
+				if (wire.Path == "/user") {
+					if (WrongActor) {
+						return ok("{\"id\":23,\"node_id\":\"other\",\"login\":\"other\"}");
+					}
+					return viewer_response();
+				}
+				if (wire.Path == Pull) {
+					auto  response = target_response(target().RepositoryDatabaseId, WrongHead ? commit(0x22) : target().Semantic.ExpectedHead);
+					auto& body     = std::get<github_mutation_wire_success>(response).Response.Body;
+					body.pop_back();
+					body += ",\"body\":" + json_quote(Description) + "}";
+					return response;
+				}
+				if (wire.Path == std::string{ Pull } + "/reviews?per_page=100&page=1") {
+					return ok(Created ? "[" + review_json() + (Duplicate ? "," + review_json(502) : "") + "]" : "[]");
+				}
+				if (wire.Path == std::string{ Pull } + "/reviews/501") {
+					return ok(review_json());
+				}
+				if (wire.Path == std::string{ Pull } + "/reviews/501/comments?per_page=100&page=1") {
+					return ok("[" + comment_json(1) + "," + comment_json(0) + (Extra ? "," + comment_json(0) : "") + "]");
+				}
+				if (Duplicate && wire.Path == std::string{ Pull } + "/reviews/502/comments?per_page=100&page=1") {
+					return ok("[" + comment_json(1, 502) + "," + comment_json(0, 502) + "]");
+				}
+				expect(false, "fixture answers only independently named read endpoints");
+			}
+			const auto index = Writes;
+			if (Boundary) {
+				Boundary(index, "prepared");
+			}
+			expect(aWitness && aWitness(), "every write has durable child witness");
+			expect(!aWitness(), "child witness is exact one-use");
+			if (Boundary) {
+				Boundary(index, "witnessed");
+			}
+			++Writes;
+			if (!Root.empty()) {
+				std::ofstream trace{ Root / "server-writes", std::ios::app };
+				trace << index << '\n';
+			}
+			if (SuppressAt == index) {
+				ReadFailure = true;
+				return github_mutation_wire_error{ };
+			}
+			const auto json = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+			if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews") {
+				expect(!Created && !json.contains("event") && json["commit_id"] == "1111111111111111111111111111111111111111", "batch creates one exact pending review without event");
+				const auto comments = json["comments"].toArray();
+				expect(comments.size() == 2, "batch has both comments");
+				for (int i = 0; i < 2; ++i) {
+					const auto item = comments[i].toObject();
+					expect(!item.contains("subject_type") && !item.contains("pull_request_review_id"), "batch avoids undocumented fields");
+					Bodies[static_cast<std::size_t>(i)] = item["body"].toString().toStdString();
+					expect(!Bodies[static_cast<std::size_t>(i)].contains("discussion_r"), "unwired initial body has source links only");
+				}
+				expect(comments[0].toObject()["line"] == 5 && comments[0].toObject()["start_line"] == 4 && comments[1].toObject()["line"] == 8 && comments[1].toObject()["side"] == "LEFT", "batch uses real inclusive one-based source ranges");
+				Created = true;
+				++Creates;
+				Summary = json["body"].toString().toStdString();
+			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/601" || wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/602")) {
+				expect(Created && !Submitted && json.size() == 1, "only pending owned body is edited");
+				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
+				const auto        body = json["body"].toString().toStdString();
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
+				Bodies[i] = body;
+			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews/501/events") {
+				expect(Created && !Submitted && json["event"] == "COMMENT" && json.size() == 2, "only exact review receives COMMENT once");
+				expect(Bodies[0].contains("#discussion_r602") && Bodies[1].contains("#discussion_r601"), "all navigation edits precede submit");
+				Summary = json["body"].toString().toStdString();
+				expect(Summary.contains("#discussion_r601") && Summary.contains("#discussion_r602") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
+				Submitted = true;
+				++Submits;
+			} else if (wire.Method == http_method::patch && wire.Path == Pull) {
+				expect(Submitted && json.size() == 1, "description update is separate and follows publication");
+				Description = json["body"].toString().toStdString();
+			} else {
+				expect(false, "fixture answers only fixed typed mutation endpoints");
+			}
+			save();
+			if (Boundary) {
+				Boundary(index, "applied");
+			}
+			if (AfterWrite) {
+				AfterWrite(*this);
+			}
+			if (Stop && StopAt == index) {
+				Stop->request_stop();
+			}
+			if (LoseAt == index) {
+				ReadFailure = true;
+				return github_mutation_wire_error{ };
+			}
+			return ok("{}"); // Session must reconcile server reads, never trust a write response.
+		}
+	};
+	struct scratch
+	{
+		std::filesystem::path Path = std::filesystem::temp_directory_path() / ("bpr-staged-" + std::to_string(std::random_device{ }()));
+		scratch()
+		{
+			expect(std::filesystem::create_directory(Path), "scratch created");
+			expect(adapters::sqlite::make_storage_root_owner_private(Path), "scratch private");
+		}
+		~scratch()
+		{
+			std::error_code error;
+			std::filesystem::remove_all(Path, error);
+		}
+	};
+	auto storage(const std::filesystem::path& aPath) -> std::unique_ptr<application::review_submission_recovery_port>
+	{
+		auto opened = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aPath, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 });
+		expect(opened.has_value(), "production staged journal opens");
+		return std::move(*opened);
+	}
+	auto session(server& aServer, const std::filesystem::path& aPath, live_review_mutation_configuration aConfiguration = configuration()) -> std::unique_ptr<review_submission_session> { return std::make_unique<review_submission_session>(aServer, std::move(aConfiguration), std::make_shared<lease>(), storage(aPath)); }
+	void test_staged_sessions()
+	{
+		{
+			scratch root;
+			server  remote;
+			auto    provider = session(remote, root.Path);
+			expect(provider->reconcile_tour(plan()).State == publication_state::outcome_unknown && remote.Writes == 0, "read-only missing journal never starts publication");
+			const auto result = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::published && result.Record && result.Record->DescriptionDone, "exact batch and optional description finish");
+			expect(remote.Writes == 5 && remote.Creates == 1 && remote.Submits == 1, "one create, two patches, one submit, one separate description update");
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "completed receipt never replays effects");
+			provider.reset();
+			provider = session(remote, root.Path);
+			expect(provider->pending_tours()->empty() && provider->reconcile_tour(plan()).State == publication_state::published && remote.Writes == 5, "fresh session reads exact completed journal");
+		}
+		for (std::size_t lost = 0; lost < 5; ++lost) {
+			scratch root;
+			server  remote;
+			remote.LoseAt       = lost;
+			auto       provider = session(remote, root.Path);
+			const auto unknown  = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(unknown.State == publication_state::outcome_unknown && remote.Writes == lost + 1, "lost response and failed observation remain unknown");
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::outcome_unknown && remote.Writes == lost + 1, "unknown write cannot replay");
+			provider.reset();
+			remote.ReadFailure = false;
+			remote.LoseAt.reset();
+			provider        = session(remote, root.Path);
+			const auto read = provider->reconcile_tour(plan());
+			expect(read.State != publication_state::outcome_unknown && remote.Writes == lost + 1, "restart reconciles applied effect with zero writes");
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5 && remote.Creates <= 1 && remote.Submits <= 1, "explicit Resume performs only remaining effects");
+		}
+		for (std::size_t suppressed = 0; suppressed < 5; ++suppressed) {
+			scratch root;
+			server  remote;
+			remote.SuppressAt = suppressed;
+			auto provider     = session(remote, root.Path);
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::outcome_unknown, "possibly sent but currently absent stays unknown");
+			remote.ReadFailure = false;
+			provider.reset();
+			provider = session(remote, root.Path);
+			expect(provider->reconcile_tour(plan()).State == publication_state::outcome_unknown && provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::outcome_unknown && remote.Writes == suppressed + 1, "empty or baseline body is not safe failure proof");
+		}
+		for (int fault = 0; fault < 5; ++fault) {
+			scratch root;
+			server  remote;
+			remote.AfterWrite   = [fault](auto& r) {if(r.Writes==1){r.Extra=fault==0;r.Duplicate=fault==1;r.EarlySubmit=fault==2;r.WrongHead=fault==3;r.WrongActor=fault==4;} };
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict || result.State == publication_state::outcome_unknown, "contamination, ambiguity, premature submit, head and actor movement stop");
+			expect(remote.Writes == 1 && remote.Submits == 0, "unsafe state never authorizes another write");
+		}
+		{
+			scratch root;
+			server  remote;
+			remote.Created = true;
+			remote.Summary = "Existing website review";
+			auto provider  = session(remote, root.Path);
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::conflict && remote.Writes == 0, "existing pending is never adopted or discarded");
+		}
+		for (std::size_t stopped = 0; stopped < 5; ++stopped) {
+			scratch          root;
+			server           remote;
+			std::stop_source stop;
+			remote.Stop   = &stop;
+			remote.StopAt = stopped;
+			auto provider = session(remote, root.Path);
+			static_cast<void>(provider->publish_tour(plan(), stop.get_token(), [](const auto&) { return true; }));
+			expect(remote.Writes == stopped + 1, "Stop prevents remaining writes");
+			remote.Stop = nullptr;
+			provider.reset();
+			provider = session(remote, root.Path);
+			static_cast<void>(provider->reconcile_tour(plan()));
+			expect(remote.Writes == stopped + 1, "restart remains read-only");
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "Resume after Stop completes bounded plan");
+		}
+	}
+	void checkpoint(const std::filesystem::path& aRoot, const std::string& aPhase)
+	{
+		{
+			std::ofstream ready{ aRoot / "kill-ready" };
+			ready << aPhase;
+			ready.flush();
+			expect(ready.good(), "kill marker durable");
+		}
+		char input{ };
+		std::cin.get(input);
+		expect(false, "child must be forcibly killed");
+	}
+}
+auto main(int argc, char** argv) -> int
+try {
+	if (argc == 3) {
+		const std::string           phase = argv[1];
+		const std::filesystem::path root  = argv[2];
+		server                      remote;
+		remote.Root = root;
+		remote.load();
+		auto provider = session(remote, root);
+		if (phase.starts_with("--kill-")) {
+			remote.Boundary = [&](std::size_t i, std::string_view boundary) {if(phase=="--kill-"+std::to_string(i)+"-"+std::string{boundary}){checkpoint(root,phase);
+} };
+			static_cast<void>(provider->publish_tour(plan(), { }, [](const auto&) { return true; }));
+			expect(false, "kill boundary reached");
+		} else if (phase == "--recover") {
+			const auto observed = provider->reconcile_tour(plan());
+			expect(observed.Record.has_value() && remote.Writes == 0, "fresh-process recovery performs reads only");
+		} else if (phase == "--resume") {
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published, "explicit fresh-process Resume finishes known remaining effects");
+		} else {
+			expect(false, "known child phase");
+		}
+		std::cout << phase << ":pass\n";
+	} else {
+		test_staged_sessions();
+		std::cout << "staged-review-session-tests:pass\n";
+	}
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
+}

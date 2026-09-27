@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/review_submission_contract.hpp"
+#include "bpr/application/staged_review_publication.hpp"
 
 namespace bpr::application {
 	inline constexpr std::size_t maximum_review_submission_baseline_reviews = 100U;
@@ -49,6 +50,21 @@ namespace bpr::application {
 		review_submission_recovery_port(review_submission_recovery_port&&)                         = delete;
 		auto operator=(review_submission_recovery_port&&) -> review_submission_recovery_port&      = delete;
 
+		[[nodiscard]] virtual auto load_staged(const std::string& aKey) -> std::expected<std::optional<staged_publication_record>, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
+		[[nodiscard]] virtual auto advance_staged(const std::optional<staged_publication_record>& aBefore, const staged_publication_record& aAfter) -> std::expected<staged_publication_record, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aBefore);
+			static_cast<void>(aAfter);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
+		[[nodiscard]] virtual auto pending_staged() -> std::expected<std::vector<staged_publication_record>, review_mutation_recovery_failure>
+		{
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
 		/// \brief Atomically reads all unresolved records in this scope, bounded by store capacity.
 		[[nodiscard]] virtual auto pending() -> std::expected<std::vector<review_submission_recovery_record>, review_mutation_recovery_failure> = 0;
 

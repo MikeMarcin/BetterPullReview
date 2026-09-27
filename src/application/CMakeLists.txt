@@ -15,6 +15,7 @@ add_library(
 		src/review_mutation_contract.cpp
         src/review_submission_application_host.cpp
         src/review_submission_contract.cpp
+        src/staged_review_publication.cpp
         src/review_submission_recovery_contract.cpp
         src/review_mutation_coordinator.cpp
 		src/review_mutation_application_host.cpp

@@ -156,10 +156,51 @@ namespace {
 				expect(saved.has_value(), "v3 receipt saved");
 			}
 			store.reset();
-			execute_sql(database(root), "DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+			execute_sql(database(root), "DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 			store = storage(root.Path);
 			expect(store->load(expected.Request.IdempotencyKey).value() == *saved, "v4 migration retains exact whole-review witness or receipt");
 		}
+	}
+
+	void test_staged_journal()
+	{
+		auto fingerprint = std::array<std::uint8_t, 32>{ };
+		fingerprint.fill(1);
+		application::staged_review_plan        plan{ .Submission = request(), .Owner = { core::bpr_profile_id{ 1 }, target().Semantic.Host, core::host_authority_fingerprint{ fingerprint }, identity().Account, target().Semantic.Repository, target().Semantic.PullRequest }, .Generation = 1, .Stops = { { core::tour_stop_id{ 1 }, { .Commit = target().Semantic.ExpectedHead, .Path = "a.cpp" }, "First", "Why", "https://github.com/MikeMarcin/BPR-Test/blob/exact/a.cpp#L1" } } };
+		application::staged_publication_record initial{ .Plan = plan, .Pending = application::staged_initial_request(plan) };
+		temporary_directory                    root;
+		auto                                   store = storage(root.Path);
+		expect(store->advance_staged({ }, initial).has_value(), "immutable staged plan admitted");
+		auto witnessed = initial;
+		++witnessed.Revision;
+		witnessed.PossiblyTransmitted = true;
+		expect(store->advance_staged(initial, witnessed).has_value(), "staged witness CAS persists");
+		expect(!store->advance_staged(initial, witnessed), "stale CAS cannot replay witness");
+		auto reset = witnessed;
+		++reset.Revision;
+		reset.PossiblyTransmitted = false;
+		expect(!store->advance_staged(witnessed, reset), "possibly transmitted cannot be reset to prepared");
+		store.reset();
+		store = storage(root.Path);
+		expect(store->load_staged(plan.Submission.IdempotencyKey).value() == witnessed && store->pending_staged().value() == std::vector{ witnessed }, "restart retains exact generation, bodies, sources, phase and witness");
+		auto other = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = root.Path, .Host = "github.com", .Account = "22", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 });
+		expect(other && (*other)->pending_staged()->empty() && !(*other)->advance_staged({ }, initial), "staged rows cannot cross actor scope");
+		other->reset();
+		store.reset();
+		execute_sql(database(root), "UPDATE staged_publication SET record_digest=zeroblob(32)");
+		store = storage(root.Path);
+		expect(!store->load_staged(plan.Submission.IdempotencyKey) && !store->pending_staged(), "corrupt staged journal fails closed without partial discovery");
+	}
+	void test_version_four_migration()
+	{
+		temporary_directory root;
+		auto                store    = storage(root.Path);
+		const auto          original = record();
+		expect(store->admit(original).has_value(), "v4 summary exists");
+		store.reset();
+		execute_sql(database(root), "DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
+		store = storage(root.Path);
+		expect(store->load(original.Request.IdempotencyKey).value() == original && store->pending_staged()->empty(), "v4 migration preserves existing summary and admits empty staged table");
 	}
 
 	void test_integrity_and_schema()
@@ -175,7 +216,7 @@ namespace {
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
 			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
-		for (const auto* mutation : { "PRAGMA user_version = 5", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
+		for (const auto* mutation : { "PRAGMA user_version = 6", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
 			temporary_directory root;
 			auto                store = storage(root.Path);
 			store.reset();
@@ -216,6 +257,8 @@ namespace {
 }
 auto main() -> int
 try {
+	test_staged_journal();
+	test_version_four_migration();
 	test_storage_round_trip();
 	test_version_three_migration_preserves_whole_reviews();
 	test_integrity_and_schema();
