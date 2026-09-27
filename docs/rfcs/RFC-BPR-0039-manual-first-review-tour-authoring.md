@@ -39,6 +39,15 @@ The primary action is **Add tour stop**. A stop is a thought, not a file: it has
 
 Selecting source and adding a stop captures a semantic source destination, not a painted diff row or a scroll offset. Keep the code and explanation visible together, with the ordered outline beside them. Authors may add, insert, reorder, duplicate, split, merge, and remove **local** stops. Duplicate creates a new local ID. Split/merge preserve text through undo; neither action silently loses related links. Local stop order is independent of file order and comment creation order.
 
+Owner amendment, attended session `7834eb10dc5260f8cc14257a669c1109` hand-back 70
+(2026-09-27): Add and Insert act after the current selection and select the new
+stop, including on Redo. Use the stop context menu, with no separate Arrange,
+move-up/down, split-at-cursor or arrangement-undo menu entries. Provide drag
+handles, multiple selection, Merge for adjacent selected stops, and ordinary
+Duplicate/Delete shortcuts. The keyboard reorder alternative remains available;
+the split operation's underlying preservation and undo tests remain evidence.
+This amendment narrows the visible controls and does not waive native acceptance.
+
 Optional coaching asks: “Where would you start explaining this?”, “What should the reviewer notice?”, “Which decision is not obvious?”, and “What would you like checked?” These are hints, not required form fields. A stop may be informational or explicitly invite scrutiny; neither label changes GitHub's thread-resolution or review-disposition behavior.
 
 ## Composition and presentation

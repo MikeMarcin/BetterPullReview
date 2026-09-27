@@ -20,11 +20,16 @@ comment action as support for a pending tour batch.
    durable contracts in source/documentation and change-specific explanation here.
 2. Select actual code lines and use **Add tour stop** (`Alt+Shift+T`). Give the
    stop a meaningful title and explain a decision, invariant, tradeoff, uncertainty
-   or point that needs scrutiny. Related source links can supply supporting context.
-3. Use **Arrange**, or right-click a stop, to insert, duplicate, split at the
-   cursor, merge, remove or move stops. Drag a stop between outline rows, or use
-   `Alt+Shift+Up/Down`, to change conceptual order while keeping the stop selected.
-   Stops need not follow file order or cover every file.
+   or point that needs scrutiny. The new stop is inserted after the current stop
+   and selected; Redo restores that selection. Related source links can supply context.
+3. Right-click a stop to **Insert after**, **Duplicate**, **Merge**, replace its
+   source or **Remove** it. Shift-click selects a range; Command-click on macOS
+   (Control-click elsewhere) selects individual stops. Merge requires two or more
+   adjacent stops and combines their explanation bytes in route order, retaining
+   related sources. Drag the dotted handles to reorder selected stops; the
+   keyboard alternative is `Alt+Shift+Up/Down`. With the outline focused,
+   `Cmd+D` (`Ctrl+D` elsewhere) duplicates and Delete removes the selection.
+   These actions each have one structural Undo step.
 4. Use **Ready and next** (`Alt+Return`) after reading the current explanation
    against its source. This is private preparation state. It does not mark code
    reviewed, resolve a thread or approve a change. Previous, Next and Return to
@@ -40,8 +45,8 @@ without inserting tabs into prose. Standard Undo/Redo (`Cmd+Z` / `Cmd+Shift+Z`
 on macOS) reverses the latest arrangement while its history is available,
 including adding a stop or dragging it. Subsequent text editing clears that
 bounded structural history and gives Undo/Redo to the native text editor, so
-restoring an older arrangement cannot erase newer prose. Arrange also exposes
-explicit Undo arrangement and Redo arrangement actions.
+restoring an older arrangement cannot erase newer prose. Undo and Redo work
+through the normal shortcuts throughout the Tour panel.
 Undo after publication changes only the local draft.
 
 The local ceiling is 256 stops, 64 KiB UTF-8 per field, 32 related sources per

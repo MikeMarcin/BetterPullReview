@@ -157,8 +157,9 @@ namespace bpr::core {
 			if (aIndex + 1U >= aTour.Stops.size()) {
 				return tour_refusal::invalid_command;
 			}
-			auto&       stop = aTour.Stops[aIndex];
-			const auto& next = aTour.Stops[aIndex + 1U];
+			auto&       stop     = aTour.Stops[aIndex];
+			const auto& next     = aTour.Stops[aIndex + 1U];
+			const auto  original = stop.Remote ? std::optional{ stop } : std::nullopt;
 			if (!stop.Suggestion && next.Suggestion) {
 				stop.Suggestion = next.Suggestion;
 			}
@@ -173,10 +174,8 @@ namespace bpr::core {
 			for (const auto& related : next.Related) {
 				retain_source(stop, related);
 			}
-			if (stop.Remote) {
-				auto original = stop;
-				original.Body.resize(original.Body.size() - next.Body.size());
-				aTour.Retired.push_back(original);
+			if (original) {
+				aTour.Retired.push_back(*original);
 			}
 			if (stop.Remote || next.Remote) {
 				if (aTour.LastStopId == std::numeric_limits<std::uint64_t>::max()) {
@@ -220,7 +219,11 @@ namespace bpr::core {
 			}
 			case tour_command_kind::duplicate:
 			case tour_command_kind::split:      return duplicate_or_split(aTour, aCommand, index, aSelected);
-			case tour_command_kind::merge_next: return merge_next(aTour, index);
+			case tour_command_kind::merge_next: {
+				const auto refusal = merge_next(aTour, index);
+				aSelected          = aTour.Stops[index].Id;
+				return refusal;
+			}
 			case tour_command_kind::remove:
 				if (found->Remote) {
 					aTour.Retired.push_back(*found);
@@ -258,8 +261,76 @@ namespace bpr::core {
 			default: return tour_refusal::invalid_command;
 			}
 		}
+		auto selection_positions(const review_tour& aTour, const std::vector<tour_stop_id>& aSelection) -> std::optional<std::vector<std::size_t>>
+		{
+			std::vector<std::size_t> positions;
+			if (aSelection.size() > maximum_tour_stops) {
+				return std::nullopt;
+			}
+			for (const auto id : aSelection) {
+				const auto found    = std::ranges::find(aTour.Stops, id, &tour_stop::Id);
+				const auto position = static_cast<std::size_t>(found - aTour.Stops.begin());
+				if (found == aTour.Stops.end() || (!positions.empty() && position <= positions.back())) {
+					return std::nullopt;
+				}
+				positions.push_back(position);
+			}
+			return positions;
+		}
+		auto move_selection(review_tour& aTour, const tour_command& aCommand, const std::vector<std::size_t>& aPositions, tour_stop_id& aSelected) -> tour_refusal
+		{
+			if (aCommand.Position > aTour.Stops.size() - aPositions.size()) {
+				return tour_refusal::invalid_command;
+			}
+			std::vector<tour_stop> moved;
+			moved.reserve(aPositions.size());
+			for (const auto position : aPositions) {
+				moved.push_back(aTour.Stops[position]);
+			}
+			for (auto position = aPositions.rbegin(); position != aPositions.rend(); ++position) {
+				aTour.Stops.erase(aTour.Stops.begin() + static_cast<std::ptrdiff_t>(*position));
+			}
+			aTour.Stops.insert(aTour.Stops.begin() + static_cast<std::ptrdiff_t>(aCommand.Position), moved.begin(), moved.end());
+			aSelected = std::ranges::find(aCommand.Selection, aCommand.Stop) != aCommand.Selection.end() ? aCommand.Stop : moved.front().Id;
+			return tour_refusal::none;
+		}
+		auto mutate_selection(review_tour& aTour, const tour_command& aCommand, tour_stop_id& aSelected) -> tour_refusal
+		{
+			const auto positions = selection_positions(aTour, aCommand.Selection);
+			if (!positions || positions->empty()) {
+				return tour_refusal::invalid_command;
+			}
+			if (aCommand.Kind == tour_command_kind::move) {
+				return move_selection(aTour, aCommand, *positions, aSelected);
+			}
+			if (aCommand.Kind == tour_command_kind::merge_next) {
+				if (positions->size() < 2 || positions->back() - positions->front() + 1 != positions->size()) {
+					return tour_refusal::invalid_command;
+				}
+				for (std::size_t remaining = positions->size() - 1; remaining; --remaining) {
+					if (const auto refusal = merge_next(aTour, positions->front()); refusal != tour_refusal::none) {
+						return refusal;
+					}
+				}
+				aSelected = aTour.Stops[positions->front()].Id;
+				return tour_refusal::none;
+			}
+			if (aCommand.Kind != tour_command_kind::duplicate && aCommand.Kind != tour_command_kind::remove) {
+				return tour_refusal::invalid_command;
+			}
+			for (auto id = aCommand.Selection.rbegin(); id != aCommand.Selection.rend(); ++id) {
+				const tour_command single{ .Kind = aCommand.Kind, .Stop = *id };
+				if (const auto refusal = edit_stop(aTour, single, aSelected); refusal != tour_refusal::none) {
+					return refusal;
+				}
+			}
+			return tour_refusal::none;
+		}
 		auto mutate(review_tour& aTour, const tour_command& aCommand, tour_stop_id& aSelected) -> tour_refusal
 		{
+			if (!aCommand.Selection.empty()) {
+				return mutate_selection(aTour, aCommand, aSelected);
+			}
 			switch (aCommand.Kind) {
 			case tour_command_kind::problem:
 			case tour_command_kind::solution: {

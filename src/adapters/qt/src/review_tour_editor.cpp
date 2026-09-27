@@ -13,30 +13,68 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QStyledItemDelegate>
 #include <QTabWidget>
-#include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <limits>
 namespace bpr::qt {
 	namespace {
+		class tour_stop_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+		protected:
+			void initStyleOption(QStyleOptionViewItem* aOption, const QModelIndex& aIndex) const override
+			{
+				QStyledItemDelegate::initStyleOption(aOption, aIndex);
+				const auto extent = std::max(18, aOption->fontMetrics.height());
+				QPixmap    handle{ extent, extent };
+				handle.fill(Qt::transparent);
+				QPainter painter{ &handle };
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(aOption->palette.color(aOption->state & QStyle::State_Selected ? QPalette::HighlightedText : QPalette::Text));
+				for (int row = -1; row <= 1; ++row) {
+					for (int column = -1; column <= 1; column += 2) {
+						painter.drawEllipse(QPointF{ extent / 2.0 + column * 2.5, extent / 2.0 + row * 5.0 }, 1.2, 1.2);
+					}
+				}
+				aOption->features |= QStyleOptionViewItem::HasDecoration;
+				aOption->icon           = QIcon{ handle };
+				aOption->decorationSize = { extent, extent };
+			}
+		};
 		// The list translates a drag to one semantic move. Only the accepted
 		// projection may reorder its rows, so a refused drop leaves them intact.
 		class tour_outline final : public QListWidget
 		{
 		public:
 			using QListWidget::QListWidget;
-			std::function<void(qulonglong, std::size_t)> Move;
+			std::function<void(std::size_t)> Move;
 
 		protected:
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				DragFromHandle = aEvent->button() == Qt::LeftButton && on_handle(aEvent->position().toPoint());
+				QListWidget::mousePressEvent(aEvent);
+			}
+			void mouseMoveEvent(QMouseEvent* aEvent) override
+			{
+				viewport()->setCursor(on_handle(aEvent->position().toPoint()) ? Qt::OpenHandCursor : Qt::ArrowCursor);
+				QListWidget::mouseMoveEvent(aEvent);
+			}
 			void startDrag(Qt::DropActions) override
 			{
 				Dragged = currentItem() ? currentItem()->data(Qt::UserRole).toULongLong() : 0;
-				if (!Dragged) {
+				if (!Dragged || !DragFromHandle || selectedItems().empty()) {
 					return;
 				}
 				// QAbstractItemView's default drag removes source rows after a
@@ -58,18 +96,24 @@ namespace bpr::qt {
 				if (dropIndicatorPosition() == QAbstractItemView::BelowItem) {
 					++destination;
 				}
-				if (destination > currentRow()) {
-					--destination;
-				}
-				if (destination >= 0 && destination < count() && destination != currentRow() && Move) {
-					Move(Dragged, static_cast<std::size_t>(destination));
+				const auto selected  = selectedItems();
+				const auto preceding = std::ranges::count_if(selected, [&](auto* aItem) { return row(aItem) < destination; });
+				destination -= static_cast<int>(preceding);
+				if (destination >= 0 && destination <= count() - selected.size() && Move) {
+					Move(static_cast<std::size_t>(destination));
 				}
 				aEvent->setDropAction(Qt::MoveAction);
 				aEvent->accept();
 			}
 
 		private:
-			qulonglong Dragged = 0;
+			bool on_handle(const QPoint& aPosition) const
+			{
+				const auto* item = itemAt(aPosition);
+				return item && aPosition.x() - visualItemRect(item).left() < std::max(18, fontMetrics().height()) + 6;
+			}
+			bool       DragFromHandle = false;
+			qulonglong Dragged        = 0;
 		};
 		auto paragraph(const QString& aText, QWidget* aParent) -> QLabel*
 		{
@@ -214,6 +258,10 @@ namespace bpr::qt {
 		UseRemoteConflict->setObjectName(QStringLiteral("tourUseRemoteConflict"));
 		connect(UseRemoteConflict, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::use_remote_conflict); });
 		layout->addWidget(UseRemoteConflict);
+		for (auto* widget : findChildren<QWidget*>()) {
+			widget->installEventFilter(this);
+			widget->setAttribute(Qt::WA_MacShowFocusRect);
+		}
 		present({ });
 	}
 	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
@@ -244,13 +292,15 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::present(const application::tour_presentation& aProjection)
 	{
-		Applying        = true;
-		const bool same = Shown.Draft && aProjection.Draft && Shown.Draft->Owner == aProjection.Draft->Owner && Shown.Draft->Id == aProjection.Draft->Id;
+		Applying         = true;
+		SelectionChanged = false;
+		const bool same  = Shown.Draft && aProjection.Draft && Shown.Draft->Owner == aProjection.Draft->Owner && Shown.Draft->Id == aProjection.Draft->Id;
 		if (!same) {
 			Selected = { };
 		}
-		if (aProjection.Selected != Shown.Selected && aProjection.Selected.value()) {
-			Selected = aProjection.Selected;
+		if (aProjection.SelectionRevision != Shown.SelectionRevision || aProjection.Selected != Shown.Selected) {
+			Selected         = aProjection.Selected;
+			SelectionChanged = true;
 		}
 		if (Shown.ImportChoices != aProjection.ImportChoices) {
 			const auto block = QSignalBlocker{ Imports };
@@ -404,7 +454,7 @@ namespace bpr::qt {
 		auto* button = new QPushButton{ aEditor->parentWidget() };
 		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
 																																				: QStringLiteral("tourStopMagic"));
-		button->setFocusPolicy(Qt::NoFocus);
+		button->setFocusPolicy(Qt::TabFocus);
 		button->setToolTip(tr("Use the selected agent once. The result replaces only the captured text and can be undone."));
 		aLayout->addWidget(button);
 		const auto label = [aEditor, aHook, button] { button->setText(aEditor->textCursor().hasSelection() ? tr("Enhance selection") : core::writing_blank(aEditor->raw()) ? (aHook == core::writing_hook::comment ? tr("Generate comment") : tr("Recover explanation"))
@@ -459,10 +509,35 @@ namespace bpr::qt {
 		}
 		QWidget::hideEvent(aEvent);
 	}
+	bool review_tour_editor::focusNextPrevChild(bool aNext)
+	{
+		// Cocoa's text-only keyboard preference can otherwise skip every control
+		// on a prose page. This form exposes its full visible keyboard route.
+		auto* current = QApplication::focusWidget();
+		if (!current) {
+			return QWidget::focusNextPrevChild(aNext);
+		}
+		for (auto* next = aNext ? current->nextInFocusChain() : current->previousInFocusChain(); next != current; next = aNext ? next->nextInFocusChain() : next->previousInFocusChain()) {
+			if (next->window() == window() && next->isVisible() && next->isEnabled() && (next->focusPolicy() & Qt::TabFocus) && !next->focusProxy()) {
+				next->setFocus(aNext ? Qt::TabFocusReason : Qt::BacktabFocusReason);
+				if (QApplication::focusWidget() != current) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
-		if ((aWatched == Body || aWatched == Title || aWatched == Outline) && (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress)) {
-			auto* key    = static_cast<QKeyEvent*>(aEvent);
+		if (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress) {
+			auto* key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) && !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+				key->accept();
+				if (aEvent->type() == QEvent::KeyPress) {
+					focusNextPrevChild(key->key() == Qt::Key_Tab && !(key->modifiers() & Qt::ShiftModifier));
+				}
+				return true;
+			}
 			auto* action = key->matches(QKeySequence::Undo) ? UndoStructure : key->matches(QKeySequence::Redo) ? RedoStructure
 																											   : nullptr;
 			if (action && action->isEnabled() && Shown.Refusal != core::tour_refusal::bounds) {
@@ -519,56 +594,56 @@ namespace bpr::qt {
 		add->setObjectName(QStringLiteral("tourAddStop"));
 		top->addWidget(add);
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
-		auto* more = new QToolButton{ page };
-		more->setText(tr("Arrange"));
-		more->setPopupMode(QToolButton::InstantPopup);
-		top->addWidget(more);
-		auto* menu = new QMenu{ more };
-		menu->setObjectName(QStringLiteral("tourArrangeMenu"));
-		more->setMenu(menu);
-		const auto action = [&](const QString& aText, const QString& aName, const QString& aKeys, auto aCallback) {
+		auto* outline = new tour_outline{ page };
+		Outline       = outline;
+		Outline->setSelectionMode(QAbstractItemView::ExtendedSelection);
+		Outline->setItemDelegate(new tour_stop_delegate{ Outline });
+		Outline->setDragDropMode(QAbstractItemView::InternalMove);
+		Outline->setDefaultDropAction(Qt::MoveAction);
+		Outline->setMouseTracking(true);
+		Outline->setContextMenuPolicy(Qt::CustomContextMenu);
+		auto* menu = new QMenu{ Outline };
+		menu->setObjectName(QStringLiteral("tourStopMenu"));
+		const auto action = [&](const QString& aText, const QString& aName, const QKeySequence& aKeys, auto aCallback) {
 			auto* value = menu->addAction(aText);
 			value->setObjectName(aName);
-			value->setShortcut(QKeySequence{ aKeys });
-			value->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-			page->addAction(value);
+			value->setShortcut(aKeys);
+			value->setShortcutContext(Qt::WidgetShortcut);
+			Outline->addAction(value);
 			connect(value, &QAction::triggered, this, aCallback);
 			return value;
 		};
-		action(tr("Insert before selected"), QStringLiteral("tourInsertBefore"), QStringLiteral("Alt+Insert"), [this] { trigger(tour_editor_action::insert_before); });
-		MoveUp   = action(tr("Move stop up"), QStringLiteral("tourMoveUp"), QStringLiteral("Alt+Shift+Up"), [this] {if(Outline->currentRow()>0){structural(core::tour_command_kind::move,static_cast<std::size_t>(Outline->currentRow()-1));} });
-		MoveDown = action(tr("Move stop down"), QStringLiteral("tourMoveDown"), QStringLiteral("Alt+Shift+Down"), [this] {if(Outline->currentRow()+1<Outline->count()){structural(core::tour_command_kind::move,static_cast<std::size_t>(Outline->currentRow()) + 1U);} });
-		action(tr("Duplicate stop"), QStringLiteral("tourDuplicate"), QStringLiteral("Alt+D"), [this] { structural(core::tour_command_kind::duplicate); });
-		action(tr("Split at text cursor"), QStringLiteral("tourSplit"), QStringLiteral("Alt+S"), [this] { structural(core::tour_command_kind::split); });
-		action(tr("Merge with next stop"), QStringLiteral("tourMerge"), QStringLiteral("Alt+M"), [this] { structural(core::tour_command_kind::merge_next); });
-		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QStringLiteral("Alt+R"), [this] { trigger(tour_editor_action::retarget_stop); });
-		action(tr("Remove stop"), QStringLiteral("tourRemove"), QStringLiteral("Alt+Delete"), [this] { structural(core::tour_command_kind::remove); });
-		menu->addSeparator();
-		UndoStructure = action(tr("Undo arrangement"), QStringLiteral("tourUndo"), QStringLiteral("Ctrl+Alt+Z"), [this] { trigger(tour_editor_action::undo_structure); });
-		RedoStructure = action(tr("Redo arrangement"), QStringLiteral("tourRedo"), QStringLiteral("Ctrl+Alt+Shift+Z"), [this] { trigger(tour_editor_action::redo_structure); });
-		UndoStructure->setShortcuts({ QKeySequence::Undo, QKeySequence{ QStringLiteral("Ctrl+Alt+Z") } });
-		RedoStructure->setShortcuts({ QKeySequence::Redo, QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+Z") } });
-		auto* outline = new tour_outline{ page };
-		Outline       = outline;
-		outline->Move = [this](qulonglong aId, std::size_t aPosition) {
-			if (Selected.value() == aId) {
-				structural(core::tour_command_kind::move, aPosition);
-			}
+		action(tr("Insert after"), QStringLiteral("tourInsertAfter"), { }, [this] { trigger(tour_editor_action::insert_after); });
+		DuplicateStops = action(tr("Duplicate"), QStringLiteral("tourDuplicate"), QKeySequence{ QStringLiteral("Ctrl+D") }, [this] { structural(core::tour_command_kind::duplicate); });
+		MergeStops     = action(tr("Merge"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
+		MergeStops->setToolTip(tr("Select two or more adjacent stops to merge in route order."));
+		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+R") }, [this] { trigger(tour_editor_action::retarget_stop); });
+		RemoveStops = action(tr("Remove"), QStringLiteral("tourRemove"), QKeySequence{ Qt::Key_Delete }, [this] { structural(core::tour_command_kind::remove); });
+		RemoveStops->setShortcuts({ QKeySequence{ Qt::Key_Delete }, QKeySequence{ Qt::Key_Backspace } });
+		const auto shortcut = [&](const QString& aName, const QKeySequence& aKeys, QWidget* aOwner, auto aCallback) {
+			auto* value = new QAction{ aOwner };
+			value->setObjectName(aName);
+			value->setShortcut(aKeys);
+			value->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+			aOwner->addAction(value);
+			connect(value, &QAction::triggered, this, aCallback);
+			return value;
 		};
-		Outline->setDragDropMode(QAbstractItemView::InternalMove);
-		Outline->installEventFilter(this);
-		Outline->setDefaultDropAction(Qt::MoveAction);
-		Outline->setContextMenuPolicy(Qt::CustomContextMenu);
+		shortcut(QStringLiteral("tourMoveUp"), QKeySequence{ QStringLiteral("Alt+Shift+Up") }, Outline, [this] { move_selection(-1); });
+		shortcut(QStringLiteral("tourMoveDown"), QKeySequence{ QStringLiteral("Alt+Shift+Down") }, Outline, [this] { move_selection(1); });
+		UndoStructure = shortcut(QStringLiteral("tourUndo"), QKeySequence::Undo, this, [this] { trigger(tour_editor_action::undo_structure); });
+		RedoStructure = shortcut(QStringLiteral("tourRedo"), QKeySequence::Redo, this, [this] { trigger(tour_editor_action::redo_structure); });
+		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
+		connect(Outline, &QListWidget::itemSelectionChanged, this, [this] { update_stop_actions(); });
 		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
 			if (auto* item = Outline->itemAt(aPosition)) {
-				Outline->setCurrentItem(item);
-				if (item->data(Qt::UserRole).toULongLong() == Selected.value()) {
-					menu->popup(Outline->viewport()->mapToGlobal(aPosition));
-				}
+				Outline->setCurrentItem(item, item->isSelected() ? QItemSelectionModel::NoUpdate : QItemSelectionModel::ClearAndSelect);
+				update_stop_actions();
+				menu->popup(Outline->viewport()->mapToGlobal(aPosition));
 			}
 		});
 		Outline->setObjectName(QStringLiteral("tourOutline"));
-		Outline->setAccessibleName(tr("Ordered tour stops; Alt+Shift+Up and Alt+Shift+Down move the selected stop"));
+		Outline->setAccessibleName(tr("Ordered tour stops; drag the handles or use Alt+Shift+Up and Alt+Shift+Down to reorder; Shift or Command/Control selects multiple stops"));
 		Outline->setWordWrap(true);
 		Outline->setTextElideMode(Qt::ElideNone);
 		Outline->setMinimumHeight(85);
@@ -662,7 +737,7 @@ namespace bpr::qt {
 			if (Shown.Refusal == core::tour_refusal::bounds) {
 				const auto block = QSignalBlocker{ Outline };
 				if (const auto* stop = selected_stop()) {
-					Outline->setCurrentRow(static_cast<int>(stop - Shown.Draft->Stops.data()));
+					Outline->setCurrentRow(static_cast<int>(stop - Shown.Draft->Stops.data()), QItemSelectionModel::ClearAndSelect);
 				}
 				show_notice(tr("Shorten the unsaved text or use native Undo before selecting another stop. Your full text is retained."));
 				return;
@@ -670,8 +745,9 @@ namespace bpr::qt {
 			if (WritingCancel) {
 				WritingCancel();
 			}
-			Selected = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
-			Applying = true;
+			Selected         = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
+			SelectionChanged = false;
+			Applying         = true;
 			present_stops(false);
 			Applying = false;
 			trigger(tour_editor_action::navigate_stop);
@@ -725,12 +801,14 @@ namespace bpr::qt {
 			delete Outline->takeItem(Outline->count() - 1);
 		}
 		if (!selected_stop()) {
-			Selected = count ? Shown.Draft->Stops.front().Id : core::tour_stop_id{ };
+			Selected         = count ? Shown.Draft->Stops.front().Id : core::tour_stop_id{ };
+			SelectionChanged = count != 0;
 		}
 		const auto* stop = selected_stop();
 		StopFields->setEnabled(stop != nullptr && !Shown.Loading);
 		UndoStructure->setEnabled(Shown.CanUndo);
 		RedoStructure->setEnabled(Shown.CanRedo);
+		update_stop_actions();
 		if (!stop) {
 			Title->clear();
 			Body->clear();
@@ -740,9 +818,12 @@ namespace bpr::qt {
 			return;
 		}
 		const auto row = static_cast<int>(stop - Shown.Draft->Stops.data());
-		Outline->setCurrentRow(row);
-		MoveUp->setEnabled(row > 0);
-		MoveDown->setEnabled(row + 1 < Outline->count());
+		Outline->setCurrentRow(row, QItemSelectionModel::NoUpdate);
+		if (SelectionChanged) {
+			Outline->clearSelection();
+			Outline->item(row)->setSelected(true);
+		}
+		update_stop_actions();
 		const bool changed = Editing != stop->Id;
 		if (changed) {
 			auto& document = BodyDocuments[stop->Id];
@@ -834,7 +915,61 @@ namespace bpr::qt {
 			show_notice(tr("Shorten the unsaved text or use native Undo before arranging stops. Your full text is retained."));
 			return;
 		}
-		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Stop = Selected, .Position = aPosition, .SplitByte = static_cast<std::size_t>(Body->toPlainText().left(Body->textCursor().position()).toUtf8().size()) });
+		const bool grouped   = aKind == core::tour_command_kind::move || aKind == core::tour_command_kind::duplicate || aKind == core::tour_command_kind::merge_next || aKind == core::tour_command_kind::remove;
+		const auto selection = grouped ? selected_stops() : std::vector<core::tour_stop_id>{ };
+		if (grouped && selection.empty()) {
+			return;
+		}
+		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Stop = Selected, .Position = aPosition, .Selection = selection });
+		if (aKind == core::tour_command_kind::move && Shown.Refusal == core::tour_refusal::none) {
+			select_stops(selection);
+		}
+	}
+	auto review_tour_editor::selected_stops() const -> std::vector<core::tour_stop_id>
+	{
+		std::vector<core::tour_stop_id> result;
+		for (int row = 0; row < Outline->count(); ++row) {
+			const auto* item = Outline->item(row);
+			if (item->isSelected()) {
+				result.emplace_back(item->data(Qt::UserRole).toULongLong());
+			}
+		}
+		return result;
+	}
+	void review_tour_editor::select_stops(const std::vector<core::tour_stop_id>& aStops)
+	{
+		const QSignalBlocker block{ Outline };
+		for (int row = 0; row < Outline->count(); ++row) {
+			auto* item = Outline->item(row);
+			item->setSelected(std::ranges::any_of(aStops, [&](auto aId) { return aId.value() == item->data(Qt::UserRole).toULongLong(); }));
+		}
+		update_stop_actions();
+	}
+	void review_tour_editor::update_stop_actions()
+	{
+		const auto selection = selected_stops();
+		const bool editable  = Shown.Draft && !Shown.Draft->ReadOnly && !Shown.Loading && Shown.Refusal == core::tour_refusal::none;
+		DuplicateStops->setEnabled(editable && !selection.empty());
+		RemoveStops->setEnabled(editable && !selection.empty());
+		bool adjacent = selection.size() >= 2;
+		if (adjacent && Shown.Draft) {
+			const auto first = std::ranges::find(Shown.Draft->Stops, selection.front(), &core::tour_stop::Id);
+			const auto last  = std::ranges::find(Shown.Draft->Stops, selection.back(), &core::tour_stop::Id);
+			adjacent         = first != Shown.Draft->Stops.end() && last != Shown.Draft->Stops.end() && static_cast<std::size_t>(last - first + 1) == selection.size();
+		}
+		MergeStops->setEnabled(editable && adjacent);
+	}
+	void review_tour_editor::move_selection(int aOffset)
+	{
+		const auto selection = selected_stops();
+		if (selection.empty() || !Shown.Draft) {
+			return;
+		}
+		const auto first    = std::ranges::find(Shown.Draft->Stops, selection.front(), &core::tour_stop::Id);
+		const auto position = first - Shown.Draft->Stops.begin() + aOffset;
+		if (position >= 0 && static_cast<std::size_t>(position) <= Shown.Draft->Stops.size() - selection.size()) {
+			structural(core::tour_command_kind::move, static_cast<std::size_t>(position));
+		}
 	}
 	void review_tour_editor::next_changed_stop()
 	{
@@ -849,7 +984,7 @@ namespace bpr::qt {
 			const bool changed = std::ranges::any_of(Shown.Draft->ObservedChanges, [&](const auto& aChange) { return aChange.Stop == stops[index].Id && aChange.Kind != core::tour_change_kind::removed; });
 			if (changed) {
 				show_stops();
-				Outline->setCurrentRow(static_cast<int>(index));
+				Outline->setCurrentRow(static_cast<int>(index), QItemSelectionModel::ClearAndSelect);
 				return;
 			}
 		}
@@ -859,7 +994,7 @@ namespace bpr::qt {
 	{
 		const auto row = Outline->currentRow() + aOffset;
 		if (row >= 0 && row < Outline->count()) {
-			Outline->setCurrentRow(row);
+			Outline->setCurrentRow(row, QItemSelectionModel::ClearAndSelect);
 		}
 	}
 	auto review_tour_editor::minimumSizeHint() const -> QSize { return { 280, 240 }; }

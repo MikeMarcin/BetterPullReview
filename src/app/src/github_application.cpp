@@ -9417,7 +9417,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			case qt::tour_editor_action::add_stop:
-			case qt::tour_editor_action::insert_before:
+			case qt::tour_editor_action::insert_after:
 			case qt::tour_editor_action::retarget_stop:
 			case qt::tour_editor_action::add_related:   {
 				const auto source = selected_tour_source();
@@ -9447,14 +9447,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
 					return;
 				}
-				auto position = draft->Stops.size();
-				if (aAction == qt::tour_editor_action::insert_before) {
-					if (const auto* stop = Window->tour_editor()->selected_stop()) {
-						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
-						position         = static_cast<std::size_t>(found - draft->Stops.begin());
-					}
+				auto        position = draft->Stops.size();
+				const auto* selected = Window->tour_editor()->selected_stop();
+				if (selected) {
+					const auto found = std::ranges::find(draft->Stops, selected->Id, &core::tour_stop::Id);
+					position         = static_cast<std::size_t>(found - draft->Stops.begin()) + 1U;
 				}
-				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
+				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Stop = selected ? selected->Id : core::tour_stop_id{ }, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
 				Window->open_review_tour();
 				Window->tour_editor()->show_stops();
 				return;

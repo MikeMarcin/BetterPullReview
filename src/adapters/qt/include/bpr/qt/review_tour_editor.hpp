@@ -26,7 +26,7 @@ namespace bpr::qt {
 												   map_problem,
 												   map_solution,
 												   add_stop,
-												   insert_before,
+												   insert_after,
 												   add_related,
 												   retarget_stop,
 												   navigate_stop,
@@ -77,6 +77,7 @@ namespace bpr::qt {
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+		bool focusNextPrevChild(bool aNext) override;
 
 	private:
 		void                                                   edit(core::tour_command_kind aKind, const std::string& aText);
@@ -88,6 +89,10 @@ namespace bpr::qt {
 		void                                                   present_stops(bool aOwnerChanged);
 		void                                                   edit_stop();
 		void                                                   structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
+		[[nodiscard]] auto                                     selected_stops() const -> std::vector<core::tour_stop_id>;
+		void                                                   select_stops(const std::vector<core::tour_stop_id>& aStops);
+		void                                                   update_stop_actions();
+		void                                                   move_selection(int aOffset);
 		void                                                   next_stop(int aOffset);
 		void                                                   next_changed_stop();
 		QComboBox*                                             PublicationMode    = nullptr;
@@ -108,8 +113,9 @@ namespace bpr::qt {
 		scoped_prose_editor*                                   Body               = nullptr;
 		QLabel*                                                Source             = nullptr;
 		QWidget*                                               StopFields         = nullptr;
-		QAction*                                               MoveUp             = nullptr;
-		QAction*                                               MoveDown           = nullptr;
+		QAction*                                               MergeStops         = nullptr;
+		QAction*                                               DuplicateStops     = nullptr;
+		QAction*                                               RemoveStops        = nullptr;
 		QAction*                                               UndoStructure      = nullptr;
 		QAction*                                               RedoStructure      = nullptr;
 		core::tour_stop_id                                     Selected;
@@ -133,6 +139,7 @@ namespace bpr::qt {
 		QPushButton*                                           UseSaved          = nullptr;
 		QPushButton*                                           KeepLocalConflict = nullptr;
 		QPushButton*                                           UseRemoteConflict = nullptr;
+		bool                                                   SelectionChanged  = false;
 		bool                                                   Applying          = false;
 	};
 }
