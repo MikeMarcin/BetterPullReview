@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1222",
+    "BPR-1223",
+    "BPR-1224",
+    "BPR-1225",
+    "BPR-1226"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0039-0043 owner-amended blocked qualification follow-ups",
+  "created": "2026-09-27T18:32:35.444580+00:00",
+  "base": "1859f7a3b1925b721dcc69ab51818b9a4c7cde1d"
+}
