@@ -1,0 +1,133 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-0591"
+title: "Anchor RFC-BPR-0023 verification and closeout"
+status: "Done"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0590","BPR-0242","BPR-0245","BPR-0507"]
+milestone: "Post-Pack v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"A reviewer can create a PR-level or exact semantic-subject private thread, add reviewer turns, restart BetterPullReview, and recover the thread and its revision history exactly.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-01: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Side-chat prompts and complete assistant responses can be retained as turns without adding a second agent launch path, and the thread remains bound to the exact review revision it was created against.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-02: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Every turn revision has a typed actor. New reviewer text is `reviewer`, agent text names one exact `agent_run_id`, and migrated notes are `legacy_unknown`.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-03: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Editing agent-authored text creates a reviewer-authored successor with an immutable `edited_from` edge; the original bytes, actor, and run provenance remain inspectable.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-04: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Agent provenance retains requested, configured, protocol-reported, and content-self-reported model/effort facts separately. Missing facts remain unknown, disagreements are visible, and no value is inferred from a profile or executable name.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-05: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"One agent session can produce multiple uniquely identified runs and finding sets without collision; retained provenance remains readable after session catalog pruning.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-06: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Thread subjects and composition targets use exact semantic identities. Head/epoch movement produces visible stale or unplaceable state and never a nearest-line or silent reanchor.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-07: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"A reviewer can select exact revisions/findings, open a composition workspace, inspect sources and provenance, and produce a reviewer-authored, exact-copy, or explicitly agent-assisted candidate.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-08: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"`Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-09: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-10: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-11: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path.","outcome":"pass","revision":"d4404fc44","evidence":{"kind":"artifact","detail":"AC-12: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger. Designated publication, independent server read and exact local lineage are in the live record.","refs":["docs/verification/RFC-BPR-0023.md","docs/verification/RFC-BPR-0023-live-publication.md"]}},{"criterion":"A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity.","outcome":"pass","revision":"d4404fc44","evidence":{"kind":"artifact","detail":"AC-13: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger. Designated publication, independent server read and exact local lineage are in the live record.","refs":["docs/verification/RFC-BPR-0023.md","docs/verification/RFC-BPR-0023-live-publication.md"]}},{"criterion":"Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-14: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-15: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch.","outcome":"pass","revision":"891735401","evidence":{"kind":"artifact","detail":"AC-16: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination.","outcome":"pass","revision":"d4404fc44","evidence":{"kind":"artifact","detail":"AC-17: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger. Designated publication, independent server read and exact local lineage are in the live record.","refs":["docs/verification/RFC-BPR-0023.md","docs/verification/RFC-BPR-0023-live-publication.md"]}},{"criterion":"The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update.","outcome":"pass","revision":"80d4eb4da","evidence":{"kind":"artifact","detail":"AC-18: direct local course, canonical claim row, and final independent review recorded in the RFC verification ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Final independent capability-critical review and finding disposition","outcome":"pass","revision":"ae6261c9057f2473b7d95e3024bce2f4bd41fedb","evidence":{"kind":"observation","detail":"Independent rfc-reviewer-critical inspected integrated candidate 1859f7a3b; four findings repaired by d4404fc44 and designated ledger-loss course; targeted recheck found no blockers. Reviewer independently read GitHub comment 4116400082.","refs":["docs/verification/RFC-BPR-0023.md","docs/verification/RFC-BPR-0023-live-publication.md"]}},{"criterion":"Dependencies, architecture conformance and all required live cards","outcome":"pass","revision":"ae6261c9057f2473b7d95e3024bce2f4bd41fedb","evidence":{"kind":"observation","detail":"All fifteen preceding RFC-0023 cards Done; RFC dependencies 0007, 0008, 0011 and 0012 Auto-Verified. Final architecture matrix and immutable base comparison recorded in ledger.","refs":["docs/verification/RFC-BPR-0023.md"]}},{"criterion":"Final focused product, documentation and board gates","outcome":"pass","revision":"d4404fc44","evidence":{"kind":"command","detail":"GitHub permalink 1/1; private storage 1/1; app build PASS; composed native private review 1/1; documentation gate DOCUMENTATION_OK; documentation tests 64/64; scoped board valid 1208 cards; diff whitespace clean."}}]
+---
+
+# Anchor RFC-BPR-0023 verification and closeout
+
+## Objective
+
+Perform capability-critical review of durable private data, agent provenance, and remote publication, then reconcile all live cards and RFC status.
+
+## Required final state
+
+- An independent reviewer traces private creation, agent dispatch, composition, draft acceptance, publish, server reconciliation, migration, deletion, and crash paths end to end.
+- The review explicitly checks no provenance overclaim, no hidden GitHub metadata, no second agent/mutation path, no guessed anchor, no Qt/provider bypass, and no dual storage authority.
+- All review findings are fixed or recorded as explicit blockers/deferred work with RFC-compatible rationale.
+- Every required live card is Done before Auto-Verified closeout; pending work
+  stays in its truthful lane and prevents closeout. Indexes and claim records agree.
+- RFC status changes to `Auto-Verified` only if all dependencies are Auto-Verified and every required direct evidence row is satisfied. Otherwise available-target work remains complete with the RFC Proposed and closeout card parked/backlog as appropriate.
+
+## Non-goals
+
+- Waiving dependency order
+- Closing from aggregate test success without claim inspection
+- Treating unavailable live-service evidence as passed
+
+## Completion evidence
+
+- Independent review report
+- Final claim and architecture-conformance matrices
+- Issue-board audit
+- Final documentation/structure/focused gate output
+- RFC/index status diff
+
+## Documentation impact
+
+Update the RFC-BPR-0023 documentation ledger with actual changed paths,
+operator-visible behavior, limits, commands, and evidence, or record a reviewed
+no-impact result for this slice.
+
+RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
+
+Requested RFC set: RFC-BPR-0022, RFC-BPR-0023; import position: 2 of 2.
+Planned cards: BPR-0576, BPR-0577, BPR-0578, BPR-0579, BPR-0580, BPR-0581, BPR-0582, BPR-0583, BPR-0584, BPR-0585, BPR-0586, BPR-0587, BPR-0588, BPR-0589, BPR-0590, BPR-0591.
+
+## Closeout checklist
+
+| Criterion | Planned check | Result | Producing commit |
+|---|---|---|---|
+| A reviewer can create a PR-level or exact semantic-subject private thread, add reviewer turns, restart BetterPullReview, and recover the thread and its revision history exactly. | AC-01 in RFC-BPR-0023 verification ledger | Pass — direct AC-01 evidence and final independent review | 891735401 |
+| Side-chat prompts and complete assistant responses can be retained as turns without adding a second agent launch path, and the thread remains bound to the exact review revision it was created against. | AC-02 in RFC-BPR-0023 verification ledger | Pass — direct AC-02 evidence and final independent review | 891735401 |
+| Every turn revision has a typed actor. New reviewer text is `reviewer`, agent text names one exact `agent_run_id`, and migrated notes are `legacy_unknown`. | AC-03 in RFC-BPR-0023 verification ledger | Pass — direct AC-03 evidence and final independent review | 891735401 |
+| Editing agent-authored text creates a reviewer-authored successor with an immutable `edited_from` edge; the original bytes, actor, and run provenance remain inspectable. | AC-04 in RFC-BPR-0023 verification ledger | Pass — direct AC-04 evidence and final independent review | 891735401 |
+| Agent provenance retains requested, configured, protocol-reported, and content-self-reported model/effort facts separately. Missing facts remain unknown, disagreements are visible, and no value is inferred from a profile or executable name. | AC-05 in RFC-BPR-0023 verification ledger | Pass — direct AC-05 evidence and final independent review | 891735401 |
+| One agent session can produce multiple uniquely identified runs and finding sets without collision; retained provenance remains readable after session catalog pruning. | AC-06 in RFC-BPR-0023 verification ledger | Pass — direct AC-06 evidence and final independent review | 891735401 |
+| Thread subjects and composition targets use exact semantic identities. Head/epoch movement produces visible stale or unplaceable state and never a nearest-line or silent reanchor. | AC-07 in RFC-BPR-0023 verification ledger | Pass — direct AC-07 evidence and final independent review | 891735401 |
+| A reviewer can select exact revisions/findings, open a composition workspace, inspect sources and provenance, and produce a reviewer-authored, exact-copy, or explicitly agent-assisted candidate. | AC-08 in RFC-BPR-0023 verification ledger | Pass — direct AC-08 evidence and final independent review | 891735401 |
+| `Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step. | AC-09 in RFC-BPR-0023 verification ledger | Pass — direct AC-09 evidence and final independent review | 891735401 |
+| Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess. | AC-10 in RFC-BPR-0023 verification ledger | Pass — direct AC-10 evidence and final independent review | 891735401 |
+| Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart. | AC-11 in RFC-BPR-0023 verification ledger | Pass — direct AC-11 evidence and final independent review | 891735401 |
+| Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | AC-12 in RFC-BPR-0023 verification ledger | Pass — local path, designated publication and independent server read | 891735401, d4404fc44 |
+| A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | AC-13 in RFC-BPR-0023 verification ledger | Pass — local path, designated publication and independent server read | 891735401, d4404fc44 |
+| Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | AC-14 in RFC-BPR-0023 verification ledger | Pass — direct AC-14 evidence and final independent review | 891735401 |
+| Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | AC-15 in RFC-BPR-0023 verification ledger | Pass — direct AC-15 evidence and final independent review | 891735401 |
+| Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | AC-16 in RFC-BPR-0023 verification ledger | Pass — direct AC-16 evidence and final independent review | 891735401 |
+| Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | AC-17 in RFC-BPR-0023 verification ledger | Pass — local deletion/crash course and designated ledger-loss readback | 891735401, d4404fc44 |
+| The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | AC-18 in RFC-BPR-0023 verification ledger | Pass — composed UI, scale/accessibility and final review | 80d4eb4da |
+
+No acceptance criterion was satisfied by import. The completed results above
+are supported by the [verification ledger](../../verification/RFC-BPR-0023.md),
+the [designated live course](../../verification/RFC-BPR-0023-live-publication.md)
+and the final independent review recorded there. The old baseline remains import
+provenance; the immutable implementation RFC_BASE_SHA is in the ledger.
+
+## M10 closeout observation
+
+The independent reviewer examined integrated main candidate
+`1859f7a3b1925b721dcc69ab51818b9a4c7cde1d` and independently read the
+published GitHub comment. Four material findings were resolved by code commit
+`d4404fc44` and the designated ledger-loss observation; targeted reviewer
+inspection found no remaining blocker. The review covered the carried M2
+authority boundaries and all eighteen criteria. The ledger's final claim and
+architecture matrices name the direct courses and their limits.
+
+All fifteen prerequisite RFC-0023 cards are Done. RFC-BPR-0007, 0008, 0011 and
+0012 are Auto-Verified; BPR-0242, BPR-0245 and BPR-0507 are Done. The M10
+focused GitHub contract, private storage, app build and composed native public
+path checks passed. The final RFC/index status edit follows this card's Done
+transition and documentation/board gates; no unavailable human or live-service
+criterion remains in this selected scope.
+
+## Import boundary
+
+Imported 2026-09-04 with implementation deferred at that time. Owner mandate
+r1 on 2026-09-26 now authorizes implementation, plan revision and milestone
+integration. The [live audit](../../verification/RFC-BPR-0023-live-audit.md)
+supersedes stale baseline assumptions; required acceptance is unchanged. Follow
+the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md),
+which supersede conflicting source-pack authorization and contract wording.
+
+
+## Owner amendment r2 — one independent review at final closeout
+
+On 2026-09-26 the owner instructed implementation to continue and moved the
+independent review from M2 to the end of RFC-BPR-0023. This card/M10 now owns one
+capability-critical independent review of the **final integrated candidate**,
+including the authority-boundary review previously allocated to BPR-0577. The
+adopted plan preserves the prior review exit at M10; the timing change neither
+waives review nor treats the M2 implementer's self-review as independent evidence.
+The reviewer is authorized for the end, after implementation; no reviewer is
+requested or dispatched during M2.
+
+In addition to every existing review requirement above, explicitly challenge the
+[live allocation](../../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
+against the implemented source-use admission/edit/delete race, immutable lineage
+and cleanup, v1–v6 migration/CAS, shared draft single authority, account/window
+retirement, qualified runtime metadata, total-input/body bounds, and the
+ledger/remote-journal publication crash join. Trace creation, agent dispatch,
+composition, draft acceptance, separate publication, reconciliation, deletion,
+and crash recovery through the public composition. Review is bound to an exact
+final source revision and its evidence; material findings require scoped
+correction and verification before closeout. The original final-state,
+independence and eighteen-criterion requirements remain intact.
+
+M2 architecture acceptance is not review acceptance. This review remains pending
+until supplied at M10, and prevents RFC/index Auto-Verified closeout while open.

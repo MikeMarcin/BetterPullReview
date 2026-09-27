@@ -10749,7 +10749,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			publish_read_state();
 			if (PrivateReview) {
-				PrivateReview->open({ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest }, [this] { observe_private_review(); });
+				PrivateReview->open({ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest }, [this] {
+					observe_private_review();
+					if (ReviewMutationHost) {
+						ReviewMutationHost->repair_pending_publications();
+					}
+				});
 			}
 		}
 

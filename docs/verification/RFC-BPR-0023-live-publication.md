@@ -58,3 +58,21 @@ the separately recorded deterministic evidence. This course supplies the
 previously pending designated target and independent public body/actor read
 for BPR-0584 and RFC AC-12/13/17. It does not claim native parity on other
 platforms or release qualification.
+
+## Designated ledger-loss readback
+
+After the publication course, an independent GitHub GET returned the exact
+comment fields above. A read-only SQLite backup of the stopped live profile's
+`profiles/profile-2/state/v1/review-ledger.sqlite3` was made at
+`/tmp/rfc0023-live-ledger-loss-okvvzn34/review-ledger.sqlite3` (SHA-256
+`7a5df4a10bfa82b51f225905f9f689e19f6e1ad59fc8cf4c0505fd048f3345f8`).
+A structural query of that disposable backup returned `private_publication`
+`(scope_id=2, id=21, draft_id=20, content_id=19,
+server_id=PRRC_kwDOTyvof871W0fS)`. The backup database and any WAL/SHM files
+were deleted; its temporary directory was empty and removed. The original
+profile ledger was preserved. An independent GitHub GET after deletion returned
+the same comment ID, node, actor, body, path, side, line, commit and null reply
+field. The designated server comment therefore remained unchanged across loss
+of a local ledger containing its exact lineage. The network-isolated
+`sqlite_private_review_storage` course separately passed 1/1 and exercises
+purge, database loss and transactional crash recovery on disposable ledgers.

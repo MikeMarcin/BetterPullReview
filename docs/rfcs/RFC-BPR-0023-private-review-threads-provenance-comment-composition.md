@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0023"
 title: "Private Review Threads, Provenance, and Comment Composition"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0011","RFC-BPR-0012"]
@@ -23,8 +23,11 @@ M2 to one capability-critical independent review of the final integrated candida
 at M10/BPR-0591, and directs implementation to continue now. The final review must
 cover both the allocated authority boundaries and their implemented public paths;
 it remains a closeout requirement and is not satisfied by M2 self-review.
-All listed RFC dependencies are now Auto-Verified. No live GitHub/GHES mutation
-or release authority is inferred.
+All listed RFC dependencies are Auto-Verified. BPR-0591 closed the final
+eighteen-criterion claim matrix and independent review on 2026-09-27. A signed
+designated GitHub publication and independent server read are recorded in the
+[verification ledger](../verification/RFC-BPR-0023.md); no GHES live mutation or
+release qualification is claimed.
 
 The [live audit and execution amendment](../verification/RFC-BPR-0023-live-audit.md)
 reconciles current source, schema, draft and protocol ownership. The
