@@ -2,6 +2,19 @@
 #include <algorithm>
 #include <limits>
 namespace bpr::core {
+	namespace {
+		auto valid_link(const review_composition_link& aLink, std::string_view aBody) -> bool
+		{
+			return valid_private_scope(aLink.Scope) && valid_private_id(aLink.Composition)
+				&& valid_private_id(aLink.Revision) && aLink.BodyDigest == private_digest(aBody);
+		}
+		auto extends_link(const review_composition_link& aPrior, const review_composition_link& aNext) -> bool
+		{
+			return aPrior.Scope == aNext.Scope && aPrior.Composition == aNext.Composition
+				&& (aNext.Revision > aPrior.Revision || aNext == aPrior);
+		}
+	}
+
 	auto promote_private_text(const std::string_view                        aText,
 							  const std::optional<revisioned_review_draft>& aTarget)
 		-> std::optional<revisioned_review_draft_command>
@@ -40,6 +53,20 @@ namespace bpr::core {
 			result.Refusal = revisioned_draft_refusal::invalid_command;
 			return result;
 		}
+		if (aDraft.Composition && !valid_link(*aDraft.Composition, aDraft.Draft.Body)) {
+			result.Refusal = revisioned_draft_refusal::invalid_identity;
+			return result;
+		}
+		if (aCommand.Composition && (aCommand.Command.Kind != review_draft_command_kind::edit || aCommand.ChangeReplyTarget || !valid_link(*aCommand.Composition, aCommand.Command.Body) || (aDraft.Composition && !extends_link(*aDraft.Composition, *aCommand.Composition)))) {
+			result.Refusal = revisioned_draft_refusal::invalid_command;
+			return result;
+		}
+
+		if (aDraft.Composition && aCommand.Command.Kind == review_draft_command_kind::edit
+			&& aCommand.Command.Body != aDraft.Draft.Body && !aCommand.ChangeReplyTarget && !aCommand.Composition) {
+			result.Refusal = revisioned_draft_refusal::invalid_command;
+			return result;
+		}
 		auto command = aCommand.Command;
 		if (aCommand.ChangeReplyTarget) {
 			command.Body = aDraft.Draft.Body;
@@ -54,14 +81,15 @@ namespace bpr::core {
 		if (aCommand.ChangeReplyTarget) {
 			next.ReplyToThread = aCommand.ReplyToThread;
 		}
-		if (next == aDraft.Draft) {
+		const auto composition = aCommand.Composition ? aCommand.Composition : aDraft.Composition;
+		if (next == aDraft.Draft && composition == aDraft.Composition) {
 			return result;
 		}
 		if (aDraft.Revision == std::numeric_limits<std::uint64_t>::max()) {
 			result.Refusal = revisioned_draft_refusal::exhausted;
 			return result;
 		}
-		result.Accepted = { std::move(next), aDraft.Revision + 1, aDraft.Scope };
+		result.Accepted = { std::move(next), aDraft.Revision + 1, aDraft.Scope, composition };
 		result.Changed  = true;
 		return result;
 	}

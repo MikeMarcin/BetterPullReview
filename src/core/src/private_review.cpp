@@ -98,7 +98,9 @@ namespace bpr::core {
 			const auto* exact = std::get_if<exact_private_subject>(&aThread.Binding);
 			return actor && exact && aRun && aRun->Scope == exact->Binding.Scope && aRun->Run == actor->Run
 				&& aRun->Binding == exact->Binding && valid_private_id(aRun->Order) && aRun->Order < aInput.Order
-				&& aRun->Completion == aInput.Completion;
+				&& aRun->Completion == aInput.Completion
+				&& (aRun->OutputDigest ? *aRun->OutputDigest == private_digest(aInput.Body)
+									   : aInput.Body.empty() && aInput.Completion != private_revision_completion::complete);
 		}
 		auto diff_subject_valid(const private_thread_subject& aSubject, const diff_semantic_index& aIndex) -> bool
 		{

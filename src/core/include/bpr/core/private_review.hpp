@@ -49,6 +49,16 @@ namespace bpr::core {
 		auto                       operator<=>(const private_review_scope&) const = default;
 	};
 
+	/// \brief Durable composition correlation carried by the one existing draft authority.
+	struct review_composition_link
+	{
+		private_review_scope           Scope;
+		review_composition_id          Composition;
+		review_composition_revision_id Revision;
+		private_body_digest            BodyDigest;
+		auto                           operator<=>(const review_composition_link&) const = default;
+	};
+
 	/// \brief Exact retained revision facts, never a restored runtime permission.
 	struct private_review_binding
 	{
@@ -227,11 +237,12 @@ namespace bpr::core {
 	/// \brief Already admitted run facts supplied by the durable authority.
 	struct private_run_authorization
 	{
-		private_review_scope        Scope;
-		agent_run_id                Run;
-		private_vertex_order        Order;
-		private_review_binding      Binding;
-		private_revision_completion Completion = private_revision_completion::incomplete;
+		private_review_scope               Scope;
+		agent_run_id                       Run;
+		private_vertex_order               Order;
+		private_review_binding             Binding;
+		private_revision_completion        Completion   = private_revision_completion::incomplete;
+		std::optional<private_body_digest> OutputDigest = { };
 	};
 	/// \brief Host-allocated identities and bounded body for a new immutable revision.
 	struct private_revision_input

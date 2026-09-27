@@ -11,7 +11,7 @@ namespace {
 		expect(reply && reply->Revision.ReplyTo == first.Revision.Identity, "reply retains exact revision");
 		next       = input(5);
 		next.Actor = private_agent_actor{ agent_run_id{ 1 } };
-		private_run_authorization run{ binding().Scope, agent_run_id{ 1 }, private_vertex_order{ 4 }, binding(), private_revision_completion::complete };
+		private_run_authorization run{ binding().Scope, agent_run_id{ 1 }, private_vertex_order{ 4 }, binding(), private_revision_completion::complete, private_digest(next.Body) };
 		const auto                assistant = append_private_turn(reply->Thread, 2, next, &reply->Revision, &run);
 		expect(assistant && eligible_private_revision(assistant->Revision), "complete run creates one eligible agent revision");
 		const auto original = assistant->Revision;
@@ -69,7 +69,7 @@ namespace {
 			auto next        = input(3);
 			next.Actor       = private_agent_actor{ agent_run_id{ 1 } };
 			next.Completion  = completion;
-			auto       run   = private_run_authorization{ binding().Scope, agent_run_id{ 1 }, private_vertex_order{ 2 }, binding(), completion };
+			auto       run   = private_run_authorization{ binding().Scope, agent_run_id{ 1 }, private_vertex_order{ 2 }, binding(), completion, private_digest(next.Body) };
 			const auto agent = append_private_turn(first.Thread, 1, next, nullptr, &run);
 			expect(agent && !eligible_private_revision(agent->Revision), "partial failed cancelled output stays ineligible");
 			auto adoptedInput = input(4);

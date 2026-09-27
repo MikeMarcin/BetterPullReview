@@ -764,3 +764,24 @@ and their implementation on the final integrated candidate before RFC closeout.
 No reviewer has been dispatched by this leaf. M2 may be accepted and M3 started
 on its architecture criteria and checks; the coordinator retains the authorized
 final review obligation at M10/BPR-0591.
+
+## M3 current-main reconciliation
+
+While M3 was active on the M2 base, local `main` advanced to
+`75102233` through the review-tour maintenance milestones. The inspected
+`1f964cfa..75102233` range adds tour update/reconciliation/revision core values,
+application staged maintenance, provider operations, and Qt/public courses.
+The only overlapping M3 product paths are additive registrations in
+`src/core/CMakeLists.txt` and `tests/core/CMakeLists.txt`; preserve both sets on
+integration. New private-review, composition and revisioned-draft policy has
+no tour dependency. The coordinator owns integration into the moving main.
+
+The ledger schema is still 6 and mutation-recovery schema is still 5.
+The staged-tour payload codec inside the recovery store advances from 2 to 3
+for update plans; it is not a new database schema frontier. M4 must recheck
+both live frontiers before allocating a version, and M7 must preserve that
+staged-tour payload and the existing RFC-0022 logical-recovery authority while
+adding its local publication join. No original criterion, dependency, plan
+exit or owner review-timing amendment changes. The current M3 focused evidence
+is for this branch candidate; coordinator integration must retain main's tour
+registrations and run the directly affected combined checks.
