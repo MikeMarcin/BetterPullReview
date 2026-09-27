@@ -783,3 +783,40 @@ GCC aggregate-construction workaround is retained in the note facade. No command
 requires network access or contacts a real review target.
 
 Final candidate and ownership are recorded in the durable handoff below.
+
+### M4 durable handoff
+
+Accepted M4/BPR-0580 code and evidence candidate:
+`25fd32efd8ca316ca3473f9a6a928265eb0d6000`.
+Baseline integrated main was `2a254e638d364d249e79148db82b13d0fceccca5`;
+BPR-0580 was readied at `8f8f4ca7` and claimed at
+`1442faf60e8fe26a8c8f3ebeb00250b8c284b6ae`.
+Finish commit `18964711caf463376ee311d406990f193c9280e4` moves the whole card
+to Done, records all eight required final states and adds the candidate-bound
+[M4 observation](RFC-BPR-0023.m4-observation.json). This following documentation
+commit records the final handoff without changing product code.
+
+The checkpoint check for segment `m4-storage-r2`, mandate r2, accepted M1–M3
+and candidate `25fd32ef` returned `fresh-context` for M5. Its
+`engineering_acceptance: not-evaluated` is a consistency result; the whole-card
+judgment rests on the direct tests and limitations above. M4 has no required
+pending acceptance. M5/BPR-0581 is the next authored milestone after the
+coordinator integrates this accepted branch into local main. Preserve ledger
+schema 7, mutation-recovery schema 5 and staged-tour codec 3, including any
+independent main work.
+
+All task-owned build, CTest, formatter, documentation, board and checkpoint
+commands have completed. No background writer, child agent, review server,
+human session, event cursor or protected candidate lease is handed off. The
+acceptance helper's temporary directory was deleted on return. Ignored build
+outputs remain reusable; test scratch roots and crash children were reaped by
+the courses. `/root/rfc0023_m4` was the only writer in this assigned checkout;
+writer ownership is released to the coordinator with this handoff. No main
+mutation, push, PR or live GitHub/GHES operation was performed.
+
+Remaining obligations are the existing protocol facts/input course, host
+lifecycle/dispatch/draft fan-out, production Qt wiring, native/accessibility
+and designated-publication acceptance, followed by the one final independent
+review at M10/BPR-0591. Windows process-kill parity and actual unchanged-GitHub
+readback are not inferred from the macOS storage fixtures. None is silently
+marked complete by M4, and the eighteen-row feature matrix is unchanged.
