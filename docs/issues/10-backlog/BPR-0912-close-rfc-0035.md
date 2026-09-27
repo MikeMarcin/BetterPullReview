@@ -60,7 +60,7 @@ success and does not waive live private-release/vault evidence or other RFC gate
 
 Reconcile every criterion with actual commands, artifact digests, producing
 commits and target-native results. Require linked implementation cards done and
-RFC dependencies eligible in canonical index order before status changes. Run
+explicit RFC dependencies satisfied before status changes. Run
 `python3 scripts/verify_documentation.py --root .`,
 `python3 tests/scripts/verify_documentation_tests.py` and focused public-path
 checks. No full-product build is evidence for unexercised install/recovery paths.

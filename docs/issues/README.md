@@ -28,7 +28,7 @@ matrix.
 
 ## Programs and history
 
-The RFC index (`../rfcs/README.md`) remains the sequencing authority. Existing narrow product-owner exceptions and required real-platform evidence remain valid. Split portable and platform work only when the portable portion can be verified independently. [HISTORY.md](HISTORY.md) retains the historical narrative; it is not a duplicate live ledger.
+RFC and card dependencies determine closeout eligibility; the RFC index (`../rfcs/README.md`) records status and explicit owner scheduling decisions. Index position is not a gate. Required real-platform evidence remains valid. Split portable and platform work only when the portable portion can be verified independently. [HISTORY.md](HISTORY.md) retains the historical narrative; it is not a duplicate live ledger.
 
 Closeout runs `python3 scripts/verify_documentation.py --root .` and records direct criterion/check/result/revision evidence. Specialized RFC-0016/17 historical contracts remain repository verification tools under `scripts/verification/rfc0016_attended_contract/`.
 

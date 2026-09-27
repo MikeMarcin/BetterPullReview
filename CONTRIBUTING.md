@@ -8,7 +8,7 @@ its live issue card, and `_coding-standard/STANDARD.md`. Folder placement under
 prerequisite is open unless the canonical RFC index records a narrow
 product-owner exception. The current exception allows available-target
 implementation to advance past an open real-Windows verification card; it
-never waives that evidence, permits an out-of-order `Auto-Verified` transition,
+never waives that evidence, permits closing with unmet explicit dependencies,
 or makes hosted workflow output a substitute.
 
 Preserve unrelated work. Keep each issue-card slice narrow, move its card

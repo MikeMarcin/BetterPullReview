@@ -20,7 +20,7 @@ that bounded plan; the full product remains incomplete.
 RFC base: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
 Requested RFC set: RFC-BPR-0027; workstream position: 1 of 1.
 Planned cards: BPR-0600, BPR-0601, BPR-0602, BPR-0603.
-Closeout: [BPR-0601](../30-in-progress/BPR-0601-close-rfc-0027.md).
+Closeout: [BPR-0601](BPR-0601-close-rfc-0027.md).
 
 ## Acceptance
 

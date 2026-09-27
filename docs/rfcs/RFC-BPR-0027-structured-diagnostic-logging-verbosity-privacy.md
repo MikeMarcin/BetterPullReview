@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0027"
 title: "Structured Diagnostic Logging, Verbosity, and Privacy"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0001","RFC-BPR-0002"]
@@ -13,21 +13,20 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Full diagnostic implementation and human judgments accepted; canonical closeout pending.**
-Mandate r2 authorized all five milestones and landing each accepted milestone on
-main. Structured JSONL, bounded retention, independent detail/privacy controls,
-profile barriers, rich frozen exports and native developer courses are complete.
-All three owner judgments were accepted by session hand-back cursor34. The
-[final ledger](../verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2)
-binds exact candidates and retains package, platform and crash limits. The RFC
-stays Proposed until the current sequential closeout requirement is satisfied;
-BPR-0601 records the earlier open RFCs and the final main landing. The historical
-phase descriptions below remain provenance, not a current advanced-phase deferral.
+**Auto-Verified under owner amendment r3, 2026-09-27.**
+All nine product criteria and all three human judgments are accepted. M1–M5
+implementation is landed on main. The owner removed the obsolete global
+canonical-order rule and explicitly directed RFC-0027 closeout; its declared
+RFC-0001/0002 dependencies are Auto-Verified. [BPR-0601](../issues/60-done/BPR-0601-close-rfc-0027.md)
+and the [final ledger](../verification/RFC-BPR-0027.md#owner-amendment-r3-and-terminal-closeout)
+bind the complete acceptance and actual main landing. Native developer, package
+and crash evidence keeps its exact limitations. Historical phase descriptions
+below record provenance; they do not defer the implemented advanced phase.
 
 Registration baseline: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
 Entry: [[BPR-0600]]. Foundation: [[BPR-0602]]. Advanced phase: [[BPR-0603]].
-Closeout: [[BPR-0601]]. Partial implementation does not close this RFC. This
-additional RFC blocks no original-pack work and changes no canonical ordering.
+Closeout: [[BPR-0601]]. Full acceptance closes this RFC under its explicit
+dependencies; the global canonical-order rule was removed by amendment r3.
 Its logging foundation can be implemented without the later Settings center or
 multiple-profile system; those integrations use the same typed ports when
 available, without creating reverse dependencies.
@@ -363,3 +362,15 @@ The identifying dialog’s explicit Save confirms the displayed scope and policy
 Cancel remains the default. This amendment changes presentation, waives no
 acceptance criterion, and requires new controls/export judgments. The accepted
 files decision remains bound to its unchanged copied candidate.
+
+
+## Owner amendment r3 — 2026-09-27
+
+The owner directed: “the canonical order rule is outdated and should be removed
+from the AGENTS.md. Go ahead and do that and close out 0027”. This removes the
+global rule, rather than granting a one-RFC exception. Project sequencing now
+uses the supported `dependency` mode. Explicit RFC/card dependencies, authored
+milestone prerequisites, separately directed scheduling holds and actual
+acceptance remain required. No product criterion, native claim or release
+boundary changes. The r2 ordering hold is resolved; all three human Accept
+judgments and their candidate identities remain unchanged.

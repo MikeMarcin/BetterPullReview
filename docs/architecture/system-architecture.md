@@ -303,7 +303,8 @@ transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
 scope-aware export is described below. RFC-0027 native developer courses and
 attended controls are accepted; its verification ledger retains the separate
-package/release limitations and canonical closeout hold.
+package/release limitations. RFC-0027 is Auto-Verified under its explicit
+dependencies and owner amendment r3.
 
 Diagnostic refresh requests made while a capture is in flight coalesce into one
 fresh observation after its completion. Reopening Settings after Sign out therefore
