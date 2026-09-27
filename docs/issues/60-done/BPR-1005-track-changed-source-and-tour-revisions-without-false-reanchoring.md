@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1005"
 title: "Track changed source and tour revisions without false reanchoring"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0042", "RFC-BPR-0040"]
 depends_on: ["BPR-1004", "BPR-0998"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-15","milestone":"manual-maintenance","acceptance":["AC42-06","AC42-08","AC40-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC42-06","outcome":"pass","revision":"22fd215079fa6ccf13765db6f19b445c49ee4fad","evidence":{"kind":"observation","detail":"Core/diff/store/app selector 6/6 passes; renamed/moved/changed/missing/ambiguous/unavailable and never-retained source; head reaffirmation preserves remote source; cold unknown history and changed-stop navigation issue no review effects. See docs/verification/RFC-BPR-0039-0043.md BPR-1005."}},{"criterion":"AC42-08","outcome":"pass","revision":"22fd215079fa6ccf13765db6f19b445c49ee4fad","evidence":{"kind":"observation","detail":"Core/diff/store/app selector 6/6 passes; renamed/moved/changed/missing/ambiguous/unavailable and never-retained source; head reaffirmation preserves remote source; cold unknown history and changed-stop navigation issue no review effects. See docs/verification/RFC-BPR-0039-0043.md BPR-1005."}},{"criterion":"AC40-08","outcome":"pass","revision":"22fd215079fa6ccf13765db6f19b445c49ee4fad","evidence":{"kind":"observation","detail":"Core/diff/store/app selector 6/6 passes; renamed/moved/changed/missing/ambiguous/unavailable and never-retained source; head reaffirmation preserves remote source; cold unknown history and changed-stop navigation issue no review effects. See docs/verification/RFC-BPR-0039-0043.md BPR-1005."}}]
 ---
 
 # BPR-1005: Track changed source and tour revisions without false reanchoring
