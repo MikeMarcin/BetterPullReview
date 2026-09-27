@@ -4,9 +4,10 @@ id: "BPR-0601"
 title: "Verify and close RFC-BPR-0027"
 status: "Backlog"
 rfcs: ["RFC-BPR-0027"]
-depends_on: ["BPR-0600","BPR-0602","BPR-0603"]
+depends_on: ["BPR-0600","BPR-0602","BPR-0603","BPR-1215","BPR-1216","BPR-1217","BPR-1218","BPR-1219"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0027"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0027
@@ -59,3 +60,16 @@ closeout and the full RFC remain deferred.
 Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
 The bounded BPR-0602 confidentiality/lifetime review resolved all three findings;
 no blocker remains in that subset. Opposite-family review was unavailable.
+
+## Active continuation — mandate r2, 2026-09-26
+
+The owner requests full RFC implementation and landing on main after each
+accepted milestone. The old advanced-phase deferral is superseded; full criteria
+and immutable RFC base remain unchanged. No live sign-in or PR mutation is
+authorized. BPR-1215–1219 are the required source-owned milestones. Current owner:
+`/root/rfc0027_m1`, sole writer in worktree `57ed`, branch
+`codex/rfc0027-advanced`; current milestone `structured-events`.
+
+Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
+rows describe their original not-run state; advanced acceptance stays pending
+until its own evidence is recorded.

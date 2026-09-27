@@ -1,18 +1,19 @@
 ---
 id: "RFC-BPR-0027"
 title: "Structured Diagnostic Logging, Verbosity, and Privacy"
-status: "Deferred"
+status: "Proposed"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0001","RFC-BPR-0002"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0027: Structured Diagnostic Logging, Verbosity, and Privacy
 
 ## Status and scope
 
-**Basic logging foundation implemented; advanced controls remain deferred.**
+**Basic logging foundation implemented; advanced phase active.**
 The owner requested this RFC on 2026-09-04, using AllTheThings' verbosity and
 privacy controls as the reference. The owner subsequently requested basic Quill logging now, deferring fancy
 rotation, anonymization and Settings controls. This authorizes the foundation
@@ -337,3 +338,11 @@ queries. Unknown codes, arbitrary symbols and unmatched/trailing prose receive
 explicit omission reasons. Representative unfamiliar codes retain useful known
 field/type/repetition explanations. This corrects the former arbitrary-text
 retention; it does not waive privacy or complete later Settings/retention work.
+
+## Owner amendment r2 — 2026-09-26
+
+The owner now requests full RFC-BPR-0027 implementation and landing on main
+after each accepted milestone. This supersedes the earlier advanced-phase
+deferral, preserves all full acceptance criteria and the BPR-0971 sanitizer
+clarification, and grants no live sign-in or PR mutation. BPR-1215–1219 bind
+the remaining work and native/attended acceptance.
