@@ -273,5 +273,62 @@
   ],
   "review": "No C human criterion or attended server required. Native macOS/GitHub/GHES human acceptance not fabricated; D handles remaining direct evidence.",
   "ownership": "Leaf only; all task-owned build/test/tidy commands completed, no review server or extra writer. Checkout released to coordinator after final report.",
-  "binding_renewal": "m3-binding-final.json refreshes byte fingerprints after appended evidence and accepted-card bookkeeping. All four Acceptance sections compare equal to start revision; milestone definition, prerequisites and exits compare equal to initial binding. No scope change."
+  "binding_renewal": "m3-binding-final.json refreshes byte fingerprints after appended evidence and accepted-card bookkeeping. All four Acceptance sections compare equal to start revision; milestone definition, prerequisites and exits compare equal to initial binding. No scope change.",
+  "merged_main_integration": {
+    "assignment": "same C owner, bounded integration follow-up",
+    "mandate_revision": "r2",
+    "merged_candidate": "a3533195060ff5d303ccf4b6967ae9490873196a",
+    "reviewed_range": "b8543067..a3533195",
+    "reviewed_product_commits": [
+      "f442ca2bf393430b4310f634913c51235a7658c2",
+      "791decea33b6ca3d85c2b89c6f0c3a80b3eb84c0",
+      "75700f4dd0ce88f86e59940cddf690a6a3e2f45b",
+      "3fd1224ebe72e9f2f22707eadb04cacb5586d466"
+    ],
+    "correction": "Explicit app inventory and production manifest add diagnostic_controls.hpp/.cpp. Reseal reviewed full-application and manifest digests; production mutation digest unchanged. No product source changes.",
+    "seam_review": "Tour selection uses exact retained source with independent owner/draft/navigation lifetime; successful comment navigation still enters Discuss and reparents its existing conversation panel. Diagnostics adds profile-owned controls/quiescence and provider observations. C source authority, normalization, grant/capsule/one-use carrier and recovery remain unchanged.",
+    "commands": [
+      {
+        "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_qt_github_tests -j4",
+        "result": "PASS"
+      },
+      {
+        "command": "cmake --build --preset app-release --target app_better_pull_review -j4",
+        "result": "PASS tests-disabled production"
+      },
+      {
+        "command": "ctest --preset dev --output-on-failure -R '^(architecture_boundaries|qt_composed_github_scale_100|application_review_round_trip_composition_contract)$'",
+        "result": "PASS3/3;27.05s (7.67s,4.68s,14.67s respectively). Includes complete native/fallback public course and existing tripwire counterexamples."
+      },
+      {
+        "command": "python3 scripts/verify_documentation.py --root .; git diff --check",
+        "result": "Run as separate gates before final integration commit; results recorded in final report."
+      }
+    ],
+    "logs": [
+      {
+        "path": "build/rfc0022/m3-merged-dev-build.log",
+        "sha256": "3e5c225d1af97ef2922a8afc8c3b33968e13f343b6dd39180b42ff1b599bfb35"
+      },
+      {
+        "path": "build/rfc0022/m3-merged-production-build.log",
+        "sha256": "fa4329bc76c50c1648a7f8dacffcd3dfcf4ac1325b81a62e0108c0ad4f9a6cc5"
+      },
+      {
+        "path": "build/rfc0022/m3-merged-focused-tests.log",
+        "sha256": "963a51d25e2a89004565abe49e2ee628ca79ae55c311e4f97a1a01f10165b58a"
+      },
+      {
+        "path": "build/rfc0022/m3-merged-focused-detail.log",
+        "sha256": "508829c5c1132588120c5a4188f34db90f4c5bb0460f3f2ba2fabfd0662c9904"
+      },
+      {
+        "path": "build/rfc0022/m3-merged-digests.log",
+        "sha256": "db731fcc298326bffa68021538fa7c0c2456c36ab2b67fa2d1abfc806a2014c2"
+      }
+    ],
+    "reused_evidence": "All unaffected M3/M1/M2 evidence retained. No broader matrix rerun; no OS/platform/live claims added.",
+    "ownership": "All integration commands completed; exclusive checkout released at final report. No additional writer/review server/live mutation.",
+    "next_action": "Coordinator lands and pushes integration correction to main before any D work."
+  }
 }

@@ -1,3 +1,10 @@
+# BPR-0571 merged integration: reviewed b8543067..a3533195, product commits
+# f442ca2b, 791decea, 75700f4d and 3fd1224e plus their merge resolutions.
+# Tour authoring/navigation and diagnostic controls add no publication grant;
+# exact source admission, semantic normalization and receipt navigation remain.
+# Add both diagnostic control files to the explicit inventory and manifest.
+# Production mutation-branch digest is unchanged. Review is on BPR-0571 and
+# the M3 integration checkpoint; this reseal does not change product source.
 # BPR-0571: reviewed e12e0fda..this composition slice. Successful receipts
 # request the ordinary server read and select only the matching accepted
 # identity under the exact target, actor and comparison. No new write
@@ -383,7 +390,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"949e5f854d9c08f653cefc7e6a99c4a37ffef4a0afb51e8f804e0567745e113d"
+		"fdee747b41dc6f902ea72a4828c33c4b585a3067ec067d5a1c54371edde404c3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -398,6 +405,7 @@ endfunction()
 
 function(bpr_compute_production_app_manifest_digest app_source_root out_variable)
     set(bpr_production_app_sources
+        "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -411,6 +419,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/designated_live_macos_supervisor_identity.hpp"
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/diagnostic_controls.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/installed_resources.cpp"
@@ -462,6 +471,7 @@ function(bpr_verify_app_source_tree app_source_root)
         )
     endif()
     set(bpr_expected_app_sources
+        "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -479,6 +489,7 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_supervisor_identity.hpp"
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/diagnostic_controls.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
@@ -534,7 +545,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a9fdb06c517aa7389e72b362d4456e476beaab3a160b1a489af2dd3f6470cda9"
+        "452c4d142756f37f2acb0ed11e5da4b789d35c67e2a838203504b4de12a5167e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

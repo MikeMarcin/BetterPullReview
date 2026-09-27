@@ -83,3 +83,30 @@ side even for FILE). It also moved assertions from editor state retired by the
 accepted refresh to the selected authoritative server post. None of those
 failed executions counts as acceptance. BPR-0572 binds final production build,
 focused isolation and hostile recovery evidence to the completed source.
+
+## Merged-main integration — mandate r2
+
+The coordinator resumed the same C owner after merging into concurrent main at
+`a3533195060ff5d303ccf4b6967ae9490873196a` (not yet pushed). Source review covers
+`b8543067..a3533195`, specifically pinned-scope product commits `f442ca2b`,
+`791decea`, `75700f4d`, `3fd1224e`, and their merge resolutions (`266e9ed4`,
+`fe4e27aa`, `9a46ddd8`, `a3533195`). Manual tour capture/navigation reads the
+retained exact source, keeps separate draft/owner state, and adds quiescence to
+shutdown. Diagnostic settings/maintenance share profile-owned control lifetime;
+provider changes add diagnostic observations. These additions preserve semantic
+comment admission, material normalization, successful-comment navigation and
+publication authority. Qt Discuss still reparents the conversation surface when
+a comment is revealed; tour presentation does not replace that path.
+
+The explicit app inventory/production manifest now includes the two reviewed
+`diagnostic_controls` files. The full application and production manifest pins
+are resealed; the production mutation-branch digest remains unchanged. No
+product source was changed in this integration correction.
+
+Merged development application/composed Qt and tests-disabled production builds
+pass. One focused pass succeeds **3/3**, 27.05 seconds: architecture, composed
+Qt at100%, and the complete native/fallback application course (14.67 seconds).
+Unchanged original C evidence is retained; no full matrix, extra platform claim
+or live effect is added. See `m3-evidence.json` integration entry and ignored
+`build/rfc0022/m3-merged-*.log` files. Coordinator must land/push this integration
+correction before starting D.

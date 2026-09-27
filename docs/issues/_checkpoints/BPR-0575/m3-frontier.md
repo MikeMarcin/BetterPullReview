@@ -86,3 +86,25 @@ classifier. Native GitHub acceptance may settle the off-hunk path without
 fallback. GHES fixtures pass; native GHES remains explicitly unobserved because
 there is no live target. RFC closure and final fifteen-criterion evidence remain
 D work.
+
+## Merged-main integration follow-up
+
+The coordinator resumed this same C owner at merged main
+`a3533195060ff5d303ccf4b6967ae9490873196a`, before push. Concurrent RFC-0027
+diagnostic controls/export and RFC-0039–0043 manual tours were inspected at the
+application/provider/source-navigation/lifetime seams. Product source remains
+unchanged. The only test correction adds the two diagnostic control files to
+the explicit app inventory and production manifest, then reseals their reviewed
+hashes. Production mutation-branch digest is unchanged.
+
+Both affected development and tests-disabled production builds pass. The single
+merged integration pass is **3/3**, 27.05 seconds: architecture, composed Qt100,
+and real native/fallback publication through recovery and server refresh
+(14.67 seconds). Original unaffected C evidence remains valid. BPR-0571 records
+the reviewed commit inventory; `m3-evidence.json` retains this follow-up and log
+hashes. The new merged binding changes no acceptance or milestone scope.
+
+All integration commands are finished and the checkout is clean/released at
+final report. The exact integration commit is supplied there. **Coordinator:
+fast-forward/merge this correction onto main and push before D.** No live
+mutation, new milestone, human review session or additional writer was started.
