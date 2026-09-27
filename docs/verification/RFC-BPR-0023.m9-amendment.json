@@ -1,0 +1,12 @@
+{
+  "state": "amendment-checked",
+  "reason": "Allow M9 local BPR-0588 evidence with BPR-0584 external acceptance pending",
+  "source_basis": "Owner mandate r2, integrated M7 implementation and BPR-0588 required-final-state precise-blocker allowance",
+  "before_fingerprint": "sha256:774bd10c1b8f5278a357f1fa2777742e3cec0e0c9155016ac2bb415ae4a7ffea",
+  "after_fingerprint": "sha256:01b8f05ec0afdc1c1d2d084c0448364bc01aee36bdbc208fec3d52e2e9e23973",
+  "affected_milestones": [
+    "m9-acceptance"
+  ],
+  "semantic_coverage": "unknown",
+  "next": "reconcile affected assignments before publication"
+}

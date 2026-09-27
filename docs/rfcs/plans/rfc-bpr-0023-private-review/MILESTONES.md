@@ -145,7 +145,7 @@ Focused failure, performance and rendered workflow evidence
 - Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied.
 - BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Use the integrated M7 publication implementation for local BPR-0588 evidence while BPR-0584's external card remains parked. Complete BPR-0588 with a precise live blocker if the designated target/readback is unavailable; this does not satisfy RFC AC-12/13/17 or the external M9 exit. Integrate only verified local work on main and carry external acceptance pending; required evidence is never inferred.
 
 ## m10-closeout
 
