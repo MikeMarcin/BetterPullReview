@@ -554,6 +554,15 @@ publication lineage.
 
 ## Architectural allocation
 
+The [M2 live architecture contract](../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
+binds this allocation to the current source under mandate r1. It specifies
+request/terminal identities, per-window compact state, atomic draft acceptance,
+v1–v6 migration/CAS, retention and source-use admission, immutable body paging,
+8 MiB total encoded invocation input, protocol fact bases and the RFC-0022
+logical-publication join. These are implementation contracts awaiting the
+required independent authority review, not claims of shipped functionality.
+The eighteen acceptance criteria and all explicit dependencies remain unchanged.
+
 ### Functional core
 
 The core owns:

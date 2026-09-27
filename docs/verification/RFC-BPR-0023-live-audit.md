@@ -79,14 +79,14 @@ the implementation baseline, not historical line numbers.
 | `release_update_recovery_store.cpp` | Separate updater recovery stores inert draft description/body/indeterminate state. It is not exact ordinary draft/anchor/composition restoration. | Keep its boundary; account for new private drafts in updater preservation without treating recovery text as draft publication authority. BPR-0583/0587/0590. |
 | `agent_profile.hpp` | Profiles still carry executable/protocol/workspace/environment **names**; no configured/requested/reported runtime model or effort facts. | Add bounded typed optional facts only where supported. Names never prove actual model. BPR-0579/0581. |
 | `agent_session.hpp` and ledger session admission | Session remains exact revision-pinned, with independent durable session sequence and retention of 128 sessions. | Each invocation needs a separate durable run; retained run snapshots outlive session pruning. BPR-0579/0580/0581/0582. |
-| `agent_launch.hpp/.cpp`: decoder | App Server tracks remote session/thread/turn; JSONL tracks remote thread; Claude tracks remote session. These are decoder state, not exported provenance. | Surface supported bounded typed metadata with basis; do not turn framing IDs into authentication/model proof. BPR-0581. |
+| `agent_launch.hpp/.cpp`: decoder | App Server tracks remote thread/turn; JSONL tracks remote thread; Claude tracks remote session. The shared decoder has a RemoteSession member, but App Server does not populate it. These are decoder state, not exported provenance. | Surface supported bounded typed metadata with basis; do not turn framing IDs into authentication/model proof. BPR-0581. |
 | Same files: `agent_run_result` | Result contains Session/Outcome/Events/stderr/exit/protocol-failure/findings, no distinct durable run or model/effort/version facts. Protocol output events exist. | Capture complete assistant bytes from validated output/terminal framing, not concatenated finding claims or raw log persistence. BPR-0581/0582. |
 | `agent_chat_session_host.hpp/.cpp` | One existing invocation path remains. Chat now retains up to 16 in-memory `agent_chat_reply` rows assembled from validated finding claims; oldest reply is dropped. No prompt or complete-response transcript is durable. | Preserve current session policy while committing prompts/run admission before dispatch and retaining complete correlated responses. Temporary reply IDs are not durable turn/run IDs. BPR-0582. |
 | `agent_finding.hpp` | Structured finding still retains provider, analyzed revisions, anchor, claim/evidence/consequence and suggested comment. | Snapshot exact validated data under run + ordinal + digest. Never infer identity from session + ordinal. BPR-0579/0582. |
 | `agent_finding_host.hpp/.cpp` | Current delivery and explicit promotion remain; note promotion is revision-aware but still flattens source information. | Reuse explicit actions, retain source snapshot/lineage and connect workshop acceptance to the one draft authority. BPR-0582/0583. |
 | `review_mutation_port.hpp` and `review_mutation_recovery_store.cpp` | ServerCommentId still exists; recovery journal is now **v5**, preserving ordinary and whole-review attempts plus RFC-0022 logical native/file representation recovery and durable public body. | Consume the logical canonical receipt, exact approved/wire digests and reconciliation; local lineage repair must never POST. BPR-0584. |
 | `src/adapters/qt/src/side_chat_panel.cpp` | Recent reply list and promotion exist, but `present` clears/rebuilds this small temporary list when replies change. | Replace/bridge with stable-identity paged transcript updates; bounded temporary list behavior is not RFC-0023 incremental transcript evidence. BPR-0585/0586. |
-| `src/adapters/qt/src/workbench_window.cpp` | Overview/Read/Discuss/Tour modalities coexist with Comments/Notes/Tour tray tabs. Notes holds private notes/agent/chat/findings; the draft and workshop have separate center composition pages. New PRs open on Overview. | Allocate coherent private/shared navigation against this UI; enter the appropriate modality before evidence interactions. Preserve exact selected tab/comparison and avoid another stacked transcript panel. BPR-0577/0585–0587. |
+| `src/adapters/qt/src/workbench_window.cpp` | Overview/Read/Review/Discuss modalities coexist with Comments/Notes/Tour tray tabs. Notes holds private notes/agent/chat/findings; the draft and workshop have separate center composition pages. New PRs open on Overview. | Allocate coherent private/shared navigation against this UI; enter the appropriate modality before evidence interactions. Preserve exact selected tab/comparison and avoid another stacked transcript panel. BPR-0577/0585–0587. |
 
 ## Shortest public paths inspected
 
@@ -155,7 +155,7 @@ most 64 revisions/512 KiB; at most 256 composition sources. Body continuations
 carry immutable identity, total length, digest and advancing cursor, so two
 bounded reads can retrieve a 1 MiB body without declaring a partial body complete.
 The existing supplement admits only 64 notes/64 drafts with 16 KiB item bounds
-and 256 KiB selected source bytes; the decoder has a 64 KiB frame and 1 MiB total stdout ceiling. These are output
+and a separate 256 KiB selected code-text bound; the decoder has a 64 KiB frame and 1 MiB total stdout ceiling. These are output
 bounds, not a total encoded-input contract. The inspected launch request has an
 Input string but no named total-input admission bound; BPR-0577 must allocate
 that bound explicitly, and
@@ -175,7 +175,7 @@ external tool version. BPR-0581 must bind changes to exact protocol fixtures.
 
 | Protocol | Facts already tracked | Model/effort/version today | Required extension/evidence |
 |---|---|---|---|
-| Codex App Server | Decoder-owned remote session/thread/turn and terminal status. | No exported typed provenance. | Export supported IDs/facts from admitted envelopes; prove complete/partial/conflicting/absent and malformed framing. |
+| Codex App Server | Decoder-owned remote thread/turn and terminal status; no observed remote session fact. | No exported typed provenance. | Export supported IDs/facts from admitted envelopes; prove complete/partial/conflicting/absent and malformed framing. |
 | Codex JSONL | `thread.started.thread_id`, phased turn/item events and complete agent-message output. | No exported typed provenance. | Preserve thread fact, distinguish output completion and tool-supplied settings; never fabricate a remote turn ID. |
 | Claude stream JSON | Exact `session_id` across init/assistant/result and bounded assistant text events. | No exported typed provenance. | Capture only actual supported envelope fields; missing effort/version remains absent. |
 | External terminal | Bounded text stream; no structured finding-result carrier. | Unknown. | A distinct local run and terminal outcome are still available; unsupported remote metadata remains unknown. |
@@ -236,3 +236,520 @@ construction-cut courses, `application_agent_finding_composition_contract`,
 `application_review_round_trip_composition_contract`, and
 `qt_composed_github_scale_100/125/200`. These are reuse candidates, not executed
 M1 evidence or substitutes for new private-thread/migration/public-path assertions.
+
+
+## M2 — live architecture contract
+
+BPR-0577 / `m2-architecture` / mandate `r1`, implementer
+`/root/rfc0023_m2`. Re-audited against M1 integration
+`cb36559911d6cd4def1582a0121b527ed2f9edce`; source is unchanged from the
+implementation baseline. The contracts below are the implementation allocation,
+**not shipped feature claims**. Independent authority-boundary review is still
+required. Its exact candidate and disposition live in the verification ledger.
+No imported plan, criterion, dependency or M1 acceptance is superseded.
+
+Two M1 inventory details are corrected above from source: the fourth modality is
+Review, while Tour is a tray tab; App Server supplies thread/turn IDs, while the
+shared decoder's session member is populated by Claude. Also,
+`maximum_selected_source_bytes` currently bounds selected **code text**, not the
+sum of selected private notes/drafts. M2 adds a separate total-input contract.
+
+### Ownership and concrete extension seams
+
+Existing names below are source symbols; names marked **new** are the allocated
+interfaces to implement, with C++ spelling adjustable within the owning card.
+There is no new executable, universal service bus or model API client.
+
+| Owner and existing seam | Allocation | Card |
+|---|---|---|
+| `src/core/include/bpr/core/review_ledger.hpp`, `agent_session.hpp`, `diff_semantics.hpp` | **New** `private_review.hpp/.cpp`: strong IDs, exact/legacy binding, typed subject/actor/revision, lifecycle and compact interaction reducer. Domain values own no store or process. | BPR-0578 |
+| `agent_finding.hpp`, `revisioned_review_draft.hpp`, `review_round_trip.hpp` in the same core include directory | **New** `review_composition.hpp/.cpp`: provenance facts, source descriptors, DAG order, mode/target partition and local draft acceptance proposal. Extend the existing revisioned draft value with optional exact composition linkage; retain `core::apply` as draft policy. | BPR-0579 |
+| `src/application/include/bpr/application/review_ledger_port.hpp`; `src/adapters/sqlite/src/review_ledger_database.cpp` | **New** narrow `private_review_store_port.hpp` and draft persistence facet on the same ledger transaction owner; SQLite implements them. Existing receipt/defect/session ports keep their authorities. | BPR-0580 |
+| `src/application/include/bpr/application/agent_launch.hpp`; `src/application/src/agent_launch.cpp`; `src/adapters/agent/` | Extend request/decoder/event/result with exact local Run and qualified metadata. The existing `agent_process_port` remains the only process capability. | BPR-0581 |
+| `agent_chat_session_host`, `agent_invocation_host`, `agent_finding_host` in `src/application/` | **New** `private_review_application_host` orchestrates durable thread operations, source admission and result ingestion. Chat retains session/stale-continuation policy; invocation owns workspace/process lifecycle; finding validation stays in its existing core/host. | BPR-0582 |
+| `shared_draft_application_host`, `agent_comment_workshop_host` | **New** `review_composition_application_host` orchestrates source/candidate work and sends local acceptance to the existing shared draft owner. It receives no mutation capability. Workshop and finding promotion use the same acceptance seam. | BPR-0583 |
+| `review_mutation_application_host`, `review_mutation_coordinator::publish_attempt`, `review_mutation_submission`, `review_mutation_recovery_port` | Extend typed publication completion with the logical correlation facts below. A read-only receipt observer plus ledger writer repairs local lineage; it cannot submit mutations. | BPR-0584 |
+| `workbench_window`, `github_conversation_model`, `private_notes_panel`, `side_chat_panel`, `review_draft_editor` in `src/adapters/qt/` | Private summary/transcript/history and composition projections replace the stacked private contents. Shared GitHub model stays distinct. Qt includes projection/intent contracts, never store, invocation or mutation ports. | BPR-0585/0586 |
+| `src/app/src/github_application.cpp` profile runtime and window implementation | Profile owns one ledger service and shared draft owner per admitted scope; each window owns private/composition consumers and its existing invocation/mutation hosts. Wire typed callbacks and explicit executor/lifetime ownership here. | BPR-0587 |
+
+**Current shortest public composition, inspected early:**
+`side_chat_panel::send_action` → `dispatch_side_chat_intent` →
+`agent_chat_session_host` turn callback → `dispatch_agent_invocation` →
+`agent_invocation_host` → `agent_process_port::run`. The new durable admission
+slots before that existing dispatch. `all_private_note_ids()` must leave this
+path: a boolean cannot select a thread or its history. Publication remains
+`review_draft_editor` → revisioned command/shared draft owner →
+`review_mutation_application_host` → coordinator/provider → receipt and refresh.
+M2 exercises these paths by source inspection only; no runtime feature pass is
+claimed. M6/M7 must exercise their first reachable host compositions and M8 the
+real window, using the existing construction-cut courses as starting points.
+
+### Authority, identity and compact core state
+
+The existing ledger `review_scope` is `(host, account, repository, PR)` inside
+one BPR profile's private root. Keep that scope and its existing adapter
+validation. Add a ledger incarnation supplied by the composition's entropy
+capability when creating the new authority; all externally carried private
+references include it. Deleting/recreating a database cannot make old references
+resolve to newly allocated ordinal IDs. New IDs are independent strong unsigned
+namespaces limited to positive `INT64_MAX`, allocated from dedicated non-pruned
+per-scope high-water rows in the admission transaction. Zero, overflow and
+exhaustion refuse; normal admission never scans retained maxima.
+
+A new thread's immutable binding includes the profile/review scope, access mode,
+authority fingerprint, exact base/head OIDs, retained epoch identities and exact
+comparison identity where applicable. Live authorization additionally uses the
+current application session, authenticated identity generation and window
+context; none is restored as a permission after restart. A legacy note has an
+explicit `legacy_retained_subject` binding containing only its known review and
+optional file/comparison. Unknown OIDs/epochs stay absent, not filled from the
+current PR. This preserves migration truth while all newly created threads
+require exact revision observations.
+
+The typed subject variant is PR-wide, exact file comparison, source line,
+source boundary, selected range, group, segment, move relation, shared
+conversation identity, or durable finding reference. Reuse existing domain
+identities and bind range endpoints to one exact comparison. A display path or
+row cannot serve as a subject. Availability (`current`, `stale`, `unplaceable`)
+is observed/derived independently of `open`, `resolved_locally`, `archived`.
+A historical subject remains inspectable and never changes to the new head.
+
+One window's **new** `private_review_state` retains scope/binding, selected
+thread/turn/revision, bounded cursor descriptors, one request identity and
+generation per lane (catalog, transcript/body, mutation, agent admission), and
+projected command/reason facts. `review_composition_state` retains one workspace,
+mode, selected-set digest/count, optional exact target, candidate revision,
+expected draft revision and pending operation. Full bodies, catalog rows,
+protocol frames, source arrays and graph history remain host-owned bounded
+observations or durable rows; they do not become reducer state. No global state,
+clock, random generator, Qt, filesystem or provider is introduced into core.
+
+All revisions have one typed actor: reviewer, exact durable run, or
+`legacy_unknown`. An immutable vertex carries a per-review monotonic creation
+ordinal shared across run-admission/revision/finding/composition vertices. A new edge may
+name only an existing same-scope vertex with a smaller ordinal. Edges are
+committed with their destination; later edge attachment is refused. Thus DAG
+admission needs at most the selected 256 facts and does not load/transitively
+scan all history. Editing appends a reviewer successor with `edited_from` and
+an expected latest-revision CAS. A run may authorize an agent actor only for its
+own complete/incomplete response or candidate under the recorded entry point.
+No edit can rewrite predecessor bytes, actor, run or digest.
+
+### Typed transitions, requests, completions and deltas
+
+Every request context carries ledger incarnation/scope, application session,
+window context, identity generation, request ID and lane generation. Add the
+exact thread/header revision, run/session, composition/candidate, source-set
+fingerprint and expected draft revision for operations that use them. Counters
+are checked, never wrapped. A completion echoes the full context; current-lane
+acceptance uses identity equality before looking at payloads.
+
+| Intent / bounded observation | Core result / host request | Accepted terminal and projection |
+|---|---|---|
+| Create thread with admitted subject and reviewer body | `create_private_thread_request` with exact binding, actor and body descriptor | Store commits IDs/header/turn/revision/body atomically; `private_thread_committed` inserts summary and first revision. |
+| Add/reply/edit turn; expected header/latest revision and selected source descriptors | `append_private_revision_request`; deterministic actor, predecessor, completion and DAG checks | `private_revision_committed` changes only that turn, its history count and summary. CAS refusal carries bounded current descriptor and preserves rejected editor text separately. |
+| Resolve locally/archive/delete with expected version | `set_private_thread_lifecycle_request` or exact prepared deletion request | Local lifecycle/deletion delta only. No shared-resolution request exists in this variant. |
+| Select thread/history/provenance or request continuation | `load_private_catalog/header/revisions/body/provenance_request` | Request-bound immutable page/body/detail observation; cursor/selection and changed identities only. |
+| Send reviewer prompt or explicitly squash with agent | `admit_private_run_request` after mode/source/binding checks | Atomic prompt/run admission → `private_run_admitted` → existing invocation request; terminal maps to run/turn/candidate commit, never Publish. |
+| Select sources and reviewer/copy/agent mode | `create_review_composition_request`; validate exact descriptors and target partitions | Composition/source rows and candidate revision commit; `composition_changed` with source/currentness/actor facts. |
+| Edit or accept candidate with source/tip/draft expectations | `append_composition_revision_request` or `accept_composition_as_draft_request` | Shared draft owner stages core draft decision; one ledger transaction commits candidate acceptance and exact draft revision/link, then emits draft/composition deltas. |
+| Separate Publish from existing draft editor | Existing draft `begin_publish`, followed by correlation precommit and existing mutation proposal | Remote receipt + successful refresh feeds local lineage commit; unavailable local persistence produces repair-pending, never another automatic POST. |
+
+Diagnostics are typed and bounded: invalid identity/subject, wrong scope,
+missing source, changed source, digest mismatch, incomplete source, stale target,
+ambiguous target, cycle/order refusal, conflict, quota/input too large, unsupported
+setting, metadata conflict, cancellation, unavailable and integrity failure.
+Qt owns words and focus; deltas name semantic IDs, affected domains and command
+reasons, never widgets or model indexes. No generic string command/map bus.
+
+Effects run on the profile-owned serial ledger executor; responses post to the
+window's serialized decision lane. Host staging is bounded to one active write
+and one pending operation per window lane; excess ingress returns busy, not an
+unbounded queue. Catalog invalidations coalesce by scope/changed identity using
+`observing_review_ledger_store`'s existing fan-out seam. A sibling reloads only
+its resident affected page/detail, not `load_private()` or every transcript.
+Current receipt/defect compatibility behavior need not be broadly refactored
+under this RFC; BPR-1211's older decision-lane ledger debt stays separate.
+
+Cancellation before a ledger transaction commits changes nothing. A committed
+write has one durable outcome even if its UI terminal is stale. Late terminals
+cannot update another window/account; they may finish an already admitted run
+against its original persisted binding, with stale/cancelled status visible on
+later inspection. Duplicate matching terminals are idempotent by operation/run
+identity; mismatched digests or conflicting terminals refuse. Shutdown closes
+ingress, revokes source dispatch claims, cancels/drains invocation and mutation
+jobs, commits admitted durable terminals, drains ledger effects and decision
+callbacks, then releases projections, stores and profile root. Cancellation
+cannot erase a possibly transmitted publication's recovery obligation.
+
+### Ledger migration, draft ownership and retention
+
+Rechecked frontier: ledger **6**, mutation recovery **5**. M4 rechecks and
+allocates ledger's next version (7 if unchanged); M7 changes the recovery
+version only if its separate schema actually needs extension. No number is
+reserved here. Keep canonical STRICT schema validation, prepared statements,
+foreign keys, application ID/future-version refusal and one atomic forward
+migration. Preserve all supported v1–v6 origins and their receipt, defect and
+session migrations.
+
+Allocated ledger records are thread/header, turn/latest pointer, immutable
+turn revision/body, derivation edge, immutable run admission plus terminal facts,
+finding snapshot, composition/source set, immutable composition revision,
+revisioned draft with optional composition reference, pending publication join,
+publication lineage, legacy-note mapping and non-pruned high water/counters.
+All keys/FKs include scope; mutable header/draft versions are CAS values.
+Bodies exist once per authored revision; source lists retain IDs/digests and
+bounded metadata, not copied source text. A linked durable draft references its
+composition body; an ordinary draft owns its body. Candidate prose is an authored
+new revision. SHA-256 body digests bind exact bytes with no whitespace or Unicode
+normalization. Structured finding/selection digests use versioned, domain-tagged,
+length-prefixed field encoding in canonical ID order; the separately retained
+source presentation order cannot change identity silently.
+
+Migration visits each legacy note once inside the migration transaction:
+allocate a new thread, turn and initial revision; preserve its old ID in a
+mapping; copy its optional file/comparison and text exactly; assign
+`legacy_unknown`; and retain its exact positive v6 note revision as the facade's
+expected-revision token. Preserve `local_note_sequence.last_revision`, including
+a high water greater than every surviving row. A note edit through a temporary
+`store_note` facade appends a reviewer revision and advances that same durable
+CAS token; delete checks it. Old revisions absent from v5/v6 are not invented.
+Use new identity namespaces, advance new high waters for every migrated record,
+and drop `local_note` only after successful conversion/validation in the same
+transaction. The mapping has no independent text column. The temporary note facade projects
+only its mapped note threads, never all new transcripts; new facade creates also
+write one canonical thread and a mapping. Post-migration schema
+inventory must show exactly one private-content authority.
+
+`shared_draft_application_host` remains the sole draft decision/fan-out owner.
+Extend it with an asynchronous persistence facet: stage `core::apply`, commit
+its expected-revision result, then publish to the existing 32-consumer fan-out.
+Keep at most 64 active drafts per authority and the existing 64 KiB ordinary
+draft ceiling; compositions retain their stricter 16 KiB ceiling. Durable draft
+identity/revision and exact source target survive restart. Runtime
+`review_draft_scope_id`, session/window/identity generations and publish grants
+are freshly bound on attach. Retained drafts on an old head remain inspectable
+but cannot become a current target by restoration. The updater's
+`release_update_recovery_store` remains inert salvage; its text cannot restore
+publication authority or become a second canonical draft store.
+
+Acceptance uses one transaction in this same database for source existence and
+expected-tip/digest revalidation, candidate acceptance, draft allocation/CAS,
+and composition reference. Shared host state changes only after success.
+Editing an accepted composition-derived draft must append a reviewer composition
+successor and update both links in one transaction, so its composition revision
+always identifies the current prose. A host receipt terminal likewise persists
+before fan-out. There is no independent composition draft reducer or second
+writeable draft cache. A failed store leaves the prior accepted version and
+rejected editor text visible.
+
+Retention is explicit, never automatic text pruning. Archive changes visibility
+only. Deleting a selected thread cascades its own turns/revisions/edges, but
+**refuses with a references-present result** while another retained thread,
+composition, draft, finding or publication-lineage record needs its bytes or
+identity. Offer exact dependent counts/IDs through bounded pages; deleting
+those other objects requires separately selected local cleanup. No silent
+cascade erases another thread or accepted draft. Unreferenced run/finding
+records may be removed by that explicit cleanup; referenced provenance outlives
+session pruning and has no cascading FK to the 128-row session catalog.
+An active source dispatch claim makes deletion temporarily busy. Review-scope
+purge removes all its private objects after producer quiescence, retains
+sequence/incarnation tombstones within an existing ledger, and leaves the
+mutation recovery journal's unresolved attempt authority intact. Whole ledger
+loss creates a new incarnation. Neither operation calls any GitHub capability
+or reconstructs private prose from the server. After ledger loss, an old journal
+receipt remains unmatched local history; it cannot attach to a new incarnation
+or fabricate the missing source/composition. Separate profile maintenance
+continues to own its documented broader purge scope.
+
+### Bounded queries, immutable body continuations and input admission
+
+`private_review_store_port` exposes typed operations, not SQL or an all-record
+aggregate: `list_threads(filter,cursor)`, `load_thread(id)`,
+`list_revisions(thread,cursor)`, `read_revision_body(id,digest,offset)`,
+`load_run_details(ids)`, `load_composition(id)`, `load_sources(exact_refs)` and
+`find_publication(local_or_server_identity,cursor)`. Each bound is enforced by
+the adapter as well as the host. No caller-selected unbounded limit. Write
+operations return accepted identity/version plus changed counters, not history.
+
+Keep the RFC's 4,096 threads, 65,536 turn revisions, 16 KiB reviewer/candidate,
+1 MiB assistant, 64 MiB retained thread-body, 64-revision/512 KiB page and
+256-source limits exactly. Add finite non-body bounds: 64 summary rows/64 KiB
+metadata per catalog page; 16 run details/256 KiB per detail page; 65,536 runs,
+65,536 finding snapshots, 4,096 compositions, 65,536 composition revisions and
+65,536 publication joins/lineage records per scope; at most 256 edges on any
+new revision. Other retained private payloads (candidate/draft/finding/provenance)
+have a separate 64 MiB aggregate budget. Checked transaction counters enforce
+count/byte admission including replacement deltas; refused writes commit no
+partial payload, lost source or misleading success. These additional bounds do
+not lower the RFC's thread-body budget. M4/M9 test each boundary and measure
+actual metadata/index/database growth as well as body bytes.
+
+Catalog cursors bind scope/incarnation, filter/order and catalog generation;
+turn cursors bind thread/header revision and last monotonic order. Use indexed
+keyset queries with limit+1, never growing OFFSET scans. A stale page cursor
+refuses and offers an explicit fresh page while retaining visible content.
+An isolated change may patch a resident row without refetching all pages.
+A row too large for the remaining page body budget returns its exact descriptor
+(length, digest, completion) with an explicit body continuation; it counts as a
+row and advances the row cursor. This is visible unloaded content, not a partial
+body advertised as complete.
+
+A body continuation is `(scope, incarnation, immutable revision, digest,
+total_bytes, next_byte_offset)`. Each successful nonterminal read returns
+`0 < bytes <= 524288` and strictly increases offset; final offset equals total.
+A 1,048,576-byte body therefore progresses `0 → 524288 → 1048576` in two reads.
+Editing creates another immutable identity and cannot change these chunks;
+deletion/mismatch refuses, with no empty-success loop. UTF-8 chunk boundaries
+are assembled with an incremental decoder; digests and persistence remain over
+original bytes. Transcript residency is one bounded page plus the explicitly
+opened body/detail (maximum 1 MiB); scrolling does not accumulate all pages.
+Copy/composition uses the full immutable body from the store and never the
+loaded visual fragment. Exact-copy into a 16 KiB candidate refuses a larger
+source whole; the reviewer can write a shorter candidate with derivation.
+
+Add `maximum_agent_input_bytes = 8 MiB` at `agent_launch.hpp` and its builder/
+process adapter boundary. It bounds all emitted stdin for one invocation:
+encoded supplement, protocol wrappers, handshake/follow-ups and selected
+private sources. The new selected-private raw-byte budget is **2 MiB** across
+at most 256 exact references, independently of the existing 256 KiB selected
+code-text limit and current note/draft per-item bounds. Store eligibility is
+not agent-input eligibility. Count actual escaped wire bytes with a bounded
+encoder before allocating/launching; an escaping-heavy set may fit 2 MiB raw
+but exceed 8 MiB wire and must refuse. For App Server, reserve the maximum
+encoded remote-thread-ID and fixed follow-up overhead before process creation,
+then enforce the same remaining-byte counter on each actual follow-up. A late
+invalid/oversize remote ID is protocol failure before any private context write.
+Never truncate, silently omit sources, or count DeferredContext twice as if it
+were itself another emitted frame. Raw private bytes are not passed in argv.
+
+### Run metadata, response bodies and selected context
+
+One invocation gets one durable `agent_run_id` even when reusing
+`agent_session_id`. The existing invocation session catalog still owns session
+admission; extend its orchestration with a run-admission port, not a second
+launcher. Before dispatch, commit the prompt revision, exact run/session/profile
+snapshot, entry point, binding, selected references/digest and admitted setting
+facts atomically. The same ordering applies to a workshop/squash request even
+when its source is a candidate rather than a chat prompt. A failed admission
+launches nothing. Interrupted admitted runs recover as interrupted/unknown
+execution, never automatically rerun and never fabricated complete responses.
+
+Extend `agent_launch_request`, `agent_stream_event` and `agent_run_result` with
+Run as well as Session. A **new** bounded `agent_runtime_metadata` value has
+separate optionals for `requested`, `configured`, `protocol_reported` and
+`content_self_reported` model/effort facts; each reported fact names its protocol
+field/event basis. Requested means the setting actually admitted to the request;
+configured means an explicit profile default, not an executable argument guessed
+from a label. Unknown stays absent. Unsupported explicit requested settings
+refuse before launch rather than pretending they took effect. Content-self-report
+remains absent in the initial implementation; any later parser needs its own
+low-trust contract and cannot populate protocol facts.
+
+Metadata strings are bounded UTF-8 scalars: 256 bytes for model/effort/version/
+profile display values, 1,024 bytes for each remote session/thread/turn/run ID;
+at most 16 distinct reported fact records/16 KiB total metadata per run. Identical
+repetition coalesces; differing reports remain separate with a typed conflict,
+never last-write-wins. Wrong type, control/NUL content, wrong phase/identity,
+excess count/bytes or inconsistent terminal data refuses metadata/protocol
+admission explicitly, rather than dropping a fact and claiming completeness.
+Optional absence alone never fails an otherwise valid run. Local IDs and
+reported remote IDs remain distinct namespaces and confer no authentication.
+
+The initial capability matrix is grounded in current decoder branches in
+`src/application/src/agent_launch.cpp`; it promises no field an installed tool
+has not actually supplied:
+
+| Protocol | Exact current envelope/source to export | Honest initial absence / extension obligation |
+|---|---|---|
+| Codex App Server | Successful response `id:1/result.thread.id` → remote thread; `id:2/result.turn.id` → remote turn; `turn/completed` must echo thread/turn and completed status. | No remote session, run ID, model, effort or tool version is currently parsed. Do not relabel the local session or JSON-RPC request ID. M5 adds optional settings/metadata only against a recorded field mapping and fixture. |
+| Codex JSONL | `thread.started.thread_id` → remote thread; `item.completed` agent-message item ID binds body pieces; `turn.completed` is terminal. | No remote turn/session/run ID or model/effort/version established by current decoder. Usage counters and item IDs do not supply those facts. |
+| Claude stream JSON | `system`/`init.session_id` → remote session, checked again on assistant/result; assistant message text blocks are body events. | Current code does not parse model/effort/version. M5 may admit actual `message.model` or init metadata only with an explicit tested envelope basis; result prose is not such metadata. |
+| External terminal | Local run/session, bounded text and process exit/cancel/timeout only. | All remote/model/effort/version facts stay absent; no structured findings carrier, label scraping or extra discovery process. |
+
+BPR-0581 owns the exact extended field/setting allowlist and serialized fixtures
+for each protocol before exposing it as a capability. Every optional fact keeps
+its category even when conflicting. Full/partial/conflicting/unknown fixtures
+prove the parser and labels, never external-tool-wide reporting. M2 settles the
+field ownership and refusal/absence contract without claiming provider support
+from synthetic input. Credential/environment values, raw frames and stderr are
+excluded from durable provenance; diagnostics retain only IDs, digests and
+closed reasons. Profile snapshots retain no argv/environment value dump.
+
+Complete assistant text must come from validated assistant output, not finding
+claims. App Server accumulates ordered deltas by admitted item identity;
+JSONL retains complete `agent_message` items once per item ID; Claude retains
+assistant text blocks once and does not append the `result` summary a second
+time. Preserve the ordered bodies of multiple items and their boundaries in
+bounded run output metadata; a deterministic concatenation for the turn adds
+no fabricated prose. Duplicate/conflicting item deliveries cannot duplicate
+text. A success terminal plus valid framing, bounded full output and matching
+run establishes complete; cancellation/protocol failure/timeout is incomplete
+or failed even if text exists. Existing stdout/frame limits stay 1 MiB/64 KiB;
+the 1 MiB storage limit does not imply every protocol can frame that much prose.
+Completeness and current-head staleness are distinct facts: a validated complete
+response for an exactly correlated original run may remain complete and visibly
+stale after navigation/head movement; it never becomes a response under the new
+binding. Preserve the validated original output before the existing
+`finalize_agent_run` stale presentation path clears stream events. A mismatched
+run or incomplete/cancelled execution cannot gain completeness this way.
+Partial output requires explicit reviewer adoption with an
+`adopted_from_incomplete_run` edge before use as an eligible source.
+
+A selected source descriptor is a tagged immutable revision/finding/composition
+reference with scope/incarnation, ID, digest, byte count and the latest-tip
+revision observed when selected. Historical selection is explicit; selecting
+history does not accidentally select today's tip. Any successor/delete/digest
+change since the selection was presented requires reload/reselection at dispatch
+or acceptance. Sources known stale by head remain usable locally with the stale
+badge, and can enter an explicit old-revision agent continuation only through
+the existing chat policy; they never borrow a new exact binding.
+
+On the serial ledger effect lane, reload only the exact selected descriptors,
+validate count/bytes/completeness/binding and take a short source-use claim.
+The run admission and input digest commit from that same checked snapshot.
+Serialize competing edits/deletes with the dispatch claim through the existing
+invocation's initial/deferred private input acknowledgement; they return busy
+until input delivery or refusal releases it. Thus no gap lets an already
+accepted delete/edit race the last dispatch check. The existing process timeout
+bounds this claim even if App Server never requests context. Cancellation or
+authority retirement revokes unwritten context before releasing the claim.
+After input delivery, later edits create successors but cannot change bytes
+already authorized for that run. Body buffers are released after input delivery;
+no durable duplicate supplement is retained. Fixture canaries inspect the actual
+child input for unchecked, removed, changed, duplicate and cross-review sources.
+
+### Composition, exact targets and publication join
+
+Source selection loads metadata for at most 256 immutable references. Core
+partitions only exact eligible `source_line_ref` targets. PR/range/boundary,
+shared-thread and historical subjects grant no root publication target.
+Multiple targets require explicit choice or Split into Drafts; unplaceable
+members remain visibly unassigned, never silently dropped. Split preview names
+every partition and unassigned member. Accepting a split batch first checks draft
+capacity and all source/target expectations, then atomically commits the selected
+batch; failure leaves the batch unaccepted. Reviewer mode performs no agent
+call. Exact copy uses precisely one eligible full body or finding suggested
+comment under the 16 KiB bound. Agent mode dispatches only the selected immutable
+set and produces an unaccepted agent-authored candidate; editing adds a reviewer
+successor. The composition request variant has no publish/resolve/submit action.
+
+Before an explicit Publish reaches the existing mutation host, the shared draft
+owner must durably freeze the exact draft/composition revision, approved-prose
+digest and target in a **pending publication join**. This row is correlation,
+not a successful lineage record or a remote-attempt journal. It reserves local
+capacity for the later terminal so ordinary quota growth cannot lose lineage.
+Failure to commit it sends nothing. Map the existing coordinator's exact logical
+key/fingerprint to this row before provider admission. Fresh durable publication
+keys include ledger incarnation and stable draft revision alongside the existing
+target/body identity, preventing database recreation or draft-ID reuse from
+colliding with a previous ledger's publication. Keep existing persisted legacy
+keys usable for recovery; RFC-0022 child keys and representation decisions stay
+with that authority. BPR-0584 qualifies this narrow key extension and old rows.
+
+No cross-database atomicity is assumed. The order is ledger join commit →
+existing recovery-journal admission/transmission/receipt → successful server
+reconciliation → ledger lineage/draft-terminal commit. Crash before the first
+remote admission leaves a prepared local join with no authorization to post on
+restart. A prepared/unresolved or possibly-transmitted remote journal continues
+its existing read-only reconciliation rules. Receipt success with failed refresh
+is still reconciliation-pending. Only the exact canonical logical receipt plus
+reconciled server identity can materialize successful lineage. Repeated repair
+is an idempotent local insert/update keyed by scope/logical publication; a
+mismatched receipt/body/actor fails closed and does not search by text alone.
+A failed local lineage commit after remote success is visible as local repair
+pending; reload journal/refresh and retry only that local commit. Never run
+`publish_attempt` or issue another POST to repair local state.
+
+Store original draft/composition revision, expected and accepted head, exact
+semantic and wire target, acting account snapshot, logical publication identity,
+idempotency digest, approved-prose and wire-body digests, representation and
+canonical `ServerCommentId`. Native wire body equals approved prose. File-level
+wire body is RFC-0022's canonical visible permalink, blank line and approved
+prose. No model, private source IDs, metadata or disclosure is injected. A child
+native/fallback attempt is not a second local publication. Multiple deliberate
+publications from the same sources use distinct draft identities; duplicate
+source/body/target evidence is only an advisory.
+
+### Current Qt navigation, focus and public composition
+
+Keep the real Overview/Read/Review/Discuss modality controls and semantic drawer
+intents. Overview opens new PRs and does not show drawers. In the conversation
+tray, retain Shared (current Comments), Private (evolved Notes) and Tour roots;
+these provide BPR-0585's equivalent Shared/Private navigation without merging
+provider and ledger models. Each root retains its own stable selection and
+scroll. Selecting a private subject in Read/Review reveals only its exact
+available comparison; Discuss gives the selected conversation the central detail
+surface. Switching modality or document tab never silently changes the thread
+binding or selected composition sources.
+
+Replace Notes' stacked note/launcher/chat/finding panels with one paged private
+catalog and one selected-thread detail/transcript. New note and Ask actions
+produce turns there; findings are a selectable source view with the existing
+explicit actions. Run configuration and provenance are disclosures for the
+selected operation/run. The persistent label reads “Private · stored on this
+device · not visible on GitHub.” A shared conversation stays a GitHub read model;
+a local thread resolving/archiving has no shared-resolve action. Model keys are
+qualified shared or private IDs, never overlapping row ordinals.
+
+Squash opens a dedicated centre composition page using
+`open_review_composition`/`CompositionReturnFocus`/Back-or-Escape mechanics, with
+source list, expandable history/provenance, exact target/split preview, candidate
+body and three named modes. It reuses the retained draft editor after **Accept
+as Draft**, keeping **Publish** as the existing separate action. Acceptance
+focuses the local draft body or its status, never triggers/default-focuses a
+publish button. Back/Escape returns to the originating source and stable reading
+position; deleting that source uses a deterministic neighbour/header fallback.
+No new conflicting global shortcut is allocated here: reuse existing window
+composition actions and add standard focusable QAction/menu access for private
+commands during BPR-0586's shortcut inventory.
+
+Keyboard order is root selector → catalog → transcript/selected revision →
+history/provenance/context selection → write/ask/squash actions. Within compose:
+sources/details → mode/profile/settings → target/split → candidate → Accept →
+Back. History/detail disclosures return focus to their invoker. Space toggles an
+exact source; keyboard selection never automatically opts in an entire thread.
+Each row announces local/shared, typed actor and basis, incomplete/stale state,
+and selected-source state in text, not just color. Publish/Accept/local-resolve
+have distinct accessible names. Emit one combined polite status per accepted
+change. Qt applies insert/remove/move/data-change deltas and preserves selection;
+no transcript or shared-model reset for one turn or provenance update. Long
+bodies are virtualized/paged; source and provenance tables do not force the
+drawer width. Scale/theme/native/font/focus evidence remains BPR-0589 work.
+
+Profile composition injects the ledger executor/store service and shared draft
+owner; window composition injects exact authority/window context, private and
+composition consumers, projection sinks and callbacks into the existing chat,
+invocation and mutation hosts. The profile service outlives every window's
+admitted write/receipt callback. Opening a sibling window observes committed
+state and uses CAS; it cannot own a second store policy or global selected
+thread. Account replacement clears private projections before a new consumer
+attaches. Constructor absence of a private store, run-admission seam, shared
+persistent draft facet or lineage observer must make the relevant action
+unavailable rather than report success; the public construction-cut course
+proves each selected seam matters.
+
+### Criterion/evidence ownership and review challenge
+
+The existing eighteen-row matrix in [the verification ledger](RFC-BPR-0023.md)
+remains canonical and all feature results remain Not run. The following cases
+refine its direct evidence, without replacing any row or pending acceptance:
+
+| ACs / owning cards | Required falsifier at the allocated seam |
+|---|---|
+| 01, 03, 04, 07 — BPR-0578/0579/0580/0582 | Replay exact/legacy binding, successor actor/DAG order and CAS; restart exact bytes; head move cannot retarget; source history remains inspectable. |
+| 02, 05, 06 — BPR-0581/0582 | Existing invocation callback with two runs in one session; prompt/run commit failure means zero process calls; complete text differs from finding claim; metadata conflict/absence and session-prune/restart retain provenance. |
+| 08, 10, 16 — BPR-0579/0582/0583/0586 | Three modes, historical selection, changed-tip reselection, cross-scope/missing/duplicate refusal, full-body exact-copy and explicit split/unassigned cases; compare actual child input to exact selected set. |
+| 09, 11 — BPR-0580/0583/0587/0588 | Accept/split transaction and sibling CAS plus process kill/restart; inject all inline, whole-review, resolve and Tour mutation ports and assert zero calls before separate Publish. |
+| 12, 13 — BPR-0584/0587/0588 | Native/file logical publication and exact prose/wire digests; remote success/local failure/failed refresh; repair and restart never POST. Designated target or signed recording plus independent body/actor read remains required. |
+| 14, 15 — BPR-0580/0588 | Every v1–v6 origin, exact v5 and high-water v6/deleted highest note; canonical schema has no text-owning local_note; 1 MiB body two-chunk progress; each count/raw/escaped/wire bound±1 and no partial commit. |
+| 17 — BPR-0580/0584/0588 | Unreferenced thread deletion, referenced deletion refusal and explicit dependency cleanup, scope purge and ledger recreation/incarnation; crash at each transaction/journal join; unchanged GitHub via independent read. |
+| 18 — BPR-0585/0586/0587/0589 | Real window from Overview to Private, create/ask/restart/select/compose/accept/separate Publish; shared sync still works; keyboard/a11y and 100/125/200% themes, no clipping or bounded-update reset. |
+
+M2's independent reviewer must attempt counterexamples for source-use admission
+versus edit/delete, immutable lineage versus cleanup, exact legacy migration,
+draft single authority, account/window retirement, protocol fact overclaim,
+input/body bounds and the two-store publication crash join. Self-review and the
+documentation gate cannot satisfy that gate. No reviewer has been dispatched
+by this leaf; the coordinator owns obtaining separately authorized independent
+acceptance on the committed candidate before M3 becomes eligible.

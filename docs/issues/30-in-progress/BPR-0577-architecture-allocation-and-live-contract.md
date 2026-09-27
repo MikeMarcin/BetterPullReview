@@ -58,3 +58,25 @@ Recheck total invocation-input bounds for selected compositions. Ledger schema
 6 and recovery schema 5 are now separate live authorities; recheck each frontier
 before allocation. Preserve exact v5 migration cases plus v6 note revision/CAS
 and high-water behavior.
+
+
+## M2 candidate and remaining gate
+
+Mandate r1; milestone `m2-architecture`; implementer `/root/rfc0023_m2`;
+M1 integration baseline `cb36559911d6cd4def1582a0121b527ed2f9edce`.
+Claim commit `20ff2732e4e6d11df333ccc2fffbf3069029f7e3`.
+
+The [live allocation](../../verification/RFC-BPR-0023-live-audit.md#m2--live-architecture-contract)
+now names the current symbols and single owners, core algebra, bounded ports,
+transaction and cancellation boundaries, schema/migration/CAS/retention,
+per-invocation provenance, exact selected context, encoded input limits,
+publication crash join and current modality/focus/accessibility allocation.
+It refines every AC's direct evidence owner in the existing ledger. No product
+source or imported plan is changed and no feature acceptance is claimed.
+
+The [verification and durable handoff](../../verification/RFC-BPR-0023.md#m2--architecture-candidate)
+records the exact candidate, checks, command state and continuation. Required
+independent authority-boundary review remains **pending**. Self-review does not
+supply it. This card remains In Progress while the coordinator resolves that
+review; BPR-0578 is still dependency-ineligible. Do not finish this card or mark
+M2 accepted from documentation checks alone.
