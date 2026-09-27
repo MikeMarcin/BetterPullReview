@@ -2,6 +2,7 @@
 #define BPR_CORE_REVIEW_TOUR_DESTINATION_HPP
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_tour.hpp"
+#include <span>
 namespace bpr::core {
 	enum class tour_subject : std::uint8_t { unknown,
 											 current_diff,
@@ -23,14 +24,15 @@ namespace bpr::core {
 	struct tour_destination_observation
 	{
 		tour_code_destination     Source;
-		tour_subject              Subject             = tour_subject::unknown;
-		bool                      SourceAvailable     = false;
-		review_body_compatibility Body                = review_body_compatibility::portable;
-		tour_operation_support    PendingLineBatch    = tour_operation_support::unknown;
-		tour_operation_support    PendingOffHunkBatch = tour_operation_support::unknown;
-		tour_operation_support    PendingFileThread   = tour_operation_support::unknown;
-		tour_operation_support    StandaloneFile      = tour_operation_support::unknown;
-		tour_operation_support    Conversation        = tour_operation_support::unknown;
+		tour_subject              Subject                = tour_subject::unknown;
+		bool                      SourceAvailable        = false;
+		review_body_compatibility Body                   = review_body_compatibility::portable;
+		tour_operation_support    PendingLineBatch       = tour_operation_support::unknown;
+		tour_operation_support    PendingOffHunkBatch    = tour_operation_support::unknown;
+		tour_operation_support    PendingFileThread      = tour_operation_support::unknown;
+		tour_operation_support    StandaloneFile         = tour_operation_support::unknown;
+		tour_operation_support    Conversation           = tour_operation_support::unknown;
+		bool                      CompatibilityRequested = false;
 	};
 	struct tour_destination_plan
 	{
@@ -41,6 +43,12 @@ namespace bpr::core {
 		bool                IncompatibleBody                                       = false;
 		auto                operator==(const tour_destination_plan&) const -> bool = default;
 	};
+	enum class tour_publication_readiness : std::uint8_t { incomplete,
+														   unavailable,
+														   compatibility_choice,
+														   single_review,
+														   compatibility_comments };
+	[[nodiscard]] auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness;
 	[[nodiscard]] auto plan_tour_destination(const tour_destination_observation& aObservation) noexcept -> tour_destination_plan;
 }
 #endif

@@ -8,6 +8,19 @@ namespace bpr::application {
 			const auto& target = aPlan.Submission.LiveBinding->Target;
 			return { { "Tour overview", "https://" + std::string{ target.Hostname.value() } + "/" + target.Repository.Owner + "/" + target.Repository.Name + "/pull/" + std::to_string(target.Number.value()) } };
 		}
+		auto initial_stop_body(const staged_review_plan& aPlan, std::size_t aIndex) -> std::optional<std::string>
+		{
+			const auto& stop = aPlan.Stops[aIndex];
+			return core::render_tour_stop(stop.Title, aIndex + 1, stop.Narrative, initial_navigation(aPlan), stop.SourceLink);
+		}
+		auto description_body(const staged_publication_record& aRecord) -> std::string
+		{
+			auto result = aRecord.Plan.Description->Desired;
+			if (aRecord.Plan.Description->AppendIndexLink) {
+				result += "\n\n[Review tour](" + (aRecord.Index ? aRecord.Index->WebUrl : aRecord.Review->WebUrl) + ")";
+			}
+			return result;
+		}
 	}
 	auto valid(const staged_review_plan& aPlan) -> bool
 	{
@@ -34,12 +47,15 @@ namespace bpr::application {
 				return false;
 			}
 		}
-		return !aPlan.Description || (aPlan.Description->Baseline.size() <= core::maximum_tour_field_bytes && aPlan.Description->Desired.size() <= core::maximum_tour_field_bytes && !aPlan.Description->Desired.empty() && aPlan.Description->Baseline != aPlan.Description->Desired);
+		return !aPlan.Description || (aPlan.Description->Baseline.size() <= core::maximum_tour_field_bytes && aPlan.Description->Desired.size() <= core::maximum_tour_field_bytes && !aPlan.Description->Desired.empty() && (aPlan.Description->AppendIndexLink || aPlan.Description->Baseline != aPlan.Description->Desired));
 	}
 	auto staged_initial_request(const staged_review_plan& aPlan) -> std::optional<staged_review_request>
 	{
-		if (!valid(aPlan) || aPlan.Compatibility) {
+		if (!valid(aPlan)) {
 			return std::nullopt;
+		}
+		if (aPlan.Compatibility) {
+			return staged_review_request{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aPlan, 0) };
 		}
 		staged_review_request result{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_pending, .Body = "Tour preparation is incomplete.\n\n" + aPlan.Submission.Proposal.Body };
 		for (const auto& stop : aPlan.Stops) {
@@ -56,7 +72,7 @@ namespace bpr::application {
 	}
 	auto staged_final_bodies(const staged_publication_record& aRecord) -> std::optional<std::pair<std::string, std::vector<std::string>>>
 	{
-		if (!valid(aRecord.Plan) || !aRecord.Review || aRecord.Comments.size() != aRecord.Plan.Stops.size()) {
+		if (!valid(aRecord.Plan) || (!aRecord.Plan.Compatibility && !aRecord.Review) || aRecord.Comments.size() != aRecord.Plan.Stops.size()) {
 			return std::nullopt;
 		}
 		std::vector<core::tour_markdown_link> entries;
@@ -73,7 +89,7 @@ namespace bpr::application {
 			if (i) {
 				navigation.push_back({ "Previous", entries[i - 1].Destination });
 			}
-			navigation.push_back({ "Tour overview", aRecord.Review->WebUrl });
+			navigation.push_back({ "Tour overview", aRecord.Plan.Compatibility ? (aRecord.Index ? aRecord.Index->WebUrl : initial_navigation(aRecord.Plan).front().Destination) : aRecord.Review->WebUrl });
 			if (i + 1 < entries.size()) {
 				navigation.push_back({ "Next", entries[i + 1].Destination });
 			}
@@ -88,7 +104,10 @@ namespace bpr::application {
 	}
 	auto staged_next_request(const staged_publication_record& aRecord) -> std::optional<staged_review_request>
 	{
-		if (!aRecord.Review) {
+		if (aRecord.Plan.Compatibility && aRecord.Comments.size() < aRecord.Plan.Stops.size()) {
+			return staged_review_request{ .Binding = *aRecord.Plan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aRecord.Plan, aRecord.Comments.size()) };
+		}
+		if (!aRecord.Review && !aRecord.Plan.Compatibility) {
 			return staged_initial_request(aRecord.Plan);
 		}
 		const auto bodies = staged_final_bodies(aRecord);
@@ -96,8 +115,11 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		staged_review_request result{ .Binding = *aRecord.Plan.Submission.LiveBinding };
-		if (aRecord.Patched < aRecord.Comments.size()) {
-			result.Operation = staged_review_operation::update_comment;
+		if (aRecord.Plan.Compatibility && !aRecord.Index) {
+			result.Operation = staged_review_operation::create_issue_comment;
+			result.Body      = bodies->first;
+		} else if (aRecord.Patched < aRecord.Comments.size()) {
+			result.Operation = aRecord.Plan.Compatibility ? staged_review_operation::update_issue_comment : staged_review_operation::update_comment;
 			result.Comment   = aRecord.Comments[aRecord.Patched].Id;
 			result.Body      = bodies->second[aRecord.Patched];
 		} else if (!aRecord.Published) {
@@ -106,7 +128,7 @@ namespace bpr::application {
 			result.Body      = bodies->first;
 		} else if (aRecord.Plan.Description && !aRecord.DescriptionDone) {
 			result.Operation = staged_review_operation::update_description;
-			result.Body      = aRecord.Plan.Description->Desired;
+			result.Body      = description_body(aRecord);
 		} else {
 			return std::nullopt;
 		}
@@ -118,7 +140,32 @@ namespace bpr::application {
 			|| aRecord.Comments.size() > aRecord.Plan.Stops.size() || aRecord.Patched > aRecord.Comments.size() || (aRecord.PossiblyTransmitted && !aRecord.Pending) || (aRecord.DescriptionDone && (!aRecord.Published || !aRecord.Plan.Description))) {
 			return false;
 		}
-		if (aRecord.Pending && aRecord.Pending != staged_next_request(aRecord)) {
+		if (aRecord.Plan.Compatibility) {
+			if (aRecord.Review || (aRecord.Patched && !aRecord.Index) || (aRecord.Index && aRecord.Comments.size() != aRecord.Plan.Stops.size()) || aRecord.Published != (aRecord.Index && aRecord.Patched == aRecord.Plan.Stops.size())) {
+				return false;
+			}
+			const auto&                binding = *aRecord.Plan.Submission.LiveBinding;
+			const staged_review_actor  actor{ binding.ActingIdentity.DatabaseId, binding.ActingIdentity.NodeId, binding.ActingIdentity.Login };
+			const auto                 root = initial_navigation(aRecord.Plan).front().Destination;
+			std::vector<std::uint64_t> ids;
+			const auto                 identity = [&](const staged_review_comment& comment) { return comment.Id && !comment.NodeId.empty() && comment.Actor == actor && !comment.Source && !comment.Review.value() && !comment.Reply && comment.WebUrl == root + "#issuecomment-" + std::to_string(comment.Id); };
+			const auto                 bodies   = staged_final_bodies(aRecord);
+			if (aRecord.Patched && !bodies) {
+				return false;
+			}
+			for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
+				const auto& comment = aRecord.Comments[i];
+				if (!identity(comment) || std::ranges::find(ids, comment.Id) != ids.end() || std::ranges::binary_search(aRecord.BaselineIds, comment.Id) || comment.Body != (i < aRecord.Patched ? bodies->second[i] : *initial_stop_body(aRecord.Plan, i))) {
+					return false;
+				}
+				ids.push_back(comment.Id);
+			}
+			if (aRecord.Pending && aRecord.Pending != staged_next_request(aRecord)) {
+				return false;
+			}
+			return !aRecord.Index || (identity(*aRecord.Index) && std::ranges::find(ids, aRecord.Index->Id) == ids.end() && !std::ranges::binary_search(aRecord.BaselineIds, aRecord.Index->Id) && bodies && aRecord.Index->Body == bodies->first);
+		}
+		if (aRecord.Index) {
 			return false;
 		}
 		if (aRecord.Review) {
@@ -148,6 +195,9 @@ namespace bpr::application {
 		} else if (!aRecord.Comments.empty() || aRecord.Patched || aRecord.Published) {
 			return false;
 		}
+		if (aRecord.Pending && aRecord.Pending != staged_next_request(aRecord)) {
+			return false;
+		}
 		return !aRecord.Published || (aRecord.Patched == aRecord.Comments.size() && aRecord.Review->State == staged_review_state::commented);
 	}
 	auto valid_staged_transition(const std::optional<staged_publication_record>& aBefore, const staged_publication_record& aAfter) -> bool
@@ -156,7 +206,7 @@ namespace bpr::application {
 			return false;
 		}
 		if (!aBefore) {
-			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.PossiblyTransmitted && aAfter.Pending == staged_initial_request(aAfter.Plan);
+			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.Index && aAfter.Comments.empty() && !aAfter.PossiblyTransmitted && aAfter.Pending == staged_initial_request(aAfter.Plan);
 		}
 		if (!valid(*aBefore) || aBefore->Plan != aAfter.Plan || aBefore->Revision == std::numeric_limits<std::uint64_t>::max() || aAfter.Revision != aBefore->Revision + 1 || aBefore->BaselineIds != aAfter.BaselineIds || aBefore->Patched > aAfter.Patched || aAfter.Patched > aBefore->Patched + 1 || (aBefore->Published && !aAfter.Published) || (aBefore->DescriptionDone && !aAfter.DescriptionDone)) {
 			return false;
@@ -186,6 +236,27 @@ namespace bpr::application {
 				expected.Review   = aAfter.Review;
 				expected.Comments = aAfter.Comments;
 				break;
+			case staged_review_operation::create_issue_comment:
+				if (!expected.Plan.Compatibility) {
+					return false;
+				}
+				if (expected.Comments.size() < expected.Plan.Stops.size()) {
+					if (aAfter.Comments.size() != expected.Comments.size() + 1) {
+						return false;
+					}
+					expected.Comments.push_back(aAfter.Comments.back());
+				} else {
+					expected.Index = aAfter.Index;
+				}
+				break;
+			case staged_review_operation::update_issue_comment:
+				if (!expected.Plan.Compatibility) {
+					return false;
+				}
+				expected.Comments[expected.Patched].Body = aBefore->Pending->Body;
+				++expected.Patched;
+				expected.Published = expected.Patched == expected.Comments.size();
+				break;
 			case staged_review_operation::update_comment:
 				expected.Comments[expected.Patched].Body = aBefore->Pending->Body;
 				++expected.Patched;
@@ -200,6 +271,6 @@ namespace bpr::application {
 			}
 			return expected == aAfter;
 		}
-		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone;
+		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Index == aAfter.Index && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone;
 	}
 }

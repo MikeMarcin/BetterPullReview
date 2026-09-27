@@ -66,5 +66,16 @@ int main()
 		source.Path = path;
 		expect(!core::valid(source), "unsafe source path refused");
 	}
+	auto                                     draft = tests::review_tour_fixture();
+	std::vector<core::tour_destination_plan> decisions{ { representation::native_line, true, false, false, false } };
+	using readiness = core::tour_publication_readiness;
+	expect(core::assess_tour_publication(draft, decisions, false) == readiness::single_review, "core permits only ready qualified native plan");
+	decisions[0] = { representation::conversation_permalink, false, true, false, false };
+	expect(core::assess_tour_publication(draft, decisions, false) == readiness::compatibility_choice, "visible fallback requires explicit choice");
+	expect(core::assess_tour_publication(draft, decisions, true) == readiness::compatibility_comments, "explicit qualified conversation plan permitted");
+	decisions[0].NeedsQualification = true;
+	expect(core::assess_tour_publication(draft, decisions, true) == readiness::unavailable, "user choice cannot create missing capability");
+	draft.Problem = " ";
+	expect(core::assess_tour_publication(draft, decisions, true) == readiness::incomplete, "unfinished prose blocks publishing but remains saveable");
 	std::cout << "tour-destinations:pass\n";
 }

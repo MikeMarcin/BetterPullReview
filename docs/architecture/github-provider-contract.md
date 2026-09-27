@@ -123,7 +123,7 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each write, and
+a separate exact-host/account/PR/operation confirmation for each ordinary write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -132,6 +132,14 @@ Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+Tour Publish is a bounded grouped-confirmation extension: the preview binds one
+immutable plan to the exact actor, head, sources, prose and allowed returned-link
+slots. Each journaled write consumes its own one-use child grant. Stop or an
+identity/draft change revokes remaining authority; restart reconciles read-only
+and needs an explicit preview and Resume. Compatibility comments are explicitly
+non-atomic, and an optional description edit is a separately named operation.
+These Tour operations remain unavailable on an unqualified host/transport.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

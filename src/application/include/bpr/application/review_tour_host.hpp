@@ -20,6 +20,8 @@ namespace bpr::application {
 		void observe_imports(std::vector<core::tour_import_candidate> aCandidates);
 		void import_selected(std::size_t aIndex);
 		void observe_source(core::tour_code_destination aSource);
+		/// Accepted publication attribution is an observation, never an undoable remote action.
+		void observe_publication(core::review_tour aPublished);
 		void dispatch(const core::tour_command& aCommand);
 		void undo();
 		void redo();

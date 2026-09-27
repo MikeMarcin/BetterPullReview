@@ -5,19 +5,19 @@
 namespace bpr::application {
 	struct review_tour_host::implementation : std::enable_shared_from_this<implementation>
 	{
-		core::review_tour                  Seed;
+		core::review_tour                        Seed;
 		std::vector<core::tour_import_candidate> Imports;
-		std::unique_ptr<review_tour_store> Store;
-		effect_executor&                   Effects;
-		decision_executor&                 Decision;
-		publication                        Publish;
-		tour_presentation                  State;
-		std::deque<core::review_tour>      Undo;
-		std::deque<core::review_tour>      Redo;
-		std::uint64_t                      Request = 0;
-		bool                               Active  = false;
-		bool                               Started = false;
-		bool                               Closing = false;
+		std::unique_ptr<review_tour_store>       Store;
+		effect_executor&                         Effects;
+		decision_executor&                       Decision;
+		publication                              Publish;
+		tour_presentation                        State;
+		std::deque<core::review_tour>            Undo;
+		std::deque<core::review_tour>            Redo;
+		std::uint64_t                            Request = 0;
+		bool                                     Active  = false;
+		bool                                     Started = false;
+		bool                                     Closing = false;
 		implementation(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 			: Seed{ std::move(aSeed) }
 			, Store{ std::move(aStore) }
@@ -26,7 +26,7 @@ namespace bpr::application {
 			, Publish{ std::move(aPublish) }
 		{ }
 		std::vector<core::tour_code_destination> Sources;
-		void notify()
+		void                                     notify()
 		{
 			State.CanUndo = !Undo.empty();
 			State.CanRedo = !Redo.empty();
@@ -240,6 +240,24 @@ namespace bpr::application {
 		: Implementation{ std::make_shared<implementation>(std::move(aSeed), std::move(aStore), aEffects, aDecision, std::move(aPublish)) }
 	{ }
 	review_tour_host::~review_tour_host() { shutdown(); }
+	void review_tour_host::observe_publication(core::review_tour aPublished)
+	{
+		auto& state = *Implementation;
+		if (state.Closing || !state.State.Draft || !aPublished.Remote || state.State.Draft->Revision != aPublished.Revision) {
+			return;
+		}
+		const auto& before   = *state.State.Draft;
+		const auto  accepted = core::apply(before, { .Draft = before.Id, .Owner = before.Owner, .ExpectedRevision = before.Revision, .Kind = core::tour_command_kind::restore, .Restore = std::move(aPublished) });
+		if (!accepted.Changed) {
+			return;
+		}
+		state.Undo.clear();
+		state.Redo.clear();
+		state.State.Draft = std::make_shared<core::review_tour>(accepted.Accepted);
+		state.pump();
+		state.notify();
+	}
+
 	void review_tour_host::observe_imports(std::vector<core::tour_import_candidate> aCandidates) { Implementation->observe_imports(std::move(aCandidates)); }
 	void review_tour_host::import_selected(std::size_t aIndex) { Implementation->import_selected(aIndex); }
 

@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 class QAction;
+class QCheckBox;
 class QComboBox;
 class QListWidget;
 class QLineEdit;
@@ -26,7 +27,12 @@ namespace bpr::qt {
 												   navigate_stop,
 												   navigate_related,
 												   undo_structure,
-												   redo_structure };
+												   redo_structure,
+												   preview_publication,
+												   publish_publication,
+												   resume_publication,
+												   reconcile_publication,
+												   stop_publication };
 	/// \brief Native Markdown interaction and inert projections for private tour preparation.
 	class review_tour_editor final : public QWidget
 	{
@@ -34,6 +40,9 @@ namespace bpr::qt {
 		explicit review_tour_editor(QWidget* aParent = nullptr);
 		void               set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction);
 		void               present(const application::tour_presentation& aProjection);
+		void               present_publication(const application::tour_publication_presentation& aProjection);
+		[[nodiscard]] auto compatibility_publication() const -> bool;
+		[[nodiscard]] auto description_publication() const -> bool;
 		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
@@ -48,6 +57,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto solution_editor() const -> QPlainTextEdit* { return Solution; }
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
 		[[nodiscard]] auto preview() const -> markdown_body_view* { return Preview; }
+		[[nodiscard]] auto publication_preview() const -> markdown_body_view* { return PublicationPreview; }
 		[[nodiscard]] auto shown() const -> const application::tour_presentation& { return Shown; }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
@@ -59,18 +69,26 @@ namespace bpr::qt {
 		void                                         edit_stop();
 		void                                         structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
 		void                                         next_stop(int aOffset);
-		QComboBox*                                   Imports       = nullptr;
-		QPushButton*                                 Import        = nullptr;
-		QListWidget*                                 Outline       = nullptr;
-		QListWidget*                                 Related       = nullptr;
-		QLineEdit*                                   Title         = nullptr;
-		QPlainTextEdit*                              Body          = nullptr;
-		QLabel*                                      Source        = nullptr;
-		QWidget*                                     StopFields    = nullptr;
-		QAction*                                     MoveUp        = nullptr;
-		QAction*                                     MoveDown      = nullptr;
-		QAction*                                     UndoStructure = nullptr;
-		QAction*                                     RedoStructure = nullptr;
+		QComboBox*                                   PublicationMode    = nullptr;
+		QCheckBox*                                   DescriptionEdit    = nullptr;
+		QLabel*                                      PublicationStatus  = nullptr;
+		markdown_body_view*                          PublicationPreview = nullptr;
+		QPushButton*                                 PublishTour        = nullptr;
+		QPushButton*                                 ResumeTour         = nullptr;
+		QPushButton*                                 ReconcileTour      = nullptr;
+		QPushButton*                                 StopTour           = nullptr;
+		QComboBox*                                   Imports            = nullptr;
+		QPushButton*                                 Import             = nullptr;
+		QListWidget*                                 Outline            = nullptr;
+		QListWidget*                                 Related            = nullptr;
+		QLineEdit*                                   Title              = nullptr;
+		QPlainTextEdit*                              Body               = nullptr;
+		QLabel*                                      Source             = nullptr;
+		QWidget*                                     StopFields         = nullptr;
+		QAction*                                     MoveUp             = nullptr;
+		QAction*                                     MoveDown           = nullptr;
+		QAction*                                     UndoStructure      = nullptr;
+		QAction*                                     RedoStructure      = nullptr;
 		core::tour_stop_id                           Selected;
 		core::tour_stop_id                           Editing;
 		std::optional<core::tour_command_kind>       EditingKind;

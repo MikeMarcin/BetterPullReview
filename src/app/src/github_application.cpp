@@ -6742,18 +6742,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aRequest) : application::review_submission_execution_grant{ };
 			};
 #else
-			review_submission_workflow::grant_factory issueReviewGrant = application::detail::review_submission_user_authority_issuer::issue;
+			review_submission_workflow::grant_factory issueReviewGrant = [](auto session, auto generation, const application::review_submission_request& request) { return application::detail::review_submission_user_authority_issuer::issue(session, generation, request); };
 #endif
-			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
-																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																			[this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
+			ReviewSubmission                                               = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
+																														  *Window->review_submission_editor_view(), std::move(issueReviewGrant),
+																														  [this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
 																				const auto operation = aDisposition == core::review_disposition::approve
 																					? QStringLiteral("Approve pull request")
 																					: aDisposition == core::review_disposition::request_changes
 																					? QStringLiteral("Request changes")
 																					: QStringLiteral("Submit comment review");
 																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
-																			});
+																														  });
+			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
+#if defined(BPR_BUILD_TESTING)
+				return Fixture ? application::make_review_submission_testing_grant(session, generation, plan) : application::review_submission_execution_grant{ };
+#else
+				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
+#endif
+			};
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
+                if(!TourHost){return;
+}const auto draft=TourHost->presentation().Draft;
+                if(!draft || draft->Owner!=record.Plan.Owner || draft->Revision!=record.Plan.Generation || draft->Stops.size()!=record.Comments.size()){return;
+}
+                auto published=*draft;
+                const auto root=record.Index?core::tour_remote_binding{.Kind=core::tour_remote_kind::conversation_comment,.DatabaseId=record.Index->Id,.Entity=record.Index->NodeId,.Actor=record.Index->Actor.Login,.WebUrl=record.Index->WebUrl,.Own=true}:core::tour_remote_binding{.Kind=core::tour_remote_kind::review,.DatabaseId=record.Review->Id.value(),.Entity=record.Review->NodeId,.Actor=record.Review->Actor.Login,.WebUrl=record.Review->WebUrl,.Own=true};
+                published.Remote=root;published.IndexBaseline=core::tour_field_baseline{.Raw=record.Index?record.Index->Body:record.Review->Body,.RemoteEntity=root.Entity};
+                for(std::size_t i=0;i<published.Stops.size();++i){const auto& c=record.Comments[i];published.Stops[i].Remote=core::tour_remote_binding{.Kind=record.Plan.Compatibility?core::tour_remote_kind::conversation_comment:core::tour_remote_kind::line_comment,.DatabaseId=c.Id,.Entity=c.NodeId,.Actor=c.Actor.Login,.WebUrl=c.WebUrl,.Review=record.Review?record.Review->NodeId:std::string{},.Own=true};published.Stops[i].Baseline=core::tour_field_baseline{.Raw=c.Body,.RemoteEntity=c.NodeId};}
+                TourHost->observe_publication(std::move(published)); });
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
@@ -8645,18 +8662,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 		}
 
-		std::unique_ptr<application::review_tour_host> TourHost;
+		std::unique_ptr<application::review_tour_host>    TourHost;
+		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host> RetiredTourHosts;
-		std::optional<core::tour_owner> TourOwner;
-		core::git_commit_oid            TourHead;
-		core::git_commit_oid            TourAttentionHead;
+		std::vector<retained_tour_host>            RetiredTourHosts;
+		std::optional<core::tour_owner>            TourOwner;
+		core::git_commit_oid                       TourHead;
+		core::git_commit_oid                       TourAttentionHead;
 		std::optional<core::tour_code_destination> PendingTourSource;
-		auto                                   selected_tour_source() const -> std::optional<core::tour_source_range>
+		auto                                       selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
 			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
@@ -8759,7 +8777,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Clean, drained copies can be reconstructed. Keep failed or pending
 			// copies reachable by their immutable owner when that PR is reopened.
 			std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
-				const auto p = aRetained.Host->presentation();
+				const auto p         = aRetained.Host->presentation();
 				const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
 				return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 			});
@@ -8823,6 +8841,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																			   }
 																		   }
 																		   Window->tour_editor()->present(projected);
+																		   if (TourPublication) {
+																			   TourPublication->observe(projected);
+																		   }
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
@@ -8841,7 +8862,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!profile || !base || !head) {
 				return;
 			}
-			const auto seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			const auto seed  = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
 			const auto scope = adapters::github::detail::tour_permalink_scope{ std::string{ profile->hostname() }, { snapshot.Repository.Owner, snapshot.Repository.Name } };
 			TourHost->observe_imports(application::observe_review_tours(seed, snapshot, profile->hostname(), [scope, seed](std::string_view aBody) {
 				auto source = adapters::github::detail::parse_tour_permalink(scope, aBody);
@@ -8857,13 +8878,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
+			case qt::tour_editor_action::preview_publication:
+			case qt::tour_editor_action::publish_publication:
+			case qt::tour_editor_action::resume_publication:
+			case qt::tour_editor_action::reconcile_publication:
+			case qt::tour_editor_action::stop_publication:
+				if (TourPublication) {
+					TourPublication->dispatch(aAction);
+				}
+				return;
 			case qt::tour_editor_action::import_selected: TourHost->import_selected(Window->tour_editor()->import_choice()); return;
-			case qt::tour_editor_action::retry_save:     TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy: TourHost->use_saved_copy(); return;
-			case qt::tour_editor_action::undo_structure: TourHost->undo(); return;
-			case qt::tour_editor_action::redo_structure: TourHost->redo(); return;
-			case qt::tour_editor_action::navigate_stop:  {
-				const auto* stop = Window->tour_editor()->selected_stop();
+			case qt::tour_editor_action::retry_save:      TourHost->retry_save(); return;
+			case qt::tour_editor_action::use_saved_copy:  TourHost->use_saved_copy(); return;
+			case qt::tour_editor_action::undo_structure:  TourHost->undo(); return;
+			case qt::tour_editor_action::redo_structure:  TourHost->redo(); return;
+			case qt::tour_editor_action::navigate_stop:   {
+				const auto*                                stop = Window->tour_editor()->selected_stop();
 				std::optional<core::tour_code_destination> source;
 				if (stop) {
 					source = stop->Destination;
@@ -8881,7 +8911,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			case qt::tour_editor_action::add_stop:
 			case qt::tour_editor_action::insert_before:
-			case qt::tour_editor_action::add_related:      {
+			case qt::tour_editor_action::add_related:   {
 				const auto source = selected_tour_source();
 				const auto draft  = TourHost->presentation().Draft;
 				if (!draft) {
@@ -8907,7 +8937,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (aAction == qt::tour_editor_action::insert_before) {
 					if (const auto* stop = Window->tour_editor()->selected_stop()) {
 						const auto found = std::ranges::find(draft->Stops, stop->Id, &core::tour_stop::Id);
-						position = static_cast<std::size_t>(found - draft->Stops.begin());
+						position         = static_cast<std::size_t>(found - draft->Stops.begin());
 					}
 				}
 				TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original }, .Position = position });
@@ -8916,7 +8946,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			case qt::tour_editor_action::map_problem:
-			case qt::tour_editor_action::map_solution:   {
+			case qt::tour_editor_action::map_solution: {
 				const auto draft = TourHost->presentation().Draft;
 				if (!draft) {
 					return;
@@ -8938,11 +8968,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 #if defined(BPR_BUILD_TESTING)
 			if (!Fixture) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 #endif
@@ -8952,6 +8988,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->invalidate(closed
 												 ? QStringLiteral("This pull request is closed. You can read its review, but cannot submit a new review. Open an active pull request to compose a review.")
 												 : QStringLiteral("The current account or pull request revision is not ready for review submission. Refresh this pull request and wait for it to finish loading."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 			auto binding       = application::review_submission_live_binding{ selection->Target, selection->ActingIdentity };
@@ -8970,6 +9009,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto acceptedLease = WindowRead->mutation_transport();
 			if (!acceptedLease) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 				return;
 			}
 			auto factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
@@ -8984,6 +9026,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
 			};
 #endif
+			if (TourPublication) {
+#if defined(BPR_BUILD_TESTING)
+				auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+					auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+					if (!store) {
+						return std::unexpected(application::review_mutation_failure::unavailable);
+					}
+					return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description);
+				};
+				TourPublication->adopt(binding, workbench_authority(aHandoff), std::move(tourFactory), WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
+#else
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body);
+#endif
+			}
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
 		}
 
@@ -10727,6 +10783,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 			if (ReviewSubmission) {
 				ReviewSubmission->invalidate(aInvalidation);
+				if (TourPublication) {
+					TourPublication->invalidate();
+				}
 			}
 			if (TourOwner && TourOwner->Host == aInvalidation.Host && TourOwner->Account == aInvalidation.Account && TourOwner->Repository == aInvalidation.Repository && TourOwner->PullRequest == aInvalidation.PullRequest) {
 				suspend_review_tour();
@@ -13742,6 +13801,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			if (ReviewSubmission) {
 				ReviewSubmission->shutdown();
+				if (TourPublication) {
+					TourPublication->shutdown();
+				}
 			}
 			// Every composed host must be told, or the shutdown poll waits on a
 			// host that was never asked to stop and the application never
@@ -13807,6 +13869,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
+				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
@@ -13897,6 +13960,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			ReviewSubmission.reset();
+			TourPublication.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
 			if (!McpSnapshotRoot.empty()) {

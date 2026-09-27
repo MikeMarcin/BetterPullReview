@@ -1,6 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -44,7 +45,7 @@ namespace bpr::qt {
 		setAccessibleName(tr("Prepare review tour"));
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(8, 8, 8, 8);
-		layout->addWidget(paragraph(tr("Private review tour. Nothing here publishes."), this));
+		layout->addWidget(paragraph(tr("Prepare a private review tour. Publishing requires Preview and Publish."), this));
 		Imports = new QComboBox{ this };
 		Imports->setObjectName(QStringLiteral("tourImportChoices"));
 		Imports->setAccessibleName(tr("GitHub tour index and list"));
@@ -86,6 +87,29 @@ namespace bpr::qt {
 		auto* previewLayout = new QVBoxLayout{ previewPage };
 		previewLayout->addWidget(paragraph(tr("Local preview. No remote operations are scheduled. HTML and disclosures may differ from GitHub; original Markdown remains the source."), previewPage));
 		previewLayout->addWidget(Preview, 1);
+		PublicationMode = new QComboBox{ previewPage };
+		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
+		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish with compatibility comments (non-atomic)") });
+		previewLayout->addWidget(PublicationMode);
+		DescriptionEdit = new QCheckBox{ tr("Replace PR description after publishing"), previewPage };
+		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
+		previewLayout->addWidget(DescriptionEdit);
+		previewLayout->addWidget(paragraph(tr("The optional description edit replaces it with Problem/Solution and a tour backlink. Compatibility comments become visible one at a time; interrupted publication may remain partial."), previewPage));
+		PublicationStatus = paragraph({ }, previewPage);
+		PublicationStatus->setObjectName(QStringLiteral("tourPublicationStatus"));
+		previewLayout->addWidget(PublicationStatus);
+		PublicationPreview = new markdown_body_view{ previewPage };
+		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
+		previewLayout->addWidget(PublicationPreview, 1);
+		const auto button = [&](const QString& label, const QString& name, tour_editor_action action) {auto* b=new QPushButton{label,previewPage};b->setObjectName(name);connect(b,&QPushButton::clicked,this,[this,action]{trigger(action);});previewLayout->addWidget(b);return b; };
+		button(tr("Prepare publication preview"), QStringLiteral("tourPreparePublication"), tour_editor_action::preview_publication);
+		PublishTour   = button(tr("Publish tour"), QStringLiteral("tourPublish"), tour_editor_action::publish_publication);
+		ResumeTour    = button(tr("Resume captured publication"), QStringLiteral("tourResume"), tour_editor_action::resume_publication);
+		ReconcileTour = button(tr("Check publication status"), QStringLiteral("tourReconcile"), tour_editor_action::reconcile_publication);
+		StopTour      = button(tr("Stop publication"), QStringLiteral("tourStop"), tour_editor_action::stop_publication);
+		connect(PublicationMode, &QComboBox::currentIndexChanged, this, [this] { PublishTour->setEnabled(false); });
+		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
+		present_publication({ });
 		Roadmap->addTab(previewPage, tr("Preview"));
 		connect(Roadmap, &QTabWidget::currentChanged, this, [this] { refresh_preview(); });
 		layout->addWidget(Roadmap, 1);
@@ -107,6 +131,18 @@ namespace bpr::qt {
 		layout->addWidget(UseSaved);
 		present({ });
 	}
+	auto review_tour_editor::compatibility_publication() const -> bool { return PublicationMode->currentIndex() == 1; }
+	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
+	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
+	{
+		PublicationStatus->setText(QString::fromStdString(aProjection.Status));
+		PublicationPreview->set_body(aProjection.Markdown, "tour-publication");
+		PublishTour->setEnabled(aProjection.Publish);
+		ResumeTour->setEnabled(aProjection.Resume);
+		ReconcileTour->setEnabled(aProjection.Reconcile);
+		StopTour->setEnabled(aProjection.Stop);
+	}
+
 	void review_tour_editor::set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction)
 	{
 		Dispatch = std::move(aDispatch);

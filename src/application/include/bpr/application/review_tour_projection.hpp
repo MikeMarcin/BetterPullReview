@@ -18,6 +18,12 @@ namespace bpr::application {
 		core::tour_destination_plan Plan;
 		std::string                 SourceLink;
 	};
+	struct tour_publication_presentation
+	{
+		std::string Status = "Saved locally. Prepare a publication preview when the tour is ready.";
+		std::string Markdown;
+		bool        Publish = false, Resume = false, Reconcile = false, Stop = false;
+	};
 	struct tour_presentation
 	{
 		std::shared_ptr<const core::review_tour> Draft;
@@ -29,10 +35,10 @@ namespace bpr::application {
 		std::vector<std::string>                 ImportChoices;
 		std::vector<tour_stop_destination>       Destinations;
 		std::string                              ImportNotice;
-		bool                                     Loading       = false;
-		bool                                     Saving        = false;
-		bool                                     CanUndo       = false;
-		bool                                     CanRedo       = false;
+		bool                                     Loading = false;
+		bool                                     Saving  = false;
+		bool                                     CanUndo = false;
+		bool                                     CanRedo = false;
 	};
 }
 #endif

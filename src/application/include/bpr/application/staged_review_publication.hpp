@@ -15,6 +15,7 @@ namespace bpr::application {
 	struct staged_description_edit
 	{
 		std::string Baseline, Desired;
+		bool        AppendIndexLink                                          = false;
 		auto        operator==(const staged_description_edit&) const -> bool = default;
 	};
 	/// Immutable user-previewed plan. Only returned URLs may fill navigation slots.
@@ -36,6 +37,7 @@ namespace bpr::application {
 		std::uint64_t                        Revision = 1;
 		std::vector<std::uint64_t>           BaselineIds;
 		std::optional<staged_review_entity>  Review;
+		std::optional<staged_review_comment> Index;
 		std::vector<staged_review_comment>   Comments;
 		std::size_t                          Patched         = 0;
 		bool                                 Published       = false;

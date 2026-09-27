@@ -14,7 +14,7 @@ namespace bpr::adapters::github::detail {
 			if (aRecord.Published) {
 				return aRecord.Plan.Description && !aRecord.DescriptionDone ? state::description_attention : state::published;
 			}
-			return aRecord.Review ? state::staged : state::ready;
+			return aRecord.Plan.Compatibility && !aRecord.Comments.empty() ? state::partial : (aRecord.Review ? state::staged : state::ready);
 		}
 		auto actor(const application::staged_review_plan& aPlan) -> application::staged_review_actor
 		{
@@ -43,6 +43,14 @@ namespace bpr::adapters::github::detail {
 				result.push_back(*found);
 			}
 			return result;
+		}
+		auto owned_comments(const std::vector<application::staged_review_comment>& aObserved, const record& aExpected) -> bool
+		{
+			auto owned = aExpected.Comments;
+			if (aExpected.Index) {
+				owned.push_back(*aExpected.Index);
+			}
+			return std::ranges::all_of(owned, [&](const auto& wanted) {const auto found=std::ranges::find(aObserved,wanted.Id,&application::staged_review_comment::Id);return found!=aObserved.end() && *found==wanted; });
 		}
 		auto initial_comments(const application::staged_review_plan& aPlan, application::review_database_id aReview, const std::vector<application::staged_review_comment>& aObserved) -> std::optional<std::vector<application::staged_review_comment>>
 		{
@@ -115,25 +123,42 @@ namespace bpr::adapters::github::detail {
 		if (!observe_exact(aStop)) {
 			return false;
 		}
-		if (!aRecord.Review) {
-			const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
-			if (!reviews) {
+		if (aRecord.Plan.Compatibility) {
+			const auto comments = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
+			if (!comments || !owned_comments(comments->Comments, aRecord)) {
 				return false;
 			}
-			std::vector<std::uint64_t> ids;
-			for (const auto& review : reviews->Reviews) {
-				if (review.State == application::staged_review_state::pending) {
+			if (aRecord.Comments.empty()) {
+				std::vector<std::uint64_t> ids;
+				for (const auto& c : comments->Comments) {
+					ids.push_back(c.Id);
+				}
+				std::ranges::sort(ids);
+				if (ids != aRecord.BaselineIds) {
 					return false;
 				}
-				ids.push_back(review.Id.value());
 			}
-			std::ranges::sort(ids);
-			return ids == aRecord.BaselineIds;
-		}
-		const auto reviews  = observe_staged(request(aRecord, operation::read_review), aStop);
-		const auto comments = observe_staged(request(aRecord, operation::list_comments), aStop);
-		if (!reviews || reviews->Reviews.size() != 1 || reviews->Reviews.front() != *aRecord.Review || !comments || !ordered_comments(comments->Comments, aRecord.Comments)) {
-			return false;
+		} else {
+			if (!aRecord.Review) {
+				const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
+				if (!reviews) {
+					return false;
+				}
+				std::vector<std::uint64_t> ids;
+				for (const auto& review : reviews->Reviews) {
+					if (review.State == application::staged_review_state::pending) {
+						return false;
+					}
+					ids.push_back(review.Id.value());
+				}
+				std::ranges::sort(ids);
+				return ids == aRecord.BaselineIds;
+			}
+			const auto reviews  = observe_staged(request(aRecord, operation::read_review), aStop);
+			const auto comments = observe_staged(request(aRecord, operation::list_comments), aStop);
+			if (!reviews || reviews->Reviews.size() != 1 || reviews->Reviews.front() != *aRecord.Review || !comments || !ordered_comments(comments->Comments, aRecord.Comments)) {
+				return false;
+			}
 		}
 		if (aRecord.Pending && aRecord.Pending->Operation == operation::update_description) {
 			const auto wire = compile_target_observation_request(Configuration.Target, Configuration.Target.ServerContract);
@@ -159,7 +184,44 @@ namespace bpr::adapters::github::detail {
 			return state::outcome_unknown;
 		}
 		auto next = aRecord;
-		if (!aRecord.Review) {
+		if (aRecord.Plan.Compatibility && aRecord.Pending->Operation != operation::update_description) {
+			const auto comments = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
+			if (!comments) {
+				return state::outcome_unknown;
+			}
+			if (aRecord.Pending->Operation == operation::create_issue_comment) {
+				if (!owned_comments(comments->Comments, aRecord)) {
+					return state::conflict;
+				}
+				std::optional<application::staged_review_comment> candidate;
+				for (const auto& comment : comments->Comments) {
+					if (std::ranges::binary_search(aRecord.BaselineIds, comment.Id) || std::ranges::find(aRecord.Comments, comment.Id, &application::staged_review_comment::Id) != aRecord.Comments.end() || (aRecord.Index && aRecord.Index->Id == comment.Id) || comment.Actor != actor(aRecord.Plan) || comment.Body != aRecord.Pending->Body) {
+						continue;
+					}
+					if (candidate) {
+						return state::outcome_unknown;
+					}
+					candidate = comment;
+				}
+				if (!candidate) {
+					return state::outcome_unknown;
+				}
+				if (next.Comments.size() < next.Plan.Stops.size()) {
+					next.Comments.push_back(*candidate);
+				} else {
+					next.Index = *candidate;
+				}
+			} else if (aRecord.Pending->Operation == operation::update_issue_comment) {
+				next.Comments[next.Patched].Body = aRecord.Pending->Body;
+				if (!owned_comments(comments->Comments, next)) {
+					return owned_comments(comments->Comments, aRecord) ? state::outcome_unknown : state::conflict;
+				}
+				++next.Patched;
+				next.Published = next.Patched == next.Comments.size();
+			} else {
+				return state::conflict;
+			}
+		} else if (!aRecord.Review && !aRecord.Plan.Compatibility) {
 			const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
 			if (!reviews) {
 				return state::outcome_unknown;
@@ -212,7 +274,7 @@ namespace bpr::adapters::github::detail {
 			if (*parsed->Description == aRecord.Plan.Description->Baseline) {
 				return state::outcome_unknown;
 			}
-			if (*parsed->Description != aRecord.Plan.Description->Desired) {
+			if (*parsed->Description != aRecord.Pending->Body) {
 				return state::conflict;
 			}
 			next.DescriptionDone = true;
@@ -268,7 +330,7 @@ namespace bpr::adapters::github::detail {
 	{
 		std::scoped_lock lock{ Mutex };
 		try {
-			if ((aWrite && !aAuthorize) || !application::valid(aPlan) || aPlan.Compatibility || !Recovery || !Lease || !Lease->active() || !valid(Configuration)
+			if ((aWrite && !aAuthorize) || !application::valid(aPlan) || !Recovery || !Lease || !Lease->active() || !valid(Configuration)
 				|| !application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
 				return { };
 			}
@@ -294,9 +356,12 @@ namespace bpr::adapters::github::detail {
 				if (!current.Pending || !compile_staged_review_request(*current.Pending)) {
 					return { };
 				}
-				const auto baseline = observe_staged(request(current, operation::list_reviews), aStop);
+				const auto baseline = observe_staged(request(current, aPlan.Compatibility ? operation::list_issue_comments : operation::list_reviews), aStop);
 				if (!baseline) {
 					return { };
+				}
+				for (const auto& comment : baseline->Comments) {
+					current.BaselineIds.push_back(comment.Id);
 				}
 				for (const auto& review : baseline->Reviews) {
 					if (review.State == application::staged_review_state::pending) {
@@ -310,7 +375,7 @@ namespace bpr::adapters::github::detail {
 					return { };
 				}
 			}
-			for (std::size_t step = 0; step < aPlan.Stops.size() + 4; ++step) {
+			for (std::size_t step = 0; step < 2 * aPlan.Stops.size() + 4; ++step) {
 				if (current.PossiblyTransmitted) {
 					const auto reconciled = reconcile_staged(current, aStop);
 					if (reconciled == state::outcome_unknown || reconciled == state::conflict) {

@@ -3240,3 +3240,13 @@ bpr_add_network_isolated_test(NAME application_review_tour_cold_import_public_pa
 set_tests_properties(application_review_tour_cold_import_public_path PROPERTIES
     TIMEOUT 90 ENVIRONMENT "${bpr_public_path_fixture_environment}"
     PASS_REGULAR_EXPRESSION "review-tour-cold-import:pass")
+
+bpr_add_executable(test_review_tour_publication_public_path review_tour_publication_public_path.cpp)
+target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_tour_publication_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_review_tour_publication_public_path)
+bpr_enable_warnings(test_review_tour_publication_public_path)
+foreach(course native compat stop description conflict unsupported)
+    bpr_add_network_isolated_test(NAME application_review_tour_publication_${course} WINDOWS_UNCONTAINED COMMAND test_review_tour_publication_public_path ${course} "${CMAKE_CURRENT_BINARY_DIR}/review-tour-publication-${course}.png")
+    set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
+endforeach()

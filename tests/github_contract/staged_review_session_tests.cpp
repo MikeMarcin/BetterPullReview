@@ -164,6 +164,7 @@ namespace {
 		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
 		std::string                                        Summary, Description = "Original description.";
 		std::array<std::string, 2>                         Bodies;
+		std::vector<std::string>                           IssueBodies;
 		std::filesystem::path                              Root;
 		std::function<void(std::size_t, std::string_view)> Boundary;
 		std::optional<std::size_t>                         LoseAt;
@@ -179,6 +180,18 @@ namespace {
 		{
 			const auto id = 601 + aIndex;
 			return "{\"id\":" + std::to_string(id) + ",\"node_id\":\"PRRC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#discussion_r" + std::to_string(id)) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"pull_request_review_id\":" + std::to_string(aReview) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(Bodies[aIndex]) + ",\"commit_id\":\"1111111111111111111111111111111111111111\",\"path\":\"src/" + (aIndex ? "left" : "right") + ".cpp\",\"side\":\"" + (aIndex ? "LEFT" : "RIGHT") + "\",\"line\":" + (aIndex ? "8" : "5") + (aIndex ? "" : ",\"start_line\":4,\"start_side\":\"RIGHT\"") + "}";
+		}
+		auto issues_json() const -> std::string
+		{
+			std::string result = "[";
+			for (std::size_t i = 0; i < IssueBodies.size(); ++i) {
+				if (i) {
+					result += ",";
+				}
+				const auto id = 701 + i;
+				result += "{\"id\":" + std::to_string(id) + ",\"node_id\":\"IC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#issuecomment-" + std::to_string(id)) + ",\"issue_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/issues/1\",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(IssueBodies[i]) + "}";
+			}
+			return result + "]";
 		}
 		void save() const
 		{
@@ -212,6 +225,9 @@ namespace {
 			if (wire.Method == http_method::get) {
 				if (ReadFailure) {
 					return github_mutation_wire_error{ };
+				}
+				if (wire.Path == "/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1") {
+					return ok(issues_json());
 				}
 				if (wire.Path == "/user") {
 					if (WrongActor) {
@@ -259,7 +275,20 @@ namespace {
 				return github_mutation_wire_error{ };
 			}
 			const auto json = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
-			if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews") {
+			if (wire.Method == http_method::post && wire.Path == "/repos/MikeMarcin/BPR-Test/issues/1/comments") {
+				expect(!Created && json.size() == 1, "explicit compatibility never creates a native review");
+				const auto body = json["body"].toString().toStdString();
+				if (IssueBodies.size() == 2) {
+					expect(body.contains("#issuecomment-701") && body.contains("#issuecomment-702"), "compatibility index follows actual returned stop identities");
+				}
+				IssueBodies.push_back(body);
+			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/701" || wire.Path == "/repos/MikeMarcin/BPR-Test/issues/comments/702")) {
+				expect(IssueBodies.size() == 3 && json.size() == 1, "compatibility links wired after index exists");
+				const std::size_t i    = wire.Path.ends_with("701") ? 0 : 1;
+				const auto        body = json["body"].toString().toStdString();
+				expect(body.contains("#issuecomment-703") && body.contains(i ? "#issuecomment-701" : "#issuecomment-702"), "compatibility navigation uses real returned IDs");
+				IssueBodies[i] = body;
+			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews") {
 				expect(!Created && !json.contains("event") && json["commit_id"] == "1111111111111111111111111111111111111111", "batch creates one exact pending review without event");
 				const auto comments = json["comments"].toArray();
 				expect(comments.size() == 2, "batch has both comments");
@@ -287,7 +316,7 @@ namespace {
 				Submitted = true;
 				++Submits;
 			} else if (wire.Method == http_method::patch && wire.Path == Pull) {
-				expect(Submitted && json.size() == 1, "description update is separate and follows publication");
+				expect((Submitted || IssueBodies.size() == 3) && json.size() == 1, "description update is separate and follows publication");
 				Description = json["body"].toString().toStdString();
 			} else {
 				expect(false, "fixture answers only fixed typed mutation endpoints");
@@ -406,6 +435,38 @@ namespace {
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "Resume after Stop completes bounded plan");
 		}
 	}
+	void test_compatibility_sessions()
+	{
+		auto input                         = plan();
+		input.Compatibility                = true;
+		input.Description->AppendIndexLink = true;
+		for (std::size_t lost = 0; lost < 6; ++lost) {
+			scratch root;
+			server  remote;
+			remote.LoseAt       = lost;
+			auto       provider = session(remote, root.Path);
+			const auto partial  = provider->publish_tour(input, { }, [](const auto&) { return true; });
+			expect(partial.State == publication_state::outcome_unknown && remote.Writes == lost + 1, "lost compatibility child retains partial/unknown identity");
+			provider.reset();
+			remote.LoseAt.reset();
+			remote.ReadFailure = false;
+			provider           = session(remote, root.Path);
+			const auto read    = provider->reconcile_tour(input);
+			expect(remote.Writes == lost + 1 && read.Record && read.Record->Comments.size() <= 2, "compatibility restart reads exact retained receipts");
+			expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 6 && remote.Creates == 0 && remote.Submits == 0 && remote.IssueBodies.size() == 3, "explicit Resume never duplicates visible compatibility comments or claims review submission");
+			expect(remote.Description.contains("#issuecomment-703"), "separate description backlink uses returned compatibility index");
+			if (lost == 0) {
+				auto malformed      = *provider->reconcile_tour(input).Record;
+				malformed.Published = false;
+				malformed.Pending   = application::staged_review_request{ .Binding = *input.Submission.LiveBinding, .Operation = application::staged_review_operation::submit_comment };
+				expect(!application::valid(malformed), "malformed compatibility completion is refused before deriving a native submit");
+				malformed.Published     = true;
+				malformed.Index->WebUrl = "invalid";
+				expect(!application::valid(malformed), "malformed compatibility link is refused without dereferencing a missing rendering");
+			}
+		}
+	}
+
 	void checkpoint(const std::filesystem::path& aRoot, const std::string& aPhase)
 	{
 		{
@@ -444,6 +505,7 @@ try {
 		std::cout << phase << ":pass\n";
 	} else {
 		test_staged_sessions();
+		test_compatibility_sessions();
 		std::cout << "staged-review-session-tests:pass\n";
 	}
 	return EXIT_SUCCESS;

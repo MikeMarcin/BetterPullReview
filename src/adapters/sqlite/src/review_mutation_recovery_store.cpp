@@ -1179,9 +1179,9 @@ namespace bpr::adapters::sqlite {
 		}
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
-			std::uint64_t version = 1;
+			std::uint64_t version = 2;
 			aCodec.number(version);
-			if (version != 1) {
+			if (version != 1 && version != 2) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1209,7 +1209,8 @@ namespace bpr::adapters::sqlite {
 				aCodec.text(aStop.SourceLink, 4096);
 			});
 			aCodec.number(aRecord.Plan.Compatibility);
-			aCodec.optional(aRecord.Plan.Description, [&](auto& aEdit) {aCodec.text(aEdit.Baseline);aCodec.text(aEdit.Desired); });
+			aCodec.optional(aRecord.Plan.Description, [&](auto& aEdit) {aCodec.text(aEdit.Baseline);aCodec.text(aEdit.Desired);if(version>=2){aCodec.number(aEdit.AppendIndexLink);
+} });
 			aCodec.number(aRecord.Revision);
 			aCodec.list(aRecord.BaselineIds, application::maximum_staged_review_pages * 100U, [&](auto& aId) { aCodec.number(aId); });
 			aCodec.optional(aRecord.Review, [&](auto& aReview) { staged_review_codec(aCodec, aReview); });
@@ -1227,6 +1228,9 @@ namespace bpr::adapters::sqlite {
 				aCodec.list(aRequest.Lines, application::maximum_staged_review_comments, [&](auto& aLine) {aCodec.destination(aLine.Source);aCodec.text(aLine.Body); });
 			});
 			aCodec.number(aRecord.PossiblyTransmitted);
+			if (version >= 2) {
+				aCodec.optional(aRecord.Index, [&](auto& index) { staged_comment_codec(aCodec, index); });
+			}
 		}
 		auto encode_staged_record(const application::staged_publication_record& aRecord) -> std::vector<std::uint8_t>
 		{

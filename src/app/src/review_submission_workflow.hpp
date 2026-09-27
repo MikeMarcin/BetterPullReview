@@ -5,6 +5,7 @@
 #include "bpr/application/review_submission_application_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 
 namespace bpr::app {
 	/// Composes the PR-scoped core draft, asynchronous host and normal editor.
@@ -57,6 +58,43 @@ namespace bpr::app {
 		QString                                                                       Status;
 		bool                                                                          Ready   = false;
 		bool                                                                          Closing = false;
+	};
+	/// Tour composition reuses the summary host, exact grants and journal session.
+	class review_tour_publication_workflow final : public application::review_submission_projection_port
+	{
+	public:
+		using grant_factory = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::staged_review_plan&)>;
+		using receipt_sink  = std::function<void(const application::staged_publication_record&)>;
+		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::write_confirmation = { }, receipt_sink = { });
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aFixtureQualified = false);
+		void               observe(const application::tour_presentation&);
+		void               dispatch(qt::tour_editor_action);
+		void               invalidate();
+		void               shutdown();
+		[[nodiscard]] auto is_quiescent() const -> bool;
+		void               publish(const application::review_submission_host_terminal&) override;
+
+	private:
+		void                                                                          prepare();
+		void                                                                          present();
+		application::effect_executor&                                                 Effects;
+		application::decision_executor&                                               Decisions;
+		qt::review_tour_editor&                                                       Editor;
+		grant_factory                                                                 IssueGrant;
+		review_submission_workflow::write_confirmation                                ConfirmWrite;
+		std::unique_ptr<application::review_submission_application_host>              Host;
+		std::vector<std::unique_ptr<application::review_submission_application_host>> Retired;
+		std::optional<application::review_submission_live_binding>                    Binding;
+		application::workbench_pull_request_authority                                 Authority;
+		core::request_generation                                                      Generation;
+		application::tour_presentation                                                Draft;
+		std::optional<application::staged_review_plan>                                Plan;
+		std::optional<application::staged_publication_record>                         Record;
+		std::optional<application::review_submission_host_context>                    Context;
+		application::staged_publication_state                                         State = application::staged_publication_state::unavailable;
+		std::string                                                                   Description, Status = "Saved locally. Prepare a publication preview.";
+		receipt_sink                                                                  ReceiptSink;
+		bool                                                                          FixtureQualified = false, Closing = false, Previewed = false, Ready = false;
 	};
 }
 #endif
