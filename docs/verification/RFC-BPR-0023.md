@@ -982,12 +982,34 @@ retained for reuse. `/root/rfc0023_m5` was the only writer in this assigned
 checkout, and releases writer ownership to the coordinator with this handoff.
 No main mutation, push, PR or real GitHub/GHES operation was performed.
 
-Coordinator next action: integrate this completed M5 branch into local main,
-then start a fresh M6/BPR-0582 segment at that integrated baseline. M6 must wire
+### M5 integration on current main
+
+Main advanced during M5 from baseline `fa2eefe9` to `ff43c68c` with the scoped
+tour-writing assistance work (BPR-1007–1010). That introduced a Claude-only
+`WritingOnly` mode on the shared launch and decoder paths. The coordinator
+resolved M5's overlap by carrying `WritingOnly` alongside requested settings,
+run identity, runtime metadata and admitted-run provenance. Writing-only
+protocol restrictions and output checks remain active; metadata capture and
+input admission use the same launch/decoder path. The live-tree comparison in
+the audit records this additive reconciliation. The RFC criteria and adopted
+milestone order are unchanged.
+
+Merge commit: `35428fb7` (`Merge branch 'codex/rfc-bpr-0023'`) on current main.
+
+| Combined-tree check | Result |
+|---|---|
+| `cmake --preset dev` | PASS; current Qt/dependency graph configured. Upstream dependency CMake emitted non-fatal uninitialized-variable warnings. |
+| Build agent launch, protocol loop, finding protocol, invocation host, Qt launch canary and private-store tests | PASS; 121 build steps completed. |
+| Focused CTest for launch, protocol loop, finding protocol, invocation host, writing delivery, SQLite private review storage, Qt launch panel and Qt child canary | PASS after building the standalone writing-delivery executable; 8/8 effective rows. The first selection preceded that executable build, so its row was rebuilt and rerun successfully. |
+| `architecture_boundaries` and `architecture_boundary_contract` | PASS, 2/2 on the merged graph. |
+| `clang-format --dry-run --Werror` on conflict-resolved C++ paths; `git diff --check` | PASS. |
+
+Start a fresh M6/BPR-0582 segment from this integrated main tip. M6 must wire
 one persisted run/prompt admission and exact private-source revalidation before
 existing process dispatch, retain complete assistant text and terminal facts,
-and pass the expected run on finalization. Preserve ledger 7, recovery 5 and
-staged-tour codec 3 plus any independent main changes. Continue M7–M9 and the
-single final M10/BPR-0591 independent review under mandate r2. The original
-eighteen feature criteria remain open until their full assigned evidence is
-supplied; M5 fixtures do not waive native or designated-publication acceptance.
+and pass the expected run on finalization. Preserve ledger 7, recovery 5,
+staged-tour codec 3 and the current Claude writing-only path. Continue M7–M9
+and the single final M10/BPR-0591 independent review under mandate r2. The
+original eighteen feature criteria remain open until their full assigned
+evidence is supplied; M5 fixtures do not waive native or designated-publication
+acceptance.

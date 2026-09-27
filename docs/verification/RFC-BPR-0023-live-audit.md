@@ -861,3 +861,16 @@ that AC-02/06/16 or the complete UI workflow is finished. All eighteen criteria,
 authored plan exits and retained source-pack bytes remain unchanged. M9 native
 and designated-publication obligations and the final M10 independent review
 remain pending under r2.
+
+### Current-main overlap discovered during M5 integration
+
+While M5 was in progress, local main advanced from `fa2eefe9` to `ff43c68c`
+with the scoped review-tour writing-assistance path (BPR-1007–1010). That
+evolution adds a Claude-specific `WritingOnly` request and decoder policy on
+the same invocation/launch surfaces M5 extends with requested settings,
+run identity and runtime metadata. The integration preserves both: writing
+restrictions and decoder checks stay in force while M5 metadata and input
+accounting flow through the same builder and decoder. Focused writing-delivery,
+launch-panel and child-canary tests passed on the combined tree. This changes no
+RFC-BPR-0023 criterion or milestone order; M6 starts from the integrated main
+tip and must preserve both paths.
