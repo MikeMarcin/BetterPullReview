@@ -338,7 +338,8 @@ namespace bpr::application {
 			review_mutation_execution_grant       aExecutionGrant,
 			effect_executor&                      aEffects,
 			decision_executor&                    aDecisionLane,
-			review_mutation_projection_port&      aProjection)
+			review_mutation_projection_port&      aProjection,
+			review_mutation_source_port*          aSources)
 			: OwnedProvider{ std::move(aProvider) }
 			, TargetBinding{ std::move(aTarget) }
 			, ActingIdentityBinding{ std::move(aActingIdentity) }
@@ -349,6 +350,7 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
+			, Sources{ aSources }
 			, Capabilities{ Coordinator.capabilities() }
 			, CompleteLiveBinding{ true }
 		{
@@ -365,7 +367,8 @@ namespace bpr::application {
 			review_mutation_execution_grant    aExecutionGrant,
 			effect_executor&                   aEffects,
 			decision_executor&                 aDecisionLane,
-			review_mutation_projection_port&   aProjection)
+			review_mutation_projection_port&   aProjection,
+			review_mutation_source_port*       aSources)
 			: TargetBinding{ std::move(aTarget) }
 			, ActingIdentityBinding{ std::move(aActingIdentity) }
 			, Coordinator{ aProvider, TargetBinding, ActingIdentityBinding }
@@ -375,6 +378,7 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
+			, Sources{ aSources }
 			, Capabilities{ Coordinator.capabilities() }
 			, CompleteLiveBinding{ true }
 		{
@@ -466,6 +470,27 @@ namespace bpr::application {
 				|| selected.PreferredLine.Comparison != selected.Comparison
 				|| aRequest.Proposal.Anchor != selected.PreferredLine) {
 				return std::unexpected(review_mutation_failure::undesignated_target);
+			}
+			auto source = std::optional<review_mutation_source_observation>{ };
+			try {
+				if (Sources != nullptr) {
+					source = Sources->observe_review_source(key.File);
+				}
+			} catch (...) {
+				return std::unexpected(review_mutation_failure::unavailable);
+			}
+			if (!source || source->Authority != publication.Request.WorkbenchAuthority
+				|| source->File != publication.Request.File || source->Material.Key != key
+				|| source->Target != TargetBinding || source->ActingIdentity != ActingIdentityBinding
+				|| source->File.CurrentPath != *publication.RightPath
+				|| source->Placement > core::review_placement::off_hunk) {
+				return std::unexpected(review_mutation_failure::undesignated_target);
+			}
+			const auto lines = selected.PreferredLine.Side == core::diff_side::right
+				? source->Material.RightLines
+				: source->Material.LeftLines;
+			if (!source->Material.RightLines || !lines || selected.PreferredLine.Line >= *lines) {
+				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			auto path = portable_path_text(*publication.RightPath);
 			if (!path.has_value()) {
@@ -879,6 +904,7 @@ namespace bpr::application {
 		effect_executor&                      Effects;
 		decision_executor&                    DecisionLane;
 		review_mutation_projection_port&      Projection;
+		review_mutation_source_port*          Sources = nullptr;
 		review_provider_capabilities          Capabilities;
 		bool                                  CompleteLiveBinding = false;
 
@@ -903,7 +929,8 @@ namespace bpr::application {
 		review_mutation_execution_grant       aExecutionGrant,
 		effect_executor&                      aEffects,
 		decision_executor&                    aDecisionLane,
-		review_mutation_projection_port&      aProjection)
+		review_mutation_projection_port&      aProjection,
+		review_mutation_source_port*          aSources)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aProvider),
 			  std::move(aTarget),
@@ -913,7 +940,7 @@ namespace bpr::application {
 			  std::move(aExecutionGrant),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection) }
+			  aProjection, aSources) }
 	{
 	}
 
@@ -927,7 +954,8 @@ namespace bpr::application {
 		review_mutation_execution_grant    aExecutionGrant,
 		effect_executor&                   aEffects,
 		decision_executor&                 aDecisionLane,
-		review_mutation_projection_port&   aProjection)
+		review_mutation_projection_port&   aProjection,
+		review_mutation_source_port*       aSources)
 		: Implementation{ std::make_shared<implementation>(
 			  aFixtureProvider,
 			  std::move(aTarget),
@@ -937,7 +965,7 @@ namespace bpr::application {
 			  std::move(aExecutionGrant),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection) }
+			  aProjection, aSources) }
 	{
 	}
 #endif

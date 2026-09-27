@@ -1,0 +1,148 @@
+#include "bpr/core/review_publication_policy.hpp"
+
+namespace bpr::core {
+	namespace {
+		[[nodiscard]] auto valid_observation(const review_publication_observation& aObservation) noexcept -> bool
+		{
+			return aObservation.Placement <= review_placement::off_hunk
+				&& aObservation.Capability <= off_hunk_creation_capability::unsupported
+				&& aObservation.Body <= review_body_compatibility::requires_line_subject
+				&& aObservation.State <= review_publication_state::rejected;
+		}
+
+		[[nodiscard]] auto fallback(const review_publication_observation& aObservation, const review_publication_action aAction) noexcept -> review_publication_decision
+		{
+			if (aObservation.Body == review_body_compatibility::requires_line_subject) {
+				return { .Diagnostic = review_publication_diagnostic::incompatible_body };
+			}
+			return { .Action = aAction, .Representation = review_publication_representation::file_comment_with_permalink };
+		}
+	}
+
+	auto plan_review_publication(const review_publication_observation& aObservation) noexcept -> review_publication_decision
+	{
+		if (!valid_observation(aObservation)) {
+			return { .Diagnostic = review_publication_diagnostic::invalid_observation };
+		}
+		if (!aObservation.Eligible) {
+			return { .Diagnostic = review_publication_diagnostic::ineligible_anchor };
+		}
+		using state          = review_publication_state;
+		using action         = review_publication_action;
+		using representation = review_publication_representation;
+		switch (aObservation.State) {
+		case state::initial:
+			if (aObservation.Placement == review_placement::off_hunk
+				&& aObservation.Capability == off_hunk_creation_capability::unsupported
+				&& aObservation.CapabilityCurrent) {
+				return fallback(aObservation, action::admit_unsupported_evidence);
+			}
+			[[fallthrough]];
+		case state::native_prepared:
+			return { .Action = action::native_attempt, .Representation = representation::native_line };
+		case state::native_possibly_transmitted:
+			return { .Action = action::reconcile_native, .Representation = representation::native_line };
+		case state::native_definitively_unsupported:
+		case state::unsupported_evidence_admitted:
+		case state::fallback_prepared:
+			return fallback(aObservation, action::fallback_attempt);
+		case state::fallback_possibly_transmitted:
+			return { .Action = action::reconcile_fallback, .Representation = representation::file_comment_with_permalink };
+		case state::succeeded_native:
+			return { .Action = action::already_succeeded, .Representation = representation::native_line };
+		case state::succeeded_fallback:
+			return { .Action = action::already_succeeded, .Representation = representation::file_comment_with_permalink };
+		case state::rejected:
+			return { .Diagnostic = review_publication_diagnostic::previously_rejected };
+		}
+		return { .Diagnostic = review_publication_diagnostic::invalid_observation };
+	}
+
+	auto advance_review_publication(const review_publication_observation& aObservation, const review_publication_event aEvent) noexcept -> std::optional<review_publication_state>
+	{
+		if (!valid_observation(aObservation) || !aObservation.Eligible) {
+			return std::nullopt;
+		}
+		using state        = review_publication_state;
+		using event        = review_publication_event;
+		const auto current = aObservation.State;
+		const auto native  = current == state::native_prepared || current == state::native_possibly_transmitted;
+		const auto file    = current == state::fallback_prepared || current == state::fallback_possibly_transmitted;
+		switch (aEvent) {
+		case event::prepare_native:
+			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::native_attempt) {
+				return state::native_prepared;
+			}
+			break;
+		case event::admit_unsupported_evidence:
+			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::admit_unsupported_evidence) {
+				return state::unsupported_evidence_admitted;
+			}
+			break;
+		case event::native_transmission_witness:
+			if (current == state::native_prepared) {
+				return state::native_possibly_transmitted;
+			}
+			break;
+		case event::native_created:
+			if (native) {
+				return state::succeeded_native;
+			}
+			break;
+		case event::native_definitively_unsupported:
+			if (native) {
+				return state::native_definitively_unsupported;
+			}
+			break;
+		case event::prepare_fallback:
+			if ((current == state::native_definitively_unsupported || current == state::unsupported_evidence_admitted)
+				&& plan_review_publication(aObservation).Action == review_publication_action::fallback_attempt) {
+				return state::fallback_prepared;
+			}
+			break;
+		case event::fallback_transmission_witness:
+			if (current == state::fallback_prepared) {
+				return state::fallback_possibly_transmitted;
+			}
+			break;
+		case event::fallback_created:
+			if (file) {
+				return state::succeeded_fallback;
+			}
+			break;
+		case event::definitively_rejected:
+			if (native || file) {
+				return state::rejected;
+			}
+			break;
+		}
+		return std::nullopt;
+	}
+
+	auto classify_review_body(const std::string_view aBody) noexcept -> review_body_compatibility
+	{
+		// Conservative recognition includes longer fences and whitespace in the
+		// info string. False positives refuse degradation without changing native writes.
+		for (auto offset = std::size_t{ 0 }; offset < aBody.size(); ++offset) {
+			const auto marker = aBody[offset];
+			if (marker != '`' && marker != '~') {
+				continue;
+			}
+			auto end = offset;
+			while (end < aBody.size() && aBody[end] == marker) {
+				++end;
+			}
+			if (end - offset >= 3U) {
+				auto info = end;
+				while (info < aBody.size() && (aBody[info] == ' ' || aBody[info] == '\t')) {
+					++info;
+				}
+				if (aBody.substr(info).starts_with("suggestion")) {
+					return review_body_compatibility::requires_line_subject;
+				}
+			}
+			offset = end - 1U;
+		}
+		return review_body_compatibility::portable;
+	}
+}

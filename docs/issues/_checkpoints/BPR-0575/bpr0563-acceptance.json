@@ -1,0 +1,56 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and host test executable build pass. Focused host tests pass (including exact source refusals, unknown placement, existing grants and left replies); composition, architecture boundary and mutation isolation selectors pass 3/3. Production placement remains explicitly unknown.",
+        "command": "ctest --preset dev -R '^(application_review_mutation_application_host|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and host test executable build pass. Focused host tests pass (including exact source refusals, unknown placement, existing grants and left replies); composition, architecture boundary and mutation isolation selectors pass 3/3. Production placement remains explicitly unknown.",
+        "command": "ctest --preset dev -R '^(application_review_mutation_application_host|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and host test executable build pass. Focused host tests pass (including exact source refusals, unknown placement, existing grants and left replies); composition, architecture boundary and mutation isolation selectors pass 3/3. Production placement remains explicitly unknown.",
+        "command": "ctest --preset dev -R '^(application_review_mutation_application_host|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and host test executable build pass. Focused host tests pass (including exact source refusals, unknown placement, existing grants and left replies); composition, architecture boundary and mutation isolation selectors pass 3/3. Production placement remains explicitly unknown.",
+        "command": "ctest --preset dev -R '^(application_review_mutation_application_host|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "e96a62f48b5b3bdeb528d3818d5e170be3a2d54a",
+      "evidence": {
+        "kind": "command",
+        "detail": "Real app and host test executable build pass. Focused host tests pass (including exact source refusals, unknown placement, existing grants and left replies); composition, architecture boundary and mutation isolation selectors pass 3/3. Production placement remains explicitly unknown.",
+        "command": "ctest --preset dev -R '^(application_review_mutation_application_host|application_review_round_trip_composition_contract|architecture_boundaries|live_mutation_isolation_contract)$' --output-on-failure"
+      }
+    }
+  ]
+}

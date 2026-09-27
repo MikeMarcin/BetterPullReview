@@ -4,6 +4,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/review_publication_policy.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -13,6 +14,38 @@
 #include <string>
 
 namespace bpr::application {
+
+	/// \brief Counts accepted text lines under one exact materialized comparison.
+	struct review_mutation_source_material
+	{
+		core::file_comparison_key    Key;
+		std::optional<std::uint32_t> LeftLines;
+		std::optional<std::uint32_t> RightLines;
+	};
+
+	/// \brief Host-owned source and changed-file facts for one publication admission.
+	/// \details Authority includes the accepted provider snapshot. Material comes from
+	/// the diff host, and File from the accepted changed-file catalogue, never Qt.
+	/// Placement remains unknown unless complete exact provider evidence exists.
+	struct review_mutation_source_observation
+	{
+		workbench_pull_request_authority Authority;
+		workbench_file_observation_entry File;
+		review_mutation_target_binding   Target;
+		review_mutation_acting_identity  ActingIdentity;
+		review_mutation_source_material  Material;
+		core::review_placement           Placement = core::review_placement::unknown;
+	};
+
+	/// \brief Reads current bounded source facts on the host's decision lane without effects.
+	class review_mutation_source_port
+	{
+	public:
+		virtual ~review_mutation_source_port() = default;
+		[[nodiscard]] virtual auto observe_review_source(core::workbench_file_id aFile) const
+			-> std::optional<review_mutation_source_observation> = 0;
+	};
+
 	/// \brief Exact workbench state bound to one review publication attempt.
 	struct review_mutation_publication_request
 	{
@@ -175,7 +208,8 @@ namespace bpr::application {
 			review_mutation_execution_grant       aExecutionGrant,
 			effect_executor&                      aEffects,
 			decision_executor&                    aDecisionLane,
-			review_mutation_projection_port&      aProjection);
+			review_mutation_projection_port&      aProjection,
+			review_mutation_source_port*          aSources = nullptr);
 
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
 		/// \brief Builds the fixture-only path around a hermetic mutation provider.
@@ -188,7 +222,8 @@ namespace bpr::application {
 			review_mutation_execution_grant  aExecutionGrant,
 			effect_executor&                 aEffects,
 			decision_executor&               aDecisionLane,
-			review_mutation_projection_port& aProjection);
+			review_mutation_projection_port& aProjection,
+			review_mutation_source_port*     aSources = nullptr);
 #endif
 
 		~review_mutation_application_host();

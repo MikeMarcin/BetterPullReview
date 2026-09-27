@@ -741,3 +741,60 @@ The three new SQLite-backed fixtures use the existing Windows DOS-volume-name
 exception because they call the unchanged retained-ancestor path. That cause
 reuses BPR-0362 evidence; no new native Windows run is claimed. macOS/Linux
 registrations remain network-contained.
+
+## Semantic source-line publication policy (RFC-BPR-0022)
+
+Milestone A adds the provider-free `review_publication_policy` contract. It
+consumes exact host eligibility and bounded placement/capability/body facts.
+Legacy placement always selects native publication; unknown placement also
+selects native even when the repository's off-hunk capability is unsupported.
+Fresh scoped unsupported evidence plus proven off-hunk placement first asks
+for durable evidence admission. It cannot directly prepare a fallback child.
+
+Durable native rejection and first-attempt evidence admission are distinct
+states. Only either committed authorization can prepare a fallback. A native
+transmission witness selects native reconciliation and cannot enter either
+fallback admission path. Unknown results, cancellation, timeout, malformed
+success and GET absence supply no terminal event. An exact non-creation terminal
+may retire a witness; only the exact unsupported event authorizes fallback.
+Success is terminal and retains its representation for duplicate receipt replay.
+
+Fenced suggestion bodies require a line subject. The core conservatively
+recognizes backtick/tilde fences and whitespace in the info string; a required
+fallback returns typed incompatibility. Native publication remains available.
+This pure contract is preparatory: the provider and transactional recovery
+integration remain milestone B work. Existing ordinary publication continues
+through RFC-BPR-0008's coordinator and exact user or attended authority.
+
+### Immutable permalink codec (BPR-0564)
+
+The GitHub adapter's `review_comment_permalink` codec accepts an exact retained
+right-side endpoint minted by the epoch host, its file-comparison key, the
+connected target, and the text line count observed for that blob. It checks the
+endpoint's authority, comparison, algorithm, path and blob before interpreting
+a remote line. Compilation additionally requires the current target head;
+rehydration can use an exact historical retained endpoint. The caller still
+proves changed-file membership and a file-subject root in the expected PR.
+Parsing alone never grants publication authority.
+
+The visible grammar is one bare canonical HTTPS permalink, two LF bytes, then
+non-empty UTF-8 reviewer prose. The codec preserves accepted prose byte for byte
+and caps the combined body at 64 KiB. It rejects leading extra blank lines,
+control bytes, and a second code-permalink-shaped URL in the prose, preserving
+one unambiguous semantic anchor. It never follows a URL or performs a mutation.
+
+Path segments use uppercase percent escapes, with slash only between segments.
+Dot segments, backslashes, controls, malformed UTF-8 and paths over 4 KiB are
+refused. The parser compares the complete authority/path/commit/query prefix to
+its canonical compiler form; alternate ports, userinfo, escaped separators,
+foreign repositories, abbreviated OIDs and query/fragment additions therefore
+cannot normalize into a trusted anchor. Fragments are canonical positive decimal
+`#L` numbers, converted to zero-based semantic lines only after the exact blob's
+line bound passes.
+
+The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`,
+`.mkd`, `.mdwn`, `.mdx` and `.litcoffee`, matched without case. These use
+`?plain=1`; other source paths have no query. This set follows the [GitHub
+Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
+observed on 2026-09-26. Provider publication, recovery and read normalization
+connect this codec in the subsequent authored milestones.

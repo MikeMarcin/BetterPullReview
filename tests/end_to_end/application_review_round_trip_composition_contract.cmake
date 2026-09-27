@@ -1,3 +1,6 @@
+# BPR-0563 reseal: 9ee0350f..this product slice; reviewed host source
+# port, accepted catalogue/material capture and both ctor connections. No other
+# pinned-scope edits; grant and mutation authority paths are unchanged.
 # BPR-1202 hand-back49: reviewed eb14f40e delta; only test-build bar order changes.
 cmake_minimum_required(VERSION 4.4.2)
 
@@ -369,7 +372,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d92904183c006346613294ad3ea20c458f23392f512897210310cb93ee16b639"
+		"a16d7dc278233797bd56a91732a16fdfabe62b070941a5a75fefe5894e02e6ab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -520,7 +523,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d7fc7933304ae8e08711a8c95de3a0ce22fefcf70dd57ca245c2b9ffdf519038"
+        "5dc7e1e58bc4812bdb748bf0c08eecff43c6d42ca6b4fff7f0f829491805ec9d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -841,7 +844,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a"
+        "83a7c809526a324ab4e730f7a58c23160f2a6813cc2de659d97ce13f4b056e5c"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

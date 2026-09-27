@@ -1,0 +1,21 @@
+{
+  "revision": "r1",
+  "run_id": "rfc0022-20260926",
+  "assignment": "/root/rfc0022_m1",
+  "mandate": "Use implement-rfc for RFC-BPR-0022 and land it on main.",
+  "bounded_scope": "First authored milestone A: BPR-0561 through BPR-0564, including initial plan adoption; stop at its boundary.",
+  "source_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "tracker_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "runtime_root": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022",
+  "baseline": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "start_revision": "fa20ff5868a7b59b5df5771b688370fe26672365",
+  "branch": "codex/rfc0022-semantic-comments",
+  "constraints": [
+    "Preserve authored A-D grouping and immutable source snapshots.",
+    "Current implementation mandate supersedes import-only deferral.",
+    "Canonical closeout order and existing required external acceptance are not waived.",
+    "No designated live mutation target was supplied; use fixtures only.",
+    "No other writer is active in this assigned checkout; preserve coordinator strategy-selection.json.",
+    "No subagents; intentional explicit-path commits."
+  ]
+}

@@ -1,3 +1,4 @@
+#include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
 #include <algorithm>
@@ -435,8 +436,64 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	void test_publication_policy()
+	{
+		using namespace core;
+		using action = review_publication_action;
+		using state  = review_publication_state;
+		using event  = review_publication_event;
+		for (const auto placement : { review_placement::legacy_line, review_placement::off_hunk, review_placement::unknown }) {
+			for (const auto capability : { off_hunk_creation_capability::supported, off_hunk_creation_capability::unsupported, off_hunk_creation_capability::unknown }) {
+				review_publication_observation value{ .Placement = placement, .Capability = capability, .Eligible = true, .CapabilityCurrent = true };
+				const bool                     needsFallback = placement == review_placement::off_hunk && capability == off_hunk_creation_capability::unsupported;
+				expect(plan_review_publication(value).Action == (needsFallback ? action::admit_unsupported_evidence : action::native_attempt), "all placement/capability cells choose explicit admission or native");
+				expect(!advance_review_publication(value, event::prepare_fallback), "a cache fact cannot directly prepare fallback");
+				value.CapabilityCurrent = false;
+				expect(plan_review_publication(value).Action == action::native_attempt, "expired or foreign capability is unknown");
+				value.State             = state::native_possibly_transmitted;
+				value.CapabilityCurrent = true;
+				expect(plan_review_publication(value).Action == action::reconcile_native, "indeterminate native cannot fall back even with fresh unsupported evidence");
+				expect(!advance_review_publication(value, event::admit_unsupported_evidence) && !advance_review_publication(value, event::prepare_fallback), "neither fallback admission can bypass a native witness");
+			}
+		}
+		review_publication_observation value{ .Eligible = true };
+		const auto                     step = [&value](event aEvent) { auto next=advance_review_publication(value,aEvent); expect(next.has_value(), "legal durable transition"); value.State=*next; };
+		step(event::prepare_native);
+		step(event::native_transmission_witness);
+		step(event::native_definitively_unsupported);
+		expect(plan_review_publication(value).Action == action::fallback_attempt, "exact committed rejection permits fallback");
+		value.Body = review_body_compatibility::requires_line_subject;
+		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::incompatible_body && !advance_review_publication(value, event::prepare_fallback), "suggestion refuses fallback after native rejection");
+		value.Body = review_body_compatibility::portable;
+		step(event::prepare_fallback);
+		step(event::fallback_transmission_witness);
+		expect(plan_review_publication(value).Action == action::reconcile_fallback, "fallback witness only reconciles");
+		step(event::fallback_created);
+		for (unsigned i = 0; i <= static_cast<unsigned>(event::definitively_rejected); ++i) {
+			expect(!advance_review_publication(value, static_cast<event>(i)), "success has no further write transition");
+		}
+		expect(plan_review_publication(value).Action == action::already_succeeded, "duplicate replays receipt");
+		value      = { .Placement = review_placement::off_hunk, .Capability = off_hunk_creation_capability::unsupported, .Eligible = true, .CapabilityCurrent = true };
+		value.Body = review_body_compatibility::requires_line_subject;
+		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::incompatible_body, "known unsupported suggestion has no POST");
+		value.Body = review_body_compatibility::portable;
+		step(event::admit_unsupported_evidence);
+		step(event::prepare_fallback);
+		value.Eligible = false;
+		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::ineligible_anchor, "stale eligibility refuses even prepared state");
+		value.Eligible  = true;
+		value.Placement = static_cast<review_placement>(255);
+		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::invalid_observation, "hostile enum fails closed");
+		expect(classify_review_body("text\n```suggestion:-1+2\nx\n```") == review_body_compatibility::requires_line_subject, "suggestion ranges keep line semantics");
+		expect(classify_review_body("~~~  suggestion\ncode") == review_body_compatibility::requires_line_subject, "whitespace in a suggestion info string cannot degrade");
+		expect(classify_review_body("ordinary prose") == review_body_compatibility::portable, "plain prose is portable");
+	}
+}
+
 auto main() -> int
 {
+	test_publication_policy();
 	test_a_draft_composes_publishes_and_becomes_shared();
 	test_a_second_publish_while_one_is_in_flight_is_refused();
 	test_a_failed_publish_returns_the_text_to_the_author();
