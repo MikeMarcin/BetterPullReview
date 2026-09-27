@@ -1110,3 +1110,24 @@ No installed vendor release or real GitHub mutation is qualified by these local
 courses. The coarse claim and encoded-request lifetime limits are documented
 in the live audit. M7 next owns composition acceptance, durable drafts and the
 separate publication join.
+
+Accepted M6 candidate:
+`1aba50e3bf72a3d4523a58572cbe79d8e814a9cc`.
+Finish commit `1c39fa36b690ac5b7451bda3f578b60e85997544` moves BPR-0582
+whole-card to Done, attaches seven passing required-state records and adds the
+[M6 observation](RFC-BPR-0023.m6-observation.json). The checkpoint returned
+`fresh-context` for M7 on the candidate with accepted M1–M5; its
+`engineering_acceptance: not-evaluated` describes the consistency helper's scope,
+not the direct engineering judgment recorded here. Product/test bytes are
+unchanged by finish and this documentation handoff.
+
+All task-owned build, CTest, formatting, documentation, board and checkpoint
+commands have completed. The final finding-reply assertion passed 1/1 in
+3.66 seconds. Temporary edit scripts, build log and acceptance input were
+removed; test children and random scratch roots were cleaned by their courses.
+Ignored build outputs remain available for reuse. No background process,
+review server, attended session, event cursor or protected candidate lease is
+handed off. `/root/rfc0023_m6` was the sole writer in this assigned checkout
+and releases it to the coordinator quiescent. The coordinator owns local-main
+integration of this branch and the fresh M7 segment; this leaf made no main
+mutation, push, PR or live GitHub/GHES call.
