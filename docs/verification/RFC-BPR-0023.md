@@ -628,12 +628,24 @@ work were observed read-only and preserved. Writer ownership is released to
 the coordinator after the finish commit. No push, PR or main-branch mutation
 was performed.
 
-Next action: coordinator integrates M3 with current main, preserves the two
-additive CMake registration sets, and checks the combined affected core paths.
-Start a fresh M4/BPR-0580 implementer on that integrated candidate; BPR-0581/M5
-is also dependency-eligible after M3 but follows M4 in the adopted order.
-Storage must enforce high-water allocation, source existence/latest CAS and
-transaction atomicity using these pure proposals. M5 must capture actual
+### M3 integration on current main
+
+The coordinator integrated M3 with current main, preserving the independently
+landed review-tour work and both additive core/test CMake registration sets.
+Merge commit: `bd9faef5` (`Merge branch 'codex/rfc-bpr-0023'`), on top of the
+current-main evolution checkpoint `75102233`.
+
+| Combined-tree check | Result |
+|---|---|
+| `cmake --preset core-only` | PASS. |
+| Build `test_private_review_core` and `test_review_composition_core` | PASS alongside the newer review-tour core. |
+| Focused CTest for private review, composition, review-tour update, architecture boundaries and architecture contract | PASS, 5/5 after building the existing review-tour update executable. Its first selection preceded that target build and did not launch; the target was then built and its row rerun successfully. |
+| `git diff --cached --check` before integration commit | PASS. |
+
+Start a fresh M4/BPR-0580 implementer from this integrated main candidate;
+BPR-0581/M5 is also dependency-eligible after M3 but follows M4 in the adopted
+order. Storage must enforce high-water allocation, source existence/latest CAS
+and transaction atomicity using these pure proposals. M5 must capture actual
 protocol facts and full encoded-input bounds; M6/M7 must prove dispatch,
 durability and separate mutation composition. All later human/native/designated
 publication obligations and the single final M10 independent review remain
