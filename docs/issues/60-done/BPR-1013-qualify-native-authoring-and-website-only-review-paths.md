@@ -2,19 +2,30 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1013"
 title: "Qualify native authoring and website-only review paths"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: ["BPR-1006", "BPR-1012"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-23","milestone":"qualification-closeout","acceptance":["AC39-06","AC39-08","AC40-07","AC41-04","AC41-06","AC42-08","AC43-10"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
-acceptance: [{"criterion":"AC39-06","outcome":"pending","revision":"28622c5dfed8b1f5fbcb316da770e60863f0fa11;54ba51bf8b833925ddf58354275e13bde2f669e3;95b71e99cc658871a886df66a7a7be22dd2fe3e7","evidence":{"kind":"observation","detail":"Seven macOS Cocoa/arm64 native candidates accepted in session 7834eb10dc5260f8cc14257a669c1109, hand-back 99. r4 keyboard fingerprint 75abb8d2fbb43f08c4f5874554baa63482de583ea00119444e096bdec34bfbe3, decision e9a9873a-2035-49fe-b12f-e0ae4c28f3e4; r4 status icons fingerprint 5440d0b5b6e774fa8309cfefebcd08454a96d9d3a451e50e9871b04f92929a8e, decision 92b832d8-a930-44fe-a09d-3d979dc05180. Five prior exact accepts and historical r3 drag/layout accept preserved. No prepared Mac decision remains; other eligible native stations, including Windows/Linux execution, remain unobserved. See r5 ledger/handoff for source and binary bindings."}},{"criterion":"AC39-08","outcome":"pass","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Prior core bounds and Cocoa 1/8/64/256-stop measurements at 5ca53796 remain unchanged; 257th refusal verified. Original large layout and responsiveness accepted at 28622c5d, hand-back 54. r3 core tests add atomic group-merge/duplicate overflow and exact published-original preservation. No human acceptance transferred to revised binary. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC40-07","outcome":"pending","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Fixture cold-import/ordinary Markdown/website identity courses pass. Actual website-only author and reviewer navigation/reply course needs designated safe live GitHub.com/GHES target and accounts, which were not supplied. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC41-04","outcome":"pending","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Earlier finite HTTPS/CLI normalized semantics and authority canaries remain valid fixture evidence. Exact installed/live host and transport operations remain unqualified; no credentials or safe target authority supplied. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC41-06","outcome":"pending","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Pending file-subject staging remains unavailable. Each exact live operation still requires qualification; explicit non-atomic compatibility fixture evidence is unchanged. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC42-08","outcome":"pending","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Website continuation and reply across completed updates still require approved live target and reviewer. Existing fixture reader-delta course produces no review-status effect; no new live observation. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC43-10","outcome":"pending","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Real-process writing, native undo/settings/delivery regressions pass in fixture scope. All seven prepared Mac native candidates are now accepted on their exact original/r3/r4 sources and binaries at hand-back 99. Installed restricted-provider enforcement and actual-model quality remain unobserved without approved provider/model/account and inference authority; other eligible platform execution remains open. See r5 ledger/handoff."}}]
-parked_on: "awaiting-live-github"
+acceptance: [{"criterion":"AC39-06","outcome":"pass","revision":"28622c5d;54ba51bf;95b71e99","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts the seven exact Mac candidates at session7834eb10dc5260f8cc14257a669c1109 hand-back99. Recorded Cocoa/physical focus, native editing, layout and no-effects checks pass. Other eligible native stations remain unobserved on Blocked BPR-1224."}},{"criterion":"AC39-08","outcome":"pass","revision":"54ba51bf8b833925ddf58354275e13bde2f669e3","evidence":{"kind":"observation","detail":"Prior core bounds and Cocoa 1/8/64/256-stop measurements at 5ca53796 remain unchanged; 257th refusal verified. Original large layout and responsiveness accepted at 28622c5d, hand-back 54. r3 core tests add atomic group-merge/duplicate overflow and exact published-original preservation. No human acceptance transferred to revised binary. See RFC-BPR-0039-0043 ledger and r3 handoff."}},{"criterion":"AC40-07","outcome":"pass","revision":"f44c95dd;5b9080fb;28622c5d","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts production-port fixture route/cold-import evidence using exact returned IDs and ordinary Markdown; no invented fragment. Actual GitHub.com/GHES website navigation and replies remain unobserved on Blocked BPR-1222/1223."}},{"criterion":"AC41-04","outcome":"pass","revision":"505c942d;3b86f047","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts finite HTTPS/CLI normalization and authority-canary evidence through real production ports with fixtures. No live operations enabled; exact host/version/transport qualification remains Blocked BPR-1222/1223."}},{"criterion":"AC41-06","outcome":"pass","revision":"505c942d;3b86f047","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts observed unavailable/refused pending file staging and explicit non-atomic compatibility fixtures. Each exact live capability remains unqualified on Blocked BPR-1222/1223."}},{"criterion":"AC42-08","outcome":"pass","revision":"5b9080fb;3b86f047","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts fixture route/reply preservation during completed maintenance and zero reader-delta review-status effects. Actual website continuation/replies remain Blocked BPR-1222/1223."}},{"criterion":"AC43-10","outcome":"pass","revision":"4b89411c;5ca53796;54ba51bf;95b71e99","evidence":{"kind":"observation","detail":"Owner r2 terminal scope accepts real-process/native undo, settings and delivery fixtures plus exact recorded Mac judgments. Canned output is not quality evidence. Installed restriction enforcement/actual model qualification remain Blocked BPR-1225; other native stations remain BPR-1224."}}]
 ---
 
 # BPR-1013: Qualify native authoring and website-only review paths
 
 Pack alias: **PACK-TOUR-23** (live `BPR-1013`, allocated at import).
 
-## Outcome and work
+## Owner-amended terminal scope — r2
+
+The owner's 2026-09-27 instruction closes the verified implemented scope now.
+The [r2 mandate](../../verification/RFC-BPR-0039-0043.owner-closeout-r2.md)
+changes this card's terminal acceptance to the seven amended/retained criteria
+recorded below: accepted Mac candidates, bounded scale behavior and verified
+production-port/process fixtures with every unavailable capability explicit.
+Original live GitHub.com/GHES, other native and installed-model requirements are
+preserved on Blocked BPR-1222–1225; predecessor acceptance is Blocked BPR-1226.
+This is an owner scope amendment, with no new external observation or capability
+enablement. Historical pending/reject records below retain their original meaning.
+
+## Original outcome and work
 
 Observe keyboard/IME/accessibility/layout and actual undo in eligible native builds; capture website-only author/reviewer tour navigation and ordinary replies, pending edits, submission, post-publication insertion/reorder and cold reimport. Qualify each claimed GitHub.com/GHES/transport operation including mixed file-subject staging. Measure bounded ordinary/large tour editing and navigation; record actual metrics and limits.
 
@@ -26,7 +37,7 @@ Read the mapped RFCs and nearest current `AGENTS.md`. These are seams to extend,
 
 ## Direct acceptance
 
-Candidate-bound native/website evidence or explicit not-run/fail rows with named blockers. Never substitute mocks for live private-server support, enable unavailable CLI platforms, fabricate screenshots/verdicts, or turn this card Done while its required claimed-capability rows are unmet.
+Under owner amendment r2, every claimed implemented/fixture capability and accepted Mac judgment has candidate-bound evidence. The six amended terminal criteria retain all unobserved qualification on Blocked BPR-1222–1226. Never substitute fixtures for live private-server support, enable unavailable operations/platforms, or fabricate screenshots/verdicts. Done applies only to this amended implementation scope.
 
 Requirement ownership: `AC39-06`, `AC39-08`, `AC40-07`, `AC41-04`, `AC41-06`, `AC42-08`, `AC43-10`.
 
@@ -80,7 +91,7 @@ visible palette-derived outline. Physical Tab/Shift+Tab and composed narrow-wind
 checks pass; the owner verdict remains pending.
 
 The owner also requested compact status icons before the number, implemented by
-[BPR-1221](../60-done/BPR-1221-show-tour-stop-status-before-the-number.md).
+[BPR-1221](BPR-1221-show-tour-stop-status-before-the-number.md).
 That explicitly affected ordinary-layout candidate is re-prepared alongside
 keyboard; the other five current accepted candidates retain their fingerprints,
 decisions and protection. The historical ordinary-layout accept stays recorded.
@@ -90,14 +101,14 @@ drain course passes. See the r4 ledger/checkpoint for exact candidate and comman
 evidence. Live host, website and model qualification obligations remain open.
 
 
-## Current qualification after hand-back 99
+## Qualification at hand-back 99, before owner amendment r2
 
 All seven prepared macOS Cocoa/arm64 candidates are accepted in session
 `7834eb10dc5260f8cc14257a669c1109`. Events 97 and 98 accept visible keyboard
 focus and status icons at source `95b71e99cc658871a886df66a7a7be22dd2fe3e7`;
 the other five current accepts retain their original/r3 source and executable
 identities. The earlier r3 ordinary-layout/physical-drag accept remains historical
-evidence for that candidate. [BPR-1221](../60-done/BPR-1221-show-tour-stop-status-before-the-number.md)
+evidence for that candidate. [BPR-1221](BPR-1221-show-tour-stop-status-before-the-number.md)
 is Done with all four criteria satisfied. The [r5 reconciliation](../../verification/RFC-BPR-0039-0043.md#post-review-r5--hand-back-99-reconciliation)
 records full fingerprints, decision IDs and binary hashes.
 

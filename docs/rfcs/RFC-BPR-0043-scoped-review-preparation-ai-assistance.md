@@ -81,6 +81,25 @@ Use bounded request context with explicit included/omitted source references and
 
 The host validates a tagged response shape and emits a typed local-editor replacement or outline proposal. The core validates captured identity/generation/scope; Qt performs the one editor transaction and the host persists its accepted local delta. A stale or duplicate completion cannot insert twice. Settings overrides can alter writing instructions but not widen scope, accept malformed output, acknowledge a stop, publish, or execute code.
 
+## Owner-amended terminal scope — 2026-09-27
+
+Owner amendment `r2-20260927-close-implemented-scope` accepts this RFC's
+verified implementation using the named production-port fixtures, real local
+storage/process/editor checks and seven exact accepted Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) records the
+owner instruction, original criteria and transfer of every unmet qualification.
+BPR-1222 retains GitHub.com live evidence; BPR-1223 retains GHES evidence;
+BPR-1224 retains other native stations; BPR-1225 retains installed-provider/model
+evidence; BPR-1226 retains deferred predecessor acceptance. These are standalone
+Blocked follow-ups outside this RFC's amended terminal gate.
+
+Auto-Verified records the amended implementation scope. It supplies no live
+server, website, other-platform, installed-model or predecessor verdict. Exact
+production Tour operations remain unavailable until separately qualified. The
+original verification prescriptions below still govern those follow-ups. All
+credential, source-identity, publication and no-implicit-effect boundaries remain
+normative; no capability is enabled by this documentation amendment.
+
 ## Acceptance criteria
 
 - **AC43-01:** No action outside the explicit assistance controls launches AI; all manual features continue without an AI provider.
@@ -92,7 +111,7 @@ The host validates a tagged response shape and emits a typed local-editor replac
 - **AC43-07:** Empty fields recover existing PR explanations before inference; unsupported claims are not invented, and no Jira/issue lookup occurs.
 - **AC43-08:** Outline output has no bodies; each generated stop requires a visible visit and current-content completion, and per-stop generation cannot run in bulk.
 - **AC43-09:** Skill overrides and prompt-injected source/model output cannot widen writes, invoke tools, auto-publish, acknowledge stops or leak credentials.
-- **AC43-10:** End-to-end native editor tests exercise the real undo path, profile settings and agent delivery seam; canned response tests are not represented as quality evidence for an untested model.
+- **AC43-10:** Native editor and real-process fixture tests exercise the real undo path, profile settings and agent delivery seam; installed-provider enforcement and actual-model quality remain explicitly unqualified, and canned responses are not quality evidence.
 
 ## Deferred work
 

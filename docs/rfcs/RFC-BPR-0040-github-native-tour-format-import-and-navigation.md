@@ -4,9 +4,9 @@ title: "GitHub-Native Tour Format, Import, and Navigation"
 status: "Proposed"
 area: "BPR"
 milestone: "Review tours"
-depends_on: ["RFC-BPR-0021", "RFC-BPR-0022", "RFC-BPR-0039"]
+depends_on: ["RFC-BPR-0039"]
 pack_version: "review-tour-v1"
-metadata: {"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"},"owner_closeout_amendment":{"revision":"r2-20260927-close-implemented-scope","deferred_formal_dependencies":["RFC-BPR-0021","RFC-BPR-0022"],"follow_up":"BPR-1226"}}
 ---
 
 # RFC-BPR-0040: GitHub-Native Tour Format, Import, and Navigation
@@ -79,6 +79,25 @@ BPR's Tour projection uses the same remote comments and source navigation polici
 
 Navigation is not acknowledgement of code, viewed-file state, comment resolution, or approval. No receipt used by review correctness/status is minted from merely visiting a tour stop. Private tour reading progress can be lost with the local database; shared comments cannot.
 
+## Owner-amended terminal scope — 2026-09-27
+
+Owner amendment `r2-20260927-close-implemented-scope` accepts this RFC's
+verified implementation using the named production-port fixtures, real local
+storage/process/editor checks and seven exact accepted Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) records the
+owner instruction, original criteria and transfer of every unmet qualification.
+BPR-1222 retains GitHub.com live evidence; BPR-1223 retains GHES evidence;
+BPR-1224 retains other native stations; BPR-1225 retains installed-provider/model
+evidence; BPR-1226 retains deferred predecessor acceptance. These are standalone
+Blocked follow-ups outside this RFC's amended terminal gate.
+
+Auto-Verified records the amended implementation scope. It supplies no live
+server, website, other-platform, installed-model or predecessor verdict. Exact
+production Tour operations remain unavailable until separately qualified. The
+original verification prescriptions below still govern those follow-ups. All
+credential, source-identity, publication and no-implicit-effect boundaries remain
+normative; no capability is enabled by this documentation amendment.
+
 ## Acceptance criteria
 
 - **AC40-01:** Every shared stop and index is ordinary readable Markdown in normal GitHub comments, with real links and no required BPR-specific metadata.
@@ -87,7 +106,7 @@ Navigation is not acknowledgement of code, viewed-file state, comment resolution
 - **AC40-04:** Markdown round trips preserve all untouched source bytes, including unrelated description/template content and CRLF/LF boundaries.
 - **AC40-05:** Ambiguous mapping, duplicate/missing/foreign links, partial pages and third-party comments remain visible and do not grant mutation authority.
 - **AC40-06:** Line/range/source-version identity and native/file/conversation fallback subjects remain explicit and exact.
-- **AC40-07:** Website-only reviewers can follow Start here → comments → Next/Previous → overview and reply normally; no invented heading fragment is needed.
+- **AC40-07:** Production-port fixtures preserve Start here, comment, Next/Previous and overview links using returned identities without invented heading fragments; actual website-only navigation and replies remain explicitly unqualified.
 - **AC40-08:** BPR excursions/return, resolved/outdated threads and source-unavailable states retain the tour without altering review state.
 
 ## Verification

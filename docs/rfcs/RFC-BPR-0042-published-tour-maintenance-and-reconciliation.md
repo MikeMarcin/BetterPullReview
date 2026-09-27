@@ -66,6 +66,25 @@ Persist only bounded local drafts, canonical remote identifiers, relevant body b
 
 Recovery of a known pending update is read-first. On restart show what may already have changed remotely, what is confirmed, and what remains unresolved. No remote edit resumes on launch or refresh without an explicit Resume command. Unknown pending reviews or comments edited by another client need reconciliation, not automatic takeover.
 
+## Owner-amended terminal scope — 2026-09-27
+
+Owner amendment `r2-20260927-close-implemented-scope` accepts this RFC's
+verified implementation using the named production-port fixtures, real local
+storage/process/editor checks and seven exact accepted Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) records the
+owner instruction, original criteria and transfer of every unmet qualification.
+BPR-1222 retains GitHub.com live evidence; BPR-1223 retains GHES evidence;
+BPR-1224 retains other native stations; BPR-1225 retains installed-provider/model
+evidence; BPR-1226 retains deferred predecessor acceptance. These are standalone
+Blocked follow-ups outside this RFC's amended terminal gate.
+
+Auto-Verified records the amended implementation scope. It supplies no live
+server, website, other-platform, installed-model or predecessor verdict. Exact
+production Tour operations remain unavailable until separately qualified. The
+original verification prescriptions below still govern those follow-ups. All
+credential, source-identity, publication and no-implicit-effect boundaries remain
+normative; no capability is enabled by this documentation amendment.
+
 ## Acceptance criteria
 
 - **AC42-01:** Existing GitHub tour content repopulates all editors without AI; website changes are reflected without replacing conflicting local drafts.
@@ -75,7 +94,7 @@ Recovery of a known pending update is read-first. On restart show what may alrea
 - **AC42-05:** Partial update/restart/ambiguous-write tests reuse confirmed destinations and never silently duplicate or roll back shared comments.
 - **AC42-06:** Head changes, historical sources, renamed files and ambiguous mappings produce visible author-attention states without invented reanchoring.
 - **AC42-07:** Cold reimport and local-purge courses preserve shared tour usability; unknown provenance/history remains unknown.
-- **AC42-08:** A website-only user can continue and reply throughout completed updates; BPR reader deltas never mutate review status.
+- **AC42-08:** Production-port maintenance fixtures preserve the shared route and replies through completed updates, and BPR reader deltas never mutate review status; actual website-only continuation remains explicitly unqualified.
 
 ## Verification
 

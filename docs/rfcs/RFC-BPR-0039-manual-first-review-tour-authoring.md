@@ -4,9 +4,9 @@ title: "Manual-First Review Tour Authoring"
 status: "Proposed"
 area: "BPR"
 milestone: "Review tours"
-depends_on: ["RFC-BPR-0003", "RFC-BPR-0008", "RFC-BPR-0024", "RFC-BPR-0036", "RFC-BPR-0037"]
+depends_on: ["RFC-BPR-0003", "RFC-BPR-0008", "RFC-BPR-0024"]
 pack_version: "review-tour-v1"
-metadata: {"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"},"owner_closeout_amendment":{"revision":"r2-20260927-close-implemented-scope","deferred_formal_dependencies":["RFC-BPR-0036","RFC-BPR-0037"],"follow_up":"BPR-1226"}}
 ---
 
 # RFC-BPR-0039: Manual-First Review Tour Authoring
@@ -100,6 +100,25 @@ RFC-BPR-0040 defines the shared comment route. BPR may project it into an outlin
 
 Initial proposed application ceilings are 256 local stops, 64 KiB UTF-8 per explanation/brief field, and 4 MiB total retained tour prose plus editable baselines. These are safety bounds, not writing targets. Existing smaller provider/transport/persistence limits remain effective until explicitly extended and measured. Serialized Markdown/JSON overhead counts. An oversized batch must be refused or explicitly repartitioned by the author; never silently truncate it or split a promised single submission. Load source lazily under existing Git/Markdown limits. Re-evaluate ceilings from the required scale fixtures rather than presenting unmeasured latency claims.
 
+## Owner-amended terminal scope — 2026-09-27
+
+Owner amendment `r2-20260927-close-implemented-scope` accepts this RFC's
+verified implementation using the named production-port fixtures, real local
+storage/process/editor checks and seven exact accepted Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) records the
+owner instruction, original criteria and transfer of every unmet qualification.
+BPR-1222 retains GitHub.com live evidence; BPR-1223 retains GHES evidence;
+BPR-1224 retains other native stations; BPR-1225 retains installed-provider/model
+evidence; BPR-1226 retains deferred predecessor acceptance. These are standalone
+Blocked follow-ups outside this RFC's amended terminal gate.
+
+Auto-Verified records the amended implementation scope. It supplies no live
+server, website, other-platform, installed-model or predecessor verdict. Exact
+production Tour operations remain unavailable until separately qualified. The
+original verification prescriptions below still govern those follow-ups. All
+credential, source-identity, publication and no-implicit-effect boundaries remain
+normative; no capability is enabled by this documentation amendment.
+
 ## Acceptance criteria
 
 - **AC39-01:** An author completes and locally saves Problem → Solution → manually ordered stops → preview with no AI profile, child agent process, or inference request.
@@ -107,7 +126,7 @@ Initial proposed application ceilings are 256 local stops, 64 KiB UTF-8 per expl
 - **AC39-03:** Add/insert/reorder/split/merge/remove operations preserve stable identity, text, related links and ordinary undo where applicable.
 - **AC39-04:** A stop can represent an actual source line/range and related unchanged code without inventing native write support.
 - **AC39-05:** Draft autosave, restart, account/profile isolation and same-draft multiwindow conflicts are exercised with real admitted private storage.
-- **AC39-06:** Current workbench composition is keyboard-accessible and usable at supported sizes/scales; navigation and readiness change no remote review state.
+- **AC39-06:** The accepted macOS Cocoa workbench candidates are keyboard-accessible and usable at their recorded sizes/scales; navigation and readiness change no remote review state. Other eligible native stations remain explicitly unqualified.
 - **AC39-07:** Manual drafts remain usable when rendering, source acquisition, authentication or later AI assistance is unavailable; missing state is not silently dropped.
 - **AC39-08:** Bounds and their refusal paths are tested with short, ordinary, long and maximum-admitted tours.
 

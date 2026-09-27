@@ -339,6 +339,17 @@ applies to RFC-BPR-0044 through RFC-BPR-0051. Formal dependency-ordered
 closure, required human/native/server evidence and the existing remote-effect
 boundary remain in force; this amendment supplies no acceptance verdict.
 
+Owner closeout amendment r2, 2026-09-27: “Just close and land it on main anyways,
+can file the GHE stuff as blocked follow-ups.” This accepts the verified
+RFC-BPR-0039–0043 implementation and seven exact Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) transfers
+GitHub.com live qualification to BPR-1222, GHES to BPR-1223, remaining native
+stations to BPR-1224, installed-provider/model evidence to BPR-1225 and formal
+RFC-0021/0022/0036/0037 predecessor acceptance to BPR-1226. Those standalone cards
+are Blocked; the original predecessor RFCs remain Proposed/Deferred. Other
+explicit dependencies and all unavailable production capability flags remain.
+The r1 start hold for RFC-BPR-0044–0051 remains outside this amendment.
+
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
 chooser are cluttered, that the chooser must stop appearing when the last

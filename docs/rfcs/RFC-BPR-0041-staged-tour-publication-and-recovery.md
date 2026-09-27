@@ -90,14 +90,33 @@ Compile fixed argv with an exact method allowlist and explicit hostname. Seriali
 
 Do not weaken RFC-BPR-0015 or current release/test mutation admission to make tour tests pass. Qualify new operations separately per eligible transport/platform. Native HTTPS remains first-class; the feature does not mandate installing `gh` for that transport.
 
+## Owner-amended terminal scope — 2026-09-27
+
+Owner amendment `r2-20260927-close-implemented-scope` accepts this RFC's
+verified implementation using the named production-port fixtures, real local
+storage/process/editor checks and seven exact accepted Mac candidates. The
+[r2 mandate](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) records the
+owner instruction, original criteria and transfer of every unmet qualification.
+BPR-1222 retains GitHub.com live evidence; BPR-1223 retains GHES evidence;
+BPR-1224 retains other native stations; BPR-1225 retains installed-provider/model
+evidence; BPR-1226 retains deferred predecessor acceptance. These are standalone
+Blocked follow-ups outside this RFC's amended terminal gate.
+
+Auto-Verified records the amended implementation scope. It supplies no live
+server, website, other-platform, installed-model or predecessor verdict. Exact
+production Tour operations remain unavailable until separately qualified. The
+original verification prescriptions below still govern those follow-ups. All
+credential, source-identity, publication and no-implicit-effect boundaries remain
+normative; no capability is enabled by this documentation amendment.
+
 ## Acceptance criteria
 
 - **AC41-01:** Exact native line/range batches remain pending until one explicit COMMENT submission; no per-stop visible publish loop substitutes for this path.
 - **AC41-02:** Returned comment IDs/URLs drive every link, and complete staged membership/bodies/anchors are verified before submission.
 - **AC41-03:** Existing/contaminated pending reviews, head/actor changes and external early submission are handled without unauthorized inclusion, deletion or duplication.
-- **AC41-04:** Native HTTPS and admitted `gh api` operations share normalized semantics and preserve their existing credential/authority boundaries.
+- **AC41-04:** Native HTTPS and admitted `gh api` production ports share fixture-verified normalized semantics and preserve credential/authority boundaries; live host/transport operations remain unavailable until separately qualified.
 - **AC41-05:** Kill/timeout tests at every durable step prevent blind reposts and recover exact known pending/submitted identities; unresolved outcomes stay unresolved.
-- **AC41-06:** File-subject staging is qualified per exact operation; unbatchable destinations require an explicit compatibility plan and never an atomicity claim.
+- **AC41-06:** Unqualified pending file-subject staging is refused; fixture-verified unbatchable destinations require an explicit compatibility plan and never an atomicity claim. Enabling any exact operation requires separate live qualification.
 - **AC41-07:** Description/backlink failure is separate from tour success; retries do not recreate published comments.
 - **AC41-08:** Pagination, rate limits, denied/unsupported operations, wire budgets, redirects, ambiguous responses and cancellation are exercised on real production ports with fixtures.
 - **AC41-09:** Final Preview/Publish and Resume flows are composed in the running application and remote writes occur only after their explicit author commands.

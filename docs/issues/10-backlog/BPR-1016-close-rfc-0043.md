@@ -26,7 +26,7 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 | **AC39-03:** Add/insert/reorder/split/merge/remove operations preserve stable identity, text, related links and ordinary undo where applicable.  | Pass — automated insert/redo, atomic group operations, exact retired originals and shortcuts; owner accepted r3 insertion/undo and ordinary layout including physical drag at hand-back 90. Underlying split preservation remains tested under the hand-back 70 amendment. | `791decea; 54ba51bf` |
 | **AC39-04:** A stop can represent an actual source line/range and related unchanged code without inventing native write support.  | Pass — exact inclusive source intervals, related base code and explicit fallback subjects. | `757e8b9b` |
 | **AC39-05:** Draft autosave, restart, account/profile isolation and same-draft multiwindow conflicts are exercised with real admitted private storage.  | Pass — admitted SQLite CAS/reopen/killed COMMIT, real profile isolation and visible conflicting copies. | `ae59878e; 3b86f047` |
-| **AC39-06:** Current workbench composition is keyboard-accessible and usable at supported sizes/scales; navigation and readiness change no remote review state.  | Pending for other eligible native stations — all seven prepared Mac candidates accepted by hand-back 99, including r4 physical keyboard visibility and status icons. Existing native/no-effects tests pass. Windows/Linux execution remains open; accepts retain their exact source/binary scope. | `28622c5d; 54ba51bf; 95b71e99` |
+| **AC39-06:** The accepted macOS Cocoa workbench candidates are keyboard-accessible and usable at their recorded sizes/scales; navigation and readiness change no remote review state. Other eligible native stations remain explicitly unqualified.  | Pass under owner r2 scope — Owner r2 terminal scope accepts the seven exact Mac candidates at session7834eb10dc5260f8cc14257a669c1109 hand-back99. Recorded Cocoa/physical focus, native editing, layout and no-effects checks pass. Other eligible native stations remain unobserved on Blocked BPR-1224. | `28622c5d;54ba51bf;95b71e99` |
 | **AC39-07:** Manual drafts remain usable when rendering, source acquisition, authentication or later AI assistance is unavailable; missing state is not silently dropped.  | Pass — refused/unsaved text retained; unavailable source/auth/agent does not discard the private draft. | `791decea; 37919b21` |
 | **AC39-08:** Bounds and their refusal paths are tested with short, ordinary, long and maximum-admitted tours.  | Pass — core field/encoded limits and actual 1/8/64/256-stop Cocoa route with 257th-stop refusal; measured scope below. | `5ca53796` |
 | **AC40-01:** Every shared stop and index is ordinary readable Markdown in normal GitHub comments, with real links and no required BPR-specific metadata.  | Pass in fixture scope — ordinary Markdown root/comments and returned same-PR URLs; live website course is AC40-07. | `cba9064c; 505c942d` |
@@ -35,14 +35,14 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 | **AC40-04:** Markdown round trips preserve all untouched source bytes, including unrelated description/template content and CRLF/LF boundaries.  | Pass — golden spans/newlines and initial-publication preservation correction; full manual course retains unrelated template bytes. | `5ca53796` |
 | **AC40-05:** Ambiguous mapping, duplicate/missing/foreign links, partial pages and third-party comments remain visible and do not grant mutation authority.  | Pass — ambiguous/foreign/credential-bearing/missing/partial/mixed-owner links remain inert or read-only; no credential-forwarding fetch. | `3b86f047` |
 | **AC40-06:** Line/range/source-version identity and native/file/conversation fallback subjects remain explicit and exact.  | Pass — exact original/mapped source and separate native/file/PR subjects, with qualification refusal. | `757e8b9b; 22fd2150` |
-| **AC40-07:** Website-only reviewers can follow Start here → comments → Next/Previous → overview and reply normally; no invented heading fragment is needed.  | Pending — approved safe GitHub.com/GHES target, actual website navigation and independent reviewer reply have not been supplied. | `No live producing revision` |
+| **AC40-07:** Production-port fixtures preserve Start here, comment, Next/Previous and overview links using returned identities without invented heading fragments; actual website-only navigation and replies remain explicitly unqualified.  | Pass under owner r2 scope — Owner r2 terminal scope accepts production-port fixture route/cold-import evidence using exact returned IDs and ordinary Markdown; no invented fragment. Actual GitHub.com/GHES website navigation and replies remain unobserved on Blocked BPR-1222/1223. | `f44c95dd;5b9080fb;28622c5d` |
 | **AC40-08:** BPR excursions/return, resolved/outdated threads and source-unavailable states retain the tour without altering review state.  | Pass in fixture scope — real workbench excursions/return, resolved/outdated and unavailable sources; independent receipt/mutation counts unchanged. | `f3232019; 5b9080fb` |
 | **AC41-01:** Exact native line/range batches remain pending until one explicit COMMENT submission; no per-stop visible publish loop substitutes for this path.  | Pass in production-port fixture — event omitted during staging, exact COMMENT submission once; live visibility remains unqualified. | `505c942d; 3b86f047` |
 | **AC41-02:** Returned comment IDs/URLs drive every link, and complete staged membership/bodies/anchors are verified before submission.  | Pass in production-port fixture — returned IDs/URLs, complete multiset/body/source/actor verification before submission. | `505c942d; 3b86f047` |
 | **AC41-03:** Existing/contaminated pending reviews, head/actor changes and external early submission are handled without unauthorized inclusion, deletion or duplication.  | Pass — contaminated/existing/ambiguous pending, changed actor/head and early submission refuse unauthorized effects. | `3b86f047` |
-| **AC41-04:** Native HTTPS and admitted `gh api` operations share normalized semantics and preserve their existing credential/authority boundaries.  | Pending — finite HTTPS/CLI normalization and authority canaries pass; exact installed/live host/transport operations are unqualified. | `505c942d; live pending` |
+| **AC41-04:** Native HTTPS and admitted `gh api` production ports share fixture-verified normalized semantics and preserve credential/authority boundaries; live host/transport operations remain unavailable until separately qualified.  | Pass under owner r2 scope — Owner r2 terminal scope accepts finite HTTPS/CLI normalization and authority-canary evidence through real production ports with fixtures. No live operations enabled; exact host/version/transport qualification remains Blocked BPR-1222/1223. | `505c942d;3b86f047` |
 | **AC41-05:** Kill/timeout tests at every durable step prevent blind reposts and recover exact known pending/submitted identities; unresolved outcomes stay unresolved.  | Pass — 24 real process-death journal boundaries and independent server-state counters; unknown outcomes never blindly resend. | `5b9080fb; 3b86f047` |
-| **AC41-06:** File-subject staging is qualified per exact operation; unbatchable destinations require an explicit compatibility plan and never an atomicity claim.  | Pending — pending file-thread staging is unavailable; each exact operation needs live qualification. Compatibility fixture preserves explicit non-atomic plan. | `505c942d; live pending` |
+| **AC41-06:** Unqualified pending file-subject staging is refused; fixture-verified unbatchable destinations require an explicit compatibility plan and never an atomicity claim. Enabling any exact operation requires separate live qualification.  | Pass under owner r2 scope — Owner r2 terminal scope accepts observed unavailable/refused pending file staging and explicit non-atomic compatibility fixtures. Each exact live capability remains unqualified on Blocked BPR-1222/1223. | `505c942d;3b86f047` |
 | **AC41-07:** Description/backlink failure is separate from tour success; retries do not recreate published comments.  | Pass in fixture scope — description failure remains separate; restart reuses confirmed review/comment identities without recreation. | `505c942d; 5ca53796` |
 | **AC41-08:** Pagination, rate limits, denied/unsupported operations, wire budgets, redirects, ambiguous responses and cancellation are exercised on real production ports with fixtures.  | Pass — real provider/session/CLI ports with fixtures cover pages, budgets, foreign continuation, refused/ambiguous writes and cancellation. | `3b86f047` |
 | **AC41-09:** Final Preview/Publish and Resume flows are composed in the running application and remote writes occur only after their explicit author commands.  | Pass in fixture scope — real Preview/Publish/Stop/Resume controls and explicit finite authority; production operations remain unavailable. | `505c942d; 5b9080fb` |
@@ -53,7 +53,7 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 | **AC42-05:** Partial update/restart/ambiguous-write tests reuse confirmed destinations and never silently duplicate or roll back shared comments.  | Pass — actual durable restart and ambiguous maintenance/compatibility responses reuse known destinations; no automatic rollback. | `5b9080fb; 3b86f047` |
 | **AC42-06:** Head changes, historical sources, renamed files and ambiguous mappings produce visible author-attention states without invented reanchoring.  | Pass — original versus proposed moved/renamed/changed/missing source; head attention/reaffirmation creates no remote reanchor. | `22fd2150; 5b9080fb` |
 | **AC42-07:** Cold reimport and local-purge courses preserve shared tour usability; unknown provenance/history remains unknown.  | Pass in fixture scope — clean-profile cold import and admitted store purge inventory retain shared objects; unchanged manually mapped bytes create no website history. | `ae59878e; 5b9080fb; 28622c5d` |
-| **AC42-08:** A website-only user can continue and reply throughout completed updates; BPR reader deltas never mutate review status.  | Pending — actual website continuation/reply across updates needs approved live target and reviewer. Fixture reader deltas produce no review-status effects. | `5b9080fb; live pending` |
+| **AC42-08:** Production-port maintenance fixtures preserve the shared route and replies through completed updates, and BPR reader deltas never mutate review status; actual website-only continuation remains explicitly unqualified.  | Pass under owner r2 scope — Owner r2 terminal scope accepts fixture route/reply preservation during completed maintenance and zero reader-delta review-status effects. Actual website continuation/replies remain Blocked BPR-1222/1223. | `5b9080fb;3b86f047` |
 | **AC43-01:** No action outside the explicit assistance controls launches AI; all manual features continue without an AI provider.  | Pass — normal preparation/import/settings save/navigation never dispatch AI; actual independent process/mutation counters. | `37919b21; 4b89411c` |
 | **AC43-02:** Four separately configurable hooks are versioned, previewable/testable explicitly, resettable and correctly scoped to app profiles.  | Pass — four profile settings/default resources, effective version/reset, saved explicit Test and real store migration. | `37919b21` |
 | **AC43-03:** Selection/whole-field/empty-field precedence is exact, including whitespace selection and toolbar focus preservation.  | Pass — real editor toolbar capture, selection including whitespace, whole and empty precedence. | `37919b21` |
@@ -63,7 +63,7 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 | **AC43-07:** Empty fields recover existing PR explanations before inference; unsupported claims are not invented, and no Jira/issue lookup occurs.  | Pass in fixture scope — deterministic brief recovery before inference, bounded source provenance and no linked-ticket lookup; model truth/quality remains AC43-10. | `37919b21` |
 | **AC43-08:** Outline output has no bodies; each generated stop requires a visible visit and current-content completion, and per-stop generation cannot run in bulk.  | Pass — strict body-free outline, retained skeletons, actual visible source/current-text completion and no bulk path. | `1ef7a98c; 3b86f047` |
 | **AC43-09:** Skill overrides and prompt-injected source/model output cannot widen writes, invoke tools, auto-publish, acknowledge stops or leak credentials.  | Pass in process-fixture scope — malicious source/output, exact restricted argv/environment, zero publication/readiness grant and private diagnostic canaries. Installed enforcement remains unqualified. | `3b86f047; 4b89411c` |
-| **AC43-10:** End-to-end native editor tests exercise the real undo path, profile settings and agent delivery seam; canned response tests are not represented as quality evidence for an untested model.  | Pending — real-process/native-widget undo/settings/delivery regressions pass and all seven prepared Mac candidates are accepted on their exact sources/binaries. Installed restricted-provider enforcement, actual-model quality and other eligible native execution remain unobserved. | `4b89411c; 5ca53796; 54ba51bf; 95b71e99` |
+| **AC43-10:** Native editor and real-process fixture tests exercise the real undo path, profile settings and agent delivery seam; installed-provider enforcement and actual-model quality remain explicitly unqualified, and canned responses are not quality evidence.  | Pass under owner r2 scope — Owner r2 terminal scope accepts real-process/native undo, settings and delivery fixtures plus exact recorded Mac judgments. Canned output is not quality evidence. Installed restriction enforcement/actual model qualification remain Blocked BPR-1225; other native stations remain BPR-1224. | `4b89411c;5ca53796;54ba51bf;95b71e99` |
 
 ## Outcome and work
 
@@ -116,7 +116,7 @@ Historical accepts remain evidence for their own source and binary. This does
 not satisfy the outstanding live-host/model/dependency rows or advance RFC status.
 
 
-## Current reconciliation after hand-back 99
+## Reconciliation at hand-back 99, before owner amendment r2
 
 The 43-row matrix retains **37 passing rows within their stated scope and six
 pending rows**: AC39-06, AC40-07, AC41-04, AC41-06, AC42-08 and AC43-10.
@@ -131,3 +131,27 @@ confirms every unmet dependency in the table above. All other explicit
 predecessors are Auto-Verified; index position adds none. No RFC closeout or
 final milestone acceptance is claimed. The coordinator retains main integration
 authority once the final milestone is actually accepted.
+
+
+## Owner-amended implementation closeout — r2
+
+The [owner mandate](../../verification/RFC-BPR-0039-0043.owner-closeout-r2.md)
+accepts the verified implementation and exact seven Mac candidates now, with
+unmet qualification preserved on standalone Blocked BPR-1222–1226. Six terminal
+criteria are explicitly narrowed; their original wording is retained verbatim
+in the mandate and relevant follow-ups. The remaining 37 criteria retain their
+recorded evidence scope. All 43 current terminal rows pass within that amended
+scope; no unobserved live/native/model requirement is represented as a test pass.
+
+RFC-0039's formal 0036/0037 prerequisites and RFC-0040's 0021/0022 prerequisites
+are transferred to BPR-1226 under the same owner amendment. Their original states
+remain Proposed/Deferred, and their original dependency identities remain in
+RFC metadata. All other explicit dependencies remain mandatory and are closed
+before their dependent selected RFC. Index position adds no gate. No unrelated
+predecessor is closed or activated here.
+
+Production Tour operation availability, platform eligibility and restricted-agent
+boundaries are unchanged. Reuse the exact prior public-composition, storage,
+process, authority and accepted Mac evidence; the documentation-only closeout
+runs the required documentation and scoped workflow gates. The final ledger and
+checkpoint bind the accepted milestone before the coordinator integrates main.
