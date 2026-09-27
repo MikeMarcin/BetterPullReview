@@ -1,0 +1,13 @@
+{
+  "criterion": "RFC0020-shipped-appearance-gesture",
+  "outcome": "pass",
+  "revision": "2723138b7425a63c040b250d746c08fdc9065168",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"-j1\", \"--output-on-failure\", \"--no-tests=error\", \"-R\", \"^application_appearance_gesture_contract$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 81.466,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 437: application_appearance_gesture_contract\n1/1 Test #437: application_appearance_gesture_contract ...   Passed   81.43 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =  81.43 sec*proc (1 test)\n\nTotal Test time (real) =  81.46 sec\n",
+    "stderr_tail": ""
+  }
+}

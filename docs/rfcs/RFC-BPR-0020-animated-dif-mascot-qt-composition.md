@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0020"
 title: "Animated Dif Mascot Qt Presentation and Workbench Composition"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0005","RFC-BPR-0006","RFC-BPR-0013","RFC-BPR-0019"]
@@ -12,6 +12,19 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0020-closeout","path":"docs/rfcs/plan
 # RFC-BPR-0020: Animated Dif Mascot Qt Presentation and Workbench Composition
 
 ## Status and scope
+
+Closed on 2026-09-26 through [[BPR-1220]] after RFC-BPR-0019 and all earlier
+canonical RFCs. The [closeout ledger](../verification/RFC-BPR-0020.md) maps
+every original criterion below to direct evidence and the explicitly
+superseding RFC-BPR-0030/0031 contract. The accepted ten-clip prop-free art,
+profile-owned preferences, shared cache/per-window widgets, Home lifetime and
+later owner-approved corner/prime placement replace the named older
+restrictions; those older literals are not claimed as current behavior.
+Required native, attended and independent implementation evidence is reused
+under its exact identities. Windows/Linux System-motion observation remains
+unsupported, BPR-0966 retains its separate Windows cue follow-up, and no
+package or release qualification is implied. The original proposal follows
+as historical design context; its unsuperseded requirements remain binding.
 
 This is the second of two ordered deferred post-pack RFCs for Dif. It consumes
 only the Auto-Verified RFC-BPR-0019 asset contract and composes one animated,
