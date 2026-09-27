@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1215",
+    "BPR-1216",
+    "BPR-1217",
+    "BPR-1218",
+    "BPR-1219"
+  ],
+  "reserve_for": "rfc0027-advanced-r1",
+  "purpose": "RFC-BPR-0027 owner-authorized advanced milestones",
+  "created": "2026-09-27T00:40:59.083336+00:00",
+  "base": "fa20ff5868a7b59b5df5771b688370fe26672365"
+}
