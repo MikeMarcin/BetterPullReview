@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0997"
 title: "Read and reconstruct tours from paged GitHub objects"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0040"]
 depends_on: ["BPR-0996"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-07","milestone":"github-round-trip","acceptance":["AC40-02","AC40-03","AC40-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
