@@ -804,10 +804,8 @@ confirmed no product/test change. This is the expected documentation/board
 handoff distinction, not a changed engineering candidate. Its
 `engineering_acceptance: not-evaluated` is a consistency result; the whole-card
 judgment rests on the direct tests and limitations above. M4 has no required
-pending acceptance. M5/BPR-0581 is the next authored milestone after the
-coordinator integrates this accepted branch into local main. Preserve ledger
-schema 7, mutation-recovery schema 5 and staged-tour codec 3, including any
-independent main work.
+pending acceptance. Preserve ledger schema 7, mutation-recovery schema 5 and
+staged-tour codec 3, including any independent main work.
 
 All task-owned build, CTest, formatter, documentation, board and checkpoint
 commands have completed. No background writer, child agent, review server,
@@ -818,9 +816,20 @@ the courses. `/root/rfc0023_m4` was the only writer in this assigned checkout;
 writer ownership is released to the coordinator with this handoff. No main
 mutation, push, PR or live GitHub/GHES operation was performed.
 
-Remaining obligations are the existing protocol facts/input course, host
-lifecycle/dispatch/draft fan-out, production Qt wiring, native/accessibility
-and designated-publication acceptance, followed by the one final independent
-review at M10/BPR-0591. Windows process-kill parity and actual unchanged-GitHub
-readback are not inferred from the macOS storage fixtures. None is silently
-marked complete by M4, and the eighteen-row feature matrix is unchanged.
+### M4 integration on current main
+
+The coordinator integrated the accepted branch without conflicts on current
+main. Merge commit: `54060ba4` (`Merge branch 'codex/rfc-bpr-0023'`), on top of
+M3 integration commit `2a254e63`. The M4 candidate was already built and tested
+against that exact code baseline; the integration merge changed ancestry only.
+The ten-test and final eight-test M4 passes above therefore apply unchanged to
+the integrated tree.
+
+Start a fresh M5/BPR-0581 implementer from this integrated main tip. Preserve
+ledger v7, mutation-recovery v5 and staged-tour codec v3. M5 covers the
+protocol facts/input course; later milestones cover host lifecycle/dispatch,
+draft fan-out, production Qt wiring, native/accessibility and designated-
+publication acceptance, followed by the one final independent review at
+M10/BPR-0591. Windows process-kill parity and actual unchanged-GitHub readback
+are not inferred from macOS storage fixtures. None is silently marked complete
+by M4, and the eighteen-row feature matrix is unchanged.
