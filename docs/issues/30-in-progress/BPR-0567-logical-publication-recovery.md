@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0567"
 title: "Migrate durable recovery to logical publications and child attempts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0562","BPR-0564","BPR-0565"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
