@@ -123,3 +123,20 @@ The coordination-input wait is handed back quiescent: BPR-0573 is Parked on
 `awaiting-live-github`, and exclusive repository writing ownership is released.
 Continue this same implementer after coordinator confirms the explicit UI
 handoff. No approval from the previous courses remains available for reuse.
+
+## Current schema-compatible course
+
+Coordinator authorized current-main integration after profile2 was migrated by
+RFC0023. Merge `bbf0b23eb` retains main89f23eeec plus D exact PR2 classifier and
+diagnostic wiring. Eight focused checks pass63.81s; final build/contract replay,
+strict tidy, format and docs pass. Capsule source8bb5c315/image3ffb12a8 passes
+signature/inventory/mounted preflight; configured521-row graph has one exact
+profile2 lane and passes network manifest. Five prior records are preserved.
+
+Current course session54984/app87592/supervisor87495 is active under fresh
+authority. CUA reported locked Mac before UI action or Publish. Coordinator
+requested unlocking; do not infer an answer from elapsed time. Five prior
+record hashes remain unchanged after app start. [Progress](m4-r3-schema-live-progress.json),
+[identities](m4-r3-schema-capsule-identities.json) and
+[command](m4-r3-schema-live-command.json) supersede earlier current-state notes.
+BPR-0573 is In Progress; exclusive writing ownership remains with this owner.

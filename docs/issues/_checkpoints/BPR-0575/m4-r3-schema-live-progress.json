@@ -1,0 +1,20 @@
+{
+  "schema": "rfc0022.r3-progress.v1",
+  "utc": "2026-09-27T19:10:02.486272+00:00",
+  "source_revision": "bbf0b23eb3f767d9864813f14781630b419de8f7",
+  "source_sha256": "8bb5c315275ee668e8579b084f1f653139040ceee3e31e0fd936ecc32b0c7eda",
+  "image_sha256": "3ffb12a8120c145f21c4b3f14541cf275edbe4089da06478d85d433de49d4bcd",
+  "session": 54984,
+  "supervisor_pid": 87495,
+  "application_pid": 87592,
+  "mount": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-mount-parent/mount-b48a1a8e8e7e3e03",
+  "state": "CUA exact-app selection reports Mac locked and automatic unlock failed. No UI action or Publish. Coordinator requested unlock; explicit answer pending.",
+  "pre_course_record_count": 5,
+  "all_prior_record_hashes_unchanged_after_app_start": true,
+  "pending": [
+    "Explicit Mac unlock.",
+    "Ordinary RIGHT62 new comment course, exact actor/head/source/body/authority, one Publish.",
+    "Actual fallback and GitHub-only collaborator continuity.",
+    "Separately supplied independent acceptance and D closeout."
+  ]
+}

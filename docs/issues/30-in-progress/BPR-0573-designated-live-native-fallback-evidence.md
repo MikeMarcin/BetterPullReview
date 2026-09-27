@@ -258,3 +258,23 @@ records remain byte-identical. The consumed approval's empty parent was removed.
 the exact course. Natural-exit polling cannot guarantee UI ownership. The
 coordinator awaits explicit user authorization for cross-task coordination;
 no further launch occurs before a handoff, and fresh one-use authority is needed.
+
+### Main schema compatibility integration
+
+The prior capsule successfully exited/detached121.21s with no Publish: its
+schema4 recovery store refused profile2 after RFC0023 upgraded it to schema5.
+Coordinator authorized merging current local main89f23eeec into D. Merge
+`bbf0b23eb` preserves schema5/durable draft/lineage/tour behavior and our exact
+PR2 classifier plus bounded diagnostics. [Resolution review and checks](../_checkpoints/BPR-0575/m4-r3-schema-integration.md)
+record8/8 focused integration passes63.81s, final build/contract replay, strict
+tidy, seven-file format and documentation. All five prior journal records are
+preserved; no store reset/downgrade occurred.
+
+The new Release/tests-disabled signed capsule source8bb5c315/image3ffb12a8
+passes signature/inventory/mounted preflight. Its521-row graph has one exact
+profile2 live lane and passes the manifest gate. Fresh authority launched the
+sole app87592/supervisor87495. CUA reports Mac locked/automatic unlock failed
+before any UI action. The coordinator is handling that OS prerequisite. All
+five journal hashes still match after app start. No Publish or feature acceptance
+has occurred; [current course progress](../_checkpoints/BPR-0575/m4-r3-schema-live-progress.json)
+tracks the active command and limits.
