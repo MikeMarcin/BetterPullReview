@@ -1,0 +1,119 @@
+{
+  "assignment": "RFC-BPR-0023 M7 / BPR-0583 and BPR-0584",
+  "mandate_revision": "r2",
+  "segment_id": "m7-compose-publish-r2",
+  "engineering_result": "implementation-complete; required external acceptance pending",
+  "source_root": "/Users/jaeger/.codex/worktrees/15a6/BetterPullReview",
+  "branch": "codex/rfc-bpr-0023",
+  "base_revision": "ef66363c00acf5062d120a2762393ec6ccc6e10d",
+  "product_candidate_revision": "1f25799b5f327d6c7fefd2214a8371e0f62ecb2c",
+  "composition_candidate_revision": "8027c6c50",
+  "composition_finish_revision": "d504cd0ad",
+  "changed_paths": [
+    "docs/architecture/review-ledger.md",
+    "docs/architecture/review-round-trip.md",
+    "docs/issues/10-backlog/BPR-0583-squash-to-draft-host-and-durable-draft.md",
+    "docs/issues/10-backlog/BPR-0587-composition-root-public-path.md",
+    "docs/issues/30-in-progress/BPR-0584-publication-lineage-correlation.md",
+    "docs/issues/60-done/BPR-0583-squash-to-draft-host-and-durable-draft.md",
+    "docs/rfcs/assets/betterpullreview-rfc-0022-private-review-threads-pack-v1.LIVE_IMPORT.md",
+    "docs/rfcs/plans/rfc-bpr-0023-private-review/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "docs/verification/RFC-BPR-0023-live-audit.md",
+    "docs/verification/RFC-BPR-0023.m7-amendment.json",
+    "docs/verification/RFC-BPR-0023.m7-checkpoint.json",
+    "docs/verification/RFC-BPR-0023.md",
+    "src/adapters/github/src/github_mutation_contract.cpp",
+    "src/adapters/github/src/github_mutation_contract.hpp",
+    "src/adapters/github/src/live_review_mutation_provider.cpp",
+    "src/adapters/github/src/live_review_mutation_provider.hpp",
+    "src/adapters/sqlite/src/private_review_codec.hpp",
+    "src/adapters/sqlite/src/private_review_store.cpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/private_publication_application_host.hpp",
+    "src/application/include/bpr/application/private_review_application_host.hpp",
+    "src/application/include/bpr/application/private_review_store.hpp",
+    "src/application/include/bpr/application/review_composition_application_host.hpp",
+    "src/application/include/bpr/application/review_mutation_application_host.hpp",
+    "src/application/include/bpr/application/review_mutation_port.hpp",
+    "src/application/include/bpr/application/shared_draft_application_host.hpp",
+    "src/application/src/private_publication_application_host.cpp",
+    "src/application/src/private_review_application_host.cpp",
+    "src/application/src/private_review_operations.hpp",
+    "src/application/src/review_composition_application_host.cpp",
+    "src/application/src/review_mutation_application_host.cpp",
+    "src/application/src/review_mutation_contract.cpp",
+    "src/application/src/shared_draft_application_host.cpp",
+    "src/core/include/bpr/core/review_composition.hpp",
+    "src/core/include/bpr/core/review_round_trip.hpp",
+    "src/core/src/review_composition.cpp",
+    "tests/github_contract/CMakeLists.txt",
+    "tests/github_contract/review_comment_permalink_tests.cpp",
+    "tests/sqlite_contract/private_review_host_tests.cpp",
+    "tests/sqlite_contract/private_review_storage_tests.cpp"
+  ],
+  "commands": [
+    {
+      "command": "cmake --build --preset core-only --target test_private_review_storage test_private_review_host test_better_pull_review_review_mutation_application_host_tests test_better_pull_review_review_mutation_recovery_storage_tests -j6",
+      "result": "pass"
+    },
+    {
+      "command": "ctest --preset core-only --output-on-failure -R '^(sqlite_private_review_storage|application_private_review_host|application_review_mutation_application_host|sqlite_review_mutation_recovery_storage)$'",
+      "result": "pass",
+      "tests": 4,
+      "seconds": 15.11,
+      "revision": "1f25799b5f327d6c7fefd2214a8371e0f62ecb2c"
+    },
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_review_comment_permalink_tests test_better_pull_review_github_mutation_contract_tests test_better_pull_review_live_review_mutation_provider_tests -j6",
+      "result": "pass"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R '^(github_review_comment_permalink|github_mutation_contract|live_review_mutation_provider|live_review_mutation_restart_recovery)$'",
+      "result": "pass",
+      "tests": 4,
+      "seconds": 3.5,
+      "revision": "1f25799b5f327d6c7fefd2214a8371e0f62ecb2c"
+    },
+    {
+      "command": "ctest --preset core-only --output-on-failure -R '^architecture_boundaries$'",
+      "result": "pass",
+      "tests": 1,
+      "seconds": 6.94,
+      "detail": "Run within the documented five-test batch before comments/docs-only changes."
+    },
+    {
+      "command": "ctest --preset core-only --output-on-failure -R '^architecture_boundary_contract$'",
+      "result": "pass",
+      "tests": 1,
+      "seconds": 98.24
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "pass",
+      "revision": "1f25799b5f327d6c7fefd2214a8371e0f62ecb2c"
+    },
+    {
+      "command": "changed C++ clang-format --dry-run --Werror; git diff --check; scoped board validation; plan check/amendment check",
+      "result": "pass"
+    }
+  ],
+  "required_pending": [
+    "BPR-0584 designated target or signed recorded fixture for the final integrated publication path.",
+    "BPR-0584 independent public-body and actor read from that qualifying external evidence; RFC AC-12/13 and closeout remain pending."
+  ],
+  "review_handoff": {
+    "session": null,
+    "server": null,
+    "event_cursor": null,
+    "protected_candidate_lease": null,
+    "reason": "Owner mandate r2 defers review to RFC end. No required external evidence is inferred from synthetic fixture courses."
+  },
+  "ownership": {
+    "writer": "/root/rfc0023_m7",
+    "state": "quiescent",
+    "background_commands": [],
+    "main_integration_owner": "/root"
+  },
+  "next_action": "Coordinator integrates the exact verified M7 implementation to local main, retains BPR-0584 parked, and starts fresh M8 after the documented implementation prerequisite. M9 supplies external/native acceptance; M10 performs the final independent review. No push, PR or live GitHub mutation authorized."
+}

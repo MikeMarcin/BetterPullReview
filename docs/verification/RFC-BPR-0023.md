@@ -1294,3 +1294,21 @@ or exhaustive platform matrix was needed for this application/adapter milestone.
 After the final quota assertion and comment clarification, the provider target
 was rebuilt and `github_review_comment_permalink` passed again 1/1 in 3.56
 seconds. No semantic product changes followed the focused acceptance above.
+
+
+Publication product/plan candidate: `1f25799b5f327d6c7fefd2214a8371e0f62ecb2c`. Final checks against that
+exact commit passed 4/4 provider/recovery tests in 3.50 seconds and 4/4 private
+storage/host/recovery tests in 15.11 seconds, plus the documentation gate.
+The [durable handoff](RFC-BPR-0023.m7-handoff.json) records exact changed paths,
+commands, candidate identities, pending gates, owner and next action. The
+[M7 observation](RFC-BPR-0023.m7-observation.json) is human-pending for the whole
+BPR-0584 obligation while recording the passing implementation exits.
+
+All task-owned build, CTest, formatting, documentation, board and checkpoint
+commands completed before release of this checkout. No background writer,
+review server, attended session, cursor or protected candidate lease is handed
+off. `/root/rfc0023_m7` is the sole assigned writer and releases ownership to
+the coordinator. Ignored build outputs remain reusable; temporary scripts,
+acceptance input and build log are removed after bookkeeping. The coordinator
+owns local-main integration; this leaf made no main mutation, push, PR or live
+GitHub/GHES call.
