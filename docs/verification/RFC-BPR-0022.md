@@ -14,8 +14,10 @@ records those historical candidates, commands, log hashes and limitations.
 Current source `dde294fb` implements the approved prospective classifier2;
 [r3 evidence](../issues/_checkpoints/BPR-0575/m4-r3-classifier-evidence.json)
 binds its exact-scope/refusal/restart checks and focused public-path verification.
-The fresh signed live capsule is awaiting the OS unlock prerequisite; no Publish
-has occurred in that course.
+The fresh signed live capsule course closed at the pending OS unlock
+prerequisite with no UI action or Publish; its
+[no-POST evidence](../issues/_checkpoints/BPR-0575/m4-r3-live-attempt.json)
+records the interrupted cleanup and unchanged four historic journals.
 
 ## Architecture allocation
 

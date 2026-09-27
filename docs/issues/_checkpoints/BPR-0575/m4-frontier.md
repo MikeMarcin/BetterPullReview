@@ -1,100 +1,79 @@
 # RFC-0022 milestone D frontier
 
-Assignment `/root/rfc0022_m4`, mandate r2, run `rfc0022-20260926`, milestone
-`d-evidence-closeout`. Exclusive source/tracker checkout:
+Assignment `/root/rfc0022_m4_after_review`, mandate r3, run `rfc0022-20260926`,
+segment `m4-after-review`, milestone `d-evidence-closeout`. Exclusive checkout
 `/Users/jaeger/.codex/worktrees/6264/BetterPullReview`, branch
-`codex/rfc0022-semantic-comments`, start `dc1a836b`.
-RFC baseline `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
+`codex/rfc0022-semantic-comments`; start `136456320af921282513ed2da6bfb2954fef0657`.
+Baseline `5a616354ae6ecd7ebbea608a9523a8388f590ab0`. Coordinator owns main integration.
 
-## Candidate and independent work
+## Current candidate and decisions
 
-Final production source `699c921c8a0e804f57ab1b806e3c0b4bf685fb8a`.
-Source manifest `1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405`;
-image `aaab34bc17c675594c99615ff1c0d57195cb144e8aed73f895b59b5c1f6e59d5`.
-Key changes: exact PR2 target `0ff88046`, audited pending Windows source inventory
-`bd9eb897`, supported exact profile selector `6526f525`, bounded typed diagnostics
-`3a517b86`, complete closed shape `0eee1f45`, exact resolution literals `699c921c`.
-Historical PR1 evidence remains specific to its original target/candidate.
-Default profile/cache/history/replay are preserved. No production unsupported
-contract is enabled. No classifier or journal authority was invented.
+Production source `dde294fb`; signed capsule source
+`1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5`, image
+`070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d`.
+[Mandate amendments](m4-r3-amendments.md) bind the three accepted human decisions,
+original candidate fingerprints and limits. Protection released at sequence14;
+old proposals/verdicts remain intact. Native-success fixture substitution and
+ordering ahead of Deferred0020/0021 are owner decisions, not observations.
 
-[Evidence and commands](m4-evidence.json), [current binding](m4-binding-final.json),
-[exact capsule](m4-resolution-fresh-capsule-identities.json),
-[generated live row](m4-resolution-fresh-live-command.json).
-Development application and final public/Qt100 composition passed (2/2,18.11s).
-Release/tests-disabled capsule, signature/inventory and mounted preflight passed.
-Affected diagnostic privacy, transport, logging, format/tidy, architecture and
-isolation checks passed; unchanged A–C evidence is reused explicitly.
+Classifier2 selects only exact PR2/base/head/refs/database/node identities,
+MikeMarcin's actor and profile2. Classification revalidates sealed source against
+recorded immutable blobs/80line bounds and complete RIGHT7–13 patch proof, then
+requires the exact complete closed422 envelope/error and valid nonexhausted core
+rate metadata. Every other scope/shape remains unknown. Original four witnesses
+stay GET-only; no fingerprint or journal migration changed. No general GitHub
+capability claim is made. [Direct evidence](m4-r3-classifier-evidence.json)
+records29 refusal/restart courses, positive native→durable rejection→one FILE,
+and old-witness GET-only. Five focused integrated checks passed29.89s; network
+manifest/isolation/real HTTPS fixture passed21.98s. Strict tidy, format,
+documentation/whitespace and release capsule signature/inventory/mounted preflight
+pass. [Fresh read-only evidence](m4-r3-anchor-check.json) revalidated exact PR2
+identity and complete patch/blob records. Unchanged A–C evidence is retained.
 
-BPR-0574 is Done. BPR-0573 is Parked on human review. BPR-0575 remains Backlog,
-not eligible for claim or Done. D exit2 (owning documentation/simplification) is
-complete; exits1/3 retain external acceptance. The15-criterion ledger records
-actual evidence and explicit gaps. RFC0022 remains Proposed. Canonical0020/0021
-remain Deferred; no owner ordering amendment has been received.
+## Live course and command state
 
-## Actual live effects
+[Exact capsule and one-use authority](m4-r3-capsule-identities.json),
+[generated command](m4-r3-live-command.json), [no-POST course](m4-r3-live-attempt.json).
+The launch graph has491 rows and exactly one profile2 live lane; its configured
+manifest gate passes. Preset reconfiguration briefly changed the shared CPM path
+and failed; restoring its original explicit path corrected the task-owned graph.
 
-Default comparison failed with `cache_open: invalid_manifest` before any draft
-or POST. Its spent approval,452.19s normal lifecycle and legacy-cache refusal
-are preserved. Fresh profile2 was created through the shipped UI and has a
-separate replay namespace. It retains four independent possibly transmitted
-native publications: TXT60, Markdown60, TXT61 and Markdown61. All are unresolved,
-GET-only, with no receipt, fallback child or fallback authorization. Prior record
-digests remain unchanged. GET comments/reviews are empty; absence proves no
-non-creation fact. No retry or fallback was performed.
+CUA selected the exact mounted app path and returned Mac locked/automatic unlock
+failed before any UI action. The coordinator requested unlocking via async input;
+no response or acceptance was inferred. With unlock still pending, the implementer
+signaled only captured stage-zero82528 after767.34s. Command46905 exited8 with
+signal15; app82635/supervisor82541 stopped, image detached and mount root removed.
+This was before the15-minute expiry; it is not a normal-lifecycle or feature pass.
+No Publish occurred, no new journal record exists, and all four historical journal
+hashes remain unchanged. The launcher consumed its approval; the empty task-owned
+temporary approval directory is removed. A new launch must use a fresh nonce.
 
-The initial MD61 grant expired before Publish; normal close/detach1010.55s,
-no POST, no new journal. Its fresh same-capsule grant published once at06:06
-elapsed and exited/detached in397.54s. [Final MD61 evidence](m4-resolution-live-attempt.json)
-retains complete bounded422, exact resource/qualified field/custom/message
-`could not be resolved`, canonical documentation/status strings, one error and
-zero unknown members. This is the proposed recorded contract, not an approved
-meaning or production capability. [Provider eligibility](m4-live-anchor-eligibility.json)
-binds exact PR/head/blobs/line and complete RIGHT7–13 patches independently of
-Qt geometry. All four historical witnesses remain GET-only under any later
-owner contract decision.
+All task-owned build/test/application commands are finished. Review server72886
+(session52232) is the only retained process; its session is
+`bee55ff737d8a45a160d3ca6ad748b0c`, sequence14, all three original decisions accepted
+and all three protections released. No new review candidate is ready because
+actual fallback has not occurred. The coordinator's old heartbeat is paused.
+No children/reviewers were started. On the accompanying final checkpoint commit,
+the implementer releases repository writing ownership to the coordinator.
 
-## Required human and external work
+## Remaining obligations and next action
 
-[Review manifest](m4-review-manifest.json) contains three independent one-criterion
-Accept/Reject candidates: exact recorded contract for prospective classifier2,
-native off-hunk live-course scope, and canonical closeout order. No option list
-or bundled unrelated question is used. The contract proposal exposes the weak
-line-resolution meaning, limits its scope, requires exact metadata/header/shape
-refusals and does not retroactively classify historical attempts.
+BPR-0573 is Parked on `awaiting-live-github`;0574 Done;0575 Backlog. RFC0022 stays Proposed.
+After confirmed unlock, resume BPR-0573, create a fresh exact one-use approval
+for the existing verified capsule, regenerate the single profile2 lane, and use
+ordinary UI/keyboard to select the separate Markdown
+RIGHT62 comment, verify exact target/head/body and fresh authority, and Publish
+once. Source clicking through unsupported UI machinery and hidden semantic
+intents are prohibited. If the UI cannot be driven, prepare one complete verified
+attended course rather than repeated ad hoc source-click requests. Record actual
+fallback receipt and normal lifecycle; preserve old witness bytes. Then obtain
+GitHub-only collaborator continuity and separately supplied independent acceptance.
+Native GitHub success, GHES and Windows qualification remain unobserved. Reconcile
+all15 criteria/cards/gates before RFC closure; stop at D boundary for coordinator
+main integration. On handoff, stop all task commands except the explicit review
+server and record exact candidates, command state and next action.
 
-Actual fallback publication and GitHub-only collaborator continuity remain
-pending. No comment exists for a meaningful collaborator verdict. Required
-independent acceptance remains pending; self-review is not a substitute.
-GHES live evidence is waived per the owner amendment, while fixture checks and
-unobserved native limitations remain. Windows qualification gaps, deterministic
-interruption versus actual OS kills, and fresh-host versus uninstall limits
-remain explicit. The historical NEXT_ID synchronization to1221 attributes
-concurrent owning commit36d535eb and its absent receipt; it allocates nothing.
-
-## Ownership and continuation
-
-No subagents. All production launch, build and test commands are complete;
-app67980 exited and its capsule detached. No application approval is reusable.
-The only command allowed to remain at handoff is the configured loopback review
-server, whose complete URL and cursor are delivered privately to the coordinator.
-The coordinator must arm the handed-back event watch before yielding. Review
-candidate protections must be queried and explicitly released before relevant
-future edits. Interpretation belongs to the next engineering round.
-
-Next: read the exact owner verdicts, release affected protection, then implement
-only the accepted bounded contract/scope. Fresh exact candidate verification and
-one-use authority are required for any genuinely separate future live comment.
-Keep historical unresolved attempts GET-only. Finish live fallback, collaborator
-and independent requirements, replay all criteria and ordering, and only then
-consider RFC closure. Independent verified D commits may land while these
-requirements remain open, without claiming milestone or RFC completion.
-
-Prepared session `bee55ff737d8a45a160d3ca6ad748b0c`, event cursor `9`.
-All three candidates are ready, protected and undecided. Candidate fingerprints,
-protected paths/resources and the exact watch argument array are in
-[m4-review-handoff.json](m4-review-handoff.json). The full token-bearing loopback
-URL is supplied privately; it is not committed. This review asks for static
-owner judgments only. No further ad hoc live selection or launch is requested
-in this round. A later authorized live course must prepare all exact steps
-and identify any UI automation limitation separately from human acceptance.
+The current criterion ledger was reconciled in `2ec9a37f`. The final checkpoint
+adds no product change, so the capsule and its focused verification remain bound
+to `dde294fb`. [R3 handoff](m4-r3-handoff.json) lists exact continuation and command
+state; the old r2 handoff/proposals retain their original evidence and identities.

@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+parked_on: "awaiting-live-github"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -201,3 +202,24 @@ substitution for native off-hunk success. Earlier paragraphs retain historical
 observations, not current decision state. All four historic journals remain
 GET-only. Actual fallback publication and GitHub-only collaborator continuity
 remain required; native GHES/Windows qualification remains unobserved.
+
+### Verified r3 candidate and no-POST OS prerequisite
+
+Source `dde294fb` implements the accepted exact-scope prospective classifier2.
+[Focused r3 evidence](../_checkpoints/BPR-0575/m4-r3-classifier-evidence.json)
+records the production-selector positive course,29 refusal/restart courses,
+prior-witness GET-only behavior and passing public composition, cache, transport,
+format/tidy and documentation checks. The Release/tests-disabled capsule has
+source manifest `1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5`;
+its signature/inventory/mounted preflight and configured manifest gate pass.
+
+The fresh profile2 launch encountered CUA's explicit locked-Mac prerequisite
+before any UI action. The coordinator requested unlock; no response was inferred.
+The implementer stopped that exact stage-zero course with signal15 after767.34s;
+the application and supervisor stopped and the image detached. This interrupted
+command exited8, not a live-feature or normal-lifecycle pass. Exactly four
+historic journal records remain byte-identical. The launch approval was consumed;
+after explicit unlock, a new one-use approval is required for the same verified
+capsule. [Actual course evidence](../_checkpoints/BPR-0575/m4-r3-live-attempt.json)
+retains the no-POST observation. Actual fallback, collaborator continuity and
+independent acceptance remain pending.
