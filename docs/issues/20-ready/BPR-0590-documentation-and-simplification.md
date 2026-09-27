@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0590"
 title: "Update product/architecture/operator documentation and simplify the implementation"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0588","BPR-0589"]
 milestone: "Post-Pack v2"
