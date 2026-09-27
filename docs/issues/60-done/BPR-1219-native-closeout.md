@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1219"
 title: "Qualify structured diagnostics and reconcile RFC acceptance"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1218"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Prior native logging/lifecycle/package evidence retained at its exact revisions; revised UI passes Mac public/Qt/native inspection, Linux 2/2 at 0fb249a2 and Windows changed public courses at 41cce4ba. Tour serializer Mac storage passes; optional Windows tour-storage target has a pre-existing missing platform include and is not a pass. Exact results and package limits: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC2","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Original files accepted at cursor23, decision 413e836b-5898-4aeb-a48c-43b21595d54b at source7ab11993. Revised controls/export are protected at cursor31, source0fb249a2, SHA256 9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186; two actual new human verdicts required. No live sign-in."}},{"criterion":"AC3","outcome":"pending","revision":"41cce4bae80542a56fa842e8c98f00ffb9d9d57d","evidence":{"kind":"observation","detail":"Full criteria reconciled in BPR-0601; BPR-0603 and RFC/index remain open. Required new attended verdicts and accepted M5 main landing pending under mandate r2."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Native Mac17/17 plus later5/5+4/4, Windows12/12 plus revisedUI2/2, Linux15/15 plus revisedUI2/2; actual Mac ENOSPC and flushed-record crash recovery; pinned Quill13.0.0/unpublished universal package at189d24f9. Exact limits in docs/verification/RFC-BPR-0027.md. Fresh final public integration4/4 in46.21s; documentation gate passes."}},{"criterion":"AC2","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Human accepts in sessionc1565558e5fd3fdc277e62622604873b, handback34: controls87de7415-823d-4efc-b07c-03e9491fec5f and export1e877215-b39e-4e6c-a83e-fd338022d415 at source0fb249a2; original files413e836b-5898-4aeb-a48c-43b21595d54b at source7ab11993. Exact fingerprints/binary digests in ledger, rechecked. No pending verdicts or live sign-in."}},{"criterion":"AC3","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"All nine full product criteria reconciled as passing in BPR-0601; aggregate acceptance documented and accepted M5 source pushed on main ate2eec1d69340bbf0f519b6cae28eb462fb40966e. RFC/index truthfully remain Proposed pending canonical predecessors0020/0021/0022/0023. This records reconciliation and landing, not an ordering waiver or complete parent milestone."}}]
 ---
 
 # Qualify structured diagnostics and reconcile RFC acceptance
@@ -78,3 +78,8 @@ No product changes were needed. All nine RFC product criteria pass, and this
 card's native and attended obligations are complete. The accepted source lands
 on main before this card's final finish. BPR-0601 retains the separate canonical
 ordering hold; reconciliation does not claim a terminal RFC status.
+
+Accepted M5 source and decision evidence landed and pushed normally on main as
+`e2eec1d69340bbf0f519b6cae28eb462fb40966e`; local main and origin/main matched and the primary
+checkout was clean. The fresh public integration passed 4/4 and the documentation
+gate passed. Server PID 8289 is stopped; no further product decision is pending.
