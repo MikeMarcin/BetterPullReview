@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1009"
 title: "Apply magic-button edits through native undo and selection"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1008", "BPR-0994"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-19","milestone":"scoped-ai","acceptance":["AC43-03","AC43-04","AC43-05","AC43-06","AC43-10"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
