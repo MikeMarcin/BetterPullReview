@@ -36,7 +36,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 
 | Provisional card (within this pack) | Live card |
 |---|---|
-| PACK-BPR-0022-01 | [BPR-0561](../../issues/10-backlog/BPR-0561-plan-import-and-architecture.md) |
+| PACK-BPR-0022-01 | [BPR-0561](../../issues/20-ready/BPR-0561-plan-import-and-architecture.md) |
 | PACK-BPR-0022-02 | [BPR-0562](../../issues/10-backlog/BPR-0562-core-publication-placement-policy.md) |
 | PACK-BPR-0022-03 | [BPR-0563](../../issues/10-backlog/BPR-0563-exact-anchor-and-placement-observations.md) |
 | PACK-BPR-0022-04 | [BPR-0564](../../issues/10-backlog/BPR-0564-canonical-permalink-contract.md) |

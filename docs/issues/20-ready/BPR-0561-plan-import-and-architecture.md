@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0561"
 title: "Plan and import RFC-BPR-0022 semantic source-line comments"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: []
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
