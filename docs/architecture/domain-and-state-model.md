@@ -617,8 +617,10 @@ The host may persist user settings, but that does not make the core or database 
 
 ## Private review core foundation (RFC-BPR-0023 M3)
 
-`private_review.hpp` supplies deterministic local proposals; persistence and
-public application composition remain later RFC-0023 milestones. A durable
+`private_review.hpp` supplies deterministic local proposals. The M4 SQLite
+store, M6/M7 application hosts and M8 workbench composition now implement the
+durable path described in [review-ledger](review-ledger.md) and
+[review-round-trip](review-round-trip.md). A durable
 private reference carries profile, ledger incarnation, host, account,
 repository and pull request. New threads retain exact base/head and epoch
 anchors; migrated notes use an explicit legacy variant and cannot acquire the
@@ -672,8 +674,8 @@ Editing linked prose requires a matching successor link; ordinary draft
 commands retain the link. Separate existing Publish semantics remain in the
 draft reducer. Duplicate source-set/body/target evidence is advisory only.
 
-These are M3 core contracts, tested without Qt or effect ports. M4/M5/M6/M7
-must supply transaction durability, source-use claims, protocol mappings,
-encoded-input bounds and the public host paths before end-to-end feature
-acceptance. The raw selected-private run budget is 2 MiB; its separate 8 MiB
-encoded process-input limit belongs to the later invocation boundary.
+These M3 core contracts are tested without Qt or effect ports. The later store,
+invocation and public-path implementations retain the same authority boundaries.
+The raw selected-private run budget is 2 MiB; the invocation boundary separately
+admits at most 8 MiB of encoded process input. The local public paths have
+fixture evidence; designated GitHub publication readback remains pending.

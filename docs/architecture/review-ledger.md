@@ -179,8 +179,10 @@ The application `private_review_store_port` and SQLite factory expose bounded
 storage operations; they have no agent, GitHub or publish capability. The
 existing shared draft host remains the owner of draft decisions and fan-out.
 Its persistent value uses the existing `revisioned_review_draft`; restoring
-bytes does not restore runtime scope or publication grants. Host and UI wiring
-is tracked by RFC-BPR-0023's later milestones.
+bytes does not restore runtime scope or publication grants. The M6/M7 hosts and
+M8 workbench now use this authority. Local public-path evidence is recorded in
+[RFC-BPR-0023](../verification/RFC-BPR-0023.md); designated GitHub readback is
+still pending.
 
 | Tables | Durable responsibility |
 |---|---|
@@ -473,5 +475,7 @@ receipt and advances the exact publishing draft; later quota growth cannot
 strand that bounded receipt. The indexed logical-ID lookup returns one row;
 server-ID and draft/advisory views remain cursor-bounded pages. A failed local
 commit is repairable from the existing remote journal and exact server reread,
-without another POST. Purge and lineage retention still obey the existing
+including after a head advance, without another POST. Missing, ambiguous or
+mismatched viewer, PR, journal, body or comment identity leaves the join pending.
+Purge and lineage retention still obey the existing
 producer-quiescence and dependency rules.

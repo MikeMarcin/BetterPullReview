@@ -44,14 +44,14 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-06 | [BPR-0581](../../issues/60-done/BPR-0581-agent-runtime-provenance-capture.md) |
 | PACK-BPR-0022-07 | [BPR-0582](../../issues/60-done/BPR-0582-private-thread-application-host.md) |
 | PACK-BPR-0022-08 | [BPR-0583](../../issues/60-done/BPR-0583-squash-to-draft-host-and-durable-draft.md) |
-| PACK-BPR-0022-09 | [BPR-0584](../../issues/40-parked/BPR-0584-publication-lineage-correlation.md) |
+| PACK-BPR-0022-09 | [BPR-0584](../../issues/60-done/BPR-0584-publication-lineage-correlation.md) |
 | PACK-BPR-0022-10 | [BPR-0585](../../issues/60-done/BPR-0585-qt-private-shared-conversation-model.md) |
 | PACK-BPR-0022-11 | [BPR-0586](../../issues/60-done/BPR-0586-qt-composition-and-provenance-workflow.md) |
 | PACK-BPR-0022-12 | [BPR-0587](../../issues/60-done/BPR-0587-composition-root-public-path.md) |
 | PACK-BPR-0022-13 | [BPR-0588](../../issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0589](../../issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md) |
-| PACK-BPR-0022-15 | [BPR-0590](../../issues/10-backlog/BPR-0590-documentation-and-simplification.md) |
-| PACK-BPR-0022-16 | [BPR-0591](../../issues/10-backlog/BPR-0591-anchor-rfc-0023-verification.md) |
+| PACK-BPR-0022-15 | [BPR-0590](../../issues/60-done/BPR-0590-documentation-and-simplification.md) |
+| PACK-BPR-0022-16 | [BPR-0591](../../issues/30-in-progress/BPR-0591-anchor-rfc-0023-verification.md) |
 
 The allocator claimed BPR-0561 through BPR-0591 in one operation and advanced
 `docs/issues/NEXT_ID` from BPR-0561 to BPR-0592. No reservation or schema number

@@ -114,13 +114,14 @@ namespace bpr::application {
 		std::optional<std::string>                   ServerComment;
 		std::optional<std::string>                   ReconciledIdentity;
 		/// Version-two correlation; version-one rows retain unknown values.
-		std::string          IdempotencyKey  = { };
-		std::uint64_t        ReceiptReserve  = 0;
-		std::string          ActorNode       = { };
-		std::uint64_t        ActorDatabaseId = 0;
-		std::string          ActorLogin      = { };
-		std::string          Path            = { };
-		core::git_commit_oid AcceptedHead    = { };
+		std::string          IdempotencyKey                                       = { };
+		std::uint64_t        ReceiptReserve                                       = 0;
+		std::string          ActorNode                                            = { };
+		std::uint64_t        ActorDatabaseId                                      = 0;
+		std::string          ActorLogin                                           = { };
+		std::string          Path                                                 = { };
+		core::git_commit_oid AcceptedHead                                         = { };
+		auto                 operator<=>(const private_publication_record&) const = default;
 	};
 	struct private_publication_cursor
 	{

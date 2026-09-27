@@ -1,5 +1,14 @@
 # BetterPullReview Product Contract
 
+Private review conversations are local profile state. In the workbench's
+**Private history** panel, the reviewer can inspect immutable revisions and
+actor qualifications, select exact sources, and compose a local draft. Publishing
+is a separate action through the existing review editor. Local deletion does
+not remove GitHub comments. The [operator workflow](../ux/private-review-workflow.md)
+explains stale anchors, provenance, split targets, and public-body behavior;
+the [RFC-BPR-0023 ledger](../verification/RFC-BPR-0023.md) records the remaining
+designated live-publication acceptance gap.
+
 Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
 
 ## Definition

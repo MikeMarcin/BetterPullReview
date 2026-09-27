@@ -20,6 +20,7 @@ namespace bpr::qt {
 	private:
 		bool                                        eventFilter(QObject*, QEvent*) override;
 		void                                        dispatch(application::private_composition_action);
+		void                                        update_accept();
 		application::private_composition_dispatch   Dispatch;
 		application::private_composition_projection Shown;
 		QComboBox*                                  Mode;

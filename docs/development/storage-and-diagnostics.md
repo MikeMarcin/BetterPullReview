@@ -59,6 +59,19 @@ recovery refuses anything whose recorded identity it cannot prove.
 
 ## Inventory and retention
 
+The profile's `review-ledger.sqlite3` stores RFC-BPR-0023 private threads,
+immutable turns, run provenance, exact composition sources, local drafts and
+publication lineage. Schema 7 migrates supported v1–v6 ledgers atomically;
+old notes retain their bytes and become `legacy_unknown` revisions. Pages and
+scope quotas are bounded; an oversized admission refuses the whole transaction.
+The [ledger contract](../architecture/review-ledger.md) lists exact page, body
+and scope limits. A killed writer leaves the last committed state; remote success
+with a failed local lineage commit is reconciled from the existing request and
+server truth without a second POST. Profile purge removes this private store
+through the admitted inventory, not a GitHub comment or shared updater state.
+Diagnostic output uses identities and digests rather than private bodies or
+credentials. See the [operator workflow](../ux/private-review-workflow.md).
+
 | Data | Location relative to the admitted profile root | Removal behavior |
 |---|---|---|
 | Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `review-tours.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |

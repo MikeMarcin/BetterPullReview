@@ -213,6 +213,10 @@ boundaries; this leaf does not claim independence for its own audit.
 
 ## Documentation impact ledger
 
+M10 implementation reconciliation is recorded in the
+[verification ledger](RFC-BPR-0023.md#bpr-0590-documentation-and-simplification).
+The rows below retain their M1 planning dispositions as historical input.
+
 | Concern / owning document | M1 disposition | Implementation owner |
 |---|---|---|
 | Private authority, schema, migrations, IDs, backup/purge: `docs/architecture/review-ledger.md` | Planning only; current shipped notes/CAS facts unchanged. | BPR-0580/0590. |

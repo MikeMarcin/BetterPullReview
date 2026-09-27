@@ -49,6 +49,7 @@ namespace bpr::adapters::github {
 			std::stop_token                                      aStop)
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token) -> application::review_mutation_submission override;
+		void               repair_pending_publications(std::stop_token) override;
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override;
 

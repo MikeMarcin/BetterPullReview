@@ -1,6 +1,65 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M9 local work integrated; external publication evidence and final independent review pending**
+Status: **implementation authorized under mandate r2; M1–M9 local work integrated; designated publication and independent server read supplied; final independent review pending**
+
+### M10 preliminary finding repairs
+
+An early read-only review of the M10 candidate found four changed-surface
+issues. The Qt agent transport now retains the selected-source claim until
+queued process input has drained, and stops the child on timeout, cancellation
+or write failure. The composition dialog disables Accept as Draft while its
+body differs from the saved candidate. A profile-shared recovery registry
+reconciles admitted private runs once after restart on the serialized store
+lane, without interrupting an active sibling window. The live mutation host
+queues a read-only pending-lineage pass at construction and after a pending
+terminal; it joins an exact historical comment even if the PR head advanced,
+using the original journal child and private publication record. It cannot
+admit or resend a publication. Focused agent, Qt, application and GitHub
+contract checks are recorded in the M10 handoff. These repairs do not count as
+the owner's requested final independent review, which follows the live course.
+
+### BPR-0590 documentation and simplification
+
+M10 updated the operator path in
+[`docs/ux/private-review-workflow.md`](../ux/private-review-workflow.md) and
+linked it from the README and product contract. It covers Private history,
+qualified model/effort facts, exact sources, three composition modes, target
+split, stale/unplaceable anchors, local Accept as Draft, separate Publish,
+public text, deletion, and the pending BPR-0584 live readback. The owning
+architecture documents now describe implemented core, host, SQLite/protocol
+ports and Qt wiring: `domain-and-state-model.md`, `review-ledger.md`,
+`review-round-trip.md`, `ai-agent-boundary.md`, and `system-architecture.md`.
+`storage-and-diagnostics.md` records schema/migration, quota, crash and purge
+behavior; `build-and-test.md` and `fixture-catalog.md` name focused selectors
+and the secret-free fixture boundary.
+
+Impact reconciliation: GitHub and GHES use the existing authenticated review
+authority and the explicit Publish path; the mutation/readback proof is still
+pending BPR-0584. Acting identity and native/file body semantics are documented
+in `review-round-trip.md` and the operator guide. The Git cache, credential
+vault, network isolation, and packaging/install graph have no new RFC-0023
+owner or artifact; M8/M9 public-path and canary records support no-impact for
+those surfaces. `review-ledger.md` and `storage-and-diagnostics.md` own the
+new private store, migration, backup/purge and privacy implications. M9 render
+and Qt records cover accessibility, themes, scales and native macOS behavior;
+other native platform parity remains unclaimed. The M9 bounded-page and memory
+record covers performance limits. The operator guide states local deletion
+cannot remove a server comment.
+
+The conservative cleanup in `private_composition_editor.cpp` expands a dense
+button factory and reuses the matched parent pointer in palette handling. It
+changes no policy, serialized form, public text or Qt action. The M9 audit found
+the policy in core, effect access in application hosts, one durable store
+authority and incremental Qt projection; no duplicate policy owner, broad
+service access, dual authoritative representation, unnecessary serialization
+or whole-model reset was found to remove. Focused post-cleanup checks and
+documentation gate results: `cmake --build --preset dev --target
+test_private_review_panel` PASS; `ctest --test-dir build/dev -R
+'^qt_private_review_panel$' --output-on-failure` 1/1 PASS;
+`python3 scripts/verify_documentation.py --root .` DOCUMENTATION_OK;
+`python3 tests/scripts/verify_documentation_tests.py` 64/64 PASS;
+`git diff --check` PASS. M9 render bytes and their SHA-256 manifest were not
+changed by this documentation and Qt refactor.
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -88,12 +147,12 @@ their current direct surfaces and evidence owners; feature checks have not run.
 | AC-09 | `Squash to Draft` creates only local composition/draft state. Tests prove zero GitHub mutation, zero resolve operation, and zero review submission at this step. | Local pass | 891735401 |
 | AC-10 | Sources remain present and traceable after composition. Multiple exact targets require explicit target selection or Split into Drafts; the product does not guess. | Local pass | 891735401 |
 | AC-11 | Accepting a candidate records the exact composition revision on a durable RFC-BPR-0008 draft and survives restart. | Local pass | 891735401 |
-| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Local pass; external read pending | 891735401 |
-| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Local pass; external read pending | 891735401 |
+| AC-12 | Publishing requires a separate explicit gesture and traverses the existing target/head/acting-identity/idempotency/safe-target mutation path. | Local pass; [designated live pass](RFC-BPR-0023-live-publication.md) | 891735401 |
+| AC-13 | A successful publication records local lineage to the returned server comment and reconciled server state. The GitHub body contains no hidden or mandatory BetterPullReview/AI marker and appears under the authenticated reviewer's identity. | Local pass; [designated live pass](RFC-BPR-0023-live-publication.md) | 891735401 |
 | AC-14 | Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | Local pass | 891735401 |
 | AC-15 | Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | Local pass | 891735401 |
 | AC-16 | Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | Local pass | 891735401 |
-| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local pass; external read pending | 891735401 |
+| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local deletion/crash pass; [independent live server read](RFC-BPR-0023-live-publication.md) | 891735401 |
 | AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Local pass; final review pending | 80d4eb4da |
 
 The producing commits in this table identify the M9 evidence records, not the
@@ -1647,3 +1706,24 @@ memory/database measurements and documentation tests were run on the same M9
 source before the conflict-free merge and are reused. No push, PR, live
 GitHub mutation or release action occurred. BPR-0584 and external M9 exit 3
 remain pending; M10 local work follows the checked sequencing amendment.
+
+## Designated publication and independent readback — 2026-09-27
+
+The M9 statements above describe its earlier local integration state. The
+owner subsequently designated `MikeMarcin/BPR-Test` as a safe live target.
+The [bounded live course](RFC-BPR-0023-live-publication.md) exercised the
+signed tests-disabled application, private revision 16, reviewer-authored
+composition 18, local draft 20 and a separate Publish gesture against PR 1
+at its verified head. The opt-in designated CTest passed 1/1, and the mount
+was removed after normal app shutdown.
+
+The independent GitHub API read returned review comment `4116400082` / node
+`PRRC_kwDOTyvof871W0fS`, by MikeMarcin, on the exact right-side line 1 with
+the exact reviewer prose. A read-only private ledger lookup found publication
+21 joined to draft 20 and that same server node. The baseline contained two
+comments; the result contained three. No publication retry occurred. This
+supplies BPR-0584's two external criteria and the designated/public-read
+component of AC-12/13/17. The deterministic deletion/crash and remote-success
+local-failure recovery checks remain the owning evidence for those branches.
+M9 external exit 3 is now satisfied. The final independent M10 review and
+RFC/board closeout are still pending at this point in the ledger.

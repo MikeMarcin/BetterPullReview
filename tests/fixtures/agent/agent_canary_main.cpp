@@ -646,6 +646,9 @@ auto main(int argc, char** argv) -> int
 		std::cerr << std::string(64U * 1024U, 'e');
 		std::cerr.flush();
 	}
+	if (argument_after(argc, argv, "--delay-input-ms") == "400") {
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 400 });
+	}
 	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
 	// Deliberately not `write_partial` and deliberately ahead of

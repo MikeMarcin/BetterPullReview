@@ -1,5 +1,15 @@
 # Build and Test
 
+For RFC-BPR-0023, run the focused `qt_private_review_panel`, private store/host
+rows, and `application_private_review_native`, `_file`, and `_retry` public
+paths through CTest after building the dev preset. The public-path courses use
+local safe fixtures and canary inputs; do not put credentials or private PR
+contents in fixture logs. Run `python3 scripts/verify_documentation.py --root .`
+and `python3 tests/scripts/verify_documentation_tests.py` with Python 3.10+
+before closeout. [The verification ledger](../verification/RFC-BPR-0023.md)
+contains the exact selectors, measured bounds, render digest manifest and
+remaining designated live-server readback requirement.
+
 ## Prerequisites
 
 - CMake 4.4.2

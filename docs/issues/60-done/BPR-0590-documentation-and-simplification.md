@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0590"
 title: "Update product/architecture/operator documentation and simplify the implementation"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0588","BPR-0589"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"Documentation impacts","outcome":"pass","revision":"eb7d72b61","evidence":{"kind":"artifact","detail":"RFC documentation-impact paths updated and reconciled; no-impact entries have M8/M9 evidence and open limits; docs/verification/RFC-BPR-0023.md"}},{"criterion":"Operator workflow","outcome":"pass","revision":"eb7d72b61","evidence":{"kind":"artifact","detail":"Private history, provenance qualification, composition, split, draft, publication, stale states and deletion are documented; docs/ux/private-review-workflow.md"}},{"criterion":"Developer boundaries","outcome":"pass","revision":"eb7d72b61","evidence":{"kind":"artifact","detail":"Core/host/Qt, store/protocol ports, async identity, schema, quotas, crash recovery and focused checks are documented; docs/architecture/system-architecture.md"}},{"criterion":"Conservative simplification","outcome":"pass","revision":"eb7d72b61","evidence":{"kind":"artifact","detail":"Qt composition dialog factory and parent palette flow simplified without behavior change; focused rebuild and panel row pass; src/adapters/qt/src/private_composition_editor.cpp"}},{"criterion":"Verification","outcome":"pass","revision":"eb7d72b61","evidence":{"kind":"artifact","detail":"Documentation gate, 64 documentation tests, scoped board validator, diff check, Qt build and 1/1 focused test pass; M9 render digests unchanged; docs/verification/RFC-BPR-0023.md"}}]
 ---
 
 # Update product/architecture/operator documentation and simplify the implementation

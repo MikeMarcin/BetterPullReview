@@ -75,9 +75,10 @@ namespace bpr::app {
 		bool                                                        OpenDraft              = false;
 		bool                                                        Refresh                = true;
 	};
-	private_review_workflow::private_review_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::private_review_panel& aPanel, QWidget* aParent, draft_sink aDrafts, run_sink aLaunch)
+	private_review_workflow::private_review_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, private_review_recovery_registry& aRecovery, qt::private_review_panel& aPanel, QWidget* aParent, draft_sink aDrafts, run_sink aLaunch)
 		: Effects(aEffects)
 		, Decisions(aDecisions)
+		, Recovery(aRecovery)
 		, Panel(aPanel)
 		, Editor(new qt::private_composition_editor(aParent))
 		, Drafts(std::move(aDrafts))
@@ -107,11 +108,32 @@ namespace bpr::app {
 					if (store) {
 						auto frontier = (*store)->frontier();
 						if (frontier) {
-							opened                = std::make_shared<context>();
-							opened->Configuration = config;
-							opened->Scope         = frontier->Scope;
-							opened->Store         = std::move(*store);
-							Contexts.push_back(opened);
+							auto recovered = std::ranges::find(Recovery.Scopes, frontier->Scope) != Recovery.Scopes.end();
+							if (!recovered) {
+								application::private_review_application_host host(**store);
+								std::optional<core::agent_run_id>            after;
+								for (;;) {
+									auto page = host.recover(after);
+									if (!page) {
+										break;
+									}
+									if (!page->Next) {
+										recovered = true;
+										break;
+									}
+									after = page->Next;
+								}
+								if (recovered) {
+									Recovery.Scopes.push_back(frontier->Scope);
+								}
+							}
+							if (recovered) {
+								opened                = std::make_shared<context>();
+								opened->Configuration = config;
+								opened->Scope         = frontier->Scope;
+								opened->Store         = std::move(*store);
+								Contexts.push_back(opened);
+							}
 						}
 					}
 				}
@@ -795,5 +817,20 @@ namespace bpr::app {
 		const auto lock    = std::scoped_lock{ Gate };
 		auto       context = publication_context(aRequest);
 		return context && application::private_publication_application_host(*context->Store).complete(aRequest, aLogical, aWire, aReceipt);
+	}
+	auto private_review_workflow::pending(const core::review_mutation_target& aTarget, core::github_account_id aActor) -> std::vector<application::private_publication_record>
+	{
+		const auto lock = std::scoped_lock{ Gate };
+		if (!Current || Current->Scope.Host != aTarget.Host || Current->Scope.Repository != aTarget.Repository
+			|| Current->Scope.PullRequest != aTarget.PullRequest || Current->Scope.Account != aActor) {
+			return { };
+		}
+		return application::private_publication_application_host(*Current->Store).pending(aTarget, aActor);
+	}
+	auto private_review_workflow::complete_observed(const application::private_publication_record& aRecord, std::string_view aWire, const application::review_mutation_receipt& aReceipt) -> bool
+	{
+		const auto lock    = std::scoped_lock{ Gate };
+		auto       context = find(aRecord.Target.Binding.Scope);
+		return context && application::private_publication_application_host(*context->Store).complete_observed(aRecord, aWire, aReceipt);
 	}
 }

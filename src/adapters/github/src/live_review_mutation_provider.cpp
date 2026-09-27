@@ -65,6 +65,10 @@ namespace bpr::adapters::github {
 	{
 		return Session.reconcile_publication(aRequest, aStop);
 	}
+	void live_review_mutation_provider::repair_pending_publications(std::stop_token aStop)
+	{
+		Session.repair_pending_publications(aStop);
+	}
 	auto live_review_mutation_provider::capabilities() const
 		-> application::review_provider_capabilities
 	{

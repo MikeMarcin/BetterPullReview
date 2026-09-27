@@ -316,6 +316,10 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	[[nodiscard]] auto compile_review_comment_collection_request(
+		const application::review_mutation_target_binding& aTarget,
+		application::github_server_contract                aServer)
+		-> review_mutation_request_result;
 	/// \brief Checks wire consistency with the supplied semantic request and server.
 	///
 	/// \details Recompiles and compares the complete canonical request. This
@@ -466,6 +470,7 @@ namespace bpr::adapters::github::detail {
 			-> application::review_mutation_submission;
 		/// \brief Reads an existing logical journal and server identity; has no admission/POST branch.
 		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token = { }) -> application::review_mutation_submission;
+		void               repair_pending_publications(std::stop_token = { });
 		/// \brief [[BPR-0657]]. Resolves or unresolves one thread through the
 		/// leased transport; idempotent on the server, so no recovery record.
 		[[nodiscard]] auto resolve_thread(
