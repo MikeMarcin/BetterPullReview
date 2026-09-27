@@ -46,7 +46,7 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-08 | [BPR-0583](../../issues/60-done/BPR-0583-squash-to-draft-host-and-durable-draft.md) |
 | PACK-BPR-0022-09 | [BPR-0584](../../issues/40-parked/BPR-0584-publication-lineage-correlation.md) |
 | PACK-BPR-0022-10 | [BPR-0585](../../issues/60-done/BPR-0585-qt-private-shared-conversation-model.md) |
-| PACK-BPR-0022-11 | [BPR-0586](../../issues/20-ready/BPR-0586-qt-composition-and-provenance-workflow.md) |
+| PACK-BPR-0022-11 | [BPR-0586](../../issues/30-in-progress/BPR-0586-qt-composition-and-provenance-workflow.md) |
 | PACK-BPR-0022-12 | [BPR-0587](../../issues/10-backlog/BPR-0587-composition-root-public-path.md) |
 | PACK-BPR-0022-13 | [BPR-0588](../../issues/10-backlog/BPR-0588-focused-security-migration-crash-and-performance-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0589](../../issues/10-backlog/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md) |

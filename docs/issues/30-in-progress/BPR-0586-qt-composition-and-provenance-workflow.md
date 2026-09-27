@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0586"
 title: "Implement exact source selection, composition workspace, and separate draft/publish controls in Qt"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0583","BPR-0585"]
 milestone: "Post-Pack v2"
