@@ -1,0 +1,130 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m3",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "diagnostic-controls",
+    "definition_fingerprint": "sha256:45107147fbb5574a61c4cc3f7362d36ad59d0cc649151ef57a875b242baaa2d9",
+    "obligations": [
+      {
+        "id": "BPR-1217:*",
+        "source": "BPR-1217",
+        "selector": null,
+        "source_fingerprint": "sha256:be6e1bdb5bcfec55f639c26a3a709519db821538a63a1cb5529285f46d16c28f"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8a1d060cda019111433d68ae05f7db40cdd4c9986c6bad9abac10c33364636cf",
+    "exit_criteria": [
+      {
+        "id": "diagnostic-controls:exit:1",
+        "text": "AC1: Reach and persist controls safely across restart and invalid preferences through the shipped UI."
+      },
+      {
+        "id": "diagnostic-controls:exit:2",
+        "text": "AC2: Enforce detail/privacy combinations, typed identity labels, no forbidden material, bounded priority/loss and ring behavior."
+      },
+      {
+        "id": "diagnostic-controls:exit:3",
+        "text": "AC3: Verify mode/Off/Clear/privacy/sign-out barriers and profile/window scope."
+      },
+      {
+        "id": "diagnostic-controls:exit:4",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:d7d13e69db392deacfea6857f7d513dab1fb366f6326da98933e85e65b4c7f61",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "diagnostic-controls",
+  "disposition": "milestone-complete",
+  "candidate_revision": "db4acde09b6346a3f88a251b2aeea6014bc7e0e3",
+  "handoff_ref": "docs/issues/10-backlog/BPR-0601-close-rfc-0027.md#m3-checkpoint",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md",
+    "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+    "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1217:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+        "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-controls:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+        "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-controls:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+        "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-controls:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+        "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+      ]
+    },
+    {
+      "id": "diagnostic-controls:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md",
+        "docs/issues/60-done/BPR-1217-diagnostic-controls.md",
+        "git:db4acde09b6346a3f88a251b2aeea6014bc7e0e3:main-and-origin/main"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "diagnostic-export",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1217 accepted and pushed on main; fresh implementer owns BPR-1218. Full-RFC rich export and native/human obligations remain open."
+  },
+  "ownership": "quiescent"
+}

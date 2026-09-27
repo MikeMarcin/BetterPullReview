@@ -310,4 +310,11 @@ ctest --preset dev --output-on-failure -R '^(diagnostic_controls|application_dia
 
 The merged documentation gate passed. All task-owned build/test/tidy commands
 are complete; no source edits remain after that candidate. BPR-1217's three
-criteria are accepted, pending the required main landing and final checkpoint.
+criteria are accepted. The main landing is recorded below.
+
+M3 accepted and pushed on main as `db4acde09b6346a3f88a251b2aeea6014bc7e0e3`.
+BPR-1217 is Done. Source behavior is `75700f4d`; tested merged composition is
+`6089117d`. Main/origin/main matched after the normal push. This final handoff
+contains documentation only and releases the sole M3 writer. All owned commands
+are complete; no review server/session/protected candidate remains. Next: fresh
+BPR-1218 / diagnostic-export, with full native and human gaps preserved.

@@ -135,7 +135,7 @@ binds every M2 obligation and exit to that landed candidate. Next eligible scope
 BPR-1217 / `diagnostic-controls` for a fresh implementer. Preserve mandate r2,
 M1/M2 evidence and the full native/human criteria.
 
-### M3 checkpoint — accepted, landing pending
+### M3 checkpoint — accepted and landed
 
 Mandate r2; assignment `/root/rfc0027_m3`, BPR-1217 / `diagnostic-controls`.
 Source candidate `75700f4dd0ce88f86e59940cddf690a6a3e2f45b`; merged candidate
@@ -154,11 +154,20 @@ Affected backend/provider gates pass 9/9 and public composition 3/3, all 26 C++
 files pass format, all 12 product units have passing tidy, documentation and its
 64 tests pass. The ledger preserves the initial failures, fixes and earlier long
 profile/lifecycle/180-second age checks. The merged-source rebuild passed and focused
-public integration passed 5/5 in 35.90 seconds at `6089117d`. BPR-1217 is accepted;
-main push and the final completion observation remain.
+public integration passed 5/5 in 35.90 seconds at `6089117d`. BPR-1217 is Done; source/acceptance landed and pushed as
+`db4acde09b6346a3f88a251b2aeea6014bc7e0e3`. Main and origin/main matched after push.
 
-Current writer remains `/root/rfc0027_m3`; all task-owned build/test/tidy commands
-have completed. No review URL/session/event cursor, protected
+This checkpoint releases `/root/rfc0027_m3` writer ownership. All task-owned
+build/test/tidy commands have completed; process inspection found no remaining
+owned test/build command. No review URL/session/event cursor, protected
 candidate or server exists. Required full-RFC rich export and native/human
 acceptance remain open. Next after accepted main landing: a fresh implementer
 for BPR-1218 / `diagnostic-export`, preserving mandate r2 and all prior evidence.
+
+The [completion observation](../../rfcs/plans/rfc-bpr-0027-advanced/m3-observation.json)
+binds every M3 obligation and exit to that main landing. The appended handoff
+commit changes documentation only. Reuse this clean checkout and offline build
+cache, bind `diagnostic-export` with M1/M2/M3 accepted, and promote/claim BPR-1218.
+The new recent-context/control ports are available to M4; current metadata
+preview still reads files only and excludes all prose/identities. No source
+writer, command, review server or protected candidate is transferred.
