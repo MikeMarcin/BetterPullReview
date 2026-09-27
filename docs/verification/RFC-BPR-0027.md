@@ -449,7 +449,7 @@ Source corrections are `92c983615d1ac23943a34f29327c2a78412c1c4c`,
 `189d24f937d16cfedba7990aff3837bcc1a2c5b0`, and
 `7ab119933439878d858100410083080ab4d1ea7b`. The full RFC is **not accepted**:
 three attended judgments remain pending. The reconciled nine-criterion map is
-[BPR-0601](../issues/10-backlog/BPR-0601-close-rfc-0027.md).
+[BPR-0601](../issues/50-blocked/BPR-0601-close-rfc-0027.md).
 
 ### Corrections and direct failure evidence
 
@@ -831,3 +831,17 @@ nor schema changed. The attended-review `stop` command returned `stopped: true`
 after decision intake. Session 64739/PID 8289 is no longer transferred; copied
 apps, verdicts and protections remain retained for inspection. The coordinator's
 watch 47764 completed with exit 0. All final build/test commands have completed.
+
+
+### Main landing and final board state
+
+The accepted M5 implementation and consumed human evidence landed/pushed as
+`e2eec1d69340bbf0f519b6cae28eb462fb40966e`; main and origin/main matched, and the
+primary checkout remained clean. BPR-1219 finished at `e42cc7e9` and BPR-0603 at
+`f4545095`. The final bookkeeping lands separately without changing any product
+input. BPR-0601 alone remains Blocked on `canonical-rfc-order`; its nine product
+records pass and its separate sequencing record remains pending. RFC/index stay
+Proposed. The authored parent milestone is not falsely marked complete: its
+remaining BPR-0601/RFC terminal obligation is preserved in the final observation.
+All task-owned commands and the attended server are stopped. Accepted copied apps
+and local evidence remain retained. No release publication or live service ran.

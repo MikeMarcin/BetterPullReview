@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0601"
 title: "Verify and close RFC-BPR-0027"
-status: "Backlog"
+status: "Blocked"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-0600","BPR-0602","BPR-0603","BPR-1215","BPR-1216","BPR-1217","BPR-1218","BPR-1219"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0027"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
+blocked_by: "canonical-rfc-order"
+acceptance: [{"criterion":"AC-01: Standard/Verbose, independent identifying-detail privacy, Off, Open logs, Clear and export controls are reachable while signed out; accepted settings survive restart without increasing disclosure on invalid data.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"PASS: automated controls/restart/invalid-value courses pass; files human Accept at cursor23 and revised controls Accept at cursor34; producing revisions `75700f4d`, `92c98361`, `0fb249a2`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-02: A composed failed GitHub sign-in yields a correlated local log with useful sanitized unknown GraphQL error detail, readable directly without UI copying, while UI wording and session/retry authority remain unchanged.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Composed unfamiliar-error failure reaches correlated JSONL; useful classified prose, unchanged UI failure and explicit retry pass; fixture only; producing revisions `92c98361`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-03: Forbidden credentials and review content never reach queues, sinks, recent context, exports or fallback output under any detail/privacy combination, including malformed provider data and sanitizer failure.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"M1\u2013M4 canary, fixed-capacity encoding, queue/ring/export and fail-closed parser checks pass within the exercised inputs; producing revisions `ac64e5ad`, `75700f4d`, `3fd1224e`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-04: Standard and Verbose retain their declared distinct detail; privacy changes, Off, Clear and sign-out honor acknowledged barriers and do not retain hidden transient context.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"M3 barriers pass; M5 fixes deferred refresh and stamps captured epoch generation; native verification recorded below; producing revisions `75700f4d`, `92c98361`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-05: Anonymized and identifying-detail exports use the exact previewed scope, preserve useful event joins, handle malformed records safely, disclose irreversible capture-time redaction and never upload automatically.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"PASS: frozen rich exports and direct Help preview course pass; revised export human Accept at cursor34; producing revisions `3fd1224e`, `189d24f9`, `0fb249a2`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-06: Event, queue, ring, file, aggregate and age bounds hold under overload, error storms, concurrent sessions, disk-full and rotation failures without blocking core decisions or Sign out.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"M2 bounds/rotation/concurrency and M5 actual isolated macOS ENOSPC pass; native Windows courses pass; producing revisions `3381a02c`, `92c98361`, `7ab11993`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-07: Startup, cancellation, shutdown, partial-tail recovery and logger failure produce truthful availability/loss status without claiming unflushed events survived a crash.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Startup/cancel/shutdown and partial-tail checks pass; native killed-process restart preserves only explicitly flushed records; producing revisions `3381a02c`, `92c98361`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-08: Core/host/adapter/Qt boundaries, explicit Quill lifetime, safe file ownership and scope separation hold through the shipped composition, with no raw logging bypass in protected transports.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Architecture and composed lifetime/ownership checks pass; M5 repairs tests-disabled state visibility and Windows active-file sharing; producing revisions `189d24f9`, `7ab11993`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"AC-09: The selected Quill dependency is pinned with license/provenance and packaging evidence; each claimed platform has native file, lifecycle and diagnostic-control evidence.","outcome":"pass","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"PASS: pinned Quill/package proof, native macOS/Windows/Linux developer courses and all three human judgments accepted; release/package limits retained below; producing revisions `189d24f9`, `7ab11993`; exact commands and limitations: docs/verification/RFC-BPR-0027.md."}},{"criterion":"Canonical sequential RFC closeout","outcome":"pending","revision":"e2eec1d69340bbf0f519b6cae28eb462fb40966e","evidence":{"kind":"observation","detail":"Current AGENTS.md/index require sequential closeout; RFC0020/0021/0023 Deferred and RFC0022 Proposed. No explicit mandate r2 sequencing waiver. All nine product criteria accepted and M5 implementation pushed to main."}}]
 ---
 
 # Verify and close RFC-BPR-0027
@@ -377,3 +379,21 @@ dependencies 0001/0002 are Auto-Verified. Mandate r2 authorizes implementation
 and main landing, not an inferred sequencing waiver. Next action: the coordinator
 may request an explicit ordering amendment, or resume this same closeout after
 those predecessors. No new human product verdict or unchanged broad rerun is due.
+
+
+Accepted implementation and exact human decisions landed/pushed on main at
+`e2eec1d69340bbf0f519b6cae28eb462fb40966e`. BPR-1219 is Done at `e42cc7e9`;
+BPR-0603 is Done at `f4545095`. The primary checkout was clean and main/origin
+matched immediately after the non-force push. Final public integration passed
+4/4 in 46.21 seconds at source-identical `f0104f80`; documentation and diff
+hygiene passed. Later changes are acceptance/card/link bookkeeping only.
+
+All owned build, test, board and push commands completed before handoff. The
+attended server was stopped through its companion CLI; PID 8289 is absent.
+Coordinator watcher 47764 exited 0. No source writer, command or server is
+transferred. Accepted copied apps, local native/package evidence and recorded
+protections remain intact. This checkpoint releases `/root/rfc0027_closeout`.
+The final binding and blocked observation in the adopted plan directory preserve
+all obligations. Next action remains a specific ordering amendment or completion
+of the four earlier RFCs, followed by BPR-0601/RFC/index closeout; no product
+rebuild is required absent a relevant change.

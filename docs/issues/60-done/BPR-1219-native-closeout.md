@@ -26,7 +26,7 @@ Mandate r2 (2026-09-26): implement the full advanced phase and land each accepte
 
 Final source `7ab119933439878d858100410083080ab4d1ea7b`.
 [Verification](../../verification/RFC-BPR-0027.md) and
-[durable checkpoint](../10-backlog/BPR-0601-close-rfc-0027.md#m5-checkpoint--human-pending-writer-released)
+[durable checkpoint](../50-blocked/BPR-0601-close-rfc-0027.md#m5-checkpoint--human-pending-writer-released)
 bind the actual native/course/package outcomes and preserve all limits.
 Three attended criteria are prepared in session
 `c1565558e5fd3fdc277e62622604873b`, cursor 19. No verdict supplied; M5 and the
@@ -59,7 +59,7 @@ not overwritten; replacement candidates use a separate copy.
 
 UI revision `e0a870b3`, merged main candidate `0fb249a2`, and separate MSVC
 serializer comparison correction `41cce4ba` are committed. The
-[latest checkpoint](../10-backlog/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released)
+[latest checkpoint](../50-blocked/BPR-0601-close-rfc-0027.md#m5-revision-checkpoint--human-pending-writer-released)
 records exact native results, the two revised protected criteria at cursor31,
 original accepted files identity, copied apps, server ownership and next action.
 Only the two replacement controls/export verdicts are requested. The original
