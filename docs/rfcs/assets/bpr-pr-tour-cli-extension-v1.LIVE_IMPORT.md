@@ -49,3 +49,15 @@ As in the review-tour import, the plan helper needs live issue IDs, so [import-p
 ## Validation and exclusions
 
 The source's `python3 -B scripts/verify_pack.py` passed (3 RFCs, 20 cards, 6 milestones, 32 requirements, 62 checked payload files), both on the download and on the retained copy, and `shasum -a 256 -c SHA256SUMS` reported every file OK. The plan helper checked and adopted the derived plan (coverage complete; semantic coverage unknown). `.DS_Store` and `__pycache__` were excluded from the retained copy (none were present). No application code was changed, nothing was built or tested, no skill was installed, and no GitHub service was contacted. All 32 acceptance rows remain not run.
+
+## Execution intake, 2026-09-27
+
+BPR-1052 reconciles this historical import against execution base
+`89f23eeece835ecafb9f8752b524644b22fbf281`. The
+[execution ledger](../../verification/RFC-BPR-0044-0046.md) and
+[source audit](../../verification/RFC-BPR-0044-0046.intake-audit.json) record the
+now-implemented parent services, unchanged mappings and exact support links.
+Parent RFCs 0039–0043 are Auto-Verified under their own owner r2 amendment;
+BPR-1222–1226 retain unobserved external requirements. The import-time facts
+above remain historical. Intake neither resets the parent plan nor earns any
+extension product acceptance.

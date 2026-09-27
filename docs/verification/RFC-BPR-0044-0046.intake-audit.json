@@ -1,0 +1,235 @@
+{
+  "assignment": "bpr-pr-tour-cli-extension-v1/intake",
+  "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "observed_revision": "67615d221a21619bb05f085f83b10c69d8c11379",
+  "checksums": {
+    "bpr-pr-tour-cli-extension-v1": 62,
+    "bpr-review-tour-v1": 82
+  },
+  "alias_mapping": {
+    "PACK-PRTOUR-01": "BPR-1052",
+    "PACK-PRTOUR-02": "BPR-1053",
+    "PACK-PRTOUR-03": "BPR-1054",
+    "PACK-PRTOUR-04": "BPR-1055",
+    "PACK-PRTOUR-05": "BPR-1056",
+    "PACK-PRTOUR-06": "BPR-1057",
+    "PACK-PRTOUR-07": "BPR-1058",
+    "PACK-PRTOUR-08": "BPR-1059",
+    "PACK-PRTOUR-09": "BPR-1060",
+    "PACK-PRTOUR-10": "BPR-1061",
+    "PACK-PRTOUR-11": "BPR-1062",
+    "PACK-PRTOUR-12": "BPR-1063",
+    "PACK-PRTOUR-13": "BPR-1064",
+    "PACK-PRTOUR-14": "BPR-1065",
+    "PACK-PRTOUR-15": "BPR-1066",
+    "PACK-PRTOUR-16": "BPR-1067",
+    "PACK-PRTOUR-17": "BPR-1068",
+    "PACK-PRTOUR-18": "BPR-1069",
+    "PACK-PRTOUR-19": "BPR-1070",
+    "PACK-PRTOUR-20": "BPR-1071"
+  },
+  "plan_equivalence": "all six authored groups, outcomes, dependencies, exits, boundaries and work order retained after alias substitution",
+  "live_support_links_checked": [
+    "assets/bpr-pr-tour-cli-extension-v1/references/SOURCE-BASELINE.json",
+    "assets/bpr-pr-tour-cli-extension-v1/specs/CLI-CONTRACT.md",
+    "assets/bpr-pr-tour-cli-extension-v1/specs/command-catalog.json",
+    "assets/bpr-pr-tour-cli-extension-v1/supporting/SECURITY-AND-AUTHORITY.md",
+    "assets/bpr-pr-tour-cli-extension-v1/supporting/RECOVERY-MATRIX.md",
+    "assets/bpr-pr-tour-cli-extension-v1/references/EXTERNAL-AUTHORITY.md",
+    "assets/bpr-pr-tour-cli-extension-v1/specs/LOCAL-HANDOFF.md",
+    "assets/bpr-pr-tour-cli-extension-v1/skill-source/pr-tour/SKILL.md",
+    "assets/bpr-pr-tour-cli-extension-v1/references/EXTERNAL-AUTHORITY.md"
+  ],
+  "extension_rfcs": {
+    "RFC-BPR-0044": "Proposed",
+    "RFC-BPR-0045": "Proposed",
+    "RFC-BPR-0046": "Proposed"
+  },
+  "extension_cards_at_audit": {
+    "BPR-1052": {
+      "path": "docs/issues/30-in-progress/BPR-1052-import-only-the-extension-and-reconcile-live-predecessor-mappings.md",
+      "status": "In Progress"
+    },
+    "BPR-1053": {
+      "path": "docs/issues/10-backlog/BPR-1053-expose-the-shared-tour-service-facade-and-semantic-commands.md",
+      "status": "Backlog"
+    },
+    "BPR-1054": {
+      "path": "docs/issues/10-backlog/BPR-1054-build-and-install-a-non-gui-tour-runtime-and-bpr-executable.md",
+      "status": "Backlog"
+    },
+    "BPR-1055": {
+      "path": "docs/issues/10-backlog/BPR-1055-add-precise-open-import-show-and-capability-commands.md",
+      "status": "Backlog"
+    },
+    "BPR-1056": {
+      "path": "docs/issues/10-backlog/BPR-1056-implement-revisioned-local-commands-and-machine-result-contract.md",
+      "status": "Backlog"
+    },
+    "BPR-1057": {
+      "path": "docs/issues/10-backlog/BPR-1057-integrate-trusted-external-editors-and-local-undo-redo.md",
+      "status": "Backlog"
+    },
+    "BPR-1058": {
+      "path": "docs/issues/10-backlog/BPR-1058-provide-the-manual-terminal-walkthrough-and-safe-code-rendering.md",
+      "status": "Backlog"
+    },
+    "BPR-1059": {
+      "path": "docs/issues/10-backlog/BPR-1059-compose-terminal-publication-maintenance-and-read-first-recovery.md",
+      "status": "Backlog"
+    },
+    "BPR-1060": {
+      "path": "docs/issues/10-backlog/BPR-1060-persist-shared-draft-history-and-presentation-neutral-resumption.md",
+      "status": "Backlog"
+    },
+    "BPR-1061": {
+      "path": "docs/issues/10-backlog/BPR-1061-add-bounded-authenticated-owner-forwarding-for-tour-commands.md",
+      "status": "Backlog"
+    },
+    "BPR-1062": {
+      "path": "docs/issues/10-backlog/BPR-1062-connect-desktop-buffers-and-same-machine-authoring-handoff.md",
+      "status": "Backlog"
+    },
+    "BPR-1063": {
+      "path": "docs/issues/10-backlog/BPR-1063-verify-cold-published-recovery-and-incomplete-remote-observations.md",
+      "status": "Backlog"
+    },
+    "BPR-1064": {
+      "path": "docs/issues/10-backlog/BPR-1064-expose-effective-hooks-and-scoped-active-agent-edit-tickets.md",
+      "status": "Backlog"
+    },
+    "BPR-1065": {
+      "path": "docs/issues/10-backlog/BPR-1065-implement-the-thin-pr-tour-conversational-skill.md",
+      "status": "Backlog"
+    },
+    "BPR-1066": {
+      "path": "docs/issues/10-backlog/BPR-1066-test-agent-attention-provenance-authority-and-adversarial-inputs.md",
+      "status": "Backlog"
+    },
+    "BPR-1067": {
+      "path": "docs/issues/10-backlog/BPR-1067-integrate-canonical-pr-tour-distribution-and-compatibility-checks.md",
+      "status": "Backlog"
+    },
+    "BPR-1068": {
+      "path": "docs/issues/10-backlog/BPR-1068-qualify-standalone-packages-and-native-headless-safety.md",
+      "status": "Backlog"
+    },
+    "BPR-1069": {
+      "path": "docs/issues/10-backlog/BPR-1069-run-attended-three-interface-and-second-machine-acceptance.md",
+      "status": "Backlog"
+    },
+    "BPR-1070": {
+      "path": "docs/issues/10-backlog/BPR-1070-document-the-workflow-and-simplify-the-integration.md",
+      "status": "Backlog"
+    },
+    "BPR-1071": {
+      "path": "docs/issues/10-backlog/BPR-1071-close-rfc-0046.md",
+      "status": "Backlog"
+    }
+  },
+  "parent_cards": {
+    "BPR-0991": "docs/issues/60-done/BPR-0991-import-the-authored-pack-and-reconcile-the-live-baseline.md",
+    "BPR-0992": "docs/issues/60-done/BPR-0992-model-tours-stops-source-ranges-and-readiness-in-the-core.md",
+    "BPR-0993": "docs/issues/60-done/BPR-0993-persist-revisioned-tour-drafts-and-scoped-remote-baselines.md",
+    "BPR-0994": "docs/issues/60-done/BPR-0994-build-the-problem-and-solution-authoring-surface.md",
+    "BPR-0995": "docs/issues/60-done/BPR-0995-compose-manual-stop-editing-and-reviewer-route-navigation.md",
+    "BPR-0996": "docs/issues/60-done/BPR-0996-implement-the-ordinary-markdown-tour-codec-and-safe-source-mapping.md",
+    "BPR-0997": "docs/issues/60-done/BPR-0997-read-and-reconstruct-tours-from-paged-github-objects.md",
+    "BPR-0998": "docs/issues/60-done/BPR-0998-bind-tour-code-destinations-and-exact-compatibility-subjects.md",
+    "BPR-0999": "docs/issues/60-done/BPR-0999-extend-native-github-ports-for-staged-review-batches.md",
+    "BPR-1000": "docs/issues/60-done/BPR-1000-journal-staged-publication-and-unknown-outcomes-durably.md",
+    "BPR-1001": "docs/issues/60-done/BPR-1001-support-the-admitted-gh-api-transport-for-tour-operations.md",
+    "BPR-1002": "docs/issues/60-done/BPR-1002-wire-preview-staging-submission-and-compatibility-outcomes.md",
+    "BPR-1003": "docs/issues/60-done/BPR-1003-implement-minimal-published-tour-edit-plans.md",
+    "BPR-1004": "docs/issues/60-done/BPR-1004-merge-website-edits-with-local-draft-changes.md",
+    "BPR-1005": "docs/issues/60-done/BPR-1005-track-changed-source-and-tour-revisions-without-false-reanchoring.md",
+    "BPR-1006": "docs/issues/60-done/BPR-1006-prove-the-complete-manual-workflow-and-prepare-website-acceptance.md",
+    "BPR-1007": "docs/issues/60-done/BPR-1007-add-four-versioned-writing-hooks-to-profile-settings.md",
+    "BPR-1008": "docs/issues/60-done/BPR-1008-implement-exact-scoped-replacement-requests-and-edit-transactions.md",
+    "BPR-1009": "docs/issues/60-done/BPR-1009-apply-magic-button-edits-through-native-undo-and-selection.md",
+    "BPR-1010": "docs/issues/60-done/BPR-1010-build-bounded-context-and-explicit-per-field-agent-delivery.md",
+    "BPR-1011": "docs/issues/60-done/BPR-1011-add-skeleton-suggestions-and-per-stop-author-attention.md",
+    "BPR-1012": "docs/issues/60-done/BPR-1012-exercise-security-crash-conflict-and-parser-adversaries.md",
+    "BPR-1013": "docs/issues/60-done/BPR-1013-qualify-native-authoring-and-website-only-review-paths.md",
+    "BPR-1014": "docs/issues/60-done/BPR-1014-document-the-author-workflow-and-narrow-contract-amendments.md",
+    "BPR-1015": "docs/issues/60-done/BPR-1015-simplify-and-run-the-focused-final-integration-pass.md",
+    "BPR-1016": "docs/issues/60-done/BPR-1016-close-rfc-0043.md"
+  },
+  "parent_manifest_sha256": "acbaa942066d68c6f4673477ef2cfa3db8df0340708b69d8161a53aefce8fb20",
+  "source_drift": [
+    {
+      "path": "AGENTS.md",
+      "authored_sha256": "0168bda20d47eb7a5074399e46da54d61880b6fb2771d59746298ec9213a49f2",
+      "current_sha256": "3e6546a9cf07b9356f5640636241bf7b30e8560da331a755c4fdecc860cf5578",
+      "matches": false
+    },
+    {
+      "path": "docs/architecture/system-architecture.md",
+      "authored_sha256": "c8da65743a01e5f52a18d49467615f7b8a0033339842684065bdbce1472192c1",
+      "current_sha256": "5ab5083bcf85043c2ea1c56c0d38d8e96229932c23ad7ac91f40d5d59d79bdee",
+      "matches": false
+    },
+    {
+      "path": "CMakeLists.txt",
+      "authored_sha256": "b45690ce6952d6d4b91f13bd4f83013c62af81ac2d9eba8109766b3d96692196",
+      "current_sha256": "f2e63d98df8f07860e9f1a8b53c761ea7c97fe9917a99f211efebd97fd9b9529",
+      "matches": false
+    },
+    {
+      "path": ".mask.json",
+      "authored_sha256": "f040d621a38654d5459246220f4459f338976eb3ca621a8d642fc545968f47b4",
+      "current_sha256": "f040d621a38654d5459246220f4459f338976eb3ca621a8d642fc545968f47b4",
+      "matches": true
+    },
+    {
+      "path": "cmake/BprDependencies.cmake",
+      "authored_sha256": "b068f61f4f33f3436b41988a6164430ca6a97290d0eda4a251468cc85a96cdc9",
+      "current_sha256": "3e287d23c87174624a0bf177630091a8206e77d18c53b99c35a55b3b546a5382",
+      "matches": false
+    },
+    {
+      "path": "src/adapters/github/CMakeLists.txt",
+      "authored_sha256": "12baecd1c10747a908ebb7df0f6dec98430a7b1b0080962283aae73b8dd3d5f6",
+      "current_sha256": "00ec5c6b8f1856c08237d5a9f0b6e0781a1085db6abbb60c127011d0d58efdcd",
+      "matches": false
+    },
+    {
+      "path": "src/adapters/sqlite/CMakeLists.txt",
+      "authored_sha256": "21a7eaf18705cd6e9a29f2e513b7b13af813750874a83dd8ff7f0e225a580c58",
+      "current_sha256": "fe38db4dcef29ec6cd775284be0656eba556d537d25cfa8d41327b626753f0c7",
+      "matches": false
+    },
+    {
+      "path": "src/adapters/sqlite/include/bpr/adapters/sqlite/profile_activation.hpp",
+      "authored_sha256": "8e84f78ecc44550664c88a6d08d84eeab0d9949f4e473b7d2d90933c5d011645",
+      "current_sha256": "7f579e5b02bca73ae821ac8a5dc9e0de2814860c58b688c0de3e6130d0b7dfc1",
+      "matches": false
+    },
+    {
+      "path": "src/adapters/sqlite/include/bpr/adapters/sqlite/profile_runtime_lease.hpp",
+      "authored_sha256": "9924f387dc0b34629c9e8b907e67eb31f0bea2a506f8f632a1383921d41d4ee2",
+      "current_sha256": "9924f387dc0b34629c9e8b907e67eb31f0bea2a506f8f632a1383921d41d4ee2",
+      "matches": true
+    },
+    {
+      "path": "src/app/CMakeLists.txt",
+      "authored_sha256": "77375594e6207105c821757ccd8fc1d85e7e03a0507ec82de74b7ff9d197385a",
+      "current_sha256": "74bce1b35e60b40450c5460f9a09c473ac063129a1bbc2d98887b3642ffb5925",
+      "matches": false
+    },
+    {
+      "path": "src/application/CMakeLists.txt",
+      "authored_sha256": "4dfe3cd1a7577e3c2783b1704c89df8946daf43e8dcd0805f5dbbc977635209e",
+      "current_sha256": "bbda161930c5b0a62b35a54baaa99321d6b1c585cab0647ff0ffce11df57ba4b",
+      "matches": false
+    },
+    {
+      "path": "src/core/include/bpr/core/revisioned_review_draft.hpp",
+      "authored_sha256": "01fcd1081f58e6d6a29ad879526dd5b24a9e190cba6f2dfcc2c2fa1c74e8c87c",
+      "current_sha256": "9b9f3d94058716e674f96692f0cafb2a98b85dc368fbb36d0b57df63a8805c1e",
+      "matches": false
+    }
+  ],
+  "limits": "Static source, import and board audit only; no runtime/native/model/live-service qualification."
+}

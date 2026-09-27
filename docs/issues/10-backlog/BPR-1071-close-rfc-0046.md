@@ -17,6 +17,14 @@ Pack alias: **PACK-PRTOUR-20** (live `BPR-1071`, allocated at import).
 
 RFC base: `2928e90ea38cb58dce57f7ee32aa7b817ed4e876`.
 
+Execution run `bpr-pr-tour-cli-20260927` starts at immutable
+`89f23eeece835ecafb9f8752b524644b22fbf281` under mandate
+`r1-20260927-implement-and-land-each-milestone`. Preserve the historical import
+base above for complete pack closeout. The [execution ledger](../../verification/RFC-BPR-0044-0046.md)
+and [intake handoff](../../verification/RFC-BPR-0044-0046.intake-handoff.json)
+record the accepted intake, current parent contracts and next milestone.
+All product acceptance rows below remain unrun by intake.
+
 ## Closeout checklist
 
 | Criterion | Result | Revision |

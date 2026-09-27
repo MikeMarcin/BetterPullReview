@@ -1,0 +1,75 @@
+{
+  "assignment": "bpr-pr-tour-cli-extension-v1/intake",
+  "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+  "run_id": "bpr-pr-tour-cli-20260927",
+  "segment_id": "intake",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+  "status": "intake-verified-ready-to-finish",
+  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "historical_import_base": "2928e90ea38cb58dce57f7ee32aa7b817ed4e876",
+  "candidate_revision": "67615d221a21619bb05f085f83b10c69d8c11379",
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-1052-import-only-the-extension-and-reconcile-live-predecessor-mappings.md",
+    "docs/issues/60-done/BPR-1052-import-only-the-extension-and-reconcile-live-predecessor-mappings.md",
+    "docs/issues/10-backlog/BPR-1071-close-rfc-0046.md",
+    "docs/rfcs/assets/bpr-pr-tour-cli-extension-v1.LIVE_IMPORT.md",
+    "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/execution-selection.json",
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "docs/verification/RFC-BPR-0044-0046.intake-audit.json",
+    "docs/verification/RFC-BPR-0044-0046.intake-checkpoint.json",
+    "docs/verification/RFC-BPR-0044-0046.intake-handoff.json"
+  ],
+  "verification": [
+    {
+      "command": "milestone_plan.py discover --repo-root ROOT --target RFC-BPR-0044 --json; milestone_checkpoint.py bind",
+      "result": "Found adopted six-milestone plan; resolved BPR-1052 obligation and both exits."
+    },
+    {
+      "command": "python3 -B docs/rfcs/assets/bpr-pr-tour-cli-extension-v1/scripts/verify_pack.py",
+      "result": "Passed: 3 RFCs, 20 cards, 6 milestones, 32 requirements, 62 payload files."
+    },
+    {
+      "command": "Direct Python assertions over immutable checksum lists, alias maps, original and adopted plan, card metadata, live RFC transformations and source hashes",
+      "result": "Passed: extension 62/62 and parent 82/82 hashes; 20 unique extension aliases; 26 Done parent cards; 9 valid support links; all 6 groups preserved; 12 source paths present (2 identical, 10 changed).",
+      "artifact": "docs/verification/RFC-BPR-0044-0046.intake-audit.json"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 passed; printed ERROR diagnostics belong to expected negative fixtures."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0044 --rfc RFC-BPR-0045 --rfc RFC-BPR-0046 --json",
+      "result": "valid:true; 1214 cards; no errors."
+    },
+    {
+      "command": "git diff --check; git diff --exit-code EXECUTION_BASE -- src tests cmake CMakeLists.txt packaging docs/rfcs/assets/bpr-review-tour-v1 docs/rfcs/plans/bpr-review-tour-v1",
+      "result": "Passed; no product/test/build/package or parent archive/plan changes."
+    }
+  ],
+  "review_handoff": {
+    "required_for_intake": false,
+    "server": null,
+    "protected_candidates": []
+  },
+  "ownership": {
+    "owner": "/root/intake",
+    "source_tracker_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+    "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "detached",
+    "other_worktrees": "Existing worktrees inventoried and left untouched.",
+    "task_commands": [],
+    "runtime_root": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-pr-tour-cli-intake-1e10fslm"
+  },
+  "required_pending_in_intake": [],
+  "pending_pack_obligations": [
+    "All 32 extension product acceptance criteria remain open.",
+    "Parent external gaps BPR-1222\u20131226 remain unchanged.",
+    "Canonical AgentSkills access and distribution are BPR-1067 work; no installation attempted."
+  ],
+  "next_action": "Coordinator starts a fresh implementer for headless-manual, BPR-1053\u20131058, after accepted intake lands on main; promote eligible BPR-1053 and bind with accepted intake.",
+  "self_review": "Confirmed both intake exits, canonical scope, complete alias/source mapping, original parent/extension contracts and external gaps; no product claim added. No further simplification needed for these documentation-only changes."
+}
