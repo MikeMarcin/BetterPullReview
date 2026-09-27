@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0993"
 title: "Persist revisioned tour drafts and scoped remote baselines"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0042"]
 depends_on: ["BPR-0992"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-03","milestone":"manual-authoring","acceptance":["AC39-05","AC42-07"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
