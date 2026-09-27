@@ -797,7 +797,11 @@ to Done, records all eight required final states and adds the candidate-bound
 commit records the final handoff without changing product code.
 
 The checkpoint check for segment `m4-storage-r2`, mandate r2, accepted M1–M3
-and candidate `25fd32ef` returned `fresh-context` for M5. Its
+and candidate `25fd32ef` returned `fresh-context` for M5 before bookkeeping.
+The post-finish recheck returned `reconcile` because the current commit had
+advanced past that exact candidate; `git diff --exit-code 25fd32ef HEAD -- src tests`
+confirmed no product/test change. This is the expected documentation/board
+handoff distinction, not a changed engineering candidate. Its
 `engineering_acceptance: not-evaluated` is a consistency result; the whole-card
 judgment rests on the direct tests and limitations above. M4 has no required
 pending acceptance. M5/BPR-0581 is the next authored milestone after the
