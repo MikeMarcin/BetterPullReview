@@ -1,0 +1,32 @@
+{
+  "assignment": "bpr-pr-tour-cli-extension-v1/headless-manual",
+  "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+  "run_id": "bpr-pr-tour-cli-20260927",
+  "segment_id": "headless-manual",
+  "status": "in-progress",
+  "candidate_revision": "4e438a8b0801eea6b12db06136c8d59f03e69487",
+  "source_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+  "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "main_revision": "f221373c8fafd69ae4ccdb0d6058b3fde079e061",
+  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "completed_cards": [
+    "BPR-1053",
+    "BPR-1054",
+    "BPR-1055"
+  ],
+  "current_card": "BPR-1056",
+  "pending": [
+    "Revisioned edits/add/move/remove/ready with cancellation and bounded input/output",
+    "Trusted editor and durable local undo/redo",
+    "Pinned source current/left/historical/unchanged path and human walk/preview",
+    "Milestone verification, acceptance and local main fast-forward"
+  ],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0044-0046.md"
+  ],
+  "task_commands": [],
+  "review_server": null,
+  "protected_candidates": [],
+  "runtime_root": "build/bpr-headless-kx1ms8y9",
+  "next_action": "Continue BPR-1056 through BPR-1058 in the same assigned milestone. Do not land partial progress on main."
+}
