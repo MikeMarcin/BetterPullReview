@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+parked_on: "human-review"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -142,3 +143,53 @@ includes privacy, no-fallback/replay, real HTTPS refusal, logger/export, public
 composition, format/tidy and documentation gates. A separately authorized
 Markdown line60 comment may run only under a fresh exact candidate and one-use
 approval; it is an independent anchor, not a retry of the unresolved text comment.
+
+
+### Exact structured observation continuation
+
+Sources `3a517b86` and `0eee1f45` separately published Markdown RIGHT60 and
+TXT RIGHT61 once each. Both returned complete bounded HTTP422. The first log
+kept `PullRequestReviewComment`/`custom`; the second also kept the exact
+`pull_request_review_thread.line` field, canonical public documentation metadata,
+one error and zero unknown envelope/error members. Message text remained omitted.
+Neither observation authorizes fallback. All three profile2 publications remain
+`native_possibly_transmitted` with no receipt, no fallback and no authorization;
+read-only SQLite decoding verified every previous record digest unchanged.
+Settled GitHub GETs found no comments or reviews. App exit/detach passed211.74s
+and162.02s respectively; those timings establish lifecycle only.
+
+The [Markdown60 attempt](../_checkpoints/BPR-0575/m4-diagnostic-live-attempt.json)
+and [TXT61 attempt](../_checkpoints/BPR-0575/m4-shape-live-attempt.json) retain
+exact source/image identities and safe typed observations. The
+[shape evidence](../_checkpoints/BPR-0575/m4-shape-evidence.json) records focused
+privacy and no-authority tests. Source `699c921c` adds fixed resolution-message
+literals solely for observation; no broad message meaning is assumed. Fresh
+Markdown61 authority is separately bound and must not reuse any earlier approval.
+
+
+### Final independent Markdown61 observation and human handoff
+
+The first source699c921c MD61 session completed OS access restoration and draft
+preparation, but its 15-minute approval expired before Publish. It exited and
+detached normally in1010.55s, with no POST and all three prior journals unchanged.
+A fresh one-use approval for the same verified capsule reopened profile2, accepted
+MikeMarcin, and loaded the exact head. The user selected RIGHT61. The AX-observed
+ordinary Comment opened the source-line draft; exact target, body and fresh
+06:06 elapsed authority were verified before one Publish.
+
+The complete HTTP422 response now retains the exact message `could not be
+resolved`, with `PullRequestReviewComment`, `pull_request_review_thread.line`,
+`custom`, canonical documentation URL, string status422, one error and zero
+unknown members. Its meaning is not generalized. The current revision1 classifier
+refuses this envelope and production classification remains disabled.
+
+[Final MD61 evidence](../_checkpoints/BPR-0575/m4-resolution-live-attempt.json)
+records the fourth unresolved native journal, unchanged prior digests, empty
+GET comments/reviews and normal exit/detach397.54s. All four publications remain
+GET-only; no fallback occurred. The capsule commands and application are stopped.
+The [owner contract proposal](../_checkpoints/BPR-0575/m4-owner-contract.md) binds
+this complete typed observation to independent accepted-head/blob/line and
+complete-provider-patch evidence, a narrow prospective revision2 and its limits.
+Separate native-live scope and canonical-order judgments are prepared. No owner,
+collaborator or independent verdict is asserted. BPR-0573 awaits human review;
+BPR-0575 remains ineligible and RFC0022 remains Proposed.

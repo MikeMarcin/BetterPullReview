@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0573-exact-contract",
+      "title": "Accept the bounded recorded rejection contract",
+      "revision": "rfc0022-d-699c921c-6bccb96aef73",
+      "criteria": [
+        "Accept the exact recorded contract below as a bounded dependency for a new classifier revision 2, limited to the designated PR, accepted head and verified off-hunk source anchors, while preserving all transport, identity and recovery refusals?"
+      ],
+      "content": "Proposed owner decision: exact off-hunk rejection contract\n\nObserved candidate 699c921c8a0e804f57ab1b806e3c0b4bf685fb8a, mandate r2.\nProduction classification is disabled. This decision is pending.\n\n\n\nActual observation\n\nOne ordinary Publish from the signed production capsule, as MikeMarcin in\nprofile 2, selected off_hunk_fixture.md, RIGHT61, at head\n61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a on\nhttps://github.com/MikeMarcin/BPR-Test/pull/2. The independent comment body was\n\u201cBetterPullReview Markdown source-line verification at line 61.\u201d The authority\nwas fresh at 06:06 of its 15-minute lifetime. No retry or fallback occurred.\n\nOperation: create_review_comment, native RIGHT line subject, REST\nPOST /repos/MikeMarcin/BPR-Test/pulls/2/comments, GitHub.com server contract,\nAPI 2022-11-28. The complete bounded HTTP 422 body had these exact typed values:\n\n\n{\n  \"message\": \"Validation Failed\",\n  \"documentation_url\": \"https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request\",\n  \"status\": \"422\",\n  \"errors\": [{\n    \"resource\": \"PullRequestReviewComment\",\n    \"field\": \"pull_request_review_thread.line\",\n    \"code\": \"custom\",\n    \"message\": \"could not be resolved\"\n  }]\n}\n\n\nThere was exactly one error and zero unknown envelope or error members. All\nlisted values are strings; the error message has no period. This is a typed\nreconstruction of closed diagnostic fields, not a raw-response log. The current\nclassifier is revision 1 and refuses this complete envelope. No production\ncontract is installed.\n\nEligibility and limits of the evidence\n\nIndependent provider evidence (m4-live-anchor-eligibility.json) binds repository\n1328277631, PR4650736621, base a939a85a5525994fe9e9cb4c973ad9362ed427c7, the\naccepted head above, and Markdown blob 828d5c87c20a0f9d74c498e04c36b32d2948b7c5.\nThe verified file has 80 lines, including the exact selected line61. Its complete\nprovider patch is @@ -7,7 +7,7 @@, with one addition and one deletion matching\nthe provider totals. Thus RIGHT61 exists in a changed file and is outside the\nprovider hunk. This proof is independent of Qt geometry.\n\nGitHub's operation documentation (https://docs.github.com/en/rest/pulls/comments#create-a-review-comment-for-a-pull-request)\ndescribes line placement in the diff. Its\nvalidation documentation (https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#validation-failed)\nexplains unprocessed validation failures and says that a custom code requires\nits message. Neither page declares this exact tuple an off-hunk discriminator.\nThe message \u201ccould not be resolved\u201d can describe other validation failures.\nNo stable off-hunk-specific code was supplied in this observed complete shape.\nAccept therefore explicitly accepts the bounded message dependency and its\nremaining interpretation risk; it does not invent a GitHub guarantee.\n\nProposed implementation boundary\n\nThe next engineering round must implement and verify revision 2 before any\nactivation. Its recorded-contract scope must bind this GitHub.com repository,\nPR, accepted head, MikeMarcin actor and profile2, the exact operation/API revision,\nand a changed file whose exact blob and selected line are revalidated. An anchor\nmust be proven outside its complete bounded provider patch. This is not a\nblanket GitHub.com or GHES capability claim. Other repositories, heads, actors,\nprofiles, API revisions, operations and shapes remain unknown.\n\nMatch every observed member, count, type and literal above. Retain complete\nbounded transport response and valid metadata requirements. Refuse Retry-After,\nLocation, invalid metadata, unknown/duplicate members, other values or messages,\nextra errors, stale eligibility, permission/rate-limit outcomes and ambiguous\ntransport. The observation does not attest Retry-After absence; future runtime\nclassification must check it. Negative mismatch and public-path tests must pass.\n\nAll four earlier possibly transmitted publications stay GET-only with no\nfallback authorization. The accepted contract cannot supply missing response\nmetadata retroactively. Empty GET results do not prove non-creation. A future\nlive fallback course needs a genuinely separate approved logical comment and a\nfresh exact one-use application approval.\n\nAccept authorizes this narrow contract dependency for implementation; it does\nnot mark live fallback, native success, collaborator continuity or RFC closeout\nas passed. Reject keeps production classification disabled and requires a\nstronger exact contract or a revised proposal. Put the requested change in the\nnote. Full observation: MD61 attempt (m4-resolution-live-attempt.json).",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-contract.md",
+        "src/adapters/github/src/github_mutation_contract.cpp",
+        "src/adapters/github/src/github_mutation_contract.hpp",
+        "docs/issues/_checkpoints/BPR-0575/m4-live-anchor-eligibility.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-resolution-live-attempt.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-contract-basis.md",
+        "src/adapters/github/src/live_review_mutation_provider.cpp",
+        "docs/issues/_checkpoints/BPR-0575/m4-resolution-fresh-capsule-identities.json"
+      ],
+      "resources": [
+        "artifact:/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.dmg"
+      ],
+      "resource_versions": {
+        "artifact:/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.dmg": "aaab34bc17c675594c99615ff1c0d57195cb144e8aed73f895b59b5c1f6e59d5"
+      }
+    },
+    {
+      "id": "BPR-0575-native-live-scope",
+      "title": "Decide the native off-hunk live evidence scope",
+      "revision": "rfc0022-d-699c921c-462057eaed99",
+      "criteria": [
+        "Accept allowing RFC-BPR-0022 to meet its native off-hunk live-course requirement with the verified supported-path fixtures and an explicit unobserved GitHub.com native-success limitation, while retaining its live fallback and GitHub-only collaborator requirements?"
+      ],
+      "content": "Proposed owner amendment: supported native live evidence\n\nCandidate source 699c921c, mandate r2. Decision pending.\n\n\n\nThe independently approved off-hunk attempts on the designated PR have not\nproduced a native receipt. Instrumented attempts returned complete HTTP 422\nresponses. This repository has not demonstrated a supported native service\npath. M1\u2013M3 retain supported-result, scoped positive-cache, identity-validation\nand public-composition fixture checks. These are automated evidence; they are\nnot a live GitHub native success.\n\nAccept amends AC-03 and the native-only part of BPR-0573's live course. The\nverification record would continue to say that native GitHub.com success and\nits corresponding web observation are unobserved. The rejection-contract\njudgment, actual fallback publication, collaborator/web continuity, required\nindependent review and canonical closeout order remain pending separately.\nReject retains the requirement for a suitable supported target or another\nexplicitly approved evidence course. Put a requested change in the note.",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-native-scope.md",
+        "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md"
+      ]
+    },
+    {
+      "id": "BPR-0575-closeout-order",
+      "title": "Decide RFC0022 closeout ordering",
+      "revision": "rfc0022-d-699c921c-72cb14007e6e",
+      "criteria": [
+        "Accept allowing RFC-BPR-0022 to close ahead of Deferred RFC-BPR-0020 and RFC-BPR-0021 once all of RFC-BPR-0022's remaining accepted requirements are met?"
+      ],
+      "content": "Proposed owner amendment: canonical closeout order\n\nCandidate canonical index at source 699c921c, mandate r2. Decision pending.\n\n\n\nThe current index orders RFC0020 and RFC0021 before RFC0022. Both earlier RFCs\nare Deferred; RFC0022 is Proposed. Its listed RFC0004, RFC0005 and RFC0008\ndependencies are Auto-Verified, and milestones A\u2013C have landed. The mandate to\nimplement and integrate RFC0022 did not explicitly waive sequential closeout.\n\nAccept changes the ordering requirement for RFC0022 only. The earlier RFCs\nremain Deferred, and every unresolved RFC0022 acceptance requirement retains\nits status. Reject preserves the existing order. Put a requested change in the\nnote.",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-order.md",
+        "docs/rfcs/README.md"
+      ]
+    }
+  ]
+}

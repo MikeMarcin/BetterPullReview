@@ -6,7 +6,7 @@
   "milestone": "d-evidence-closeout",
   "start_revision": "dc1a836b55c718040a6e467245afc8ee6600d4f9",
   "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
-  "production_candidate": "3a517b86",
+  "production_candidate": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
   "manifest_candidate": "bd9eb897",
   "commands": [
     {
@@ -115,9 +115,39 @@
       "result": "PASS64 tests;2.032s",
       "log": "build/rfc0022/m4-doc-validator-tests.log",
       "sha256": "96caa0049de764096cb50973775cb1ca0381e81cd4967e95622d8fa05311677d"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(application_review_round_trip_composition_contract|qt_composed_github_scale_100)$",
+      "result": "PASS2/2;18.11s; exact final source699c921c",
+      "log": "build/rfc0022/m4-final-candidate-public.log",
+      "sha256": "8173815d3bf28b2d5431724d59a03dfc03939fffb9a2b6b1d9ecd0f7eb2b10db"
+    },
+    {
+      "command": "ctest --test-dir build/rfc0022/m4-live-manifest --output-on-failure -R ^test_network_isolation_manifest$",
+      "log": "build/rfc0022/m4-resolution-fresh-manifest-check.log",
+      "result": "PASS491 rows; exactly1 profile2 attended lane",
+      "sha256": "049907cd9f96e03edb73626dbd22786f11f8374946e6a6bcba8801e965e05182"
+    },
+    {
+      "command": "ctest --test-dir build/rfc0022/m4-live-manifest --output-on-failure -V -R ^live_review_mutation_designated_target$",
+      "log": "build/rfc0022/m4-resolution-fresh-live-execution.log",
+      "result": "PASS lifecycle397.54s; complete422 is not product publication success",
+      "sha256": "cf56c580bfecd6f06289ac60705f3b40097abbe63a8920a8110af3719bd228c7"
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review",
+      "result": "PASS final source699c921c, incremental candidate current",
+      "log": "build/rfc0022/m4-handoff-app-build.log",
+      "sha256": "c2ed93ffd93c840755c0e91392ae593b1b52de9b7aaf6c208123feaceb1dde2e"
+    },
+    {
+      "command": "python3 -B scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK after final evidence/card parking",
+      "log": "build/rfc0022/m4-handoff-docs.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
     }
   ],
-  "source_review": "PR2 target rebind0ff88046, audited pending inventorybd9eb897, optional exact profile selector6526f525, and bounded diagnostic3a517b86. Each has scoped source review and gates in linked evidence. No independent review report claimed.",
+  "source_review": "PR2 target0ff88046; audited pending Windows source inventorybd9eb897; exact profile selector6526f525; typed bounded diagnostics3a517b86; exact closed shape0eee1f45 and message literals699c921c. No authority/classifier/journal bypass. Self-review and focused checks are not independent acceptance.",
   "simplification": "Reviewed core policy, session/SQLite boundary, cached source-normalization and Qt incremental projection; no new behavior refactor warranted. Removed stale preparatory docs and linked one owning state-machine/codec contract.",
   "reuse": "M1/M2/M3 evidence retains unchanged policy, wire, journal, normalization and3-scale3-theme claims; D reran affected real composition and exact authority.",
   "limits": [
@@ -127,7 +157,7 @@
     "23 pre-existing Windows source registration patterns remain unqualified; source-count inventory grants no configured Windows exception.",
     "Canonical0020/0021 remain Deferred; no sequencing amendment yet."
   ],
-  "live": "Default run stopped before draft/POST on legacy populated-cache manifest refusal. Fresh profile2 source6526f525 reached one approved text-line60 Publish; journal native_possibly_transmitted with no receipt or fallback. Original remains GET-only; see m4-profile-live-attempt.json. Diagnostic candidate3a517b86 being prepared for separately authorized independent Markdown line60.",
+  "live": "Default no-POST cache refusal preserved. Profile2 TXT60, Markdown60, TXT61 and Markdown61 each used one independently approved ordinary Publish and remain unresolved native witnesses, without receipt, fallback or fallback authorization. Three complete422 observations; final MD61 captures exact resource/field/custom/could not be resolved tuple, canonical documentation/status, one error and zero unknown members. Prior journals unchanged. Initial MD61 authority expired before Publish and was closed with no POST; fresh same-capsule approval completed one Publish at elapsed06:06 and normal exit/detach397.54s. GET comments/reviews empty; not non-creation proof. All launch commands quiescent.",
   "prior_production_candidate": "0ff88046",
   "profile_selector_candidate": "6526f525",
   "supplementary_evidence": [
@@ -135,6 +165,37 @@
     "m4-profile-control-evidence.json",
     "m4-profile-capsule-identities.json",
     "m4-profile-live-attempt.json",
-    "m4-diagnostic-evidence.json"
+    "m4-diagnostic-evidence.json",
+    "m4-diagnostic-live-attempt.json",
+    "m4-shape-evidence.json",
+    "m4-shape-live-attempt.json",
+    "m4-live-anchor-eligibility.json",
+    "m4-resolution-capsule-identities.json",
+    "m4-contract-basis.md",
+    "m4-resolution-expired-attempt.json",
+    "m4-resolution-fresh-capsule-identities.json",
+    "m4-resolution-live-attempt.json",
+    "m4-owner-contract.md",
+    "m4-owner-native-scope.md",
+    "m4-owner-order.md",
+    "m4-review-handoff.json",
+    "m4-review-manifest.json",
+    "m4-binding-final.json"
+  ],
+  "historical_counter_sync": {
+    "from": "BPR-1220",
+    "to": "BPR-1221",
+    "owning_commit": "36d535eb",
+    "reason": "Shared branch history advanced during the run; documentation refused rewind. Counter-only historical synchronization authorized by coordinator; no new allocation, invented receipt or unrelated28-path import. Owning commit exposes no1220receipt.",
+    "before": "DOCUMENTATION_OK before shared history advance; later failed historical high-water check.",
+    "after": "DOCUMENTATION_OK after observed high-water synchronization."
+  },
+  "pending": [
+    "Owner exact recorded-contract decision; production classifier remains disabled.",
+    "Owner native off-hunk live-course scope amendment or actual supported native target.",
+    "Actual live fallback and GitHub-only collaborator continuity.",
+    "Required independent acceptance.",
+    "Owner canonical closeout-order amendment or earlier RFC completion.",
+    "Final15-criterion replay and all-card acceptance before RFC Auto-Verified."
   ]
 }

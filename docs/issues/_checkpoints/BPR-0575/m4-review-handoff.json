@@ -1,0 +1,92 @@
+{
+  "schema": "rfc0022.review-handoff.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+  "cursor": 9,
+  "candidates": [
+    {
+      "id": "BPR-0573-exact-contract",
+      "title": "Accept the bounded recorded rejection contract",
+      "revision": "rfc0022-d-699c921c-6bccb96aef73",
+      "fingerprint": "89efae94abfd13e29326856d30dea3e5d85721a616e3bd6cfda1b8a9190a3875",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0575-closeout-order",
+      "title": "Decide RFC0022 closeout ordering",
+      "revision": "rfc0022-d-699c921c-72cb14007e6e",
+      "fingerprint": "10ee48c097eb8ec8f61d00439b385a234acc5739df031565a6c7e9f5e0f89c1b",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0575-native-live-scope",
+      "title": "Decide the native off-hunk live evidence scope",
+      "revision": "rfc0022-d-699c921c-462057eaed99",
+      "fingerprint": "c0e5ad566be3c1a75907e1bc51ac8751dde11fb3e289764ae11f4c48ee0cf770",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "manifest": "m4-review-manifest.json",
+  "protection": {
+    "BPR-0573-exact-contract": {
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-contract.md",
+        "src/adapters/github/src/github_mutation_contract.cpp",
+        "src/adapters/github/src/github_mutation_contract.hpp",
+        "docs/issues/_checkpoints/BPR-0575/m4-live-anchor-eligibility.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-resolution-live-attempt.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-contract-basis.md",
+        "src/adapters/github/src/live_review_mutation_provider.cpp",
+        "docs/issues/_checkpoints/BPR-0575/m4-resolution-fresh-capsule-identities.json"
+      ],
+      "resources": [
+        "artifact:/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.dmg"
+      ],
+      "resource_versions": {
+        "artifact:/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.dmg": "aaab34bc17c675594c99615ff1c0d57195cb144e8aed73f895b59b5c1f6e59d5"
+      }
+    },
+    "BPR-0575-native-live-scope": {
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-native-scope.md",
+        "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md"
+      ],
+      "resources": [],
+      "resource_versions": {}
+    },
+    "BPR-0575-closeout-order": {
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-owner-order.md",
+        "docs/rfcs/README.md"
+      ],
+      "resources": [],
+      "resource_versions": {}
+    }
+  },
+  "source_revision": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
+  "application_commands": "All stopped; four publication witnesses remain GET-only. No further ad hoc line clicks or live launches in this round.",
+  "review_mode": "Static owner judgments only. No UI action constitutes acceptance.",
+  "watch_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+    "wait",
+    "--after",
+    "9",
+    "--kind",
+    "handed-back",
+    "--timeout",
+    "86400"
+  ],
+  "writer_release": "Implementer releases after final evidence commit; only loopback review host may remain. Coordinator arms watch before yielding.",
+  "continuation": "Interpret owner verdicts next engineering round; query/release affected protection before editing; no historical publication can be retried or assigned fallback authority."
+}

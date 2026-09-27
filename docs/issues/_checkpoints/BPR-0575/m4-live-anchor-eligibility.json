@@ -1,0 +1,65 @@
+{
+  "schema": "rfc0022.anchor-eligibility.v1",
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "observed_utc": "2026-09-27T04:27:20.708103+00:00",
+  "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "repository_database_id": 1328277631,
+  "repository_node_id": "R_kgDOTyvofw",
+  "pull_request_database_id": 4650736621,
+  "pull_request_node_id": "PR_kwDOTyvof88AAAABFTSb7Q",
+  "state": "open",
+  "files": [
+    {
+      "path": "off_hunk_fixture.md",
+      "status": "modified",
+      "blob_sha": "828d5c87c20a0f9d74c498e04c36b32d2948b7c5",
+      "blob_bytes": 2792,
+      "blob_sha256": "b3adb8b5f31fb8c7aa25c057a807d0f1956560b256ebe737ad29440a3ba50ae1",
+      "line_count": 80,
+      "anchor": {
+        "side": "RIGHT",
+        "line": 61,
+        "text": "Harmless Markdown fixture line 61."
+      },
+      "provider_patch": "@@ -7,7 +7,7 @@ Harmless Markdown fixture line 06.\n Harmless Markdown fixture line 07.\n Harmless Markdown fixture line 08.\n Harmless Markdown fixture line 09.\n-Harmless Markdown fixture line 10.\n+Harmless Markdown fixture line 10. (changed for native hunk test)\n Harmless Markdown fixture line 11.\n Harmless Markdown fixture line 12.\n Harmless Markdown fixture line 13.",
+      "provider_patch_sha256": "166a335e70ce97a1499ea690d32239acf2be5408c8c6bea49e4c922f5657ef21",
+      "provider_right_hunks": [
+        [
+          7,
+          7
+        ]
+      ],
+      "off_hunk": true,
+      "api_additions": 1,
+      "api_deletions": 1,
+      "api_changes": 2
+    },
+    {
+      "path": "off_hunk_fixture.txt",
+      "status": "modified",
+      "blob_sha": "79fe8e95cf056dd629442c686696851f26631115",
+      "blob_bytes": 2751,
+      "blob_sha256": "1eff9eca88d82305c765e5d597097934f7b4ca47f3506e7101b23569843816a2",
+      "line_count": 80,
+      "anchor": {
+        "side": "RIGHT",
+        "line": 61,
+        "text": "RFC-0022 harmless fixture line 61"
+      },
+      "provider_patch": "@@ -7,7 +7,7 @@ RFC-0022 harmless fixture line 06\n RFC-0022 harmless fixture line 07\n RFC-0022 harmless fixture line 08\n RFC-0022 harmless fixture line 09\n-RFC-0022 harmless fixture line 10\n+RFC-0022 harmless fixture line 10 (changed for native hunk test)\n RFC-0022 harmless fixture line 11\n RFC-0022 harmless fixture line 12\n RFC-0022 harmless fixture line 13",
+      "provider_patch_sha256": "fe37f8fcaad5ed213d8878ed317e86711fbcd64f2c45b16b04c8e0296e2a23aa",
+      "provider_right_hunks": [
+        [
+          7,
+          7
+        ]
+      ],
+      "off_hunk": true,
+      "api_additions": 1,
+      "api_deletions": 1,
+      "api_changes": 2
+    }
+  ],
+  "interpretation": "Read-only GitHub PR detail/files/blobs. Exact current head, two modified text files, content-addressed80line blobs, complete small provider patches each cover only right7..13 and exactly match advertised1addition/1deletion. RIGHT61 exists outside both patches. Actual app separately binds authenticated actor, accepted source and head before each one-use write. This proves anchor eligibility/off-hunk placement, not service rejection meaning."
+}

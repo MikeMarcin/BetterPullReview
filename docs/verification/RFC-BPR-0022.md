@@ -6,9 +6,10 @@ preparation complete; live acceptance and canonical closure pending**.
 Assignment `/root/rfc0022_m4`, mandate **r2**, run `rfc0022-20260926`.
 RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 D production candidates: `0ff88046` (PR2 rebind), `6526f525` (exact optional
-profile selector), `3a517b86` (bounded publication diagnostics). The original
-profile2 text-line60 attempt remains witnessed and unresolved; no retry/fallback
-was performed. [D evidence](../issues/_checkpoints/BPR-0575/m4-evidence.json)
+profile selector), `3a517b86` (bounded publication diagnostics), `0eee1f45` and
+`699c921c` (exact observation shape and closed message literals). The profile2
+TXT60, Markdown60, TXT61 and Markdown61 attempts remain witnessed and unresolved; no
+retry/fallback was performed. [D evidence](../issues/_checkpoints/BPR-0575/m4-evidence.json)
 records the final candidate, commands, log hashes and limitations.
 
 ## Architecture allocation
@@ -34,7 +35,7 @@ They do not assert native service or human acceptance.
 |---:|---|---|---|---|---|---|---|
 | 1 | Every materialized current/right source line in a text file already changed by the pull request exposes the ordinary comment gesture; file eligibility, exact head, path, line, and acting identity are revalidated before any write. | real line gesture + exact host admission | core_review_round_trip; application_review_mutation_application_host; qt_composed_github_scale_100; application_review_round_trip_composition_contract | Eligible right lines expose one gesture; invalid target/head/path/line/actor refuse before POST | PASS automated/rendered; final composed candidate confirms native and file selection | automated+rendered | M1/M3; D public replay |
 | 2 | A selected anchor accepted by the legacy line-comment operation publishes as one native line review comment on GitHub.com and GHES, independent of the off-hunk capability state. | policy + exact GitHub/GHES wire/session | core_review_round_trip; github_mutation_contract; github_review_comment_permalink | Legacy accepted line remains native for every off-hunk capability state | PASS fixtures; native GHES unobserved per owner amendment | automated | M1/M2/M3 |
-| 3 | An off-hunk anchor on a repository whose exact operation is proven supported publishes as one native line review comment and records scoped positive evidence. | designated native GitHub.com write | Prepared PR2 attended application; off_hunk_fixture.txt RIGHT line60 | One exact native comment and positive scoped evidence | PENDING native success; text-line60 is witnessed/indeterminate with no receipt; no support inferred | external-authority | D prepared capsule |
+| 3 | An off-hunk anchor on a repository whose exact operation is proven supported publishes as one native line review comment and records scoped positive evidence. | designated native GitHub.com write | Exact PR2 attended application; TXT60, Markdown60, TXT61 and Markdown61 | One exact native comment and positive scoped evidence | PENDING native success; four independent eligible anchors remain witnessed with no receipt; three complete422 responses observed; no support inferred | external-authority | D prepared capsule |
 | 4 | An off-hunk anchor proven unsupported publishes as one ordinary file-level review comment whose first paragraph is the canonical immutable permalink and whose remaining prose is byte-preserved. | exact synthetic rejection + real session/journal/file wire | github_review_comment_permalink; application_review_round_trip_composition_contract | One FILE comment, canonical prefix, byte-identical prose | PASS synthetic contract; production tuple absent, live fallback PENDING | automated+external-authority | M2/M3; D public replay |
 | 5 | An unknown capability or placement attempts the intended native write; only a fully received exact unsupported rejection can authorize fallback. | policy/response classifier/serialized session | core_review_round_trip; github_mutation_contract; github_review_comment_permalink | Unknown starts native; only exact complete non-creation can authorize file | PASS automated and live native witness; production classifier has no admitted tuple | automated | M1/M2/M3 |
 | 6 | Timeout, cancellation, connection loss, created-but-unparsed response, generic `422`, permission failure, rate limiting, malformed response, 5xx, or ambiguous reconciliation never starts a fallback POST. | wire/host/recovery counterexamples | github_mutation_contract; github_review_comment_permalink; native_https_transport_fixture | Ambiguous, generic422, permission/rate/network/malformed outcomes cause zero fallback POSTs | PASS bounded hostile courses; live indeterminate native journal has no fallback | automated | M2/M3 |
@@ -110,8 +111,11 @@ stale preparatory wording was removed. D adds no full model reset or second code
 
 ## Closure remains pending
 
-BPR-0573 awaits a conclusive native result, an admitted exact unsupported
-contract for fallback, and GitHub-only verdict. BPR-0574 is Done for independent
+BPR-0573 awaits the separate owner contract and native-live scope decisions,
+an admitted exact unsupported contract with actual fallback evidence, and the
+GitHub-only collaborator verdict. The complete MD61 observation is linked in
+[the owner proposal](../issues/_checkpoints/BPR-0575/m4-owner-contract.md); its
+line-resolution wording does not independently prove unsupported placement. BPR-0574 is Done for independent
 documentation/simplification. BPR-0575 remains Backlog while its
 required predecessor is open. RFC0004/0005/0008 are Auto-Verified, but the
 canonical index says RFCs always close in order and RFC0020/0021 remain Deferred.

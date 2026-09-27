@@ -1,0 +1,58 @@
+{
+  "source_revision": "699c921c8a0e804f57ab1b806e3c0b4bf685fb8a",
+  "source_sha256": "1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "8825f3d7bdb085174e8de4e1effede7b56f7144193b7f9424d201081ed3b5584",
+      "bytes": 15319424
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "3357df6e5b0b2bdf793dabdfddf42389fe3a8685386875acc3059d12ae87863d",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.inventory",
+      "sha256": "05452955a9a2a8b7d36a2fd01d0453c34c08f34b7049a9d94e9b575b7e8391f9",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/capsule.dmg",
+      "sha256": "aaab34bc17c675594c99615ff1c0d57195cb144e8aed73f895b59b5c1f6e59d5",
+      "bytes": 34936681
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405/source-manifest.txt",
+      "sha256": "1c69070d0a1d6fa589b69f7961b37becfe6cfde99fc029c098a841ac89c99405",
+      "bytes": 6875
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "a046811b219bea8a3e9814049785f3f40c633a75d60a2102c51487ab93b16723",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-resolution-fresh-approval-parent/approval.txt",
+  "subject_sha256": "3fb795be25033ccf24bcfbfef71cdb359f47fa5884a32b2211e077fbc6813707",
+  "subject_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/docs/issues/_checkpoints/BPR-0575/m4-resolution-fresh-approval-subject.txt",
+  "profile": 2,
+  "replay_namespace": "/Users/jaeger/Library/Application Support/BetterPullReview/BetterPullReview/profiles/profile-2/designated-live-review-replay-state-v1",
+  "replay_state_unchanged": true,
+  "replay_marker_hashes_before_new_approval": {
+    "2b3f7b489f0afc5d9023e392b3f104bf156b8d1f8ac54561a23e22dfbce111ee": "9a781256fe53440b8b707bbb3d911c18c088d3e1b11bdb7574f3d47fea3c9c35",
+    "74a4b2d8d354a09ee999e2705c40d4724310df617aae9a17139235d26abaad15": "084d4f2978609debd647e5ab21abb0bf99a83a79653fe98723390eb7a913a3fd",
+    "d0fde46284745db231d7764ce61fef5a87a24fca6ff022adf871db630dd28c41": "2506f7a267c3307ce0ce5cc75ea848eae891eb8396822e78e5bb26ea3e0787df",
+    ".bpr-replay-namespace": "925bf8224daf8b1c569473993205aaf0f6b1b4407952884bed1504414ad62c16",
+    "93f2c3d5f4578a8c4a1ee470d3b53e7765b2397ad02e64df4f9dad7d5887ab22": "e699f919219d61f5ca70c91f6ecc9eee35601ac293c023d7c2688a97944c18ae"
+  },
+  "intended_independent_publication": {
+    "path": "off_hunk_fixture.md",
+    "side": "RIGHT",
+    "line": 61,
+    "body": "BetterPullReview Markdown source-line verification at line 61."
+  },
+  "previous_publications": "TXT60, MD60 and TXT61 remain native_possibly_transmitted and GET-only. MD61 is a separate intended comment, no retry or fallback.",
+  "approval_materialization_authority": "Standing mandate r2; safe PR independent fixture publication course, fresh exact one-use subject; no human hash verdict asserted."
+}
