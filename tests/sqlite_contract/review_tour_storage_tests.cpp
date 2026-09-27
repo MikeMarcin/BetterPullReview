@@ -69,7 +69,8 @@ namespace {
 		core::review_tour restored6;
 		read6.tour(restored6);
 		expect(read6.Good && read6.Input.empty() && restored6 == original, "v6 migration does not invent generated provenance");
-		original.Stops[0].Suggestion = core::tour_suggestion{ "selected-source", "Private reason", "Author question", true };
+		original.Stops[0].Suggestion       = core::tour_suggestion{ "selected-source", "Private reason", "Author question", true };
+		original.Stops[0].CompletionOrigin = core::tour_completion_origin::relayed;
 		tests::sqlite_contract::scratch_root scratch{ "tour-v2" };
 		auto                                 store = adapters::sqlite::make_review_tour_store(scratch.path(), original.Owner.Profile);
 		expect(store->save(original, 0, { }).has_value(), "v3 remote source/provenance saved");

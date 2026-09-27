@@ -19,10 +19,17 @@ namespace bpr::app {
 		application::tour_saved_target            Target;
 		application::github_pull_request_snapshot Snapshot;
 	};
+	struct tour_source_material
+	{
+		core::tour_source_range Source;
+		std::string             Text;
+	};
+
 	/// \brief Narrow headless read composition; no mutation or model capability exists.
 	class tour_remote_reader
 	{
 	public:
+		virtual auto source(const core::tour_code_destination&) -> tour_cli_result<tour_source_material> { return std::unexpected(tour_cli_error{ "source_unavailable", "This read provider cannot load pinned source.", 5 }); }
 		virtual ~tour_remote_reader()                                                                                                                                    = default;
 		virtual auto connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>                                                         = 0;
 		virtual auto open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh) -> tour_cli_result<tour_remote_read> = 0;
@@ -43,6 +50,7 @@ namespace bpr::app {
 		[[nodiscard]] auto        connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>;
 		[[nodiscard]] auto        open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto        load(std::string_view aDraft, bool aMachine) -> tour_cli_result<tour_local_snapshot>;
+		[[nodiscard]] auto        source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>;
 		[[nodiscard]] auto        mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] static auto draft_token(const application::tour_saved_target& aTarget) -> std::string;
 

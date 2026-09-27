@@ -1,18 +1,26 @@
+#include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
+#include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/epoch_application_host.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_device_authorization_transport.hpp"
 #include "github_provider.hpp"
 #include "native_https_transport.hpp"
 #include "platform_credential_vault.hpp"
+#include "tour_cancellation.hpp"
 #include "tour_runtime.hpp"
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QRandomGenerator>
+#include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
 #include <deque>
+#include <future>
 #include <iostream>
 #include <mutex>
 namespace bpr::app {
@@ -86,7 +94,7 @@ namespace bpr::app {
 		private:
 			std::string Code;
 		};
-		class remote_reader final : public tour_remote_reader, private application::github_projection_port, private application::github_epoch_handoff_port
+		class remote_reader final : public tour_remote_reader, private application::github_projection_port, private application::github_epoch_handoff_port, private application::epoch_projection_port
 		{
 		public:
 			remote_reader(std::filesystem::path aRoot, core::bpr_profile_id aProfile)
@@ -149,8 +157,101 @@ namespace bpr::app {
 				return tour_remote_read{ std::move(target), *Host->accepted_snapshot() };
 			}
 
+			auto source(const core::tour_code_destination& aSource) -> tour_cli_result<tour_source_material> override
+			{
+				if (!Handoff || !core::valid(aSource)) {
+					return refuse("source_unavailable", "No accepted read can authorize this source.", 5);
+				}
+				if (aSource.LastLine - aSource.FirstLine >= 200) {
+					return refuse("source_too_large", "Select at most 200 source lines.", 2);
+				}
+				const auto&                                         h = *Handoff;
+				const application::workbench_pull_request_authority authority{ h.ApplicationSession, h.Profile, h.ProfileRevision, h.Host, h.HostAuthority, h.Account, h.Viewer, h.Repository, h.PullRequest, h.Number, h.Snapshot, h.IdentityGeneration, h.PullRequestGeneration };
+				if (!Epoch) {
+					const auto git     = native_filesystem_path(QStandardPaths::findExecutable(QStringLiteral("git")));
+					auto       cache   = source_effect([&] { return adapters::git::make_installed_git_cache({ .GitExecutable = git, .StorageRoot = Root }); });
+					auto       catalog = source_effect([&] { return adapters::sqlite::make_epoch_catalog({ .StorageRoot = Root }); });
+					if (!cache || !catalog) {
+						return refuse("source_unavailable", "The existing private Git cache is unavailable.", 5);
+					}
+					Cache      = std::move(*cache);
+					Catalog    = std::move(*catalog);
+					Entropy    = application::make_system_epoch_entropy();
+					EpochClock = application::make_system_epoch_clock();
+					Epoch      = std::make_unique<application::epoch_application_host>(core::epoch_state{ .ApplicationSession = Session }, *Cache, *Catalog, *Entropy, *EpochClock, Effects, Decisions, static_cast<application::epoch_projection_port&>(*this));
+					Epoch->accept(std::move(*Handoff));
+					Handoff.reset();
+					wait([&] { return Epoch->is_quiescent(); });
+				}
+				auto context = Epoch->context(authority);
+				if (!context) {
+					return refuse("source_unavailable", "Pinned commits are unavailable; no working-tree source is substituted.", 5);
+				}
+				const bool left = aSource.Side == core::diff_side::left;
+				if ((left ? context->Comparison.Left.Commit : context->Comparison.Right.Commit) != aSource.Commit) {
+					context = Epoch->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, aSource.Commit, aSource.Commit, context->Comparison.Left.Identity.Epoch, context->Comparison.Right.Identity.Epoch });
+				}
+				if (!context) {
+					return refuse("source_unavailable", "The historical comparison is not retained.", 5);
+				}
+				const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, Session, core::request_generation{ 1 } }, .WorkbenchAuthority = authority, .Diff = *context, .File = { .File = core::file_identity_of(aSource.Path), .PresentationPath = aSource.Path, .CurrentPath = native_filesystem_path(QString::fromUtf8(aSource.Path)), .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
+				const auto                                         resolved = source_effect([&] { return Epoch->resolve(request, { }); });
+				const auto&                                        blob     = left ? resolved.LeftBlob : resolved.RightBlob;
+				const auto&                                        path     = left ? resolved.LeftPath : resolved.RightPath;
+				const auto&                                        endpoint = left ? resolved.LeftEndpoint : resolved.RightEndpoint;
+				if (!blob || !path || !endpoint || !application::valid(*endpoint, request, aSource.Side, *blob, *path) || (aSource.Blob && aSource.Blob != blob)) {
+					return refuse("source_unavailable", "The exact source endpoint is missing, changed or ambiguous.", 5);
+				}
+				const auto&                     diff = *context;
+				const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest, diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, resolved.LeftBlob, resolved.RightBlob, request.File.File, diff.OptionsDigest, diff.Algorithm };
+				if (!core::valid(key)) {
+					return refuse("source_unavailable", "The source comparison is invalid.", 5);
+				}
+				const auto material = source_effect([&] { return Epoch->materialize({ .Context = { core::request_id{ 2 }, Session, key, core::request_generation{ 1 } }, .Side = aSource.Side, .Blob = *blob, .MaximumBytes = 256 * 1024 }, { }); });
+				if (material.Status != application::diff_blob_status::available) {
+					return refuse("source_unavailable", "The bounded pinned source could not be loaded.", 5);
+				}
+				const std::string bytes{ material.Bytes.begin(), material.Bytes.end() };
+				if (!core::valid_writing_utf8(bytes) || bytes.find('\0') != std::string::npos) {
+					return refuse("source_unavailable", "Pinned source is binary or is not UTF-8.", 5);
+				}
+				std::size_t   first = 0, last = 0;
+				std::uint32_t line = 0;
+				while (line < aSource.FirstLine && first < bytes.size()) {
+					auto next = bytes.find('\n', first);
+					first     = next == std::string::npos ? bytes.size() : next + 1;
+					++line;
+				}
+				if (line != aSource.FirstLine || first == bytes.size()) {
+					return refuse("source_range_unavailable", "The requested first line is outside the pinned file.", 2);
+				}
+				last = first;
+				for (; line <= aSource.LastLine; ++line) {
+					if (last == bytes.size()) {
+						return refuse("source_range_unavailable", "The requested range extends beyond the pinned file.", 2);
+					}
+					auto next = bytes.find('\n', last);
+					last      = next == std::string::npos ? bytes.size() : next + 1;
+				}
+				if (last - first > core::maximum_tour_field_bytes) {
+					return refuse("source_too_large", "Selected source exceeds the 65536-byte presentation bound.", 2);
+				}
+				const auto digest = core::comparison_digest(key);
+				return tour_source_material{ { { digest, aSource.Side, aSource.FirstLine }, { digest, aSource.Side, aSource.LastLine }, aSource.Commit, blob, aSource.Path }, bytes.substr(first, last - first) };
+			}
+
 		private:
-			auto refuse(std::string aCode, std::string aMessage, int aExit) -> std::unexpected<tour_cli_error> { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
+			auto refuse(std::string aCode, std::string aMessage, int aExit) -> std::unexpected<tour_cli_error> { return tour_cancelled() ? std::unexpected(tour_cli_error{ "cancelled", "The command was cancelled; no remote content writes were issued.", 130 }) : std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
+			void publish(const application::epoch_presentation_update&) override { }
+			template <typename F>
+			auto source_effect(F aFunction) -> decltype(aFunction())
+			{
+				auto task   = std::make_shared<std::packaged_task<decltype(aFunction())()>>(std::move(aFunction));
+				auto result = task->get_future();
+				SourceEffects.post([task] { (*task)(); });
+				wait([&] { return result.wait_for(std::chrono::milliseconds{ 0 }) == std::future_status::ready; });
+				return result.get();
+			}
 			void publish(const application::github_presentation_update&) override { }
 			void accept(application::accepted_pull_request_handoff aHandoff) override { Handoff = std::move(aHandoff); }
 			void invalidate(application::pull_request_authority_invalidation) override { Handoff.reset(); }
@@ -158,9 +259,24 @@ namespace bpr::app {
 			{
 				// Underlying read/transport and device hosts own their finite time bounds.
 				do {
+					if (tour_cancelled() && !Cancelling) {
+						Cancelling = true;
+						if (Epoch) {
+							Epoch->shutdown();
+						}
+						if (Device) {
+							Device->shutdown();
+						}
+						if (Host) {
+							Host->shutdown();
+						}
+						if (Provider) {
+							Provider->shutdown();
+						}
+					}
 					Decisions.drain();
 					QCoreApplication::processEvents();
-					if (aDone()) {
+					if (aDone() || (Cancelling && (!Host || Host->is_quiescent()) && (!Device || Device->is_quiescent()) && (!Epoch || Epoch->is_quiescent()) && Effects.idle())) {
 						break;
 					}
 					QThread::msleep(1);
@@ -228,6 +344,9 @@ namespace bpr::app {
 			}
 			void stop()
 			{
+				if (Epoch) {
+					Epoch->shutdown();
+				}
 				if (Device) {
 					Device->shutdown();
 				}
@@ -237,14 +356,24 @@ namespace bpr::app {
 				if (Provider) {
 					Provider->shutdown();
 				}
-				wait([&] { return (!Device || Device->is_quiescent()) && (!Host || Host->is_quiescent()) && (!Persistence || Persistence->is_quiescent()) && Effects.idle(); });
+				wait([&] { return (!Epoch || Epoch->is_quiescent()) && (!Device || Device->is_quiescent()) && (!Host || Host->is_quiescent()) && (!Persistence || Persistence->is_quiescent()) && Effects.idle(); });
 				Effects.close_and_drain();
+				SourceEffects.close_and_drain();
 				Decisions.drain();
 			}
-			std::filesystem::path                                                     Root;
-			core::bpr_profile_id                                                      Profile;
-			worker_executor                                                           Effects;
-			terminal_decisions                                                        Decisions;
+
+			bool                                                 Cancelling = false;
+			std::filesystem::path                                Root;
+			core::bpr_profile_id                                 Profile;
+			worker_executor                                      Effects;
+			terminal_decisions                                   Decisions;
+			worker_executor                                      SourceEffects;
+			std::unique_ptr<application::git_cache_port>         Cache;
+			std::unique_ptr<application::epoch_catalog_port>     Catalog;
+			std::unique_ptr<application::epoch_entropy_port>     Entropy;
+			std::unique_ptr<application::epoch_clock_port>       EpochClock;
+			std::unique_ptr<application::epoch_application_host> Epoch;
+
 			core::application_session_id                                              Session;
 			std::unique_ptr<validated_github_host_profile>                            HostProfile;
 			std::unique_ptr<github_provider>                                          Provider;

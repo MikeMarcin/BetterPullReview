@@ -229,6 +229,28 @@ namespace bpr::app {
 		}
 		return tour_local_snapshot{ read->Target, std::move(result) };
 	}
+	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
+	{
+		if (!core::valid(aDestination)) {
+			return failure("invalid_source", "The source destination is invalid.", 2);
+		}
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return std::unexpected(loaded.error());
+		}
+		auto&       self   = *Implementation;
+		auto        reader = self.Readers(self.Root, self.Profile);
+		const auto& target = loaded->Target;
+		auto        read   = reader->open(target.Hostname, target.Repository, target.Number, aGh);
+		if (!read) {
+			return std::unexpected(read.error());
+		}
+		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
+			return failure("identity_changed", "The source read belongs to a different account or target.", 4);
+		}
+		return reader->source(aDestination);
+	}
+
 	auto tour_runtime::mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>
 	{
 		auto loaded = load(aDraft, true);

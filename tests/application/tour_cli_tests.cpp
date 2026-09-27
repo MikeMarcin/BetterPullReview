@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 namespace {
@@ -25,6 +26,11 @@ namespace {
 		explicit fixture_reader(fixture_state& aState)
 			: State{ aState }
 		{ }
+		auto source(const core::tour_code_destination& aDestination) -> app::tour_cli_result<app::tour_source_material> override
+		{
+			const auto comparison = tests::review_tour_fixture().Stops[0].Original->First.Comparison;
+			return app::tour_source_material{ { { comparison, aDestination.Side, aDestination.FirstLine }, { comparison, aDestination.Side, aDestination.LastLine }, aDestination.Commit, { }, aDestination.Path }, "fixture source\n" };
+		}
 		auto connect(std::string, bool, bool) -> app::tour_cli_result<std::string> override { return std::unexpected(app::tour_cli_error{ "fixture_no_auth", "Authentication is not available in this fixture.", 3 }); }
 		auto open(std::string aHost, core::repository_locator aRepo, core::pull_request_number aNumber, bool) -> app::tour_cli_result<app::tour_remote_read> override
 		{
@@ -113,10 +119,53 @@ namespace {
 		expect(raw.json()["data"].toObject()["text"] == "raw\x1b[2J body\r\n", "JSON preserves inert raw body bytes");
 		auto human = call({ "tour", "show", "stop:1", "--profile", "1", "--draft", importedId });
 		expect(human.Exit == 0 && human.Out.find('\x1b') == std::string::npos && human.Out.find("\\u001b[2J") != std::string::npos, "human output neutralizes terminal controls");
+		state.Account       = 50;
+		state.Roots         = false;
+		state.Multiple      = false;
+		auto       draft    = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		const auto editId   = draft.json()["data"].toObject()["draft_id"].toString();
+		auto       rev      = draft.json()["data"].toObject()["revision"].toString();
+		const auto file     = scratch.path() / "input with spaces.md";
+		auto       write    = [&](std::string_view bytes) {std::ofstream out{file,std::ios::binary};out.write(bytes.data(),static_cast<std::streamsize>(bytes.size())); };
+		const auto fileName = QString::fromStdString(file.string());
+		auto       edit     = [&](QStringList args, bool expected = true) {args.append({"--profile","1","--draft",editId,"--json"});if(expected){args.append({"--expected-revision",rev});}return call(args); };
+		write("Precise α\r\n\r\n");
+		expect(edit({ "tour", "edit", "problem", "--file", fileName }, false).json()["error"].toObject()["code"] == "revision_required", "machine edit requires captured revision");
+		auto edited = edit({ "tour", "edit", "problem", "--file", fileName });
+		expect(edited.Exit == 0, "exact file import commits through shared host");
+		expect(edit({ "tour", "edit", "solution", "--file", fileName }).Exit == 4, "old document revision cannot overwrite another field after concurrent edit");
+		rev          = edited.json()["data"].toObject()["revision"].toString();
+		auto problem = call({ "tour", "show", "problem", "--profile", "1", "--draft", editId, "--json" });
+		expect(problem.json()["data"].toObject()["text"] == QString::fromUtf8("Precise α\r\n\r\n"), "raw UTF-8 and CRLF are preserved");
+		write(std::string(65537, 'x'));
+		expect(edit({ "tour", "edit", "solution", "--file", fileName }).json()["error"].toObject()["code"] == "input_too_large", "oversized input is rejected");
+		write(std::string{ "\xc0\xaf", 2 });
+		expect(edit({ "tour", "edit", "solution", "--file", fileName }).json()["error"].toObject()["code"] == "invalid_utf8", "invalid Unicode is rejected");
+		write("Comment body\n");
+		auto added = edit({ "tour", "add", "src/α.cpp:2-3", "--file", fileName });
+		expect(added.Exit == 0, "manual source add commits local stop");
+		rev = added.json()["data"].toObject()["revision"].toString();
+		expect(!added.json()["data"].toObject()["stops"].toArray()[0].toObject()["ready"].toBool(), "having enough text to be ready is not a readiness decision");
+		auto ready = edit({ "tour", "ready", "1" });
+		expect(ready.Exit == 0 && ready.json()["data"].toObject()["stops"].toArray()[0].toObject()["ready"].toBool(), "explicit readiness is local only");
+		rev             = ready.json()["data"].toObject()["revision"].toString();
+		auto secondStop = edit({ "tour", "add", "--path", "src/second.cpp", "--lines", "1-1", "--side", "LEFT", "--file", fileName });
+		expect(secondStop.Exit == 0, "explicit path and one-based left lines accepted");
+		rev        = secondStop.json()["data"].toObject()["revision"].toString();
+		auto moved = edit({ "tour", "move", "2", "--before", "1" });
+		expect(moved.Exit == 0 && moved.json()["data"].toObject()["stops"].toArray()[0].toObject()["stop_id"] == "2", "move follows stable IDs");
+		rev          = moved.json()["data"].toObject()["revision"].toString();
+		auto removed = edit({ "tour", "remove", "1" });
+		expect(removed.Exit == 0 && removed.json()["data"].toObject()["stops"].toArray().size() == 1, "remove only changes local route");
+		expect(edit({ "tour", "move", "2", "--after", "1", "--before", "1" }).Exit != 0, "invalid extra move arguments cannot execute");
 	}
 }
 int main(int argc, char** argv)
 {
 	QCoreApplication app{ argc, argv };
+	if (argc > 1) {
+		fixture_state state;
+		return app::run_tour_cli(QCoreApplication::arguments().mid(1), [&](auto, auto) { return std::make_unique<fixture_reader>(state); });
+	}
 	cold_open();
 }

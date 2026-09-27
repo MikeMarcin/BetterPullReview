@@ -65,6 +65,10 @@ namespace bpr::core {
 											 missing,
 											 unavailable,
 											 author_selected };
+	enum class tour_completion_origin : std::uint8_t { unspecified,
+													   observed,
+													   relayed };
+
 	enum class tour_preparation : std::uint8_t { suggested,
 												 editing,
 												 ready,
@@ -141,6 +145,7 @@ namespace bpr::core {
 		std::optional<tour_code_destination> Destination;
 		std::optional<git_commit_oid>        ReaffirmedHead = std::nullopt;
 		std::optional<tour_suggestion>       Suggestion;
+		tour_completion_origin               CompletionOrigin = tour_completion_origin::unspecified;
 	};
 
 	enum class tour_conflict_field : std::uint8_t { problem,
@@ -232,6 +237,7 @@ namespace bpr::core {
 		/// Ordered stable IDs for one atomic move, duplicate, merge or removal.
 		/// Merge requires at least two adjacent stops; an empty set uses Stop.
 		std::vector<tour_stop_id> Selection;
+		tour_completion_origin    CompletionOrigin = tour_completion_origin::unspecified;
 	};
 	enum class tour_refusal : std::uint8_t { none,
 											 identity,

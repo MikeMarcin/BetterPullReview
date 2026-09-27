@@ -50,10 +50,10 @@ namespace bpr::core {
 			if (aStop.Suggestion && (!field_ok(aStop.Suggestion->AnchorRef) || !field_ok(aStop.Suggestion->Reason) || !field_ok(aStop.Suggestion->Question) || aStop.Suggestion->AnchorRef.empty() || aStop.Suggestion->AnchorRef.size() > 128 || aStop.Suggestion->Reason.empty() || aStop.Suggestion->Reason.size() > 240 || aStop.Suggestion->Question.size() > 240)) {
 				return tour_refusal::bounds;
 			}
-			if (aStop.Suggestion && aStop.Preparation == tour_preparation::ready && !aStop.Suggestion->Visited) {
+			if (aStop.Suggestion && aStop.Preparation == tour_preparation::ready && !aStop.Suggestion->Visited && aStop.CompletionOrigin != tour_completion_origin::relayed) {
 				return tour_refusal::incomplete;
 			}
-			if (!field_ok(aStop.Title) || !field_ok(aStop.Body) || !baseline_ok(aStop.Baseline) || !remote_ok(aStop.Remote) || aStop.Related.size() > maximum_tour_related_sources) {
+			if (aStop.CompletionOrigin > tour_completion_origin::relayed || !field_ok(aStop.Title) || !field_ok(aStop.Body) || !baseline_ok(aStop.Baseline) || !remote_ok(aStop.Remote) || aStop.Related.size() > maximum_tour_related_sources) {
 				return tour_refusal::bounds;
 			}
 			if ((aStop.Destination && !valid(*aStop.Destination)) || (aStop.Original && !valid(*aStop.Original)) || (aStop.Mapped && !valid(*aStop.Mapped))
@@ -205,8 +205,9 @@ namespace bpr::core {
 				if (aCommand.Value.Id != found->Id || aCommand.Value.Original != found->Original || aCommand.Value.Baseline != found->Baseline || aCommand.Value.Remote != found->Remote || aCommand.Value.Destination != found->Destination || aCommand.Value.Suggestion != found->Suggestion || (found->Remote && !found->Remote->Own)) {
 					return tour_refusal::identity;
 				}
-				*found             = aCommand.Value;
-				found->Preparation = tour_preparation::editing;
+				*found                  = aCommand.Value;
+				found->Preparation      = tour_preparation::editing;
+				found->CompletionOrigin = tour_completion_origin::unspecified;
 				return tour_refusal::none;
 			case tour_command_kind::move: {
 				if (aCommand.Position >= aTour.Stops.size()) {
@@ -250,13 +251,14 @@ namespace bpr::core {
 				}
 				return tour_refusal::none;
 			case tour_command_kind::complete:
-				if (!ready(*found) || (found->Suggestion && !visible_tour_stop(*found, aCommand.Attention, true))) {
+				if (aCommand.CompletionOrigin > tour_completion_origin::relayed || !ready(*found) || (found->Suggestion && aCommand.CompletionOrigin != tour_completion_origin::relayed && !visible_tour_stop(*found, aCommand.Attention, true))) {
 					return tour_refusal::incomplete;
 				}
-				if (found->Suggestion) {
+				if (found->Suggestion && aCommand.CompletionOrigin != tour_completion_origin::relayed) {
 					found->Suggestion->Visited = true;
 				}
-				found->Preparation = tour_preparation::ready;
+				found->CompletionOrigin = aCommand.CompletionOrigin == tour_completion_origin::unspecified && aCommand.Attention.EditorVisible ? tour_completion_origin::observed : aCommand.CompletionOrigin;
+				found->Preparation      = tour_preparation::ready;
 				return tour_refusal::none;
 			default: return tour_refusal::invalid_command;
 			}

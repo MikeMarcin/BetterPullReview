@@ -199,6 +199,15 @@ namespace {
 		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "different current source cannot acknowledge a stop");
 		complete.Attention = { true, { }, true };
 		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "unavailable source is an explicit visit but cannot complete");
+		{
+			auto unvisited                         = tour;
+			unvisited.Stops[0].Suggestion->Visited = false;
+			auto relayed                           = complete;
+			relayed.Attention                      = { };
+			relayed.CompletionOrigin               = tour_completion_origin::relayed;
+			auto result                            = apply(unvisited, relayed);
+			expect(result.Refusal == tour_refusal::none && result.Accepted.Stops[0].Preparation == tour_preparation::ready && !result.Accepted.Stops[0].Suggestion->Visited && result.Accepted.Stops[0].CompletionOrigin == tour_completion_origin::relayed, "explicit current author response is recorded as relayed, never a fabricated visit");
+		}
 		complete.Attention = { true, source() };
 		apply_ok(tour, complete);
 		auto move     = command(tour, tour_command_kind::move);
