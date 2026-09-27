@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1054"
 title: "Build and install a non-GUI tour runtime and bpr executable"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1053"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-03","milestone":"headless-manual","acceptance":["AC44-01"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC44-01","outcome":"pass","revision":"d62902a869100847dcc92d1376329c1aa9986a88","evidence":{"kind":"command","detail":"Tests-disabled tour-cli configured/built/installed; installed tour_cli_tests.py passes with no display and invalid QPA. DYLD inspection loads installed Core/Network only. Desktop app builds; application_review_tour_cold_import_public_path passes (14.07s). Core-only configure/build plus core_dependency_boundary, architecture_boundaries and application_review_tour_host pass. Local macOS install only; cross-platform distribution qualification remains later scope."}}]
 ---
 
 # BPR-1054: Build and install a non-GUI tour runtime and bpr executable
