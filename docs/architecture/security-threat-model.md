@@ -1267,3 +1267,17 @@ Native transport canaries, provider refusal counters, SQLite migration/restart,
 and selected-file diff tests cover separate boundaries. The successful bounded
 Mac live read proves its recorded target and source only; it authorizes no
 credential operation or mutation. Linux/Windows public preview remains unavailable.
+
+## Structured diagnostic framing
+
+BPR-1215 retains the credential-owner sanitizer and the typed diagnostic port.
+Its JSON encoder is a framing boundary, not a sanitizer: only fixed operation
+facts and the previously classified 2,048-byte summary enter it. Control and
+non-ASCII summary bytes refuse before Quill receives them; quote/backslash
+escaping prevents field/line injection. The encoded line is capped at 16 KiB
+before queue copying. Session labels come from native-backed random-device
+entropy, never account/path hashes; they are diagnostic joins only. The current
+metadata exporter reconstructs its small allowed vocabulary and counts unknown
+or malformed records rather than copying source text. Existing plaintext files
+are retained, with their historical privacy limitations. Retention, identity
+privacy options and richer exports remain subsequent RFC-BPR-0027 milestones.

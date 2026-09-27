@@ -2991,6 +2991,28 @@ these events:
 tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log"
 ```
 
+BPR-1215 writes one version-two JSON object per line. `event` is the closed
+operation/outcome name, with a separate category and `info`, `warning` or `error`
+severity. `utc_ms` is milliseconds since the Unix epoch in UTC; `elapsed_us` is
+monotonic time since that logger was created. A fresh opaque 128-bit `session`
+and increasing `sequence` distinguish launches and profile loggers; join
+`session`, `window_session` and `request` to correlate operations. Cancellation
+is informational. Failed outcomes are errors; other HTTP 4xx/5xx observations
+are warnings. `build` contains the application version, a source/toolchain
+content digest and configuration. It is diagnostic identity, not a signed
+package or authority proof. The digest covers first-party C++ sources, headers
+and source CMake files, compiler/platform facts and the version; it excludes
+resources, dependencies, build flags and package bytes.
+
+The adapter encodes into a fixed buffer before Quill receives the event. The
+encoded record including its newline is at most 16 KiB; summary storage remains
+2,048 bytes. Quotes and backslashes are escaped, while control/non-ASCII summary
+bytes are refused. This framing guard does not sanitize provider content; the
+credential-owning BPR-0971 classifier still decides what may enter the port.
+Existing plaintext records remain in place. The maintenance preview recognizes
+their v1 prefix and canonical v2 JSONL; neither format copies prose or identities
+to the metadata export.
+
 `github.pull_request` entries identify each load by `window_session` and
 `request`. A `started` entry precedes `response_received` entries with the
 closed `page_operation` name and HTTP status; the final `succeeded` or `failed`

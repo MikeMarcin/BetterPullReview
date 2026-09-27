@@ -275,7 +275,11 @@ reconstructs a closed explanation grammar, retains only compiled public-query
 symbols and known codes, and explicitly omits unknown content. Provider
 callbacks submit that bounded summary and fixed operation facts without changing
 request acceptance, retries or terminal delivery. Quill is pinned centrally and
-excluded from core-only builds. Advanced controls remain RFC-BPR-0027 phase 2.
+excluded from core-only builds. BPR-1215 frames those same admitted fields as bounded JSONL before Quill
+receives them, with adapter-owned clocks, opaque per-logger session, sequence,
+closed severity/category and source/toolchain build identity. Existing metadata
+export admits canonical v2 and legacy v1 while discarding every free-text or
+identity field. Rotation and advanced controls remain RFC-BPR-0027 follow-ups.
 
 The entry point also owns one bounded terminal service before Qt startup and
 after producer quiescence. Its 64 slots hold at most 2 KiB each; ingress drops

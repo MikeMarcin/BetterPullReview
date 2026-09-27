@@ -191,7 +191,8 @@ or passing manual-executor test is not evidence of composed desktop shutdown.
 
 ### Metadata snapshot and output
 
-`release_diagnostic_snapshot.cpp` classifies only the known Quill prefix into
+`release_diagnostic_snapshot.cpp` classifies the legacy Quill v1 prefix and
+BPR-1215's canonical flat JSONL v2 records into
 closed operation/outcome codes and numeric HTTP status/dropped counts. It omits
 timestamps, request/session identities and all free text. In particular,
 `detail=` is an unframed tail: even a later apparent `failure=` token can be
@@ -199,7 +200,11 @@ producer prose, so the default export omits the entire tail. This is a stricter
 subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
 Unknown, malformed and incomplete records are omitted and counted.
 
-Input is bounded to 16 MiB, 65,536 records and 8,192 bytes per line. Output is
+Input is bounded to 16 MiB and 65,536 records. The v1 line bound is 8,192
+bytes; v2 is at most 16 KiB including its newline. The v2 reader requires the
+writer's exact field order, bounded ASCII strings with quote/backslash escapes,
+and unsigned decimal integers. Unknown keys, duplicate keys, unsupported
+encodings, malformed syntax and partial tails are omitted without pass-through. Output is
 bounded to 1,024 records and 256 KiB. Input/work overflow refuses rather than
 silently scanning unbounded history. The host verifies the exact prepared
 bytes, count and SHA-256 against the descriptor. Preview and export share the

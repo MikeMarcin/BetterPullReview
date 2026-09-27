@@ -89,7 +89,10 @@ applications and are not removed by BetterPullReview.
    refused. Export writes those same frozen bytes; later log appends are not
    silently added. Nothing is uploaded. Share only through your approved channel.
 
-Input work is bounded to 16 MiB, 65,536 records and 8,192 bytes per line; output
+Input work is bounded to 16 MiB and 65,536 records. Legacy v1 lines admit at
+most 8,192 bytes; canonical v2 JSONL records admit at most 16 KiB including the
+newline. The v2 parser accepts the writer's exact field order and bounded ASCII
+scalar grammar, and omits unsupported encodings or extra fields. Output
 is at most 1,024 records and 256 KiB. Unknown/incomplete records are omitted and
 counted. A missing/unsafe log, changed target or limit refusal is not a successful
 empty export. After an export failure, preview again and choose a new filename.
@@ -105,6 +108,13 @@ or OS crash reports as if they had passed the preview's policy. BetterPullReview
 does not automatically upload them; OS crash collection has its own settings.
 Current crash evidence does not establish redaction of resident source/comments/
 tokens across the supported matrix.
+
+New records carry an opaque logger `session`, an increasing `sequence`, UTC and
+monotonic time, stable event/category/severity and source/toolchain build identity.
+The [local logging guide](build-and-test.md#basic-local-diagnostics) defines these
+fields and their bounds. Each newly constructed profile logger creates a fresh
+session; older records remain unchanged. These diagnostic identities grant no
+authority and are excluded from the current metadata preview/export.
 
 Epoch records carry the originating numeric `window_session` as well as the
 epoch-local `request` (`0` during catalog opening before request allocation).

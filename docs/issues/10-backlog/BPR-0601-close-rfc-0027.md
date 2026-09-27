@@ -53,9 +53,9 @@ composed application and dependency/boundary checks. Those establish the basic
 subset of AC-02, AC-03 and AC-06 through AC-09; they do not complete the full
 numbered criteria above. No new live sign-in ran and no live root cause is claimed.
 
-Next task, only when requested: BPR-0603's advanced retention, anonymization,
-controls, export and native-platform work. BPR-0600 and BPR-0602 are done; this
-closeout and the full RFC remain deferred.
+Historical resume note: BPR-0600 and BPR-0602 completed the foundation.
+The owner has now requested BPR-0603's full advanced phase under mandate r2
+below; this closeout remains pending, with every full criterion retained.
 
 Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
 The bounded BPR-0602 confidentiality/lifetime review resolved all three findings;
@@ -73,3 +73,23 @@ authorized. BPR-1215–1219 are the required source-owned milestones. Current ow
 Historical foundation and BPR-0971 evidence remain preserved. Earlier deferred
 rows describe their original not-run state; advanced acceptance stays pending
 until its own evidence is recorded.
+
+### M1 checkpoint
+
+Source candidate: `ac64e5ad0dc4694dad4c6db3a40f12479b11503e`.
+[Evidence and commands](../../verification/RFC-BPR-0027.md);
+[plan](../../rfcs/plans/rfc-bpr-0027-advanced/MILESTONES.md);
+[bound assignment](../../rfcs/plans/rfc-bpr-0027-advanced/m1-binding.json).
+Changed surfaces: logging adapter/CMake, maintenance JSONL classifier, direct
+adapter/public logging tests, format-dependent profile/benchmark assertions,
+and owning architecture/privacy/operator documentation. No provider sanitizer,
+core policy, UI controls or dependency version changed.
+
+BPR-1215 supplies the structured-event subset of AC-02/03/06/07/08. All full
+criteria in the table remain pending their advanced tests; no native/human gap
+is waived. Next: BPR-1216 / `session-retention`, then controls, richer exports,
+and native/attended closeout. No protected attended candidate or review server
+was created for M1. All configure/build/test/tidy/documentation commands have
+completed and no task-owned subprocess or descendant remains. The preserved
+strategy and binding sit beside this continuation; the coordinator starts a
+fresh implementer for the next milestone after the main push is recorded.
