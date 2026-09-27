@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0991"
 title: "Import the authored pack and reconcile the live baseline"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0043"]
 depends_on: []
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-01","milestone":"intake","acceptance":[],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
