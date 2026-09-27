@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1011"
 title: "Add skeleton suggestions and per-stop author attention"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1010", "BPR-0995"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-21","milestone":"outline-and-adversaries","acceptance":["AC43-08","AC43-09"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC43-08","outcome":"pass","revision":"1ef7a98c3d68018448dcecb137e84a92baf48262","evidence":{"kind":"command","detail":"See docs/verification/RFC-BPR-0039-0043.md BPR-1011: 7/7 focused rows plus final real composition 1/1, restricted fixture process, exact current visible completion, per-stop regeneration, no publication/inference side effects."}},{"criterion":"AC43-09","outcome":"pass","revision":"1ef7a98c3d68018448dcecb137e84a92baf48262","evidence":{"kind":"command","detail":"See docs/verification/RFC-BPR-0039-0043.md BPR-1011: 7/7 focused rows plus final real composition 1/1, restricted fixture process, exact current visible completion, per-stop regeneration, no publication/inference side effects."}}]
 ---
 
 # BPR-1011: Add skeleton suggestions and per-stop author attention
