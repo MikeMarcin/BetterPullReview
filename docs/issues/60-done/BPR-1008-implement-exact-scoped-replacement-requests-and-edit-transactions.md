@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1008"
 title: "Implement exact scoped replacement requests and edit transactions"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0043"]
 depends_on: ["BPR-1007", "BPR-0992"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-18","milestone":"scoped-ai","acceptance":["AC43-03","AC43-04","AC43-05","AC43-06"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC43-03","outcome":"pass","revision":"98034fe0238bd84f40a4b0769817141603ed208c","evidence":{"kind":"observation","detail":"Core captured replacement contract passed exhaustive UTF-8/CRLF boundaries, whitespace precedence, exact interval assembly, stale owner/generation/source identities, supersession, duplicate/malformed/over-budget/equal rejection. core_review_preparation 1/1 0.38s. Native binding and process delivery are dependent BPR-1009/1010 slices."}},{"criterion":"AC43-04","outcome":"pass","revision":"98034fe0238bd84f40a4b0769817141603ed208c","evidence":{"kind":"observation","detail":"Core captured replacement contract passed exhaustive UTF-8/CRLF boundaries, whitespace precedence, exact interval assembly, stale owner/generation/source identities, supersession, duplicate/malformed/over-budget/equal rejection. core_review_preparation 1/1 0.38s. Native binding and process delivery are dependent BPR-1009/1010 slices."}},{"criterion":"AC43-05","outcome":"pass","revision":"98034fe0238bd84f40a4b0769817141603ed208c","evidence":{"kind":"observation","detail":"Core captured replacement contract passed exhaustive UTF-8/CRLF boundaries, whitespace precedence, exact interval assembly, stale owner/generation/source identities, supersession, duplicate/malformed/over-budget/equal rejection. core_review_preparation 1/1 0.38s. Native binding and process delivery are dependent BPR-1009/1010 slices."}},{"criterion":"AC43-06","outcome":"pass","revision":"98034fe0238bd84f40a4b0769817141603ed208c","evidence":{"kind":"observation","detail":"Core captured replacement contract passed exhaustive UTF-8/CRLF boundaries, whitespace precedence, exact interval assembly, stale owner/generation/source identities, supersession, duplicate/malformed/over-budget/equal rejection. core_review_preparation 1/1 0.38s. Native binding and process delivery are dependent BPR-1009/1010 slices."}}]
 ---
 
 # BPR-1008: Implement exact scoped replacement requests and edit transactions
