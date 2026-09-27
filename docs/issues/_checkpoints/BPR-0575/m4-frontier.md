@@ -215,3 +215,34 @@ health check passed; complete URL stays in runtime state and the coordinator
 message. [Handoff](m4-r3-review-handoff.json) includes exact watch/status argv and
 protection paths. Exclusive repository writing ownership is released after the
 handoff commit. Coordinator arms the hand-back watch before yielding.
+
+## Latest final round: continuity accepted; two scope decisions pending
+
+Assignment `/root/rfc0022_m4_final`, mandate r3, start `5a20a1188`; production
+candidate remains `0f3188093`. Human continuity Accept520a36a8 at hand-back19
+was reconciled and its protection released at20. Public GET independently verified
+reply4116804415 by MikeMarcin under root4116623474, same file/head. The signed
+app's ordinary read and thread selection rendered the exact reply and selected
+Markdown62. Normal Quit/detach passed69.39s. No Publish or Retry, no remote record
+change, and all six journal digests remain identical. BPR-0573 finished at71e28c464.
+
+BPR-0575 is prepared for Parked human-review. Actual desktop uninstall remains
+unobserved, and the separate independent-review requirement is unsupplied.
+The two final proposals preserve these requirements until an owner verdict;
+they explicitly describe amendments rather than invent observations. Native
+off-hunk success, GHES, Windows, installed removal and release limits persist.
+Four focused read/paged/permalink/public checks, network manifest, documentation
+gate,64 validator tests and whitespace pass. No production source changed.
+
+All app, supervisor, configuration and test commands finished. The inherited
+review host22327 was stopped. The new review server, once prepared, is the sole
+retained command; its exact session, cursor, candidates and command identity live
+in `m4-final-handoff.json`. No children or independent reviewer were started.
+The corrected prelaunch approval omission and exact cleanup are recorded in
+`m4-final-continuity.json`; no user installation/database was removed.
+
+After the next hand-back, use a fresh engineering round to reconcile each exact
+verdict and release only its relevant protections. Accepted proposals become an
+explicit mandate amendment; rejected or skipped proposals remain obligations.
+Only then finish0575/RFC/index if all requirements pass. Root owns final D main
+integration/push, preserving later main changes. No further PR2 write is needed.

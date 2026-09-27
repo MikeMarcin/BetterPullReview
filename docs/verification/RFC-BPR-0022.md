@@ -1,9 +1,10 @@
 # RFC-BPR-0022 Verification Ledger
 
 Status: **milestones A–C landed; D actual fallback and GET-only recovery verified;
-GitHub-only human acceptance, independent acceptance and closeout pending**.
+GitHub-only human acceptance and signed-app reply refresh passed; actual-uninstall
+evidence disposition, independent acceptance and closeout pending**.
 
-Assignment `/root/rfc0022_m4_after_review`, mandate **r3**, run `rfc0022-20260926`.
+Assignment `/root/rfc0022_m4_final`, mandate **r3**, run `rfc0022-20260926`.
 RFC base: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 The four historical native witnesses remain GET-only and byte-identical. Historical
 [D evidence](../issues/_checkpoints/BPR-0575/m4-evidence.json) and
@@ -53,9 +54,9 @@ They do not assert native service or human acceptance.
 | 7 | One logical publication produces at most one GitHub comment across retries, process death, schema migration, and restart; a possibly transmitted native attempt is reconciled GET-only and can never coexist with an eligible fallback POST. | schema4 CAS journal and fresh-session recovery | sqlite_review_mutation_recovery_storage; github_review_comment_permalink; live_review_mutation_restart_recovery | At most one server candidate after durable interruptions and restart; preserve legacy and whole-review rows | PASS66 deterministic interruptions plus actual created-but-unparsed FILE recovery via GET-only reopen; sole remote root retained; no OS-kill/power-loss claim | automated | M2/M3 |
 | 8 | Capability evidence is repository-, actor-, profile-, server-contract-, operation-, API-, and classifier-revision scoped, freshness-bounded, and never inferred from host name, broad GHES version, readable comments, or status code alone. | session-owned exact-anchor cache | application_review_publication_capability_cache; github_review_comment_permalink | Exact authority/revisions/generation/head/path/line,128 entries,maximum300s; stale means unknown | PASS scoped invalidation/admission, classifier revision2 cache and exact PR2/actor/profile/source refusal tests | automated | M2/M3 |
 | 9 | BetterPullReview retains both the semantic source anchor and the honest GitHub remote subject; it renders a valid compatibility thread at its source line without claiming GitHub stored a line subject. | read normalization + incremental thread map | qt_composed_github_scale_100; application_review_round_trip_composition_contract | Remote FILE stays FILE; validated exact semantic anchor selects source | PASS final composed replay and actual recovered FILE thread mapped to Markdown62;3 scales/3 themes retained from M3 | automated+rendered | M3; D public replay |
-| 10 | A GitHub-only collaborator can see the linked code, read the complete prose, reply through ordinary GitHub UI, and retain that conversation after BetterPullReview is uninstalled. | ordinary GitHub web UI | Existing PR2 comment4116623474 followed by GitHub-only inspection/reply | Visible code, full prose, author and ordinary reply continuity without local database/app | PENDING human GitHub-only inspection/reply; capsule closed/detached, actual desktop uninstall unobserved | external-authority | D prepared capsule |
+| 10 | A GitHub-only collaborator can see the linked code, read the complete prose, reply through ordinary GitHub UI, and retain that conversation after BetterPullReview is uninstalled. | ordinary GitHub web UI | Existing PR2 comment4116623474 followed by GitHub-only inspection/reply | Visible code, full prose, author and ordinary reply continuity without local database/app | PASS human GitHub-only inspection/reply and subsequent signed-app reply refresh; PENDING actual desktop uninstall or explicit scope amendment | external-authority | D prepared capsule |
 | 11 | Deleting the local database and refreshing from GitHub reconstructs a canonical compatibility anchor and reviewer prose; invalid, ambiguous, or foreign permalinks remain honestly file-level. | fresh host without journal/receipt | qt_github_conversation_panel; github_review_comment_permalink | Canonical link reconstructs exact anchor; foreign/invalid/ambiguous stays file-level | PASS fresh-host fixture with no DB or receipt; not an actual uninstall | automated | M3 |
-| 12 | External edits, replies, resolution changes, and deletion reconcile by canonical GitHub identity. Removing or changing the permalink updates or removes the semantic placement according to server truth and never revives stale local placement. | canonical IDs plus edited-root source cache | qt_github_conversation_panel; qt_composed_github_scale_100 | Edits/removal/remap/replies/deletion follow server truth, no stale resurrection | PASS automated normalization/selection fixtures; live mixed-client course still pending | automated | M3; D public replay |
+| 12 | External edits, replies, resolution changes, and deletion reconcile by canonical GitHub identity. Removing or changing the permalink updates or removes the semantic placement according to server truth and never revives stale local placement. | canonical IDs plus edited-root source cache | qt_github_conversation_panel; qt_composed_github_scale_100 | Edits/removal/remap/replies/deletion follow server truth, no stale resurrection | PASS automated normalization/selection fixtures plus signed-app read of exact external reply4116804415 under original root at line62 | automated | M3; D public replay |
 | 13 | A body requiring line-only semantics is not silently degraded through the file representation; it receives a typed incompatibility with no POST. | body policy + actual editor/session | core_review_round_trip; github_review_comment_permalink; qt_review_draft_editor | Line-only constructs refuse required FILE fallback without POST | PASS typed incompatibility and no-write assertions | automated | M1/M2/M3 |
 | 14 | The complete gesture follows Qt intent -> core decision -> application host -> mutation coordinator -> GitHub adapter -> durable recovery -> server refresh -> incremental Qt projection, with no provider/widget bypass. | public application native/file course | application_review_round_trip_composition_contract | Real gesture through coordinator/session/SQLite/restart/refresh selects canonical post | PASS public fixture composition plus actual ordinary Publish and fresh signed GET-only rehydration | automated+rendered | M3; D public replay |
 | 15 | Automated tests cannot reach a non-designated live target, and live native and fallback evidence is produced only through the existing attended, identity-bound mutation authority. | network guard, exact target bootstrap, signed mounted capsule | test_network_isolation_manifest; test_network_isolation_structure_contract; live_mutation_isolation_contract; designated_live_public_observer_fixture; application_designated_review_authority_bootstrap | No ordinary test can publish; live lane bound to exact PR2/build/actor/one-use grant | PASS guards, exact attended fallback write and GET-only recovery; Windows gaps retained | security+external-authority | M3; D authority/manifest/capsule |
@@ -124,10 +125,15 @@ stale preparatory wording was removed. D adds no full model reset or second code
 
 ## Closure remains pending
 
-BPR-0573 has actual fallback and GET-only recovery evidence; its GitHub-only
-collaborator verdict remains pending. Required independent acceptance and the
-explicit actual-uninstall evidence gap remain pending. BPR-0574 is Done;
-BPR-0575 remains Backlog while its required predecessor is open. RFC0004/0005/0008
+BPR-0573 is Done after actual fallback, GET-only recovery, human GitHub-only
+acceptance and signed-app read of the exact external reply. BPR-0574 is Done.
+BPR-0575 retains the actual desktop uninstall evidence gap and separately
+required independent acceptance. Both proposed evidence-scope amendments remain
+pending until the owner explicitly decides them; no independent report exists.
+The [uninstall proposal](../issues/_checkpoints/BPR-0575/m4-final-uninstall-proposal.md)
+and [independent-acceptance proposal](../issues/_checkpoints/BPR-0575/m4-final-independent-proposal.md)
+state the exact changes separately. BPR-0575 is Parked on human-review.
+RFC0004/0005/0008
 are Auto-Verified. The r3 ordering decision permits RFC0022 to close ahead of
 Deferred0020/0021 once all its other accepted requirements pass. All15 criteria,
 all card acceptance and the documentation/whitespace gates remain necessary.
@@ -137,3 +143,34 @@ integrity and mapping, never product acceptance. The authored four-milestone
 plan and the baseline remain unchanged. The owner requires landing each accepted
 milestone before its successor; the coordinator retains D-to-main integration
 after D acceptance. This branch does not claim RFC completion.
+
+
+## Final continuity reconciliation — 2026-09-27
+
+The [exact continuity record](../issues/_checkpoints/BPR-0575/m4-final-continuity.json)
+binds human Accept520a36a8 at hand-back19, root4116623474 and reply4116804415,
+and the unchanged signed source `0f3188093`. Public GET before and after the
+69.39s app course returned the same two records. Normal Home/Open and thread
+selection rendered the complete reply and highlighted Markdown line62. No
+Publish or Retry occurred; all six journal digests remained identical. App,
+supervisor and capsule exited/detached normally. This verifies reply continuity,
+not live edits/resolution/deletion; those retain unchanged fixture evidence.
+
+Four focused checks passed: `github_paged_read`, `github_review_comment_permalink`
+and `application_review_round_trip_composition_contract` (3/3,20.07s), then the
+separately named `github_read_contract` (1/1,0.20s). The initial selector named
+nonexistent `github_read_normalizer`; listing the graph identified and ran its
+actual contract. Network manifest passed1.39s. Self-review retained the bounded
+FILE placeholder checks: wire subjects remain FILE and normalization removes
+synthetic coordinates before semantic reconstruction. This engineering review
+does not satisfy independent acceptance.
+
+The approval-envelope preparation error was caught before GUI startup: omitted
+digest trailer, supervisor exit1, CTest exit8 in13.57s. The exact unused envelope
+was corrected before the successful course. No product edit or second publication
+was needed. Historical evidence remains bound to its original candidate.
+
+[Final verification](../issues/_checkpoints/BPR-0575/m4-final-verification.json)
+records the focused commands, passing documentation gate, 64 documentation
+validator tests and whitespace check. The final round changes documentation and
+evidence only; source remains `0f3188093`.
