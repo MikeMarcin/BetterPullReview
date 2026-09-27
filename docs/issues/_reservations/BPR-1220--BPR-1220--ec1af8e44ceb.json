@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1220"
+  ],
+  "reserve_for": "rfc0020-closeout-20260926",
+  "purpose": "",
+  "created": "2026-09-27T04:13:59.591004+00:00",
+  "base": "a028dcee40729457066129c73edd34f1d1820bdf"
+}

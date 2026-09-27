@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0005","RFC-BPR-0006","RFC-BPR-0013","RFC-BPR-0019"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0020-closeout","path":"docs/rfcs/plans/rfc-bpr-0020-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0020: Animated Dif Mascot Qt Presentation and Workbench Composition
@@ -374,45 +375,45 @@ semantic states.
 
 ## Acceptance criteria
 
-1. The core defines and directly tests the closed `system/full/reduced` motion
+- The core defines and directly tests the closed `system/full/reduced` motion
    preference and resolution rules without importing Qt, platform, clock,
    filesystem, thread, or mascot frame types.
-2. The existing appearance host/store accepts, persists, migrates, restores,
+- The existing appearance host/store accepts, persists, migrates, restores,
    resets, rejects stale completions, and labels fallback for motion mode
    through its typed public path; old valid data defaults to `system` and future
    or malformed data fails closed.
-3. The selected Qt/platform adapter reports a bounded reduced-motion
+- The selected Qt/platform adapter reports a bounded reduced-motion
    observation on each supported platform, a target-native before/change/after
    course proves the real observer and restores the original setting, change
    delivery is serialized, and unsupported or failed observation makes
    `system` static rather than silently animated.
-4. The Qt catalog validates and decodes the exact RFC-BPR-0019 digest-bound
+- The Qt catalog validates and decodes the exact RFC-BPR-0019 digest-bound
    resources once, stays within the declared limits, and fails to a text-only
    landing when any resource or descriptor is wrong.
-5. Deterministic sequencer tests prove `greet -> calm_idle`, a closed calm
+- Deterministic sequencer tests prove `greet -> calm_idle`, a closed calm
    looping, elapsed-time frame selection, delayed-tick coalescing, one greeting
    per landing generation, and static reduced/suspended behavior.
-6. Widget lifecycle tests prove no timer wake or repaint after hide,
+- Widget lifecycle tests prove no timer wake or repaint after hide,
    deactivation, review replacement, suspension, close, or destruction, and no
    callback accesses released presentation state.
-7. Qt rendering at 1.0x, 1.25x, and 2.0x across System, Light, Dark, and both
+- Qt rendering at 1.0x, 1.25x, and 2.0x across System, Light, Dark, and both
    high-contrast variants preserves reviewed Dif bounds, native surrounding
    presentation, text/control priority, focus order, accessibility, and the
    compact-width disappearance rule.
-8. The real `app_better_pull_review` public course selects `Full` and `Reduced`
+- The real `app_better_pull_review` public course selects `Full` and `Reduced`
    through the real appearance gesture and accepted host/store projection,
    counts exactly one mascot/catalog and at most one armed mascot timer,
    captures two time-separated mascot-region rasters that differ during full
    motion, captures a reduced-motion interval whose region remains identical,
    observes the greet-to-idle transition, and proves zero mascot presence/timer
    work after a pull request opens.
-9. Opening and reviewing a pull request with Dif compiled in leaves selected
+- Opening and reviewing a pull request with Dif compiled in leaves selected
    diff identity, navigation, drawers, focus, palette, syntax, model-reset
    counts, network behavior, and orderly shutdown unchanged.
-10. `core-only` contains no Dif resource or Qt/platform motion implementation;
+- `core-only` contains no Dif resource or Qt/platform motion implementation;
     tests-disabled Release contains the same reviewed resource digests and no
     test-only clip, timer, provider, or filesystem seam.
-11. Documentation and agent instructions describe ownership, preference and
+- Documentation and agent instructions describe ownership, preference and
     migration, platform support, resource selection, lifecycle, accessibility,
     performance bounds, public placement, failures, and exact verification
     without claiming semantic review behavior or package readiness.
