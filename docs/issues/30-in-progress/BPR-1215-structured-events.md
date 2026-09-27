@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1215"
 title: "Version bounded diagnostic events as JSONL"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-0602"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
