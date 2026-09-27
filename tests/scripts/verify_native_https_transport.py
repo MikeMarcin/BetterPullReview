@@ -250,6 +250,7 @@ class ReviewExchange:
     body: bytes
     resource: str
     truncate: bool = False
+    location: bool = False
 
 
 OBSERVE_THREAD = "POST /graphql query ObserveThread"
@@ -295,6 +296,7 @@ REVIEW_COURSES: dict[str, tuple[ReviewExchange, ...]] = {
         ReviewExchange(COMMENT_WRITE, 422, json_bytes({"message": "Validation Failed"}), "core"),
         ReviewExchange(REVIEW_WRITE, 422, json_bytes({"message": "Validation Failed"}), "core"),
         ReviewExchange(COMMENT_WRITE, 422, json_bytes({"message": "Validation Failed"}), "core", truncate=True),
+        ReviewExchange(COMMENT_WRITE, 422, json_bytes({"message": "Validation Failed"}), "core", location=True),
     ),
     "mutation-graphql-core-resource": (
         ReviewExchange(OBSERVE_THREAD, 200, thread_answer(False), "core"),
@@ -1119,7 +1121,7 @@ class LoopbackConnectTlsFixture:
             planned.status,
             {200: "OK", 201: "Created", 422: "Unprocessable Content"}[planned.status],
             planned.body,
-            rate_limit_headers(planned.resource),
+            rate_limit_headers(planned.resource) + ((("Location", "https://foreign.example.test/"),) if planned.location else ()),
         )
         connection.sendall(answer[:-1] if planned.truncate else answer)
 

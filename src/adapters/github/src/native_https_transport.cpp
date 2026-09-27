@@ -1538,6 +1538,8 @@ namespace bpr::adapters::github::detail {
 
 			if (contentTypeCount > 1U || contentLengthCount > 1U
 				|| contentEncodingCount != 0U || linkCount > 1U || locationCount > 1U
+				|| (locationCount != 0U && aState.Status == 422
+					&& aState.Operation->Request.AdmittedContractStatus == 422)
 				|| retryAfterCount > 1U || rateLimitCount > 1U
 				|| rateRemainingCount > 1U || rateResetCount > 1U
 				|| rateResourceCount > 1U

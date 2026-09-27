@@ -2211,6 +2211,7 @@ namespace {
 		expect(refusedAfterPost(perform(review, true)), "whole-review 422 remains a refusal");
 		const auto truncated = perform(comment, true);
 		expect(std::holds_alternative<github_mutation_wire_error>(truncated.Completion) && truncated.Consulted == 1U, "truncated comment 422 cannot reach classifier as a complete response");
+		expect(refusedAfterPost(perform(comment, true)), "comment 422 with Location cannot discard conflicting routing metadata");
 	}
 
 	void run_fixture(const fixture_scenario aScenario,
