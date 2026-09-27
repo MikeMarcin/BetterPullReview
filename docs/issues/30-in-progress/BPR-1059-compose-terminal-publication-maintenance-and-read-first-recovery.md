@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1059"
 title: "Compose terminal publication maintenance and read-first recovery"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0044"]
 depends_on: ["BPR-1055", "BPR-1056", "BPR-1058"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-08","milestone":"publish-and-recover","acceptance":["AC44-08","AC44-09","AC44-10"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
