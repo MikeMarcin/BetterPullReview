@@ -917,6 +917,10 @@ metadata. They retain the file subject and derive semantic placement only from
 the validated immutable permalink. Other numeric positions, incomplete placeholder
 shapes, ranges and replies cannot confirm a file publication. This does not alter
 unsupported classification or permit a new POST for a possibly transmitted child.
+GraphQL FILE threads may likewise carry `line=1`, `originalLine=1`,
+`diffSide=RIGHT`, or both null coordinates. Both read paths discard those thread
+positions before producing typed records. FILE comments still require null
+coordinates on every page; the immutable body link supplies the source line.
 
 Classifier revision2 accepts the owner-approved recorded contract only for
 MikeMarcin/BPR-Test PR2, exact base/head/refs and database/node identities,

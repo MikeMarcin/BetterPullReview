@@ -348,6 +348,10 @@ namespace {
 		line_comment_original_line_only,
 		line_comment_no_coordinates,
 		file_comment_original_line,
+		file_thread_placeholder,
+		file_thread_wrong_line,
+		file_thread_wrong_original_line,
+		file_thread_wrong_side,
 		paged_line_comment_original_line_only,
 		paged_line_comment_no_coordinates,
 		paged_file_comment_original_line,
@@ -1200,8 +1204,11 @@ namespace {
 					comment.insert_or_assign("line", nullptr);
 					comment.insert_or_assign(
 						"originalLine", index == 0U ? fixture_value(42) : nullptr);
-				} else if (Scenario
-						   == fixture_scenario::paged_file_comment_original_line) {
+				} else if (Scenario == fixture_scenario::paged_file_comment_original_line
+						   || Scenario == fixture_scenario::file_thread_placeholder
+						   || Scenario == fixture_scenario::file_thread_wrong_line
+						   || Scenario == fixture_scenario::file_thread_wrong_original_line
+						   || Scenario == fixture_scenario::file_thread_wrong_side) {
 					comment.insert_or_assign("line", nullptr);
 					comment.insert_or_assign("originalLine", nullptr);
 				}
@@ -1253,6 +1260,16 @@ namespace {
 				thread.insert_or_assign("line", nullptr);
 				thread.insert_or_assign("originalLine", nullptr);
 			}
+			if (Scenario == fixture_scenario::file_thread_placeholder
+				|| Scenario == fixture_scenario::file_thread_wrong_line
+				|| Scenario == fixture_scenario::file_thread_wrong_original_line
+				|| Scenario == fixture_scenario::file_thread_wrong_side) {
+				thread.insert_or_assign("subjectType", "FILE");
+				thread.insert_or_assign("line", Scenario == fixture_scenario::file_thread_wrong_line ? 2 : 1);
+				thread.insert_or_assign("originalLine", Scenario == fixture_scenario::file_thread_wrong_original_line ? 2 : 1);
+				thread.insert_or_assign("diffSide", Scenario == fixture_scenario::file_thread_wrong_side ? "LEFT" : "RIGHT");
+			}
+
 			const auto pullRequest = fixture_object{
 				{ "headRefOid",
 				  Scenario == fixture_scenario::graphql_head_moved
@@ -1365,6 +1382,11 @@ namespace {
 							? fixture_value(nullptr)
 							: fixture_value(42));
 				}
+				if (Scenario == fixture_scenario::file_thread_placeholder) {
+					comment.insert_or_assign("line", nullptr);
+					comment.insert_or_assign("originalLine", nullptr);
+				}
+
 				comments.push_back(std::move(comment));
 			}
 			const auto total             = repeat
@@ -1919,6 +1941,19 @@ namespace {
 				   && result->ReviewThreads.front().DiffSide
 					   == application::github_diff_side::right,
 			   "current and original line remain distinct beside the exact diff side");
+		auto       fileTransport = paged_fixture_transport{ fixture_scenario::file_thread_placeholder };
+		const auto fileResult    = perform_paged_github_read(fileTransport, profile(), provider_request(),
+															 core::provider_snapshot_id{ 56U }, std::stop_token{ });
+		expect(fileResult.has_value()
+				   && fileResult->ReviewThreads.front().Subject == application::github_review_thread_subject::file
+				   && !fileResult->ReviewThreads.front().Line
+				   && !fileResult->ReviewThreads.front().OriginalLine
+				   && fileResult->ReviewThreads.front().Comments.size() == 101U
+				   && std::ranges::all_of(fileResult->ReviewThreads.front().Comments, [](const auto& comment) {
+						  return !comment.Line && !comment.OriginalLine;
+					  }),
+			   "a paged FILE thread discards its synthetic first-line position and preserves all comments");
+
 		auto originalOnlyTransport = paged_fixture_transport{
 			fixture_scenario::line_comment_original_line_only
 		};
@@ -2563,6 +2598,9 @@ namespace {
 			fixture_scenario::thread_side_wrong,
 			fixture_scenario::thread_side_unknown,
 			fixture_scenario::current_thread_original_line_only,
+			fixture_scenario::file_thread_wrong_line,
+			fixture_scenario::file_thread_wrong_original_line,
+			fixture_scenario::file_thread_wrong_side,
 			fixture_scenario::file_comment_original_line,
 			fixture_scenario::paged_file_comment_original_line,
 		};

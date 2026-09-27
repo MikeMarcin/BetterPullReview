@@ -311,3 +311,16 @@ only this bounded placeholder or absent line metadata while retaining honest
 file subject, exact identity/body and semantic permalink. It adds counterexamples
 and cold pending-file lineage repair through reads only. Current live recovery,
 GitHub-only collaborator continuity and independent acceptance remain pending.
+
+
+### GET-only reopen and bounded read correction
+
+The receipt-fixed capsule reopened without Publish or Retry, but its full PR read
+failed closed at ListReviewThreads. GitHub's FILE thread carries line1,
+originalLine1 and RIGHT; the contained comment has null coordinates. The app quit
+and detached normally after62.55s. All six journals remain unchanged and the sole
+remote root comment is preserved. [Read refusal evidence](../_checkpoints/BPR-0575/m4-r3-get-recovery-read-refusal.json)
+binds the observation. The read correction admits only the observed placeholder
+or both null coordinates and removes the placeholder before typed projection.
+Focused tests retain arbitrary-position, side, partial and comment-coordinate
+refusals. GET-only live recovery and acceptance remain pending.

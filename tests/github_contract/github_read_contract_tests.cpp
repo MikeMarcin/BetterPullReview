@@ -1857,6 +1857,32 @@ namespace {
 						.Line.has_value(),
 			"file-level thread and comment normalize without line numbers");
 
+		auto  placeholderRecording = fileThreadRecording;
+		auto& placeholderThread    = placeholderRecording.Responses[6].Response.Body;
+		replace_once(placeholderThread, "\"line\": null", "\"line\": 1");
+		replace_once(placeholderThread, "\"originalLine\": null", "\"originalLine\": 1");
+		const auto placeholder = normalize_github_read(
+			normalization_context(server_contract::github_com), placeholderRecording.Responses);
+		expect(placeholder.has_value()
+				   && placeholder->PullRequest.ReviewThreads.front().Subject == application::github_review_thread_subject::file
+				   && !placeholder->PullRequest.ReviewThreads.front().Line
+				   && !placeholder->PullRequest.ReviewThreads.front().OriginalLine
+				   && !placeholder->PullRequest.ReviewThreads.front().Comments.front().Line,
+			   "GitHub file-thread placeholder positions never become semantic coordinates");
+		for (const auto& [before, after] : std::array<std::pair<std::string_view, std::string_view>, 6U>{ {
+				 { "\"line\": 1", "\"line\": 2" },
+				 { "\"line\": 1", "\"line\": null" },
+				 { "\"originalLine\": 1", "\"originalLine\": 2" },
+				 { "\"originalLine\": 1", "\"originalLine\": null" },
+				 { "\"diffSide\": \"RIGHT\"", "\"diffSide\": \"LEFT\"" },
+				 { "\"line\": null", "\"line\": 1" },
+			 } }) {
+			auto invalid = placeholderRecording;
+			replace_once(invalid.Responses[6].Response.Body, before, after);
+			expect(!normalize_github_read(normalization_context(server_contract::github_com), invalid.Responses),
+				   "file placeholder acceptance refuses changed thread positions, side and comment coordinates");
+		}
+
 		auto noCoordinateReplyRecording = load_recording("github-com", server_contract::github_com);
 		replace_once(
 			noCoordinateReplyRecording.Responses[6].Response.Body,

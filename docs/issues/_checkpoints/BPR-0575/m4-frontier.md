@@ -163,3 +163,23 @@ GitHub-only continuity and independent acceptance remain pending. All task-owned
 production/build/test commands are finished. The accompanying checkpoint releases
 exclusive repository writing ownership; the OS image helper retains only this
 read-only mount. Continue the same owner once the user explicitly confirms unlock.
+
+
+## Actual fallback; GET-only recovery read correction in progress
+
+The explicit unlock resumed this same owner. The retained image detached normally.
+Ordinary signed-app Publish occurred once at Markdown RIGHT62; GitHub created file
+comment4116623474 with the exact immutable plain-source prefix and reviewer prose.
+All five earlier journals are byte-identical. Receipt metadata correction committed
+at24b7f66aa after focused verification; no Retry was clicked.
+
+GET-only signed reopen52410 failed closed at ListReviewThreads because GitHub
+supplied FILE thread line1/originalLine1/RIGHT while all comment coordinates were
+null. Normal UI quit and detach passed62.55s. All six journal hashes are unchanged,
+and GET confirms exactly one remote root comment. The bounded read correction
+admits and removes that synthetic thread position before typed semantic projection;
+FILE comment coordinates remain null on every page. Source changes, focused read
+fixtures and immutable evidence are owned by the same exclusive D implementer.
+Next: verify and commit the correction, rebuild the signed capsule and perform
+GET-only reconciliation of the existing comment; never Publish or Retry it.
+GitHub-only collaborator and independent acceptance remain pending under mandate r3.

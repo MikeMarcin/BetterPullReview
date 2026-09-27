@@ -2049,7 +2049,7 @@ namespace bpr::adapters::github::detail {
 			auto keys = std::vector<std::string_view>{ "author", "bodyText", "id", "line", "originalLine", "outdated", "path", "replyTo" };
 			for (const auto key : { "body", "url", "updatedAt", "fullDatabaseId", "commit", "originalCommit", "startLine", "originalStartLine", "pullRequestReview" }) {
 				if (!json_is_undefined(json_member(json_object(aValue), key))) {
-					keys.push_back(key);
+					keys.emplace_back(key);
 				}
 			}
 			if (!has_exact_keys(json_object(aValue), keys)) {
@@ -2152,7 +2152,10 @@ namespace bpr::adapters::github::detail {
 				|| !side.has_value()
 				|| (!json_is_null(line) && !valid_line(line))
 				|| (!json_is_null(originalLine) && !valid_line(originalLine))
-				|| (fileSubject && (!json_is_null(line) || !json_is_null(originalLine)))
+				|| (fileSubject
+					&& !(json_is_null(line) && json_is_null(originalLine))
+					&& !(optional_line(line) == 1U && optional_line(originalLine) == 1U
+						 && side == application::github_diff_side::right))
 				|| (lineSubject && !json_bool(json_member(thread, "isOutdated"))
 					&& json_is_null(line) && !json_is_null(originalLine))
 				|| (aShape.ResolvePermission
@@ -2168,8 +2171,8 @@ namespace bpr::adapters::github::detail {
 					? application::github_review_thread_subject::file
 					: application::github_review_thread_subject::line,
 				.Path                      = text(json_member(thread, "path")),
-				.Line                      = optional_line(line),
-				.OriginalLine              = optional_line(originalLine),
+				.Line                      = fileSubject ? std::nullopt : optional_line(line),
+				.OriginalLine              = fileSubject ? std::nullopt : optional_line(originalLine),
 				.DiffSide                  = *side,
 				.Resolved                  = json_bool(json_member(thread, "isResolved")),
 				.Outdated                  = json_bool(json_member(thread, "isOutdated")),
