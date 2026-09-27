@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "native-byte-compatibility",
+      "outcome": "pass",
+      "revision": "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b",
+      "evidence": {
+        "kind": "command",
+        "detail": "m2-wire-tests.log: github_mutation_contract, github_review_comment_permalink, live_review_mutation_provider and sqlite_review_mutation_recovery_storage passed (4/4). Synthetic contracts only; production classifier admission remains BPR-0573."
+      }
+    },
+    {
+      "criterion": "file-only-fields",
+      "outcome": "pass",
+      "revision": "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b",
+      "evidence": {
+        "kind": "command",
+        "detail": "m2-wire-tests.log: github_mutation_contract, github_review_comment_permalink, live_review_mutation_provider and sqlite_review_mutation_recovery_storage passed (4/4). Synthetic contracts only; production classifier admission remains BPR-0573."
+      }
+    },
+    {
+      "criterion": "honest-exact-receipts",
+      "outcome": "pass",
+      "revision": "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b",
+      "evidence": {
+        "kind": "command",
+        "detail": "m2-wire-tests.log: github_mutation_contract, github_review_comment_permalink, live_review_mutation_provider and sqlite_review_mutation_recovery_storage passed (4/4). Synthetic contracts only; production classifier admission remains BPR-0573."
+      }
+    },
+    {
+      "criterion": "pinned-synthetic-contracts",
+      "outcome": "pass",
+      "revision": "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b",
+      "evidence": {
+        "kind": "command",
+        "detail": "m2-wire-tests.log: github_mutation_contract, github_review_comment_permalink, live_review_mutation_provider and sqlite_review_mutation_recovery_storage passed (4/4). Synthetic contracts only; production classifier admission remains BPR-0573."
+      }
+    },
+    {
+      "criterion": "unsupported-counterexamples",
+      "outcome": "pass",
+      "revision": "5df56c7c133c878fe6c53e21c7ee55b04dd1eb3b",
+      "evidence": {
+        "kind": "command",
+        "detail": "m2-wire-tests.log: github_mutation_contract, github_review_comment_permalink, live_review_mutation_provider and sqlite_review_mutation_recovery_storage passed (4/4). Synthetic contracts only; production classifier admission remains BPR-0573."
+      }
+    }
+  ]
+}
