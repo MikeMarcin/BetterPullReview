@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1002"
 title: "Wire preview, staging, submission and compatibility outcomes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-1000", "BPR-1001", "BPR-0995"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-12","milestone":"staged-publication","acceptance":["AC41-01","AC41-03","AC41-06","AC41-07","AC41-09"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
