@@ -1,0 +1,82 @@
+{
+  "schema": "rfc0022.milestone-evidence.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "milestone": "d-evidence-closeout",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "production_candidate": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "current_main_merge": "bbf0b23eb3f767d9864813f14781630b419de8f7",
+  "observation": "One signed ordinary Publish under r3 created file comment4116623474 at Markdown62. Receipt refusal then read refusal were fixed without retry. Signed GET-only reopen73369 recovered sixth journal state8 and canonicalFILE semanticline62; five historical records and sole root comment unchanged.",
+  "source_changes": [
+    "24b7f66aa bounded receipt metadata",
+    "0f3188093 bounded read placeholders and normalization"
+  ],
+  "verification": [
+    "Focused permalink and public composition after receipt fix PASS",
+    "Four focused read/paged/permalink/composition checks PASS20.57s",
+    "Final rebuilt read/paged checks PASS4.12s",
+    "Strict tidy three changed production TUs, format/docs and whitespace PASS",
+    "Release capsule/signature/inventory/image/mounted probe PASS",
+    "521-row network isolation manifest PASS1.19s, exactly one profile2 live lane",
+    "GET-only app recovery and normal exit/detach PASS106.86s"
+  ],
+  "logs": {
+    "m4-r3-file-read-capsule.log": {
+      "sha256": "e8d95cb5aa1c47b0a09addaa37045fc88fa2007ee10fd2d7806987f23ec9d480",
+      "bytes": 93846
+    },
+    "m4-r3-file-read-configure.log": {
+      "sha256": "e863a6bde537dffbcd414c38d388d3934b5a098f3e3b560191cb01a102011763",
+      "bytes": 8479
+    },
+    "m4-r3-file-read-manifest.log": {
+      "sha256": "4c097f13515e9a6176ab9b0023545236a6293b87166aa653dac37dc84ac9f0ea",
+      "bytes": 351
+    },
+    "m4-r3-file-read-live-execution.log": {
+      "sha256": "08b3024a5fd7d27aa2929715f414d7ec56849769bd40fc8ae46edc23b03c167c",
+      "bytes": 4158
+    },
+    "m4-r3-review-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "bytes": 17
+    }
+  },
+  "historical_evidence": [
+    "m4-evidence.json",
+    "m4-r3-classifier-evidence.json",
+    "m4-r3-schema-integration.md"
+  ],
+  "new_evidence": [
+    "m4-r3-live-fallback-observation.json",
+    "m4-r3-file-receipt-fix.json",
+    "m4-r3-get-recovery-read-refusal.json",
+    "m4-r3-file-read-fix.json",
+    "m4-r3-file-read-capsule-identities.json",
+    "m4-r3-file-read-live-command.json",
+    "m4-r3-get-recovery-success.json"
+  ],
+  "remaining": [
+    "GitHub-only human inspection and reply judgement",
+    "Read exact external reply and verify canonical mixed-client GET refresh after handback",
+    "Actual desktop uninstall unobserved; retain fresh-host/no-database fixtures and settle disposition explicitly",
+    "Separately supplied independent acceptance",
+    "Close0573/0575 andRFC only after all accepted requirements pass; root integrates and pushesD preserving current main"
+  ],
+  "limits": [
+    "Native off-hunk success fixture-substituted by acceptedr3; not observedlive",
+    "NativeGHES waived byr2, automated fixtures retained",
+    "Windows source inventory remains unqualified",
+    "66 deterministic interruption courses are not OS-kill/power-loss evidence",
+    "No actual desktop uninstall or private-profile reset performed"
+  ],
+  "command_state": {
+    "app": null,
+    "supervisor": null,
+    "mounted_capsule": null,
+    "approval": "consumed; empty owned parent removed",
+    "background_builds_and_tests": [],
+    "review_server": "to be started and handed off explicitly"
+  },
+  "utc": "2026-09-27T19:55:43.113271+00:00"
+}

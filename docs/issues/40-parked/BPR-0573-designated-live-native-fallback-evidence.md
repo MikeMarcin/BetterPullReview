@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0573"
 title: "Record designated GitHub.com and GHES off-hunk publication evidence"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-0571","BPR-0572"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0022-off-hunk-comments","path":"docs/rfcs/plans/rfc-bpr-0022-off-hunk-comments/milestone-plan.json"}}
+parked_on: "human-review"
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence
@@ -324,3 +325,17 @@ binds the observation. The read correction admits only the observed placeholder
 or both null coordinates and removes the placeholder before typed projection.
 Focused tests retain arbitrary-position, side, partial and comment-coordinate
 refusals. GET-only live recovery and acceptance remain pending.
+
+
+### Actual GET-only recovery passed; human course ready
+
+Signed capsule at0f3188093 reopened exact PR2 as MikeMarcin in profile2 with zero
+Publish or Retry actions. The sixth journal alone reached succeeded_fallback,
+receipt PRRC_kwDOTyvof871XrBy, representation=file and duplicate=true (reconciled
+receipt, not a second comment). The five prior records remain byte-identical and
+GitHub still has exactly one root review comment. The app rendered the complete
+Markdown source, original prose and canonical off_hunk_fixture.md:62 thread.
+Normal UI quit/detach passed106.86s. [Recovery evidence](../_checkpoints/BPR-0575/m4-r3-get-recovery-success.json)
+binds the exact capsule and observation. GitHub-only collaborator acceptance,
+actual-uninstall evidence and independent acceptance remain unresolved. The
+prepared review asks only the concrete GitHub-only inspection/reply judgment.

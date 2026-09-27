@@ -183,3 +183,26 @@ fixtures and immutable evidence are owned by the same exclusive D implementer.
 Next: verify and commit the correction, rebuild the signed capsule and perform
 GET-only reconciliation of the existing comment; never Publish or Retry it.
 GitHub-only collaborator and independent acceptance remain pending under mandate r3.
+
+
+## Current handoff: actual fallback and GET-only recovery complete
+
+Source0f3188093, mandate r3. One ordinary signed-app Publish created file
+comment4116623474 at Markdown RIGHT62. Receipt correction24b7f66aa and read
+normalization0f3188093 preserve explicit FILE subject and remove synthetic
+position1. Fresh signed GET-only course73369 opened PR2, recovered only the sixth
+journal to succeeded_fallback, and displayed canonical Markdown62 with complete
+prose. Five older journals are byte-identical; the remote root count remains one.
+Normal UI quit/detach passed106.86s, all app/supervisor/build/test commands stopped,
+and the consumed approval parent is removed. No retry or new publication occurred.
+
+[Current evidence](m4-r3-current-evidence.json) supersedes historical current-state
+notes above. [Collaborator review](m4-r3-collaborator-review.md) is one bounded
+GitHub-only inspection/reply judgment; no source-line clicking or app launch is
+needed. BPR0573 is Parked human-review,0574 Done,0575 Backlog. Native success,
+GHES and Windows limits persist. Actual desktop uninstall remains unobserved;
+fresh-host/no-database fixtures do not claim an actual uninstall. Independent
+acceptance remains separately pending. After handback, a fresh engineering owner
+must reconcile the verdict/protection, GET the exact external reply, verify its
+canonical app refresh, settle remaining obligations, and close D only if all pass.
+Root owns final main merge/push and must preserve later main work.
