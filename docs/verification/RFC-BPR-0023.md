@@ -651,3 +651,135 @@ durability and separate mutation composition. All later human/native/designated
 publication obligations and the single final M10 independent review remain
 pending at their assigned boundaries. There is no pending M3 acceptance or
 review session to interpret.
+
+## M4 — BPR-0580 private ledger storage (mandate r2)
+
+M4 implements the one durable private authority through the public
+`make_private_review_store` factory, core-created typed proposals and the new
+application store port. The entry course opens a real owner-private SQLite
+ledger, creates a thread through core policy, commits it, observes it through
+another connection and restarts. The legacy note host facade writes the same
+thread/content authority. No application window or remote capability is needed
+for this storage course; M6–M8 own their public wiring.
+
+### Schema, migration and allocation
+
+Ledger schema **7** contains canonical STRICT tables for scope/incarnation/high
+waters, thread headers and turn tips, immutable content vertices, runs and
+source pins, derivation edges, compositions and source sets, the existing shared
+draft value, publication joins and the bodyless legacy note map. Exact canonical
+validation includes new constraint/index definitions. The migration participates
+in the existing single all-version transaction; `local_note` and
+`local_note_sequence` no longer own text after success.
+
+Historical v1–v6 fixtures traverse to 7. v5/v6 note tests preserve exact embedded
+NUL, Unicode and line-ending bytes, SHA-256 digest and optional attachment with
+`legacy_unknown` actor. v6 revision/CAS and a deleted-highest high water of 99
+survive, with the next facade edit becoming revision 100. v5 creates the expected
+initial revision before the next edit. The fixture helper reconstructs canonical
+historical schemas only inside tests; no production downgrade path exists.
+
+A universal positive signed-64-bit high-water frontier supplies new object IDs
+and vertex order. Batch allocation, mutable version CAS, references, payloads
+and checked counters share `BEGIN IMMEDIATE`. Purge retains high waters and
+incarnation; database replacement creates a new incarnation and refuses old
+references. Two simultaneous connections racing one frontier have exactly one
+winner and no partially allocated object. No production retained-maximum scan
+is used for the new identity allocation.
+
+### Whole-card acceptance evidence
+
+| BPR-0580 required state | Direct evidence and practical limit |
+|---|---|
+| Next canonical STRICT schema | `sqlite_review_ledger_storage`: every canonical origin, schema substitution/refusal, current v7 inventory, application/future identity refusal; `sqlite_private_store_open` retains hardened open/path behavior. |
+| Durable high waters | New public-port tests: restart, purge/recreate, two-connection CAS and actual concurrent race, signed maximum exhaustion; legacy note/session courses preserve their independent sequences. |
+| Atomic exact legacy migration | Existing v1–v6 migration course plus new v5/v6 exact body/digest/attachment/actor/high-water checks; actual killed v6 migration rolls back schema and note conversion before retry. |
+| One note authority | `local_note` tables absent; facade and new port share catalog and immutable revisions; thread expansion advances facade CAS and keeps the original note turn coherent. |
+| Bounded pages and provenance | 65-header and 68-revision traversal; stale scope/generation/header/digest/offset refusal; exact 1 MiB assistant in two progressing 512 KiB chunks; query-plan assertion proves scope/thread/order index seeking without transcript scan or sort. Run details survive session pruning/restart; source/finding/receipt/dependency reads are bounded. |
+| Existing durable draft linkage | Real core composition/acceptance plus atomic candidate/source/draft commit; restart recovers exact body/target/link without runtime scope. Exact copy preserves a conversation agent actor. Late run/draft terminals preserve admitted/accepted immutable sources after a tip change. No second draft reducer or fan-out owner is introduced. |
+| Whole-write quotas | All ten persisted count/byte counter boundaries, finding quota and maximum identity refusal; real 4,096-note/thread facade saturation and real 64 MiB thread-body fill plus one-byte refusal; reviewer 16 KiB+1, 257-record/source, 17-run limits; no partial terminal/body/header or lost frontier on refusal. Large count cases use designated counter fixtures instead of allocating 65,536 objects per kind. |
+| Purge/loss/WAL/concurrency/kill | Exact dependency refusal and ordered explicit cleanup; whole scope purge; new incarnation after file loss; simultaneous allocator race; real POSIX SIGKILL before and after thread, composition/draft and publication COMMIT; killed migration rollback/retry; existing WAL and wrong-app/future refusal course. |
+
+The real 64 MiB body fixture measured 67,473,408 bytes in the main database
+(including schema/index/metadata overhead at observation time). This is a local
+fixture measurement, not a production performance claim or a worst-case bound
+for all retained kinds. Counts, row sizes and both aggregate byte budgets provide
+finite storage bounds; M9 still owns broader public-path performance evidence.
+
+Database-loss evidence independently rereads an unchanged neighboring synthetic
+shared-authority file and the adapter exposes no GitHub capability. It proves
+local isolation only. Actual GitHub unchanged-state readback and remote-success/
+local-repair crash joins remain the designated-target or signed-recording work
+of M7/M9. POSIX kill evidence ran on macOS arm64; the Windows native equivalent
+is not claimed. The original eighteen feature rows remain pending at their
+assigned whole-feature owners, including native, accessibility and publication
+acceptance. The final independent review remains M10/BPR-0591 under r2.
+
+### Diagnosis, refinement and documentation impact
+
+The earliest smoke refused purge because existing connection hardening sets
+trigger depth to zero; foreign-key cascading would violate that policy. New
+private deletion now follows explicit dependency order within one transaction.
+The first exact 1 MiB assistant write hit SQLite's existing 1 MiB row ceiling;
+the ledger alone now admits 2 MiB SQLite rows while schema body quotas retain
+the specified 1 MiB limit. These concrete refinements are recorded in the live
+audit and architecture document; no milestone exit or RFC criterion was weakened.
+
+Self-review strengthened revision/dependency indexes, snapshot consistency,
+legacy-facade CAS after thread expansion, run terminal retention after source
+edits, exact-copy actor preservation and unchanged linked-draft terminal
+persistence. Focused regression cases pass for each changed path. Initial
+compile/fixture attempts (unfinished source, void-result wrapper, unused local,
+omitted finding anchor) were corrected before acceptance. No failed attempt is
+used as acceptance evidence.
+
+Changed product paths: new application/private-store contract; new SQLite public
+factory, canonical private schema, bounded binary codec and implementation;
+existing ledger migration and facade implementation/header; one core retained-
+finding validity helper; SQLite build registration. Tests add the public private
+store course and historical-schema fixture, adjust existing ledger fixtures and
+register the new course. Documentation changes are this ledger, the live audit,
+review-ledger architecture, checkpoint/observation and the card/link transitions.
+The imported source pack and all eighteen original criteria are unchanged.
+
+| Documentation concern | M4 impact |
+|---|---|
+| GitHub/GHES, acting identity, review semantics | No transport or mutation added. Publication rows are local receipt joins, never authorization. Later hosts must use the existing mutation authority. |
+| Cache, private data and credentials | v7 retains explicit reviewer/assistant/finding/candidate/draft content and bounded provenance; no source-file duplication, credentials, argv, environment or runtime grants. Owner-private path and WAL policy are retained. |
+| Limits and performance | Fixed keyset/body pages, count/byte quotas, universal frontier, explicit reference cleanup and ledger-only 2 MiB row ceiling are documented. |
+| Packaging and platforms | No package or release policy changes; portable core/SQLite code compiled and exercised on macOS arm64 only. |
+| Qt, accessibility and visible behavior | Existing note facade remains usable; new transcript/workshop UI and host persistence/fan-out remain later milestones. No rendered or native acceptance is claimed. |
+
+### M4 verification
+
+The combined core-only build targets are `test_private_review_storage`,
+`test_better_pull_review_sqlite_review_ledger_tests`, `test_private_review_core`,
+`test_review_composition_core`, `test_review_tour_storage`,
+`test_better_pull_review_review_mutation_recovery_storage_tests`,
+`test_better_pull_review_review_submission_recovery_storage_tests` and
+`test_private_store_open`. The selected CTest names are
+`sqlite_private_review_storage`, `sqlite_review_ledger_storage`,
+`sqlite_review_tour_storage`, `sqlite_review_mutation_recovery_storage`,
+`sqlite_review_submission_recovery_storage`, `sqlite_private_store_open`,
+`core_private_review`, `core_review_composition`, `architecture_boundaries` and
+`architecture_boundary_contract`. Tests use the registered network-isolation
+wrapper. Recovery schema 5 and staged-tour codec 3 production code is unchanged.
+
+| Final command/check | Result |
+|---|---|
+| `cmake --build --preset core-only --target` with the eight targets above, `-j 6` | PASS with configured warnings. |
+| `ctest --preset core-only -R` selecting the ten names above, `--output-on-failure` | PASS, 10/10, 122.28 seconds. |
+| Final relink and CTest of the eight core/storage names after the exhaustion-terminal and existing GCC nested-value refinements | PASS, 8/8, 18.43 seconds; unchanged architecture results reused. |
+| `/opt/homebrew/opt/llvm/bin/clang-format --dry-run --Werror` on all twelve touched C++ files | PASS. |
+| `python3 scripts/verify_documentation.py --root .` | PASS, DOCUMENTATION_OK. |
+| `python3 tests/scripts/verify_documentation_tests.py` | PASS, 64 tests; printed rejection diagnostics are expected negative fixtures. |
+| MASK board validation `--rfc RFC-BPR-0023 --json` | PASS, 1,208 cards, no errors. |
+| M4 checkpoint rebind | PASS; unchanged definition, whole-card and prerequisite fingerprints. |
+| `git diff --check`; compare authored plan and live RFC to baseline | PASS; no plan/RFC criterion source changes. |
+
+Final code includes the preservation of already allocated terminal updates at
+identity exhaustion; new allocation still refuses without wrapping. The existing
+GCC aggregate-construction workaround is retained in the note facade. No command
+requires network access or contacts a real review target.
+
+Final candidate and ownership are recorded in the durable handoff below.

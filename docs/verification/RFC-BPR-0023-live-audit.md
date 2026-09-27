@@ -785,3 +785,41 @@ adding its local publication join. No original criterion, dependency, plan
 exit or owner review-timing amendment changes. The current M3 focused evidence
 is for this branch candidate; coordinator integration must retain main's tour
 registrations and run the directly affected combined checks.
+
+## M4 live allocation and storage reconciliation
+
+M4 starts from integrated main `2a254e638d364d249e79148db82b13d0fceccca5`.
+The live frontiers remained ledger 6, mutation recovery 5 and staged-tour codec
+3. BPR-0580 allocates **ledger schema 7** and preserves the other two authorities.
+The focused recovery, submission-recovery and tour-store courses pass beside
+the new private-store tests. No recovery/tour production codec was edited.
+
+The M2 storage allocation is implemented in
+`application/private_review_store.hpp` and the SQLite `private_review_store`
+factory. Immutable turn/finding/candidate vertices share `private_content` with
+scope-qualified identity, kind, digest and exact body/metadata. Their owning
+headers, runs, edges, compositions, source sets, draft linkage, publication
+join and legacy map remain separate STRICT tables. One universal high-water
+frontier assigns all new durable identities and vertex orders in an atomic
+bounded batch; the v6 note CAS high water survives independently. This is a
+concrete decomposition of the allocated records, with no new workflow owner.
+
+Two implementation refinements are required by the live connection policy:
+private deletion uses explicit dependency order because the existing zero
+trigger-depth setting refuses foreign-key cascades; the ledger alone raises
+SQLite's row/string limit to 2 MiB so the required 1 MiB assistant body plus
+metadata fits. Schema body bounds, page limits and both 64 MiB budgets remain
+unchanged. The old note facade reads only the original mapped turn and every
+canonical thread update advances its note CAS, preserving coherence while a
+thread gains new turns. Run terminal persistence preserves its immutable
+admitted source set after a source-tip advance; dispatch admission remains an
+exact source/tip check.
+
+The durable draft facet stores the existing `revisioned_review_draft` and
+references linked candidate bodies. M7 still owns asynchronous shared-host
+staging, persistence-before-fan-out, runtime-scope reattachment and publication
+repair orchestration. Store tests are not public UI or remote-mutation evidence.
+M9 retains native and designated-publication qualification, and M10 retains the
+single final independent review under r2. All eighteen RFC criteria, authored
+milestone exits and original imported source bytes are preserved. No change to
+the adopted milestone order or whole-card obligation is needed.
