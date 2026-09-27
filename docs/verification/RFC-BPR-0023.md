@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M9 local work integrated; designated publication and independent server read supplied; final independent review pending**
+Status: **M1–M9 integrated; designated publication, independent server read, final independent review and its repairs supplied; M10 board/RFC closeout pending**
 
 ### M10 preliminary finding repairs
 
@@ -79,7 +79,8 @@ execution. The protected imported issue-plan bytes remain unchanged.
 # Acceptance Traceability for RFC-BPR-0023
 
 This matrix retains all imported feature obligations. The live audit reconciles
-their current direct surfaces and evidence owners; feature checks have not run.
+their direct surfaces and evidence owners; the canonical result table and milestone
+records below report the completed checks.
 
 | AC | Requirement summary | Primary live cards | Minimum direct evidence |
 |---|---|---|---|
@@ -152,13 +153,13 @@ their current direct surfaces and evidence owners; feature checks have not run.
 | AC-14 | Legacy local notes migrate byte-for-byte into one-turn private threads with unknown authorship, no invented provenance, no ID reuse, and no second private-note authority. | Local pass | 891735401 |
 | AC-15 | Private thread pages, provenance details, and composition inputs are bounded and cursor-loaded. Quota, oversize, and stale-source cases refuse whole and never silently truncate. | Local pass | 891735401 |
 | AC-16 | Private content reaches an agent only when exact source revisions are explicitly selected and successfully revalidated at dispatch. | Local pass | 891735401 |
-| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local deletion/crash pass; [independent live server read](RFC-BPR-0023-live-publication.md) | 891735401 |
-| AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Local pass; final review pending | 80d4eb4da |
+| AC-17 | Deleting the local ledger or an explicitly selected private thread changes no GitHub state; the remaining ledger recovers transactionally after abrupt termination. | Local deletion/crash pass; [designated ledger-loss readback](RFC-BPR-0023-live-publication.md#designated-ledger-loss-readback) | 891735401; M10 |
+| AC-18 | The complete workflow is reachable through the real BetterPullReview composition root and is usable by keyboard and assistive technology at 100%, 125%, and 200% scale without clipping or whole-model resets for a bounded turn update. | Local pass; final independent review supplied | 80d4eb4da; M10 |
 
 The producing commits in this table identify the M9 evidence records, not the
 original source commits for every feature. "Local pass" is a bounded fixture
-judgment. The external rows and final independent review retain their stated
-acceptance gates; this table does not close the RFC.
+judgment. The external rows and independent review are detailed in the M10
+record below; this table alone does not close the RFC.
 
 The public-path course also covers RFC-BPR-0022 native and file-permalink
 representations, logical receipt recovery, and distinct approved-prose/public-body
@@ -1727,3 +1728,49 @@ component of AC-12/13/17. The deterministic deletion/crash and remote-success
 local-failure recovery checks remain the owning evidence for those branches.
 M9 external exit 3 is now satisfied. The final independent M10 review and
 RFC/board closeout are still pending at this point in the ledger.
+
+## M10 final independent review and finding disposition
+
+The independent `rfc-reviewer-critical` examined integrated main candidate
+`1859f7a3b1925b721dcc69ab51818b9a4c7cde1d`, including all eighteen
+claims, the M2 authority allocation, migration/CAS, provenance, source admission,
+composition, shared draft, publication, retirement, bounds, deletion and crash
+records. The reviewer independently read designated GitHub comment `4116400082`
+and matched its node, actor, ordinary body, exact source line and head. Earlier
+input-delivery, interrupted-run and dirty-editor repairs were accepted. Four
+remaining findings were raised and then resolved:
+
+| Finding | Disposition and direct check |
+|---|---|
+| Mutation-effect recovery raced with decision-owned `Current` and could run before UI adoption. | `d4404fc44` reads immutable stored scopes under `Gate` instead of `Current`, and queues a read-only recovery pass after private-store adoption. `app_better_pull_review` built; `application_private_review_native` passed 1/1. The reviewer inspected the repair and accepted it. |
+| A reply or multiline comment could masquerade as the root single-line publication during pending repair. | `d4404fc44` parses `in_reply_to_id` and rejects replies and native range fields. Focused fixture modes 9–10 passed in `github_review_comment_permalink` 1/1; targeted independent inspection accepted the repair. |
+| Historical repair rejected a matching original anchor when the moved comment still had a current line. | `d4404fc44` admits an exact original commit/line independently of current-line presence. Fixture mode 8 passed in the same GitHub contract check; targeted independent inspection accepted the repair. |
+| The live publication record lacked an independent server read after loss of a ledger tied to that comment. | The [designated ledger-loss course](RFC-BPR-0023-live-publication.md#designated-ledger-loss-readback) backed up the stopped live ledger, verified publication 21 → draft 20/content 19/server node `PRRC_kwDOTyvof871W0fS`, deleted that disposable backup, and obtained identical independent GitHub GET fields before and after. The original profile was preserved. The reviewer accepted this evidence link. |
+
+The independent review's targeted recheck found **no remaining blocking or
+non-blocking findings**. It inspected the repair diff and accepted the supplied
+execution record for the disposable deletion course; it did not witness deletion
+or rerun the checks. The final review applies to the integrated M1–M9 product
+plus `d4404fc44`; the later M10 documentation/board status edits make no product
+behavior change.
+
+### Final architecture-conformance matrix
+
+| Claim | Result and direct evidence |
+|---|---|
+| Core has no forbidden dependency | Pass — M3/M9 `architecture_boundaries` and include/link inventory; final reviewer found no inward Qt/provider/effect edge. |
+| Host owns effects and serialized completions | Pass — M6/M7 host and SQLite courses cover ordered operations, cancellation, competing writes and restart; the M10 recovery race was repaired and the app/public path rebuilt. |
+| Qt emits intents and applies incremental deltas | Pass — M8/M9 Qt panel, keyboard/accessibility, model-reset and render records at 100%, 125% and 200%; final review found no bypass. |
+| Agent path is singular | Pass — M5/M6 protocol and real child-input canary use the existing invocation host, with exact source claim retained until input drain; final review found no second launch path. |
+| GitHub path is singular | Pass — M7/M8 mutation-port canary and composed public path, designated signed live Publish and independent server read; M10 recovery is GET-only and sends no POST. |
+| Private/shared authority remains distinct | Pass — M4 schema/migration/database-loss and M7 shared draft courses, plus designated local-to-server lineage read; no second note/draft authority found. |
+| Provenance never exceeds evidence | Pass — M3/M5 unknown, partial, conflicting and fully reported protocol fixtures and UI qualification; final review found no profile-name inference. |
+| Source lineage is immutable | Pass — M3/M4 digest, predecessor, migration and source-dependency checks, M6 admission/edit/delete race, M7 composition, and designated revision 16 → composition 18 → draft 20 → publication 21 join. |
+
+The final focused checks after `d4404fc44` were: GitHub permalink contract
+1/1 (3.95 seconds), SQLite private storage 1/1 (12.85 seconds), app target build
+PASS, and composed native private review public path 1/1 (25.99 seconds).
+`git diff --check` passed. Earlier unchanged milestone evidence is reused.
+The live course is one macOS/GitHub safe-target observation, not GHES/native
+parity or release qualification. M8/M9 native, vault, crash and vulnerability
+gaps outside this RFC remain explicit in operator claims.
