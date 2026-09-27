@@ -756,7 +756,7 @@ namespace bpr::qt {
 			break;
 		case application::review_mutation_failure::incompatible_body:
 			Members.MutationStatus->setText(QStringLiteral(
-				"This comment needs an inline line anchor; it cannot be published as a file comment."));
+				"This comment needs a supported inline line anchor. Your draft text is kept."));
 			break;
 		case application::review_mutation_failure::unsupported:
 			Members.MutationStatus->setText(QStringLiteral(

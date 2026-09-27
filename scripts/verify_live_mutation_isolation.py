@@ -50,7 +50,8 @@ PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
         # covers this binary.
         "tests/github_contract/live_review_mutation_provider_tests.cpp",
         # Test-build-only provider owned by the recorded public-path fixture.
-        # It has no transport, endpoint, credential, or production build path.
+        # Its protocol session uses a credential-free synthetic wire only;
+        # it has no live transport or production build path.
         "src/app/src/github_public_path_fixture.cpp",
         "src/adapters/github/src/live_review_mutation_provider.hpp",
         "src/adapters/github/src/live_review_mutation_provider.cpp",

@@ -3153,6 +3153,75 @@ namespace {
 									"PNG"),
 				   "composed GitHub one-pane thread crop is retained for three-scale inspection");
 		}
+		// [[BPR-0570]]. A compatibility root uses the same selected post and
+		// code gesture as a native root. Only the collapsed support detail
+		// names its honest remote representation.
+		auto semantic              = makeThread("review-thread:semantic", application::github_conversation_diff_side::right);
+		semantic.Line              = 1U;
+		semantic.RemoteSubject     = application::github_conversation_remote_subject::file;
+		semantic.SemanticAnchor    = core::source_line_ref{ .Comparison = core::comparison_digest(key), .Side = core::diff_side::right, .Line = 0U };
+		auto semanticPost          = semantic;
+		semanticPost.Id            = "review-comment:semantic";
+		semanticPost.ParentId      = semantic.Id;
+		semanticPost.Kind          = application::github_conversation_kind::review_comment;
+		semanticPost.AuthorLogin   = "reviewer";
+		semanticPost.Body          = "Raw canonical code link and prose";
+		semanticPost.ReviewerProse = "Please retain this unchanged source line.";
+		auto semanticPr            = pull_request_projection();
+		semanticPr.Conversations   = { semantic, semanticPost };
+		window.publish(application::github_presentation_update{ .PullRequest = semanticPr, .PreserveWindowNavigation = true });
+		window.set_conversation_endpoint_placement(false, false);
+		auto* const panel = window.conversation_panel();
+		panel->choose(panel->model()->index_for_id(semanticPost.Id));
+		QApplication::processEvents();
+		expect(surface->selection() && surface->selection()->PreferredLine == semantic.SemanticAnchor,
+			   "choosing a file-subject conversation reveals its exact retained semantic source line");
+		auto* const support    = required_child<QToolButton>(window, "conversationSupportDetails");
+		auto* const diagnostic = required_child<QLabel>(window, "conversationSupportDescription");
+		expect(support->isVisible() && !diagnostic->isVisible(), "the shipped workbench keeps representation collapsed");
+		const auto original = QApplication::palette();
+		for (const auto& theme : { QStringLiteral("light"), QStringLiteral("dark"), QStringLiteral("high-contrast") }) {
+			auto       palette    = original;
+			const auto dark       = theme != QStringLiteral("light");
+			const auto background = dark ? (theme == QStringLiteral("dark") ? QColor{ 30, 34, 40 } : QColor{ 0, 0, 0 }) : QColor{ 250, 250, 250 };
+			const auto foreground = dark ? QColor{ 255, 255, 255 } : QColor{ 0, 0, 0 };
+			for (const auto role : { QPalette::Window, QPalette::Base, QPalette::Button }) {
+				palette.setColor(role, background);
+			}
+			for (const auto role : { QPalette::WindowText, QPalette::Text, QPalette::ButtonText }) {
+				palette.setColor(role, foreground);
+			}
+			QApplication::setPalette(palette);
+			window.activateWindow();
+			support->setFocus(Qt::TabFocusReason);
+			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+			QApplication::sendEvent(support, &press);
+			QApplication::sendEvent(support, &release);
+			QApplication::processEvents();
+			expect(diagnostic->isVisible() && support->hasFocus()
+					   && diagnostic->palette().color(QPalette::WindowText) == foreground,
+				   "keyboard support disclosure retains focus and follows light, dark and high-contrast palettes");
+			auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+			QApplication::sendEvent(support, &tab);
+			QApplication::processEvents();
+			expect(diagnostic->hasFocus(), "Tab reaches selectable support text");
+			window.comments_tab_scroll()->ensureWidgetVisible(diagnostic);
+			QApplication::processEvents();
+			window.comments_tab_scroll()->verticalScrollBar()->setValue(window.comments_tab_scroll()->verticalScrollBar()->maximum());
+			QApplication::processEvents();
+			const QRect extent{ diagnostic->mapTo(window.comments_tab_scroll()->viewport(), QPoint{ }), diagnostic->size() };
+			expect(window.comments_tab_scroll()->viewport()->rect().contains(extent), "complete support text is reachable inside the shipped drawer at each scale");
+			capture_layout_state(window, QStringLiteral("semantic-") + theme);
+			support->setChecked(false);
+		}
+		QApplication::setPalette(original);
+		const auto resets = panel->model()->statistics().ModelResets;
+		window.publish(application::github_presentation_update{ .PullRequest = semanticPr, .PreserveWindowNavigation = true });
+		expect(panel->model()->statistics().ModelResets == resets
+				   && panel->model()->id_for_index(panel->view()->currentIndex()) == semanticPost.Id,
+			   "unchanged semantic refresh retains exact selected post without a model reset");
+
 		window.hide();
 	}
 

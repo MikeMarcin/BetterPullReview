@@ -336,6 +336,7 @@ namespace bpr::application {
 				.ReviewState        = github_review_state_projection::none,
 				.Resolved           = thread.Resolved,
 				.Outdated           = thread.Outdated,
+				.RemoteSubject      = thread.Subject == github_review_thread_subject::file ? github_conversation_remote_subject::file : github_conversation_remote_subject::line,
 			});
 			auto commentsById = review_comments_by_id{ };
 			commentsById.reserve(thread.Comments.size());
@@ -360,6 +361,7 @@ namespace bpr::application {
 					.Resolved           = thread.Resolved,
 					.Outdated           = comment.Outdated || thread.Outdated,
 					.Deleted            = comment.Deleted,
+					.RemoteSubject      = thread.Subject == github_review_thread_subject::file ? github_conversation_remote_subject::file : github_conversation_remote_subject::line,
 				});
 			}
 		}

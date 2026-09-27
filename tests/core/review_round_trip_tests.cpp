@@ -485,6 +485,24 @@ namespace {
 		value.Eligible  = true;
 		value.Placement = static_cast<review_placement>(255);
 		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::invalid_observation, "hostile enum fails closed");
+		for (unsigned stateIndex = 0U; stateIndex <= static_cast<unsigned>(state::rejected); ++stateIndex) {
+			const auto stateValue    = static_cast<state>(stateIndex);
+			const auto assertRefused = [&](const review_publication_observation& aObservation, const review_publication_diagnostic aDiagnostic) {
+				const auto decision = plan_review_publication(aObservation);
+				expect(decision.Action == action::refuse && decision.Diagnostic == aDiagnostic && !decision.Representation, "illegal observation has no representation or action at any durable state");
+				for (unsigned eventIndex = 0U; eventIndex <= static_cast<unsigned>(event::definitively_rejected); ++eventIndex) {
+					expect(!advance_review_publication(aObservation, static_cast<event>(eventIndex)), "illegal observation authorizes no durable transition");
+				}
+			};
+			assertRefused({ .State = stateValue }, review_publication_diagnostic::ineligible_anchor);
+			for (const unsigned invalid : { 10U, 255U }) {
+				assertRefused({ .Placement = static_cast<review_placement>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
+				assertRefused({ .Capability = static_cast<off_hunk_creation_capability>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
+				assertRefused({ .Body = static_cast<review_body_compatibility>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
+				assertRefused({ .State = static_cast<state>(invalid), .Eligible = true }, review_publication_diagnostic::invalid_observation);
+				expect(!advance_review_publication({ .State = stateValue, .Eligible = true }, static_cast<event>(invalid)), "unknown event cannot advance any durable state");
+			}
+		}
 		expect(classify_review_body("text\n```suggestion:-1+2\nx\n```") == review_body_compatibility::requires_line_subject, "suggestion ranges keep line semantics");
 		expect(classify_review_body("~~~  suggestion\ncode") == review_body_compatibility::requires_line_subject, "whitespace in a suggestion info string cannot degrade");
 		expect(classify_review_body("ordinary prose") == review_body_compatibility::portable, "plain prose is portable");

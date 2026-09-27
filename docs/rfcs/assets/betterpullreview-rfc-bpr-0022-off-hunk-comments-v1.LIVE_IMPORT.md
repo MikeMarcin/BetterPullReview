@@ -44,10 +44,10 @@ retains RFC-BPR-0022; private threads becomes RFC-BPR-0023 in user-listed order.
 | PACK-BPR-0022-06 | [BPR-0566](../../issues/60-done/BPR-0566-publication-capability-evidence.md) |
 | PACK-BPR-0022-07 | [BPR-0567](../../issues/60-done/BPR-0567-logical-publication-recovery.md) |
 | PACK-BPR-0022-08 | [BPR-0568](../../issues/60-done/BPR-0568-native-fallback-negotiation.md) |
-| PACK-BPR-0022-09 | [BPR-0569](../../issues/10-backlog/BPR-0569-fallback-normalization-thread-map.md) |
-| PACK-BPR-0022-10 | [BPR-0570](../../issues/10-backlog/BPR-0570-qt-comment-anywhere-ux.md) |
-| PACK-BPR-0022-11 | [BPR-0571](../../issues/10-backlog/BPR-0571-compose-public-path.md) |
-| PACK-BPR-0022-12 | [BPR-0572](../../issues/10-backlog/BPR-0572-automated-security-recovery-verification.md) |
+| PACK-BPR-0022-09 | [BPR-0569](../../issues/60-done/BPR-0569-fallback-normalization-thread-map.md) |
+| PACK-BPR-0022-10 | [BPR-0570](../../issues/60-done/BPR-0570-qt-comment-anywhere-ux.md) |
+| PACK-BPR-0022-11 | [BPR-0571](../../issues/60-done/BPR-0571-compose-public-path.md) |
+| PACK-BPR-0022-12 | [BPR-0572](../../issues/60-done/BPR-0572-automated-security-recovery-verification.md) |
 | PACK-BPR-0022-13 | [BPR-0573](../../issues/10-backlog/BPR-0573-designated-live-native-fallback-evidence.md) |
 | PACK-BPR-0022-14 | [BPR-0574](../../issues/10-backlog/BPR-0574-documentation-and-simplification.md) |
 | PACK-BPR-0022-15 | [BPR-0575](../../issues/10-backlog/BPR-0575-anchor-rfc-0022-verification.md) |
