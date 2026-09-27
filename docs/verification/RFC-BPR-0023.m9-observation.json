@@ -1,0 +1,189 @@
+{
+  "run_id": "rfc-bpr-0023-2026-09-26",
+  "segment_id": "m9-acceptance-direct-r2",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "direct",
+    "topology_id": "direct",
+    "recipe_revision": "1",
+    "recipe_fingerprint": "sha256:838abf11a8cb4483b359d884f911d7d31d49f5354867eafdb28394a61520a010",
+    "routing": {},
+    "requirement_profile": "direct",
+    "owners": {
+      "engineering": "primary",
+      "bookkeeping": "primary",
+      "product_edits": "primary"
+    },
+    "delegation": "none",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/direct.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0023-private-review",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json",
+    "milestone_id": "m9-acceptance",
+    "definition_fingerprint": "sha256:430feb7fe1c438bca48075e2610e40dcd62769280bce953a74d8a7ab8a9f02b3",
+    "obligations": [
+      {
+        "id": "BPR-0588:*",
+        "source": "BPR-0588",
+        "selector": null,
+        "source_fingerprint": "sha256:2b7a179a327685376e0ee5377f7ff108858750d4042b80dbd61d2f363c1a781a"
+      },
+      {
+        "id": "BPR-0589:*",
+        "source": "BPR-0589",
+        "selector": null,
+        "source_fingerprint": "sha256:f3a4a1ec070fb1023f3b2e5181b3d7697360e0dcbb5a8b69bc38992fa8589c89"
+      }
+    ],
+    "obligation_fingerprint": "sha256:97374c30d83f4fb8438d55d0b9bb97ad20a905eeea0d2c640f4fbe252776f60d",
+    "exit_criteria": [
+      {
+        "id": "m9-acceptance:exit:1",
+        "text": "All required crash, migration, quota, security, exact-selection, remote-success/local-failure and performance claims have direct candidate-bound evidence."
+      },
+      {
+        "id": "m9-acceptance:exit:2",
+        "text": "Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied."
+      },
+      {
+        "id": "m9-acceptance:exit:3",
+        "text": "BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:03b104205c6147f5f4a3b09895c58577bc5ffd26811c71df9eae22a1bca39b0a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "m9-acceptance",
+  "disposition": "human-pending",
+  "candidate_revision": "0925365afa40184a1405182b843d61a8b4905f36",
+  "handoff_ref": "docs/verification/RFC-BPR-0023.md#m9-local-integration-candidate",
+  "required_pending": [
+    "BPR-0584 qualifying designated safe GitHub/GHES target and authenticated reviewer, or signed recorded fixture with independently readable server response.",
+    "BPR-0584 independent public body, actor and unchanged-state read after local deletion/crash; RFC AC-12/13/17 and external M9 exit remain pending."
+  ],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0023.md",
+    "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+    "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+    "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+    "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+    "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+    "tests/core/private_review_tests.cpp",
+    "tests/sqlite_contract/private_review_storage_tests.cpp",
+    "tests/sqlite_contract/private_review_host_tests.cpp",
+    "tests/github_contract/review_comment_permalink_tests.cpp",
+    "tests/adapters_qt/private_review_panel_tests.cpp",
+    "tests/end_to_end/private_review_public_path.py"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0588:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+        "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+        "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/github_contract/review_comment_permalink_tests.cpp",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/end_to_end/private_review_public_path.py"
+      ]
+    },
+    {
+      "id": "BPR-0589:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+        "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+        "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/github_contract/review_comment_permalink_tests.cpp",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/end_to_end/private_review_public_path.py"
+      ]
+    },
+    {
+      "id": "m9-acceptance:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+        "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+        "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/github_contract/review_comment_permalink_tests.cpp",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/end_to_end/private_review_public_path.py"
+      ]
+    },
+    {
+      "id": "m9-acceptance:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+        "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+        "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/github_contract/review_comment_permalink_tests.cpp",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/end_to_end/private_review_public_path.py"
+      ]
+    },
+    {
+      "id": "m9-acceptance:exit:3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0023.md",
+        "docs/verification/RFC-BPR-0023.m9-rendered-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-failure-performance-evidence.md",
+        "docs/verification/RFC-BPR-0023.m9-checkpoint.json",
+        "docs/issues/60-done/BPR-0588-focused-security-migration-crash-and-performance-evidence.md",
+        "docs/issues/60-done/BPR-0589-rendered-ux-accessibility-and-scale-evidence.md",
+        "tests/core/private_review_tests.cpp",
+        "tests/sqlite_contract/private_review_storage_tests.cpp",
+        "tests/sqlite_contract/private_review_host_tests.cpp",
+        "tests/github_contract/review_comment_permalink_tests.cpp",
+        "tests/adapters_qt/private_review_panel_tests.cpp",
+        "tests/end_to_end/private_review_public_path.py"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "m10-closeout",
+    "reason": "independent-work",
+    "detail": "M9 local evidence is complete and may integrate on main. The checked M10 sequencing amendment permits local documentation and final independent review after integration while preserving BPR-0584 external M9 exit and RFC closeout gate."
+  },
+  "ownership": "quiescent"
+}

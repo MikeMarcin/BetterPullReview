@@ -153,7 +153,7 @@ Documented RFC acceptance with one capability-critical independent review of the
 
 **Work:** `BPR-0590`, `BPR-0591`
 
-**Prerequisites:** m9-acceptance
+**Prerequisites:** m8-public-ui
 
 **Completion:**
 
@@ -162,4 +162,4 @@ Documented RFC acceptance with one capability-critical independent review of the
 - Every RFC criterion retains its direct evidence owner and the required independent authority-boundary review is supplied.
 - All sixteen cards and eighteen criteria, explicit RFC dependencies and pending decisions are satisfied before RFC/index Auto-Verified closeout.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Begin local BPR-0590 documentation and simplification only after the M9 local evidence candidate is integrated on main; BPR-0584 external evidence remains pending. Perform the single independent review at the end of the integrated local implementation as owner mandate r2 directs. Preserve all M9 external exits, M10 closeout exits and RFC criteria; BPR-0591 and RFC Auto-Verified cannot claim complete acceptance until the designated or signed publication and independent public read are supplied. Return a durable quiescent handoff; required external acceptance is never inferred.

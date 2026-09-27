@@ -1607,3 +1607,31 @@ qualifying signed recording, and an independent public body/actor/unchanged-
 state read, have not been supplied. Thus local M9 work may land on main, but
 the M9 external exit and RFC AC-12/13/17 remain pending. The final independent
 review stays at M10 as the owner requested.
+
+## M9 local integration candidate
+
+BPR-0589 is Done at `b47b9730f`; BPR-0588 is Done at `0925365af`.
+The local M9 candidate is `0925365afa40184a1405182b843d61a8b4905f36`.
+The nine-test integrated pass, native/offscreen captures, measured storage/Qt
+courses, documentation gate, 64 documentation tests, changed-file format check,
+capture checksum check and scoped board validation all passed. All task-owned
+builds, CTest processes and UI fixture children have exited. The one native
+fixture modality stall and its passing fresh rerun are recorded in the rendered
+evidence record; no result was silently dropped.
+
+The [M9 observation](RFC-BPR-0023.m9-observation.json) records BPR-0588 and
+BPR-0589 and local exits 1–2 as passing. Exit 3 remains pending because
+BPR-0584 lacks a qualifying designated or signed recorded mutation and
+independent server body/actor read. M9's local work is eligible for main
+integration under the adopted boundary, but the milestone is not externally
+complete and the RFC is not Auto-Verified. After integration, M10 can start
+local work under the [checked sequencing amendment](RFC-BPR-0023.m10-amendment.json),
+which preserves that external exit and the end-of-RFC independent review.
+
+The M10 amendment changes only its plan prerequisite from M9 terminal
+acceptance to the integrated M8 base. BPR-0590's actual card dependencies on
+BPR-0588/0589 are now Done, and work begins only after the M9 local candidate
+lands on main. M10's four completion criteria are unchanged: final independent
+review, all cards, external publication evidence and RFC Auto-Verified remain
+required for full closeout. The generated milestone view was updated from the
+checked plan. No pending M9 obligation was reclassified as passing.
