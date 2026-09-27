@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1219"
 title: "Qualify structured diagnostics and reconcile RFC acceptance"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0027"]
 depends_on: ["BPR-1218"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0027-advanced","path":"docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json"}}
