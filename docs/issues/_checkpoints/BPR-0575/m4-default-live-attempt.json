@@ -1,0 +1,28 @@
+{
+  "schema": "rfc0022.live-attempt.v1",
+  "candidate": "0ff88046",
+  "approval_id": "4018f747d160ae6e5471132512d8c8751d6a220956193dcde3db9463b4d15800",
+  "approval_status": "spent; never reuse",
+  "application_profile": "Default (1)",
+  "interaction": "Shipped device sign-in as MikeMarcin; open exact PR2; Start review; normal quit. No draft or Publish action.",
+  "observed": "epoch cache_open invalid_manifest; revision_prepare repair_required; source comparison unavailable",
+  "lifecycle_gate": "PASS452.19s only; not native publication acceptance",
+  "log": "build/rfc0022/m4-live-execution.log",
+  "log_sha256": "485fea18e655033fbab23d676736385858266fe6a52f91aedf6256c0fd01f1a5",
+  "after_get_counts": {
+    "review_comments": 0,
+    "issue_comments": 0,
+    "reviews": 0
+  },
+  "read_only_diagnosis": {
+    "repository_database_id": 1328277631,
+    "manifest_schema": 1,
+    "populated": true,
+    "recorded_lock_device": 16777230,
+    "current_lock_device": 16777231,
+    "same_lock_inode": 309520546,
+    "policy": "Populated legacy cache after remount refuses reuse; pristine-only recovery is intentionally inapplicable."
+  },
+  "effects": "No comment attempt; native support and fallback remain unobserved. Default cache/profile not edited or purged. Normal device sign-in performed.",
+  "next": "Create separate profile through shipped Profiles UI; bind a fresh capsule session to its exact namespace without resetting Default."
+}

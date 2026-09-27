@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cerrno>
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -463,6 +464,7 @@ namespace {
 
 	[[nodiscard]] auto launch_attended_application(
 		const std::filesystem::path&                                  aApproval,
+		const std::string&                                            aProfile,
 		const bpr::app::designated_live_supervisor_identity::session& aSession)
 		-> bool
 	{
@@ -525,12 +527,16 @@ namespace {
 			"--attended-designated-live-inventory-sha256"
 		};
 		auto inventoryArgument = std::string{ inventoryDigest };
-		auto arguments         = std::array<char*, 6>{
+		auto profileFlag       = std::string{ "--bpr-profile" };
+		auto profileArgument   = aProfile;
+		auto arguments         = std::array<char*, 8>{
 			executableArgument.data(),
 			approvalFlag.data(),
 			approvalArgument.data(),
 			inventoryFlag.data(),
 			inventoryArgument.data(),
+			profileFlag.data(),
+			profileArgument.data(),
 			nullptr,
 		};
 		auto pathValue   = std::array{ 'P', 'A', 'T', 'H', '=', '/', 'u', 's', 'r', '/',
@@ -641,13 +647,14 @@ namespace {
 	{
 		std::filesystem::path Inventory;
 		std::filesystem::path Approval;
+		std::string           Profile = "1";
 	};
 
 	[[nodiscard]] auto exact_attended_arguments(
 		const int aArgumentCount, char** aArguments)
 		-> std::optional<attended_arguments>
 	{
-		if (aArgumentCount != 6 || aArguments == nullptr
+		if ((aArgumentCount != 6 && aArgumentCount != 8) || aArguments == nullptr
 			|| aArguments[0] == nullptr || aArguments[1] == nullptr
 			|| aArguments[2] == nullptr || aArguments[3] == nullptr
 			|| aArguments[4] == nullptr || aArguments[5] == nullptr
@@ -656,6 +663,20 @@ namespace {
 			|| std::string_view{ aArguments[4] } != "--approval") {
 			return std::nullopt;
 		}
+		auto profile = std::string{ "1" };
+		if (aArgumentCount == 8) {
+			if (aArguments[6] == nullptr || aArguments[7] == nullptr
+				|| std::string_view{ aArguments[6] } != "--bpr-profile") {
+				return std::nullopt;
+			}
+			profile           = aArguments[7];
+			auto       id     = std::uint64_t{ };
+			const auto parsed = std::from_chars(profile.data(), profile.data() + profile.size(), id);
+			if (parsed.ec != std::errc{ } || parsed.ptr != profile.data() + profile.size()
+				|| id == 0U || std::to_string(id) != profile) {
+				return std::nullopt;
+			}
+		}
 		auto inventory = std::filesystem::path{ aArguments[3] };
 		auto approval  = std::filesystem::path{ aArguments[5] };
 		if (!inventory.is_absolute() || inventory.lexically_normal() != inventory
@@ -663,7 +684,7 @@ namespace {
 			return std::nullopt;
 		}
 		return attended_arguments{
-			.Inventory = std::move(inventory), .Approval = std::move(approval)
+			.Inventory = std::move(inventory), .Approval = std::move(approval), .Profile = std::move(profile)
 		};
 	}
 } // namespace
@@ -720,6 +741,6 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto launched = launch_attended_application(
-		attended->Approval, *retainedSession);
+		attended->Approval, attended->Profile, *retainedSession);
 	return launched ? EXIT_SUCCESS : EXIT_FAILURE;
 }

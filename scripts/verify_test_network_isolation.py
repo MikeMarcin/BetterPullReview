@@ -1552,8 +1552,9 @@ def live_stage_zero_command(
     mount_parent: pathlib.Path,
     approval: pathlib.Path,
     identity: LiveImageIdentity,
+    profile: str | None = None,
 ) -> list[str]:
-    return [
+    command = [
         "/usr/bin/python3",
         "-I",
         "-S",
@@ -1574,6 +1575,11 @@ def live_stage_zero_command(
         "--approval",
         str(approval.absolute()),
     ]
+    if profile is not None:
+        if not re.fullmatch(r"[1-9][0-9]*", profile) or int(profile) > (1 << 64) - 1:
+            raise ValueError("live profile must be a canonical positive uint64")
+        command.extend(["--bpr-profile", profile])
+    return command
 
 
 def main() -> int:
@@ -1597,6 +1603,7 @@ def main() -> int:
     parser.add_argument("--live-mount-parent", type=pathlib.Path)
     parser.add_argument("--live-build-dir", type=pathlib.Path)
     parser.add_argument("--live-approval", type=pathlib.Path)
+    parser.add_argument("--live-profile")
     arguments = parser.parse_args()
 
     raw, isolated, live, exact_live = registration_inventory(arguments.root)
@@ -1680,6 +1687,7 @@ def main() -> int:
                     arguments.live_mount_parent,
                     arguments.live_approval,
                     identity,
+                    arguments.live_profile,
                 )
                 if identity is not None
                 else None

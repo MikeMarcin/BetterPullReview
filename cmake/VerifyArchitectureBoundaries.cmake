@@ -2074,7 +2074,7 @@ if(EXISTS "${app_designated_live_supervisor_file}")
             [=[session::open(]=]
             [=[run_static_verifier(*retainedSession)]=]
             [=[observe_designated_live_public_target()]=]
-            [=[attended->Approval, *retainedSession]=]
+            [=[attended->Approval, attended->Profile, *retainedSession]=]
             [=[designated_live_supervisor_launch::verify_static(]=]
             [=[verifier_operations::production()]=]
             [=[designated_live_supervisor_launch::launch(]=]
@@ -2194,7 +2194,7 @@ if(EXISTS "${app_designated_live_supervisor_file}")
     string(
         FIND
         "${app_designated_live_supervisor_contents}"
-        "attended->Approval, *retainedSession"
+        "attended->Approval, attended->Profile, *retainedSession"
         designated_live_supervisor_launch_index
     )
     if(
@@ -2442,7 +2442,7 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
             [=[approval = approval_path(arguments, root)]=]
             [=[inventory = root / IMAGE_INVENTORY_RELATIVE]=]
             [=[helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE]=]
-            [=[launched = run_stage_one(helper, inventory, approval, signals)]=]
+            [=[launched = run_stage_one(helper, inventory, approval, signals, **profile_arguments)]=]
             [=[if launched.returncode != 0:]=]
             [=[STAGE_ONE_TIMEOUT_SECONDS = 1500.0]=]
             [=[STAGE_ONE_TERM_GRACE_SECONDS = 10.0]=]
@@ -2562,7 +2562,7 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
     string(
         FIND
         "${designated_live_macos_capsule_script_compact}"
-        "launched = run_stage_one(helper, inventory, approval, signals)"
+        "launched = run_stage_one(helper, inventory, approval, signals, **profile_arguments)"
         designated_live_child_index
     )
     string(

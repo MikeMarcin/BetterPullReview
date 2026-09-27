@@ -1260,10 +1260,18 @@ def require_underlying_mount_root(
         raise CapsuleFailure("underlying mount root did not return after detach")
 
 
+def profile_id(value: str) -> str:
+    if not value.isascii() or not value.isdecimal() or value.startswith("0") or int(value) > (1 << 64) - 1:
+        raise argparse.ArgumentTypeError("profile must be a canonical positive uint64")
+    return value
+
+
 def approval_path(
     arguments: argparse.Namespace,
     mount_root: pathlib.Path,
 ) -> pathlib.Path | None:
+    if getattr(arguments, "bpr_profile", None) is not None and not arguments.attended_launch:
+        raise CapsuleFailure("profile selection requires attended launch")
     if arguments.attended_launch:
         if arguments.approval is None:
             raise CapsuleFailure("attended launch requires an external approval")
@@ -1364,6 +1372,7 @@ def run_stage_one(
     inventory: pathlib.Path,
     approval: pathlib.Path | None,
     signals: StageZeroSignalScope | None = None,
+    profile: str | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     arguments = [str(helper)]
     if approval is None:
@@ -1378,6 +1387,10 @@ def run_stage_one(
                 str(approval),
             ]
         )
+    if profile is not None:
+        if approval is None:
+            raise CapsuleFailure("profile selection requires attended approval")
+        arguments.extend(["--bpr-profile", profile_id(profile)])
     process: subprocess.Popen[bytes] | None = None
     spawn_scope = (
         signals.defer_interrupts()
@@ -1448,7 +1461,9 @@ def run_stage_zero(
             print(f"designated-live-macos-capsule:mounted:{root}", flush=True)
             interrupted_during_postcheck: StageZeroInterrupted | None = None
             try:
-                launched = run_stage_one(helper, inventory, approval, signals)
+                profile = getattr(arguments, "bpr_profile", None)
+                profile_arguments = {"profile": profile} if profile is not None else {}
+                launched = run_stage_one(helper, inventory, approval, signals, **profile_arguments)
             finally:
                 # Recheck every exit path, retrying if the handled termination
                 # request arrived during this final identity observation.
@@ -1564,6 +1579,7 @@ def parser() -> argparse.ArgumentParser:
     stage_zero_mode.add_argument("--probe-launch", action="store_true")
     stage_zero_mode.add_argument("--attended-launch", action="store_true")
     stage_zero_parser.add_argument("--approval", type=pathlib.Path)
+    stage_zero_parser.add_argument("--bpr-profile", type=profile_id)
     stage_zero_parser.add_argument("--hdiutil", type=pathlib.Path, default=pathlib.Path("/usr/bin/hdiutil"))
     return result
 

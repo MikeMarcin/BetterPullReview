@@ -924,6 +924,23 @@ class CapsuleImageTests(unittest.TestCase):
         self.assertEqual(len(recorded), 1)
         self.assertNotIn("-force", recorded[0])
 
+    def test_attended_profile_is_explicit_and_cannot_enter_probe(self) -> None:
+        process = mock.Mock(pid=123, wait=mock.Mock(return_value=0))
+        with mock.patch.object(capsule.subprocess, "Popen", return_value=process) as spawn, mock.patch.object(capsule, "process_group_exists", return_value=False):
+            capsule.run_stage_one(pathlib.Path("/helper"), pathlib.Path("/inventory"), pathlib.Path("/approval"), profile="2")
+            self.assertEqual(spawn.call_args.args[0], ["/helper", "--attended-launch", "--inventory", "/inventory", "--approval", "/approval", "--bpr-profile", "2"])
+            spawn.reset_mock()
+            with self.assertRaises(capsule.CapsuleFailure):
+                capsule.run_stage_one(pathlib.Path("/helper"), pathlib.Path("/inventory"), None, profile="2")
+            spawn.assert_not_called()
+            for value in ("", "0", "02", "-2", "+2", "2 ", "٢", "18446744073709551616", "2 --other"):
+                with self.subTest(value=value), self.assertRaises(argparse.ArgumentTypeError):
+                    capsule.run_stage_one(pathlib.Path("/helper"), pathlib.Path("/inventory"), pathlib.Path("/approval"), profile=value)
+            spawn.assert_not_called()
+        self.assertEqual(capsule.profile_id("18446744073709551615"), "18446744073709551615")
+        with self.assertRaises(capsule.CapsuleFailure):
+            capsule.approval_path(self.image_arguments(bpr_profile="2"), pathlib.Path("/mount"))
+
     def test_stage_one_timeout_terminates_cooperative_process_group(self) -> None:
         """The deadline reaches cleanup, and one SIGTERM is enough.
 

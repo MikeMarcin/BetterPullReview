@@ -371,6 +371,19 @@ class MacosUnsandboxedExceptionTests(unittest.TestCase):
 
 
 class ConfiguredManifestTests(unittest.TestCase):
+    def test_live_profile_is_part_of_exact_launch_command(self) -> None:
+        args = (pathlib.Path("/source"), pathlib.Path("/build/capsule.dmg"), "a" * 64, pathlib.Path("/private/mounts"), pathlib.Path("/private/approval"), LiveImageIdentity("b" * 64, "c" * 64))
+        selected = live_stage_zero_command(*args, profile="2")
+        self.assertEqual(selected, [*live_command(), "--bpr-profile", "2"])
+        row = {"name": LIVE_TEST_NAME, "command": selected, "properties": [{"name": "LABELS", "value": [LIVE_TEST_LABEL]}, {"name": "TIMEOUT", "value": 1800.0}, live_scrub_property()]}
+        self.assertEqual(configured_failures({"tests": [row]}, ["/sandbox"], live_command=selected), [])
+        changed = [*selected[:-1], "3"]
+        row["command"] = changed
+        self.assertTrue(any("exact runner/approval command" in value for value in configured_failures({"tests": [row]}, ["/sandbox"], live_command=selected)))
+        for value in ("", "0", "02", "-1", "2 ", "18446744073709551616"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                live_stage_zero_command(*args, profile=value)
+
     def test_required_architecture_name_command_pairs_are_exact(self) -> None:
         commands = protected_commands()
         manifest = {
