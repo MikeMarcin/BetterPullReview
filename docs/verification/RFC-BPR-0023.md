@@ -953,3 +953,41 @@ protocol milestone. Tests use the repository network-isolation wrapper and
 owned local fixtures. The immutable source comparison deliberately excludes
 the editable LIVE_IMPORT lane links. Acceptance evidence is attached through
 the finish record, preserving the bound card body and obligation fingerprint.
+
+### M5 durable handoff
+
+Accepted M5/BPR-0581 product/test/evidence candidate:
+`8e20e9e850c6f185e1107280a175b3fd8f9cec29`.
+Finish commit `a92e76679309f994d1de3b5c2146ae9c675a1a4f` moves the whole
+card to Done, attaches seven passing required-state records at that exact
+candidate and adds the [M5 observation](RFC-BPR-0023.m5-observation.json).
+This following documentation commit records the final handoff without changing
+product code or tests.
+
+The checkpoint check with accepted M1–M4 returned `fresh-context` for M6 at the
+candidate. After finish it returned `reconcile` solely because HEAD advanced
+past that revision; `git diff --exit-code 8e20e9e8 HEAD -- src tests` confirmed
+identical product/test content. The checkpoint's
+`engineering_acceptance: not-evaluated` is its consistency scope; the whole-card
+judgment rests on the direct courses and limits above. M5 has no required
+pending acceptance. The next engineering owner must preserve both the durable
+snapshot contract and the explicit remaining M6 integration work.
+
+All M5 build, CTest, format, documentation, board, checkpoint and acceptance
+commands completed. The finish helper's temporary acceptance directory was
+removed. No background command, child agent, review server, human session,
+event cursor or protected candidate lease is handed off. Test children and
+owned scratch roots were cleaned by their courses; ignored build outputs are
+retained for reuse. `/root/rfc0023_m5` was the only writer in this assigned
+checkout, and releases writer ownership to the coordinator with this handoff.
+No main mutation, push, PR or real GitHub/GHES operation was performed.
+
+Coordinator next action: integrate this completed M5 branch into local main,
+then start a fresh M6/BPR-0582 segment at that integrated baseline. M6 must wire
+one persisted run/prompt admission and exact private-source revalidation before
+existing process dispatch, retain complete assistant text and terminal facts,
+and pass the expected run on finalization. Preserve ledger 7, recovery 5 and
+staged-tour codec 3 plus any independent main changes. Continue M7–M9 and the
+single final M10/BPR-0591 independent review under mandate r2. The original
+eighteen feature criteria remain open until their full assigned evidence is
+supplied; M5 fixtures do not waive native or designated-publication acceptance.
