@@ -884,3 +884,11 @@ material leaves file-level placement. No local database or publication journal
 is required to reconstruct the link. The Qt model preserves canonical IDs and
 checks a compatibility anchor's exact comparison before revealing its line.
 Native historical revision mapping remains RFC-BPR-0021's obligation.
+
+The normal conversation reader presents reviewer prose for an admitted semantic
+file comment. Its optional, collapsed Support details explains the remote file
+subject and code-link placement. The selected source and conversation preserve
+one identity across refresh, including retained endpoints that have an exact
+semantic anchor but no native current-diff coordinate. Qt indexes those admitted
+anchors for reverse selection; it does not decode a permalink or decide a
+publication representation.

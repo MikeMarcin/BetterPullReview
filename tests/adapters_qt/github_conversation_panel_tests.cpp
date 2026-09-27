@@ -6,6 +6,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QComboBox>
 #include <QImage>
@@ -962,6 +963,23 @@ namespace {
 		process_events();
 		expect(index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("Only the reviewer prose"), "normal comment reader projects prose without representation syntax");
 		expect(panel.thread_map()->focus_identity() == "file-comment", "compatibility reply selects the canonical map node");
+		auto* const support     = panel.findChild<QToolButton*>(QStringLiteral("conversationSupportDetails"));
+		auto* const description = panel.findChild<QLabel*>(QStringLiteral("conversationSupportDescription"));
+		expect(support && description && support->isVisible() && !description->isVisible()
+				   && !support->isChecked(),
+			   "representation is disclosed only after expanding Support details");
+		auto* const accessible = QAccessible::queryAccessibleInterface(support);
+		expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Conversation support details"), "support disclosure has an accessible name");
+		support->setFocus(Qt::TabFocusReason);
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+		QApplication::sendEvent(support, &press);
+		QApplication::sendEvent(support, &release);
+		process_events();
+		expect(support->isChecked() && description->isVisible() && support->hasFocus(), "keyboard expansion retains focus and reveals the honest server representation");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			expect(panel.grab().save(path + QStringLiteral("-semantic-support.png")), "semantic support detail rendered for inspection");
+		}
 		const auto before = panel.model()->statistics();
 		panel.adopt({ thread, post }, QStringLiteral("available"));
 		expect(panel.model()->statistics().ModelResets == before.ModelResets, "identical compatibility refresh has no model reset");
@@ -978,6 +996,7 @@ namespace {
 		post.ReviewerProse.reset();
 		panel.adopt({ thread, post }, QStringLiteral("available"));
 		expect(!panel.model()->semantic_anchor(panel.model()->index_for_id("file-thread")), "external removal clears semantic placement without changing identity");
+		expect(!support->isVisible() && !description->isVisible(), "an external edit withdraws stale support information");
 		panel.close();
 	}
 

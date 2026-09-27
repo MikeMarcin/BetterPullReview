@@ -1525,7 +1525,7 @@ namespace bpr::qt {
 							: RightConversationEndpointCurrent);
 				const auto line            = aInteractive && aSelection.has_value()
 						&& aSelection->Kind == core::semantic_selection_kind::line
-						&& endpointIsCurrent
+						&& (endpointIsCurrent || ConversationPanel->has_semantic_anchor(aSelection->PreferredLine))
 					? std::optional<core::source_line_ref>{ aSelection->PreferredLine }
 					: std::nullopt;
 				ApplyingConversationAnchor = true;

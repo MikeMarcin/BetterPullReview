@@ -1196,6 +1196,11 @@ namespace {
 			   "a malformed server response is visibly distinct from an invisible target");
 		expect(editor->shown_draft()->Body == "Retain this reply." && log.Drafts.empty(),
 			   "presenting either diagnostic preserves the draft and emits no action");
+		editor->present(application::review_mutation_failure::incompatible_body);
+		expect(editor->mutation_status_text().contains(QStringLiteral("needs a supported inline line anchor"))
+				   && !editor->mutation_status_text().contains(QStringLiteral("file comment"))
+				   && editor->shown_draft()->Body == "Retain this reply." && log.Drafts.empty(),
+			   "line-only body refusal explains the limitation while retaining text and dispatching no operation");
 		delete editor;
 	}
 

@@ -477,6 +477,28 @@ namespace bpr::qt {
 		Body->setAccessibleName(QStringLiteral("Selected public conversation body"));
 		postView->ReadBody = [this] { Body->setFocus(Qt::TabFocusReason); };
 		detailLayout->addWidget(Body, 1);
+		SupportDetails = new QToolButton{ DetailPane };
+		SupportDetails->setObjectName(QStringLiteral("conversationSupportDetails"));
+		SupportDetails->setText(QStringLiteral("Support details"));
+		SupportDetails->setAccessibleName(QStringLiteral("Conversation support details"));
+		SupportDetails->setCheckable(true);
+		SupportDetails->setFocusPolicy(Qt::StrongFocus);
+		SupportDetails->hide();
+		detailLayout->addWidget(SupportDetails);
+		SupportDescription = new QLabel{ DetailPane };
+		SupportDescription->setObjectName(QStringLiteral("conversationSupportDescription"));
+		detail::set_plain_text_label(SupportDescription);
+		SupportDescription->setWordWrap(true);
+		SupportDescription->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		SupportDescription->setFocusPolicy(Qt::StrongFocus);
+		QWidget::setTabOrder(SupportDetails, SupportDescription);
+		SupportDescription->setText(QStringLiteral("GitHub stores this as a file review comment. The code link in its current root post places the conversation at this source line."));
+		SupportDescription->hide();
+		detailLayout->addWidget(SupportDescription);
+		connect(SupportDetails, &QToolButton::toggled, this, [this](const bool aExpanded) {
+			SupportDescription->setVisible(aExpanded);
+		});
+		QWidget::setTabOrder(Body, SupportDetails);
 		QWidget::setTabOrder(View, Body);
 		loaded->addWidget(DetailPane);
 		// The map asks for the band its own sizeHint names; the cards and
@@ -661,8 +683,14 @@ namespace bpr::qt {
 		refresh_projection();
 	}
 
+	auto github_conversation_panel::has_semantic_anchor(const core::source_line_ref& aLine) const -> bool
+	{
+		return SemanticAnchors.contains(aLine);
+	}
+
 	void github_conversation_panel::index_retained()
 	{
+		SemanticAnchors.clear();
 		PlacedStale = true;
 		EarlierRetained.clear();
 		CurrentThreadCounts.clear();
@@ -673,6 +701,9 @@ namespace bpr::qt {
 		auto byId = std::unordered_map<std::string_view, std::size_t>{ };
 		byId.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			if (Retained[index].SemanticAnchor) {
+				SemanticAnchors.insert(*Retained[index].SemanticAnchor);
+			}
 			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
 			byId.emplace(Retained[index].Id, index);
 		}
@@ -744,8 +775,17 @@ namespace bpr::qt {
 			&& Model->rowCount(index) > 0) {
 			index = Model->index(0, 0, index);
 		}
-		const auto id    = Model->id_for_index(index);
-		const auto found = ShownPositions.find(id);
+		const auto id         = Model->id_for_index(index);
+		const auto found      = ShownPositions.find(id);
+		const auto hasSupport = aAdmitted && found != ShownPositions.end()
+			&& !Shown[found->second].Deleted && Shown[found->second].SemanticAnchor
+			&& Shown[found->second].RemoteSubject == application::github_conversation_remote_subject::file;
+		if (SupportPost != id || !hasSupport) {
+			SupportDetails->setChecked(false);
+			SupportPost = id;
+		}
+		SupportDetails->setVisible(hasSupport);
+		SupportDescription->setVisible(hasSupport && SupportDetails->isChecked());
 		if (!aAdmitted || found == ShownPositions.end() || Shown[found->second].Deleted) {
 			Body->clear();
 			Body->set_link_dispatch({ });
@@ -857,6 +897,7 @@ namespace bpr::qt {
 		FilterUnresolved->setChecked(false);
 		(Discuss ? ScopeWholePr : ScopeThisFile)->setChecked(true);
 		Retained.clear();
+		SemanticAnchors.clear();
 		index_retained();
 		Shown.clear();
 		ShownPositions.clear();
