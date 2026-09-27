@@ -428,3 +428,214 @@ r1 check, current r2 files, execution quiescent and accepted M1) returned
 `fresh-context` for M3 on `8a11272be9eb629165113c58b4ab1e7d6cadb029`.
 The helper reports engineering acceptance as not evaluated; the explicit
 architecture judgments and owner timing amendment above supply that decision.
+
+## M3 — core policy implementation
+
+Assignment: `m3-core`, BPR-0578 then BPR-0579, `/root/rfc0023_m3`, mandate r2,
+branch `codex/rfc-bpr-0023`, integrated M2 baseline
+`1f964cfa86f1b69cf2233f024e2ba9c975c19b21`. The
+[M3 checkpoint](RFC-BPR-0023.m3-checkpoint.json) binds both whole-card
+obligations and the two milestone exits. The owner moved independent review
+to M10/BPR-0591; no review acceptance is inferred here.
+
+### BPR-0578 implementation and transition contract
+
+`private_review.hpp/.cpp` defines independent positive INT64-bounded IDs,
+profile/review/ledger-incarnation scope, immutable exact revision bindings and
+an explicit legacy binding with no invented OIDs. Subjects reuse RFC-0004
+identities. Diff subjects require the validated immutable semantic index;
+PR, shared-conversation and finding subjects are distinct alternatives.
+Shared/finding existence remains a store fact to revalidate in M4/M6.
+
+| Public core operation | Accepted change | Refusal examples |
+|---|---|---|
+| `create_private_thread` | Exact subject and first reviewer revision | Invalid IDs/binding, missing index, wrong comparison/epoch, invalid actor, oversize |
+| `migrate_private_thread` | Exact legacy bytes and unknown actor | Invented actor, invalid retained attachment, oversize |
+| `append_private_turn` | New revision and header version; optional exact reply | Archived/header CAS, wrong run/binding/completion, foreign source, backwards order |
+| `edit_private_revision` | Reviewer successor, exact predecessor and edit/adoption edge | Tip/header CAS, source digest, actor, missing explicit incomplete adoption, backwards order |
+| `set_private_lifecycle` | Open/resolved-locally/archived, idempotent same-state | Invalid enum/ID, old CAS, version exhaustion |
+| `observe_private_subject` | Current/stale/unplaceable fact only | Unknown legacy or unavailable subject stays unplaceable; no replacement anchor |
+| Request lane begin/finish | Checked generation; matching terminal consumed once | Wrong scope/incarnation/window/session/request/generation; duplicates and exhaustion |
+
+Bodies are bounded values in operation observations; the compact four-lane
+state holds identities only. SHA-256 covers exact body bytes. Complete output
+is eligible; incomplete/failed/cancelled agent output requires a new explicit
+reviewer adoption. The host remains responsible for transactional allocation,
+source existence, exact latest CAS observations and persisted publication of
+the returned proposal. No new persistence or user-visible application path is
+claimed by this core slice.
+
+Core tests instantiate no QApplication and directly compose the public create,
+reply, agent-result, edit, archive/reopen and stale-observation APIs with a real
+computed diff semantic index. They cover a 3-by-3 lifecycle table, repeated
+successor replay, invalid identities, byte limits, unknown migration,
+source/digest/CAS refusal and stale/duplicate terminals. Source and tests are
+linked exclusively to `BetterPullReview::Core` in the core-only preset.
+
+BPR-0578 verification: `cmake --preset core-only` and focused build
+`cmake --build --preset core-only --target test_private_review_core -j 6`
+passed on AppleClang 21 / arm64 macOS. `core_private_review`,
+`architecture_boundaries` and `architecture_boundary_contract` passed (3/3).
+The final high-water self-review correction reran the core test successfully;
+`python3 scripts/verify_documentation.py --root .` returned DOCUMENTATION_OK,
+scoped board validation passed (1,208 cards), and whitespace passed.
+
+Documentation impact for this slice: the owning domain/state document records
+the implemented core API. No user-visible UI, GitHub/GHES authority, acting
+identity, review semantics, local cache, credential, network isolation,
+packaging, accessibility or native behavior changes. Limits are core admission
+bounds only; storage quotas, paging, performance and full RFC criteria still
+require the assigned later milestones. No product-wide suite or live service
+was exercised. Build outputs remain ignored and no transient evidence is committed.
+
+### BPR-0579 core policy and integrated result
+
+`review_composition.hpp/.cpp` provides qualified runtime facts with bounded
+UTF-8 scalar validation, conflict locations, coalesced identical reports and
+retained conflicting reports. A run snapshots its exact session/profile/
+protocol/entry-point/binding independently of any session catalogue. Complete
+conversation output now also checks the exact run output digest in
+`private_review.cpp`; merely matching run ID cannot claim different bytes.
+
+Source references distinguish turns, run+ordinal findings and composition
+revisions. All carry scope/incarnation, common vertex order, digest and byte
+count. Versioned, length-framed canonical encodings bind full finding content
+and selected identities. Finding observations retain verdict/analyzed revision
+facts. Source admission rechecks exact digest/tip, same review and completion;
+historical selection is explicit. Derivation admission refuses later edge
+attachment, duplicate/missing/cross-review sources, self edges and non-increasing
+orders. No transitive history load is required.
+
+Reviewer-authored, exact-copy and agent-assisted proposals retain immutable
+sources. Exact copy preserves source actor and bytes; an agent proposal requires
+its exact complete run, selected set, binding and output digest. Editing every
+mode yields a reviewer successor. Target partitioning returns all assigned
+partitions and unassigned source indexes. A mixed set has no implicit target.
+Acceptance revalidates source/tip/body/target and produces a local request for
+`revisioned_review_draft`; a separate durable acknowledgement changes lifecycle.
+There is no composition publish/resolve/submit variant.
+
+The existing revisioned draft now has optional scope/composition/revision/body
+correlation. Linked-body edits require a matching immutable successor;
+backwards, changed-same-ID, corrupt-body and cross-composition links refuse.
+All accepted ordinary draft transitions preserve correlation. The existing
+Publish command remains a separate operation. Duplicate exact source-set,
+body and target evidence is an advisory and cannot trigger or block an action.
+
+#### Acceptance coverage
+
+| Card final state | Direct M3 evidence |
+|---|---|
+| BPR-0578 IDs/subjects/lifecycle/actor/immutability/completion/replay | `core_private_review`: real diff index, create/reply/run/edit/adoption, exact bytes, 3x3 lifecycle table, 98 successor steps, stale/unplaceable and request identity refusals. |
+| BPR-0579 run identity and provenance categories | `core_review_composition`: same-session distinct runs, unknown/partial/full/conflicting metadata, report repetition/count/byte limits, invalid UTF-8/control strings, profile-name non-inference. |
+| Finding identity and immutable lineage | Same-ordinal distinct-run findings, complete structured snapshot/verdict retention, digest changes on field changes, stale finding, missing verdict refusal, same-scope order proof and backwards/self/cross-review/missing/late-edge refusals. |
+| Modes, source admission and exact partitions | All three modes, immutable reviewer successors, copy mismatch, wrong run, incomplete/missing/duplicate/digest/tip/history/scope/count cases; explicit target and multi-target/unassigned split. |
+| Local draft acceptance and advisory | Real `core::apply` on the existing draft type, exact local correlation/CAS, immutable edit link, independent Publish command, duplicate advisory without blocking, abandoned/accepted terminal refusal. |
+| Boundary and boundedness | Core-only build, core/architecture boundary gates, constant-sized state assertions, 16 KiB candidate, 1 MiB source descriptor, 2 MiB selected-private run, 256 source and 16-report/16 KiB metadata limits. |
+
+M3 proves these core decisions. The eighteen whole-feature RFC rows above stay
+pending for their storage/protocol/host/UI/native/publication owners. It does
+not prove restart durability, process opt-in delivery, actual agent reporting,
+zero-mutation host traces, rendered accessibility or a live GitHub round trip.
+No independent review is performed here; the r2 M10/BPR-0591 gate is retained.
+
+#### Diagnosis and simplification
+
+The first BPR-0579 build command named a nonexistent
+`test_revisioned_review_draft_core` target. It made no build claim; the registered
+`test_better_pull_review_revisioned_review_draft_tests` target then built and
+passed. Self-review added header `LastOrder` advancement for edits and tested
+its replay, output-digest correlation for agent turns, finding-verdict admission,
+and backwards draft-link refusal. Adding finding-verdict admission made the
+old omitted-verdict copy fixture fail; the fixture now first proves that refusal,
+then supplies its real retained verdict and passes. The incidental edit script
+that missed its formatted test locator was corrected; no source was discarded.
+
+The code-simplifier pass extracted draft-link validity/successor checks and
+bounded run-source admission. New source/test files follow the repository
+formatter. Final evidence is attached to the candidate named in the handoff;
+earlier failed attempts do not count as acceptance.
+
+#### Documentation and main integration
+
+Changed semantic documentation: domain/state model and this existing ledger;
+the live audit records current-main reconciliation at `75102233`. Main's
+review-tour work adds three core sources and a test registration; integration
+must keep these beside both M3 registrations. Ledger schema remains 6 and
+mutation-recovery schema 5; the staged-tour payload codec is now 3. No milestone
+plan, original RFC criterion or user amendment changes are warranted by these
+additive paths. Main integration remains the coordinator's responsibility.
+
+No current user UI, GitHub/GHES authentication/acting identity/review semantics,
+Git cache, credentials, network policy, packaging, native platform or accessibility
+behavior is added. New core admission limits are documented; store quotas,
+paging, performance measurement, secret-boundary and public workflow qualification
+remain later acceptance. Source/test changes are confined to core and its tests.
+
+### M3 verification and candidate checkpoint
+
+| Final check | Result |
+|---|---|
+| `cmake --preset core-only` | PASS; Qt-free graph, AppleClang 21, macOS arm64. |
+| Focused build of `test_private_review_core`, `test_review_composition_core`, `test_better_pull_review_revisioned_review_draft_tests`, `test_better_pull_review_diff_semantics_core_tests`, `test_better_pull_review_agent_session_core_tests`, `test_better_pull_review_agent_finding_core_tests` | PASS with the configured warnings. |
+| `ctest --preset core-only --output-on-failure -R '^(core_private_review\|core_review_composition\|core_revisioned_review_draft\|core_diff_semantics\|core_agent_session\|core_agent_finding\|core_dependency_boundary\|core_boundary_contract\|architecture_boundaries\|architecture_boundary_contract)$'` | PASS, 10/10, 106.81 seconds; each test ran under the registered network-isolation wrapper. Escaped table separators represent ordinary regex alternatives in the command. |
+| `clang-format --dry-run --Werror` on all nine touched C++ headers/sources/tests | PASS. |
+| `otool -L build/core-only/tests/core/review_composition_core` | Only libc++ and libSystem; no Qt, provider or database library. |
+| `python3 scripts/verify_documentation.py --root .` | PASS, DOCUMENTATION_OK. |
+| MASK scoped board validation | PASS, 1,208 cards, no errors. |
+| M3 checkpoint rebind | PASS; definition, obligations and prerequisite fingerprints unchanged after BPR-0578 completion. |
+| `git diff --check` | PASS. |
+
+The integrated pass includes the final high-water, output-digest, finding-verdict
+and draft-link corrections. It is one combined core pass, not an application
+suite or native release qualification. The existing M2/r2 architecture and all
+later obligations remain intact.
+
+### M3 durable handoff
+
+Accepted integrated M3 core candidate:
+`1acd8821187e77321862df7e26e1f4013d633b4f`.
+BPR-0578 candidate was `5bbb2563`, completed by `3ab8df0b`; BPR-0579 was claimed
+at `df069591`. The integrated candidate includes both cards and the later
+run-body correlation correction. The finish commit `e6e902083c06f365e56eac7c55c5cd71bd6e1d45` changes
+BPR-0579 to Done and records the observation. This following documentation-only
+commit records the handoff without changing code.
+
+The [M3 observation](RFC-BPR-0023.m3-observation.json) binds both whole-card
+obligations and both milestone exits to that candidate, mandate r2 and segment
+`m3-core-r2`. The candidate-bound checkpoint check returned `fresh-context`
+for M4 after accepted M1/M2. Its `engineering_acceptance: not-evaluated` means
+the helper checked consistency only; the criterion judgments and direct tests
+above provide the engineering decision. An initial observation used the wrong
+`acceptance` field; the helper refused it without action. The corrected
+`acceptance_records` observation passed.
+
+Changed M3 paths: new `private_review.hpp/.cpp`, `review_composition.hpp/.cpp`,
+private/composition core tests and shared synthetic fixture; existing
+revisioned-draft header/implementation; core and test CMake registration;
+domain/state document; live RFC-0023 audit/ledger; M3 checkpoint/observation;
+BPR-0578/BPR-0579 card moves and editable LIVE_IMPORT link repairs. No SQLite,
+application, agent adapter, Qt, production composition, RFC criterion, retained
+pack or authored plan source was edited.
+
+All task-owned configure, build, CTest and helper commands have finished.
+No child agent, review server, human session, event cursor, protection lease,
+external service operation or pending background writer is handed off. The
+acceptance helper's task-owned temporary directory is removed on return; ignored
+core-only build/cache outputs remain reusable. The sole writer in this assigned
+checkout was `/root/rfc0023_m3`; unrelated worktrees and main's independent tour
+work were observed read-only and preserved. Writer ownership is released to
+the coordinator after the finish commit. No push, PR or main-branch mutation
+was performed.
+
+Next action: coordinator integrates M3 with current main, preserves the two
+additive CMake registration sets, and checks the combined affected core paths.
+Start a fresh M4/BPR-0580 implementer on that integrated candidate; BPR-0581/M5
+is also dependency-eligible after M3 but follows M4 in the adopted order.
+Storage must enforce high-water allocation, source existence/latest CAS and
+transaction atomicity using these pure proposals. M5 must capture actual
+protocol facts and full encoded-input bounds; M6/M7 must prove dispatch,
+durability and separate mutation composition. All later human/native/designated
+publication obligations and the single final M10 independent review remain
+pending at their assigned boundaries. There is no pending M3 acceptance or
+review session to interpret.
