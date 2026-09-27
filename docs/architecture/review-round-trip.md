@@ -741,3 +741,27 @@ The three new SQLite-backed fixtures use the existing Windows DOS-volume-name
 exception because they call the unchanged retained-ancestor path. That cause
 reuses BPR-0362 evidence; no new native Windows run is claimed. macOS/Linux
 registrations remain network-contained.
+
+## Semantic source-line publication policy (RFC-BPR-0022)
+
+Milestone A adds the provider-free `review_publication_policy` contract. It
+consumes exact host eligibility and bounded placement/capability/body facts.
+Legacy placement always selects native publication; unknown placement also
+selects native even when the repository's off-hunk capability is unsupported.
+Fresh scoped unsupported evidence plus proven off-hunk placement first asks
+for durable evidence admission. It cannot directly prepare a fallback child.
+
+Durable native rejection and first-attempt evidence admission are distinct
+states. Only either committed authorization can prepare a fallback. A native
+transmission witness selects native reconciliation and cannot enter either
+fallback admission path. Unknown results, cancellation, timeout, malformed
+success and GET absence supply no terminal event. An exact non-creation terminal
+may retire a witness; only the exact unsupported event authorizes fallback.
+Success is terminal and retains its representation for duplicate receipt replay.
+
+Fenced suggestion bodies require a line subject. The core conservatively
+recognizes backtick/tilde fences and whitespace in the info string; a required
+fallback returns typed incompatibility. Native publication remains available.
+This pure contract is preparatory: the provider and transactional recovery
+integration remain milestone B work. Existing ordinary publication continues
+through RFC-BPR-0008's coordinator and exact user or attended authority.
