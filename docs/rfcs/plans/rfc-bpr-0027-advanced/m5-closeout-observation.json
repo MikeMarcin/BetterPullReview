@@ -1,0 +1,186 @@
+{
+  "run_id": "rfc0027-advanced",
+  "segment_id": "m5-closeout",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "rfc-bpr-0027-advanced",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0027-advanced/milestone-plan.json",
+    "milestone_id": "native-closeout",
+    "definition_fingerprint": "sha256:c7da4e897378be3a34e93f18505b13be3b25e997ce6b516f3b1cb43583b194fa",
+    "obligations": [
+      {
+        "id": "BPR-1219:*",
+        "source": "BPR-1219",
+        "selector": null,
+        "source_fingerprint": "sha256:4b4c2310ae5c672dbb3266f3cd9bb4f66b73a84b37f8fd5e3f58976a6f90e8cb"
+      },
+      {
+        "id": "BPR-0603:*",
+        "source": "BPR-0603",
+        "selector": null,
+        "source_fingerprint": "sha256:863a3e0b780240e3b3bc8861f90b9dbeae473a607551288e615ff0f311012ce5"
+      },
+      {
+        "id": "BPR-0601:*",
+        "source": "BPR-0601",
+        "selector": null,
+        "source_fingerprint": "sha256:3d306f81604be2636ff1f8a1aab57a5c880e9ccef3380f577bb7e943fefa1a0e"
+      },
+      {
+        "id": "RFC-BPR-0027:*",
+        "source": "RFC-BPR-0027",
+        "selector": null,
+        "source_fingerprint": "sha256:6a1d96a9960baad13669be0d0bcb1b2ea4ec6b45557c3996e32a12c781350be2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6abf7b4698c216225d7d6bbae7201e6bdbf3f02f24fec0c094536a60abfa4902",
+    "exit_criteria": [
+      {
+        "id": "native-closeout:exit:1",
+        "text": "AC1: Run focused integration and native logging/lifecycle/control courses on each claimed platform; bind dependency and package provenance."
+      },
+      {
+        "id": "native-closeout:exit:2",
+        "text": "AC2: Prepare required attended review with exact candidates and pending decisions; no live sign-in without separate authority."
+      },
+      {
+        "id": "native-closeout:exit:3",
+        "text": "AC3: Reconcile BPR-0603 and BPR-0601, RFC/index and all full criteria, land accepted scope on main."
+      },
+      {
+        "id": "native-closeout:exit:4",
+        "text": "Commit verified scope, update durable evidence and land this accepted milestone on main."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:446ee572255671ce2d8281024502029417d3f052c4727d3e89ec41eb7ea110ee",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "native-closeout",
+  "disposition": "blocked",
+  "candidate_revision": "4bde6fe3dd3c09f874ae4d256b857313b01459a2",
+  "handoff_ref": "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending",
+  "required_pending": [
+    "Canonical sequential closeout: earlier RFC0020/0021/0023 Deferred and RFC0022 Proposed; wait for predecessors or explicit owner sequencing amendment before BPR0601/RFC0027 terminal status."
+  ],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+    "docs/issues/60-done/BPR-1219-native-closeout.md",
+    "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+    "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1219:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "BPR-0603:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "BPR-0601:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0027:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:3",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    },
+    {
+      "id": "native-closeout:exit:4",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0027.md#m5-final-engineering-round--mandate-r2",
+        "docs/issues/60-done/BPR-1219-native-closeout.md",
+        "docs/issues/60-done/BPR-0603-advanced-diagnostic-controls-and-retention.md",
+        "docs/issues/50-blocked/BPR-0601-close-rfc-0027.md#m5-final-checkpoint--accepted-engineering-canonical-closeout-pending"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "wait",
+    "next_milestone": "native-closeout",
+    "reason": "pending-obligation",
+    "detail": "All nine product criteria and three human decisions accepted. M5 implementation pushed on main e2eec1d6, native/aggregate cards Done. Canonical ordering alone holds parent milestone/RFC closeout. Server/watch and all commands stopped, writer released. Coordinator may obtain specific sequencing amendment; reuse unchanged evidence."
+  },
+  "ownership": "quiescent"
+}
