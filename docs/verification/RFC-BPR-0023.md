@@ -1,6 +1,6 @@
 # RFC-BPR-0023 Verification Plan
 
-Status: **implementation authorized under mandate r2; M1–M8 local work integrated; M7 external publication evidence and final independent review pending**
+Status: **implementation authorized under mandate r2; M1–M9 local work integrated; external publication evidence and final independent review pending**
 
 Import baseline: `5a616354ae6ecd7ebbea608a9523a8388f590ab0`.
 
@@ -1635,3 +1635,15 @@ lands on main. M10's four completion criteria are unchanged: final independent
 review, all cards, external publication evidence and RFC Auto-Verified remain
 required for full closeout. The generated milestone view was updated from the
 checked plan. No pending M9 obligation was reclassified as passing.
+
+### M9 integration on local main
+
+The exact M9 handoff `3f0928224` merged without conflict into local `main` at
+`7dc5a40b0a6fdd76632b59aa3cbbc5acfacec930`. On the merged tree, the
+documentation gate returned `DOCUMENTATION_OK`, scoped board validation was
+valid across 1,208 cards with no errors, and the adopted plan and generated
+view passed the plan check. The nine focused tests, native captures, direct
+memory/database measurements and documentation tests were run on the same M9
+source before the conflict-free merge and are reused. No push, PR, live
+GitHub mutation or release action occurred. BPR-0584 and external M9 exit 3
+remain pending; M10 local work follows the checked sequencing amendment.
