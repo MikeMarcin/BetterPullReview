@@ -1,0 +1,50 @@
+{
+  "source_revision": "6526f525d2c6dc1d6e8169fe7bd901809ab2dbe7",
+  "source_sha256": "5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "53ba92594ef96187f8c4a317f8c191475f16eb5a53c293c4a052fc6243011293",
+      "bytes": 15302208
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "8d4554c4d88884b40ccffc598860e120100b3849293bdbd6299eb777bcb60fd1",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192/capsule.inventory",
+      "sha256": "f937ce6760a49379cea806723826fd9de00cb3ff12f05e1ced973675baf271f2",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192/capsule.dmg",
+      "sha256": "1d6a157c5110207eca3824198815fb063ffc9b0d1b280a0a2f1234c6c4ed5a92",
+      "bytes": 34919812
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192/source-manifest.txt",
+      "sha256": "5b1c1d82e714aed13953268c89a7a675b34b7dfd349194cfec28bbb32a0b4192",
+      "bytes": 6875
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "93f2c3d5f4578a8c4a1ee470d3b53e7765b2397ad02e64df4f9dad7d5887ab22",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-profile-approval-parent/approval.txt",
+  "subject_sha256": "c1c028aebfbcd89a013e364c4696880e6e2827d63ad35cc827ee6dbe087ed552",
+  "subject_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/docs/issues/_checkpoints/BPR-0575/m4-profile-approval-subject.txt",
+  "mount_parent": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-live-mount-parent",
+  "replay_namespace": "/Users/jaeger/Library/Application Support/BetterPullReview/BetterPullReview/profiles/profile-2/designated-live-review-replay-state-v1",
+  "replay_state_unchanged": true,
+  "approval_materialization_authority": "Standing user mandate r2 permits safe PR2 test comment; no separate human hash endorsement asserted.",
+  "profile": {
+    "id": 2,
+    "label": "RFC0022 live fixture",
+    "creation": "shipped Profiles UI; opened once then normal quit"
+  },
+  "namespace_initialization": "Absent profile-2 namespace initialized once by production initializer; Default replay seven-file digests unchanged after initialization."
+}
