@@ -33,6 +33,7 @@
 #include "github_provider.hpp"
 #include "live_review_mutation_provider.hpp"
 #include "native_https_transport.hpp"
+#include "review_comment_permalink.hpp"
 
 #if defined(_WIN32)
 	#include "windows_title_row_host.hpp"
@@ -1106,6 +1107,8 @@ namespace bpr::app {
 			return { };
 		}
 
+#endif
+
 		[[nodiscard]] auto clone_without_smart_git(
 			const application::accepted_pull_request_handoff& aHandoff)
 			-> application::accepted_pull_request_handoff
@@ -1136,7 +1139,6 @@ namespace bpr::app {
 				.CurrentViewerReview   = aHandoff.CurrentViewerReview,
 			};
 		}
-#endif
 
 		[[nodiscard]] auto windows_system_root()
 			-> std::optional<std::filesystem::path>
@@ -6547,7 +6549,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	NotePaths.reset();
 	DefectThreadNames.reset();
 }
-					Window->publish(aUpdate.Presentation);
+					publish_review_conversations(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
@@ -7259,6 +7261,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 								SelectedDiffPublication->Request.Diff.Comparison,
 								core::diff_side::right));
 					}
+					refresh_review_conversations();
 					// Before the ledger observation, because it is about the
 					// panes rather than about the review, and because
 					// `observe_selected_material` returns early for reasons
@@ -8754,6 +8757,45 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto       outcome    = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
+			}
+		}
+
+		[[nodiscard]] auto conversation_source() const -> std::optional<application::review_permalink_source>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot() || !LastAcceptedHandoff
+				|| !SelectedDiffPublication || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
+				|| ReviewSourceMaterial->Key != SelectedDiffPublication->Key || !EpochHost
+				|| EpochHost->context(SelectedDiffPublication->Request.WorkbenchAuthority)
+					!= std::optional{ SelectedDiffPublication->Request.Diff }) {
+				return std::nullopt;
+			}
+			const auto& handoff  = *LastAcceptedHandoff;
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			return application::review_permalink_source{
+				.Target = {
+					.Semantic = review_mutation_target(handoff), .Hostname = handoff.Hostname, .ServerContract = handoff.ServerContract, .Repository = handoff.Locator, .Number = handoff.Number, .RepositoryDatabaseId = snapshot.Repository.Repository.value(), .RepositoryNodeId = std::string{ snapshot.Repository.Node.value() }, .PullRequestDatabaseId = snapshot.PullRequest.PullRequest.value(), .PullRequestNodeId = std::string{ snapshot.PullRequest.Node.value() }, .BaseRepositoryDatabaseId = snapshot.PullRequest.Repository.value(), .BaseOid = handoff.Base, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Open = snapshot.PullRequest.State == application::github_pull_request_state::open },
+				.Endpoint   = SelectedDiffPublication->RightEndpoint,
+				.Comparison = SelectedDiffPublication->Key,
+				.LineCount  = *ReviewSourceMaterial->RightLines
+			};
+		}
+
+		void publish_review_conversations(application::github_presentation_update aUpdate)
+		{
+			if (aUpdate.PullRequest && WindowRead && WindowRead->accepted_snapshot()) {
+				aUpdate.PullRequest = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
+			}
+			Window->publish(aUpdate);
+		}
+
+		void refresh_review_conversations()
+		{
+			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
+				Window->publish(application::github_presentation_update{
+					.PullRequest              = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source()),
+					.PreserveWindowNavigation = true });
+			} else {
+				ReviewCommentPlacement.clear();
 			}
 		}
 
@@ -10284,9 +10326,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						activity);
 				}
 				load_defects();
-#if defined(BPR_BUILD_TESTING)
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
-#endif
 				if (!preserves_selected_diff(EpochHost->state(), aHandoff)) {
 					clear_diff_selection();
 				}
@@ -12600,6 +12640,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
+			ReviewSourceMaterial.reset();
+			refresh_review_conversations();
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}
@@ -13601,6 +13643,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
 
+		application::review_comment_placement                       ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
+		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
+		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
+
 		decltype(github_profile_runtime::Profiles)&                Profiles                = Profile->Profiles;
 		decltype(github_profile_runtime::ProfileOptions)&          ProfileOptions          = Profile->ProfileOptions;
 		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
@@ -13612,12 +13658,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
-																	ReviewMutationDecisionGate;
-		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
-		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
-		std::size_t                                                 EpochPruneIntentDispatchCount  = 0U;
-		std::size_t                                                 EpochDeleteIntentDispatchCount = 0U;
-		std::size_t                                                 EpochCancelIntentDispatchCount = 0U;
+					ReviewMutationDecisionGate;
+		std::size_t EpochPruneIntentDispatchCount  = 0U;
+		std::size_t EpochDeleteIntentDispatchCount = 0U;
+		std::size_t EpochCancelIntentDispatchCount = 0U;
 		struct appearance_theme_probe_state
 		{
 			enum class phase {

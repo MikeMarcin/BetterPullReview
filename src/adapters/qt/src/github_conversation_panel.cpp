@@ -105,6 +105,9 @@ namespace bpr::qt {
 			const bool                                         aLeftHasCurrentDiffRevision,
 			const bool                                         aRightHasCurrentDiffRevision) noexcept -> bool
 		{
+			if (aNode.SemanticAnchor) {
+				return true;
+			}
 			if (!aNode.DiffSide.has_value()) {
 				return false;
 			}
@@ -152,6 +155,9 @@ namespace bpr::qt {
 			const bool                                         aLeftHasCurrentDiffRevision,
 			const bool                                         aRightHasCurrentDiffRevision) -> bool
 		{
+			if (aNode.SemanticAnchor) {
+				return *aNode.SemanticAnchor == aLine;
+			}
 			if (aNode.AnchorAvailability
 					!= application::github_conversation_anchor_availability::current
 				|| !aNode.Line.has_value() || *aNode.Line == 0U
@@ -689,10 +695,10 @@ namespace bpr::qt {
 			RetainedRoot.push_back(root);
 			const auto current = root.has_value() && Retained[*root].Kind == application::github_conversation_kind::review_thread
 				&& Retained[*root].AnchorAvailability == application::github_conversation_anchor_availability::current;
-			if (!current) {
+			if (!current || Retained[*root].SemanticAnchor) {
 				EarlierRetained.push_back(Retained[index]);
 			}
-			if (current && *root == index) {
+			if (current && *root == index && !Retained[*root].SemanticAnchor) {
 				++CurrentThreadCounts[RetainedFiles[index]];
 			}
 			if (root.has_value() && !Retained[*root].Path.empty()) {
@@ -713,7 +719,7 @@ namespace bpr::qt {
 		for (const auto& [file, index] : std::ranges::equal_range(RetainedByRootFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {
 			++ProjectionNodesVisited;
 			const auto root = *RetainedRoot[index];
-			if (!LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision
+			if (!LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision && !Retained[root].SemanticAnchor
 				&& Retained[root].Kind == application::github_conversation_kind::review_thread
 				&& Retained[root].AnchorAvailability == application::github_conversation_anchor_availability::current) {
 				continue;
@@ -746,7 +752,7 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& post = Shown[found->second];
-		Body->set_body(post.Body, post.Id);
+		Body->set_body(post.ReviewerProse.value_or(post.Body), post.Id);
 		Body->setAccessibleName(QStringLiteral("Public post by %1").arg(QString::fromStdString(post.AuthorLogin)));
 		Body->set_link_dispatch([this, id](const std::string& aDestination) {
 			if (LinkDispatch) {

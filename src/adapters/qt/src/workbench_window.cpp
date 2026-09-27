@@ -4771,10 +4771,15 @@ namespace bpr::qt {
 				application::github_conversation_anchor_availability::missing_side);
 			return;
 		}
+		const auto semantic = ConversationPanel->model()->semantic_anchor(root);
+		if (semantic && semantic->Comparison != core::comparison_digest(context->Key)) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
 		const auto endpointIsCurrent = *side == core::diff_side::left
 			? LeftConversationEndpointCurrent
 			: RightConversationEndpointCurrent;
-		if (!endpointIsCurrent) {
+		if (!semantic && !endpointIsCurrent) {
 			ComparisonSurface->clear_conversation_anchor();
 			return;
 		}

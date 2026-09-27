@@ -865,3 +865,22 @@ legacy/logical alias protection, cancellation and lost-response recovery.
 refusal. These are synthetic evidence. Production still supplies no admitted
 unsupported-response contract; BPR-0573 must establish any such exact tuple
 before production fallback is enabled.
+
+### File subjects and selected source placement (RFC-BPR-0022)
+
+The accepted read model retains GitHub's `FILE` or `LINE` subject. The
+application's `review_comment_placement` adds a separate semantic anchor only
+for a file thread with one undeleted root whose visible canonical permalink
+matches the selected, sealed retained text endpoint and changed-file catalogue.
+It keeps the authoritative body and a separate byte-preserved prose projection;
+replies inherit root placement without decoding their own bodies. Closed pull
+requests remain readable, while the permalink publication compiler still
+requires an open target.
+
+The per-window decoder cache is bound to the complete selected source and each
+root's canonical identity/body. Refresh starts from server truth: link edits
+remap or remove placement, deletion removes the thread, and missing source
+material leaves file-level placement. No local database or publication journal
+is required to reconstruct the link. The Qt model preserves canonical IDs and
+checks a compatibility anchor's exact comparison before revealing its line.
+Native historical revision mapping remains RFC-BPR-0021's obligation.

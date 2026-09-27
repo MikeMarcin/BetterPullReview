@@ -34,3 +34,31 @@ Imported 2026-09-04 under an import-only direction. The 2026-09-26
 implementation mandate r1 activates RFC-BPR-0022; live dependencies and lanes
 remain authoritative. Follow the live RFC and [import reconciliation](../../rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md),
 which supersede conflicting source-pack authorization and contract wording.
+
+## Implementation and evidence (2026-09-26, milestone C)
+
+The selected-source application projection retains remote subject and raw body,
+adds a separate exact semantic anchor and reviewer prose, and caches only the
+current root's body under the complete sealed source. Fresh hosts reconstruct
+from the same public body without local state. Replies inherit; resolution and
+edits preserve canonical identity; removed, foreign, ambiguous, deleted or
+unavailable anchors become file-level. Qt's map/model and selected comparison
+consume those facts incrementally.
+
+The tests-disabled graph exposed inherited M1 testing-only handoff/material
+members and helper. Their production lifetime is corrected; no new mutation
+issuer or production unsupported classifier was added. Self-review of the full
+2deb889b-to-slice app delta verified accepted-source checks, source revocation,
+raw-body authority, decoder confinement and unchanged mutation-branch bytes;
+the composition pins were resealed for that reviewed delta.
+
+Verification: `github_review_comment_permalink`,
+`qt_github_conversation_panel`, `qt_composed_github_scale_100`,
+`qt_github_thread_map_scale_100`, `architecture_boundaries` and
+`application_review_round_trip_composition_contract` pass. The new Qt test first
+caught an older-comparison filter excluding valid semantic anchors; the fix and
+recheck pass. App/Qt targets build, tests-disabled `app_better_pull_review`
+builds, and scoped placement/codec clang-tidy passes. Source grammar hostile
+cases and exact native distinction remain covered. The final C pass will bind
+these checks to its integrated source. Evidence logs and remaining obligations
+are in the [milestone checkpoint](../_checkpoints/BPR-0575/m3-frontier.md).

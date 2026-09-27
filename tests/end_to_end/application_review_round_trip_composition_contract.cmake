@@ -1,3 +1,9 @@
+# BPR-0569 reseal: reviewed 2deb889b..this normalization slice. Accepted read
+# and retained material now project file subjects through the strict codec;
+# exact selected context is rechecked and clears on source replacement. The
+# M1 handoff/material fields and clone helper are available in both graphs,
+# repairing a tests-disabled compile failure. The mutation branch is unchanged.
+# Source review and direct regression evidence are recorded on BPR-0569.
 # BPR-0563 reseal: 9ee0350f..this product slice; reviewed host source
 # port, accepted catalogue/material capture and both ctor connections. No other
 # pinned-scope edits; grant and mutation authority paths are unchanged.
@@ -372,7 +378,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a16d7dc278233797bd56a91732a16fdfabe62b070941a5a75fefe5894e02e6ab"
+		"3026375f4e1eea0e5a34dc762f8f25623da82e234466ae3db68be408967eab4b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -523,7 +529,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5dc7e1e58bc4812bdb748bf0c08eecff43c6d42ca6b4fff7f0f829491805ec9d"
+        "eb2ab5c2f3d58b7b3bcf7910a7e87ebe443a39a40541d37ecb652873b47f17f1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

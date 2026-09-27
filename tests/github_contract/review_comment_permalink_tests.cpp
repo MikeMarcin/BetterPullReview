@@ -658,10 +658,96 @@ namespace {
 		}
 	}
 
+	std::size_t        placementDecodes = 0U;
+	[[nodiscard]] auto counted_decode(const review_permalink_source& aSource, const std::string_view aBody)
+		-> std::optional<parsed_review_permalink>
+	{
+		++placementDecodes;
+		return parse_review_permalink_body(aSource, aBody);
+	}
+
+	void test_server_truth_placement()
+	{
+		const auto  source    = permalink_source();
+		const auto& authority = source.Endpoint->request().WorkbenchAuthority;
+		const auto  path      = source.Endpoint->path().generic_string();
+		const auto  body      = *compile_review_permalink_body(source, permalink_anchor(source), "Root prose.\nSecond line.");
+		auto        snapshot  = application::github_pull_request_snapshot{
+			.Profile = authority.Profile, .Host = authority.Host, .Account = authority.Account, .Repository = { .Repository = authority.Repository, .Owner = source.Target.Repository.Owner, .Name = source.Target.Repository.Name }, .PullRequest = { .PullRequest = authority.PullRequest, .Number = source.Target.Number, .HeadOid = application::commit_oid{ std::string{ core::canonical_hex(source.Target.Semantic.ExpectedHead).view() } } }, .Files = { { .Path = path } }, .ReviewThreadsAvailability = application::github_collection_availability::available, .ReviewThreads = { { .Thread = application::github_thread_id{ "T_file" }, .Subject = application::github_review_thread_subject::file, .Path = path, .Comments = { { .Comment = application::github_comment_id{ "C_root" }, .Body = body, .Path = path }, { .Comment = application::github_comment_id{ "C_reply" }, .ReplyTo = application::github_comment_id{ "C_root" }, .Body = "https://foreign.example/elsewhere/blob/main/file#L90\n\nReply prose", .Path = path } } } }
+		};
+		auto       host = application::review_comment_placement{ counted_decode };
+		const auto node = [](const auto& aProjection, const std::string_view aIdentity) -> const auto& {
+			const auto found = std::ranges::find(aProjection.Conversations, aIdentity, &application::github_conversation_projection::Id);
+			expect(found != aProjection.Conversations.end(), "canonical conversation identity survives projection");
+			return *found;
+		};
+		auto projected = host.project(snapshot, source);
+		expect(node(projected, "review-thread:T_file").RemoteSubject == application::github_conversation_remote_subject::file
+				   && node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source),
+			   "file remote subject and semantic source anchor coexist");
+		expect(node(projected, "review-comment:C_root").Body == body
+				   && node(projected, "review-comment:C_root").ReviewerProse == "Root prose.\nSecond line.",
+			   "raw GitHub body and byte-preserved prose coexist");
+		expect(node(projected, "review-comment:C_reply").SemanticAnchor == permalink_anchor(source)
+				   && !node(projected, "review-comment:C_reply").ReviewerProse,
+			   "reply inherits root and never parses its own foreign link");
+		const auto decoded = placementDecodes;
+		projected          = host.project(snapshot, source);
+		expect(placementDecodes == decoded, "unchanged root is not decoded again");
+		snapshot.ReviewThreads.front().Resolved = true;
+		projected                               = host.project(snapshot, source);
+		expect(node(projected, "review-comment:C_reply").Resolved && placementDecodes == decoded, "resolution is current server truth without root reparse");
+		snapshot.ReviewThreads.front().Comments.front().Body = *compile_review_permalink_body(source, permalink_anchor(source, 60U), "Edited prose.");
+		projected                                            = host.project(snapshot, source);
+		expect(node(projected, "review-comment:C_root").ReviewerProse == "Edited prose."
+				   && node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source, 60U),
+			   "external valid link and prose edits remap the same canonical thread");
+		for (const auto& invalid : { std::string{ "No link now." }, body + "\nhttps://github.com/other/repo/blob/main/file#L1", std::string{ "https://foreign.example/path#L13\n\nProse" } }) {
+			snapshot.ReviewThreads.front().Comments.front().Body = invalid;
+			projected                                            = host.project(snapshot, source);
+			expect(!node(projected, "review-thread:T_file").SemanticAnchor
+					   && !node(projected, "review-comment:C_root").ReviewerProse
+					   && !node(projected, "review-comment:C_reply").Line
+					   && node(projected, "review-thread:T_file").AnchorAvailability == application::github_conversation_anchor_availability::file_level,
+				   "removed, ambiguous or foreign root degrades; cached placement never returns");
+		}
+		auto closedSource        = source;
+		closedSource.Target.Open = false;
+		expect(parse_review_permalink_body(closedSource, body).has_value()
+				   && !compile_review_permalink_body(closedSource, permalink_anchor(source), "Cannot publish"),
+			   "closed PR content can rehydrate without opening mutation authority");
+		snapshot.ReviewThreads.front().Comments.front().Body = body;
+		auto fresh                                           = application::review_comment_placement{ counted_decode };
+		projected                                            = fresh.project(snapshot, source);
+		expect(node(projected, "review-thread:T_file").SemanticAnchor == permalink_anchor(source), "fresh host without database reconstructs only ordinary public content");
+		projected = host.project(snapshot, std::nullopt);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "unavailable retained commit cannot place a file comment");
+		auto foreign                   = source;
+		foreign.Target.Repository.Name = "other";
+		projected                      = host.project(snapshot, foreign);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "foreign source authority cannot place");
+		snapshot.Files.clear();
+		projected = host.project(snapshot, source);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "file absent from changed catalogue cannot place");
+		snapshot.Files.push_back({ .Path = path });
+		snapshot.ReviewThreads.front().Comments.front().Deleted = true;
+		projected                                               = host.project(snapshot, source);
+		expect(!node(projected, "review-thread:T_file").SemanticAnchor, "deleted root cannot retain placement through a reply");
+		snapshot.ReviewThreads.clear();
+		projected = host.project(snapshot, source);
+		expect(projected.Conversations.empty(), "server deletion removes the shared conversation");
+		snapshot.ReviewThreads.push_back({ .Thread = application::github_thread_id{ "T_native" }, .Path = path, .Line = 4U, .DiffSide = application::github_diff_side::right });
+		projected = host.project(snapshot, source);
+		expect(node(projected, "review-thread:T_native").RemoteSubject == application::github_conversation_remote_subject::line
+				   && node(projected, "review-thread:T_native").Line == 4U && !node(projected, "review-thread:T_native").SemanticAnchor,
+			   "ordinary native mapping remains distinct; general historical identity is not inferred");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_server_truth_placement();
 	test_session_negotiation_and_cache();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();
