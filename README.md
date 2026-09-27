@@ -259,14 +259,18 @@ failure returns to those defaults. Done BPR-0237 adds semantic-role preview,
 cancel, persistence, restart restoration, and bounded safe theme import against
 the selected comparison. BPR-0233 owns its recorded selected-diff pixels.
 
-The current Home and explicit `AI tools and Findings` surface compose the
-accepted ten-clip Dif catalog from RFC-BPR-0030/0031. Profile-owned visibility
+The current workbench composes the accepted ten-clip Dif catalog from
+RFC-BPR-0030/0031. One decorative sprite rests in the status bar's 28-pixel
+leading corner, moving to the first-time Home or Compose workshop prime spot
+when that surface is presented. Profile-owned visibility
 and motion preferences apply through the existing Appearance controls; reduced
 motion selects static `rest`, and a refused catalog leaves the Home and review
 controls functional without art. Dif is decorative and consumes only accepted
 presentation facts. Both RFCs are `Auto-Verified` after the focused native,
 rendered, memory, resource, and core-only closeout. The selected-graph evidence
-does not certify a signed, notarized, or installable package.
+does not certify a signed, notarized, or installable package. RFC-BPR-0020's
+[foundation closeout](docs/verification/RFC-BPR-0020.md) reconciles its original
+criteria with those accepted successor requirements and placement decisions.
 
 ## Installation, privacy and release status
 

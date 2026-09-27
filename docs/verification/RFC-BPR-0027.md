@@ -1,5 +1,10 @@
 # RFC-BPR-0027 advanced implementation evidence
 
+Current result: all nine product criteria and the three human judgments are
+accepted. The final engineering round below records the main landing and the
+remaining canonical-order closeout hold. Earlier pending statements are dated
+checkpoints, not the current human-review state.
+
 Mandate r2, 2026-09-26: implement the full advanced phase and land each accepted
 milestone on main. Immutable RFC base:
 `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`. The prior deferral is superseded;
@@ -433,3 +438,410 @@ Main and origin/main matched after push. The final checkpoint/observation is
 documentation only and releases the writer. No review URL, session, event cursor,
 protected candidate or server exists; all task-owned commands have finished.
 Next: fresh BPR-1219 / `native-closeout`, preserving all full-RFC limitations.
+
+
+## M5 — native qualification and attended closeout (BPR-1219)
+
+Assignment `/root/rfc0027_m5`, milestone `native-closeout`, mandate r2, sole
+engineering writer in worktree `57ed`. The inherited accepted main was
+`806c117616dc54bbf2c243e31148a6bd7155b74f`; binding `ee8ace04`, claim `e535fa69`.
+Source corrections are `92c983615d1ac23943a34f29327c2a78412c1c4c`,
+`189d24f937d16cfedba7990aff3837bcc1a2c5b0`, and
+`7ab119933439878d858100410083080ab4d1ea7b`. The full RFC is **not accepted**:
+three attended judgments remain pending. The reconciled nine-criterion map is
+[BPR-0601](../issues/50-blocked/BPR-0601-close-rfc-0027.md).
+
+### Corrections and direct failure evidence
+
+- A refresh requested while a diagnostic capture was in flight was lost. The
+  settings host now coalesces it and publishes a fresh observation, so reopening
+  after Sign out cannot retain a stale recent-context count. A deterministic
+  manual-executor test reproduces the ordering; the public course also passes.
+- Epoch jobs now retain the logger context generation when submitted. A delayed
+  producer cannot fill revoked recent context after a privacy/sign-out barrier.
+- The composed failed-sign-in course injects an unfamiliar GraphQL error through
+  the existing synthetic credential owner, real provider and real local logger.
+  It reads the resulting JSONL directly: approved `__type` service-repetition
+  explanation, an omitted/unclassified code, HTTP 200 and actual request/session
+  joins are present. The UI still reports session failure with explicit retry;
+  no session is granted and remote prose is not copied to the UI. This is fixture
+  evidence, not a new live sign-in or root-cause diagnosis.
+- Native Windows compilation exposed uninitialized enum-switch paths and a
+  `bool` comparison warning treated as error. Invalid enum values now refuse;
+  the serializer compares in its existing uint64 domain, preserving its bytes.
+- The tests-disabled universal build exposed production review-source state and
+  its clone helper hidden under `BPR_BUILD_TESTING`. Their declarations and
+  accepted-handoff capture now compile in the production composition, preserving
+  its existing authority checks. The cache serializer and review-tour public
+  course pass after this correction.
+- Native Windows ordinary readers could not open active log files because the
+  append handle requested DELETE access. Append handles now omit that access.
+  Retention, holding the inactive-session lock, separately opens a removal
+  handle and verifies owner/private attributes, exact file identity and named
+  path before disposition. Active ownership remains a lock beyond EOF. The
+  native crash, file-read, retention and control courses exercise this behavior.
+  Test roots are canonical native paths; the Open-folder assertion compares
+  filesystem identity instead of slash spelling. The Qt course drains deferred
+  profile destruction and explicitly removes its test root.
+
+The native recovery child flushes one record, is forcibly killed, and restarts
+against the same root. Previously flushed bytes remain unchanged, no shutdown
+record is invented, and the restarted process creates its own session. It does
+not claim unflushed events survive termination or power loss. The separate macOS
+failure course fills only a mounted, owned **32 MiB HFS+ image**, validates its
+separate device and bound, observes actual `ENOSPC` after 32,727,040 filler bytes,
+checks unavailable status, frees space and restarts without altering the failed
+session. The image is detached and removed. The host volume is never filled.
+
+### Commands and exact candidate evidence
+
+The Mac arm64 Debug cut on `92c98361` passed **17/17** in 68.81 seconds (logging,
+startup/cancel/full/unavailable/failure, controls, exports, retention, concurrent
+sessions, crash, backpressure, architecture and package contracts). The bounded
+portability cut at `189d24f9` passed **5/5** in 51.52 seconds. The final Mac
+controls/retention/crash cut at `7ab11993` passed **4/4** in 11.95 seconds.
+Earlier direct epoch and window-host tests pass 1/1 each. Seven touched product
+translation units have passing tidy; nine initial C++ files and subsequent
+changed files were formatted with clang-format 23.1.1. Documentation and all
+64 documentation tests pass; the final checkpoint records their last rerun.
+
+```sh
+cmake --build --preset dev --target test_quill_logging test_session_retention test_diagnostic_controls test_application_logging test_diagnostic_controls_public_path test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(diagnostic_controls|application_diagnostic_controls_public_path|logging_session_retention|logging_session_concurrency|logging_crash_recovery|quill_logging|quill_logging_content_policy|quill_logging_backpressure|application_logging|application_logging_cancel_startup|application_logging_full|application_logging_unavailable|application_logging_capability-failure|application_release_maintenance_public_path|architecture_boundaries|package_runtime_contract|release_source_assets_contract)$'
+cmake --build --preset dev --target test_cached_review_overview_storage test_review_tour_composition_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(sqlite_cached_review_overview|application_review_tour_composition_public_path|application_logging_capability-failure|application_diagnostic_controls_public_path|application_release_maintenance_public_path)$'
+ctest --preset dev --output-on-failure -R '^(diagnostic_controls|application_diagnostic_controls_public_path|logging_session_retention|logging_crash_recovery)$'
+python3 -B tests/logging/verify_logging_disk_full.py /Users/jaeger/.codex/worktrees/57ed/BetterPullReview/build/dev/tests/logging/session_retention
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/application/src/diagnostic_settings.cpp src/application/src/epoch_application_host.cpp src/application/src/github_window_read_host.cpp src/app/src/github_public_path_fixture.cpp src/app/src/github_application.cpp src/adapters/sqlite/src/cached_review_overview_store.cpp src/adapters/logging/src/session_files.cpp
+```
+
+The native station is `aito-main-win` / JaegAW. Isolated clones
+`C:/code/rfc0027-m5` and `/home/mmarcin/rfc0027-m5` were created from the station's
+existing repositories, fetched exact source bundles and used detached commits.
+Shared station checkouts were untouched. Builds used their existing verified
+CPM caches with `BPR_DEPENDENCY_OFFLINE=ON`. No credential/live-service action ran.
+
+Linux is actual WSL2 Ubuntu **26.04**, not a cross-build. Its native Qt/logging
+composition at `189d24f9` passed **15/15** in 58.98 seconds: the same focused
+logging, lifecycle, controls, export, crash, concurrency, backpressure and
+architecture courses. `7ab11993` changes production code only within the Windows
+branch; this Linux production evidence is reused with that limit. Ubuntu 26.04
+is not a declared distribution baseline: no Ubuntu 24.04/RHEL10 installer,
+GLIBC baseline or Linux desktop-installation qualification is inferred.
+
+Windows uses native `windows-dev`/Debug and the pinned Qt 6.11.2 MSVC package.
+The initial selected build omitted its sandbox helper; adding it exposed native
+AppContainer child initialization failure `0xc0000142` for the static boundary
+script. The same read-only boundary command is run directly and its outcome is
+recorded separately; the failed containment run is not a pass. Logging/UI tests
+are explicitly registered `WINDOWS_UNCONTAINED`, as their owner-private ACL setup
+requires. Native results are appended below.
+
+Initial Mac public sign-out testing found the stale refresh once and passed on
+repeat; the deterministic regression established the cause before the fix.
+The failure fixture initially supplied no credential boundary and then asserted
+the raw message rather than the approved classified prose. Both were corrected
+without loosening the sanitizer. The first Windows/public/retention/crash runs
+failed on root spelling and DELETE sharing as described above. Intermediate
+failures remain observations, not passing acceptance. The copied attended
+candidate was released while these corrections were made and will be refreshed.
+
+### Pinned dependency and unpublished package
+
+The existing publish-release skill and documented unpublished preparation path
+were used on clean `189d24f9`, after the tests-disabled compile repair:
+
+```sh
+CMAKE_BUILD_PARALLEL_LEVEL=8 tools/release.sh --version 0.1.3 --prepare-only --skip-tests --output-dir build/releases/rfc0027-m5-189d24f9
+```
+
+This passed the universal arm64/x86_64 production build (`BUILD_TESTING=OFF`),
+restricted Qt deployment, both-slice/deployment-floor checks, offline ad-hoc
+sealing, relocated native launch, notices/source binding and package audit.
+Focused tests above supply the separate test evidence; the command deliberately
+skips a redundant full test suite. No signing identity/Keychain/Apple service,
+tag, release or publication action occurred. The final Windows-only source
+correction leaves these Mac production/dependency/package paths unchanged;
+the package evidence remains explicitly bound to `189d24f9`.
+
+Artifacts remain local under
+`build/releases/rfc0027-m5-189d24f9/` (not committed):
+
+| Artifact | SHA-256 |
+|---|---|
+| `BetterPullReview-0.1.3-macos-universal-local.zip` | `4dcaadf6dd1b9149324cfe2ce7df54cef8184b5b21709dd75bfa7bcd95983b58` |
+| `BetterPullReview-0.1.3-macos-universal-local.spdx.json` | `e5ce58d292ef3fe979460bb4bdb737a8bd389c32fd48ee28f74b2cbf0dc7f2ae` |
+| `BetterPullReview-0.1.3-macos-universal-corresponding-source.zip` | `2532ba6aaa2137deb709f201faa453214425e52cc3bec5389cbe898210663329` |
+
+Installed `ThirdParty/THIRD-PARTY-NOTICES.txt` contains the Quill MIT and fmt
+licenses; the installed source provenance binds the separate corresponding-source
+asset to the digest above. SPDX records Quill **13.0.0**, compiled headers,
+MIT, pinned codeload URL and SHA-256
+`88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b`.
+The common dependency manifest and runtime notices generator include Quill for
+every platform; there is no added runtime Quill DLL/framework. Windows installer
+and supported-baseline Linux package execution were not qualified here. Existing
+release trust, recipient source access, retention/legal and platform baseline
+obligations remain explicit; offline audit is not release approval.
+
+
+Final Windows `7ab11993`: all **12/12** registered native logging/control courses
+pass in 64.34 seconds, including normal/failed sign-in, cancellation,
+full/unavailable sink isolation, export, controls, retention, canaries and killed
+process recovery. The combined CTest command reports 12/13 because the separate
+AppContainer architecture wrapper failed as described above. The identical
+static gate passed natively outside that failed container, exit 0:
+
+```powershell
+cmake --build --preset windows-dev --target tool_better_pull_review_network_sandbox test_quill_logging test_session_retention test_diagnostic_controls test_application_logging test_diagnostic_controls_public_path test_release_maintenance_public_path --parallel 10
+ctest --preset windows-dev --output-on-failure -R "^(diagnostic_controls|application_diagnostic_controls_public_path|logging_session_retention|logging_crash_recovery|quill_logging|quill_logging_content_policy|application_logging|application_logging_cancel_startup|application_logging_full|application_logging_unavailable|application_logging_capability-failure|application_release_maintenance_public_path|architecture_boundaries)$"
+cmake -DBPR_ROOT=C:/code/rfc0027-m5 -P C:/code/rfc0027-m5/cmake/VerifyArchitectureBoundaries.cmake
+```
+
+For Linux, the same target cut adds `tool_better_pull_review_network_sandbox`
+and uses `dev`; its CTest expression also includes `logging_session_concurrency`
+and `quill_logging_backpressure`. Native Windows lacks those separately
+registered POSIX courses; Windows concurrency/ownership is exercised within
+retention and controls. The actual ENOSPC course is macOS only. No Windows
+power-loss or separate full-volume failure claim is made.
+
+### Attended candidate and continuation
+
+Session `c1565558e5fd3fdc277e62622604873b`, final prepared event cursor **19**.
+Candidates `BPR-1219-controls`, `BPR-1219-files`, `BPR-1219-export` each ask one
+criterion with Accept/Reject and a note for changes. No verdict has been supplied.
+The copied review app is macOS arm64 Debug, source `7ab11993`, binary SHA-256
+`3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+It uses the shipped UI with the tests-enabled explicit data-root override;
+that override is absent from the independently qualified production package.
+Each candidate has a separate empty owner-private profile, stays signed out,
+and uses an absolute launch command. No service or remote PR is part of review.
+
+Runtime manifest, identity, copied app and offline HTML are under
+`/Users/jaeger/.codex/worktrees/57ed/BetterPullReview/build/rfc0027-m5/review/`.
+The session state is `.mask/attended-review/session.json`; its loopback host is
+PID 8289, command session 64739, port 63107. The token-bearing complete URL is
+returned directly to the coordinator, not committed. Protected source paths are
+listed in the manifest; the immutable copied app is a shared versioned resource.
+Query conflicts and release affected candidates before changing protected input.
+
+The coordinator takes the durable watch before the human handoff:
+
+```sh
+python3 -B /Users/jaeger/.codex/worktrees/57ed/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/.codex/worktrees/57ed/BetterPullReview wait --after 19 --kind handed-back --timeout 43200
+```
+
+The next engineering round reads `status --after 19`, applies only recorded
+verdicts to the exact candidates, resolves rejected criteria and remaining
+qualification limits, then reconciles BPR-1219/BPR-0603/BPR-0601 and RFC/index.
+An actual accepted M5 must land on main under mandate r2. No M5 acceptance or
+main integration is claimed while the attended criteria are pending.
+
+
+## M5 post-attended UI revision
+
+Assignment `/root/rfc0027_m5_revision`, mandate r2, sole nondelegating writer.
+Source slice `e0a870b3`, integrated with
+main `f1e0c652` as `0fb249a2499fa4752c645f29d19e1c768e9472e4`.
+
+### Owner decisions and design
+
+The owner handed back session `c1565558e5fd3fdc277e62622604873b` at cursor 23.
+`BPR-1219-files` was accepted with no note (decision `413e836b-5898-4aeb-a48c-43b21595d54b`).
+Controls were rejected in favor of AllTheThings’ setting selectors; export was
+rejected in favor of its simpler Help actions. Both controls attachments and
+the Help screenshot were decoded locally and viewed. The read-only reference
+at `2ba1b33c9886a3e20865801581a26b5ba73f2700` confirms native segmented detail
+choices and separate Help exports. No AllTheThings file was modified.
+
+The revised Settings uses native exclusive paired buttons, short explanations,
+and an optional About disclosure. Open/Clear behavior and confirmations retain
+the accepted code. Help now offers anonymized and identifying exports directly;
+the profile owner composes the same maintenance host without displaying Settings.
+A compact dialog automatically freezes a preview, presents scope/range/size and
+omissions, and offers Save/Cancel. Options and exact records expand on request.
+Changing options cancels the old snapshot; Update preview re-admits it. The
+identifying dialog defaults to Cancel; its explicit Save supplies the core’s
+existing confirmation bit for the exact displayed descriptor. Capture policies,
+barriers, parser, file admission and local-only effects are unchanged.
+
+### Verification and integration
+
+The unchanged public path passed 2/2 before edits. The first revised build and
+architecture/Qt/public cut passed 6/6 in 42.00 seconds. Render inspection led to
+arrow disclosures replacing empty collapsed frames and removal of duplicated
+summary prose. The final affected Qt/public cut passed **5/5** in 34.25 seconds.
+All five changed product translation units passed tidy; the two polished panels
+were checked again. All 12 changed C++ files passed formatting. Documentation
+and its 64 tests pass.
+
+The real native macOS app was also inspected through Help → Export anonymized
+diagnostics → Cancel and Help → Diagnostics. The signed-out window showed the
+two direct export entries, a ready frozen preview, Cancel as default, and blue
+selected Standard/Anonymized paired buttons under the native dark appearance.
+The app used an isolated owner-private profile and quit normally. This is
+objective presentation evidence, not the owner’s replacement verdict.
+
+The render-only executable run initially used `/var` aliases for two save
+locations while native admission requires canonical parents. The ordinary CTest
+course already supplies canonical temporary roots and passed. The public fixture
+now canonicalizes all three export paths consistently; no file-admission policy
+was loosened. The intermediate render failures are not claimed as passing tests.
+
+Main integration preserved its newer tour-code destination and published
+conversation state while retaining the M5 production state declarations.
+The exact merged build and architecture, controls, export and tour public
+composition passed **4/4** in 50.44 seconds at `0fb249a2`.
+
+```sh
+cmake --build --preset dev --target app_better_pull_review test_release_maintenance_panel test_release_maintenance_public_path test_diagnostic_controls_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(qt_release_maintenance.*|application_release_maintenance_public_path|application_diagnostic_controls_public_path)$'
+cmake --build --preset dev --target app_better_pull_review test_release_maintenance_panel test_diagnostic_controls_public_path test_release_maintenance_public_path test_review_tour_composition_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path|application_review_tour_composition_public_path|architecture_boundaries)$'
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/qt/src/diagnostic_settings_panel.cpp src/adapters/qt/src/release_maintenance_panel.cpp src/adapters/qt/src/workbench_window.cpp src/app/src/release_maintenance_controls.cpp src/app/src/github_application.cpp
+python3 -B scripts/verify_documentation.py --root .
+python3 -B tests/scripts/verify_documentation_tests.py
+```
+
+The native UI recheck is bounded to the two changed public controls/export
+courses on the same isolated Windows/Linux clones. Linux passed **2/2** in
+13.56 seconds at `0fb249a2`. The Windows build exposed MSVC warning C4804 in
+incoming main's tour codec numeric bound comparison with bool. The one-line
+uint64_t cast at `41cce4ba` follows the already-used cached overview serializer
+pattern and preserves encoding/admission. Its local storage test passed **1/1**
+in 0.42 seconds, and header formatting passed. Windows compiled the repaired
+library and both public executables. The Windows controls/export courses passed
+**2/2** in 29.05 seconds at `41cce4ba` (native uncontained execution). The
+additional optional Windows tour-storage
+test target failed to compile because its existing CMake target cannot find the
+platform private-object header; it is not counted as a pass and does not alter
+the two required UI course targets.
+
+```sh
+cmake --build --preset dev --target test_review_tour_storage -j 8
+ctest --preset dev --output-on-failure -R '^sqlite_review_tour_storage$'
+# Isolated Linux checkout /home/mmarcin/rfc0027-m5, source 0fb249a2:
+cmake --build --preset dev --target test_diagnostic_controls_public_path test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path)$'
+# Isolated Windows checkout C:/code/rfc0027-m5, source 41cce4ba:
+cmake --build --preset windows-dev --target test_diagnostic_controls_public_path test_release_maintenance_public_path test_review_tour_storage --parallel 10
+ctest --preset windows-dev --output-on-failure -R '^(application_diagnostic_controls_public_path|application_release_maintenance_public_path)$'
+```
+ The original logging,
+retention, crash, actual ENOSPC and Quill dependency/package evidence above is
+reused within its exact recorded limits. The unpublished package remains bound
+to `189d24f9`; no newly signed, installed or released package is claimed.
+
+### Replacement attended candidate
+
+Same session and server, cursor **31**. Only `BPR-1219-controls` and
+`BPR-1219-export` are new pending questions. Their source is `0fb249a2` and copied
+binary SHA-256 is `9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186`.
+The separate app, manifest, identity and offline HTML are in
+`build/rfc0027-m5/review-v2/`. Each launch names an absolute isolated data path;
+no sign-in, live service or remote PR operation is requested.
+
+The original files verdict, revision and old copied app remain intact; its
+binary digest was rechecked as `3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+The conflict-release helper combines path and candidate selectors, so the shared
+panel path also released the files protection flag. Its recorded accept remains
+valid for the original immutable app, which stays reserved by this checkpoint.
+No replacement files question is created. Both revised candidates are protected.
+The final checkpoint on BPR-0601 transfers server PID 8289/session 64739 and the
+complete local URL to the coordinator; M5 remains unaccepted until actual verdicts.
+
+
+## M5 final engineering round — mandate r2
+
+Assignment `/root/rfc0027_closeout`, `native-closeout`, sole writer in worktree
+`57ed`, branch `codex/rfc0027-advanced`. Incoming checkpoint was
+`f9185a22ff14281f4309df7717a175616dcf6408`. The source remains `41cce4ba` with
+UI source `0fb249a2`; this round changes documentation and board state only.
+The latest main checked and fetched was `f1e0c652`, already merged at `0fb249a2`.
+The coordinator confirmed the hand-back watcher exited 0 at cursor 34.
+
+### Consumed human acceptance
+
+Session `c1565558e5fd3fdc277e62622604873b` handed back at cursor **34**, with
+no pending decisions. All three outcomes are explicit human Accept, blank notes:
+
+| Candidate | Source | Decision ID | Fingerprint |
+|---|---|---|---|
+| `BPR-1219-controls` | `0fb249a2499fa4752c645f29d19e1c768e9472e4` | `87de7415-823d-4efc-b07c-03e9491fec5f` | `86f20e8f40401168249b2c48b610d8d364af07d88f5d08fdae341cecbb377cd8` |
+| `BPR-1219-export` | `0fb249a2499fa4752c645f29d19e1c768e9472e4` | `1e877215-b39e-4e6c-a83e-fd338022d415` | `31b491264e3f3dfaaee7861c3de28adaf06b5ee39d7e712ad16fe2fbc0859d4a` |
+| `BPR-1219-files` | `7ab119933439878d858100410083080ab4d1ea7b` | `413e836b-5898-4aeb-a48c-43b21595d54b` | `6eabaa3590e43c125423db6cd31edba6d685f2f919e94d55b7bd1a7cc0836ab7` |
+
+The controls/export copied binary is SHA-256
+`9c4ae94b217cfd20585c648dca0bd5e74ce53adad91fc40a8cb4966a459e5186`;
+the original files binary is
+`3875a0f1704eef5c0655de82579960050acb9683ecd23257d2c1be753341b2f5`.
+Both executable digests were rechecked from the retained copied apps and match.
+The accepted files behavior did not change in the UI revision. No copied app,
+review attachment, manifest or recorded verdict was rewritten. The current
+documentation paths had no attended protection conflicts.
+
+### Closeout disposition
+
+All nine RFC product criteria pass within the exact evidence in BPR-0601.
+Actual Mac, Windows and Linux developer logging/lifecycle/control checks meet
+AC-09; the package proof binds pinned Quill, installed notices, SPDX and the
+separate corresponding-source artifact at `189d24f9`. Those observations do not
+qualify release distribution. The Windows AppContainer wrapper failed startup;
+its direct architecture gate passed. Ubuntu 26.04 evidence does not qualify
+Ubuntu 24.04/RHEL10 packages. The universal Mac package is unpublished and
+ad-hoc sealed, with no release trust or source-offer approval. Crash evidence
+preserves only explicitly flushed records. The optional unrelated Windows tour
+storage target's missing platform include remains unclaimed.
+
+The current user-supplied AGENTS.md requires sequential canonical RFC closeout.
+Earlier canonical RFC-0020, RFC-0021 and RFC-0023 are Deferred; RFC-0022 is
+Proposed. RFC-0027's listed dependencies 0001/0002 are Auto-Verified. Although
+historical BPR-0750 applied ordering only to its declared dependencies, mandate
+r2 supplies no explicit exception to the current sequential rule. Therefore the
+accepted implementation lands on main while BPR-0601 and RFC-0027 terminal
+status remain pending that ordering requirement. No product criterion is waived
+and no additional human product review is requested. The coordinator may obtain
+an explicit ordering amendment, or resume closeout after those predecessors.
+
+Documentation impact: existing product, host, privacy, settings, resource and
+package documentation already owns the final behavior. This round updates
+acceptance and removes stale active-review wording; no API, persistence,
+threading, provider authority, native launch or package behavior changes.
+
+
+### Final focused verification
+
+At `f0104f8007a401f7eb417e82f7050d8aeeff09fe` (product inputs identical to
+`41cce4ba`), the explicit three-target dev rebuild passed. The focused public
+integration passed **4/4** in **46.21 seconds**:
+
+```sh
+cmake --build --preset dev --target test_application_logging test_diagnostic_controls_public_path test_release_maintenance_public_path -j 8
+ctest --preset dev --output-on-failure -R '^(application_logging_capability-failure|application_diagnostic_controls_public_path|application_release_maintenance_public_path|architecture_boundaries)$'
+```
+
+This exercises the real provider-to-file failure, signed-out control and export
+compositions through their fixture transports. No live sign-in ran. Unchanged
+native/package, format and tidy results above remain bound to their actual
+producing revisions; no broad matrix was repeated for this documentation round.
+
+The documentation gate reports `DOCUMENTATION_OK`; `git diff --check` passes.
+The prior 64 documentation-regression tests remain valid because neither gate
+nor schema changed. The attended-review `stop` command returned `stopped: true`
+after decision intake. Session 64739/PID 8289 is no longer transferred; copied
+apps, verdicts and protections remain retained for inspection. The coordinator's
+watch 47764 completed with exit 0. All final build/test commands have completed.
+
+
+### Main landing and final board state
+
+The accepted M5 implementation and consumed human evidence landed/pushed as
+`e2eec1d69340bbf0f519b6cae28eb462fb40966e`; main and origin/main matched, and the
+primary checkout remained clean. BPR-1219 finished at `e42cc7e9` and BPR-0603 at
+`f4545095`. The final bookkeeping lands separately without changing any product
+input. BPR-0601 alone remains Blocked on `canonical-rfc-order`; its nine product
+records pass and its separate sequencing record remains pending. RFC/index stay
+Proposed. The authored parent milestone is not falsely marked complete: its
+remaining BPR-0601/RFC terminal obligation is preserved in the final observation.
+All task-owned commands and the attended server are stopped. Accepted copied apps
+and local evidence remain retained. No release publication or live service ran.

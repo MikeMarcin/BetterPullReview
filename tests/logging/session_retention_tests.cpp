@@ -161,11 +161,36 @@ namespace {
 		expect(log.status() == status::available, "concurrent process drains without file failure");
 		return 0;
 	}
+	int recovery_child(const std::filesystem::path& aRoot)
+	{
+		quill_log log{ root(aRoot) };
+		expect(log.status() == status::available, "native recovery logger admitted");
+		expect(log.record({ .Request = 1219U }) == status::available, "pre-failure record admitted");
+		expect(log.flush_for_export(false).has_value(), "pre-failure record flushed");
+		std::cout << "flushed" << std::endl;
+		std::string command;
+		std::getline(std::cin, command);
+		if (command == "failure") {
+			for (auto index = 0; index < 100; ++index) {
+				static_cast<void>(log.record({ .Request = 1220U }));
+			}
+			log.close();
+			expect(log.status() == status::unavailable, "native exhausted volume reports unavailable");
+			std::cout << "unavailable" << std::endl;
+		} else {
+			log.close();
+			expect(log.status() == status::available, "restarted native logger drains normally");
+		}
+		return 0;
+	}
 }
 int main(int aArgc, char** aArgv)
 try {
 	if (aArgc == 3 && std::string_view{ aArgv[1] } == "--concurrent-child") {
 		return concurrent_child(aArgv[2]);
+	}
+	if (aArgc == 3 && std::string_view{ aArgv[1] } == "--recovery-child") {
+		return recovery_child(aArgv[2]);
 	}
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "owned scratch directory");

@@ -250,13 +250,15 @@ namespace {
 	struct recording_epoch_log final : application::diagnostic_log_port
 	{
 		std::vector<application::diagnostic_event> Events;
-		application::diagnostic_log_status         Status = application::diagnostic_log_status::available;
+		application::diagnostic_log_status         Status     = application::diagnostic_log_status::available;
+		std::uint64_t                              Generation = 1U;
 		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
 		{
 			Events.push_back(aEvent);
 			return Status;
 		}
 		auto status() const noexcept -> application::diagnostic_log_status override { return Status; }
+		auto context_generation() const noexcept -> std::uint64_t override { return Generation; }
 	};
 
 	enum class install_witness_fault {
@@ -3209,7 +3211,13 @@ namespace {
 					break;
 				}
 				value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+				if (mode == 0U) {
+					++log->Generation;
+				}
 				drain(value);
+				if (mode == 0U) {
+					expect(!log->Events.empty() && std::ranges::all_of(log->Events, [](const auto& aEvent) { return aEvent.ContextGeneration == 1U; }), "delayed epoch effects retain the diagnostic generation captured before revocation");
+				}
 				expect(!value.Host->state().AcceptedComparison && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0, "failed preparation cannot accept comparison or commit regardless of logging availability");
 
 				const auto expectedReason = mode == 5U ? core::epoch_reason_code::repair_required : core::epoch_reason_code::unavailable;

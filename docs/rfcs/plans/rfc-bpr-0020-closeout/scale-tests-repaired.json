@@ -1,0 +1,13 @@
+{
+  "criterion": "RFC0020-rendered-scales-after-tray-repair",
+  "outcome": "pass",
+  "revision": "c62c2fcbffa78251b7ca60f886f815e1ebf2bc5b",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"-j1\", \"--output-on-failure\", \"--no-tests=error\", \"-R\", \"^qt_workbench_window_scale_(100|125|200)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 71.863,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 254: qt_workbench_window_scale_100\n1/3 Test #254: qt_workbench_window_scale_100 ....   Passed   23.02 sec\n    Start 255: qt_workbench_window_scale_125\n2/3 Test #255: qt_workbench_window_scale_125 ....   Passed   23.45 sec\n    Start 256: qt_workbench_window_scale_200\n3/3 Test #256: qt_workbench_window_scale_200 ....   Passed   25.36 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated    =  71.83 sec*proc (3 tests)\n\nTotal Test time (real) =  71.85 sec\n",
+    "stderr_tail": ""
+  }
+}

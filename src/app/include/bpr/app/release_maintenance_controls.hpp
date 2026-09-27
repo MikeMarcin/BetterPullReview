@@ -30,6 +30,7 @@ namespace bpr::app {
 			-> std::unique_ptr<release_maintenance_controls>;
 		~release_maintenance_controls();
 		void attach(qt::settings_window& aSettings, const std::string& aLabel);
+		void open_export(core::diagnostic_export_policy aPolicy);
 		/// \brief Retains the maintenance-only shell while the invoking windows retire.
 		void               retain_settings(std::unique_ptr<qt::settings_window> aSettings, const std::string& aLabel,
 										   std::function<void()> aUnmount);

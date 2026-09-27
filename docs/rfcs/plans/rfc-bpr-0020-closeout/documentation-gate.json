@@ -1,0 +1,13 @@
+{
+  "criterion": "RFC0020-documentation-structure",
+  "outcome": "pass",
+  "revision": "c62c2fcbffa78251b7ca60f886f815e1ebf2bc5b",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.087,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

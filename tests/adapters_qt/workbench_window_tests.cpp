@@ -7367,10 +7367,11 @@ namespace {
 		auto* const comments = window.comments_tab_scroll();
 		auto* const findings = window.findings_tab_scroll();
 		auto* const drawer   = window.conversations_drawer();
-		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 2
+		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 3
 				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
+				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
-			   "the tray's header is its tabs, Comments then Notes, and it opens on Comments");
+			   "the tray's header is Comments, Notes and Tour, and it opens on Comments");
 		const auto privateHeader = [&] {
 			return tabs->tabText(1) == QStringLiteral("Notes") && tabs->accessibleTabName(1) == QStringLiteral("Notes")
 				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it.")

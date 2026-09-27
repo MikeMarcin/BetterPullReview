@@ -19,6 +19,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
@@ -156,6 +157,24 @@ try {
 	auto*      window = owner->window(first);
 	expect(window, "real workbench available");
 	window->show();
+	const auto helpExport = [&](const char* aName) {
+		auto* action = window->findChild<QAction*>(QString::fromUtf8(aName));
+		expect(action && action->isEnabled(), "Help export action is available while signed out");
+		action->trigger();
+	};
+	helpExport("exportAnonymizedDiagnosticsAction");
+	QDialog* directDialog = nullptr;
+	for (auto* widget : QApplication::topLevelWidgets()) {
+		if (widget->objectName() == QStringLiteral("diagnosticExportDialog")) {
+			directDialog = qobject_cast<QDialog*>(widget);
+		}
+	}
+	expect(directDialog && directDialog->isVisible(), "Help opens export without navigating Settings");
+	auto* directPanel = dynamic_cast<qt::release_maintenance_panel*>(directDialog->parentWidget());
+	expect(directPanel && !directPanel->window()->isVisible(), "Settings stays closed for direct Help export");
+	until([&] { return directPanel->action(command::export_diagnostics)->isEnabled(); }, "first Help export waits for native startup and prepares exact preview");
+	directDialog->reject();
+	until([&] { return !directPanel->action(command::export_diagnostics)->isEnabled(); }, "Cancel discards the direct export preview");
 	window->open_settings(qt::settings_page::storage_and_privacy);
 	auto* settings = window->settings();
 	expect(settings && settings->isVisible(), "Storage and privacy is reachable in real Settings");
@@ -202,6 +221,7 @@ try {
 	const auto capture = qEnvironmentVariable("BPR_MAINTENANCE_PUBLIC_RENDER");
 	if (!capture.isEmpty()) {
 		expect(settings->grab().save(capture), "actual composed Settings screenshot");
+		expect(directDialog->grab().save(capture + QStringLiteral("-export.png")), "actual composed export screenshot");
 	}
 	const auto destination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/diagnostic-é.txt");
 	choose(*panel, destination);
@@ -228,24 +248,21 @@ try {
 	const auto identifyingBytes = preview->toPlainText().toStdString();
 	expect(identifyingBytes.find("\"request\":998877") != std::string::npos && identifyingBytes.find("\"request\":0") != std::string::npos, "identifying preview retains captured identifiers without reversing capture redaction");
 	expect(identifyingBytes.find("BPR_CANARY_") == std::string::npos, "identifying mode cannot release forbidden content");
-	panel->action(command::export_diagnostics)->trigger();
-	auto* disclosure = panel->findChild<QMessageBox*>(QStringLiteral("diagnosticIdentifyingConfirmation"));
-	expect(disclosure && disclosure->isVisible() && disclosure->defaultButton() == disclosure->button(QMessageBox::Cancel), "identifying save requires separate default-cancel disclosure");
-	disclosure->button(QMessageBox::Cancel)->click();
+	auto* disclosure    = panel->findChild<QDialog*>(QStringLiteral("diagnosticExportDialog"));
+	auto* consentText   = panel->findChild<QLabel*>(QStringLiteral("diagnosticExportDisclosure"));
+	auto* dialogButtons = disclosure->findChild<QDialogButtonBox*>();
+	expect(disclosure->isVisible() && consentText->text().contains(QStringLiteral("cannot be recovered")) && dialogButtons->button(QDialogButtonBox::Cancel)->isDefault(), "identifying preview discloses capture omissions and defaults to Cancel");
+	dialogButtons->button(QDialogButtonBox::Cancel)->click();
 	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-	expect(panel->findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog")).empty(), "cancel disclosure opens no destination");
+	expect(!panel->action(command::export_diagnostics)->isEnabled(), "cancel identifying preview grants no export");
+	helpExport("exportIdentifyingDiagnosticsAction");
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "Help prepares a fresh identifying preview");
+	const auto confirmedBytes = preview->toPlainText().toStdString();
 	panel->action(command::export_diagnostics)->trigger();
-	disclosure = panel->findChild<QMessageBox*>(QStringLiteral("diagnosticIdentifyingConfirmation"));
-	for (auto* confirmation : disclosure->buttons()) {
-		if (disclosure->buttonRole(confirmation) == QMessageBox::AcceptRole) {
-			confirmation->click();
-			break;
-		}
-	}
-	const auto identifyingDestination = temporary.path() + QStringLiteral("/identifying.txt");
+	const auto identifyingDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/identifying.txt");
 	choose(*panel, identifyingDestination, false);
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "confirmed identifying write completed");
-	expect(read(app::native_filesystem_path(identifyingDestination)) == identifyingBytes, "confirmed identifying output matches exact preview");
+	expect(read(app::native_filesystem_path(identifyingDestination)) == confirmedBytes, "confirmed identifying output matches exact preview");
 	scope->setCurrentIndex(1);
 	panel->action(command::preview_diagnostics)->trigger();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "current-session preview prepared");
@@ -278,7 +295,7 @@ try {
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "live Standard ring is explicitly selected through UI");
 	const auto ringPreview = preview->toPlainText().toStdString();
 	expect(ringPreview.find("\"source\":\"recent_context\"") != std::string::npos, "unpersisted intermediate context reaches selected public export");
-	const auto ringDestination = temporary.path() + QStringLiteral("/recent-context.txt");
+	const auto ringDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/recent-context.txt");
 	choose(*panel, ringDestination);
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "selected ring export saves locally");
 	expect(read(app::native_filesystem_path(ringDestination)) == ringPreview, "ring save equals frozen preview");

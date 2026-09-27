@@ -1233,7 +1233,7 @@ namespace bpr::qt {
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
 		// follower-scroll coupling, and no synthetic alignment rows.
-		ComparisonSurface  = new diff_workbench{ CentreSurface };
+		ComparisonSurface = new diff_workbench{ CentreSurface };
 		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
@@ -9535,6 +9535,14 @@ namespace bpr::qt {
 		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
 		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
+		diagnosticMenu->addSeparator();
+		const auto addExport = [this, diagnosticMenu](const QString& aLabel, const QString& aName, core::diagnostic_export_policy aPolicy) {
+			auto* action = diagnosticMenu->addAction(aLabel);
+			action->setObjectName(aName);
+			connect(action, &QAction::triggered, this, [this, aPolicy] { if (DiagnosticExporter) { DiagnosticExporter(aPolicy); } });
+		};
+		addExport(QStringLiteral("Export anonymized diagnostics…"), QStringLiteral("exportAnonymizedDiagnosticsAction"), core::diagnostic_export_policy::anonymized);
+		addExport(QStringLiteral("Export with identifying details…"), QStringLiteral("exportIdentifyingDiagnosticsAction"), core::diagnostic_export_policy::identifying);
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
 		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
 		SettingsAction->setMenuRole(QAction::PreferencesRole);
@@ -9628,6 +9636,11 @@ namespace bpr::qt {
 	auto workbench_window::profiles_menu() const noexcept -> QMenu*
 	{
 		return ProfilesMenu;
+	}
+
+	void workbench_window::set_diagnostic_exporter(std::function<void(core::diagnostic_export_policy)> aExporter)
+	{
+		DiagnosticExporter = std::move(aExporter);
 	}
 
 	void workbench_window::set_settings_presenter(std::function<void(settings_page)> aPresenter)

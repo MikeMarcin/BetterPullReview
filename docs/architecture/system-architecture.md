@@ -301,7 +301,15 @@ minutes, checked before exposure and retired by bounded idle backend maintenance
 Off, privacy/detail changes and Clear invalidate queued generations and reset
 transient context before acknowledgement. Clear coordinates native owned files
 without retiring the profile; busy/unsafe/partial failures are distinct. Rich
-scope-aware export is described below; native/attended qualification remains open.
+scope-aware export is described below. RFC-0027 native developer courses and
+attended controls are accepted; its verification ledger retains the separate
+package/release limitations and canonical closeout hold.
+
+Diagnostic refresh requests made while a capture is in flight coalesce into one
+fresh observation after its completion. Reopening Settings after Sign out therefore
+cannot leave a prior capture as the final displayed recent-context count. Queued
+epoch effects retain the logger generation observed when they were submitted, so
+later protocol steps cannot repopulate a revoked account context.
 
 BPR-1218 carries export policy, session scope and explicit recent-context selection
 through the existing maintenance core's exact preparation identity. The logging
@@ -310,7 +318,9 @@ on the effect lane. Native storage reads only admitted profile files; current-se
 selection filters filenames before reading. Application classification rebuilds
 bounded JSONL, validates every field and known explanation, and gives each export
 fresh opaque session/request/window joins. The core requires separate confirmation
-for identifying export. Preview and the native exclusive local writer consume the
+for identifying export, supplied by the explicit Save action in its disclosure
+dialog. Direct Help exports use the same profile host without opening Settings.
+Preview and the native exclusive local writer consume the
 same digest-bound bytes; neither path composes a network capability.
 
 The entry point also owns one bounded terminal service before Qt startup and

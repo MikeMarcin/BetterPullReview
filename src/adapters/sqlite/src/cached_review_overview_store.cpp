@@ -44,7 +44,7 @@ namespace bpr::adapters::sqlite {
 			{
 				auto value = static_cast<std::uint64_t>(aValue);
 				integer(value);
-				if (value > std::numeric_limits<T>::max()) {
+				if (value > static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
 					Good = false;
 					return;
 				}
