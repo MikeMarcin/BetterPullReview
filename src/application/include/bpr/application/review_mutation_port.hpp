@@ -3,7 +3,9 @@
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/application/review_synchronization.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
 #include <atomic>
@@ -187,6 +189,19 @@ namespace bpr::application {
 	[[nodiscard]] auto valid(
 		const review_mutation_live_binding& aBinding) noexcept -> bool;
 
+	/// \brief Exact retained material accepted by the host before publication.
+	struct review_mutation_source_binding
+	{
+		std::optional<workbench_selected_diff_endpoint> Endpoint;
+		core::file_comparison_key                       Comparison;
+		std::uint32_t                                   LineCount                                                = 0U;
+		core::review_placement                          Placement                                                = core::review_placement::unknown;
+		auto                                            operator<=>(const review_mutation_source_binding&) const = default;
+	};
+
+	enum class review_remote_comment_subject : std::uint8_t { line,
+															  file };
+
 	/// \brief Carries one publication to the provider.
 	///
 	/// \details `IdempotencyKey` is what makes a retry safe. A request whose
@@ -195,11 +210,13 @@ namespace bpr::application {
 	/// to recognise the repeat.
 	struct review_mutation_request
 	{
-		core::review_publication_proposal           Proposal;
-		core::review_mutation_target                Target;
-		core::github_account_id                     ActingIdentity;
-		std::string                                 IdempotencyKey;
-		std::optional<review_mutation_live_binding> LiveBinding;
+		core::review_publication_proposal             Proposal;
+		core::review_mutation_target                  Target;
+		core::github_account_id                       ActingIdentity;
+		std::string                                   IdempotencyKey;
+		std::optional<review_mutation_live_binding>   LiveBinding;
+		std::optional<review_mutation_source_binding> Source;
+		core::review_publication_representation       Representation = core::review_publication_representation::native_line;
 
 		auto operator<=>(const review_mutation_request&) const = default;
 	};
@@ -207,8 +224,9 @@ namespace bpr::application {
 	/// \brief Reports what the provider did.
 	struct review_mutation_receipt
 	{
-		std::string ServerCommentId;
-		bool        Duplicate = false;
+		std::string                             ServerCommentId;
+		bool                                    Duplicate      = false;
+		core::review_publication_representation Representation = core::review_publication_representation::native_line;
 
 		auto operator<=>(const review_mutation_receipt&) const = default;
 	};

@@ -129,6 +129,29 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const review_mutation_wire_response&) const -> bool = default;
 	};
 
+	inline constexpr std::uint32_t off_hunk_classifier_revision = 1U;
+	/// \brief A pinned complete non-creation contract selected by the adapter.
+	/// Production has no admitted contract until direct evidence establishes it.
+	/// Synthetic fixture contracts exercise the mechanism without enabling a host.
+	struct off_hunk_unsupported_contract
+	{
+		application::github_server_contract Server             = application::github_server_contract::github_com_2022_11_28;
+		review_mutation_operation           Operation          = review_mutation_operation::create_review_comment;
+		std::string                         ApiRevision        = "2022-11-28";
+		std::uint32_t                       ClassifierRevision = off_hunk_classifier_revision;
+		std::string                         Resource;
+		std::string                         Field;
+		std::string                         Code;
+		std::string                         Message;
+		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
+	};
+
+	/// \brief Matches only the fully received exact structured non-creation response.
+	[[nodiscard]] auto definitive_off_hunk_unsupported(
+		const review_mutation_wire_response& aResponse,
+		const review_mutation_wire_request&  aRequest,
+		const off_hunk_unsupported_contract& aContract) -> bool;
+
 	struct review_mutation_target_observation
 	{
 		application::review_mutation_target_binding Target;
@@ -151,6 +174,7 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_anchor_binding  Anchor;
 		std::string                                  Body;
 		application::review_mutation_acting_identity Author;
+		application::review_remote_comment_subject   RemoteSubject = application::review_remote_comment_subject::line;
 
 		auto operator<=>(const review_mutation_comment_observation&) const = default;
 	};
@@ -162,7 +186,8 @@ namespace bpr::adapters::github::detail {
 		std::string                                  ReviewNodeId;
 		application::review_mutation_target_binding  Target;
 		application::review_mutation_acting_identity Author;
-		core::review_disposition                     Disposition = core::review_disposition::comment;
+		application::review_remote_comment_subject   RemoteSubject = application::review_remote_comment_subject::line;
+		core::review_disposition                     Disposition   = core::review_disposition::comment;
 		std::string                                  Body;
 		std::string                                  SubmittedAt;
 

@@ -1,3 +1,4 @@
+#include "bpr/application/review_mutation_coordinator.hpp"
 #include "github_mutation_contract.hpp"
 #include "review_comment_permalink.hpp"
 
@@ -168,6 +169,79 @@ namespace {
 		return { .Comparison = core::comparison_digest(aSource.Comparison), .Side = core::diff_side::right, .Line = aLine };
 	}
 
+	[[nodiscard]] auto publication_request(const review_permalink_source& aSource) -> application::review_mutation_request
+	{
+		const auto actor    = application::review_mutation_acting_identity{ .Account = workbench_authority().Account, .DatabaseId = 22U, .NodeId = "U_fixture", .Login = "fixture-reviewer" };
+		const auto anchor   = permalink_anchor(aSource);
+		const auto proposal = core::review_publication_proposal{ .Draft = core::review_draft_id{ 31U }, .Anchor = anchor, .Body = "Literal review prose.\nSecond line.", .Disposition = core::review_disposition::comment };
+		return { .Proposal = proposal, .Target = aSource.Target.Semantic, .ActingIdentity = actor.Account, .IdempotencyKey = application::idempotency_key_for(proposal, aSource.Target.Semantic), .LiveBinding = application::review_mutation_live_binding{ .Target = aSource.Target, .ActingIdentity = actor, .Anchor = { .Semantic = anchor, .Path = aSource.Endpoint->path().generic_string(), .Commit = aSource.Target.Semantic.ExpectedHead } }, .Source = application::review_mutation_source_binding{ .Endpoint = aSource.Endpoint, .Comparison = aSource.Comparison, .LineCount = aSource.LineCount } };
+	}
+
+	[[nodiscard]] auto created_response(const review_mutation_wire_request& aWire) -> review_mutation_wire_response
+	{
+		auto body = aWire.Body;
+		body.pop_back();
+		body += R"(,"id":44,"node_id":"PRRC_fixture_44","user":{"id":22,"node_id":"U_fixture","login":"fixture-reviewer"}})";
+		return { .Status = 201, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = std::move(body) };
+	}
+
+	void test_wire_representations_and_classifier()
+	{
+		for (const auto server : { application::github_server_contract::github_com_2022_11_28, application::github_server_contract::ghes_3_18_2022_11_28 }) {
+			auto source                  = permalink_source("dir/review.md");
+			source.Target.ServerContract = server;
+			if (server == application::github_server_contract::ghes_3_18_2022_11_28) {
+				source.Target.Hostname = application::github_canonical_hostname{ "reviews.example.test" };
+			}
+			auto       request = publication_request(source);
+			const auto native  = compile_review_comment_request(request, server);
+			expect(native && native->Body.find(R"("line":13)") != std::string::npos && native->Body.find("subject_type") == std::string::npos, "native wire keeps original line fields");
+			const auto nativeReceipt = parse_review_comment_response(created_response(*native), request);
+			expect(nativeReceipt && nativeReceipt->RemoteSubject == application::review_remote_comment_subject::line, "native response keeps remote line subject");
+			request.Representation = core::review_publication_representation::file_comment_with_permalink;
+			const auto file        = compile_review_comment_request(request, server);
+			expect(file && validate_outbound_review_mutation_request(*file), "file wire compiles and canonically revalidates");
+			expect(file->Body.find(R"("subject_type":"file")") != std::string::npos && file->Body.find(R"("line":)") == std::string::npos
+					   && file->Body.find(R"("side":)") == std::string::npos && file->Body.find("start_line") == std::string::npos && file->Body.find("start_side") == std::string::npos,
+				   "file request omits every line/range side field");
+			const auto fileReceipt = parse_review_comment_response(created_response(*file), request);
+			expect(fileReceipt && fileReceipt->RemoteSubject == application::review_remote_comment_subject::file
+					   && fileReceipt->Receipt.Representation == request.Representation && fileReceipt->Body == compile_review_permalink_body(source, request.Proposal.Anchor, request.Proposal.Body),
+				   "file response keeps honest subject and exact public body");
+			expect(!parse_review_comment_response(created_response(*native), request), "line response cannot confirm a file write");
+			auto wrong = created_response(*file);
+			wrong.Body.replace(wrong.Body.find("U_fixture"), 9U, "U_foreign");
+			expect(!parse_review_comment_response(wrong, request), "foreign actor refuses a file receipt");
+			request.Source.reset();
+			expect(!compile_review_comment_request(request, server), "file write requires exact retained source");
+
+			// Synthetic protocol evidence only: no live host is claimed to emit this tuple.
+			const auto contract  = off_hunk_unsupported_contract{ .Server = server, .Resource = "PullRequestReviewComment", .Field = "line", .Code = "fixture_off_hunk_unsupported", .Message = "Fixture: no comment created for off-hunk line" };
+			const auto rejection = review_mutation_wire_response{ .Status = 422, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" };
+			expect(definitive_off_hunk_unsupported(rejection, *native, contract), "exact synthetic operation contract classifies");
+			for (const auto status : { 0, 200, 201, 401, 403, 404, 429, 500, 503 }) {
+				auto changed   = rejection;
+				changed.Status = status;
+				expect(!definitive_off_hunk_unsupported(changed, *native, contract), "status counterexamples never classify");
+			}
+			for (const auto body : { R"({"message":"Validation Failed"})", R"({"message":"Spam detected","errors":[]})", R"({"message":"Validation Failed","errors":[]})", "{", R"({"message":"Validation Failed","message":"Validation Failed","errors":[]})" }) {
+				auto changed = rejection;
+				changed.Body = body;
+				expect(!definitive_off_hunk_unsupported(changed, *native, contract), "generic, spam, malformed and duplicate JSON never classify");
+			}
+			auto changed = rejection;
+			changed.Headers.push_back({ .Name = "Retry-After", .Value = "1" });
+			expect(!definitive_off_hunk_unsupported(changed, *native, contract), "rate response never classifies");
+			auto revision = contract;
+			++revision.ClassifierRevision;
+			expect(!definitive_off_hunk_unsupported(rejection, *native, revision), "different classifier revision refuses");
+			revision             = contract;
+			revision.ApiRevision = "unknown";
+			expect(!definitive_off_hunk_unsupported(rejection, *native, revision), "different API revision refuses");
+			expect(!definitive_off_hunk_unsupported(rejection, *file, contract), "file write cannot be native unsupported evidence");
+		}
+	}
+
 	void test_canonical_permalink_round_trip_and_bounds()
 	{
 		const auto source = permalink_source("dir/sp ace-雪%?#.MD");
@@ -285,6 +359,7 @@ namespace {
 auto main() -> int
 {
 	test_canonical_permalink_round_trip_and_bounds();
+	test_wire_representations_and_classifier();
 	test_permalink_rejects_foreign_noncanonical_and_unavailable_sources();
 	std::cout << "review-comment-permalink-tests:pass\n";
 	return EXIT_SUCCESS;

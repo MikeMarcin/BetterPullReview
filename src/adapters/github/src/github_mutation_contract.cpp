@@ -1,4 +1,5 @@
 #include "github_mutation_contract.hpp"
+#include "review_comment_permalink.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/core/sha256.hpp"
@@ -295,16 +296,49 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		struct file_comment_submission_json
+		{
+			std::string Body;
+			std::string CommitId;
+			std::string Path;
+			std::string SubjectType = "file";
+			struct glaze
+			{
+				static constexpr auto value = glz::object("body", &file_comment_submission_json::Body, "commit_id", &file_comment_submission_json::CommitId, "path", &file_comment_submission_json::Path, "subject_type", &file_comment_submission_json::SubjectType);
+			};
+		};
+
+		struct unsupported_error_json
+		{
+			std::string Resource, Field, Code, Message;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("resource", &unsupported_error_json::Resource, "field", &unsupported_error_json::Field, "code", &unsupported_error_json::Code, "message", &unsupported_error_json::Message);
+			};
+		};
+		struct unsupported_response_json
+		{
+			std::string                         Message;
+			std::vector<unsupported_error_json> Errors;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("message", &unsupported_response_json::Message, "errors", &unsupported_response_json::Errors);
+			};
+		};
+
 		struct comment_response_json
 		{
-			std::uint64_t      Id = 0U;
-			std::string        NodeId;
-			std::string        Path;
-			std::string        CommitId;
-			std::string        Side;
-			std::uint64_t      Line = 0U;
-			std::string        Body;
-			review_author_json User;
+			std::uint64_t                Id = 0U;
+			std::string                  NodeId;
+			std::string                  Path;
+			std::string                  CommitId;
+			std::optional<std::string>   Side;
+			std::optional<std::uint64_t> Line;
+			std::optional<std::string>   SubjectType;
+			std::optional<std::uint64_t> StartLine;
+			std::optional<std::string>   StartSide;
+			std::string                  Body;
+			review_author_json           User;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -314,6 +348,9 @@ namespace bpr::adapters::github::detail {
 					"commit_id", &comment_response_json::CommitId,
 					"side", &comment_response_json::Side,
 					"line", &comment_response_json::Line,
+					"subject_type", &comment_response_json::SubjectType,
+					"start_line", &comment_response_json::StartLine,
+					"start_side", &comment_response_json::StartSide,
 					"body", &comment_response_json::Body,
 					"user", &comment_response_json::User);
 			};
@@ -692,11 +729,38 @@ namespace bpr::adapters::github::detail {
 			}
 		};
 
+		[[nodiscard]] auto publication_body(const application::review_mutation_request& aRequest) -> std::optional<std::string>
+		{
+			if (aRequest.Representation == core::review_publication_representation::native_line) {
+				return aRequest.Proposal.Body;
+			}
+			if (aRequest.Representation != core::review_publication_representation::file_comment_with_permalink
+				|| aRequest.Proposal.ReplyToThread || !aRequest.Source || !aRequest.Source->Endpoint || !aRequest.LiveBinding
+				|| aRequest.Source->Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
+				|| aRequest.Source->Comparison.Authority.Account != aRequest.ActingIdentity
+				|| core::classify_review_body(aRequest.Proposal.Body) != core::review_body_compatibility::portable) {
+				return std::nullopt;
+			}
+			return compile_review_permalink_body({ .Target     = aRequest.LiveBinding->Target,
+												   .Endpoint   = aRequest.Source->Endpoint,
+												   .Comparison = aRequest.Source->Comparison,
+												   .LineCount  = aRequest.Source->LineCount },
+												 aRequest.Proposal.Anchor, aRequest.Proposal.Body);
+		}
+
 		[[nodiscard]] auto mutation_body(const application::review_mutation_request& aRequest) -> std::string
 		{
 			const auto& binding = *aRequest.LiveBinding;
 			const auto  commit  = core::canonical_hex(binding.Anchor.Commit);
-			const auto  object  = comment_submission_json{
+			if (aRequest.Representation == core::review_publication_representation::file_comment_with_permalink) {
+				const auto body = publication_body(aRequest);
+				if (!body) {
+					return { };
+				}
+				const auto object = file_comment_submission_json{ .Body = *body, .CommitId = std::string{ commit.view() }, .Path = binding.Anchor.Path };
+				return glz::write<review_json_options{ }>(object).value_or(std::string{ });
+			}
+			const auto object = comment_submission_json{
 				.Body     = aRequest.Proposal.Body,
 				.CommitId = commit.view(),
 				.Line     = static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U,
@@ -1154,15 +1218,23 @@ namespace bpr::adapters::github::detail {
 			const auto     commit            = core::parse_git_commit_oid(aResponse.CommitId);
 			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
 			if (aResponse.Id == 0U || aResponse.User.Id == 0U || !commit
-				|| aResponse.Line == 0U || aResponse.Line > maximumGithubLine) {
+				|| !bounded_text(aResponse.NodeId, 256U)
+				|| (aResponse.Line && (*aResponse.Line == 0U || *aResponse.Line > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			const auto& binding      = *aExpected.LiveBinding;
 			const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
-			const auto  semanticLine = static_cast<std::uint32_t>(aResponse.Line - 1U);
+			const auto  fileSubject  = aResponse.SubjectType == "file";
+			const auto  wantsFile    = aExpected.Representation == core::review_publication_representation::file_comment_with_permalink;
+			const auto  expectedBody = publication_body(aExpected);
+			if ((aResponse.SubjectType && *aResponse.SubjectType != "line" && !fileSubject)
+				|| (fileSubject && (aResponse.Line || aResponse.StartLine || aResponse.StartSide))
+				|| (!fileSubject && !aResponse.Line)) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
 			if (aResponse.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
-				|| aResponse.Side != expectedSide || semanticLine != binding.Anchor.Semantic.Line
-				|| aResponse.Body != aExpected.Proposal.Body
+				|| fileSubject != wantsFile || !expectedBody || aResponse.Body != *expectedBody
+				|| (!fileSubject && (aResponse.Side != expectedSide || *aResponse.Line - 1U != binding.Anchor.Semantic.Line))
 				|| aResponse.User.Id != binding.ActingIdentity.DatabaseId
 				|| aResponse.User.NodeId != binding.ActingIdentity.NodeId
 				|| aResponse.User.Login != binding.ActingIdentity.Login) {
@@ -1171,12 +1243,13 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-0816]]. Name the nested type: GCC 15 destroys a braced
 			// aggregate member twice when a later member initializer throws.
 			return review_mutation_comment_observation{
-				.Receipt    = application::review_mutation_receipt{ .ServerCommentId = aResponse.NodeId, .Duplicate = false },
-				.DatabaseId = aResponse.Id,
-				.NodeId     = aResponse.NodeId,
-				.Anchor     = binding.Anchor,
-				.Body       = aResponse.Body,
-				.Author     = binding.ActingIdentity,
+				.Receipt       = application::review_mutation_receipt{ .ServerCommentId = aResponse.NodeId, .Duplicate = false, .Representation = aExpected.Representation },
+				.DatabaseId    = aResponse.Id,
+				.NodeId        = aResponse.NodeId,
+				.Anchor        = binding.Anchor,
+				.Body          = aResponse.Body,
+				.Author        = binding.ActingIdentity,
+				.RemoteSubject = fileSubject ? application::review_remote_comment_subject::file : application::review_remote_comment_subject::line,
 			};
 		}
 
@@ -1581,6 +1654,7 @@ namespace bpr::adapters::github::detail {
 			|| aRequest.Proposal.Disposition != core::review_disposition::comment
 			|| aRequest.Proposal.Body.empty()
 			|| aRequest.Proposal.Body.size() > maximum_review_mutation_body_bytes
+			|| !publication_body(aRequest)
 			|| !utf8_round_trip(aRequest.Proposal.Body)
 			|| !utf8_round_trip(aRequest.LiveBinding->Anchor.Path)
 			|| aRequest.IdempotencyKey
@@ -1886,6 +1960,34 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return review_mutation_viewer_observation{ .Identity = aExpected };
+	}
+
+	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
+										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
+	{
+		const auto* semantic = std::get_if<application::review_mutation_request>(&aRequest.Semantic);
+		if (aResponse.Status != 422 || !response_headers_valid(aResponse)
+			|| has_header(aResponse, "Retry-After") || has_header(aResponse, "Location")
+			|| aRequest.Operation != review_mutation_operation::create_review_comment
+			|| aContract.Operation != aRequest.Operation || aContract.Server != aRequest.Server
+			|| aContract.ApiRevision != rest_version || aContract.ClassifierRevision != off_hunk_classifier_revision
+			|| !semantic || semantic->Representation != core::review_publication_representation::native_line
+			|| semantic->Proposal.ReplyToThread || !validate_outbound_review_mutation_request(aRequest)
+			|| !bounded_text(aContract.Resource, 128U) || !bounded_text(aContract.Field, 128U)
+			|| !bounded_text(aContract.Code, 128U) || !bounded_text(aContract.Message, 512U)) {
+			return false;
+		}
+		if (!json_preflight{ aResponse.Body }.run() || aResponse.Body.size() > 4096U) {
+			return false;
+		}
+		auto           parsed  = unsupported_response_json{ };
+		constexpr auto options = [] { auto value = review_json_options{}; value.error_on_unknown_keys = true; return value; }();
+		if (glz::read<options>(parsed, aResponse.Body) || parsed.Message != "Validation Failed" || parsed.Errors.size() != 1U) {
+			return false;
+		}
+		const auto& error = parsed.Errors.front();
+		return error.Resource == aContract.Resource && error.Field == aContract.Field
+			&& error.Code == aContract.Code && error.Message == aContract.Message;
 	}
 
 	auto parse_review_comment_response(
