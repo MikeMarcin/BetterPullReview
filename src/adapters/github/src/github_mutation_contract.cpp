@@ -1316,6 +1316,14 @@ namespace bpr::adapters::github::detail {
 			return parsed;
 		}
 
+		[[nodiscard]] auto valid_file_subject_metadata(const comment_response_json& aComment) -> bool
+		{
+			// GitHub file subjects may carry its synthetic first-line position.
+			// This is receipt metadata; the permalink alone supplies our source anchor.
+			return !aComment.StartLine && !aComment.StartSide && !aComment.InReplyToId
+				&& (!aComment.Line || (aComment.Line == 1U && aComment.OriginalLine == 1U && aComment.Side == "RIGHT"));
+		}
+
 		[[nodiscard]] auto comment_observation(const comment_response_json&                aResponse,
 											   const application::review_mutation_request& aExpected)
 			-> review_mutation_parse_result<review_mutation_comment_observation>
@@ -1333,7 +1341,7 @@ namespace bpr::adapters::github::detail {
 			const auto  wantsFile    = aExpected.Representation == core::review_publication_representation::file_comment_with_permalink;
 			const auto  expectedBody = publication_body(aExpected);
 			if ((aResponse.SubjectType && *aResponse.SubjectType != "line" && !fileSubject)
-				|| (fileSubject && (aResponse.Line || aResponse.StartLine || aResponse.StartSide))
+				|| (fileSubject && !valid_file_subject_metadata(aResponse))
 				|| (!fileSubject && !aResponse.Line)) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
@@ -3633,7 +3641,7 @@ namespace bpr::adapters::github::detail {
 						|| comment.InReplyToId
 						|| (!file && (!(currentLine || originalLine) || comment.Side != expectedSide || comment.StartLine || comment.StartSide))
 						|| (file && comment.CommitId != commit.view())
-						|| (file && (comment.Line || comment.StartLine || comment.StartSide))
+						|| (file && !valid_file_subject_metadata(comment))
 						|| (child->BaselineExactCommentIds && std::ranges::binary_search(*child->BaselineExactCommentIds, comment.NodeId))) {
 						continue;
 					}

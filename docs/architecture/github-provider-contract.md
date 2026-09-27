@@ -910,6 +910,14 @@ permalink codec and send only body, commit_id, path and subject_type=file.
 Receipts keep the actual remote subject and selected representation; exact path,
 commit, public body and actor must agree before a response confirms creation.
 
+The designated live file comment returned `subject_type=file` with synthetic
+`line=1`, `original_line=1`, `side=RIGHT`, and null range fields. Receipt parsing
+and GET-only recovery admit that bounded metadata shape as well as absent line
+metadata. They retain the file subject and derive semantic placement only from
+the validated immutable permalink. Other numeric positions, incomplete placeholder
+shapes, ranges and replies cannot confirm a file publication. This does not alter
+unsupported classification or permit a new POST for a possibly transmitted child.
+
 Classifier revision2 accepts the owner-approved recorded contract only for
 MikeMarcin/BPR-Test PR2, exact base/head/refs and database/node identities,
 MikeMarcin's exact actor identity, and desktop profile2. Every classification

@@ -188,6 +188,9 @@ namespace {
 	{
 		auto body = aWire.Body;
 		body.pop_back();
+		if (aWire.Body.find(R"("subject_type":"file")") != std::string::npos) {
+			body += R"(,"line":1,"original_line":1,"side":"RIGHT","start_line":null,"start_side":null)";
+		}
 		body += R"(,"id":44,"node_id":"PRRC_fixture_44","user":{"id":22,"node_id":"U_fixture","login":"fixture-reviewer"}})";
 		return { .Status = 201, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = std::move(body) };
 	}
@@ -216,6 +219,19 @@ namespace {
 					   && fileReceipt->Receipt.Representation == request.Representation && fileReceipt->Body == compile_review_permalink_body(source, request.Proposal.Anchor, request.Proposal.Body),
 				   "file response keeps honest subject and exact public body");
 			expect(!parse_review_comment_response(created_response(*native), request), "line response cannot confirm a file write");
+			auto       absentPosition = created_response(*file);
+			const auto placeholder    = std::string{ R"(,"line":1,"original_line":1,"side":"RIGHT","start_line":null,"start_side":null)" };
+			absentPosition.Body.erase(absentPosition.Body.find(placeholder), placeholder.size());
+			expect(parse_review_comment_response(absentPosition, request).has_value(), "absent file position metadata remains supported");
+			expect(fileReceipt->Anchor.Semantic == request.Proposal.Anchor && fileReceipt->Anchor.Semantic.Line == 12U,
+				   "synthetic line1 never replaces the exact semantic permalink anchor");
+			for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
+					 { R"("line":1)", R"("line":0)" }, { R"("line":1)", R"("line":2)" }, { R"("original_line":1)", R"("original_line":2)" }, { R"("original_line":1)", R"("original_line":null)" }, { R"("side":"RIGHT")", R"("side":"LEFT")" }, { R"("start_line":null)", R"("start_line":1)" }, { R"("start_side":null)", R"("start_side":"RIGHT")" }, { R"("subject_type":"file")", R"("subject_type":"line")" }, { R"("subject_type":"file")", R"("subject_type":"file","in_reply_to_id":99)" } }) {
+				auto changed = created_response(*file);
+				changed.Body.replace(changed.Body.find(from), from.size(), to);
+				expect(!parse_review_comment_response(changed, request), "noncanonical file positions, ranges, replies and subjects cannot confirm fallback");
+			}
+
 			auto wrong = created_response(*file);
 			wrong.Body.replace(wrong.Body.find("U_fixture"), 9U, "U_foreign");
 			expect(!parse_review_comment_response(wrong, request), "foreign actor refuses a file receipt");
@@ -468,7 +484,7 @@ namespace {
 					response.Body = R"({"id":4650736621,"node_id":"PR_kwDOTyvof88AAAABFTSb7Q","number":2,"state":"open","base":{"sha":"a939a85a5525994fe9e9cb4c973ad9362ed427c7","ref":"codex/rfc0022-fixture-base-20260926","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"MikeMarcin/BPR-Test"}},"head":{"sha":"61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a","ref":"codex/rfc0022-live-comments-20260926"}})";
 				}
 			} else if (wire.Operation == operation::observe_review_comments) {
-				if (HideAfterPost && !Posts.empty()) {
+				if (HideAfterPost && !Comments.empty()) {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
 				}
 				response.Body = "[";
@@ -1172,7 +1188,7 @@ namespace {
 	void private_composition_publication()
 	{
 		using namespace application;
-		for (unsigned mode = 0; mode < 11; ++mode) {
+		for (unsigned mode = 0; mode < 12; ++mode) {
 			auto scratch              = tests::sqlite_contract::scratch_root{ "private-publication" };
 			auto source               = permalink_source();
 			auto request              = publication_request(source);
@@ -1214,7 +1230,7 @@ namespace {
 			lineage_fault fault(lineage);
 			fault.FailPrepare       = mode == 4;
 			auto transport          = publication_transport{ };
-			transport.RejectNative  = mode == 1;
+			transport.RejectNative  = mode == 1 || mode == 11;
 			transport.HideAfterPost = mode == 3 || mode >= 8;
 			transport.WrongActor    = mode == 5;
 			sqlite3* heldWriter     = nullptr;
@@ -1303,7 +1319,7 @@ namespace {
 			auto lookup = reopened->lookup_publication(row.LogicalPublication);
 			expect(lookup && *lookup && (**lookup).ServerComment == result.Result->ServerCommentId && (**lookup).ReconciledIdentity == result.Result->ServerCommentId && (**lookup).ReceiptReserve == 0, "exact canonical server join survives reopen");
 			expect(reopened->load_draft(draft.Draft.Id)->Draft.Draft.State == core::review_draft_state::published, "draft terminal and lineage commit atomically");
-			auto expectedWire = mode == 1 ? *compile_review_permalink_body(source, request.Proposal.Anchor, request.Proposal.Body) : request.Proposal.Body;
+			auto expectedWire = (mode == 1 || mode == 11) ? *compile_review_permalink_body(source, request.Proposal.Anchor, request.Proposal.Body) : request.Proposal.Body;
 			expect((**lookup).WireBodyDigest == core::private_digest(expectedWire), "wire digest names native prose or canonical visible permalink plus prose");
 			auto publicRead = tests::parse_fixture_object(transport.Comments.front());
 			expect(publicRead.at("body").get_string() == expectedWire && publicRead.at("user").get_object().at("node_id").get_string() == "U_fixture", "separate fixture reader checks exact public body and actor without local metadata");

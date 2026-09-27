@@ -292,3 +292,22 @@ cleanup and continuation. After explicit unlock, ordinary-detach the held image,
 revalidate ownership/target/artifacts/journals and create fresh one-use authority
 for the already verified schema-compatible capsule. Actual fallback, collaborator
 continuity and independent acceptance remain pending.
+
+### Actual r3 fallback and receipt correction
+
+After explicit unlock the held image detached normally. Exact artifact, actor,
+PR2/patch and five journal checks passed. Ordinary UI selected Markdown RIGHT62,
+confirmed exact head/MikeMarcin/profile2 and the prepared independent prose, and
+Published once under fresh authority at about71s. GitHub created file comment
+4116623474 with immutable plain-source line62 prefix and byte-preserved prose.
+[Actual observation](../_checkpoints/BPR-0575/m4-r3-live-fallback-observation.json)
+records exact IDs, bounded422 and new fallback-possibly-transmitted journal.
+All five earlier records remain byte-identical. Normal quit/detach passed132.85s.
+
+The app refused its file receipt because GitHub supplied synthetic line1,
+original_line1 and RIGHT alongside explicit file subject. No Retry was clicked.
+[Receipt correction](../_checkpoints/BPR-0575/m4-r3-file-receipt-fix.json) admits
+only this bounded placeholder or absent line metadata while retaining honest
+file subject, exact identity/body and semantic permalink. It adds counterexamples
+and cold pending-file lineage repair through reads only. Current live recovery,
+GitHub-only collaborator continuity and independent acceptance remain pending.
