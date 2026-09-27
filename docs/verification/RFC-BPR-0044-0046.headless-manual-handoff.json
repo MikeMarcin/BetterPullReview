@@ -3,30 +3,331 @@
   "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
   "run_id": "bpr-pr-tour-cli-20260927",
   "segment_id": "headless-manual",
-  "status": "in-progress",
-  "candidate_revision": "4e438a8b0801eea6b12db06136c8d59f03e69487",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+  "status": "milestone-accepted-ready-to-land",
+  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "prior_main_revision": "f221373c8fafd69ae4ccdb0d6058b3fde079e061",
+  "source_candidate_revision": "9c1c9447463d838e7306e3911316c28b8802dd76",
+  "candidate_revision": "7ec12ff8b95069831d72b485fd3b29171fb442ca",
   "source_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
   "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
-  "main_revision": "f221373c8fafd69ae4ccdb0d6058b3fde079e061",
-  "execution_base": "89f23eeece835ecafb9f8752b524644b22fbf281",
+  "changed_paths": [
+    "CMakeLists.txt",
+    "CMakePresets.json",
+    "cmake/BprDependencies.cmake",
+    "cmake/BprQtProvider.cmake",
+    "cmake/VerifyArchitectureBoundaries.cmake",
+    "docs/development/tour-cli.md",
+    "docs/issues/60-done/BPR-1053-expose-the-shared-tour-service-facade-and-semantic-commands.md",
+    "docs/issues/60-done/BPR-1054-build-and-install-a-non-gui-tour-runtime-and-bpr-executable.md",
+    "docs/issues/60-done/BPR-1055-add-precise-open-import-show-and-capability-commands.md",
+    "docs/issues/60-done/BPR-1056-implement-revisioned-local-commands-and-machine-result-contract.md",
+    "docs/issues/60-done/BPR-1057-integrate-trusted-external-editors-and-local-undo-redo.md",
+    "docs/issues/60-done/BPR-1058-provide-the-manual-terminal-walkthrough-and-safe-code-rendering.md",
+    "docs/verification/RFC-BPR-0044-0046.headless-manual-checkpoint.json",
+    "docs/verification/RFC-BPR-0044-0046.headless-manual-handoff.json",
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "src/adapters/agent/CMakeLists.txt",
+    "src/adapters/git/CMakeLists.txt",
+    "src/adapters/github/CMakeLists.txt",
+    "src/adapters/sqlite/src/review_tour_codec.hpp",
+    "src/adapters/sqlite/src/review_tour_store.cpp",
+    "src/app/CMakeLists.txt",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_cli_runtime.cpp",
+    "src/app/src/github_cli_runtime.hpp",
+    "src/app/src/tour_cancellation.cpp",
+    "src/app/src/tour_cancellation.hpp",
+    "src/app/src/tour_cli.cpp",
+    "src/app/src/tour_cli.hpp",
+    "src/app/src/tour_editor.cpp",
+    "src/app/src/tour_editor.hpp",
+    "src/app/src/tour_main.cpp",
+    "src/app/src/tour_remote.cpp",
+    "src/app/src/tour_runtime.cpp",
+    "src/app/src/tour_runtime.hpp",
+    "src/app/src/tour_text_input.cpp",
+    "src/app/src/tour_text_input.hpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/review_tour_host.hpp",
+    "src/application/include/bpr/application/review_tour_projection.hpp",
+    "src/application/include/bpr/application/review_tour_source.hpp",
+    "src/application/include/bpr/application/review_tour_store.hpp",
+    "src/application/src/review_tour_host.cpp",
+    "src/application/src/review_tour_source.cpp",
+    "src/core/include/bpr/core/review_tour.hpp",
+    "src/core/src/review_tour.cpp",
+    "tests/CMakeLists.txt",
+    "tests/application/review_tour_host_tests.cpp",
+    "tests/application/tour_cli_tests.cpp",
+    "tests/core/review_tour_tests.cpp",
+    "tests/git_contract/CMakeLists.txt",
+    "tests/git_contract/haves_trimmed_pack_integration_tests.cpp",
+    "tests/scripts/architecture_boundary_tests.py",
+    "tests/scripts/tour_cli_commands_tests.py",
+    "tests/scripts/tour_cli_tests.py",
+    "tests/sqlite_contract/review_tour_storage_tests.cpp"
+  ],
   "completed_cards": [
     "BPR-1053",
     "BPR-1054",
-    "BPR-1055"
+    "BPR-1055",
+    "BPR-1056",
+    "BPR-1057",
+    "BPR-1058"
   ],
-  "current_card": "BPR-1056",
-  "pending": [
-    "Revisioned edits/add/move/remove/ready with cancellation and bounded input/output",
-    "Trusted editor and durable local undo/redo",
-    "Pinned source current/left/historical/unchanged path and human walk/preview",
-    "Milestone verification, acceptance and local main fast-forward"
-  ],
+  "required_pending_in_milestone": [],
   "evidence_refs": [
-    "docs/verification/RFC-BPR-0044-0046.md"
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "docs/development/tour-cli.md"
   ],
-  "task_commands": [],
-  "review_server": null,
-  "protected_candidates": [],
-  "runtime_root": "build/bpr-headless-kx1ms8y9",
-  "next_action": "Continue BPR-1056 through BPR-1058 in the same assigned milestone. Do not land partial progress on main."
+  "accepted_observation": {
+    "run_id": "bpr-pr-tour-cli-20260927",
+    "segment_id": "headless-manual",
+    "mandate_revision": "r1-20260927-implement-and-land-each-milestone",
+    "selection": {
+      "schema": "implement-rfc.strategy-selection.v1",
+      "strategy": "coordinator-implementer",
+      "topology_id": "coordinator-implementer",
+      "recipe_revision": "2",
+      "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+      "routing": {},
+      "requirement_profile": "coordinator-implementer",
+      "owners": {
+        "engineering": "implementer",
+        "bookkeeping": "implementer",
+        "product_edits": "implementer"
+      },
+      "delegation": "recipe",
+      "instruction_paths": [
+        "references/engineering-contract.md",
+        "references/strategies/coordinator-implementer.md"
+      ],
+      "configuration_complete": true,
+      "missing_routes": [],
+      "host_load": "not_verified"
+    },
+    "binding": {
+      "plan_id": "bpr-pr-tour-cli-extension-v1",
+      "plan_path": "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json",
+      "milestone_id": "headless-manual",
+      "definition_fingerprint": "sha256:f5ee1c9dc868687229e019943c03279ad124b1acf4a4faa5c1abb1585d4838f1",
+      "obligations": [
+        {
+          "id": "BPR-1053:*",
+          "source": "BPR-1053",
+          "selector": null,
+          "source_fingerprint": "sha256:778a2cb6033156c2e6e4b3c74a54a1b54d28ebd409a7d6da9890e96783d0bfe9"
+        },
+        {
+          "id": "BPR-1054:*",
+          "source": "BPR-1054",
+          "selector": null,
+          "source_fingerprint": "sha256:8121088e645fba9f5c924de71f4a86c1e4c23dc1a0646628f2e6e620720b560a"
+        },
+        {
+          "id": "BPR-1055:*",
+          "source": "BPR-1055",
+          "selector": null,
+          "source_fingerprint": "sha256:6faafd5947e5d8117e3b52641f8bcb5078aa96e9733f823fc18cc0c77fba9410"
+        },
+        {
+          "id": "BPR-1056:*",
+          "source": "BPR-1056",
+          "selector": null,
+          "source_fingerprint": "sha256:1cd91a93d4e5470d0fbffc424435dc9b734fac16c29750a64c9331c8e2f43ca7"
+        },
+        {
+          "id": "BPR-1057:*",
+          "source": "BPR-1057",
+          "selector": null,
+          "source_fingerprint": "sha256:619f517119f0192e26acc5c410dd99549b103ca785568bd8dec435c8c119ddf7"
+        },
+        {
+          "id": "BPR-1058:*",
+          "source": "BPR-1058",
+          "selector": null,
+          "source_fingerprint": "sha256:6b7b7c1e4fadc8e6539ce6007842f66fbb7ab5ed009272a5915a54279cb49906"
+        }
+      ],
+      "obligation_fingerprint": "sha256:1eff59ab0549ab833ac197e2939b12f9872551062086e1acc07befc019118df1",
+      "exit_criteria": [
+        {
+          "id": "headless-manual:exit:1",
+          "text": "Desktop/core-only builds retain their boundaries; tests-disabled CLI has no GUI/display requirement."
+        },
+        {
+          "id": "headless-manual:exit:2",
+          "text": "Precise open/edit/outline/source/undo and human/JSON behavior work through shared services with zero AI and zero remote writes."
+        }
+      ],
+      "prerequisite_fingerprint": "sha256:9cf1d9edb60092d437358a5da8f8c2bd66164fbc0cddcd833b48a02cebc6119a",
+      "structural": "valid",
+      "references": "resolved",
+      "semantic_coverage": "unknown",
+      "diagnostics": [],
+      "diagnostics_truncated": false
+    },
+    "milestone": "headless-manual",
+    "disposition": "milestone-complete",
+    "candidate_revision": "7ec12ff8b95069831d72b485fd3b29171fb442ca",
+    "handoff_ref": "docs/verification/RFC-BPR-0044-0046.headless-manual-handoff.json",
+    "required_pending": [],
+    "evidence_refs": [
+      "docs/verification/RFC-BPR-0044-0046.md",
+      "docs/development/tour-cli.md"
+    ],
+    "acceptance_records": [
+      {
+        "id": "BPR-1053:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1054:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1055:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1056:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1057:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "BPR-1058:*",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "headless-manual:exit:1",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      },
+      {
+        "id": "headless-manual:exit:2",
+        "outcome": "pass",
+        "evidence_refs": [
+          "docs/verification/RFC-BPR-0044-0046.md",
+          "docs/development/tour-cli.md"
+        ]
+      }
+    ],
+    "continuation": {
+      "intent": "fresh",
+      "next_milestone": "publish-and-recover",
+      "reason": "integrated-boundary",
+      "detail": "Headless-manual accepted; land on local main, then coordinator starts a fresh implementer for publish-and-recover. Same-machine-handoff is also dependency-eligible."
+    },
+    "ownership": "quiescent"
+  },
+  "engineering_acceptance": "All six assigned implementation obligations and both exits accepted against direct CLI/editor/source/storage/core/desktop evidence. The full pack, real publication, native qualification and actual human/website/agent courses remain open. The unrelated pre-existing full core-only test build failure is explicitly preserved.",
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review app_bpr test_tour_cli_composition test_better_pull_review_haves_trimmed_pack_integration_tests test_review_tour_storage test_review_tour_host test_review_tour_core -j6",
+      "result": "Pass; candidate desktop and CLI rebuilt after final formatting/editor fixes."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^(tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|application_review_tour_host|core_review_tour|sqlite_review_tour_storage|architecture_boundaries|git_haves_trimmed_pack_tour-source|application_review_tour_cold_import_public_path)$",
+      "result": "9/9 pass, 49.07s. Final CLI/architecture subset rechecked on committed candidate: 4/4 pass, 13.49s; unchanged source/storage/desktop evidence reused."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^git_haves_trimmed_pack_(update|missing-object|unconnected)$",
+      "result": "3/3 pass, 49.18s."
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -R ^architecture_boundary_contract$",
+      "result": "Pass, 104.39s; new editor owner/argv/handle/private-file boundary negative controls included."
+    },
+    {
+      "command": "cmake --build --preset tour-cli; cmake --install build/tour-cli --component TourCLI --prefix TASK_RUNTIME/install; installed bin/bpr tour capabilities --json with no DISPLAY/WAYLAND_DISPLAY, invalid QT_QPA_PLATFORM and DYLD_PRINT_LIBRARIES=1",
+      "result": "Pass on committed source candidate; BUILD_TESTING=OFF and BPR_BUILD_QT=OFF; installed Qt Core/Network loaded; no GUI/Widgets/WebEngine/QPA image."
+    },
+    {
+      "command": "cmake --build --preset core-only --target better_pull_review_core better_pull_review_application test_review_tour_core test_review_tour_host -j4; ctest --preset core-only --output-on-failure -R ^(core_review_tour|application_review_tour_host|architecture_boundaries|core_dependency_boundary)$",
+      "result": "Build and 4/4 focused tests pass, 8.50s; core remains Qt-free."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py CHANGED_CPP_PATHS; python3 _coding-standard/scripts/tidy.py --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm/bin/clang-tidy --warnings-as-errors --paths src/application/src/review_tour_source.cpp src/app/src/tour_editor.cpp src/app/src/tour_cli.cpp",
+      "result": "30 changed C++ files format clean; focused clang-tidy passes with warnings as errors."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; issue_board.py validate --rfc RFC-BPR-0044 --rfc RFC-BPR-0045 --rfc RFC-BPR-0046 --json; git diff --check",
+      "result": "DOCUMENTATION_OK; 64/64 documentation tests; valid board (1214 cards); whitespace clean."
+    }
+  ],
+  "known_baseline_failure": {
+    "command": "cmake --build --preset core-only -j4",
+    "result": "Fails compiling tests/core/agent_profile_tests.cpp:138: sizeof(agent_profile) is 152, stale assertion expects 88. Existing DefaultSettings is omitted from the assertion.",
+    "scope": "That test and src/core/include/bpr/core/agent_profile.hpp are unchanged from intake f221373c8fafd69ae4ccdb0d6058b3fde079e061. Preserved outside the bounded milestone; no all-tests-green claim."
+  },
+  "review_handoff": {
+    "required_for_this_implementation_milestone": false,
+    "server": null,
+    "protected_candidates": [],
+    "actual_human_native_website_agent_acceptance": "Pending later qualification cards; fixtures are not substituted for those decisions."
+  },
+  "ownership": {
+    "owner": "/root/headless_manual",
+    "source_tracker_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+    "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "detached",
+    "other_writers": "No other writer observed in assigned checkout; unrelated worktrees and protected review material untouched.",
+    "task_commands": [],
+    "background_commands": [],
+    "review_server": null,
+    "runtime_root": "build/bpr-headless-kx1ms8y9",
+    "runtime_cleanup": "Pending consumption of acceptance/checkpoint temporary files; remove only this task-owned runtime directory after durable handoff.",
+    "retained_resources": "Build directories dev/core-only/tour-cli and the two existing checkouts remain reusable. No new worktree."
+  },
+  "self_review": "Applied code-simplifier to the CLI adapter; reviewed exact target/revision admission, editor lease release and safe reopen, journal CAS/migration/crash recovery, pinned endpoint/blob identity, bounded output and cancellation. Final focused corrections verified. No independent reviewer was requested or claimed.",
+  "pending_pack_obligations": [
+    "BPR-1059/1063: qualified publication plan, real approval bridge, stage/submit/update/recover and cold remote reconstruction.",
+    "BPR-1060–1062: shared-owner forwarding, journal handoff/recovery/IME and cross-client resumption; reuse schema 3 journal rather than introducing another.",
+    "BPR-1064–1067: effective hooks, assistance scope, pr-tour skill and canonical distribution.",
+    "BPR-1068–1071: release/native/actual human/website/agent qualification, documentation reconciliation and RFC closure.",
+    "Parent external gaps BPR-1222–1226 remain unchanged."
+  ],
+  "next_action": "After local-main landing, coordinator starts a fresh implementer for publish-and-recover, promotes BPR-1059 and binds accepted intake/headless-manual. Same-machine-handoff/BPR-1060 is also eligible; stop this owner at this milestone boundary.",
+  "next_eligible_milestone": "publish-and-recover",
+  "next_eligible_card": "BPR-1059",
+  "also_eligible": "same-machine-handoff / BPR-1060",
+  "checkpoint_check": {
+    "action": "fresh-context",
+    "detail": "Headless-manual accepted; land on local main, then coordinator starts a fresh implementer for publish-and-recover. Same-machine-handoff is also dependency-eligible.",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "operator_refusals": [
+    "An observational checkpoint check without its required observation file returned invalid; the complete exact-candidate observation returned fresh-context."
+  ]
 }
