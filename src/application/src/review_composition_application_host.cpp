@@ -193,9 +193,23 @@ namespace bpr::application {
 			return result;
 		});
 	}
-	auto review_composition_application_host::restore() -> private_run_result<durable_draft_commit>
+	auto review_composition_application_host::allocate_reply(const core::private_review_binding& aBinding, core::source_line_ref aLine, const core::diff_semantic_index& aIndex, std::string aThread) -> private_run_result<durable_draft_commit>
 	{
-		return attempt([&] { durable_draft_commit result; result.Scope = take(Store.frontier()).Scope; result.Records = take(Store.list_drafts()); return result; });
+		return attempt([&] {
+			const auto f = take(Store.frontier());
+			require(f.Scope == aBinding.Scope && f.NextIdentity != 0 && !aThread.empty() && aThread.size() <= core::maximum_shared_draft_reply_bytes, core::private_review_refusal::bounds);
+			require(core::valid_private_subject({ aBinding, aLine }, &aIndex), core::private_review_refusal::invalid_target);
+			private_draft_record record{ aBinding, { { core::review_draft_id{ f.NextIdentity }, aLine, { }, core::review_draft_state::drafting, std::move(aThread) }, 1, { }, { } } };
+			take(Store.commit({ .ExpectedNextIdentity = f.NextIdentity, .Drafts = { { record, 0 } } }));
+			durable_draft_commit result;
+			result.Scope = f.Scope;
+			result.Records.push_back(std::move(record));
+			return result;
+		});
+	}
+	auto review_composition_application_host::restore(std::optional<core::git_commit_oid> aHead, std::optional<core::review_draft_id> aDraft) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] { durable_draft_commit result; result.Scope = take(Store.frontier()).Scope; result.Records = take(Store.list_drafts()); std::erase_if(result.Records,[&](const auto& aRecord){return (aHead && aRecord.Binding.Revision.HeadOid != *aHead) || (aDraft && aRecord.Draft.Draft.Id != *aDraft);}); return result; });
 	}
 	auto review_composition_application_host::change_draft(const core::revisioned_review_draft_command& aCommand) -> private_run_result<durable_draft_commit>
 	{

@@ -23,6 +23,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
 #include "live_review_submission_provider.hpp"
+#include "private_review_workflow.hpp"
 #include "review_mutation_execution_authority.hpp"
 #include "review_submission_execution_authority.hpp"
 #include "review_submission_workflow.hpp"
@@ -3466,15 +3467,35 @@ namespace bpr::app {
 			Panel.present_session_catalog(aProjection);
 		}
 
+		void set_private_sink(std::function<void(const application::private_review_delta&)> aChanged, std::function<void(const application::private_run_error&)> aFailed)
+		{
+			PrivateChanged = std::move(aChanged);
+			PrivateFailed  = std::move(aFailed);
+		}
+		void private_changed(const application::agent_invocation_projection_identity&, const application::private_review_delta& aDelta) override
+		{
+			if (PrivateChanged) {
+				PrivateChanged(aDelta);
+			}
+		}
+		void private_refused(const application::agent_invocation_projection_identity&, const application::private_run_error& aError) override
+		{
+			if (PrivateFailed) {
+				PrivateFailed(aError);
+			}
+		}
+
 	private:
-		application::agent_invocation_projection_port& Panel;
-		finding_sink                                   Findings;
-		session_sink                                   Sessions;
-		admit_sink                                     Admissions;
-		run_sink                                       Runs;
-		workspace_sink                                 Workspaces;
-		start_sink                                     Starts;
-		std::function<void(std::string_view)>          Refused;
+		std::function<void(const application::private_review_delta&)> PrivateChanged;
+		std::function<void(const application::private_run_error&)>    PrivateFailed;
+		application::agent_invocation_projection_port&                Panel;
+		finding_sink                                                  Findings;
+		session_sink                                                  Sessions;
+		admit_sink                                                    Admissions;
+		run_sink                                                      Runs;
+		workspace_sink                                                Workspaces;
+		start_sink                                                    Starts;
+		std::function<void(std::string_view)>                         Refused;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -6932,6 +6953,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
+			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
+					if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
+						return false;
+					}
+					const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
+					ExplicitPrivateRun = std::move(aIntent);
+					PrivateRequested = std::move(aRequested);
+					const auto sent = dispatch_agent_invocation(aAgentProfile, {}, std::nullopt, false, aPrompt, std::nullopt,
+						composing ? core::agent_entry_point::workshop_comment : core::agent_entry_point::ask_about_selection,
+						composing ? std::optional{core::workshop_operation::clarify} : std::nullopt);
+					ExplicitPrivateRun.reset();
+					PrivateRequested = {};
+					return sent; });
 			// The one new edge out of the agent host. The launch panel still
 			// receives every projection it already did; this adds the typed
 			// finding delivery, and nothing else. There is deliberately no
@@ -7131,8 +7165,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					},
 					AgentEffects,
 					DecisionLane,
-					*AgentProjections);
+					*AgentProjections, PrivateReview.get());
 			}
+			PrivateReview->profiles(agentProfiles);
+			AgentProjections->set_private_sink([this](const auto& aDelta) {if(!Closing && PrivateReview){PrivateReview->changed(aDelta);} }, [this](const auto&) {if(!Closing && Window){Window->private_review()->show_status(QStringLiteral("Private run admission or retention refused; no missing provenance is inferred."));} });
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
 #if defined(BPR_BUILD_TESTING)
@@ -9571,6 +9607,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReviewDraftRevision = aAccepted.Revision;
 			if (Window && Window->review_editor()) {
 				Window->review_editor()->present(aAccepted);
+				Window->review_editor()->allow_publication_retry(PrivateReview && !PendingReviewMutation && aAccepted.Draft.State == core::review_draft_state::publishing);
 			}
 			refresh_agent_private_context_choices();
 		}
@@ -9626,13 +9663,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return true;
 		}
 
-		void complete_shared_draft(const bool aSuccess)
+		void complete_shared_draft(const bool aSuccess, std::function<void()> aAfter = { }, bool aPreserveForRetry = false)
 		{
 			if (!SharedDrafts || !PublishingDraft) {
 				return;
 			}
 			const auto publishing = std::exchange(PublishingDraft, std::nullopt);
-			auto       outcome    = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
+			if (PrivateReview && PrivateDraftsReady) {
+				const auto owner    = SharedDrafts;
+				auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
+					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						const auto accepted = owner->read(DraftConsumer, publishing->Draft.Id);
+						if (accepted.Accepted && ReviewDraft && ReviewDraft->Id == publishing->Draft.Id) {
+							accept_shared_draft(*accepted.Accepted);
+						}
+					}
+					if (after) {
+						after();
+					}
+				};
+				if ((aSuccess || aPreserveForRetry) && !publishing->Draft.ReplyToThread) {
+					PrivateReview->restore(std::move(complete));
+				} else {
+					PrivateReview->change_draft({ { publishing->Draft.Id, aSuccess ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish, { } }, publishing->Revision, false, { }, publishing->Scope }, std::move(complete));
+				}
+				return;
+			}
+
+			auto outcome = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
 			}
@@ -9732,7 +9790,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void retire_review_mutation_host()
 		{
-			complete_shared_draft(false);
+			complete_shared_draft(false, { }, PendingReviewMutation.has_value());
 			if (ReviewMutationHost != nullptr) {
 				ReviewMutationHost->shutdown();
 				RetiredReviewMutationHosts.push_back(
@@ -9784,6 +9842,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			InlineReviewBinding = *selection;
 			const auto target   = selection->Target.Semantic;
 			Fixture->prepare_review_mutation(target);
+			Fixture->set_private_lineage(PrivateReview);
 			if (ReviewMutationDecisionGate == nullptr) {
 				ReviewMutationDecisionGate = std::make_unique<
 					gated_review_mutation_decision_executor>(DecisionLane);
@@ -9838,7 +9897,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(lease),
 				selection->Target,
 				selection->ActingIdentity,
-				std::move(*recovery));
+				std::move(*recovery), PrivateReview.get());
 			if (provider.has_value()) {
 				InlineReviewBinding = *selection;
 				auto erased         = std::unique_ptr<application::review_mutation_port>{
@@ -10077,6 +10136,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (!Closing && !ReviewDraft && PrivateReview && aIdentity.starts_with(prefix) && SelectedSemanticSelection
+				&& draft_on_thread_line(core::review_comment_draft{ .Anchor = SelectedSemanticSelection->PreferredLine }, aIdentity)) {
+				const auto anchor = SelectedSemanticSelection->PreferredLine;
+				if (PrivateDraftSelectionPending || !PrivateDraftsReady) {
+					// Await only this exact selected line; navigation clears the continuation.
+					PendingPrivateReply = std::pair{ anchor, aIdentity };
+					return;
+				}
+				const auto owner             = SharedDrafts;
+				PrivateDraftSelectionPending = true;
+				PrivateReview->select_reply(anchor, std::string{ aIdentity.substr(prefix.size()) }, [this, owner, anchor](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || !owner || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
+						return;
+					}
+					const auto accepted = owner->read(DraftConsumer, aCommit->records().back().Draft.Draft.Id);
+					if (accepted.Accepted) {
+						accept_shared_draft(*accepted.Accepted);
+						Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
+					}
+				});
+				return;
+			}
 			if (Closing || Window == nullptr || !SharedDrafts || !aIdentity.starts_with(prefix)
 				|| !ReviewDraft.has_value()
 				|| ReviewDraft->State != core::review_draft_state::drafting
@@ -10089,6 +10174,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced aggregate
 			// member twice when a later member initializer throws.
+			if (PrivateReview && PrivateDraftsReady) {
+				dispatch_review_draft({ .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
+				return;
+			}
 			auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
 			if (outcome.Failure || !outcome.Accepted) {
 				return;
@@ -10131,19 +10220,60 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
 				Window->begin_dif_draft(aRevisionedCommand);
 			}
+			if (PrivateReview && PrivateDraftsReady) {
+				if (aRevisionedCommand.Scope != DraftScope || aRevisionedCommand.ExpectedRevision != ReviewDraftRevision || aCommand.Id != ReviewDraft->Id) {
+					Window->review_editor()->present_conflict({ .Accepted = { *ReviewDraft, ReviewDraftRevision, DraftScope }, .Refusal = core::revisioned_draft_refusal::conflict });
+					return;
+				}
+				if (aCommand.Kind == core::review_draft_command_kind::begin_publish && ReviewDraft->State == core::review_draft_state::publishing) {
+					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
+						const auto retained = SharedDrafts->read(DraftConsumer, ReviewDraft->Id);
+						if (retained.Accepted) {
+							finish_review_draft_command(aRevisionedCommand, retained);
+						}
+					}
+					return;
+				}
+				if (PrivateDraftCommandPending) {
+					return;
+				}
+				PrivateDraftCommandPending = true;
+				const auto owner           = SharedDrafts;
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand](auto aCommit) {
+					PrivateDraftCommandPending = false;
+					if (Closing || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
+					if (accepted.Accepted) {
+						finish_review_draft_command(aRevisionedCommand, accepted);
+					}
+				});
+				return;
+			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
-			if (outcome.Failure || !outcome.Accepted) {
+			finish_review_draft_command(aRevisionedCommand, outcome);
+		}
+		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
+		void                                                         finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		{
+			const auto& aCommand = aRevisionedCommand.Command;
+
+			if (aOutcome.Failure || !aOutcome.Accepted) {
 				Window->cancel_dif_draft(aRevisionedCommand);
-				if (outcome.Accepted && outcome.Refusal == core::revisioned_draft_refusal::conflict) {
-					Window->review_editor()->present_conflict({ .Accepted = *outcome.Accepted, .Refusal = outcome.Refusal });
+				if (aOutcome.Accepted && aOutcome.Refusal == core::revisioned_draft_refusal::conflict) {
+					Window->review_editor()->present_conflict({ .Accepted = *aOutcome.Accepted, .Refusal = aOutcome.Refusal });
 				}
 				return;
 			}
-			Window->review_editor()->acknowledge(aRevisionedCommand, *outcome.Accepted);
-			accept_shared_draft(*outcome.Accepted);
-			Window->accept_dif_draft(aRevisionedCommand, *outcome.Accepted);
+			Window->review_editor()->acknowledge(aRevisionedCommand, *aOutcome.Accepted);
+			accept_shared_draft(*aOutcome.Accepted);
+			if (aRevisionedCommand.ChangeReplyTarget && aRevisionedCommand.ReplyToThread) {
+				Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
+			}
+			Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
-				PublishingDraft = *outcome.Accepted;
+				PublishingDraft = *aOutcome.Accepted;
 			}
 
 			if (RetryableReviewDraft.has_value()
@@ -10160,8 +10290,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
 				return;
 			}
-			const auto proposal = core::propose_publication(
+			auto proposal = core::propose_publication(
 				*ReviewDraft, core::review_disposition::comment);
+			if (proposal && PrivateReview && PrivateDraftsReady && !ReviewDraft->ReplyToThread) {
+				const auto bound = PrivateReview->binding();
+				if (bound) {
+					proposal->Durable = core::durable_review_publication_identity{ bound->Scope.Incarnation.bytes(), ReviewDraftRevision };
+				}
+			}
 			if (!proposal.has_value()) {
 				complete_shared_draft(false);
 				return;
@@ -10197,6 +10333,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation = context;
+			Window->review_editor()->allow_publication_retry(false);
 		}
 
 		void adopt_review_selection(
@@ -10204,6 +10341,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const qt::review_draft_editor_clear_reason     aReason)
 		{
 			SelectedSemanticSelection = aSelection;
+			PendingPrivateReply.reset();
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
 			if (Window != nullptr && Window->review_editor() != nullptr) {
@@ -10313,9 +10451,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void present_review_draft(const core::semantic_selection& aSelection)
 		{
+			observe_private_review();
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr
 				|| WorkbenchHost == nullptr || !SelectedDiffPublication.has_value()
+				|| aSelection.PreferredLine.Side != core::diff_side::right
 				|| aSelection.Comparison
 					!= core::comparison_digest(SelectedDiffPublication->Key)
 				|| aSelection.PreferredLine.Comparison != aSelection.Comparison
@@ -10350,6 +10490,51 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!SharedDrafts) {
 				return;
 			}
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || PrivateDraftSelectionPending) {
+					return;
+				}
+				PrivateDraftSelectionPending = true;
+				const auto owner             = SharedDrafts;
+				const auto anchor            = aSelection.PreferredLine;
+				PrivateReview->select_draft(anchor, [this, owner, anchor](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					const auto adopted = aCommit && owner->adopt(owner->authority(), *aCommit);
+					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
+						if (SelectedSemanticSelection) {
+							present_review_draft(*SelectedSemanticSelection);
+						}
+						return;
+					}
+					if (!adopted) {
+						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
+							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
+							begin_review_reply(reply->second);
+							return;
+						}
+						Window->review_editor()->present(application::review_mutation_failure::unavailable);
+						return;
+					}
+					// Durable storage can contain an earlier empty inline draft and a
+					// later accepted composition at this same exact line. Reopen
+					// the latest active committed draft without allocating a new ID.
+					const auto candidates = aCommit->records();
+					const auto found      = std::ranges::find_if(candidates.rbegin(), candidates.rend(), [&](const auto& aRecord) { return aRecord.Draft.Draft.Anchor == anchor && !aRecord.Draft.Draft.ReplyToThread && (aRecord.Draft.Draft.State == core::review_draft_state::drafting || aRecord.Draft.Draft.State == core::review_draft_state::publishing); });
+					const auto selected   = found == candidates.rend() ? owner->select(DraftConsumer, anchor) : owner->read(DraftConsumer, found->Draft.Draft.Id);
+					if (selected.Accepted) {
+						accept_shared_draft(*selected.Accepted);
+						refresh_agent_private_context_choices();
+						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
+							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
+							begin_review_reply(reply->second);
+						}
+					}
+				});
+				return;
+			}
 			const auto created = SharedDrafts->select(DraftConsumer, aSelection.PreferredLine);
 			if (!created.Accepted || (created.Failure && created.Failure != application::shared_draft_failure::conflict)) {
 				return;
@@ -10361,6 +10546,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void publish(
 			const application::review_mutation_terminal& aTerminal) override
 		{
+			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
+				if (aTerminal.Result && Window && Window->review_editor()) {
+					Window->review_editor()->acknowledge_published_body(*PublishingDraft);
+				}
+				const auto uncertain = !aTerminal.Result && (aTerminal.Result.error() == application::review_mutation_failure::unavailable || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable || aTerminal.Result.error() == application::review_mutation_failure::malformed_response || aTerminal.Result.error() == application::review_mutation_failure::cancelled);
+				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal] { finish_review_terminal(terminal); }, uncertain);
+				return;
+			}
+			finish_review_terminal(aTerminal);
+		}
+		void finish_review_terminal(const application::review_mutation_terminal& aTerminal)
+		{
+
 			if (Closing
 				|| PendingReviewMutation != std::optional{ aTerminal.Context }) {
 				return;
@@ -10369,8 +10567,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
-			if (!ReviewDraft.has_value()
-				|| ReviewDraft->State != core::review_draft_state::publishing) {
+			if (!ReviewDraft.has_value()) {
 				if (deferred.has_value()) {
 					adopt_review_selection(
 						*deferred,
@@ -10411,6 +10608,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto* const editor = Window->review_editor();
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+			editor->allow_publication_retry(PrivateReview && !aTerminal.Result && ReviewDraft->State == core::review_draft_state::publishing);
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
 				if (InlineReviewBinding) {
@@ -10434,6 +10632,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void retire_review_ledger()
 		{
+			if (PrivateReview) {
+				PrivateReview->invalidate();
+			}
+			PrivateDraftsReady = false;
 			if (PrivateNoteScope < std::numeric_limits<std::uint64_t>::max()) {
 				++PrivateNoteScope;
 			}
@@ -10462,10 +10664,56 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		std::shared_ptr<private_review_workflow>       PrivateReview;
+		std::optional<application::private_run_intent> ExplicitPrivateRun;
+		core::agent_setting_facts                      PrivateRequested;
+		bool                                           PrivateDraftsReady           = false;
+		bool                                           PrivateDraftSelectionPending = false;
+		bool                                           PrivateDraftCommandPending   = false;
+		void                                           observe_private_review()
+		{
+			if (!PrivateReview || !EpochHost || !Window) {
+				return;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+				return;
+			}
+			const auto& authority  = *state.Authority;
+			const auto& revision   = *state.AcceptedRevision;
+			const auto& comparison = *state.AcceptedComparison;
+			auto        binding    = core::private_review_binding{ .Access = LastAcceptedHandoff ? LastAcceptedHandoff->Mode : core::github_access_mode::authenticated, .HostAuthority = authority.HostAuthority, .Revision = { authority.Host, authority.Repository, authority.PullRequest, revision.Base, revision.Head, comparison.Left.Identity.Epoch, comparison.Right.Identity.Epoch }, .LeftAnchor = comparison.Left.Identity, .RightAnchor = comparison.Right.Identity };
+			const auto  index      = Window->comparison_surface()->current_semantic_index();
+			if (index) {
+				binding.Comparison = index->diff().Alignment.Digest;
+			}
+			PrivateReview->observe(binding, index, SelectedSemanticSelection ? std::optional{ SelectedSemanticSelection->PreferredLine } : std::nullopt);
+			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
+				PrivateDraftsReady = true;
+				const auto owner   = SharedDrafts;
+				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}}else{PrivateDraftsReady=false;} });
+			}
+		}
+		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
+		{
+			if (Closing || !SharedDrafts || !SharedDrafts->adopt(SharedDrafts->authority(), aCommit)) {
+				return;
+			}
+			if (aOpen && !aCommit.records().empty()) {
+				const auto& value = aCommit.records().front().Draft;
+				const auto  read  = SharedDrafts->read(DraftConsumer, value.Draft.Id);
+				if (read.Accepted && SelectedSemanticSelection && value.Draft.Anchor == SelectedSemanticSelection->PreferredLine) {
+					accept_shared_draft(*read.Accepted);
+					Window->open_review_composition(true);
+				}
+			}
+		}
 		void compose_review_ledger(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
 			retire_review_ledger();
+			PrivateDraftsReady = false;
+
 			const auto repository
 				= aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name;
 			auto       opened    = adapters::sqlite::make_review_ledger_store({
@@ -10495,6 +10743,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->clear_review_ledger(!available);
 			}
 			publish_read_state();
+			if (PrivateReview) {
+				PrivateReview->open({ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest }, [this] { observe_private_review(); });
+			}
 		}
 
 		void refresh_shared_ledger(const application::workbench_pull_request_authority& aSource, ledger_changes aChanges)
@@ -12336,6 +12587,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void refresh_agent_authority()
 		{
+			observe_private_review();
 			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
 				return;
 			}
@@ -12644,6 +12896,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					McpHelper->pin(McpSnapshotRoot, encoded);
 				}
 			}
+			if (!aWritingOnly && (!aObservation.IncludedNotes.empty() || aObservation.IncludedDraft)) {
+				Window->agent_panel()->refuse("Choose immutable revisions or findings in Private history, then Ask agent using selected sources.");
+				return false;
+			}
+			auto privateRun = aWritingOnly ? std::optional<application::private_run_intent>{ } : ExplicitPrivateRun;
+			if (!aWritingOnly && !privateRun && PrivateReview) {
+				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
+			}
 			AgentHost->dispatch(application::agent_invocation_request{
 				.ApplicationSession     = aApplicationSession,
 				.Authority              = aAuthority,
@@ -12654,6 +12914,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.FrozenFiles            = std::move(aFrozen),
 				.ContinuedSession       = aContinuedSession,
 				.WritingOnly            = aWritingOnly,
+				.RequestedSettings      = PrivateRequested,
+				.PrivateRun             = std::move(privateRun),
 			});
 			return true;
 		}
@@ -14310,6 +14572,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			if (PrivateReview) {
+				PrivateReview->shutdown();
+			}
 			Profile->WorkbenchPreferences->unsubscribe(WritingHookSubscription);
 			if (TourHost) {
 				TourHost->shutdown();
@@ -14395,6 +14660,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
+				|| (PrivateReview && !PrivateReview->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
 				|| std::ranges::any_of(
 					RetiredReviewMutationHosts,
@@ -14816,6 +15082,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			enum class phase {
 				awaiting_editor,
+				awaiting_edited_body,
+				awaiting_fallback_draft,
+				awaiting_fallback_body,
 				awaiting_stale_refusal,
 				awaiting_lost_effect,
 				awaiting_deferred_terminal,
@@ -14827,7 +15096,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 
 			detail::review_round_trip_composition_probe_evidence Evidence;
-			phase                                                Phase = phase::awaiting_editor;
+			std::uint64_t                                        PriorDraftRevision = 0;
+			std::size_t                                          DraftIntents       = 0;
+			phase                                                Phase              = phase::awaiting_editor;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait                Wait;
 			bool                                      NativeLineChosen = false;
@@ -22249,6 +22520,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		const auto phaseName = [](const state_type::phase aPhase) {
 			switch (aPhase) {
+			case state_type::phase::awaiting_edited_body:    return "awaiting_edited_body";
+			case state_type::phase::awaiting_fallback_draft: return "awaiting_fallback_draft";
+			case state_type::phase::awaiting_fallback_body:  return "awaiting_fallback_body";
 			case state_type::phase::awaiting_editor:
 				return "awaiting_editor";
 			case state_type::phase::awaiting_stale_refusal:
@@ -22282,6 +22556,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					<< " workbench_host=" << present(implementation->WorkbenchHost != nullptr)
 					<< " mutation_host=" << present(implementation->ReviewMutationHost != nullptr)
 					<< " review_draft=" << draftState()
+					<< " private_ready=" << present(implementation->PrivateDraftsReady)
+					<< " private_selection_pending=" << present(implementation->PrivateDraftSelectionPending)
+					<< " semantic_selection=" << present(implementation->SelectedSemanticSelection.has_value())
+					<< " pending_reply=" << present(implementation->PendingPrivateReply.has_value())
 					<< " accepted_handoff=" << present(implementation->LastAcceptedHandoff.has_value())
 					<< " last_selected_diff=" << present(implementation->LastSelectedDiff.has_value())
 					<< " review_editor=" << present(implementation->Window != nullptr && implementation->Window->review_editor() != nullptr)
@@ -22290,10 +22568,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
 					<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures);
 		};
+		if (probe.Phase == state_type::phase::awaiting_editor && implementation->Window && implementation->LastSelectedDiff) {
+			implementation->Window->choose_modality(qt::review_modality::review);
+			auto* comparison = implementation->Window->comparison_surface();
+			if (comparison->current_semantic_index() && !comparison->geometry_pending()
+				&& (!comparison->selection() || comparison->selection()->PreferredLine.Side != core::diff_side::right)) {
+				(void)comparison->select_conversation_line(core::diff_side::right, 0);
+			}
+		}
+		// A successful retry can retire the selected draft while the server refresh
+		// is still reaching this probe. Conversation checks use the accepted server
+		// snapshot; they do not need the editor's former draft selection.
+		const auto needsDraft = probe.Phase != state_type::phase::awaiting_retry
+			&& probe.Phase != state_type::phase::awaiting_native_conversation
+			&& probe.Phase != state_type::phase::awaiting_fallback_draft
+			&& probe.Phase != state_type::phase::awaiting_fallback_conversation;
 		if (implementation->Fixture != nullptr && implementation->Window != nullptr
 			&& implementation->WorkbenchHost != nullptr
 			&& implementation->ReviewMutationHost != nullptr
-			&& !implementation->ReviewDraft.has_value()
+			&& needsDraft && !implementation->ReviewDraft.has_value()
 			&& implementation->WorkbenchHost->outstanding_requests() == 0U) {
 			auto* const view = implementation->Window->files_drawer()->contents_view();
 			if (view != nullptr && view->model() != nullptr
@@ -22305,7 +22598,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
 			|| implementation->ReviewMutationHost == nullptr
-			|| !implementation->ReviewDraft.has_value()
+			|| (needsDraft && !implementation->ReviewDraft.has_value())
 			|| !implementation->LastAcceptedHandoff.has_value()
 			|| !implementation->LastSelectedDiff.has_value()
 			|| implementation->Window->review_editor() == nullptr) {
@@ -22412,21 +22705,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!unchanged || right->findBlockByNumber(line).text().isEmpty()) {
 					continue;
 				}
-				if (!clickRightLine(static_cast<std::uint32_t>(line)) || !comparison->selection()) {
+				if (!clickRightLine(static_cast<std::uint32_t>(line))
+					|| !comparison->select_conversation_line(core::diff_side::right, static_cast<std::uint32_t>(line))
+					|| !comparison->selection()
+					|| comparison->selection()->PreferredLine.Side != core::diff_side::right) {
 					return fail();
 				}
 				probe.OffHunkAnchor = comparison->selection()->PreferredLine;
 				break;
 			}
+			return advance(state_type::phase::awaiting_fallback_draft);
+		}
+		if (probe.Phase == state_type::phase::awaiting_fallback_draft) {
+			auto* const files = implementation->Window->files_drawer()->contents_view();
+			if (files && files->model() && files->model()->rowCount() > 0 && !files->currentIndex().isValid()) {
+				files->setCurrentIndex(files->model()->index(0, 0));
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_DRAFT_STALLED", draftFacts);
+			}
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (probe.OffHunkAnchor && (!comparison->selection() || comparison->selection()->PreferredLine != *probe.OffHunkAnchor)) {
+				(void)comparison->select_conversation_line(core::diff_side::right, probe.OffHunkAnchor->Line);
+			}
 			if (!probe.OffHunkAnchor || !editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
 				|| implementation->ReviewDraft->State != core::review_draft_state::drafting) {
-				return fail();
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_DRAFT_STALLED", draftFacts);
 			}
 			editor->body_editor()->setPlainText(QStringLiteral("BPR-0571 off-hunk publication."));
-			editor->publish_action()->trigger();
-			if (!implementation->ReviewDraft || implementation->ReviewDraft->State != core::review_draft_state::publishing) {
-				return fail();
+			return advance(state_type::phase::awaiting_fallback_body);
+		}
+		if (probe.Phase == state_type::phase::awaiting_fallback_body) {
+			if (implementation->ReviewDraft->Body != "BPR-0571 off-hunk publication." || !editor->publish_action()->isEnabled()) {
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_BODY_STALLED", draftFacts);
 			}
+			editor->publish_action()->trigger();
 			return advance(state_type::phase::awaiting_fallback_conversation);
 		}
 
@@ -22492,6 +22803,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return fail();
 				}
 			}
+			if (!editor->shown_draft() || editor->shown_draft()->Anchor != comparison->selection()->PreferredLine) {
+				return wait("REVIEW_ROUND_TRIP_SELECTED_DRAFT_STALLED", draftFacts);
+			}
 			probe.Evidence.ExactDesignatedTarget
 				= implementation->ReviewMutationHost->designated() == designated;
 			probe.Evidence.EditorComposed = editor->shown_draft().has_value()
@@ -22515,12 +22829,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail();
 			}
 
-			const auto draftIntents       = editor->statistics().DraftIntents;
-			const auto priorDraftRevision = implementation->ReviewDraftRevision;
+			probe.DraftIntents       = editor->statistics().DraftIntents;
+			probe.PriorDraftRevision = implementation->ReviewDraftRevision;
 			editor->body_editor()->setPlainText(
 				QStringLiteral("BPR-0229 fixture publication."));
+			return advance(state_type::phase::awaiting_edited_body);
+		}
+		if (probe.Phase == state_type::phase::awaiting_edited_body) {
+			if (implementation->ReviewDraft->Body != "BPR-0229 fixture publication." || !editor->publish_action()->isEnabled()) {
+				return wait("REVIEW_ROUND_TRIP_EDIT_ACK_STALLED", draftFacts);
+			}
 			probe.Evidence.SemanticEdit
-				= editor->statistics().DraftIntents == draftIntents + 1U
+				= editor->statistics().DraftIntents == probe.DraftIntents + 1U
 				&& implementation->ReviewDraft->Body
 					== "BPR-0229 fixture publication.";
 			if (!probe.Evidence.SemanticEdit) {
@@ -22534,7 +22854,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-0822]]. Named nested types, as in the shared draft edit.
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
 				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
-				.ExpectedRevision = priorDraftRevision,
+				.ExpectedRevision = probe.PriorDraftRevision,
 				.Scope            = implementation->DraftScope });
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
 				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
@@ -22560,6 +22880,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_stale_refusal) {
+			if (implementation->PendingReviewMutation || implementation->PrivateDraftCommandPending) {
+				return wait("REVIEW_ROUND_TRIP_STALE_TERMINAL_STALLED", draftFacts);
+			}
 			const auto provider = implementation->Fixture->review_mutation_evidence();
 			probe.Evidence.StaleHeadRefused
 				= implementation->ReviewDraft->State
@@ -22669,8 +22992,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		if (implementation->ReviewMutationHost->outstanding_requests() != 0U
-			|| implementation->ReviewDraft->State
-				== core::review_draft_state::publishing) {
+			|| implementation->PendingReviewMutation || implementation->PrivateDraftCommandPending) {
 			// The released or retried publication reaches its terminal.
 			return wait(probe.Phase == state_type::phase::awaiting_retry
 							? "REVIEW_ROUND_TRIP_RETRY_STALLED"
@@ -22724,7 +23046,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					== probe.PublishingSelection
 				&& comparison->selection() == probe.PublishingSelection
 				&& implementation->ReviewDraft->State
-					== core::review_draft_state::drafting
+					== core::review_draft_state::publishing
 				&& implementation->ReviewDraft->Anchor
 					== probe.PublishingSelection->PreferredLine
 				&& implementation->ReviewDraft->Id == probe.PublishingDraft->Id

@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0587"
 title: "Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0582","BPR-0583","BPR-0585","BPR-0586","BPR-0571"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
+acceptance: [{"criterion":"BPR-0587 required final state","outcome":"pass","revision":"fab5df28852c0dd298bb17e3377a9af906d87cc7","evidence":{"kind":"command","detail":"M8 shipped composition root and private history/Write surfaces. Focused nine-test integration pass covers architecture, SQLite/host, Qt, legacy round trip, three-process native and file-permalink courses, and lost-result retry with one stored comment. Documentation gate, changed-file formatting and tests-disabled application build pass. Synthetic evidence only; BPR-0584 external acceptance and M9 native/rendered checks remain open."}}]
 ---
 
 # Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable

@@ -1328,3 +1328,180 @@ Start a fresh M8 implementer at this integrated main tip. Preserve all previous
 frontiers, BPR-0584's pending public body/actor read, and the M7 composition and
 publication integration contracts. No designated GitHub/GHES mutation target
 or signed independent readback was supplied.
+
+## M8 / BPR-0585 private history presentation
+
+The Notes tray now offers separate Private history and Agent tools pages beside
+shared Comments. The private page always names its local visibility. Bounded
+thread and immutable revision models retain stable indexes and issue insert,
+remove, move or data-change notifications without model resets. It offers exact
+revision selection with explicit historical consent, body continuation, typed
+actor/completion/currentness, local lineage labels and qualified provenance
+facts. Bodies and remote metadata render as literal text. All effects remain
+semantic intents; production wiring is BPR-0587.
+
+`cmake --build --preset dev --target test_private_review_panel -j6` and
+`ctest --preset dev --output-on-failure -R '^(qt_private_review_panel|architecture_boundaries)$'`
+passed (2/2, 8.24 seconds). The Qt test directly observes zero resets, one changed
+row and retained persistent identity, exact selected source dispatch, no effects
+from projections, unknown/conflict facts, accessible names and keyboard focus.
+Rendered native appearance and the complete public course remain M8/M9 work;
+this component evidence is not RFC acceptance.
+
+## M8 / BPR-0586 composition presentation
+
+The private composition dialog retains exact source identities, currentness and
+full body digests, offers reviewer-authored/exact-copy/explicit-agent-assisted
+modes, named profile and requested model/effort fields, explicit target choice,
+split workspaces and candidate actor/derivation. Accept as Draft is labelled
+local and has no publication intent; the ordinary draft editor owns Publish.
+The history panel also exposes exact retained finding selection and deduplicated
+polite accessibility status announcements. Cancel closes the view without
+removing retained private sources.
+
+The focused `qt_private_review_panel` test exercises all three mode intents,
+refused unplaceable acceptance, candidate/version-bound local acceptance,
+keyboard controls, accessible names and absence of a Publish control. Concrete
+host refusal/reload, lineage lookup, restart and mutation canaries are the
+following BPR-0587 public wiring course. M9 retains scale/native acceptance.
+The M7 implementation-prerequisite amendment is also applied to BPR-0586;
+BPR-0584 external acceptance remains pending and is not inferred here.
+
+## M8 / BPR-0587 composition and public course
+
+### Reconciled implementation plan
+
+M8 composes the already integrated M7 hosts into the current modality workbench.
+The Notes tray remains the private root beside shared Comments. Its Private
+history page now has History, Sources and Write tabs under a persistent local
+visibility rail. This replaces the initial tall stacked component layout; it
+adds no new modality or publication path. The ordinary draft editor remains
+the sole Publish surface. M9 owns the full scale/theme/native assessment and
+M10 owns the independent final review under mandate r2.
+
+The live store lacked a retained-finding catalog and compact source badges, so
+M8 adds bounded, generation-bound finding pages and exact-source membership
+queries over the existing indexed schema. The ledger remains version 7,
+recovery version 5 and tour codec version 3. No source-pack content or RFC
+acceptance criterion is removed. The BPR-0586 dependency clarification records
+M7 implementation as the prerequisite while BPR-0584 remains human-pending.
+
+### Product wiring
+
+`src/app/src/private_review_workflow.*` composes private SQLite, thread/run,
+composition and publication ports on bounded effect work, returning typed
+results to the existing decision lane. The existing invocation host and process
+launcher retain every non-writing invocation's durable run identity. Writing
+hooks retain their existing writing-only lane. Input claims use their own store
+connection for the duration of input delivery, so paged UI reads cannot share
+that transaction. At most 32 review contexts and 128 current-process accepted
+bindings are retained per window; exhaustion refuses a new private context.
+
+The panel offers explicit profile/model/effort selection, immutable source
+selection, historical consent, finding inspection, archived history, retained
+local draft selection and qualified provenance. The composition dialog supports
+all three modes, source/target inspection, Split and exact candidate acceptance.
+Private sources are included through the exact-source picker. Legacy mutable
+note/draft inclusion fields are refused with directions to that picker, as the
+M6 run admission requires; no text is silently substituted or auto-selected.
+
+Ordinary inline draft IDs now come from the same durable frontier as composed
+drafts. Reopening an exact line selects its latest active committed draft;
+the Sources page also lists retained draft identities explicitly. A stale
+callback cannot start publication, and an undelivered local publish admission
+is returned to drafting. Publication completion waits for the local receipt
+adoption before ordinary GitHub conversation refresh. Receipt reconciliation
+continues through the existing M7 provider/session path. Dialog lifetime and
+queued private operations participate in window shutdown; no private callback
+outlives the borrowed executors or window.
+
+### Direct course and limits
+
+The testing-only course in the shipped executable uses three fresh processes
+and an owner-private temporary profile: create a reviewer turn and ask the real
+canary agent; reopen and select reviewer, agent and retained finding sources,
+then compose and Accept locally; reopen and separately Publish. Both native
+line and explicit file-permalink representations use the same fixture provider
+session as the ordinary public path. The course checks durable rows, unchanged
+shared conversation models during local work, displayed reviewer prose, raw
+server-snapshot body and actor, and ordinary synchronization after publication.
+The M7 provider and store contracts separately verify the retained prose/wire
+digests and logical receipt identity. A third course drops the first response:
+the ordinary Retry publication action keeps the exact publishing revision and
+reconciles one stored comment without another POST. Each subprocess exits
+normally before the next process opens the same committed profile. No live GitHub target,
+signed recording, independent public-body/actor read, native UX acceptance or
+independent review is inferred from this synthetic course.
+
+
+### Public composition reconciliation
+
+The legacy review ledger opens before the private store, avoiding competing
+first-open migrations. Agent input claims own a separate SQLite connection
+through the input write; history paging cannot reuse its guarded transaction.
+The composition dialog follows the Qt parent lifetime through a guarded pointer.
+Successful publication adopts the durable receipt before refreshing Comments.
+A request handed to the publication host remains frozen after an uncertain
+terminal or window retirement; explicit Retry publication preserves its revision
+and lets the existing logical journal reconcile it. A publish admission retired
+before delivery is returned to drafting on its original serialized context.
+
+History, Sources and Write pages keep the bounded transcript, exact selections,
+retained finding inspection and requested model/effort controls reachable in the
+Notes tray. Source lineage badges use indexed membership observations. The
+retained draft chooser reopens an exact current-head draft; selecting its line
+prefers the latest matching active draft. None of these additions changes ledger
+v7, recovery v5 or tour codec v3. The original eighteen RFC criteria and source
+pack remain unchanged. M9 retains native, scale/theme and adversarial acceptance;
+BPR-0584 still requires qualifying external evidence and an independent read.
+
+
+### M8 integration self-review and regression reconciliation
+
+The source tripwires were resealed after engineering self-review of
+`5b9080fb6` through this M8 slice. Intervening pinned-source commits
+`9b71342a0`, `1d84e59c2` and `1ef7a98c3` are the previously recorded
+BPR-1007/BPR-1010/BPR-1011 writing work. Their qualified `WritingOnly` path
+remains separate from private-run admission. The production inventory now names
+both private workflow files; the public course stays in testing-only inventory.
+The provider gains the existing storage lineage port while retaining the sole
+mutation host, explicit grants and source/actor/target checks. This self-review
+does not satisfy or replace M10's independent review.
+
+The ordinary Reply gesture now waits only for its captured comparison and line,
+then applies the exact thread identity. Selection replacement clears that pending
+intent. Ordinary left-side replies allocate an exact durable reply directly;
+private composition targets remain right-side current-head only. Commands are
+checked against the live runtime scope, selected draft ID and revision before
+posting storage work. Publish stays disabled while unacknowledged text remains
+in the editor. A newer local edit that conflicts with a save stays visible for
+explicit Reapply or Reload. Definite preflight refusals return the draft to
+editing; uncertain transmission retains the frozen revision for explicit retry.
+The older round-trip course now waits for durable edit acknowledgements and
+checks the frozen retry identity, preserving its negative scope/revision and
+selection-retirement assertions.
+
+The final M8 integration reconciled the older course with durable root-draft
+allocation. Its fallback phase permits the draft to be created, reselects the
+current right-side line after comparison refresh, and restores the selected file
+row when the fixture clears it. The editor now accepts an explicit acknowledgement
+when its own committed revision was observed first. A confirmed publication
+retires a retained edit candidate only when its draft identity, scope and exact
+body match the published draft; a different candidate remains for Reload or
+Reapply. Left-side selections do not request a new root draft. These changes
+preserve the right-side creation and left-side reply policy.
+
+Final focused pass: `ctest --test-dir build/dev -j 4 -R` over
+`architecture_boundaries`, `sqlite_private_review_storage`,
+`application_private_review_host`, `qt_review_draft_editor`,
+`qt_private_review_panel`, `application_review_round_trip_composition_contract`,
+and `application_private_review_{native,file,retry}` passed 9/9 in 76.25 seconds.
+The three new public courses each crossed process restart, and the retry course
+observed one stored comment after the dropped result. The legacy round-trip
+course passed separately after the fallback reconciliation. `python3
+scripts/verify_documentation.py --root .` reported `DOCUMENTATION_OK`; `git
+diff --check` passed. The tests-disabled `app-release` application target built
+on the final composition root. Repository-wide `coding-format-check` still
+reports seven untouched legacy files; the one M8-touched test it identified was
+formatted. These are synthetic and local observations, so the M7
+external acceptance and M9 native/rendered checks remain open.

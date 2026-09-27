@@ -64,7 +64,9 @@ namespace bpr::application {
 		[[nodiscard]] auto accept(std::span<const review_composition_acceptance>, std::span<const composition_target_observation>, core::review_draft_scope_id aRuntimeScope) -> private_run_result<durable_draft_commit>;
 		/// \brief Allocates an ordinary inline draft from the same durable identity frontier.
 		[[nodiscard]] auto allocate_draft(const core::private_composition_target&, const core::diff_semantic_index&, std::string aBody = { }) -> private_run_result<durable_draft_commit>;
-		[[nodiscard]] auto restore() -> private_run_result<durable_draft_commit>;
+		/// \brief Ordinary replies may use either exact side; they carry no composition acceptance.
+		[[nodiscard]] auto allocate_reply(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::string aThread) -> private_run_result<durable_draft_commit>;
+		[[nodiscard]] auto restore(std::optional<core::git_commit_oid> aHead = { }, std::optional<core::review_draft_id> aDraft = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Uses the existing draft reducer; linked edits atomically retain a reviewer successor.
 		[[nodiscard]] auto change_draft(const core::revisioned_review_draft_command&) -> private_run_result<durable_draft_commit>;
 

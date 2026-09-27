@@ -64,6 +64,8 @@ add_library(
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
+        src/private_review_panel.cpp
+        src/private_composition_editor.cpp
         src/side_chat_panel.cpp
         src/usage_ring.cpp
         src/workbench_drawer.cpp

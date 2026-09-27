@@ -1405,15 +1405,15 @@ namespace bpr::app::detail {
 			// the same authority -- so under that course, and only there, the
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
-			bool                                        RepeatSessions           = false;
-			bool                                        LargeReviewForeignPosts  = false;
-			bool                                        ReviewTourCourse         = false;
+			bool                                             RepeatSessions          = false;
+			bool                                             LargeReviewForeignPosts = false;
+			bool                                             ReviewTourCourse        = false;
 			std::shared_ptr<review_submission_fixture_state> PublishedTour;
-			bool                                        LargeReviewRepeatReads   = false;
-			bool                                        CliEnabled               = false;
-			bool                                        RefuseFirstSmartAcquire  = false;
-			bool                                        FirstSmartAcquireRefused = false;
-			std::optional<core::application_session_id> AuthenticationSession;
+			bool                                             LargeReviewRepeatReads   = false;
+			bool                                             CliEnabled               = false;
+			bool                                             RefuseFirstSmartAcquire  = false;
+			bool                                             FirstSmartAcquireRefused = false;
+			std::optional<core::application_session_id>      AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
@@ -3524,10 +3524,11 @@ namespace bpr::app::detail {
 		{
 		public:
 			fixture_publication_wire(std::shared_ptr<fixture_recording_state>  aState,
-									 application::review_mutation_live_binding aBinding, review_mutation_fixture_evidence& aEvidence)
+									 application::review_mutation_live_binding aBinding, review_mutation_fixture_evidence& aEvidence, bool aLoseFirst)
 				: State{ std::move(aState) }
 				, Binding{ std::move(aBinding) }
 				, Evidence{ aEvidence }
+				, LoseFirst{ aLoseFirst }
 			{ }
 			auto perform_review_mutation(const adapters::github::detail::github_mutation_wire_request& aRequest,
 										 const std::stop_token aStop, adapters::github::detail::github_mutation_transmission_witness aWitness)
@@ -3594,7 +3595,7 @@ namespace bpr::app::detail {
 						State->CreatedReviewThreads.push_back(thread);
 					}
 					response.Status = 201;
-					if (!Evidence.LostResult) {
+					if (LoseFirst && !Evidence.LostResult) {
 						Evidence.LostResult = true;
 						HideReads           = true;
 						return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate };
@@ -3621,10 +3622,12 @@ namespace bpr::app::detail {
 			review_mutation_fixture_evidence&         Evidence;
 			QJsonArray                                Comments;
 			bool                                      HideReads = false;
+			bool                                      LoseFirst = false;
 		};
 
 		class fixture_review_mutation_provider final
-			: public application::review_mutation_port
+			: public application::review_mutation_port,
+			  public application::review_publication_lineage_port
 		{
 		public:
 			explicit fixture_review_mutation_provider(
@@ -3640,6 +3643,38 @@ namespace bpr::app::detail {
 			{
 			}
 
+			void set_lineage(std::shared_ptr<application::review_publication_lineage_port> aLineage)
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				std::erase_if(Lineages, [](const auto& aWeak) { return aWeak.expired(); });
+				if (std::ranges::none_of(Lineages, [&](const auto& aWeak) { return aWeak.lock() == aLineage; })) {
+					Lineages.push_back(aLineage);
+				}
+			}
+			auto prepare(const application::review_mutation_request& aRequest, std::string_view aLogical, std::string_view aWire) -> bool override
+			{
+				if (!aRequest.Proposal.Durable) {
+					return true;
+				}
+				for (const auto& weak : Lineages) {
+					if (auto host = weak.lock(); host && host->prepare(aRequest, aLogical, aWire)) {
+						return true;
+					}
+				}
+				return false;
+			}
+			auto complete(const application::review_mutation_request& aRequest, std::string_view aLogical, std::string_view aWire, const application::review_mutation_receipt& aReceipt) -> bool override
+			{
+				if (!aRequest.Proposal.Durable) {
+					return true;
+				}
+				for (const auto& weak : Lineages) {
+					if (auto host = weak.lock(); host && host->complete(aRequest, aLogical, aWire, aReceipt)) {
+						return true;
+					}
+				}
+				return false;
+			}
 			void prepare(core::review_mutation_target aTarget)
 			{
 				const std::scoped_lock providerLock{ Mutex };
@@ -3674,7 +3709,7 @@ namespace bpr::app::detail {
 						application::review_mutation_failure::undesignated_target
 					};
 				}
-				if (RealPublication && !aRequest.Proposal.ReplyToThread) {
+				if ((RealPublication || aRequest.Proposal.Durable) && !aRequest.Proposal.ReplyToThread) {
 					return submit_publication(aRequest);
 				}
 				const auto known = Identifiers.find(aRequest.IdempotencyKey);
@@ -3783,7 +3818,7 @@ namespace bpr::app::detail {
 					.StorageRoot = StorageRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
 				};
 				if (!Wire) {
-					Wire = std::make_unique<fixture_publication_wire>(State, binding, Evidence);
+					Wire = std::make_unique<fixture_publication_wire>(State, binding, Evidence, RealPublication);
 				}
 				Wire->allow_reads();
 				if (!Session) {
@@ -3796,7 +3831,7 @@ namespace bpr::app::detail {
 						.CredentialContext = { .Request = core::request_id{ 1U }, .ApplicationSession = core::application_session_id{ 1U }, .Authority = { .Profile = authority.Profile, .ProfileRevision = application::github_profile_revision{ authority.ProfileRevision.value() }, .Host = binding.Target.Semantic.Host, .Hostname = binding.Target.Hostname, .Account = binding.ActingIdentity.Account, .ServerContract = binding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1U } }, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity
 					};
 					Session = std::make_unique<review_mutation_session>(*Wire, config, std::make_shared<fixture_publication_lease>(), std::make_unique<fixture_publication_journal>(std::move(*recovery), PublicationKey),
-																		off_hunk_unsupported_contract{ .Server = binding.Target.ServerContract, .Resource = "PullRequestReviewComment", .Field = "line", .Code = "fixture_off_hunk_unsupported", .Message = "Fixture: no comment created for off-hunk line" });
+																		off_hunk_unsupported_contract{ .Server = binding.Target.ServerContract, .Resource = "PullRequestReviewComment", .Field = "line", .Code = "fixture_off_hunk_unsupported", .Message = "Fixture: no comment created for off-hunk line" }, this);
 					++Evidence.SessionConstructions;
 				}
 				auto result                = Session->submit(aRequest);
@@ -3814,12 +3849,13 @@ namespace bpr::app::detail {
 				}
 				return result;
 			}
-			mutable std::mutex                                                 Mutex;
-			bool                                                               RealPublication = false;
-			std::filesystem::path                                              StorageRoot;
-			std::string                                                        PublicationKey;
-			std::unique_ptr<fixture_publication_wire>                          Wire;
-			std::unique_ptr<adapters::github::detail::review_mutation_session> Session;
+			std::vector<std::weak_ptr<application::review_publication_lineage_port>> Lineages;
+			mutable std::mutex                                                       Mutex;
+			bool                                                                     RealPublication = false;
+			std::filesystem::path                                                    StorageRoot;
+			std::string                                                              PublicationKey;
+			std::unique_ptr<fixture_publication_wire>                                Wire;
+			std::unique_ptr<adapters::github::detail::review_mutation_session>       Session;
 
 			core::review_mutation_target                        Designated;
 			core::review_mutation_target                        Reported;
@@ -4182,6 +4218,7 @@ namespace bpr::app::detail {
 		Implementation->Mutation->report(std::move(aTarget));
 	}
 
+	void github_public_path_fixture_components::set_private_lineage(std::shared_ptr<application::review_publication_lineage_port> aLineage) { Implementation->Mutation->set_lineage(aLineage); }
 	auto github_public_path_fixture_components::review_mutation_provider() noexcept
 		-> application::review_mutation_port&
 	{

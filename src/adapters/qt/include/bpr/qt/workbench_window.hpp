@@ -98,6 +98,7 @@ namespace bpr::qt {
 	// delivery and chat-scope vocabularies along with it.
 	class finding_queue_view;
 	class side_chat_panel;
+	class private_review_panel;
 	class private_notes_panel;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
@@ -737,6 +738,7 @@ namespace bpr::qt {
 		/// Placement adds nothing to what the panel holds — the aggregate its
 		/// own tests bind by name is untouched.
 		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
+		[[nodiscard]] auto private_review() const noexcept -> private_review_panel* { return PrivateReview; }
 		[[nodiscard]] auto private_notes() const noexcept -> private_notes_panel*;
 		/// \brief The finding queue, placed above the draft the promotion fills.
 		///
@@ -1504,6 +1506,7 @@ namespace bpr::qt {
 		review_tour_editor*                    TourEditor                       = nullptr;
 		QAction*                               PrepareTourAction                = nullptr;
 		QAction*                               AddTourStopAction                = nullptr;
+		private_review_panel*                 PrivateReview = nullptr;
 		side_chat_panel*                       SideChat                         = nullptr;
 		finding_queue_view*                    FindingQueue                     = nullptr;
 		review_draft_editor*                   ReviewEditor                     = nullptr;
