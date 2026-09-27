@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0583"
 title: "Implement composition workspaces and non-destructive Squash to Draft"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0580","BPR-0582"]
 milestone: "Post-Pack v2"
