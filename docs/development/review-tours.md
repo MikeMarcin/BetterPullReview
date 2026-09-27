@@ -10,8 +10,9 @@ Tour writes currently remain unavailable because their exact GitHub.com/GHES
 operations have not been qualified. Existing ordinary review commands retain
 their own support. The [qualification course](../verification/RFC-BPR-0039-0043.manual-course.md)
 and [evidence ledger](../verification/RFC-BPR-0039-0043.md) record the outstanding
-server, platform and human checks. Do not interpret an available ordinary
-comment action as support for a pending tour batch.
+server, other-platform and installed-provider/model checks. The seven prepared
+Mac native judgments are accepted on their recorded candidates. Do not interpret
+an available ordinary comment action as support for a pending tour batch.
 
 ## Write the brief and route
 

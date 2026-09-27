@@ -1,0 +1,362 @@
+{
+  "assignment": "bpr-review-tour-v1/qualification-closeout",
+  "mandate_revision": "r1-20260926-land-each-milestone",
+  "run_id": "bpr-review-tour-20260926",
+  "segment_id": "qualification-closeout-post-review-r5",
+  "owner": "/root/tour_qualification_reconcile_r5",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+  "selected_recipe": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "entry_revision": "2077f05a541ee21423c557cd32cef79024fca24b",
+  "accepted_issue_commit": "010250364ada66c73a0321335495a3f954607db5",
+  "product_candidate": {
+    "source_revision": "95b71e99cc658871a886df66a7a7be22dd2fe3e7",
+    "binary": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r4",
+    "sha256": "2159aaf20cd8de14c66c4f6157d5dd6ca6e22338661f4cefd81fda6e2dc2db98"
+  },
+  "accepted_milestones": [
+    "intake",
+    "manual-authoring",
+    "github-round-trip",
+    "staged-publication",
+    "manual-maintenance",
+    "scoped-ai",
+    "outline-and-adversaries"
+  ],
+  "prior_landed_main": "2e2aca96381ece78baea1d2ec68e0c432ffeb945",
+  "result": "BPR-1221 Done; BPR-1013 Parked/awaiting-live-github; BPR-1016 Backlog; all five RFCs Proposed; final milestone pending external evidence/dependencies.",
+  "session": "7834eb10dc5260f8cc14257a669c1109",
+  "cursor": 99,
+  "pending_prepared_decisions": [],
+  "candidates": [
+    {
+      "id": "BPR-1013-accessibility",
+      "title": "VoiceOver names and selection",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "cc7bf2a07a651af69cea8b115dd134893ec76863829c121922ec563d7e63a2c4",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-accessibility",
+        "fingerprint": "cc7bf2a07a651af69cea8b115dd134893ec76863829c121922ec563d7e63a2c4",
+        "decision_id": "5333a4a5-f89a-495b-b3dd-5ab29a1a6280",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:24:19.930216+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-conflict",
+      "title": "Baseline, local and website conflict",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:7453ec2ec0d017bcea4abfec885cee5cb68f57c4d030bc613e970bde88e280be",
+      "fingerprint": "51a3b1f116ec635678e1ef0e0d381f1d7087411b6d4281e992f42616705748a3",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-conflict",
+        "fingerprint": "51a3b1f116ec635678e1ef0e0d381f1d7087411b6d4281e992f42616705748a3",
+        "decision_id": "df559d8c-7b9e-487e-ad7f-07ee81356cc1",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:26:55.550532+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-ime",
+      "title": "Insert after, new selection and ordinary undo",
+      "revision": "54ba51bf8b833925ddf58354275e13bde2f669e3;binary-sha256:1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+      "fingerprint": "9e053708e61172c8bb2750002f1f65f9aa8b07518e300f15a324826e0326cc87",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-ime",
+        "fingerprint": "9e053708e61172c8bb2750002f1f65f9aa8b07518e300f15a324826e0326cc87",
+        "decision_id": "fe931296-f5f2-4027-b616-aff88314b0e1",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T17:13:20.921196+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-keyboard",
+      "title": "Visible keyboard focus through tour controls",
+      "revision": "95b71e99cc658871a886df66a7a7be22dd2fe3e7;binary-sha256:2159aaf20cd8de14c66c4f6157d5dd6ca6e22338661f4cefd81fda6e2dc2db98",
+      "fingerprint": "75abb8d2fbb43f08c4f5874554baa63482de583ea00119444e096bdec34bfbe3",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-keyboard",
+        "fingerprint": "75abb8d2fbb43f08c4f5874554baa63482de583ea00119444e096bdec34bfbe3",
+        "decision_id": "e9a9873a-2035-49fe-b12f-e0ae4c28f3e4",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T17:54:51.245798+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-layout-large",
+      "title": "Large route layout",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "d4213ab9654cda3dc14dc0cbc121e10911ce0e26dd90732d8d973b4f2ea951dd",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-layout-large",
+        "fingerprint": "d4213ab9654cda3dc14dc0cbc121e10911ce0e26dd90732d8d973b4f2ea951dd",
+        "decision_id": "2be22d67-57b0-4a32-8625-9f8bd70cbf9c",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:28:43.998358+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-layout-ordinary",
+      "title": "Status icons before tour stop numbers",
+      "revision": "95b71e99cc658871a886df66a7a7be22dd2fe3e7;binary-sha256:2159aaf20cd8de14c66c4f6157d5dd6ca6e22338661f4cefd81fda6e2dc2db98",
+      "fingerprint": "5440d0b5b6e774fa8309cfefebcd08454a96d9d3a451e50e9871b04f92929a8e",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-layout-ordinary",
+        "fingerprint": "5440d0b5b6e774fa8309cfefebcd08454a96d9d3a451e50e9871b04f92929a8e",
+        "decision_id": "92b832d8-a930-44fe-a09d-3d979dc05180",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T17:55:21.649946+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-1013-responsiveness",
+      "title": "Large route interaction",
+      "revision": "28622c5dfed8b1f5fbcb316da770e60863f0fa11;binary-sha256:91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+      "fingerprint": "3e4b52dce8963451b88c4871c2546380fd1bbc407d8e74a30726b040355027b7",
+      "phase": "ready",
+      "protected": true,
+      "decision": {
+        "candidate": "BPR-1013-responsiveness",
+        "fingerprint": "3e4b52dce8963451b88c4871c2546380fd1bbc407d8e74a30726b040355027b7",
+        "decision_id": "d689659e-a442-4fa0-a2ed-2c26c9751389",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T15:28:13.380169+00:00",
+        "actor": "human"
+      }
+    }
+  ],
+  "historical_r3_ordinary_accept": {
+    "id": "BPR-1013-layout-ordinary",
+    "title": "Stop context menu, multiselection and drag handles",
+    "revision": "54ba51bf8b833925ddf58354275e13bde2f669e3;binary-sha256:1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+    "fingerprint": "494f11091d3d21c6190a02444cd5f567298fa7a4ca5d76d2723ae79acfbdc51d",
+    "phase": "ready",
+    "protected": false,
+    "decision": {
+      "candidate": "BPR-1013-layout-ordinary",
+      "fingerprint": "494f11091d3d21c6190a02444cd5f567298fa7a4ca5d76d2723ae79acfbdc51d",
+      "decision_id": "958faedb-9241-4b05-bad9-aa8604f27edb",
+      "outcome": "accept",
+      "note": "",
+      "saved_at": "2026-09-27T17:14:42.597320+00:00",
+      "actor": "human"
+    }
+  },
+  "protected_binary_hashes_verified": {
+    "build/dev/tests/end_to_end/review_tour_composition_public_path": "91fbeb97e565ca0e1577b16ab3167549dc8ab84dff35ee33ebdabf9ebccc80f0",
+    "build/dev/tests/end_to_end/review_tour_publication_public_path": "7453ec2ec0d017bcea4abfec885cee5cb68f57c4d030bc613e970bde88e280be",
+    "build/dev/tests/end_to_end/review_tour_composition_r3": "1cc0fc23dd49e4db94427d2bf35db995694cb859c39b1fdfdcd452561d7dd3e6",
+    "build/dev/tests/end_to_end/review_tour_composition_r4": "2159aaf20cd8de14c66c4f6157d5dd6ca6e22338661f4cefd81fda6e2dc2db98"
+  },
+  "changed_paths": [
+    "docs/development/review-tours.md",
+    "docs/issues/10-backlog/BPR-1016-close-rfc-0043.md",
+    "docs/issues/40-parked/BPR-1013-qualify-native-authoring-and-website-only-review-paths.md",
+    "docs/issues/60-done/BPR-1221-show-tour-stop-status-before-the-number.md",
+    "docs/verification/RFC-BPR-0039-0043.manual-course.md",
+    "docs/verification/RFC-BPR-0039-0043.md",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r5-checkpoint.json",
+    "docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r5-handoff.json"
+  ],
+  "verification": [
+    {
+      "command": "attended_review.py --repo-root ROOT status --after 96",
+      "result": "Session 7834eb10dc5260f8cc14257a669c1109 cursor99: all seven current candidates accepted, no pending prepared decision."
+    },
+    {
+      "command": "SHA-256 over the four protected composition/publication executables",
+      "result": "All four match their accepted candidate identities."
+    },
+    {
+      "command": "attended_review.py --repo-root ROOT conflicts --paths <the nine scoped documentation paths>",
+      "result": "No conflicts."
+    },
+    {
+      "command": "issue_board.py --repo-root ROOT finish BPR-1221 --acceptance /tmp/bpr-review-tour-run/BPR-1221-r5-acceptance.json --paths docs/issues/40-parked/BPR-1221-show-tour-stop-status-before-the-number.md --expect-revision 2077f05a541ee21423c557cd32cef79024fca24b",
+      "result": "Guarded Done commit 010250364ada66c73a0321335495a3f954607db5; four criteria pass; repaired BPR-1013 link included."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK before BPR-1221 finish and after final reconciliation documentation/checkpoint/handoff creation."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0039 --rfc RFC-BPR-0040 --rfc RFC-BPR-0041 --rfc RFC-BPR-0042 --rfc RFC-BPR-0043 --json",
+      "result": "valid:true; 1209 cards; no errors."
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass."
+    },
+    {
+      "command": "Exact prior/current candidate comparison and 43-row reconciliation count",
+      "result": "All five retained candidate objects identical; 43 rows = 37 scoped pass + 6 pending."
+    },
+    {
+      "command": "milestone_checkpoint.py check --checkpoint docs/verification/RFC-BPR-0039-0043.qualification-closeout-post-review-r5-checkpoint.json --observation /tmp/bpr-review-tour-run/qualification-r5-observation.json --execution quiescent (seven accepted predecessor milestones)",
+      "result": "action:pending; selected mandate/recipe/plan/card bindings consistent; final milestone waits for recorded external evidence and explicit RFC predecessors. Engineering acceptance remains not-evaluated by the helper."
+    }
+  ],
+  "reused_unchanged_verification": [
+    {
+      "name": "native",
+      "environment": {
+        "BPR_AUTOMATED_TEST_BOUNDARY": "1",
+        "QT_QPA_PLATFORM": "cocoa",
+        "QT_SCALE_FACTOR": "1"
+      },
+      "argv": [
+        "/opt/homebrew/bin/python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/.codex/worktrees/d061/BetterPullReview/build/dev/tests/end_to_end/review_tour_composition_r4",
+        "/tmp/bpr-review-tour-run/r4-native.png"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/bpr-review-tour-run/r4-native.log"
+    },
+    {
+      "name": "physical native",
+      "result": "CUA Tab scrolls Enhance into viewport with visible blue perimeter; Shift+Tab returns to Problem. Final exact-binary Command-Q exits; wrapper TEST_RUNNER_CHILD_EXIT:0; no process remains.",
+      "log": "/tmp/bpr-review-tour-run/r4-physical-native.log"
+    },
+    {
+      "name": "production desktop Quit",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-R",
+        "^application_profile_management_public_path$",
+        "--output-on-failure"
+      ],
+      "result": "1/1 pass, 5.48 seconds; real profile_desktop Quit drains all profiles/startup"
+    },
+    {
+      "name": "architecture",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-R",
+        "^architecture_boundaries$",
+        "--output-on-failure"
+      ],
+      "result": "1/1 pass, 8.03 seconds"
+    },
+    {
+      "name": "format and tidy",
+      "result": "Both changed C++ files pass; final gallery-only size constants reformatted.",
+      "log": "/tmp/bpr-review-tour-run/r4-tidy.log"
+    },
+    {
+      "name": "documentation",
+      "result": "Documentation gate and 64 contract tests pass; final gate rerun after handoff/card move.",
+      "logs": [
+        "/tmp/bpr-review-tour-run/r4-docs.log",
+        "/tmp/bpr-review-tour-run/r4-doc-tests.log"
+      ]
+    }
+  ],
+  "pending_criteria": {
+    "AC39-06": "Seven prepared macOS Cocoa/arm64 candidates accepted; remaining eligible native station execution including Windows/Linux is unobserved.",
+    "AC40-07": "Designated safe live GitHub.com/GHES target and author/reviewer accounts for website-only route/navigation/reply.",
+    "AC41-04": "Exact host/version/native-HTTPS and admitted-macOS-CLI operations remain unqualified.",
+    "AC41-06": "Exact pending file-subject/staging capability and explicit compatibility qualification; unavailable until observed.",
+    "AC42-08": "Website-only continuation and replies through completed live maintenance on the approved target.",
+    "AC43-10": "Approved installed restricted provider/model/account and explicit inference authority; fixture process/undo evidence retained."
+  },
+  "rfc_unmet_dependencies": {
+    "RFC-BPR-0039": [
+      "RFC-BPR-0036:Proposed",
+      "RFC-BPR-0037:Proposed"
+    ],
+    "RFC-BPR-0040": [
+      "RFC-BPR-0021:Deferred",
+      "RFC-BPR-0022:Proposed",
+      "RFC-BPR-0039:Proposed"
+    ],
+    "RFC-BPR-0041": [
+      "RFC-BPR-0040:Proposed"
+    ],
+    "RFC-BPR-0042": [
+      "RFC-BPR-0041:Proposed"
+    ],
+    "RFC-BPR-0043": [
+      "RFC-BPR-0042:Proposed"
+    ]
+  },
+  "acceptance_matrix": {
+    "total": 43,
+    "pass_with_recorded_scope": 37,
+    "pending": 6
+  },
+  "ownership": {
+    "repository": "/Users/jaeger/.codex/worktrees/d061/BetterPullReview",
+    "branch": "codex/review-tour-pack",
+    "repository_writer": "This leaf only during reconciliation; relinquished on return. Unrelated primary-main work untouched.",
+    "task_commands": "All foreground board/documentation commands complete before return; no leaf background app/build/test command.",
+    "review_server": {
+      "owner": "coordinator",
+      "pid": 66418,
+      "port": 60482,
+      "pending_decisions": 0,
+      "handoff": "Existing server remains explicitly handed off. Safe for coordinator to stop with the companion; stop preserves recorded verdicts and protections."
+    },
+    "remote_effects": "No live GitHub/GHES mutation, model inference, main merge or push."
+  },
+  "binding_renewal": "Current r5 binding retains all ten work obligations and three exits; only authorized acceptance/bookkeeping evidence changes update card fingerprints. Initial r5 binding retained privately; original/r4 bindings and additive amendment preserved.",
+  "continuation": "Wait for approved live host/target/accounts, eligible native station evidence, installed-provider/model authority and explicit predecessor acceptance. Resume this same milestone with exact candidate preservation. No fresh attended queue is prepared without a runnable authorized course. Coordinator lands only after full milestone acceptance.",
+  "runtime_handoff": "/tmp/bpr-review-tour-run/qualification-r5-handoff.json"
+}

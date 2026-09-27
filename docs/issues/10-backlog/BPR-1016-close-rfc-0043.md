@@ -23,10 +23,10 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 |---|---|---|
 | **AC39-01:** An author completes and locally saves Problem → Solution → manually ordered stops → preview with no AI profile, child agent process, or inference request.  | Pass — composed no-agent brief, manual route, preview and real SQLite restart. | `791decea` |
 | **AC39-02:** The source editor preserves Markdown; previews are non-mutating and use the existing safe native rendering policy.  | Pass — native raw Markdown/preview and resource-denial negative control. | `791decea; 3b86f047` |
-| **AC39-03:** Add/insert/reorder/split/merge/remove operations preserve stable identity, text, related links and ordinary undo where applicable.  | Pass in automation — insert after/current selection and redo, atomic selected merge/remove/duplicate, exact retired originals and standard shortcuts verified. Owner hand-back 70 removes visible split; its core preservation remains tested. Physical drag is attended-required. | `791decea; 54ba51bf` |
+| **AC39-03:** Add/insert/reorder/split/merge/remove operations preserve stable identity, text, related links and ordinary undo where applicable.  | Pass — automated insert/redo, atomic group operations, exact retired originals and shortcuts; owner accepted r3 insertion/undo and ordinary layout including physical drag at hand-back 90. Underlying split preservation remains tested under the hand-back 70 amendment. | `791decea; 54ba51bf` |
 | **AC39-04:** A stop can represent an actual source line/range and related unchanged code without inventing native write support.  | Pass — exact inclusive source intervals, related base code and explicit fallback subjects. | `757e8b9b` |
 | **AC39-05:** Draft autosave, restart, account/profile isolation and same-draft multiwindow conflicts are exercised with real admitted private storage.  | Pass — admitted SQLite CAS/reopen/killed COMMIT, real profile isolation and visible conflicting copies. | `ae59878e; 3b86f047` |
-| **AC39-06:** Current workbench composition is keyboard-accessible and usable at supported sizes/scales; navigation and readiness change no remote review state.  | Pending — four original native accepts preserved. Hand-back 70 corrections have passing Cocoa focus/editor checks; physical Tab and drag plus revised layout/input judgment remain three ready candidates at cursor 86. Other native stations stay open. | `28622c5d; 54ba51bf` |
+| **AC39-06:** Current workbench composition is keyboard-accessible and usable at supported sizes/scales; navigation and readiness change no remote review state.  | Pending for other eligible native stations — all seven prepared Mac candidates accepted by hand-back 99, including r4 physical keyboard visibility and status icons. Existing native/no-effects tests pass. Windows/Linux execution remains open; accepts retain their exact source/binary scope. | `28622c5d; 54ba51bf; 95b71e99` |
 | **AC39-07:** Manual drafts remain usable when rendering, source acquisition, authentication or later AI assistance is unavailable; missing state is not silently dropped.  | Pass — refused/unsaved text retained; unavailable source/auth/agent does not discard the private draft. | `791decea; 37919b21` |
 | **AC39-08:** Bounds and their refusal paths are tested with short, ordinary, long and maximum-admitted tours.  | Pass — core field/encoded limits and actual 1/8/64/256-stop Cocoa route with 257th-stop refusal; measured scope below. | `5ca53796` |
 | **AC40-01:** Every shared stop and index is ordinary readable Markdown in normal GitHub comments, with real links and no required BPR-specific metadata.  | Pass in fixture scope — ordinary Markdown root/comments and returned same-PR URLs; live website course is AC40-07. | `cba9064c; 505c942d` |
@@ -63,7 +63,7 @@ RFC base: `3e12138ae8c603315b3d55c34872d7a4fc777a71`.
 | **AC43-07:** Empty fields recover existing PR explanations before inference; unsupported claims are not invented, and no Jira/issue lookup occurs.  | Pass in fixture scope — deterministic brief recovery before inference, bounded source provenance and no linked-ticket lookup; model truth/quality remains AC43-10. | `37919b21` |
 | **AC43-08:** Outline output has no bodies; each generated stop requires a visible visit and current-content completion, and per-stop generation cannot run in bulk.  | Pass — strict body-free outline, retained skeletons, actual visible source/current-text completion and no bulk path. | `1ef7a98c; 3b86f047` |
 | **AC43-09:** Skill overrides and prompt-injected source/model output cannot widen writes, invoke tools, auto-publish, acknowledge stops or leak credentials.  | Pass in process-fixture scope — malicious source/output, exact restricted argv/environment, zero publication/readiness grant and private diagnostic canaries. Installed enforcement remains unqualified. | `3b86f047; 4b89411c` |
-| **AC43-10:** End-to-end native editor tests exercise the real undo path, profile settings and agent delivery seam; canned response tests are not represented as quality evidence for an untested model.  | Pending — current real-process/native-widget undo/settings/delivery regressions pass. Installed enforcement and model quality remain unobserved; four original accepts and three pending revised native verdicts remain separately bound. | `4b89411c; 5ca53796; 54ba51bf` |
+| **AC43-10:** End-to-end native editor tests exercise the real undo path, profile settings and agent delivery seam; canned response tests are not represented as quality evidence for an untested model.  | Pending — real-process/native-widget undo/settings/delivery regressions pass and all seven prepared Mac candidates are accepted on their exact sources/binaries. Installed restricted-provider enforcement, actual-model quality and other eligible native execution remain unobserved. | `4b89411c; 5ca53796; 54ba51bf; 95b71e99` |
 
 ## Outcome and work
 
@@ -114,3 +114,20 @@ The r4 follow-up corrects keyboard visibility and implements the owner-requested
 BPR-1221 row icons; only keyboard and ordinary-layout require new judgments.
 Historical accepts remain evidence for their own source and binary. This does
 not satisfy the outstanding live-host/model/dependency rows or advance RFC status.
+
+
+## Current reconciliation after hand-back 99
+
+The 43-row matrix retains **37 passing rows within their stated scope and six
+pending rows**: AC39-06, AC40-07, AC41-04, AC41-06, AC42-08 and AC43-10.
+All seven prepared Mac judgments are now accepted; BPR-1221 is Done. The exact
+new keyboard/status-icon verdicts and prior accepted candidates are in the
+[r5 ledger and handoff](../../verification/RFC-BPR-0039-0043.md#post-review-r5--hand-back-99-reconciliation).
+BPR-1013 is Parked on `awaiting-live-github`, retaining other native/model waits.
+No designated safe live target/accounts or installed-model authority arrived.
+
+The live dependency audit at `010250364ada66c73a0321335495a3f954607db5`
+confirms every unmet dependency in the table above. All other explicit
+predecessors are Auto-Verified; index position adds none. No RFC closeout or
+final milestone acceptance is claimed. The coordinator retains main integration
+authority once the final milestone is actually accepted.
