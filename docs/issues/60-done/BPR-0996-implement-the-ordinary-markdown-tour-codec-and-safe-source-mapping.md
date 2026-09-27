@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0996"
 title: "Implement the ordinary Markdown tour codec and safe source mapping"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0040"]
 depends_on: ["BPR-0992", "BPR-0995"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-06","milestone":"github-round-trip","acceptance":["AC40-01","AC40-02","AC40-04","AC40-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC40-01","outcome":"pass","revision":"cba9064c","evidence":{"kind":"command","detail":"core_review_tour_markdown passed: bounded syntax-aware scanner, ordinary generated links, source-span edits and exact LF/CRLF preservation; see milestone ledger. This codec card does not claim later cold-import or live website qualification."}},{"criterion":"AC40-02","outcome":"pass","revision":"cba9064c","evidence":{"kind":"command","detail":"core_review_tour_markdown passed: bounded syntax-aware scanner, ordinary generated links, source-span edits and exact LF/CRLF preservation; see milestone ledger. This codec card does not claim later cold-import or live website qualification."}},{"criterion":"AC40-04","outcome":"pass","revision":"cba9064c","evidence":{"kind":"command","detail":"core_review_tour_markdown passed: bounded syntax-aware scanner, ordinary generated links, source-span edits and exact LF/CRLF preservation; see milestone ledger. This codec card does not claim later cold-import or live website qualification."}},{"criterion":"AC40-05","outcome":"pass","revision":"cba9064c","evidence":{"kind":"command","detail":"core_review_tour_markdown passed: bounded syntax-aware scanner, ordinary generated links, source-span edits and exact LF/CRLF preservation; see milestone ledger. This codec card does not claim later cold-import or live website qualification."}}]
 ---
 
 # BPR-0996: Implement the ordinary Markdown tour codec and safe source mapping
