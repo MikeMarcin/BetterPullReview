@@ -2543,9 +2543,9 @@ namespace bpr::adapters::github::detail {
 					.Failure = application::review_mutation_failure::unavailable,
 				};
 			}
-			// The hop calls this once its POST has been handed to Qt, and
-			// aborts it unless this admits it. Every POST is possibly sent from
-			// then on; only a witnessed write asks the caller first.
+			// The hop calls this before handing a mutation to Qt. The durable
+			// witness admits that exact operation once. Conservatively retain
+			// possible transmission even if a subsequent launch fails.
 			auto postCreated = std::make_shared<std::atomic_bool>(false);
 			auto admit       = [postCreated, witnessed = exchange->Witnessed,
 								transmissionWitness = std::move(aWitness)]() mutable {
@@ -3603,7 +3603,7 @@ namespace bpr::adapters::github::detail {
 
 			QByteArray requestBody;
 			if (
-				aOperation->Request.Method == http_method::post) {
+				aOperation->Request.Method != http_method::get) {
 				requestBody = QByteArray{
 					aOperation->Request.Body.data(),
 					static_cast<qsizetype>(aOperation->Request.Body.size())
@@ -3618,20 +3618,11 @@ namespace bpr::adapters::github::detail {
 					application::github_provider_failure::timeout);
 			}
 			request->setTransferTimeout(*sendRemaining);
-			if (aOperation->Request.Method == http_method::post) {
-				state.Reply = Manager->post(*request, requestBody);
-			} else {
-				state.Reply = Manager->get(*request);
-			}
-			if (state.Reply == nullptr) {
-				return provider_error(
-					application::github_provider_failure::network);
-			}
-			// A review POST is possibly sent from here on, so it never falls
-			// back to another proxy; the operation's admission decides whether
-			// it may go at all ([[BPR-1018]]).
+			// Persist the witness before giving any mutation verb to Qt. Marking
+			// the attempt conservatively also prevents proxy fallback after an
+			// admission failure; no request is created when durability refuses.
 			if (aOperation->Request.Surface == native_request_surface::review_mutation
-				&& aOperation->Request.Method == http_method::post) {
+				&& aOperation->Request.Method != http_method::get) {
 				aOperation->MutationPostCreated = true;
 				auto witnessed                  = false;
 				try {
@@ -3645,6 +3636,19 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::unavailable);
 				}
 			}
+			switch (aOperation->Request.Method) {
+			case http_method::get:     state.Reply = Manager->get(*request); break;
+			case http_method::post:    state.Reply = Manager->post(*request, requestBody); break;
+			case http_method::put:     state.Reply = Manager->put(*request, requestBody); break;
+			case http_method::patch:   state.Reply = Manager->sendCustomRequest(*request, "PATCH", requestBody); break;
+			case http_method::delete_: state.Reply = Manager->deleteResource(*request); break;
+			default:                   return provider_error(application::github_provider_failure::unavailable);
+			}
+			if (state.Reply == nullptr) {
+				return provider_error(
+					application::github_provider_failure::network);
+			}
+
 			active_hop_guard active{ state, ActiveHop };
 			state.Reply->setReadBufferSize(static_cast<qint64>(std::min(
 				responseBodyLimit + 1U, response_read_buffer_bytes)));

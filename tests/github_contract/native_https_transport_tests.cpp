@@ -2170,6 +2170,21 @@ namespace {
 			const auto* success   = std::get_if<github_mutation_wire_success>(&submitted.Completion);
 			expect(success != nullptr && success->Response.Status == 200 && submitted.Consulted == 1U,
 				   "review-submission-completes-with-200-after-one-witness");
+			using op = application::staged_review_operation;
+			for (auto operation : { op::update_summary, op::update_comment, op::submit_comment, op::discard_pending }) {
+				application::staged_review_request staged{ .Binding = { mutation_target_for(aProfile), mutation_identity_for(aProfile) }, .Operation = operation };
+				if (operation == op::update_comment) {
+					staged.Comment = 44;
+				} else {
+					staged.Review = application::review_database_id{ 80 };
+				}
+				if (operation != op::discard_pending) {
+					staged.Body = "Literal `$(no shell)` tour";
+				}
+				const auto  sent     = perform(wire(compile_staged_review_request(staged)), true);
+				const auto* answered = std::get_if<github_mutation_wire_success>(&sent.Completion);
+				expect(answered && answered->Response.Status == 200 && sent.Consulted == 1, "staged-exact-verb-one-witness");
+			}
 			return;
 		}
 		if (aScenario == fixture_scenario::mutation_graphql_witness_failure) {

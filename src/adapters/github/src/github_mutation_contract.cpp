@@ -1565,11 +1565,473 @@ namespace bpr::adapters::github::detail {
 		}
 	} // namespace
 
+	namespace {
+		using staged_operation = application::staged_review_operation;
+		struct staged_line_json
+		{
+			std::string                  Path, Body, Side;
+			std::uint64_t                Line = 0;
+			std::optional<std::uint64_t> StartLine;
+			std::optional<std::string>   StartSide;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("path", &staged_line_json::Path, "body", &staged_line_json::Body, "line", &staged_line_json::Line, "side", &staged_line_json::Side, "start_line", &staged_line_json::StartLine, "start_side", &staged_line_json::StartSide);
+			};
+		};
+		struct staged_batch_json
+		{
+			std::string                   Body, Commit;
+			std::vector<staged_line_json> Comments;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("body", &staged_batch_json::Body, "commit_id", &staged_batch_json::Commit, "comments", &staged_batch_json::Comments);
+			};
+		};
+		struct staged_body_json
+		{
+			std::string                Body;
+			std::optional<std::string> Event;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("body", &staged_body_json::Body, "event", &staged_body_json::Event);
+			};
+		};
+		struct staged_review_json
+		{
+			std::uint64_t              Id = 0;
+			std::string                NodeId, WebUrl, PullRequestUrl, Body, Commit, State;
+			review_author_json         User;
+			std::optional<std::string> SubmittedAt;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &staged_review_json::Id, "node_id", &staged_review_json::NodeId, "html_url", &staged_review_json::WebUrl, "pull_request_url", &staged_review_json::PullRequestUrl, "body", &staged_review_json::Body, "commit_id", &staged_review_json::Commit, "state", &staged_review_json::State, "user", &staged_review_json::User, "submitted_at", &staged_review_json::SubmittedAt);
+			};
+		};
+		struct staged_comment_json
+		{
+			std::uint64_t                Id = 0, Review = 0;
+			std::string                  NodeId, WebUrl, PullRequestUrl, Body, Path, Commit;
+			review_author_json           User;
+			std::optional<std::uint64_t> Line, StartLine, Reply;
+			std::optional<std::string>   Side, StartSide, Subject;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &staged_comment_json::Id, "node_id", &staged_comment_json::NodeId, "html_url", &staged_comment_json::WebUrl, "pull_request_url", &staged_comment_json::PullRequestUrl, "body", &staged_comment_json::Body, "path", &staged_comment_json::Path, "commit_id", &staged_comment_json::Commit, "user", &staged_comment_json::User, "pull_request_review_id", &staged_comment_json::Review, "line", &staged_comment_json::Line, "start_line", &staged_comment_json::StartLine, "side", &staged_comment_json::Side, "start_side", &staged_comment_json::StartSide, "subject_type", &staged_comment_json::Subject, "in_reply_to_id", &staged_comment_json::Reply);
+			};
+		};
+		struct staged_issue_comment_json
+		{
+			std::uint64_t      Id = 0;
+			std::string        NodeId, WebUrl, IssueUrl, Body;
+			review_author_json User;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &staged_issue_comment_json::Id, "node_id", &staged_issue_comment_json::NodeId, "html_url", &staged_issue_comment_json::WebUrl, "issue_url", &staged_issue_comment_json::IssueUrl, "body", &staged_issue_comment_json::Body, "user", &staged_issue_comment_json::User);
+			};
+		};
+		[[nodiscard]] auto staged_api_origin(const application::review_mutation_target_binding& aTarget) -> std::string
+		{
+			return "https://" + (aTarget.ServerContract == application::github_server_contract::github_com_2022_11_28 ? std::string{ "api.github.com" } : std::string{ aTarget.Hostname.value() });
+		}
+		[[nodiscard]] auto staged_web_root(const application::review_mutation_target_binding& aTarget) -> std::string
+		{
+			return "https://" + std::string{ aTarget.Hostname.value() } + "/" + aTarget.Repository.Owner + "/" + aTarget.Repository.Name + "/pull/" + std::to_string(aTarget.Number.value());
+		}
+		[[nodiscard]] auto staged_actor(const review_author_json& aActor) -> std::optional<application::staged_review_actor>
+		{
+			if (!aActor.Id || !bounded_text(aActor.NodeId, 256) || !bounded_text(aActor.Login, 256)) {
+				return std::nullopt;
+			}
+			return application::staged_review_actor{ aActor.Id, aActor.NodeId, aActor.Login };
+		}
+		[[nodiscard]] auto staged_list(staged_operation aOperation) -> bool
+		{
+			return aOperation == staged_operation::list_reviews || aOperation == staged_operation::list_comments || aOperation == staged_operation::list_issue_comments;
+		}
+		[[nodiscard]] auto staged_page_suffix(std::uint32_t aPage) -> std::string
+		{
+			return "?per_page=100&page=" + std::to_string(aPage);
+		}
+		[[nodiscard]] auto staged_next(const review_mutation_wire_response& aResponse, const application::staged_review_request& aExpected, const review_mutation_wire_request& aWire) -> std::optional<bool>
+		{
+			bool next = false, seen = false;
+			for (const auto& header : aResponse.Headers) {
+				if (header.Name.size() != 4 || !std::ranges::equal(header.Name, std::string_view{ "link" }, [](unsigned char a, unsigned char b) { return std::tolower(a) == std::tolower(b); })) {
+					continue;
+				}
+				if (seen || !staged_list(aExpected.Operation)) {
+					return std::nullopt;
+				}
+				seen                               = true;
+				std::string_view         remaining = header.Value;
+				std::vector<std::string> relations;
+				while (!remaining.empty()) {
+					const auto comma = remaining.find(',');
+					auto       part  = remaining.substr(0, comma);
+					while (part.starts_with(' ')) {
+						part.remove_prefix(1);
+					}
+					const auto split = part.find(">; rel=\"");
+					if (!part.starts_with('<') || split == std::string_view::npos || !part.ends_with('"')) {
+						return std::nullopt;
+					}
+					const auto url      = part.substr(1, split - 1);
+					const auto relation = part.substr(split + 8, part.size() - split - 9);
+					if (std::ranges::find(relations, relation) != relations.end()) {
+						return std::nullopt;
+					}
+					relations.emplace_back(relation);
+					const auto                   prefix = staged_api_origin(aExpected.Binding.Target) + aWire.Path.substr(0, aWire.Path.find('?'));
+					std::optional<std::uint32_t> page;
+					for (std::uint32_t number = 1; number <= application::maximum_staged_review_pages; ++number) {
+						if (url == prefix + staged_page_suffix(number) || url == prefix + "?page=" + std::to_string(number) + "&per_page=100") {
+							page = number;
+							break;
+						}
+					}
+					if (!page) {
+						return std::nullopt;
+					}
+					if (relation == "next") {
+						if (*page != aExpected.Page + 1) {
+							return std::nullopt;
+						}
+						next = true;
+					} else if (relation == "prev") {
+						if (*page + 1 != aExpected.Page) {
+							return std::nullopt;
+						}
+					} else if (relation == "first") {
+						if (*page != 1) {
+							return std::nullopt;
+						}
+					} else if (relation == "last") {
+						if (*page < aExpected.Page) {
+							return std::nullopt;
+						}
+					} else {
+						return std::nullopt;
+					}
+					if (comma == std::string_view::npos) {
+						break;
+					}
+					if (comma + 1 == remaining.size()) {
+						return std::nullopt;
+					}
+					remaining.remove_prefix(comma + 1);
+				}
+			}
+			if (next && aExpected.Page >= application::maximum_staged_review_pages) {
+				return std::nullopt;
+			}
+			return next;
+		}
+		[[nodiscard]] auto staged_review_entity(const staged_review_json& aReview, const application::staged_review_request& aExpected) -> std::optional<application::staged_review_entity>
+		{
+			const auto& target = aExpected.Binding.Target;
+			const auto  actor  = staged_actor(aReview.User);
+			const auto  commit = core::parse_git_commit_oid(aReview.Commit);
+			if (!actor || !commit || !aReview.Id || !bounded_text(aReview.NodeId, 256) || !utf8_round_trip(aReview.Body)
+				|| aReview.Body.size() > maximum_review_mutation_body_bytes
+				|| aReview.PullRequestUrl != staged_api_origin(target) + pull_request_path(target, target.ServerContract)
+				|| aReview.WebUrl != staged_web_root(target) + "#pullrequestreview-" + std::to_string(aReview.Id)) {
+				return std::nullopt;
+			}
+			using state = application::staged_review_state;
+			std::optional<state> status;
+			if (aReview.State == "PENDING") {
+				if (aReview.SubmittedAt) {
+					return std::nullopt;
+				}
+				status = state::pending;
+			} else if (aReview.SubmittedAt && submitted_timestamp(*aReview.SubmittedAt)) {
+				if (aReview.State == "COMMENTED") {
+					status = state::commented;
+				}
+				if (aReview.State == "APPROVED") {
+					status = state::approved;
+				}
+				if (aReview.State == "CHANGES_REQUESTED") {
+					status = state::changes_requested;
+				}
+				if (aReview.State == "DISMISSED") {
+					status = state::dismissed;
+				}
+			}
+			if (!status || (aExpected.Review.value() && aExpected.Review.value() != aReview.Id)) {
+				return std::nullopt;
+			}
+			return application::staged_review_entity{ application::review_database_id{ aReview.Id }, aReview.NodeId, aReview.WebUrl, *actor, *commit, aReview.Body, *status };
+		}
+		[[nodiscard]] auto staged_comment_entity(const staged_comment_json& aComment, const application::staged_review_request& aExpected) -> std::optional<application::staged_review_comment>
+		{
+			const auto& target = aExpected.Binding.Target;
+			const auto  actor  = staged_actor(aComment.User);
+			const auto  commit = core::parse_git_commit_oid(aComment.Commit);
+			if (!actor || !commit || !aComment.Id || !aComment.Review || !bounded_text(aComment.NodeId, 256)
+				|| !utf8_round_trip(aComment.Body) || aComment.Body.size() > maximum_review_mutation_body_bytes
+				|| aComment.PullRequestUrl != staged_api_origin(target) + pull_request_path(target, target.ServerContract)
+				|| aComment.WebUrl != staged_web_root(target) + "#discussion_r" + std::to_string(aComment.Id)
+				|| (aExpected.Review.value() && aExpected.Review.value() != aComment.Review)
+				|| (aExpected.Comment && aExpected.Comment != aComment.Id)
+				|| (aComment.Subject && *aComment.Subject != "line")) {
+				return std::nullopt;
+			}
+			constexpr auto maximumLine = std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1;
+			if (!aComment.Line || *aComment.Line == 0 || *aComment.Line > maximumLine
+				|| (aComment.Side != "LEFT" && aComment.Side != "RIGHT")
+				|| aComment.StartLine.has_value() != aComment.StartSide.has_value()
+				|| (aComment.StartLine && (*aComment.StartLine == 0 || *aComment.StartLine >= *aComment.Line || aComment.StartSide != aComment.Side))) {
+				return std::nullopt;
+			}
+			const auto source = core::tour_code_destination{ .Commit = *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
+			if (!core::valid(source)) {
+				return std::nullopt;
+			}
+			return application::staged_review_comment{ aComment.Id, aComment.NodeId, aComment.WebUrl, *actor, application::review_database_id{ aComment.Review }, source, aComment.Body, aComment.Reply.has_value() };
+		}
+	}
+
+	auto compile_staged_review_request(const application::staged_review_request& aRequest) -> review_mutation_request_result
+	{
+		const auto& target = aRequest.Binding.Target;
+		if (!application::valid(aRequest.Binding) || !valid_server(target.ServerContract) || !utf8_round_trip(aRequest.Body)
+			|| aRequest.Body.size() > maximum_review_mutation_body_bytes || aRequest.Page == 0 || aRequest.Page > application::maximum_staged_review_pages
+			|| (aRequest.Operation != staged_operation::create_pending && !aRequest.Lines.empty())
+			|| (!staged_list(aRequest.Operation) && aRequest.Page != 1)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto                      headers        = common_headers();
+		auto                      path           = pull_request_path(target, target.ServerContract);
+		const auto                repositoryPath = path.substr(0, path.rfind("/pulls/"));
+		review_mutation_operation operation{ };
+		std::string               body;
+		bool                      wantsReview = false, wantsComment = false;
+		switch (aRequest.Operation) {
+		case staged_operation::list_reviews:
+			operation = review_mutation_operation::staged_list_reviews;
+			path += "/reviews" + staged_page_suffix(aRequest.Page);
+			break;
+		case staged_operation::read_review:
+			operation   = review_mutation_operation::staged_read_review;
+			wantsReview = true;
+			break;
+		case staged_operation::list_comments:
+			operation   = review_mutation_operation::staged_list_comments;
+			wantsReview = true;
+			break;
+		case staged_operation::create_pending: {
+			operation = review_mutation_operation::staged_create_pending;
+			if (aRequest.Lines.empty() || aRequest.Lines.size() > application::maximum_staged_review_comments) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			staged_batch_json batch{ .Body = aRequest.Body, .Commit = std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() } };
+			for (const auto& line : aRequest.Lines) {
+				if (!core::valid(line.Source) || line.Source.Blob || line.Body.empty() || !utf8_round_trip(line.Body) || line.Body.size() > maximum_review_mutation_body_bytes
+					|| line.Source.Commit != (line.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : target.BaseOid)) {
+					return failed(review_mutation_contract_failure::invalid_request);
+				}
+				staged_line_json value{ .Path = line.Source.Path, .Body = line.Body, .Side = line.Source.Side == core::diff_side::right ? "RIGHT" : "LEFT", .Line = std::uint64_t{ line.Source.LastLine } + 1 };
+				if (line.Source.FirstLine != line.Source.LastLine) {
+					value.StartLine = std::uint64_t{ line.Source.FirstLine } + 1;
+					value.StartSide = value.Side;
+				}
+				batch.Comments.push_back(std::move(value));
+			}
+			auto bytes = glz::write<review_json_options{ }>(batch);
+			if (!bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			body = std::move(*bytes);
+			path += "/reviews";
+			break;
+		}
+		case staged_operation::update_comment:
+			operation    = review_mutation_operation::staged_update_comment;
+			wantsComment = true;
+			path         = repositoryPath + "/pulls/comments/" + std::to_string(aRequest.Comment);
+			break;
+		case staged_operation::update_summary:
+			operation   = review_mutation_operation::staged_update_summary;
+			wantsReview = true;
+			break;
+		case staged_operation::submit_comment:
+			operation   = review_mutation_operation::staged_submit_comment;
+			wantsReview = true;
+			break;
+		case staged_operation::discard_pending:
+			operation   = review_mutation_operation::staged_discard_pending;
+			wantsReview = true;
+			break;
+		case staged_operation::update_description: operation = review_mutation_operation::staged_update_description; break;
+		case staged_operation::list_issue_comments:
+			operation = review_mutation_operation::staged_list_issue_comments;
+			path      = repositoryPath + "/issues/" + std::to_string(target.Number.value()) + "/comments" + staged_page_suffix(aRequest.Page);
+			break;
+		case staged_operation::create_issue_comment:
+			operation = review_mutation_operation::staged_create_issue_comment;
+			path      = repositoryPath + "/issues/" + std::to_string(target.Number.value()) + "/comments";
+			break;
+		case staged_operation::update_issue_comment:
+			operation    = review_mutation_operation::staged_update_issue_comment;
+			wantsComment = true;
+			path         = repositoryPath + "/issues/comments/" + std::to_string(aRequest.Comment);
+			break;
+		default: return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (wantsReview != static_cast<bool>(aRequest.Review.value()) || wantsComment != (aRequest.Comment != 0)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (wantsReview) {
+			path += "/reviews/" + std::to_string(aRequest.Review.value());
+		}
+		if (aRequest.Operation == staged_operation::list_comments) {
+			path += "/comments" + staged_page_suffix(aRequest.Page);
+		}
+		if (aRequest.Operation == staged_operation::submit_comment) {
+			path += "/events";
+		}
+		const auto exchange = review_mutation_exchange_for(operation);
+		if (!exchange) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (exchange->Method == http_method::get || exchange->Method == http_method::delete_) {
+			if (!aRequest.Body.empty()) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+		} else {
+			if (body.empty()) {
+				if (aRequest.Body.empty()) {
+					return failed(review_mutation_contract_failure::invalid_request);
+				}
+				const staged_body_json value{ aRequest.Body, aRequest.Operation == staged_operation::submit_comment ? std::optional<std::string>{ "COMMENT" } : std::nullopt };
+				const auto             bytes = glz::write<review_json_options{ }>(value);
+				if (!bytes) {
+					return failed(review_mutation_contract_failure::invalid_request);
+				}
+				body = *bytes;
+			}
+			headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		}
+		if (body.size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::response_limit);
+		}
+		return review_mutation_wire_request{ .Semantic = aRequest, .Server = target.ServerContract, .Operation = operation, .Method = exchange->Method, .Path = std::move(path), .Headers = std::move(headers), .Body = std::move(body) };
+	}
+	auto parse_staged_review_response(const review_mutation_wire_response& aResponse, const application::staged_review_request& aExpected) -> review_mutation_parse_result<application::staged_review_observation>
+	{
+		const auto wire = compile_staged_review_request(aExpected);
+		if (!wire) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		const auto exchange = review_mutation_exchange_for(wire->Operation);
+		if (has_header(aResponse, "location") || (aResponse.Status >= 300 && aResponse.Status < 400)) {
+			return failed(review_mutation_contract_failure::redirect);
+		}
+		if (aResponse.Status != exchange->SuccessfulStatus || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto next = staged_next(aResponse, aExpected, *wire);
+		if (!next) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		application::staged_review_observation result{ .HasNext = *next };
+		if (aExpected.Operation == staged_operation::update_description) {
+			const auto target = parse_target_observation(aResponse, aExpected.Binding.Target);
+			const auto body   = document<staged_body_json>(aResponse);
+			if (!target || !body || body->Body != aExpected.Body) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			result.Description = body->Body;
+			return result;
+		}
+		if (aExpected.Operation == staged_operation::list_issue_comments || aExpected.Operation == staged_operation::create_issue_comment || aExpected.Operation == staged_operation::update_issue_comment) {
+			std::optional<std::vector<staged_issue_comment_json>> objects;
+			if (staged_list(aExpected.Operation)) {
+				objects = document<std::vector<staged_issue_comment_json>>(aResponse);
+			} else if (auto item = document<staged_issue_comment_json>(aResponse)) {
+				objects = std::vector<staged_issue_comment_json>{ *item };
+			}
+			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& target   = aExpected.Binding.Target;
+			const auto  path     = pull_request_path(target, target.ServerContract);
+			const auto  issueUrl = staged_api_origin(target) + path.substr(0, path.rfind("/pulls/")) + "/issues/" + std::to_string(target.Number.value());
+			for (const auto& object : *objects) {
+				const auto actor = staged_actor(object.User);
+				if (!actor || !object.Id || !bounded_text(object.NodeId, 256) || !utf8_round_trip(object.Body) || object.Body.size() > maximum_review_mutation_body_bytes
+					|| object.IssueUrl != issueUrl || object.WebUrl != staged_web_root(target) + "#issuecomment-" + std::to_string(object.Id)
+					|| (aExpected.Comment && object.Id != aExpected.Comment)
+					|| std::ranges::any_of(result.Comments, [&](const auto& c) { return c.Id == object.Id || c.NodeId == object.NodeId; })) {
+					return failed(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.Comments.push_back(application::staged_review_comment{ .Id = object.Id, .NodeId = object.NodeId, .WebUrl = object.WebUrl, .Actor = *actor, .Body = object.Body });
+			}
+			return result;
+		}
+		const bool comments = aExpected.Operation == staged_operation::list_comments || aExpected.Operation == staged_operation::update_comment;
+		if (comments) {
+			std::optional<std::vector<staged_comment_json>> objects;
+			if (staged_list(aExpected.Operation)) {
+				objects = document<std::vector<staged_comment_json>>(aResponse);
+			} else if (auto item = document<staged_comment_json>(aResponse)) {
+				objects = std::vector<staged_comment_json>{ *item };
+			}
+			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			for (const auto& object : *objects) {
+				auto value = staged_comment_entity(object, aExpected);
+				if (!value || std::ranges::any_of(result.Comments, [&](const auto& c) { return c.Id == value->Id || c.NodeId == value->NodeId; })) {
+					return failed(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.Comments.push_back(std::move(*value));
+			}
+		} else {
+			std::optional<std::vector<staged_review_json>> objects;
+			if (staged_list(aExpected.Operation)) {
+				objects = document<std::vector<staged_review_json>>(aResponse);
+			} else if (auto item = document<staged_review_json>(aResponse)) {
+				objects = std::vector<staged_review_json>{ *item };
+			}
+			if (!objects || objects->size() > 100 || (*next && objects->empty())) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			for (const auto& object : *objects) {
+				auto value = staged_review_entity(object, aExpected);
+				if (!value || std::ranges::any_of(result.Reviews, [&](const auto& r) { return r.Id == value->Id || r.NodeId == value->NodeId; })) {
+					return failed(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.Reviews.push_back(std::move(*value));
+			}
+		}
+		return result;
+	}
+
 	auto review_mutation_exchange_for(const review_mutation_operation aOperation) noexcept
 		-> std::optional<review_mutation_exchange>
 	{
 		using operation = review_mutation_operation;
 		switch (aOperation) {
+		case operation::staged_list_reviews:
+		case operation::staged_read_review:
+		case operation::staged_list_comments:
+		case operation::staged_list_issue_comments:
+			return review_mutation_exchange{ };
+		case operation::staged_create_pending:
+		case operation::staged_submit_comment:
+			return review_mutation_exchange{ .Method = http_method::post, .Witnessed = true };
+		case operation::staged_create_issue_comment:
+			return review_mutation_exchange{ .Method = http_method::post, .SuccessfulStatus = 201, .Witnessed = true };
+		case operation::staged_update_summary:
+			return review_mutation_exchange{ .Method = http_method::put, .Witnessed = true };
+		case operation::staged_update_comment:
+		case operation::staged_update_description:
+		case operation::staged_update_issue_comment:
+			return review_mutation_exchange{ .Method = http_method::patch, .Witnessed = true };
+		case operation::staged_discard_pending:
+			return review_mutation_exchange{ .Method = http_method::delete_, .Witnessed = true };
 		case operation::observe_pull_request:
 		case operation::observe_viewer:
 		case operation::observe_review_comments:
@@ -1858,6 +2320,8 @@ namespace bpr::adapters::github::detail {
 						canonical = compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::staged_review_request>) {
+						canonical = compile_staged_review_request(aSemantic);
 					} else if constexpr (std::same_as<semantic_type, review_submission_request>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_reviews
 							? compile_review_submission_observation_request(aSemantic, aRequest.Server)

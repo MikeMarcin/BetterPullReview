@@ -161,3 +161,23 @@ host, actor, repository, API/classifier revision and freshness. Existing
 standalone evidence never qualifies pending file staging. The preparation host
 has no live-qualified pending-operation observation and displays that limit;
 loading source or importing an own comment does not create write authority.
+
+## Staged publication wire contract
+
+BPR-0999 extends the existing review-submission/mutation family with finite
+pending-review operations. A batch sends the exact head and line/range comments
+without an event. The recorded review ID receives COMMENT only through its
+separate submission operation. Body updates use explicit PATCH/PUT; owned
+pending deletion uses DELETE. Native HTTPS witnesses each mutation before
+creating its Qt request. Ordinary summary and source-line publication retain
+their contracts.
+
+Raw responses retain complete numerical IDs, returned same-PR web URLs, actors,
+review membership and inclusive source coordinates. A page continuation must
+name the exact collection and next bounded page; incomplete membership cannot
+establish ownership. The wire ceiling remains 64 KiB including JSON overhead,
+100 comments per batch, 256 KiB per response and ten pages per collection.
+These are fixture-tested contracts. Pending comment editability and website
+visibility are not yet qualified on a live host, and pending file-thread staging
+remains unavailable. No compiler, parser or read observation grants write
+permission; the staged coordinator owns the journal and author command boundary.
