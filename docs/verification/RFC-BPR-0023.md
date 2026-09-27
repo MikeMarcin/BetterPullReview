@@ -1131,3 +1131,29 @@ handed off. `/root/rfc0023_m6` was the sole writer in this assigned checkout
 and releases it to the coordinator quiescent. The coordinator owns local-main
 integration of this branch and the fresh M7 segment; this leaf made no main
 mutation, push, PR or live GitHub/GHES call.
+
+### M6 integration on current main
+
+While M6 was running, current main advanced from `09bb9a75` to `2e2aca96` with
+BPR-1011/BPR-1012 review-tour outline and parser/configuration adversaries. The
+M6 merge auto-merged the overlapping shared launch path and preserves those
+checks with private run admission, protocol metadata and the separate
+Claude-only `WritingOnly` mode. No RFC criterion or milestone order changed.
+
+Merge commit: `87b109cf` (`Merge branch 'codex/rfc-bpr-0023'`), on top of
+current-main commit `2e2aca96`.
+
+| Combined-tree check | Result |
+|---|---|
+| Build private host/storage, agent launch/protocol/finding/invocation, Qt child canary and writing-delivery targets | PASS; 75 build steps after CMake reconfiguration. |
+| Focused CTest for private host/storage, agent launch/protocol/finding/invocation, writing delivery, real child canary and both architecture checks | PASS, 10/10. |
+| Documentation gate and 64 documentation regression tests | PASS. |
+
+Start a fresh M7/BPR-0583 implementer from this integrated main tip. Preserve
+ledger 7, recovery 5, staged-tour codec 3, M5 provenance/input facts, M6
+run-admission and the current writing-only path. The exact encoded launch
+request lifetime and coarse SQLite writer exclusion remain explicit in the
+live audit. M8 owns composition-root/UI wiring; M9 owns native and designated
+publication acceptance; M10 retains the one independent final review under
+mandate r2. All eighteen feature criteria remain open until their complete
+assigned evidence is supplied.

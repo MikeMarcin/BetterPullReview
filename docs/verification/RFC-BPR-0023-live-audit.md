@@ -934,3 +934,15 @@ reachability, not finished application UI or installed-provider qualification.
 M7 composition/publication, M8 UI, M9 native/designated publication and the one
 M10 independent review remain allocated as before. All eighteen criteria remain
 intact.
+
+### Current-main overlap discovered during M6 integration
+
+Main advanced during M6 from `09bb9a75` to `2e2aca96` with review-tour
+milestones BPR-1011/BPR-1012, including scoped-writing parser/configuration
+adversaries and related end-to-end checks. The changed agent launch path
+auto-merged with M6's run admission/terminal work. The coordinator rebuilt and
+ran the private host/storage, invocation/decoder, writing-delivery, child
+canary and architecture contract courses on the combined tree; all ten rows
+passed. M6's separate `WritingOnly` path and M5 provenance remain in the
+integrated source. No RFC-0023 criterion or authored milestone order changed;
+M7 starts from this integrated main.
