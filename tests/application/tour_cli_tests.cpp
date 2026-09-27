@@ -91,6 +91,7 @@ namespace {
 		auto status = call({ "tour", "status", "--profile", "1", "--draft", id, "--json" });
 		expect(status.Exit == 0 && state.Opens == 1, "local reads perform no provider calls");
 		expect(call({ "tour", "status", "--json" }).json()["error"].toObject()["code"] == "target_ambiguous", "machine context never follows an implicit active draft");
+		expect(call({ "tour", "status", "--profile", "1" }).Exit == 2, "piped human text also requires an exact machine draft");
 		expect(call({ "tour", "open", "7", "--json" }).json()["error"].toObject()["code"] == "target_ambiguous", "number outside explicit repository is refused");
 		auto offline = call({ "tour", "open", "https://github.com/o/r/pull/7", "--offline", "--json" });
 		expect(offline.Exit == 0 && state.Opens == 1 && !offline.json()["warnings"].toArray().isEmpty(), "offline exact lookup is visibly stale");
@@ -119,6 +120,8 @@ namespace {
 		expect(raw.json()["data"].toObject()["text"] == "raw\x1b[2J body\r\n", "JSON preserves inert raw body bytes");
 		auto human = call({ "tour", "show", "stop:1", "--profile", "1", "--draft", importedId });
 		expect(human.Exit == 0 && human.Out.find('\x1b') == std::string::npos && human.Out.find("\\u001b[2J") != std::string::npos, "human output neutralizes terminal controls");
+		const auto missingSource = call({ "tour", "show", "stop:1", "--source", "--profile", "1", "--draft", importedId, "--json" });
+		expect(missingSource.Exit == 0 && missingSource.json()["data"].toObject()["source_availability"] == "unavailable" && !missingSource.json()["warnings"].toArray().isEmpty(), "missing pinned source remains explicit beside the current comment");
 		state.Account       = 50;
 		state.Roots         = false;
 		state.Multiple      = false;

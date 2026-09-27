@@ -13,7 +13,13 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_cache_port.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "windows_system_root.hpp"
+#include <QDir>
+#include <QFile>
+#include <future>
+#include <mutex>
+#include <thread>
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -265,17 +271,18 @@ namespace {
 			}
 			return git_text(aRoot, arguments, QByteArray{ aMessage });
 		};
-		const auto readme = blob("fixture base\n");
-		const auto nested = blob("nested file kept by every head\n");
-		const auto added  = blob("added by the second head\n");
-		history.Readme    = readme;
-		history.Subtree   = tree("100644 blob " + nested + "\tnested.txt\n");
-		history.Base      = commit(tree("100644 blob " + readme + "\tREADME\n"), { }, "base\n");
-		history.Head1Tree = tree("100644 blob " + readme + "\tREADME\n040000 tree " + history.Subtree + "\tsrc\n");
-		history.Head1     = commit(history.Head1Tree, history.Base, "first head\n");
-		history.Head2     = commit(tree("100644 blob " + readme + "\tREADME\n100644 blob " + added + "\tadded.txt\n040000 tree "
-										+ history.Subtree + "\tsrc\n"),
-								   history.Head1, "second head\n");
+		const auto readme       = blob("fixture base\n");
+		const auto nested       = blob("nested file kept by every head\n");
+		const auto added        = blob("added by the second head\n");
+		history.Readme          = readme;
+		const auto unicodeEntry = "100644 blob " + readme + "\t資料 α.txt\n";
+		history.Subtree         = tree("100644 blob " + nested + "\tnested.txt\n");
+		history.Base            = commit(tree("100644 blob " + readme + "\tREADME\n" + unicodeEntry), { }, "base\n");
+		history.Head1Tree       = tree("100644 blob " + readme + "\tREADME\n040000 tree " + history.Subtree + "\tsrc\n" + unicodeEntry);
+		history.Head1           = commit(history.Head1Tree, history.Base, "first head\n");
+		history.Head2           = commit(tree("100644 blob " + readme + "\tREADME\n100644 blob " + added + "\tadded.txt\n040000 tree "
+											  + history.Subtree + "\tsrc\n" + unicodeEntry),
+										 history.Head1, "second head\n");
 		static_cast<void>(git_text(aRoot, { gitDir, "update-ref", "refs/heads/main", QString::fromStdString(history.Base) }));
 		static_cast<void>(git_text(aRoot, { gitDir, "update-ref", "refs/pull/81/head", QString::fromStdString(history.Head1) }));
 		return history;
@@ -419,18 +426,31 @@ namespace {
 	class queued_executor final : public application::effect_executor, public application::decision_executor
 	{
 	public:
-		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void post(std::function<void()> aTask) override
+		{
+			const std::lock_guard lock{ Mutex };
+			Tasks.push_back(std::move(aTask));
+		}
 
-		[[nodiscard]] auto empty() const noexcept -> bool { return Tasks.empty(); }
+		[[nodiscard]] auto empty() const noexcept -> bool
+		{
+			const std::lock_guard lock{ Mutex };
+			return Tasks.empty();
+		}
 
 		void run_next()
 		{
-			auto task = std::move(Tasks.front());
-			Tasks.pop_front();
+			std::function<void()> task;
+			{
+				const std::lock_guard lock{ Mutex };
+				task = std::move(Tasks.front());
+				Tasks.pop_front();
+			}
 			task();
 		}
 
 	private:
+		mutable std::mutex                Mutex;
 		std::deque<std::function<void()>> Tasks;
 	};
 
@@ -580,6 +600,7 @@ namespace {
 					return std::make_shared<upload_pack_transport>(aContext, Root.Path, History.Repository, forged, Fetches);
 				});
 			require(application::valid(handoff), "fixture handoff is valid");
+			Authority = { handoff.ApplicationSession, handoff.Profile, handoff.ProfileRevision, handoff.Host, handoff.HostAuthority, handoff.Account, handoff.Viewer, handoff.Repository, handoff.PullRequest, handoff.Number, handoff.Snapshot, handoff.IdentityGeneration, handoff.PullRequestGeneration };
 			Host->accept(std::move(handoff));
 			std::size_t turns = 0U;
 			while (!Effects.empty() || !Decisions.empty()) {
@@ -628,6 +649,7 @@ namespace {
 			return run_git(Root.Path, { target, "index-pack", "--stdin", "--strict", "--check-self-contained-and-connected" }, aPack).ExitCode;
 		}
 
+		application::workbench_pull_request_authority        Authority;
 		temporary_root                                       Root;
 		server_history                                       History;
 		std::unique_ptr<application::git_cache_port>         Caches;
@@ -640,6 +662,58 @@ namespace {
 		std::unique_ptr<application::epoch_application_host> Host;
 		std::vector<served_fetch>                            Fetches;
 	};
+
+	void verify_tour_pinned_source()
+	{
+		composed_live_path value{ "tour-source" };
+		value.accept(1U, value.History.Head1);
+		value.accept(2U, value.History.Head2);
+		require(value.Host->state().Status == core::epoch_status::ready, "tour source has a real retained epoch");
+		const auto worktree = value.Root.Path / "dirty checkout";
+		static_cast<void>(git_text(value.Root.Path, { "clone", "--quiet", QString::fromStdString(value.History.Repository.string()), QString::fromStdString(worktree.string()) }));
+		QFile dirty{ QString::fromStdString((worktree / "README").string()) };
+		require(dirty.open(QIODevice::WriteOnly), "open dirty checkout text");
+		dirty.write("WRONG dirty worktree text\n");
+		dirty.close();
+		const auto oldDirectory = QDir::currentPath();
+		require(QDir::setCurrent(QString::fromStdString(worktree.string())), "enter dirty worktree for source check");
+		auto read = [&](const std::string& commit, std::string path, core::diff_side side, std::uint32_t last = 0) {
+			const auto                        oid = commit_oid(commit);
+			const core::tour_code_destination destination{ .Commit = oid, .Path = path, .Side = side, .LastLine = last };
+			const auto                        context = application::review_tour_source_context(*value.Host, value.Authority, destination);
+			require(context.has_value(), "pinned source context is admitted by the shared service");
+			const std::u8string                                native{ reinterpret_cast<const char8_t*>(path.data()), path.size() };
+			const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, value.Authority.ApplicationSession, core::request_generation{ 1 } }, .WorkbenchAuthority = value.Authority, .Diff = *context, .File = { .File = core::file_identity_of(path), .PresentationPath = path, .CurrentPath = std::filesystem::path{ native }, .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
+			auto                                               result = std::async(std::launch::async, [&] { return application::materialize_review_tour_source(*value.Host, *value.Host, request, destination, { }); });
+			while (result.wait_for(std::chrono::milliseconds{ 0 }) != std::future_status::ready) {
+				if (!value.Effects.empty()) {
+					value.Effects.run_next();
+				}
+				if (!value.Decisions.empty()) {
+					value.Decisions.run_next();
+				}
+				std::this_thread::yield();
+			}
+			return result.get();
+		};
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			const auto commit = side == core::diff_side::left ? value.History.Base : value.History.Head2;
+			auto       result = read(commit, "README", side);
+			require(result && result->Text == "fixture base\n" && result->Source.Commit == commit_oid(commit) && result->Source.First.Side == side && result->Source.Blob.has_value(), "left/current unchanged source is pinned and ignores dirty checkout");
+		}
+		auto current = read(value.History.Head2, "added.txt", core::diff_side::right);
+		require(current && current->Text == "added by the second head\n", "current source uses current commit");
+		auto historical = read(value.History.Head1, "src/nested.txt", core::diff_side::left);
+		require(historical && historical->Text == "nested file kept by every head\n" && historical->Source.Commit == commit_oid(value.History.Head1), "historical left destination resolves the retained historical commit");
+		auto unicode = read(value.History.Head2, "資料 α.txt", core::diff_side::right);
+		require(unicode && unicode->Source.Path == "資料 α.txt" && unicode->Text == "fixture base\n", "Unicode source path survives actual Git resolution");
+		require(!read(value.History.Head2, "missing.txt", core::diff_side::right), "missing source is unavailable instead of worktree fallback");
+		auto range = read(value.History.Head2, "README", core::diff_side::right, 1);
+		require(!range && range.error() == application::review_tour_source_failure::range_unavailable, "source range cannot silently truncate");
+		require(QDir::setCurrent(oldDirectory), "restore source test directory");
+		require(value.latest_live_head() == commit_oid(value.History.Head2), "source reads leave epoch authority unchanged and quiescent");
+		std::cout << "tour-pinned-source:pass\n";
+	}
 
 	// The update of a pull request whose earlier head is resident loads.
 	auto verify_update_over_haves_loads() -> void
@@ -842,6 +916,9 @@ auto main(int argc, char** argv) -> int
 try {
 	QCoreApplication application{ argc, argv };
 	const auto       course = argc == 2 ? std::string_view{ argv[1] } : std::string_view{ };
+	if (course == "--tour-source") {
+		verify_tour_pinned_source();
+	}
 	if (course.empty() || course == "--update") {
 		verify_update_over_haves_loads();
 	}

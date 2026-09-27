@@ -100,7 +100,7 @@ namespace bpr::app {
 				~guard() { ::close(Value); }
 			} close{ descriptor };
 			struct stat info{ };
-			if (::fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() || info.st_nlink != 1 || info.st_size < 0 || static_cast<std::uint64_t>(info.st_size) > core::maximum_tour_field_bytes || (info.st_mode & 0077) != 0) {
+			if (::fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() || info.st_nlink != 1 || info.st_size < 0 || static_cast<std::uint64_t>(info.st_size) > core::maximum_tour_field_bytes || (info.st_mode & 0077U) != 0) {
 				return refuse("editor_candidate_untrusted", "The edited projection is not a bounded ordinary owner-private file.", 7);
 			}
 			char buffer[4096];
@@ -144,7 +144,10 @@ namespace bpr::app {
 		}
 		file.close();
 		directory.setAutoRemove(false);
-		const auto retained = [&](tour_cli_error error) -> tour_cli_result<tour_editor_candidate> {error.Message+=" Candidate retained at "+path.toStdString()+". Reopen the current draft before importing that file.";return std::unexpected(std::move(error)); };
+		const auto retained = [&](tour_cli_error aError) -> tour_cli_result<tour_editor_candidate> {
+			aError.Message += " Candidate retained at " + path.toStdString() + ". Reopen the current draft before importing that file.";
+			return std::unexpected(std::move(aError));
+		};
 		std::cerr << "Opening the configured editor. Its plugins, backups and synchronization remain governed by that editor.\n";
 		QProcess process;
 		process.setWorkingDirectory(directory.path());

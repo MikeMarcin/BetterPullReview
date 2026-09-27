@@ -1541,6 +1541,25 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_tour_editor_has_one_owner_and_explicit_trusted_argv(self) -> None:
+        path = "src/app/src/tour_editor.cpp"
+        source = (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
+        sources = {path: source, "src/app/CMakeLists.txt":
+                   "target_sources(better_pull_review_tour_runtime PRIVATE src/tour_editor.cpp)\n"}
+        result = self.run_check(sources)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure("QProcess ownership violation", {
+            "src/app/src/other_editor.cpp": "QProcess process;\n"})
+        for primitive in ("startCommand", "splitCommand", "setNativeArguments", "startDetached", "QProcess::execute", "QSettings"):
+            with self.subTest(primitive=primitive):
+                changed = dict(sources, **{path: source + primitive + ";\n"})
+                self.assert_failure("Tour editor must retain explicit trusted argv", changed)
+        for boundary in ("BPR_TOUR_EDITOR_ARGV", "CloseFileDescriptors", "O_NOFOLLOW",
+                         "FILE_FLAG_OPEN_REPARSE_POINT", "inheritance.apply", "process.waitForFinished"):
+            with self.subTest(boundary=boundary):
+                changed = dict(sources, **{path: source.replace(boundary, "removed_boundary")})
+                self.assert_failure("Tour editor lost its " + boundary + " boundary", changed)
+
     def test_qprocess_is_rejected_outside_designated_runner(self) -> None:
         self.assert_failure(
             "QProcess ownership violation",

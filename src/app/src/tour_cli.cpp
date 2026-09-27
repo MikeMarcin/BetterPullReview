@@ -1,6 +1,8 @@
 #include "tour_cli.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/core/review_tour_destination.hpp"
+#include "bpr/core/review_tour_markdown.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
 #include "tour_text_input.hpp"
@@ -27,7 +29,7 @@ namespace bpr::app {
 		{
 			QString result;
 			for (const auto value : aText.toUcs4()) {
-				if ((value < 32 && value != 10 && value != 9) || (value >= 127 && value <= 159) || (value >= 0x202a && value <= 0x202e) || (value >= 0x2066 && value <= 0x2069)) {
+				if ((value < 32 && value != 10 && value != 9) || (value >= 127 && value <= 159) || (value >= 0x202a && value <= 0x202e) || value == 0x061c || value == 0x200e || value == 0x200f || (value >= 0x2066 && value <= 0x2069)) {
 					result += QStringLiteral("\\u%1").arg(value, 4, 16, QChar{ '0' });
 				} else {
 					const char32_t scalar = value;
@@ -36,6 +38,46 @@ namespace bpr::app {
 			}
 			return result;
 		}
+		auto terminal_text(const QString& aText) -> QString
+		{
+			bool       parsed    = false;
+			const auto requested = qEnvironmentVariable("COLUMNS").toInt(&parsed);
+			const int  width     = parsed ? std::clamp(requested, 20, 240) : 80;
+			QString    result;
+			int        column = 0;
+			for (const auto scalar : safe_terminal(aText).toUcs4()) {
+				if (scalar == '\n') {
+					result += '\n';
+					column = 0;
+					continue;
+				}
+				if (scalar == '\t') {
+					for (int space = 0; space < 4; ++space) {
+						if (column == width) {
+							result += '\n';
+							column = 0;
+						}
+						result += ' ';
+						++column;
+					}
+					continue;
+				}
+				const auto category  = QChar::category(scalar);
+				const bool combining = category == QChar::Mark_NonSpacing || category == QChar::Mark_Enclosing || scalar == 0x200d;
+				const bool wide      = (scalar >= 0x1100 && scalar <= 0x115f) || (scalar >= 0x2e80 && scalar <= 0xa4cf) || (scalar >= 0xac00 && scalar <= 0xd7a3) || (scalar >= 0xf900 && scalar <= 0xfaff) || (scalar >= 0xfe10 && scalar <= 0xfe6f) || (scalar >= 0xff01 && scalar <= 0xff60) || scalar >= 0x1f300;
+				const int  cells     = combining ? 0 : wide ? 2
+															: 1;
+				if (column && column + cells > width) {
+					result += '\n';
+					column = 0;
+				}
+				const char32_t value = scalar;
+				result += QString::fromUcs4(&value, 1);
+				column += cells;
+			}
+			return result;
+		}
+
 		auto terminal() -> bool
 		{
 #if defined(_WIN32)
@@ -46,12 +88,58 @@ namespace bpr::app {
 		}
 		struct command_options
 		{
-			QString                Command;
-			QStringList            Positional;
-			QMap<QString, QString> Values;
-			bool                   Json = false, Interactive = false;
+			QString                             Command;
+			QStringList                         Positional;
+			QMap<QString, QString>              Values;
+			bool                                Json = false, Interactive = false;
+			std::optional<core::tour_attention> WalkAttention;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
+		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview" }; }
+		auto local_edit(const QString& aCommand) -> bool { return QStringList{ "edit", "move", "remove", "ready", "add", "undo", "redo" }.contains(aCommand); }
+		auto service_operation(const QString& aCommand) -> application::tour_service_operation
+		{
+			if (aCommand == "undo") {
+				return application::tour_service_operation::undo;
+			}
+			if (aCommand == "redo") {
+				return application::tour_service_operation::redo;
+			}
+			return application::tour_service_operation::edit;
+		}
+		auto completion_origin_name(core::tour_completion_origin aOrigin) -> QString
+		{
+			if (aOrigin == core::tour_completion_origin::observed) {
+				return "observed";
+			}
+			if (aOrigin == core::tour_completion_origin::relayed) {
+				return "relayed";
+			}
+			return "unspecified";
+		}
+		auto stop_destination(const core::tour_stop& aStop) -> std::optional<core::tour_code_destination>
+		{
+			if (aStop.Mapped) {
+				return core::destination_of(*aStop.Mapped);
+			}
+			if (aStop.Original) {
+				return core::destination_of(*aStop.Original);
+			}
+			return aStop.Destination;
+		}
+		auto render_source(const tour_source_material& aSource) -> QString
+		{
+			QString    result = "Pinned " + text(aSource.Source.Path) + " @ " + text(core::canonical_hex(aSource.Source.Commit).view()) + (aSource.Source.First.Side == core::diff_side::left ? " LEFT\n" : " RIGHT\n");
+			const auto lines  = text(aSource.Text).split('\n');
+			for (qsizetype i = 0; i < lines.size(); ++i) {
+				if (i + 1 == lines.size() && lines[i].isEmpty()) {
+					break;
+				}
+				result += QString::number(aSource.Source.First.Line + 1 + static_cast<std::uint32_t>(i)) + " | " + lines[i] + "\n";
+			}
+			return result;
+		}
+
 		auto parse(const QStringList& aArguments) -> tour_cli_result<command_options>
 		{
 			command_options result;
@@ -94,14 +182,15 @@ namespace bpr::app {
 			if (words.size() < 2 || words[0] != "tour") {
 				return refuse("unsupported_command", "Use bpr tour capabilities.");
 			}
-			result.Command    = words[1];
-			result.Positional = words.mid(2);
-			const QStringList commands{ "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo" };
+			result.Command      = words[1];
+			result.Positional   = words.mid(2);
+			const auto commands = supported_commands();
 			if (!commands.contains(result.Command)) {
 				return refuse("unsupported_command", "Use bpr tour capabilities for implemented commands.");
 			}
-			const auto count = result.Positional.size();
-			if ((result.Command == "add" && count != (result.Values.contains("--path") ? 0 : 1)) || ((result.Command == "open" || result.Command == "show" || result.Command == "edit" || result.Command == "move" || result.Command == "remove" || result.Command == "ready") && count != 1) || ((result.Command == "connect" || result.Command == "status" || result.Command == "capabilities" || result.Command == "undo" || result.Command == "redo") && count != 0)) {
+			const bool takesArgument     = QStringList{ "open", "show", "edit", "move", "remove", "ready" }.contains(result.Command);
+			const auto expectedArguments = (takesArgument || (result.Command == "add" && !result.Values.contains("--path"))) ? 1 : 0;
+			if (result.Positional.size() != expectedArguments) {
 				return refuse("invalid_input", "Unexpected positional arguments.");
 			}
 			QStringList allowed{ "--json", "--non-interactive", "--no-color", "--schema-version", "--data-root" };
@@ -114,16 +203,16 @@ namespace bpr::app {
 			if (result.Command == "open") {
 				allowed.append({ "--repo", "--transport", "--root", "--offline", "--cursor" });
 			}
-			if (result.Command == "status" || result.Command == "show" || result.Command == "edit" || result.Command == "move" || result.Command == "remove" || result.Command == "ready" || result.Command == "add" || result.Command == "undo" || result.Command == "redo") {
+			if (result.Command == "status" || result.Command == "show" || local_edit(result.Command) || result.Command == "walk" || result.Command == "preview") {
 				allowed.append("--draft");
 			}
-			if (result.Command == "status") {
+			if (result.Command == "status" || result.Command == "preview") {
 				allowed.append("--cursor");
 			}
 			if (result.Command == "show") {
 				allowed.append("--source");
 			}
-			if (result.Command == "edit" || result.Command == "move" || result.Command == "remove" || result.Command == "ready" || result.Command == "add" || result.Command == "undo" || result.Command == "redo") {
+			if (local_edit(result.Command)) {
 				allowed.append("--expected-revision");
 			}
 			if (result.Command == "edit") {
@@ -132,7 +221,7 @@ namespace bpr::app {
 			if (result.Command == "add") {
 				allowed.append({ "--file", "--path", "--lines", "--side", "--commit", "--transport" });
 			}
-			if (result.Command == "show" && result.Values.contains("--source")) {
+			if ((result.Command == "show" && result.Values.contains("--source")) || result.Command == "walk") {
 				allowed.append("--transport");
 			}
 			if (result.Command == "move") {
@@ -198,12 +287,12 @@ namespace bpr::app {
 		{
 			const auto&  draft = aSnapshot.Draft;
 			presentation result{ identities(aSnapshot), { }, { } };
-			result.Human = QStringLiteral("%1/%2/%3#%4\nDraft %5 · revision %6\nSaved locally; local changes are not published.\n").arg(text(aSnapshot.Target.Hostname), text(aSnapshot.Target.Repository.Owner), text(aSnapshot.Target.Repository.Name), QString::number(aSnapshot.Target.Number.value()), text(tour_runtime::draft_token(aSnapshot.Target)), QString::number(draft.Revision));
+			result.Human = QStringLiteral("%1/%2/%3#%4\nDraft %5\nrevision %6\nSaved locally; local changes are not published.\n").arg(text(aSnapshot.Target.Hostname), text(aSnapshot.Target.Repository.Owner), text(aSnapshot.Target.Repository.Name), QString::number(aSnapshot.Target.Number.value()), text(tour_runtime::draft_token(aSnapshot.Target)), QString::number(draft.Revision));
 			if (aOptions.Values.contains("--offline")) {
 				result.Warnings.append(QJsonObject{ { "code", "stale_cached" }, { "message", "Local state only; published material and source have not been refreshed." } });
 			}
 			if (!draft.ImportNotice.empty()) {
-				result.Warnings.append(QJsonObject{ { "code", "import_notice" }, { "message", text(draft.ImportNotice).left(4096) }, { "message_truncated", text(draft.ImportNotice).size() > 4096 } });
+				result.Warnings.append(QJsonObject{ { "code", "import_notice" }, { "message", text(draft.ImportNotice).left(4096) + (text(draft.ImportNotice).size() > 4096 ? " [truncated]" : "") }, { "message_truncated", text(draft.ImportNotice).size() > 4096 } });
 			}
 			if (aOptions.Command == "show") {
 				const auto field = aOptions.Positional[0];
@@ -249,8 +338,7 @@ namespace bpr::app {
 				}
 				for (auto i = cursor; i < end; ++i) {
 					const auto& stop = draft.Stops[i];
-					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", stop.CompletionOrigin == core::tour_completion_origin::relayed ? "relayed" : stop.CompletionOrigin == core::tour_completion_origin::observed ? "observed"
-																																																																																																	  : "unspecified" } });
+					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) } });
 					result.Human += QStringLiteral("%1. %2 [%3]\n").arg(QString::number(stop.Id.value()), text(stop.Title), stop.Preparation == core::tour_preparation::ready ? "Ready" : "Editing");
 				}
 				result.Data["stops"]       = stops;
@@ -337,7 +425,10 @@ namespace bpr::app {
 				command.Kind = core::tour_command_kind::remove;
 			} else if (aOptions.Command == "ready") {
 				command.Kind             = core::tour_command_kind::complete;
-				command.CompletionOrigin = core::tour_completion_origin::relayed;
+				command.CompletionOrigin = aOptions.WalkAttention ? core::tour_completion_origin::observed : core::tour_completion_origin::relayed;
+				if (aOptions.WalkAttention) {
+					command.Attention = *aOptions.WalkAttention;
+				}
 			} else {
 				if (aOptions.Values.contains("--before") == aOptions.Values.contains("--after")) {
 					return refuse("invalid_input", "Move requires exactly one --before or --after stable stop ID.");
@@ -362,10 +453,60 @@ namespace bpr::app {
 			return command;
 		}
 
+		auto preview(const command_options& aOptions, const tour_local_snapshot& aSnapshot) -> tour_cli_result<presentation>
+		{
+			const auto& draft  = aSnapshot.Draft;
+			std::size_t cursor = 0;
+			if (aOptions.Values.contains("--cursor")) {
+				const auto parsed = number(aOptions.Values["--cursor"]);
+				if (!parsed || *parsed >= draft.Stops.size() + 2) {
+					return refuse("invalid_cursor", "The preview cursor is invalid.");
+				}
+				cursor = static_cast<std::size_t>(*parsed);
+			}
+			auto                                     data = identities(aSnapshot);
+			std::vector<core::tour_destination_plan> destinations;
+			for (const auto& stop : draft.Stops) {
+				const auto source = stop_destination(stop);
+				destinations.push_back(source ? core::plan_tour_destination({ .Source = *source }) : core::tour_destination_plan{ });
+			}
+			const auto readiness           = draft.Remote ? core::assess_tour_update(draft, destinations, false, core::tour_operation_support::unknown) : core::assess_tour_publication(draft, destinations, false);
+			data["publication_readiness"]  = readiness == core::tour_publication_readiness::incomplete ? "incomplete" : "needs_qualification";
+			data["remote_writes"]          = false;
+			data["publication_authorized"] = false;
+			data["preview_scope"]          = "local_narrative";
+			data["page"]                   = QString::number(cursor);
+			data["next_cursor"]            = cursor + 1 < draft.Stops.size() + 2 ? QJsonValue{ QString::number(cursor + 1) } : QJsonValue{ QJsonValue::Null };
+			data["complete"]               = cursor + 1 == draft.Stops.size() + 2;
+			QString body, heading;
+			if (cursor < 2) {
+				heading = cursor ? "Solution" : "Problem";
+				body    = text(cursor ? draft.Solution : draft.Problem);
+			} else {
+				const auto& stop = draft.Stops[cursor - 2];
+				heading          = "Stop " + QString::number(stop.Id.value());
+				body             = "### " + text(core::tour_markdown_label(stop.Title)) + "\n\n" + text(stop.Body);
+				data["stop_id"]  = QString::number(stop.Id.value());
+				data["ready"]    = stop.Preparation == core::tour_preparation::ready;
+			}
+			data["field"]    = heading;
+			data["markdown"] = body;
+			QString human    = "Local preview · revision " + QString::number(draft.Revision) + "\n" + heading + "\n" + body + "\n";
+			human += "Publication operations require current qualification and a separate explicit approval.\n";
+			if (cursor + 1 < draft.Stops.size() + 2) {
+				human += "Next preview page: --cursor " + QString::number(cursor + 1) + "\n";
+			}
+			return presentation{ data, human, { } };
+		}
+		auto walk(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
+
 		auto perform(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
 		{
+			if (aOptions.Command == "walk") {
+				return walk(aOptions, std::move(aReaders));
+			}
 			if (aOptions.Command == "capabilities" || aOptions.Command == "help") {
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray{ "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo" } }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "owner_protocol", "standalone; busy refusal for another owner" }, { "approval_modes", QJsonArray{ } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo\nNo GUI or AI provider required.\n", { } };
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "standalone; busy refusal for another owner" }, { "approval_modes", QJsonArray{ } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview\nNo GUI or AI provider required.\n", { } };
 			}
 			const auto transport = aOptions.Values.value("--transport", "native");
 			if (transport != "native" && transport != "gh") {
@@ -400,9 +541,12 @@ namespace bpr::app {
 				}
 				return presentation{ { { "profile_id", QString::number(runtime->admission()->value()) }, { "account_id", text(*result) }, { "host", aOptions.Values["--host"] }, { "transport", transport } }, "Connected account " + text(*result) + " on " + aOptions.Values["--host"] + ".\n", { } };
 			}
-			auto result = pr ? runtime->open(pr->Host, pr->Repository, pr->Number, transport == "gh", aOptions.Values.value("--root").toStdString(), aOptions.Values.contains("--offline")) : runtime->load(aOptions.Values.value("--draft").toStdString(), aOptions.Json || aOptions.Values.contains("--non-interactive"));
+			auto result = pr ? runtime->open(pr->Host, pr->Repository, pr->Number, transport == "gh", aOptions.Values.value("--root").toStdString(), aOptions.Values.contains("--offline")) : runtime->load(aOptions.Values.value("--draft").toStdString(), !aOptions.Interactive);
 			if (!result) {
 				return std::unexpected(result.error());
+			}
+			if (aOptions.Command == "preview") {
+				return preview(aOptions, *result);
 			}
 			const auto previousRevision = result->Draft.Revision;
 			const auto transactionLabel = aOptions.Command == "undo" ? result->UndoLabel : aOptions.Command == "redo" ? result->RedoLabel
@@ -410,7 +554,7 @@ namespace bpr::app {
 			if ((aOptions.Command == "undo" || aOptions.Command == "redo") && transactionLabel.empty()) {
 				return refuse("history_empty", "There is no retained local transaction in that direction.");
 			}
-			if (aOptions.Command == "edit" || aOptions.Command == "move" || aOptions.Command == "remove" || aOptions.Command == "ready" || aOptions.Command == "add" || aOptions.Command == "undo" || aOptions.Command == "redo") {
+			if (local_edit(aOptions.Command)) {
 				auto command = edit_command(aOptions, result->Draft);
 				if (!command) {
 					return std::unexpected(command.error());
@@ -442,9 +586,14 @@ namespace bpr::app {
 					if (!fromFile && !aOptions.Interactive) {
 						return refuse("interaction_required", "Non-interactive edits require --file PATH or --file -.", 3);
 					}
-					const auto original = command->Kind == core::tour_command_kind::problem ? result->Draft.Problem : command->Kind == core::tour_command_kind::solution ? result->Draft.Solution
-						: aOptions.Positional[0].endsWith(":title")                                                                                                      ? command->Value.Title
-																																										 : command->Value.Body;
+					std::string original;
+					if (command->Kind == core::tour_command_kind::problem) {
+						original = result->Draft.Problem;
+					} else if (command->Kind == core::tour_command_kind::solution) {
+						original = result->Draft.Solution;
+					} else {
+						original = aOptions.Positional[0].endsWith(":title") ? command->Value.Title : command->Value.Body;
+					}
 					runtime.reset();
 					tour_cli_result<std::string> input;
 					if (fromFile) {
@@ -471,8 +620,7 @@ namespace bpr::app {
 					}
 					runtime = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
 				}
-				result = runtime->mutate(token, { .Command = std::move(*command), .Operation = aOptions.Command == "undo" ? application::tour_service_operation::undo : aOptions.Command == "redo" ? application::tour_service_operation::redo
-																																																   : application::tour_service_operation::edit });
+				result = runtime->mutate(token, { .Command = std::move(*command), .Operation = service_operation(aOptions.Command) });
 				if (!result) {
 					auto error = result.error();
 					if (editorCandidate) {
@@ -498,22 +646,18 @@ namespace bpr::app {
 				const auto                                 stop  = id ? std::ranges::find(result->Draft.Stops, core::tour_stop_id{ *id }, &core::tour_stop::Id) : result->Draft.Stops.end();
 				std::optional<core::tour_code_destination> destination;
 				if (stop != result->Draft.Stops.end()) {
-					destination = stop->Original ? std::optional{ core::destination_of(*stop->Original) } : stop->Destination;
+					destination = stop_destination(*stop);
 				}
 				auto source = destination ? runtime->source(tour_runtime::draft_token(result->Target), *destination, transport == "gh") : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned source destination belongs to this field.", 5) };
+				if (!source && source.error().Exit == 130) {
+					return std::unexpected(source.error());
+				}
 				rendered->Warnings.removeLast();
 				if (source) {
 					rendered->Data["source_availability"] = "available";
 					rendered->Data["source_state"]        = "available";
 					rendered->Data["source"]              = QJsonObject{ { "path", text(source->Source.Path) }, { "commit", text(core::canonical_hex(source->Source.Commit).view()) }, { "side", source->Source.First.Side == core::diff_side::left ? "LEFT" : "RIGHT" }, { "first_line", QString::number(source->Source.First.Line + 1) }, { "last_line", QString::number(source->Source.Last.Line + 1) }, { "text", text(source->Text) } };
-					rendered->Human += "Pinned " + text(source->Source.Path) + " @ " + text(core::canonical_hex(source->Source.Commit).view()) + "\n";
-					const auto lines = text(source->Text).split('\n');
-					for (qsizetype i = 0; i < lines.size(); ++i) {
-						if (i + 1 == lines.size() && lines[i].isEmpty()) {
-							break;
-						}
-						rendered->Human += QString::number(source->Source.First.Line + 1 + static_cast<std::uint32_t>(i)) + " | " + lines[i] + "\n";
-					}
+					rendered->Human += render_source(*source);
 				} else {
 					rendered->Warnings.append(QJsonObject{ { "code", text(source.error().Code) }, { "message", text(source.error().Message) } });
 				}
@@ -523,6 +667,107 @@ namespace bpr::app {
 			}
 			return rendered;
 		}
+		auto walk(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
+		{
+			if (!aOptions.Interactive) {
+				return refuse("interaction_required", "Run walk in a terminal; use status/show/ready with explicit revisions for command clients.", 3);
+			}
+			const auto base = aOptions.Values.value("--data-root", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+			if (!QDir::isAbsolutePath(base)) {
+				return refuse("invalid_profile_root", "--data-root must be absolute.");
+			}
+			const auto transport = aOptions.Values.value("--transport", "native");
+			if (transport != "native" && transport != "gh") {
+				return refuse("unsupported_transport", "Use native or gh.");
+			}
+			std::size_t index   = 0;
+			auto        options = aOptions;
+			for (;;) {
+				auto runtime  = std::make_unique<tour_runtime>(native_filesystem_path(base), options.Values.value("--profile").toStdString(), aReaders);
+				auto snapshot = runtime->load(options.Values.value("--draft").toStdString(), false);
+				if (!snapshot) {
+					return std::unexpected(snapshot.error());
+				}
+				if (snapshot->Draft.Stops.empty()) {
+					return presentation{ identities(*snapshot), "The tour has no stops. Use add with an exact source range.\n", { } };
+				}
+				index                   = std::min(index, snapshot->Draft.Stops.size() - 1);
+				const auto& stop        = snapshot->Draft.Stops[index];
+				const auto  range       = stop.Mapped ? stop.Mapped : stop.Original;
+				const auto  destination = range ? std::optional{ core::destination_of(*range) } : stop.Destination;
+				const auto  token       = tour_runtime::draft_token(snapshot->Target);
+				auto        source      = destination ? runtime->source(token, *destination, transport == "gh") : tour_cli_result<tour_source_material>{ refuse("source_unavailable", "No pinned destination is available.", 5) };
+				QString     page        = "Stop " + QString::number(index + 1) + "/" + QString::number(snapshot->Draft.Stops.size()) + " · ID " + QString::number(stop.Id.value()) + " · revision " + QString::number(snapshot->Draft.Revision) + "\n" + text(stop.Title) + "\nComment\n" + text(stop.Body) + "\n";
+				if (source) {
+					page += render_source(*source);
+				} else {
+					page += "Source unavailable: " + text(source.error().Message) + "\n";
+				}
+				if (stop.Preparation == core::tour_preparation::needs_attention) {
+					page += "This stop needs attention before completion.\n";
+				}
+				options.Values["--profile"] = QString::number(runtime->admission()->value());
+				options.Values["--draft"]   = text(token);
+				runtime.reset();
+				std::cout << terminal_text(page).toUtf8().constData()
+						  << terminal_text("[e] Edit comment\n[t] Edit title\n[r] Ready and next\n[n] Next  [p] Previous\n[m before ID] Move\n[m after ID] Move\n[d] Remove  [q] Quit\n> ").toUtf8().constData() << std::flush;
+				auto input = read_tour_terminal_line();
+				if (!input) {
+					return std::unexpected(input.error());
+				}
+				const auto action = text(*input).trimmed();
+				if (action == "q") {
+					return presentation{ identities(*snapshot), "Walk ended. Changes remain saved locally.\n", { } };
+				}
+				if (action == "p") {
+					if (index) {
+						--index;
+					}
+					continue;
+				}
+				if (action == "n") {
+					index = std::min(index + 1, snapshot->Draft.Stops.size() - 1);
+					continue;
+				}
+				auto command = options;
+				command.Values.remove("--transport");
+				command.Values["--expected-revision"] = QString::number(snapshot->Draft.Revision);
+				command.Positional                    = { QString::number(stop.Id.value()) };
+				if (action == "e" || action == "t") {
+					command.Command    = "edit";
+					command.Positional = { "stop:" + QString::number(stop.Id.value()) + (action == "t" ? ":title" : ":body") };
+				} else if (action == "d") {
+					command.Command = "remove";
+				} else if (action == "r") {
+					command.Command       = "ready";
+					command.WalkAttention = core::tour_attention{ .EditorVisible = true, .Source = source ? std::optional{ source->Source } : std::nullopt, .SourceUnavailable = !source };
+				} else {
+					const auto parts = action.split(' ', Qt::SkipEmptyParts);
+					if (parts.size() != 3 || parts[0] != "m" || (parts[1] != "before" && parts[1] != "after") || !number(parts[2])) {
+						std::cerr << "Choose one of the displayed actions.\n";
+						continue;
+					}
+					command.Command                                               = "move";
+					command.Values[parts[1] == "before" ? "--before" : "--after"] = parts[2];
+				}
+				auto changed = perform(command, aReaders);
+				if (!changed) {
+					std::cerr << safe_terminal(text(changed.error().Message)).toUtf8().constData() << '\n';
+					if (changed.error().Exit == 130) {
+						return changed;
+					}
+					continue;
+				}
+				std::cout << "Saved locally.\n";
+				if (action == "r") {
+					if (index + 1 == snapshot->Draft.Stops.size()) {
+						return presentation{ changed->Data, "Walk complete. Preview the local tour before publication.\n", { } };
+					}
+					++index;
+				}
+			}
+		}
+
 	}
 	auto run_tour_cli(const QStringList& aArguments, tour_reader_factory aReaders) -> int
 	{
@@ -545,9 +790,9 @@ namespace bpr::app {
 			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", QUuid::createUuid().toString(QUuid::WithoutBraces) }, { "status", result ? "ok" : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
 			std::cout << QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).constData() << '\n';
 		} else if (result) {
-			std::cout << safe_terminal(result->Human).toUtf8().constData();
+			std::cout << terminal_text(result->Human).toUtf8().constData();
 			for (const auto& warning : result->Warnings) {
-				std::cerr << safe_terminal(warning.toObject()["message"].toString()).toUtf8().constData() << '\n';
+				std::cerr << terminal_text(warning.toObject()["message"].toString()).toUtf8().constData() << '\n';
 			}
 		} else {
 			std::cerr << safe_terminal(text(result.error().Message)).toUtf8().constData() << '\n';

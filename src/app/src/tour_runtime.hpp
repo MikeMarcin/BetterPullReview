@@ -2,6 +2,7 @@
 #define BPR_APP_TOUR_RUNTIME_HPP
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -19,11 +20,7 @@ namespace bpr::app {
 		application::tour_saved_target            Target;
 		application::github_pull_request_snapshot Snapshot;
 	};
-	struct tour_source_material
-	{
-		core::tour_source_range Source;
-		std::string             Text;
-	};
+	using tour_source_material = application::review_tour_source_material;
 
 	/// \brief Narrow headless read composition; no mutation or model capability exists.
 	class tour_remote_reader

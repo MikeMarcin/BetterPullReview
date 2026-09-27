@@ -25,7 +25,7 @@ distribution are tracked by the extension's later verification milestone.
 Capability discovery reports implemented commands explicitly. Human text is the
 default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Unsupported options
 refuse before command execution. Available commands include `connect`, `open`, `status`, `show`, `edit`, `add`,
-`move`, `remove`, `ready`, and `capabilities`.
+`move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, and `capabilities`.
 `open` accepts a full HTTPS PR URL from any directory, or a decimal PR number
 with `--repo HOST/OWNER/REPO`. Multiple roots require `--root` with a returned
 candidate label or a unique review URL/ID. `open --offline` uses one exact saved
@@ -47,11 +47,11 @@ Concurrent profile ownership returns `owner_busy` (exit 4). `status` pages stop
 summaries using `--cursor`; `show problem|solution|stop:ID` preserves raw Markdown
 in JSON and neutralizes terminal controls in human output. `show stop:ID --source` requests bounded pinned source; unavailable material is
 reported explicitly while the current comment remains readable. No worktree
-file is substituted. Pinned-source acceptance is completed by BPR-1058.
+file is substituted. Source uses the same pinned endpoint/blob services exercised by the installed-Git fixture.
 
 `--data-root` selects an absolute private application root for isolated work.
 Existing non-private roots are refused, never chmodded into ownership. Local
-schema 1 is migrated atomically to schema 2 without rewriting existing tour
+schemas 1 and 2 migrate atomically to schema 3 while retaining legacy tour
 payloads. Corrupt or unknown catalogs remain errors, not empty drafts.
 `edit problem|solution|stop:ID[:title|body] --file PATH|-` imports one exact
 UTF-8 field (maximum 65536 bytes), retaining line endings. Machine edits require
@@ -72,8 +72,7 @@ Source inspection can make authorized remote reads and never content writes.
 published discussions. `ready ID` records an explicit relayed current-content
 decision in payload version 8; it does not invent a human visit or a publication
 grant. Older payloads retain an unspecified origin. Status distinguishes
-`ready` from `can_ready`. Editor configuration and durable undo follow in
-BPR-1057; Walk and pinned-source acceptance follow in BPR-1058.
+`ready` from `can_ready`.
 
 Desktop and terminal authoring use `application::review_tour_host::execute` with
 the exact owner, draft and expected revision. Admission and durable save are
@@ -104,3 +103,33 @@ each direction. Revisions always advance, including undo. Observing a changed
 head or remote publication invalidates the local history. Undo changes local
 content; it grants no authority to change a published discussion. Schema 3 reads
 legacy draft payloads and initializes an empty journal without inventing history.
+
+## Walk and local preview
+
+`walk` is a line-oriented terminal session. Each page shows the current comment
+and up to 200 numbered lines of exact pinned source, or a visible unavailable
+reason. Choose Edit comment/title, Ready and next, Next, Previous, Move before
+or after a stable ID, Remove, or Quit. The profile lease is released at each
+prompt; a stale answer refuses instead of changing a newer revision. EOF and
+SIGINT cancel without supplying a decision. Ready in this attended flow records
+an observed response bound to the displayed revision/source. Merely printing
+source or JSON never sets a visit or readiness decision.
+
+`preview` pages the local narrative: Problem, Solution, then one stop per page.
+Follow `--cursor` for each next page. It uses the parent Markdown label and
+readiness/destination policies, reports incomplete or unqualified publication,
+and performs no provider reads or writes. The exact qualified publication plan
+and its approval are part of the later publish-and-recover milestone.
+
+Terminal text has no ANSI color. `--no-color` is accepted; `COLUMNS` controls
+plain wrapping from 20 to 240 columns (80 by default). Control/escape and bidi
+control characters are displayed as literal escapes. JSON preserves raw text.
+Recovery paths remain unwrapped for copying. Status/preview pages name their
+continuation, and bounded notices report truncation. No pager is launched;
+capabilities explicitly reports this behavior. Width is an approximate Unicode
+cell count; native terminal font/emoji behavior remains qualification work.
+
+Local commands have no model or remote-mutation capability. Source reads use the
+existing epoch actor, retained Git objects, exact commit/blob/path/side and typed
+source lines. Added, left, historical and unchanged files follow the same path;
+a dirty checkout cannot supply replacement text.

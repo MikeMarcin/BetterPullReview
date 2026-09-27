@@ -111,6 +111,87 @@ if mode == "cancel": time.sleep(30)
                 raise AssertionError("Editor process was left running")
 
 
+def walk_checks(binary, root, select, invoke, temporary):
+    import pty
+    def terminal_run(args, actions=(), eof=False):
+        master, slave = pty.openpty()
+        child = subprocess.Popen([binary, "tour", *args, "--data-root", str(root), "--no-color"],
+                                 stdin=slave, stdout=slave, stderr=slave,
+                                 env=dict(os.environ, COLUMNS="24", NO_COLOR="1"))
+        os.close(slave)
+        output = bytearray()
+        pending = list(actions)
+        prompted = 0
+        deadline = time.monotonic() + 20
+        try:
+            while time.monotonic() < deadline:
+                if readiness.select([master], [], [], 0.05)[0]:
+                    try:
+                        part = os.read(master, 8192)
+                    except OSError as error:
+                        if error.errno == errno.EIO: break
+                        raise
+                    if not part: break
+                    output.extend(part)
+                    count = output.count(b"> ")
+                    if count > prompted:
+                        prompted = count
+                        # Every human wait releases the profile owner.
+                        assert invoke("status", *select, "--json").returncode == 0
+                        if pending:
+                            os.write(master, pending.pop(0).encode() + b"\n")
+                        elif eof:
+                            os.write(master, b"\x04")
+                            eof = False
+            child.wait(timeout=3)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+            os.close(master)
+        assert not pending, (args, output)
+        assert b"\x1b" not in output, output
+        return child.returncode, bytes(output)
+    field = Path(temporary) / "manual field.md"
+    for name, content in [("problem", "Manual problem α\n"), ("solution", "Manual solution β\n")]:
+        field.write_text(content)
+        code, output = terminal_run(["edit", name, *select, "--file", str(field)])
+        assert code == 0, output
+    field.write_text("Comment with OSC \x1b]52;c;ZXZpbA==\x07 and bidi \u202e literal\n")
+    for path in ["資料 α.txt:1-1", "second.cpp:1-1"]:
+        code, output = terminal_run(["add", path, *select, "--file", str(field)])
+        assert code == 0, output
+    status = json.loads(invoke("status", *select, "--json").stdout)["data"]
+    assert [x["stop_id"] for x in status["stops"]] == ["1", "2"]
+    before_show = status["revision"]
+    source = json.loads(invoke("show", "stop:1", *select, "--source", "--json").stdout)["data"]
+    assert source["source_availability"] == "available" and source["text"] == field.read_text()
+    assert json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"] == before_show
+    code, output = terminal_run(["walk", *select], ["m after 2", "n", "p", "r", "r"])
+    assert code == 0 and b"1 | fixture source" in output and b"Source unavailable" not in output, output
+    assert b"\\u001b" in output and "資料 α.txt".encode() in output, output
+    status = json.loads(invoke("status", *select, "--json").stdout)["data"]
+    assert [x["stop_id"] for x in status["stops"]] == ["2", "1"]
+    assert all(x["ready"] and x["completion_origin"] == "observed" for x in status["stops"])
+    for cursor, field_name in [(None, "Problem"), ("1", "Solution"), ("2", "Stop 2"), ("3", "Stop 1")]:
+        command = ["preview", *select] + (["--cursor", cursor] if cursor else [])
+        page = invoke(*command, "--json")
+        assert page.returncode == 0, page.stdout
+        data = json.loads(page.stdout)["data"]
+        assert data["field"] == field_name and not data["remote_writes"] and not data["publication_authorized"]
+        assert len(page.stdout) <= 1048576
+        code, output = terminal_run(command)
+        assert code == 0, output
+    code, output = terminal_run(["walk", *select], ["d", "q"])
+    assert code == 0, output
+    assert len(json.loads(invoke("status", *select, "--json").stdout)["data"]["stops"]) == 1
+    code, output = terminal_run(["walk", *select], eof=True)
+    assert code == 130, output
+    refused = invoke("walk", *select, "--json")
+    assert refused.returncode == 3 and json.loads(refused.stdout)["error"]["code"] == "interaction_required"
+    print("tour-cli-raw-terminal-rehearsal:pass")
+
+
 def main():
     binary = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory(prefix="bpr-cli-process-") as temporary:
@@ -176,6 +257,7 @@ def main():
             assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"].encode() == raw
         if os.name != "nt":
             editor_checks(binary, root, select, invoke, temporary)
+            walk_checks(binary, root, select, invoke, temporary)
     print("tour-cli-process-commands:pass")
 
 

@@ -1,4 +1,3 @@
-#include "github_cli_runtime.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
@@ -10,6 +9,7 @@
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "github_cli_runtime.hpp"
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
@@ -620,8 +620,6 @@ namespace bpr::app {
 				QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }
 					.canonicalFilePath());
 		}
-
-
 
 		[[nodiscard]] auto queue_observation_for(
 			const application::accepted_pull_request_handoff& aHandoff,

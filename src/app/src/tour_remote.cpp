@@ -5,6 +5,7 @@
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_device_authorization_transport.hpp"
@@ -183,61 +184,22 @@ namespace bpr::app {
 					Handoff.reset();
 					wait([&] { return Epoch->is_quiescent(); });
 				}
-				auto context = Epoch->context(authority);
+				auto context = application::review_tour_source_context(*Epoch, authority, aSource);
 				if (!context) {
-					return refuse("source_unavailable", "Pinned commits are unavailable; no working-tree source is substituted.", 5);
-				}
-				const bool left = aSource.Side == core::diff_side::left;
-				if ((left ? context->Comparison.Left.Commit : context->Comparison.Right.Commit) != aSource.Commit) {
-					context = Epoch->realignment_context(authority, { authority.Host, authority.Repository, authority.PullRequest, aSource.Commit, aSource.Commit, context->Comparison.Left.Identity.Epoch, context->Comparison.Right.Identity.Epoch });
-				}
-				if (!context) {
-					return refuse("source_unavailable", "The historical comparison is not retained.", 5);
+					return refuse("source_unavailable", "Pinned source authority is unavailable; no working-tree text is substituted.", 5);
 				}
 				const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, Session, core::request_generation{ 1 } }, .WorkbenchAuthority = authority, .Diff = *context, .File = { .File = core::file_identity_of(aSource.Path), .PresentationPath = aSource.Path, .CurrentPath = native_filesystem_path(QString::fromUtf8(aSource.Path)), .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
-				const auto                                         resolved = source_effect([&] { return Epoch->resolve(request, { }); });
-				const auto&                                        blob     = left ? resolved.LeftBlob : resolved.RightBlob;
-				const auto&                                        path     = left ? resolved.LeftPath : resolved.RightPath;
-				const auto&                                        endpoint = left ? resolved.LeftEndpoint : resolved.RightEndpoint;
-				if (!blob || !path || !endpoint || !application::valid(*endpoint, request, aSource.Side, *blob, *path) || (aSource.Blob && aSource.Blob != blob)) {
-					return refuse("source_unavailable", "The exact source endpoint is missing, changed or ambiguous.", 5);
-				}
-				const auto&                     diff = *context;
-				const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest, diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, resolved.LeftBlob, resolved.RightBlob, request.File.File, diff.OptionsDigest, diff.Algorithm };
-				if (!core::valid(key)) {
-					return refuse("source_unavailable", "The source comparison is invalid.", 5);
-				}
-				const auto material = source_effect([&] { return Epoch->materialize({ .Context = { core::request_id{ 2 }, Session, key, core::request_generation{ 1 } }, .Side = aSource.Side, .Blob = *blob, .MaximumBytes = 256 * 1024 }, { }); });
-				if (material.Status != application::diff_blob_status::available) {
-					return refuse("source_unavailable", "The bounded pinned source could not be loaded.", 5);
-				}
-				const std::string bytes{ material.Bytes.begin(), material.Bytes.end() };
-				if (!core::valid_writing_utf8(bytes) || bytes.find('\0') != std::string::npos) {
-					return refuse("source_unavailable", "Pinned source is binary or is not UTF-8.", 5);
-				}
-				std::size_t   first = 0, last = 0;
-				std::uint32_t line = 0;
-				while (line < aSource.FirstLine && first < bytes.size()) {
-					auto next = bytes.find('\n', first);
-					first     = next == std::string::npos ? bytes.size() : next + 1;
-					++line;
-				}
-				if (line != aSource.FirstLine || first == bytes.size()) {
-					return refuse("source_range_unavailable", "The requested first line is outside the pinned file.", 2);
-				}
-				last = first;
-				for (; line <= aSource.LastLine; ++line) {
-					if (last == bytes.size()) {
-						return refuse("source_range_unavailable", "The requested range extends beyond the pinned file.", 2);
+				auto                                               material = source_effect([&] { return application::materialize_review_tour_source(*Epoch, *Epoch, request, aSource, { }); });
+				if (!material) {
+					if (material.error() == application::review_tour_source_failure::range_unavailable) {
+						return refuse("source_range_unavailable", "The range is outside the pinned file.", 2);
 					}
-					auto next = bytes.find('\n', last);
-					last      = next == std::string::npos ? bytes.size() : next + 1;
+					if (material.error() == application::review_tour_source_failure::too_large) {
+						return refuse("source_too_large", "Selected source exceeds its presentation bound.", 2);
+					}
+					return refuse("source_unavailable", "The exact pinned source is unavailable, changed, binary or not UTF-8; no working-tree text is substituted.", 5);
 				}
-				if (last - first > core::maximum_tour_field_bytes) {
-					return refuse("source_too_large", "Selected source exceeds the 65536-byte presentation bound.", 2);
-				}
-				const auto digest = core::comparison_digest(key);
-				return tour_source_material{ { { digest, aSource.Side, aSource.FirstLine }, { digest, aSource.Side, aSource.LastLine }, aSource.Commit, blob, aSource.Path }, bytes.substr(first, last - first) };
+				return std::move(*material);
 			}
 
 		private:
