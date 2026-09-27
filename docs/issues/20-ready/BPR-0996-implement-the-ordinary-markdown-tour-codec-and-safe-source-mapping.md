@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0996"
 title: "Implement the ordinary Markdown tour codec and safe source mapping"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0040"]
 depends_on: ["BPR-0992", "BPR-0995"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-06","milestone":"github-round-trip","acceptance":["AC40-01","AC40-02","AC40-04","AC40-05"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
