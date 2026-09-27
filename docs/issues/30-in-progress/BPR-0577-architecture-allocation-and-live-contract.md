@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0577"
 title: "Allocate RFC-BPR-0023 across core, host, adapters, Qt, and composition root"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0023"]
 depends_on: ["BPR-0576"]
 milestone: "Post-Pack v2"
