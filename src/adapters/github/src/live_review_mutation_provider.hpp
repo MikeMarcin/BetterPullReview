@@ -48,6 +48,7 @@ namespace bpr::adapters::github {
 			const application::review_thread_resolution_request& aRequest,
 			std::stop_token                                      aStop)
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure> override;
+		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token) -> application::review_mutation_submission override;
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override;
 
@@ -57,7 +58,8 @@ namespace bpr::adapters::github {
 			application::review_mutation_target_binding  aTarget,
 			application::review_mutation_acting_identity aActingIdentity,
 			std::unique_ptr<application::review_mutation_recovery_port>
-				aRecovery) noexcept
+														  aRecovery,
+			application::review_publication_lineage_port* aLineage) noexcept
 			-> std::expected<
 				std::unique_ptr<live_review_mutation_provider>,
 				application::review_mutation_failure>;
@@ -67,7 +69,8 @@ namespace bpr::adapters::github {
 			detail::github_mutation_wire_transport&    aTransport,
 			detail::live_review_mutation_configuration aConfiguration,
 			std::unique_ptr<application::review_mutation_recovery_port>
-				aRecovery) noexcept;
+														  aRecovery,
+			application::review_publication_lineage_port* aLineage) noexcept;
 
 		detail::review_mutation_session Session;
 	};
@@ -78,7 +81,8 @@ namespace bpr::adapters::github {
 		application::review_mutation_target_binding  aTarget,
 		application::review_mutation_acting_identity aActingIdentity,
 		std::unique_ptr<application::review_mutation_recovery_port>
-			aRecovery) noexcept
+													  aRecovery,
+		application::review_publication_lineage_port* aLineage = nullptr) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>;

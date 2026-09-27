@@ -1157,3 +1157,158 @@ live audit. M8 owns composition-root/UI wiring; M9 owns native and designated
 publication acceptance; M10 retains the one independent final review under
 mandate r2. All eighteen feature criteria remain open until their complete
 assigned evidence is supplied.
+
+## M7 composition and publication segment (mandate r2)
+
+Started from integrated main `ef66363c00acf5062d120a2762393ec6ccc6e10d`.
+The assigned milestone binds BPR-0583 and BPR-0584; this section records their
+separate acceptance, with final independent review still deferred to M10.
+
+### BPR-0583 composition candidate
+
+The new `review_composition_application_host` performs local store effects and
+returns bounded workspace records or acknowledged existing draft values. It
+reloads exact selected source references and uses M3's deterministic policy.
+Reviewer-authored and exact-copy candidates require no agent. Split returns
+all exact target partitions and every unassigned source; accepting the chosen
+batch is atomic. A current binding and real semantic index must match at accept.
+
+M6's private run port now checks the exact unproposed composition and sources at
+admission. The existing invocation performs selected-only input; terminal storage
+appends an agent-authored proposal only if the workspace/source expectations
+still hold. Source edits during execution retain the run outcome without silently
+appending a candidate. No process path or mutation capability was added.
+
+A store acknowledgement enters the existing shared draft owner on the decision
+lane. It reattaches the runtime scope and fans out only durable accepted values;
+stale/replaced-ledger acknowledgements and volatile durable-draft edits refuse.
+Linked edits use the existing reducer and store a reviewer successor plus draft
+CAS atomically. Ordinary inline drafts can use the same durable ID frontier.
+M8 owns production executor/UI wiring. M7 does not claim rendered UX acceptance.
+
+Changed product paths: new application composition host and internal bounded
+storage helpers; private invocation admission/terminal; existing shared draft
+owner; core's deterministic reopening of an accepted composition for an immutable
+reviewer successor. The focused SQLite/host course uses the actual store, shared
+draft owner, invocation host and manual effect/decision lanes. Store schema 7,
+recovery schema 5 and tour codec 3 remain unchanged.
+
+Evidence: exact-copy bytes with CR/LF and Unicode; reviewer derivation; atomic
+acceptance failure; exact draft/candidate linkage after reopen; persistence before
+fan-out; linked reviewer edit; stale acknowledgement and duplicate accept refusal;
+exact target partition/unassigned sources; whole-batch stale-member refusal;
+changed current binding; selected-only agent input; unaccepted correlated full
+response; source edit during execution; immutable source/candidate byte retention.
+Counters cover inline, thread resolution, whole-review and Tour mutation ports
+beside the local-only host graph and remain zero across create/edit/squash/accept
+and restart. These local capability checks do not qualify a live publication.
+
+BPR-0583 verification: core-only builds for private host, shared draft host and
+composition core passed. The focused composition/core/shared-host plus both
+architecture checks passed 5/5. After the final multi-comparison batch context,
+empty reviewer workspace, durable-allocation and all-capability-counter additions,
+the two host courses were rebuilt and passed 2/2; the unchanged core and
+architecture validator self-test evidence is reused. The documentation gate,
+changed-C++ formatting and `git diff --check` passed. Early compile corrections
+were missing aggregate defaults and namespace/overload qualification in the new
+canary; no passing claim uses a failed-build candidate. There was no independent
+review or live GitHub/GHES activity in this slice.
+
+
+### BPR-0584 publication implementation
+
+The separate draft Publish proposal now carries optional local ledger
+incarnation/revision identity. It changes only durable-draft idempotency; old
+proposal keys and public request bodies retain their prior contract. The new
+storage-only `private_publication_application_host` validates the exact draft,
+composition, target/head, actor and source binding before retaining a pending
+join. The existing coordinator/provider/logical recovery path remains the sole
+mutation path. Native/file children share that one join. An exact independent
+server reconciliation precedes atomic receipt plus draft completion.
+
+The private publication payload advances to version 2 inside ledger schema 7;
+version-1 records keep unknown new metadata absent. Recovery stays schema 5.
+Each pending join reserves 4 KiB of receipt space in the existing payload quota.
+Failure to prepare means no POST. Remote success followed by SQLite contention
+or failed refresh stays visibly pending; the provider's explicit
+`reconcile_publication` reads an already admitted journal and server receipt,
+then retries only the local transaction. It has no admission or POST branch.
+Bounded lookup resolves draft/server identity and duplicate source/body/target
+advisories without withholding an intentional publication.
+
+Changed product paths: application publication owner, mutation port/terminal,
+idempotency contract, core proposal identity, existing GitHub provider/session,
+SQLite private-record codec and join writes/lookup. The real composition/store
+and coordinator/session/recovery course is in
+`tests/github_contract/review_comment_permalink_tests.cpp`; v1/v2 publication
+codec compatibility is in `tests/sqlite_contract/private_review_storage_tests.cpp`.
+The course covers native and authorized synthetic file representation, prepare
+refusal, wrong actor, cancellation, remote success with competing SQLite writer,
+failed refresh, quota occupation after reservation, reopen and repeated read-only
+repair, separate prose/wire digests, exact retained composition, local/server
+lookups and advisory lineage. A separate fixture JSON reader checks exact shared
+body and actor; this synthetic reader is not the required external evidence.
+
+### M7 durable handoff
+
+M7 is **implementation-complete with external acceptance pending**. BPR-0583 is
+Done (candidate `8027c6c50`, finish `d504cd0ad`). BPR-0584 remains nonterminal
+until designated target or signed recorded evidence and an independent public
+body/actor read are supplied. No live GitHub/GHES access, mutation, signed
+recording, native UX acceptance or independent review is claimed here.
+
+The [sequencing amendment](RFC-BPR-0023.m7-amendment.json) retains the original
+external exit at M9 and permits M8 after the coordinator integrates the verified
+M7 implementation. The complete eighteen-criterion RFC remains intact; external
+publication evidence still blocks closeout and full AC-12/13 satisfaction. The
+checkpoint uses `human-pending`, with an `independent-work` continuation to M8,
+since its schema has no implementation-complete disposition. Required external
+evidence is not converted to a passing whole-card record.
+
+Per the user's request to review at RFC end, no attended review session or
+server is started here. M9 owns external/native evidence and M10 owns the one
+independent final review. The next implementer must preserve the exact private
+run-port lifetime, serialized storage/lineage lane, opaque draft acknowledgements,
+current semantic source checks and all prior schema/frontier contracts while
+wiring the actual Qt/composition root. Its BPR-0587 prerequisite is the integrated
+M7 candidate, not BPR-0584's still-pending external card status.
+
+
+| M7 publication check | Command and result |
+|---|---|
+| Core-only storage/host build | `cmake --build --preset core-only --target test_private_review_storage test_private_review_host test_better_pull_review_review_mutation_application_host_tests test_better_pull_review_review_mutation_recovery_storage_tests -j6` — PASS. |
+| Focused host/storage and architecture scan | `ctest --preset core-only --output-on-failure -R '^(sqlite_private_review_storage\|application_private_review_host\|application_review_mutation_application_host\|sqlite_review_mutation_recovery_storage\|architecture_boundaries)$'` — PASS, 5/5, 23.20 seconds. Includes new v1/v2 publication codec course. |
+| Architecture validator adversaries | `ctest --preset core-only --output-on-failure -R '^architecture_boundary_contract$'` — PASS, 1/1, 98.24 seconds. |
+| Provider build | `cmake --build --preset dev --target test_better_pull_review_review_comment_permalink_tests test_better_pull_review_github_mutation_contract_tests test_better_pull_review_live_review_mutation_provider_tests -j6` — PASS. |
+| Existing mutation/provider/restart plus private publication | `ctest --preset dev --output-on-failure -R '^(github_review_comment_permalink\|github_mutation_contract\|live_review_mutation_provider\|live_review_mutation_restart_recovery)$'` — PASS, 4/4, 4.39 seconds. |
+| Documentation/structure | `python3 scripts/verify_documentation.py --root .`, scoped `issue_board.py validate --rfc RFC-BPR-0023 --json`, plan check and amendment check — PASS. |
+| Source hygiene | Changed C++ `clang-format --dry-run --Werror` and `git diff --check` — PASS. |
+
+A first fault-injection experiment used a SQLite trigger and correctly failed to
+simulate a local refusal because this adapter disables triggers. It was replaced
+with a real competing `BEGIN IMMEDIATE` writer; only that passing course supplies
+local-failure evidence. Initial target-name/selector mistakes were corrected;
+no claim relies on a stale binary after a failed build. No full application build
+or exhaustive platform matrix was needed for this application/adapter milestone.
+
+After the final quota assertion and comment clarification, the provider target
+was rebuilt and `github_review_comment_permalink` passed again 1/1 in 3.56
+seconds. No semantic product changes followed the focused acceptance above.
+
+
+Publication product/plan candidate: `1f25799b5f327d6c7fefd2214a8371e0f62ecb2c`. Final checks against that
+exact commit passed 4/4 provider/recovery tests in 3.50 seconds and 4/4 private
+storage/host/recovery tests in 15.11 seconds, plus the documentation gate.
+The [durable handoff](RFC-BPR-0023.m7-handoff.json) records exact changed paths,
+commands, candidate identities, pending gates, owner and next action. The
+[M7 observation](RFC-BPR-0023.m7-observation.json) is human-pending for the whole
+BPR-0584 obligation while recording the passing implementation exits.
+
+All task-owned build, CTest, formatting, documentation, board and checkpoint
+commands completed before release of this checkout. No background writer,
+review server, attended session, cursor or protected candidate lease is handed
+off. `/root/rfc0023_m7` is the sole assigned writer and releases ownership to
+the coordinator. Ignored build outputs remain reusable; temporary scripts,
+acceptance input and build log are removed after bookkeeping. The coordinator
+owns local-main integration; this leaf made no main mutation, push, PR or live
+GitHub/GHES call.

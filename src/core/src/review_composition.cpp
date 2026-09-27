@@ -789,6 +789,15 @@ namespace bpr::core {
 		state.Lifecycle = review_composition_lifecycle::accepted_as_draft;
 		return state;
 	}
+	auto reopen_review_composition(const review_composition_state& aState) -> std::expected<review_composition_state, private_review_refusal>
+	{
+		if (!valid_workspace(aState) || aState.Lifecycle != review_composition_lifecycle::accepted_as_draft || !aState.Candidate) {
+			return std::unexpected(private_review_refusal::invalid_transition);
+		}
+		auto state      = aState;
+		state.Lifecycle = review_composition_lifecycle::editing;
+		return state;
+	}
 	auto abandon_review_composition(const review_composition_state& aState) -> std::expected<review_composition_state, private_review_refusal>
 	{
 		if (!valid_workspace(aState) || aState.Lifecycle != review_composition_lifecycle::editing) {

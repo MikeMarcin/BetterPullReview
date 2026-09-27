@@ -6,6 +6,7 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/model.hpp"
 
+#include <array>
 #include <compare>
 #include <cstdint>
 #include <optional>
@@ -197,6 +198,13 @@ namespace bpr::core {
 		target_revalidation aOutcome,
 		bool                aAcknowledged) noexcept -> bool;
 
+	/// \brief Local-only durable identity included in idempotency, never public prose.
+	struct durable_review_publication_identity
+	{
+		std::array<std::uint8_t, 32> Incarnation{ };
+		std::uint64_t                DraftRevision                                                 = 0;
+		auto                         operator<=>(const durable_review_publication_identity&) const = default;
+	};
 	/// \brief Describes the semantic proposal a publish produces.
 	///
 	/// \details The core emits this rather than a request. It names what is to
@@ -212,6 +220,8 @@ namespace bpr::core {
 		/// [[BPR-0657]]. Carried from the draft: the thread the comment
 		/// answers, or none.
 		std::optional<std::string> ReplyToThread;
+
+		std::optional<durable_review_publication_identity> Durable = { };
 
 		auto operator<=>(const review_publication_proposal&) const = default;
 	};

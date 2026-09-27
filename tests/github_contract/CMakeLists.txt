@@ -1277,7 +1277,7 @@ bpr_add_executable(
 )
 target_link_libraries(
     test_better_pull_review_review_comment_permalink_tests
-    PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::Application BetterPullReview::AdapterSQLite
+    PRIVATE glaze::glaze BetterPullReview::AdapterGitHub BetterPullReview::Application BetterPullReview::AdapterSQLite BetterPullReview::SQLite3
 )
 target_include_directories(
     test_better_pull_review_review_comment_permalink_tests

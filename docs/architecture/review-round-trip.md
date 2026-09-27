@@ -909,3 +909,65 @@ that post. Selection is bound to the exact target, acting identity and retained
 comparison and is abandoned on a mismatch. Both native and file-subject
 publications use this path; the server read owns the remote subject, body and
 canonical thread identity.
+
+## Durable composition drafts (RFC-BPR-0023 M7)
+
+`review_composition_application_host` performs bounded local operations on the
+private store's serialized effect lane. It reloads exact selected identities,
+creates reviewer/copy candidates, returns exact target partitions and unassigned
+sources, and accepts a selected batch in one transaction. Accepted candidates
+are the body authority for the existing `revisioned_review_draft`; an edit adds
+an immutable reviewer successor and advances the draft CAS in the same commit.
+No mutation or process port is available to this host.
+
+A `durable_draft_commit` is the store acknowledgement passed to
+`shared_draft_application_host::adopt` on the decision lane. The existing shared
+owner binds the runtime scope, validates profile/account/PR/head and ledger
+incarnation, then fans out accepted revisions. It refuses stale acknowledgements,
+volatile edits and volatile allocation once durable storage is selected. New
+ordinary inline drafts use `allocate_draft` on the same monotonic store frontier.
+Storage refusal produces no accepted acknowledgement or projection. Restore
+reattaches exact durable values; a `publishing` value remains pending and carries
+no execution grant. M8 owns asynchronous production wiring and UI translation.
+
+Agent-assisted composition obtains an exact workspace intent and uses the one
+`agent_invocation_host`. Admission revalidates workspace version, source set and
+revision binding before retaining the run. A correlated complete output can
+append only a proposal; a changed/deleted workspace or advanced source retains
+the run terminal without attaching a candidate. Accept and Publish remain
+separate operations. The store and private run port outlive all invocation
+claims and effects, as specified by the M6 lifecycle contract.
+
+
+### Separate durable publication join
+
+`private_publication_application_host` loads an already publishing draft into
+the existing core proposal. Its optional local identity binds the private ledger
+incarnation and exact draft revision into the idempotency key. Legacy proposals
+keep their existing keys. These local fields never enter a GitHub request body.
+A separate explicit Publish still traverses the existing coordinator, exact
+source/actor/target validation and RFC-BPR-0022 logical journal.
+
+Before a child is admitted, a storage-only lineage port commits the exact draft
+and composition revision, private binding, actor, logical ID, idempotency key,
+approved-prose digest and compiled wire-body digest. Native-to-file negotiation
+updates that same pending row. Pending rows are not successful publication.
+An exact server reread must agree with the receipt before the join and matching
+publishing draft are completed in one transaction. A failed local commit leaves
+the remote success visible with lineage pending.
+
+The provider's explicit `reconcile_publication` operation loads an existing
+logical journal and performs only reconciliation reads and local commits. It
+cannot admit or POST a child. A reopened caller supplies the retained exact
+original request and source endpoint; fresh text alone cannot reconstruct
+recovery authority. Repeated repair uses the original canonical server identity.
+The local host exposes bounded lineage pages by draft and duplicate-source/body/
+target advisories, with server IDs. An advisory cannot suppress intentional Publish.
+
+The store, lineage host and all borrowing providers must share one serialized
+effect lane and outlive its drained invocations. The existing mutation terminal
+carries lineage state to the decision lane; M8 owns production construction,
+recovery discovery and rendering. M7 fixture courses exercise the actual store,
+coordinator, provider and journal, but do not supply designated live-target or
+signed-recording acceptance. Public prose stays byte-preserved; the authorized
+file representation adds only its canonical visible permalink.

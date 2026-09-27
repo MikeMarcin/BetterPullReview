@@ -887,6 +887,8 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& p : aPublications) {
 				require(valid_private_id(p.Id) && valid_private_id(p.Draft) && p.DraftRevision > 0 && p.Target.Binding.Scope == aDb.Identity && valid_private_binding(p.Target.Binding) && valid_private_id(p.Actor) && p.ApprovedProseDigest.valid() && p.WireBodyDigest.valid());
 				require(!p.LogicalPublication.empty() && p.LogicalPublication.size() <= 1024 && !p.Representation.empty() && p.Representation.size() <= 64 && p.ServerComment.has_value() == p.ReconciledIdentity.has_value());
+				require(p.ReceiptReserve <= 4096 && (!p.ServerComment || p.ReceiptReserve == 0));
+				require(p.IdempotencyKey.size() <= 64 && p.ActorNode.size() <= 256 && p.ActorLogin.size() <= 256 && p.Path.size() <= 4096);
 				if (p.ServerComment) {
 					require(!p.ServerComment->empty() && p.ServerComment->size() <= 1024 && !p.ReconciledIdentity->empty() && p.ReconciledIdentity->size() <= 1024);
 				}
@@ -899,8 +901,16 @@ namespace bpr::adapters::sqlite::detail {
 					auto next               = p;
 					next.ServerComment      = previous.ServerComment;
 					next.ReconciledIdentity = previous.ReconciledIdentity;
-					require(encoded(previous) == encoded(next) && !previous.ServerComment && p.ServerComment, error::conflict);
-					aState.Counts[9] -= q.bytes(0).size();
+					next.ReceiptReserve     = previous.ReceiptReserve;
+					// Only the provider's same logical parent may advance a pending native
+					// representation to its authorized file child, or attach its receipt.
+					if (!previous.ServerComment && previous.Representation == "native_line" && p.Representation == "file_comment_with_permalink") {
+						next.Representation = previous.Representation;
+						next.WireBodyDigest = previous.WireBodyDigest;
+					}
+					require(encoded(previous) == encoded(next) && !previous.ServerComment, error::conflict);
+					require(p.ReceiptReserve == (p.ServerComment ? 0 : previous.ReceiptReserve), error::conflict);
+					aState.Counts[9] -= q.bytes(0).size() + previous.ReceiptReserve;
 				} else {
 					auto draft = read_draft(aDb, p.Draft.value());
 					require(draft.Draft.Revision == p.DraftRevision && draft.Binding == p.Target.Binding && draft.Draft.Draft.Anchor == p.Target.Line && private_digest(draft.Draft.Draft.Body) == p.ApprovedProseDigest && draft.Draft.Composition == p.Composition, error::conflict);
@@ -909,7 +919,7 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				auto payload = encoded(p);
 				require(payload.size() <= 8192);
-				aState.Counts[9] += payload.size();
+				aState.Counts[9] += payload.size() + p.ReceiptReserve;
 				std::optional<std::uint64_t> content;
 				if (p.Composition) {
 					content = p.Composition->Revision.value();
@@ -1208,6 +1218,18 @@ namespace bpr::adapters::sqlite::detail {
 					return result;
 				});
 			}
+			auto lookup_publication(std::string_view aLogical) -> private_store_result<std::optional<private_publication_record>> override
+			{
+				return guarded([&]() -> std::optional<private_publication_record> {
+					require(!aLogical.empty() && aLogical.size() <= 1024);
+					auto db = database();
+					auto q  = db.sql("SELECT record FROM private_publication WHERE scope_id=?1 AND logical_id=?2", Scope, std::string{ aLogical });
+					if (!q.row()) {
+						return { };
+					}
+					return q.record<private_publication_record>(0);
+				});
+			}
 			auto find_publication(std::optional<std::string> aServer, std::optional<private_publication_cursor> aCursor) -> private_store_result<private_publication_page> override
 			{
 				return guarded([&] {
@@ -1298,7 +1320,9 @@ namespace bpr::adapters::sqlite::detail {
 						--s.Counts[6];
 						db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, aObject.Id);
 					} else if (aObject.Kind == private_object_kind::publication) {
-						s.Counts[9] -= record_size(db, "private_publication", aObject.Id);
+						auto publication = db.sql("SELECT record FROM private_publication WHERE scope_id=?1 AND id=?2", Scope, aObject.Id);
+						require(publication.row(), error::missing);
+						s.Counts[9] -= publication.bytes(0).size() + publication.record<private_publication_record>(0).ReceiptReserve;
 						--s.Counts[7];
 						db.write("DELETE FROM private_publication WHERE scope_id=?1 AND id=?2", Scope, aObject.Id);
 					} else if (aObject.Kind == private_object_kind::run) {

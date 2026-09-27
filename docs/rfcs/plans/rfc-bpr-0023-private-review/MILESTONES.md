@@ -111,9 +111,9 @@ Durable local composition with separate ordinary publication
 
 - All three composition modes retain sources and accept an exact candidate into the existing revisioned draft authority across restart with zero mutation.
 - Separate Publish uses RFC-0008 and RFC-0022 logical recovery, preserves approved prose and wire digests, and repairs local lineage without another POST.
-- BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending.
+- Local BPR-0584 implementation and recovery fixtures pass. Designated or signed recorded evidence plus independent body/actor read remains explicitly pending until supplied and blocks RFC closeout, but does not block M8 implementation.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Integrate the verified local implementation with exact evidence even when BPR-0584 external acceptance remains pending. Keep that card nonterminal and report implementation-complete separately from criterion satisfaction; required external acceptance is never inferred.
 
 ## m8-public-ui
 
@@ -121,7 +121,7 @@ Private/shared conversation and composition in the shipped workbench
 
 **Work:** `BPR-0585`, `BPR-0586`, `BPR-0587`
 
-**Prerequisites:** m7-compose-publish
+**Prerequisites:** m6-thread-host
 
 **Completion:**
 
@@ -129,7 +129,7 @@ Private/shared conversation and composition in the shipped workbench
 - The production composition supports the full create/agent/restart/compose/accept/separate-publish course in native and file-permalink representations.
 - Bounded updates, keyboard/accessibility, shutdown and configured dependency-boundary checks pass; helper-only behavior is insufficient.
 
-**Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
+**Boundary:** Start only after the coordinator integrates the verified M7 local implementation and its exact candidate evidence. Pending BPR-0584 external acceptance does not block this implementation milestone and still blocks RFC closeout. Return a durable quiescent handoff for integration to main.
 
 ## m9-acceptance
 
@@ -143,6 +143,7 @@ Focused failure, performance and rendered workflow evidence
 
 - All required crash, migration, quota, security, exact-selection, remote-success/local-failure and performance claims have direct candidate-bound evidence.
 - Rendered scales 100/125/200, supported themes, keyboard/accessibility and changed-set model work meet the RFC; required human/native/live decisions remain pending until supplied.
+- BPR-0584 designated or signed recorded evidence plus independent body/actor read is supplied; unavailable external acceptance remains pending.
 
 **Boundary:** Complete this integrated outcome and return a durable quiescent handoff for coordinator integration to main; required external acceptance is never inferred.
 

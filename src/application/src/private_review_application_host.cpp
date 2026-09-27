@@ -88,7 +88,16 @@ namespace bpr::application {
 			auto                  observed = take(Store.load_sources(refs));
 			auto                  digest   = decide(core::admit_private_run_sources(aIntent.Binding, aIntent.Sources, observed));
 			private_run_admission result;
-			std::size_t           bytes = 0;
+			if (aIntent.Purpose == core::private_run_purpose::composition) {
+				require(aIntent.Composition.has_value() && aContext.EntryPoint == core::agent_entry_point::workshop_comment && aContext.ChatMessage.empty() && !aIntent.Thread);
+				auto composition = take(Store.load_composition(*aIntent.Composition));
+				require(composition.Version == aIntent.ExpectedCompositionVersion && composition.State.Binding == aIntent.Binding && composition.State.Mode == core::review_composition_mode::agent_assisted && composition.State.Lifecycle == core::review_composition_lifecycle::editing && !composition.State.Candidate && composition.Sources == aIntent.Sources && composition.State.SourceSetDigest == digest, core::private_review_refusal::conflict);
+				result.Composition = std::move(composition);
+			} else {
+				require(!aIntent.Composition && aIntent.ExpectedCompositionVersion == 0);
+			}
+
+			std::size_t bytes = 0;
 			for (const auto& source : refs) {
 				auto body = full_body(Store, source);
 				require(body.Body.size() <= core::maximum_selected_private_source_bytes - bytes, core::private_review_refusal::bounds);
@@ -238,6 +247,28 @@ namespace bpr::application {
 				delta.Revision     = revision.Revision.Identity.Revision;
 			}
 			write.Runs = { run };
+			if (aAdmission.Composition && run.Outcome == core::private_run_outcome::succeeded) {
+				// A changed/deleted workspace or source still receives its terminal run,
+				// but never gains a candidate through an obsolete invocation.
+				auto current = Store.load_composition(aAdmission.Composition->State.Id);
+				if (current && current->Version == aAdmission.Composition->Version && current->State.Lifecycle == core::review_composition_lifecycle::editing && !current->State.Candidate) {
+					std::vector<core::private_source_reference> refs;
+					for (const auto& source : current->Sources) {
+						refs.push_back(source.Source);
+					}
+					auto observed = Store.load_sources(refs);
+					if (observed) {
+						auto proposal = core::propose_composition_revision(current->State, core::review_composition_revision_id{ next }, core::private_vertex_order{ next }, body, current->Sources, *observed, &run);
+						if (proposal) {
+							current->State = proposal->State;
+							write.Compositions.push_back({ *current, current->Version });
+							++write.Compositions.back().Record.Version;
+							write.Candidates.push_back(proposal->Revision);
+							delta.Candidate = proposal->Revision.Identity;
+						}
+					}
+				}
+			}
 			take(Store.commit(write));
 			return delta;
 		});

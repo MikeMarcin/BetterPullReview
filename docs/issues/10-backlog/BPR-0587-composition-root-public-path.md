@@ -4,7 +4,7 @@ id: "BPR-0587"
 title: "Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable"
 status: "Backlog"
 rfcs: ["RFC-BPR-0023"]
-depends_on: ["BPR-0582","BPR-0583","BPR-0584","BPR-0585","BPR-0586","BPR-0571"]
+depends_on: ["BPR-0582","BPR-0583","BPR-0585","BPR-0586","BPR-0571"]
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0023-private-review","path":"docs/rfcs/plans/rfc-bpr-0023-private-review/milestone-plan.json"}}
 ---
@@ -53,3 +53,15 @@ which supersede conflicting source-pack authorization and contract wording.
 
 Exercise private composition through both native and file-permalink publication
 representations, with separate prose/wire digests and one logical receipt.
+
+
+## M7 implementation prerequisite clarification (mandate r2)
+
+M8 begins only after the coordinator integrates the exact verified M7 local
+composition/publication candidate recorded in the [M7 handoff](../../verification/RFC-BPR-0023.md#m7-durable-handoff).
+BPR-0584 remains nonterminal until its designated or signed-recorded evidence
+and independent public-body/actor read are supplied. That external acceptance
+is carried at M9 and blocks RFC closeout; its pending card status does not block
+this wiring work. All BPR-0584 completion evidence and RFC criteria 12/13 remain
+required. This replaces only the terminal-status prerequisite, preserving the
+implementation dependency and the full public-executable requirements above.

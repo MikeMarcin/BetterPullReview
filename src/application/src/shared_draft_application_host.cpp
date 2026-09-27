@@ -19,7 +19,9 @@ namespace bpr::application {
 		std::vector<std::shared_ptr<consumer>>     Consumers    = { };
 		std::vector<core::revisioned_review_draft> Drafts       = { };
 		std::uint64_t                              NextConsumer = 1, NextDraft = 1;
-		bool                                       Closing = false;
+		std::vector<core::review_draft_id>         Durable      = { };
+		std::optional<core::private_review_scope>  DurableScope = { };
+		bool                                       Closing      = false;
 		auto                                       admitted(shared_draft_consumer aConsumer) const -> bool
 		{
 			return !Closing && std::ranges::any_of(Consumers, [&](const auto& aEntry) { return aEntry->Active && aEntry->Id == aConsumer && Contexts.current(aEntry->Window); });
@@ -53,6 +55,9 @@ namespace bpr::application {
 			auto* record = find(aCommand.Command.Id);
 			if (!record) {
 				return { .Failure = shared_draft_failure::unknown_draft };
+			}
+			if (std::ranges::find(Durable, aCommand.Command.Id) != Durable.end()) {
+				return { *record, shared_draft_failure::durable_required };
 			}
 			const auto outcome = core::apply(*record, aCommand);
 			if (outcome.Refusal != core::revisioned_draft_refusal::none) {
@@ -117,6 +122,9 @@ namespace bpr::application {
 		auto& host = *Implementation;
 		if (!host.admitted(aConsumer)) {
 			return { .Failure = shared_draft_failure::retired };
+		}
+		if (host.DurableScope) {
+			return { .Failure = shared_draft_failure::durable_required };
 		}
 		if (host.Drafts.size() >= maximum_shared_drafts) {
 			return { .Failure = shared_draft_failure::capacity };
@@ -188,6 +196,56 @@ namespace bpr::application {
 			return { .Failure = shared_draft_failure::retired };
 		}
 		return Implementation->change({ { aDraft, aSuccess ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish, { } }, aPublishingRevision, false, { }, Implementation->Scope });
+	}
+	auto shared_draft_application_host::adopt(const shared_draft_authority& aAuthority, const durable_draft_commit& aCommit) -> std::expected<void, shared_draft_failure>
+	{
+		auto& host = *Implementation;
+		if (host.Closing || aAuthority != host.Authority) {
+			return std::unexpected(shared_draft_failure::retired);
+		}
+		const auto& durableScope = aCommit.scope();
+		if (!core::valid_private_scope(durableScope) || durableScope.Profile != host.Authority.BprProfile || durableScope.Host != host.Authority.Target.Host || durableScope.Account != host.Authority.Account || durableScope.Repository != host.Authority.Target.Repository || durableScope.PullRequest != host.Authority.Target.PullRequest || (host.DurableScope && *host.DurableScope != durableScope)) {
+			return std::unexpected(shared_draft_failure::invalid_authority);
+		}
+		auto                                       drafts  = host.Drafts;
+		auto                                       durable = host.Durable;
+		auto                                       next    = host.NextDraft;
+		std::vector<core::revisioned_review_draft> changed;
+		for (const auto& record : aCommit.records()) {
+			const auto& binding = record.Binding;
+			const auto& scope   = binding.Scope;
+			if (scope != durableScope || scope.Profile != host.Authority.BprProfile || scope.Host != host.Authority.Target.Host || scope.Account != host.Authority.Account || scope.Repository != host.Authority.Target.Repository || scope.PullRequest != host.Authority.Target.PullRequest || binding.HostAuthority != host.Authority.HostAuthority || binding.Revision.HeadOid != host.Authority.Target.ExpectedHead || record.Draft.Scope.value() != 0 || record.Draft.Draft.Id.value() == 0 || record.Draft.Revision == 0) {
+				return std::unexpected(shared_draft_failure::invalid_authority);
+			}
+			auto value  = record.Draft;
+			value.Scope = host.Scope;
+			auto found  = std::ranges::find_if(drafts, [&](const auto& d) { return d.Draft.Id == value.Draft.Id; });
+			if (found != drafts.end()) {
+				if (std::ranges::find(durable, value.Draft.Id) == durable.end() || value.Revision < found->Revision || (value.Revision == found->Revision && value != *found)) {
+					return std::unexpected(shared_draft_failure::conflict);
+				}
+				if (value == *found) {
+					continue;
+				}
+				*found = value;
+			} else {
+				if (drafts.size() >= maximum_shared_drafts) {
+					return std::unexpected(shared_draft_failure::capacity);
+				}
+				drafts.push_back(value);
+				durable.push_back(value.Draft.Id);
+			}
+			next = std::max(next, value.Draft.Id.value() + 1);
+			changed.push_back(value);
+		}
+		host.DurableScope = durableScope;
+		host.Drafts       = std::move(drafts);
+		host.Durable      = std::move(durable);
+		host.NextDraft    = next;
+		for (const auto& draft : changed) {
+			host.publish(draft);
+		}
+		return { };
 	}
 	void shared_draft_application_host::shutdown()
 	{

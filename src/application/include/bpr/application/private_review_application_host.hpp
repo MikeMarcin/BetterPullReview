@@ -11,6 +11,8 @@ namespace bpr::application {
 		std::uint64_t                                 ExpectedThreadVersion = 0;
 		core::private_run_purpose                     Purpose               = core::private_run_purpose::conversation;
 		std::vector<core::private_source_selection>   Sources;
+		std::optional<core::review_composition_id>    Composition;
+		std::uint64_t                                 ExpectedCompositionVersion                   = 0;
 		auto                                          operator<=>(const private_run_intent&) const = default;
 	};
 	struct private_run_error
@@ -28,6 +30,7 @@ namespace bpr::application {
 		std::optional<core::private_review_turn_revision_id> Revision;
 		core::agent_run_id                                   Run;
 		std::vector<core::private_source_reference>          Findings;
+		std::optional<core::private_source_reference>        Candidate;
 		core::private_run_outcome                            Outcome = core::private_run_outcome::admitted;
 	};
 	struct private_run_admission
@@ -35,6 +38,7 @@ namespace bpr::application {
 		agent_launch_options                         Launch;
 		std::optional<core::private_review_revision> Prompt;
 		private_review_delta                         Delta;
+		std::optional<private_composition_record>    Composition;
 	};
 	/// \brief Called only from the invocation's effect lane. It owns no process or mutation port.
 	class private_agent_run_port
