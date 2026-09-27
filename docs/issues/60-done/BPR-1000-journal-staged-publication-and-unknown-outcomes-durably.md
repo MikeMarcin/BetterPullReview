@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1000"
 title: "Journal staged publication and unknown outcomes durably"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0041"]
 depends_on: ["BPR-0999", "BPR-0993"]
 metadata: {"pack":"bpr-review-tour-v1","pack_alias":"PACK-TOUR-10","milestone":"staged-publication","acceptance":["AC41-02","AC41-03","AC41-05","AC41-08"],"milestone_plan":{"id":"bpr-review-tour-v1","path":"docs/rfcs/plans/bpr-review-tour-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC41-02","outcome":"pass","revision":"a6513264cf0e7ac1c8cd129f73f007ad2b9b00b6","evidence":{"kind":"observation","detail":"Complete observed multiset binds exact returned IDs/URLs; both sides and reordered comments pass.","ledger":"docs/verification/RFC-BPR-0039-0043.md#durable-staged-coordinator--bpr-1000"}},{"criterion":"AC41-03","outcome":"pass","revision":"a6513264cf0e7ac1c8cd129f73f007ad2b9b00b6","evidence":{"kind":"observation","detail":"Existing/contaminated/ambiguous/early-submitted pending and changed actor/head stop further effects.","ledger":"docs/verification/RFC-BPR-0039-0043.md#durable-staged-coordinator--bpr-1000"}},{"criterion":"AC41-05","outcome":"pass","revision":"a6513264cf0e7ac1c8cd129f73f007ad2b9b00b6","evidence":{"kind":"observation","detail":"15 forced-death boundaries reopen real SQLite; read-first recovery sends no writes and explicit Resume preserves completed effects.","ledger":"docs/verification/RFC-BPR-0039-0043.md#durable-staged-coordinator--bpr-1000"}},{"criterion":"AC41-08","outcome":"pass","revision":"a6513264cf0e7ac1c8cd129f73f007ad2b9b00b6","evidence":{"kind":"observation","detail":"Production session fixtures cover lost/absent responses, Stop, exact parent/child grants, v1–v4 migrations, CAS, scope and integrity; 5/5 focused checks pass. Live endpoint qualification remains separately pending.","ledger":"docs/verification/RFC-BPR-0039-0043.md#durable-staged-coordinator--bpr-1000"}}]
 ---
 
 # BPR-1000: Journal staged publication and unknown outcomes durably
