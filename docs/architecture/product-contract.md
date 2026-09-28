@@ -247,3 +247,30 @@ have no generated bodies and require visible per-stop author completion.
 5. **Identity test:** published actions appear under the actual user identity.
 6. **Server-truth test:** refresh corrects local shared-state disagreement in favor of GitHub.
 7. **No-adoption test:** BetterPullReview remains valuable when only one participant uses it.
+
+## Source-line comments
+
+A reviewer selects one current/right source line in a text file already changed
+by the pull request and uses the ordinary draft and Publish action. The exact
+head, changed-file membership, retained path/blob/line and acting identity are
+revalidated before the write. Painted diff geometry supplies no server capability.
+
+The semantic source anchor is distinct from GitHub's remote LINE or FILE subject.
+An ordinary file review comment can carry a visible immutable code permalink
+followed by the reviewer's byte-preserved prose. Its valid link reconstructs
+placement from GitHub after local database loss; removing or invalidating that
+link restores honest file-level placement. GitHub IDs and server edits remain
+authoritative. The comment and visible link survive uninstall without a private
+service or hidden marker. The designated GitHub-only collaborator course is
+accepted and its external reply was read by the signed app at the same source
+line. Actual desktop uninstall remains unobserved, separately from the passing
+reconstruction fixtures.
+
+The [review round-trip contract](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
+owns representation selection and recovery. Native writes are attempted under
+unknown capability. The owner-approved classifier2 contract admits only the designated PR2, exact
+base/head, actor and profile2 with revalidated immutable source and recorded
+provider-patch proof. All other scopes remain unknown; generic422 cannot enable
+fallback. Earlier unresolved attempts remain GET-only.
+The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) records this limitation
+and the GitHub.com-only owner amendment; native GHES is unobserved.

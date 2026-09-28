@@ -1,0 +1,51 @@
+{
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "source_revision": "6526f525",
+  "scope": "Optional existing isolated profile selection through fixed CMake, captured stage-zero, authenticated supervisor and existing application parser. Approval format, exact namespace identity/path validation and grant limits unchanged.",
+  "self_review": "Canonical positive uint64 only. Probe cannot receive profile; default remains1. Closed supervisor argv admits only optional trailing pair and forwards it; no arbitrary argv/environment. Exact configured checker includes selected ID; profile drift refuses. Original approval namespace mismatch tests retained. No Default cache repair, migration, purge or replay reset.",
+  "direct_results": {
+    "capsule_contract": "50 passed25.551s",
+    "manifest_validator": "67 passed0.776s including selected-profile drift",
+    "architecture_gate": "PASS after literal guard updates",
+    "architecture_supervisor_course": "PASS1 course13.474s, including all hostile ordering/identity subcases",
+    "bootstrap": "PASS unchanged exact namespace admission course",
+    "structure_isolation": "PASS",
+    "live_mutation_isolation": "PASS",
+    "format": "PASS1 file LLVM23.1.1",
+    "tidy": "PASS1 supervisor translation unit",
+    "release_capsule": "PASS BUILD_TESTING OFF, signature/inventory/mounted preflight",
+    "configured_live_graph": "PASS491 rows,1 live lane/profile2;1.15s",
+    "documentation": "DOCUMENTATION_OK"
+  },
+  "failures_retained": [
+    "Initial architecture gate/contract refused old source literal assertions; focused owning guard and hostile ordering assertions updated and passed. Full contract is not claimed rerun/pass.",
+    "First reconfigure mixed preset/cache CPM paths; repeated with existing resolved cache.",
+    "Next reconfigure refused image older than architecture guard edits; rebuilt image rather than altering timestamps.",
+    "Initial format invocation used unsupported --paths; corrected positional path and passed."
+  ],
+  "profile": {
+    "id": 2,
+    "label": "RFC0022 live fixture",
+    "creation": "Profiles UI, New profile, Save, Open, normal Quit",
+    "namespace": "new absent profile-2 namespace initialized once using production initializer; Default replay seven-file hashes unchanged"
+  },
+  "logs_sha256": {
+    "build/rfc0022/m4-profile-capsule-tests.log": "f25ed161baa3218e84e9d89dd341d4d74145c32179df087a36ed362e252c3696",
+    "build/rfc0022/m4-profile-manifest-tests-final.log": "b2d6d52708ad8b34320bbe6da3c193e70e446f46341b25df7443c6b46f81503c",
+    "build/rfc0022/m4-profile-guards.log": "1af11e30deda5c5d3d687980ee527e86d7319c08a3f6697a01e97ebae33ef3cf",
+    "build/rfc0022/m4-profile-architecture-final.log": "a52f81644d04e9479436783578d57cada6b5495f1e2aad3533637ba37feb2f25",
+    "build/rfc0022/m4-profile-architecture-course.log": "002cd102e75b00bc433d45b209c364edfac643d4a8bbae7d633e180ab566ba79",
+    "build/rfc0022/m4-profile-architecture-course-final.log": "d01a890d4c74cd12093c54478214c98a75ce307f473e188ab9922921f1582550",
+    "build/rfc0022/m4-profile-architecture-gate-final.log": "7c913be67da938baf2384bf56a94934578844c28ffa57e78f4ebad4e15a51dfe",
+    "build/rfc0022/m4-profile-format-final.log": "5c383e07b30f89137e8bccc4f95c40b1f54390a781426325ce679594efe52821",
+    "build/rfc0022/m4-profile-tidy.log": "a27d962ca0cf38d0adc2dd417caf5c8d9d63510332f3799743f652e8b5622c1b",
+    "build/rfc0022/m4-profile-capsule-build-final.log": "cb3c05945fe96e831f1d506557b72d9f5cfc1444c594a78a1f1c004c226db312",
+    "build/rfc0022/m4-profile-live-configure.log": "d8ff4b34e0b5b6f480854c1c896ed6bb2aca0d9c8e3d4918453b375a27b14518",
+    "build/rfc0022/m4-profile-live-configure-final.log": "a2625172602d5fe2d203084f05d17d767a54903fcd4641e472844793bdd9a898",
+    "build/rfc0022/m4-profile-live-configure-sealed.log": "c9358ee51c803bbf13203cc4c6c1aa0b0f266ecee0bc6c3a25218e822173c23a",
+    "build/rfc0022/m4-profile-live-manifest-check.log": "74c9515944bb49a1dea738cfb205b11facb96ce66d3ebe79ee4a64077ca7361a",
+    "build/rfc0022/m4-profile-docs.log": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+  },
+  "live": "Separate profile2 run active; result recorded separately."
+}

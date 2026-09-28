@@ -1,0 +1,53 @@
+{
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "d257a3c125d90c2cc41984f405dfd5c4b6a09475a02f50d54df02ccccd54e616",
+      "bytes": 15319648
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "fb599cd86f5020270666659f6240ba0e044e35f5593404b4da2f2b88288fe88a",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5/capsule.inventory",
+      "sha256": "1941dfa0d32dd0f959074743bbc83392d2859e3b6a083d8aae13ef191973691e",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5/capsule.dmg",
+      "sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+      "bytes": 34943017
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5/source-manifest.txt",
+      "sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+      "bytes": 6875
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "c7839d55d4b409864b654652d3e11bff904686ace71bc2ae5287bbd294a71084",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-approval-94ososp1/approval.txt",
+  "subject_sha256": "e9447ca0822e4678e19b6d1fdae68b48fbd18bf34b8ad101ace40d67400e738b",
+  "profile": 2,
+  "prior_journal_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985"
+  },
+  "intended_independent_publication": {
+    "path": "off_hunk_fixture.md",
+    "side": "RIGHT",
+    "line": 62,
+    "body": "Please verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub."
+  },
+  "authority": "Standing safe PR2 write mandate r3; fresh exact one-use application course; historical four attempts remain GET-only."
+}

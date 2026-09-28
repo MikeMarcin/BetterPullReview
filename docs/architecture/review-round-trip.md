@@ -744,7 +744,7 @@ registrations remain network-contained.
 
 ## Semantic source-line publication policy (RFC-BPR-0022)
 
-Milestone A adds the provider-free `review_publication_policy` contract. It
+The provider-free `review_publication_policy` contract It
 consumes exact host eligibility and bounded placement/capability/body facts.
 Legacy placement always selects native publication; unknown placement also
 selects native even when the repository's off-hunk capability is unsupported.
@@ -762,8 +762,7 @@ Success is terminal and retains its representation for duplicate receipt replay.
 Fenced suggestion bodies require a line subject. The core conservatively
 recognizes backtick/tilde fences and whitespace in the info string; a required
 fallback returns typed incompatibility. Native publication remains available.
-This pure contract is preparatory: the provider and transactional recovery
-integration remain milestone B work. Existing ordinary publication continues
+The provider and transactional recovery compose this contract. Publication continues
 through RFC-BPR-0008's coordinator and exact user or attended authority.
 
 ### Immutable permalink codec (BPR-0564)
@@ -796,8 +795,7 @@ The closed Markdown-renderer suffix set is `.md`, `.markdown`, `.mdown`, `.mkdn`
 `.mkd`, `.mdwn`, `.mdx` and `.litcoffee`, matched without case. These use
 `?plain=1`; other source paths have no query. This set follows the [GitHub
 Markdown renderer](https://github.com/github/markup/blob/master/lib/github/markup/markdown.rb)
-observed on 2026-09-26. Provider publication, recovery and read normalization
-connect this codec in the subsequent authored milestones.
+observed on 2026-09-26. Provider publication, recovery and read normalization use this one codec.
 
 The review-tour extension (BPR-0998) calls the same canonical path/prefix builder
 through a separate read-only codec. It admits full commit-pinned single lines or
@@ -870,9 +868,10 @@ negotiation, exact-anchor cache reuse, interruption at each durable boundary,
 legacy/logical alias protection, cancellation and lost-response recovery.
 `application_review_mutation_application_host` pins the retained-source handoff;
 `native_https_transport_fixture` pins complete 422 delivery and truncated 422
-refusal. These are synthetic evidence. Production still supplies no admitted
-unsupported-response contract; BPR-0573 must establish any such exact tuple
-before production fallback is enabled.
+refusal. These fixtures are separate from the r3 owner-approved recorded
+contract, whose exact identity/source/response bounds are owned by the
+[provider contract](github-provider-contract.md#off-hunk-publication-wire-contracts-rfc-0022-milestone-b).
+Revision2 cannot reinterpret an existing unresolved native journal.
 
 ### File subjects and selected source placement (RFC-BPR-0022)
 
@@ -909,6 +908,16 @@ that post. Selection is bound to the exact target, acting identity and retained
 comparison and is abandoned on a mismatch. Both native and file-subject
 publications use this path; the server read owns the remote subject, body and
 canonical thread identity.
+
+### Current designated attended target
+
+BPR-0573 rebinds only the compiled attended course to owner-designated
+`MikeMarcin/BPR-Test#2`, exact base/head and node identities recorded in the
+[RFC-0022 ledger](../verification/RFC-BPR-0022.md). Historical PR1 packets and
+results remain evidence for their original builds and targets; they do not
+authorize this candidate or a new PR1 launch. Any queued PR1 course needs its
+own source/artifact reconciliation before execution. The ordinary user-publish
+route and dynamic actor validation are unchanged.
 
 ## Durable composition drafts (RFC-BPR-0023 M7)
 

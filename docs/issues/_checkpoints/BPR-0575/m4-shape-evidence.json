@@ -1,0 +1,44 @@
+{
+  "schema": "rfc0022.diagnostic-shape-evidence.v1",
+  "assignment": "/root/rfc0022_m4",
+  "mandate_revision": "r2",
+  "base_revision": "17a1fe38",
+  "changes": "Separate bounded observation parser: missing/null/empty/non-string/unrecognized values and unknown-member counts. Fixed public field/message grammar and documentation metadata only. Exact recognized spelling retained. No authority/classifier/journal change.",
+  "checks": [
+    "Focused github_review_comment_permalink PASS1.34s including private canaries, exact spelling, absent/unknown shape, no fallback and GET-only replay.",
+    "Strict clang-tidy changed implementation PASS.",
+    "clang-format23.1.1 changed2paths PASS.",
+    "Documentation gate DOCUMENTATION_OK."
+  ],
+  "logs": [
+    {
+      "path": "build/rfc0022/m4-shape-build.log",
+      "sha256": "33de9eff8b6fdbaaa576e539c70213f8cd4ca873fb6289e935c4bc4754d8ada2"
+    },
+    {
+      "path": "build/rfc0022/m4-shape-tests.log",
+      "sha256": "35605984c5f834cc193b0f8aeec98893fa630c79bff3f92aea011af8a1c7d79c"
+    },
+    {
+      "path": "build/rfc0022/m4-shape-tidy.log",
+      "sha256": "eafb97db7e79e1e4c30a7cbc199b5dc2a652a364c65f64dd18919ab3062b6802"
+    }
+  ],
+  "previous_live_evidence": "m4-diagnostic-live-attempt.json; both line60 journals remain unresolved GET-only and original TXT digest unchanged.",
+  "next": "Separate approved TXT RIGHT line61 comment under fresh exact one-use capsule. No production unsupported contract admitted.",
+  "supplement": {
+    "changes": "Recognize exact fixed resolution and predicate-only message literals; preserve each variant. A firsthand external report suggests could not be resolved, but no local observation is inferred from it and no authority changes.",
+    "checks": "Focused publication/privacy/authority test PASS1.19s after two-line vocabulary addition; previous strict tidy/format unchanged structure.",
+    "logs": [
+      {
+        "path": "build/rfc0022/m4-predicate-build.log",
+        "sha256": "3bcb13ed2c1ab09dacdc1b63aefe258118a18efa865e7754c6e1888f3a1830cd"
+      },
+      {
+        "path": "build/rfc0022/m4-predicate-tests.log",
+        "sha256": "c5f1d045460635ad6a0e8ef331db7c5052ba331c026116b228018ff29572dfe5"
+      }
+    ],
+    "local_observation": "m4-shape-live-attempt.json keeps actual TXT61 message omitted; all three journals remain GET-only."
+  }
+}

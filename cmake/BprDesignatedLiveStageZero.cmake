@@ -82,7 +82,7 @@ function(bpr_designated_live_stage_zero_command output)
         PARSE_ARGV 1
         stage_zero
         "PROBE;ATTENDED"
-        "SCRIPT;SCRIPT_SHA256;IMAGE;EXPECTED_IMAGE_SHA256;EXPECTED_IMAGE_SHA256_FILE;MOUNT_PARENT;SOURCE_SHA256;APPROVAL"
+        "SCRIPT;SCRIPT_SHA256;IMAGE;EXPECTED_IMAGE_SHA256;EXPECTED_IMAGE_SHA256_FILE;MOUNT_PARENT;SOURCE_SHA256;APPROVAL;PROFILE"
         ""
     )
     if(stage_zero_UNPARSED_ARGUMENTS)
@@ -114,6 +114,10 @@ function(bpr_designated_live_stage_zero_command output)
     endif()
     if(stage_zero_ATTENDED AND NOT stage_zero_APPROVAL)
         message(FATAL_ERROR "Attended designated live stage zero requires approval")
+    endif()
+    string(LENGTH "${stage_zero_PROFILE}" stage_zero_profile_length)
+    if(NOT "${stage_zero_PROFILE}" STREQUAL "" AND (NOT stage_zero_ATTENDED OR NOT stage_zero_PROFILE MATCHES "^[1-9][0-9]*$" OR stage_zero_profile_length GREATER 20 OR (stage_zero_profile_length EQUAL 20 AND stage_zero_PROFILE STRGREATER "18446744073709551615")))
+        message(FATAL_ERROR "Profile selection requires attended mode and a positive canonical identifier")
     endif()
     if(stage_zero_PROBE AND stage_zero_APPROVAL)
         message(FATAL_ERROR "Probe designated live stage zero cannot receive approval")
@@ -151,6 +155,9 @@ function(bpr_designated_live_stage_zero_command output)
         list(APPEND command --probe-launch)
     else()
         list(APPEND command --attended-launch --approval "${stage_zero_APPROVAL}")
+        if(NOT "${stage_zero_PROFILE}" STREQUAL "")
+            list(APPEND command --bpr-profile "${stage_zero_PROFILE}")
+        endif()
     endif()
     set("${output}" "${command}" PARENT_SCOPE)
 endfunction()

@@ -65,14 +65,14 @@ auto main(int argc, char** argv) -> int
 			&& observed->Hostname.value() == "github.com"
 			&& observed->Repository.Owner == "MikeMarcin"
 			&& observed->Repository.Name == "BPR-Test"
-			&& observed->Number.value() == 1U
+			&& observed->Number.value() == 2U
 			&& observed->RepositoryDatabaseId == 1'328'277'631U
 			&& observed->RepositoryNodeId == "R_kgDOTyvofw"
-			&& observed->PullRequestDatabaseId == 4'246'446'933U
-			&& observed->PullRequestNodeId == "PR_kwDOTyvof879G6NV"
+			&& observed->PullRequestDatabaseId == 4'650'736'621U
+			&& observed->PullRequestNodeId == "PR_kwDOTyvof88AAAABFTSb7Q"
 			&& observed->BaseRepositoryDatabaseId == 1'328'277'631U
-			&& observed->BaseRef == "main"
-			&& observed->HeadRef == "codex/disposable-live-review-20260810"
+			&& observed->BaseRef == "codex/rfc0022-fixture-base-20260926"
+			&& observed->HeadRef == "codex/rfc0022-live-comments-20260926"
 			&& observed->Open
 		: expected == "identity"
 		? exactFailure(adapters::github::detail::

@@ -1,0 +1,63 @@
+{
+  "schema": "rfc0022.r3-capsule-identities.v1",
+  "utc": "2026-09-27T19:48:12.419373+00:00",
+  "source_revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "source_sha256": "71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e",
+  "artifacts": {
+    "application": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "sha256": "bb93792d7690fe0b9895739dace64da346ba4dc534aea21486c0c81b053a2eb1",
+      "bytes": 16607920
+    },
+    "supervisor": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor",
+      "sha256": "70e5d6d1f53e8b742a67cabde197190dc5d99f1771870add5e2146ab3f91057e",
+      "bytes": 259360
+    },
+    "inventory": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule.inventory",
+      "sha256": "f375eeb0c4dc00776f21c01e0d1966c7cb3045705e3370b3adeb6543d2013a90",
+      "bytes": 11675
+    },
+    "image": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/capsule.dmg",
+      "sha256": "522e446ad4d34f233daccf45dfcd949654344c9293871305ed83f905444ebd42",
+      "bytes": 35581476
+    },
+    "source_manifest": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/app-release/designated-live/71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e/source-manifest.txt",
+      "sha256": "71cb4444d9ea386f6777ef5032722150f7e9101ac0ca04d9d95aef3273199d9e",
+      "bytes": 7085
+    },
+    "launcher": {
+      "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/scripts/designated_live_macos_capsule.py",
+      "sha256": "fb560bb27b11f32fbf5057f50d19f547185ff7468b9421f817f2adac513a8ae2",
+      "bytes": 65349
+    }
+  },
+  "approval_id": "9f9f9783040f56afffae7d6bc877bd81367ad22dd557bcaee52bf714763febf6",
+  "approval_path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-file-read-approval-4t29g4eu/approval.txt",
+  "subject_sha256": "29e81c887fd1a888c8c2e112e912486ead6250bcedb718fd91d9cf5d72063ef7",
+  "profile": 2,
+  "pre_course_journal_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "a45573028fe695a43efad239661e27c44a89a6ac1335ceb4af86f6c106b10f66": "fc540ec5a55b7fd2bfe6515930e4372478308d2a3b5ab0dd1c5ed9295db052ef",
+    "e34ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653": "5b306e90835c985e0d3e27de728010ff96484fde0caa1dfc3189eaded2de2778"
+  },
+  "authority": "Standing mandate r3 approved PR2 writes; same profile and replay namespace, fresh exact capsule and one-use nonce.",
+  "previous_retained_mount_detached": true,
+  "fresh_actor": {
+    "login": "MikeMarcin",
+    "id": 7605339,
+    "node_id": "MDQ6VXNlcjc2MDUzMzk="
+  },
+  "fresh_target": {
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "review_comments": 1
+  },
+  "course": "GET-only recovery of existing4116623474; zero Publish or Retry. Read normalization candidate0f3188093. Source manifest covers the existing mutation surface; exact new binary/image digests and commit identify the read changes."
+}

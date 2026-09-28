@@ -1,0 +1,69 @@
+{
+  "schema": "rfc0022.r3-handoff.v1",
+  "assignment": "/root/rfc0022_m4_after_review",
+  "mandate_revision": "r3",
+  "run": "rfc0022-20260926",
+  "segment": "m4-after-review",
+  "milestone": "d-evidence-closeout",
+  "source_revision": "dde294fb2fe74934eac626a12cdb95c5c823def3",
+  "source_changed_paths": [
+    "docs/architecture/github-provider-contract.md",
+    "docs/architecture/product-contract.md",
+    "docs/architecture/review-round-trip.md",
+    "docs/development/source-line-comments.md",
+    "docs/issues/10-backlog/BPR-0575-anchor-rfc-0022-verification.md",
+    "docs/issues/30-in-progress/BPR-0573-designated-live-native-fallback-evidence.md",
+    "docs/issues/_checkpoints/BPR-0575/m4-r3-amendments.md",
+    "docs/issues/_checkpoints/BPR-0575/m4-r3-anchor-check.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r3-binding.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-r3-classifier-evidence.json",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+    "docs/security/foundation-security.md",
+    "docs/verification/RFC-BPR-0022.md",
+    "docs/verification/master-verification-matrix.md",
+    "src/adapters/github/src/github_mutation_contract.cpp",
+    "src/adapters/github/src/github_mutation_contract.hpp",
+    "src/application/src/review_publication_capability_cache.cpp",
+    "tests/github_contract/review_comment_permalink_tests.cpp"
+  ],
+  "capsule_source_sha256": "1d57c0f07bdfd2a5ac989b6b85336ba8230f70967bdcf342a65e3a8e526290b5",
+  "capsule_image_sha256": "070d97d6e78e5caabd5c5b56e00e2d3e168087f0f22c9c03c9dc1ad988b7076d",
+  "review_session": {
+    "id": "bee55ff737d8a45a160d3ca6ad748b0c",
+    "cursor": 14,
+    "host_pid": 72886,
+    "command_session": 52232,
+    "status": "Original three owner decisions accepted and protected=false. No new ready candidate; live evidence incomplete. URL is local and not committed."
+  },
+  "command_state": {
+    "all_owned_build_and_test_commands_finished": true,
+    "live_session": 46905,
+    "live_exit_code": 8,
+    "reason": "Deliberate stage-zero SIGTERM after CUA reported Mac locked and unlock response remained pending. No UI action or Publish. Mount removed and process group stopped.",
+    "only_retained_process": "inherited attended-review server72886/session52232"
+  },
+  "tracker": {
+    "BPR-0573": "Parked: awaiting-live-github",
+    "BPR-0574": "Done",
+    "BPR-0575": "Backlog",
+    "RFC-BPR-0022": "Proposed"
+  },
+  "continuation": [
+    "Wait for explicit response to coordinator pending unlock prerequisite; no dependent CUA action until then.",
+    "Resume/claim BPR-0573 through issue_board. Reuse unchanged passing evidence and the exact existing signed capsule; no rebuild required for documentation-only HEAD changes.",
+    "Generate fresh random approval_id in the saved exact public subject, calculate subject_sha256, write to a new owner-private task directory/file and configure BPR_DESIGNATED_LIVE_MUTATION_APPROVAL with the existing source/image digest and profile2. Do not reuse the consumed approval or alter the existing replay namespace.",
+    "Validate the configured single profile2 live lane, then launch only the existing live_review_mutation_designated_target CTest through captured stage zero.",
+    "Use CUA with the exact mounted app path. Perform ordinary UI selection for independent Markdown RIGHT62/body in m4-r3-capsule-identities.json. No hidden intent bypass or OS UI scripting. If supported UI cannot drive the source gesture, prepare one complete verified attended mechanical course with the companion wizard; avoid repeated ad hoc source-click requests.",
+    "Publish once only after exact actor/PR/head/source/body/fresh authority observed. All four historic publication keys remain GET-only. Record actual response/recovery/receipt and remote GitHub identity; ambiguity never authorizes another POST.",
+    "Finish normal lifecycle, actual GitHub-only code/prose/author/reply/continuity evidence and separately supplied independent acceptance. Prepare meaningful attended review only after independent work is complete; coordinator manages watch.",
+    "Reconcile all15 criteria/cards/gates and stop at D boundary for coordinator integration preserving concurrent main work."
+  ],
+  "uncertainties": [
+    "Actual fallback remains unobserved.",
+    "GitHub-only collaborator continuity and independent acceptance remain pending.",
+    "Native GitHub success remains unobserved under accepted r3 fixture substitution.",
+    "Native GHES and Windows qualification remain unobserved."
+  ],
+  "ownership_release": "This checkpoint plus final report releases exclusive worktree writing authority to the coordinator; no task-owned commands remain except explicitly handed-off inherited review server."
+}

@@ -383,14 +383,14 @@ namespace bpr::app {
 #endif
 		inline constexpr auto designated_review_repository_id     = std::uint64_t{ 1'328'277'631U };
 		inline constexpr auto designated_review_repository_node   = std::string_view{ "R_kgDOTyvofw" };
-		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'246'446'933U };
-		inline constexpr auto designated_review_pull_request_node = std::string_view{ "PR_kwDOTyvof879G6NV" };
-		inline constexpr auto designated_review_number            = std::uint32_t{ 1U };
-		inline constexpr auto designated_review_base_ref          = std::string_view{ "main" };
-		inline constexpr auto designated_review_base_full_ref     = std::string_view{ "refs/heads/main" };
-		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/disposable-live-review-20260810" };
-		inline constexpr auto designated_review_base_oid          = std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
-		inline constexpr auto designated_review_head_oid          = std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'650'736'621U };
+		inline constexpr auto designated_review_pull_request_node = std::string_view{ "PR_kwDOTyvof88AAAABFTSb7Q" };
+		inline constexpr auto designated_review_number            = std::uint32_t{ 2U };
+		inline constexpr auto designated_review_base_ref          = std::string_view{ "codex/rfc0022-fixture-base-20260926" };
+		inline constexpr auto designated_review_base_full_ref     = std::string_view{ "refs/heads/codex/rfc0022-fixture-base-20260926" };
+		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/rfc0022-live-comments-20260926" };
+		inline constexpr auto designated_review_base_oid          = std::string_view{ "a939a85a5525994fe9e9cb4c973ad9362ed427c7" };
+		inline constexpr auto designated_review_head_oid          = std::string_view{ "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a" };
 		[[nodiscard]] auto    designated_review_replay_namespace_path(
 			const std::filesystem::path& aApplicationDataRoot)
 			-> std::filesystem::path
@@ -9692,7 +9692,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::move(lease),
 				selection->Target,
 				selection->ActingIdentity,
-				std::move(*recovery), PrivateReview.get());
+				std::move(*recovery), PrivateReview.get(), DiagnosticLog);
 			if (provider.has_value()) {
 				InlineReviewBinding = *selection;
 				auto erased         = std::unique_ptr<application::review_mutation_port>{

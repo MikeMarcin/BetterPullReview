@@ -196,3 +196,22 @@ does not reuse the designated-live observer subprocess. Core, native transport,
 provider, host, cache, Qt, and tests-disabled Release evidence are recorded in
 [the RFC-0017 ledger](../verification/RFC-BPR-0017.md). A diagnostic dry run or
 an idle runtime audit alone does not prove a completed public read.
+
+## Semantic comment compatibility boundary
+
+RFC-BPR-0022 adds no write authority. Native and file children share the existing
+exact source/target/actor grant and serialized provider route. A durable
+possibly-transmitted native attempt admits GET-only reconciliation; timeout,
+lost/malformed success, generic 422 and GET absence cannot authorize fallback.
+Production classifier2 admits only the exact owner-approved PR2/base/head/actor/
+profile2 recorded contract with sealed source and provider-patch validation.
+Older witnesses cannot acquire fallback authorization from that new contract.
+
+A remote permalink is untrusted content. Same-authority canonical parsing plus
+sealed exact-source validation grants a presentation anchor only. It cannot
+start a network read, import history, acquire credentials or publish a comment.
+The [round-trip contract](../architecture/review-round-trip.md#immutable-permalink-codec-bpr-0564)
+owns URL/body bounds; the [RFC-0022 ledger](../verification/RFC-BPR-0022.md)
+separates fixture recovery/isolation evidence, actual designated fallback and
+GitHub-only acceptance, explicit owner amendments, and unobserved platform/
+installed-removal qualification.

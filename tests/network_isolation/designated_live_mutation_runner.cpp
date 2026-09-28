@@ -20,7 +20,7 @@
 namespace bpr::tests::network_isolation {
 	namespace {
 
-		constexpr std::string_view PullEndpoint               = "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1";
+		constexpr std::string_view PullEndpoint               = "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/2";
 		constexpr qsizetype        ResponseLimit              = 64 * 1024;
 		constexpr int              NetworkTimeoutMilliseconds = 10'000;
 

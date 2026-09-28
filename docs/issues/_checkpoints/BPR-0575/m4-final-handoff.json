@@ -1,0 +1,145 @@
+{
+  "schema": "rfc0022.final-review-handoff.v1",
+  "assignment": "/root/rfc0022_m4_final",
+  "mandate_revision": "r3",
+  "run_id": "rfc0022-20260926",
+  "segment": "m4-final-after-continuity",
+  "milestone": "d-evidence-closeout",
+  "rfc_base_sha": "5a616354ae6ecd7ebbea608a9523a8388f590ab0",
+  "production_candidate": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "evidence_candidate": "db801a1e7cadaf847eadc912b5dd295163b06dbc",
+  "issue_commits": {
+    "BPR-0573-done": "71e28c46479a2084ccf74b55f2dedb1d30c17ac5",
+    "BPR-0575-human-pending": "db801a1e7cadaf847eadc912b5dd295163b06dbc"
+  },
+  "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+  "cursor": 26,
+  "candidates": [
+    {
+      "id": "BPR-0575-independent-acceptance-scope",
+      "title": "Decide the independent-review requirement",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "fingerprint": "cfcd8a6dc4aa9d452cf21ca4f3b5f59701e1572a972d4e381be5d1f27986fed6",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0575-uninstall-evidence-scope",
+      "title": "Decide the uninstall evidence scope",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "fingerprint": "b8b6cb6e7a40f1657a04aad97ce2722422f595ae7fdd8934db4292eb07427fc8",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "protection": [
+    {
+      "id": "BPR-0575-uninstall-evidence-scope",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-uninstall-proposal.md",
+        "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json",
+        "docs/issues/_checkpoints/BPR-0575/m4-r3-get-recovery-success.json"
+      ],
+      "resources": []
+    },
+    {
+      "id": "BPR-0575-independent-acceptance-scope",
+      "paths": [
+        "docs/issues/_checkpoints/BPR-0575/m4-final-independent-proposal.md",
+        "src/adapters/github/src/github_mutation_contract.cpp",
+        "src/adapters/github/src/github_read_contract.cpp",
+        "src/adapters/github/src/github_read_normalizer.cpp",
+        "src/adapters/github/src/github_paged_read.cpp"
+      ],
+      "resources": []
+    }
+  ],
+  "host": {
+    "pid": 35411,
+    "port": 55862,
+    "command_session": 45982,
+    "health": "HTTP200",
+    "url": "Complete token URL is in runtime .mask/attended-review/session.json and coordinator handoff; intentionally not committed."
+  },
+  "watch_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+    "wait",
+    "--after",
+    "26",
+    "--kind",
+    "handed-back",
+    "--timeout",
+    "86400"
+  ],
+  "status_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+    "status",
+    "--after",
+    "26"
+  ],
+  "offline_html": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-final-review.html",
+  "changed_paths_before_handoff": [
+    "README.md",
+    "docs/architecture/product-contract.md",
+    "docs/architecture/system-architecture.md",
+    "docs/development/source-line-comments.md",
+    "docs/issues/40-parked/BPR-0575-anchor-rfc-0022-verification.md",
+    "docs/issues/60-done/BPR-0573-designated-live-native-fallback-evidence.md",
+    "docs/issues/_checkpoints/BPR-0575/bpr0573-acceptance.json",
+    "docs/issues/_checkpoints/BPR-0575/bpr0575-human-pending.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-binding.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-capsule-identities.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-continuity.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-independent-proposal.md",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-live-command.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-review-manifest.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-uninstall-proposal.md",
+    "docs/issues/_checkpoints/BPR-0575/m4-final-verification.json",
+    "docs/issues/_checkpoints/BPR-0575/m4-frontier.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+    "docs/rfcs/assets/betterpullreview-rfc-bpr-0022-off-hunk-comments-v1.LIVE_IMPORT.md",
+    "docs/verification/RFC-BPR-0022.md"
+  ],
+  "verification": [
+    "m4-final-continuity.json",
+    "m4-final-verification.json",
+    "m4-final-check.json"
+  ],
+  "pending": [
+    "AC10 literal desktop uninstall or explicit owner scope amendment",
+    "Separate independent technical acceptance or explicit owner waiver",
+    "After exact verdict reconciliation finish0575 and RFC/index closeout",
+    "Coordinator final main merge/push while preserving later main work"
+  ],
+  "commands": {
+    "finished": [
+      "Inherited review host22327 stopped normally",
+      "Initial malformed-approval prelaunch11183 refused13.57s beforeGUI; corrected unused envelope",
+      "Signed GET-only app course47930 exited0/69.39s; app32697 supervisor32582 stopped, read-only image detached, mount removed",
+      "All configure,focused-test,documentation,board and binding/check commands completed",
+      "Consumed approval empty parent removed; no profile database or installation deletion"
+    ],
+    "retained": [
+      {
+        "purpose": "attended-review loopback server",
+        "pid": 35411,
+        "session": 45982
+      }
+    ],
+    "writers": "No children, reviewers or other checkout writers. Exclusive engineering ownership released upon final handoff commit. Review server is the only explicitly handed-off command.",
+    "watch": "Coordinator owns durable wait/heartbeat; must arm after ownership release, before yielding."
+  },
+  "continuation": "Fresh engineering owner after handed-back. Preserve all four earlier accepted verdicts. Reconcile these exact two proposals individually, release only affected protections; acceptance becomes an explicit mandate amendment, never an uninstall observation or independent report. Rejected/skipped decisions retain requirements. No further PR2 write, Publish or Retry needed. Finish RFC only if every remaining requirement is actually satisfied, then return for coordinator main landing.",
+  "utc": "2026-09-27T20:35:50.234865+00:00"
+}

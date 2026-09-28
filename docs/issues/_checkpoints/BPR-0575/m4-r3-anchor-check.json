@@ -1,0 +1,11 @@
+{
+  "schema": "rfc0022.recorded-proof-recheck.v1",
+  "observed_utc": "2026-09-27T05:13:37.091621+00:00",
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/2",
+  "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+  "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+  "result": "Exact open PR IDs, complete two-file catalogue, both immutable blobs, complete patches and counts match approved record. Existing sealed-source admission revalidates line bounds.",
+  "prior_record_sha256": "092a16fa90bac130b21129fc6fa585a08d05ba6067bf543bafac27e1fd04b89e",
+  "comments": 0,
+  "reviews": 0
+}

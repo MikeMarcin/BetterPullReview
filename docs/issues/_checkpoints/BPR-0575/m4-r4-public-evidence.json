@@ -1,0 +1,13 @@
+{
+  "criterion": "RFC0022-D-public-closeout",
+  "outcome": "pass",
+  "revision": "847fcf7769ac8480184502f28decc5382f86de82",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"-R\", \"^(github_paged_read|github_read_contract|github_review_comment_permalink|application_review_round_trip_composition_contract)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 19.479,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/dev\n    Start 313: github_read_contract\n1/4 Test #313: github_read_contract .................................   Passed    0.19 sec\n    Start 321: github_paged_read\n2/4 Test #321: github_paged_read ....................................   Passed    3.14 sec\n    Start 332: github_review_comment_permalink\n3/4 Test #332: github_review_comment_permalink ......................   Passed    3.31 sec\n    Start 427: application_review_round_trip_composition_contract\n4/4 Test #427: application_review_round_trip_composition_contract ...   Passed   12.82 sec\n\n100% tests passed out of 4\n\nLabel Time Summary:\nbpr_network_isolated    =  19.45 sec*proc (4 tests)\n\nTotal Test time (real) =  19.47 sec\n",
+    "stderr_tail": ""
+  }
+}

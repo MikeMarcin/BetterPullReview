@@ -977,6 +977,9 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         --live-approval
         "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
     )
+    if(NOT "${BPR_DESIGNATED_LIVE_MUTATION_PROFILE}" STREQUAL "")
+        list(APPEND bpr_network_isolation_verifier_command --live-profile "${BPR_DESIGNATED_LIVE_MUTATION_PROFILE}")
+    endif()
 endif()
 bpr_add_network_isolated_test(
     NAME test_network_isolation_manifest

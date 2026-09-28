@@ -3,7 +3,9 @@
 
 #include "github_read_contract.hpp"
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/review_publication_capability_cache.hpp"
@@ -144,10 +146,10 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const review_mutation_wire_response&) const -> bool = default;
 	};
 
-	inline constexpr std::uint32_t off_hunk_classifier_revision = 1U;
+	inline constexpr std::uint32_t off_hunk_classifier_revision = 2U;
 	/// \brief A pinned complete non-creation contract selected by the adapter.
-	/// Production has no admitted contract until direct evidence establishes it.
-	/// Synthetic fixture contracts exercise the mechanism without enabling a host.
+	/// The owner-approved recorded contract is restricted to the designated PR.
+	/// Synthetic contracts remain explicit fixture inputs, never production defaults.
 	struct off_hunk_unsupported_contract
 	{
 		application::github_server_contract Server             = application::github_server_contract::github_com_2022_11_28;
@@ -158,6 +160,7 @@ namespace bpr::adapters::github::detail {
 		std::string                         Field;
 		std::string                         Code;
 		std::string                         Message;
+		bool                                RecordedDesignatedScope                                 = false;
 		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
 	};
 
@@ -391,6 +394,9 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_failure Failure = application::review_mutation_failure::unavailable;
 		github_mutation_transmission         Transmission
 			= github_mutation_transmission::definitely_not_sent;
+		std::optional<application::github_provider_failure> ProviderFailure;
+		std::uint16_t                                       HttpStatus             = 0;
+		application::diagnostic_transport_failure_source    TransportFailureSource = application::diagnostic_transport_failure_source::none;
 
 		auto operator==(const github_mutation_wire_error&) const -> bool = default;
 	};
@@ -409,6 +415,9 @@ namespace bpr::adapters::github::detail {
 		github_mutation_wire_success,
 		github_mutation_wire_error,
 		github_mutation_wire_cancelled>;
+
+	/// \brief Observation only: fixed vocabulary and numeric status; never response prose or mutation authority.
+	[[nodiscard]] auto review_comment_diagnostic(const review_mutation_wire_request& aRequest, const github_mutation_wire_completion& aCompletion) noexcept -> application::diagnostic_event;
 
 	class github_mutation_wire_transport
 	{
@@ -441,6 +450,12 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto valid(
 		const live_review_mutation_configuration& aConfiguration) noexcept -> bool;
 
+	/// \brief Selects the RFC-0022 r3 recorded contract only for its exact live identity.
+	/// Each classification additionally revalidates the recorded immutable patch
+	/// against the sealed source endpoint, blob, path and selected line.
+	[[nodiscard]] auto recorded_off_hunk_contract(const live_review_mutation_configuration& aConfiguration)
+		-> std::optional<off_hunk_unsupported_contract>;
+
 	/// \brief Implements the production provider protocol without naming its adapter.
 	///
 	/// \details The concrete provider delegates to this separately linked object
@@ -456,7 +471,7 @@ namespace bpr::adapters::github::detail {
 			std::unique_ptr<application::review_mutation_recovery_port>
 														  aRecovery,
 			std::optional<off_hunk_unsupported_contract>  aUnsupportedContract = std::nullopt,
-			application::review_publication_lineage_port* aLineage             = nullptr) noexcept;
+			application::review_publication_lineage_port* aLineage = nullptr, std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept;
 
 		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -513,6 +528,7 @@ namespace bpr::adapters::github::detail {
 		std::optional<off_hunk_unsupported_contract>                UnsupportedContract;
 		application::review_publication_capability_cache            PublicationCapabilities;
 		application::review_publication_lineage_port*               Lineage = nullptr;
+		std::shared_ptr<application::diagnostic_log_port>           Log;
 	};
 } // namespace bpr::adapters::github::detail
 

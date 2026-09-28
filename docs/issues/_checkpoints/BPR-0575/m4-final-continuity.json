@@ -1,0 +1,123 @@
+{
+  "schema": "rfc0022.final-continuity.v1",
+  "assignment": "/root/rfc0022_m4_final",
+  "mandate_revision": "r3",
+  "source_revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "utc": "2026-09-27T20:27:40.874923+00:00",
+  "human_decision": {
+    "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+    "candidate": "BPR-0573-github-only-continuity",
+    "revision": "rfc0022-d-0f3188093-comment4116623474-r1",
+    "fingerprint": "c5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8",
+    "decision_id": "520a36a8-b02f-486c-b538-37cbdc2d40bb",
+    "outcome": "accept",
+    "saved_at": "2026-09-27T20:18:43.744052+00:00",
+    "hand_back_sequence": 19,
+    "protection_released_sequence": 20
+  },
+  "remote_reads": {
+    "command": [
+      "gh",
+      "api",
+      "--method",
+      "GET",
+      "repos/MikeMarcin/BPR-Test/pulls/2/comments"
+    ],
+    "before_and_after_equal": true,
+    "comments": [
+      {
+        "id": 4116623474,
+        "node_id": "PRRC_kwDOTyvof871XrBy",
+        "html_url": "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r4116623474",
+        "in_reply_to_id": null,
+        "body": "https://github.com/MikeMarcin/BPR-Test/blob/61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a/off_hunk_fixture.md?plain=1#L62\n\nPlease verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub.",
+        "path": "off_hunk_fixture.md",
+        "commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+        "original_commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+        "subject_type": "file",
+        "line": 1,
+        "original_line": 1,
+        "side": "RIGHT",
+        "created_at": "2026-09-27T19:25:39Z",
+        "updated_at": "2026-09-27T19:25:39Z",
+        "actor": {
+          "id": 7605339,
+          "node_id": "MDQ6VXNlcjc2MDUzMzk=",
+          "login": "MikeMarcin"
+        }
+      },
+      {
+        "id": 4116804415,
+        "node_id": "PRRC_kwDOTyvof871YXM_",
+        "html_url": "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r4116804415",
+        "in_reply_to_id": 4116623474,
+        "body": "GitHub-only check: I can read line 62, the full reviewer prose and attribution, and reply here with BetterPullReview closed.",
+        "path": "off_hunk_fixture.md",
+        "commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+        "original_commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+        "subject_type": "file",
+        "line": 1,
+        "original_line": 1,
+        "side": "RIGHT",
+        "created_at": "2026-09-27T20:18:38Z",
+        "updated_at": "2026-09-27T20:18:38Z",
+        "actor": {
+          "id": 7605339,
+          "node_id": "MDQ6VXNlcjc2MDUzMzk=",
+          "login": "MikeMarcin"
+        }
+      }
+    ]
+  },
+  "canonical_thread": "PRRT_kwDOTyvof86mdn2L",
+  "app_course": {
+    "command_file": "m4-final-live-command.json",
+    "capsule_file": "m4-final-capsule-identities.json",
+    "session": 47930,
+    "app_pid": 32697,
+    "supervisor_pid": 32582,
+    "stage_zero_pid": 32558,
+    "result": "pass",
+    "elapsed_seconds": 69.39,
+    "publish_or_retry_actions": 0,
+    "observation": "Normal Home Open PR2 as @MikeMarcin/profile2; Start review opened exact Markdown source. Rendered one thread with two comments; selected the reply node by ordinary UI and read its complete exact prose. Both source panes highlighted line62; reply card and thread root retained off_hunk_fixture.md:62. Cmd-Q exited normally and stage-zero detached its capsule.",
+    "instrumentation_limit": "No packet capture; no-mutation finding binds zero publication gestures, unchanged six journal digests and identical before/after remote records. GraphQL queries are reads even where transported by HTTP POST."
+  },
+  "journal_hashes": {
+    "eeb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2": "54e816828b75b8245642dbfddbf9e422989438881f9257b21ed87d75c0d8ea7d",
+    "251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b": "814b25af07d071e186b73d22689fccef1bb606f66f769884d2f54cf6b95261a9",
+    "71681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30": "8e7761afa827e8b3b9cd411954c989fb69ce53fe2736c942befc652611414172",
+    "68dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2": "3b0c0e07d6cdac6af86285000fcddbf81d2e576ca27812924566093e35799985",
+    "a45573028fe695a43efad239661e27c44a89a6ac1335ceb4af86f6c106b10f66": "fc540ec5a55b7fd2bfe6515930e4372478308d2a3b5ab0dd1c5ed9295db052ef",
+    "e34ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653": "a76ff9510045ea72c35767294d08745c67bb88f3187657f943b84360da506d52"
+  },
+  "all_six_journals_unchanged": true,
+  "preparation_failure": {
+    "session": 11183,
+    "exit": 8,
+    "elapsed_seconds": 13.57,
+    "cause": "Implementer omitted required subject_sha256 trailer from fresh external approval. Supervisor refused before GUI; approval unconsumed. Corrected envelope in place using exact subject digest before successful course.",
+    "application_launched": false,
+    "remote_mutation": false
+  },
+  "cleanup": "All inherited review host and task app/supervisor/test/configure commands stopped; mount removed; consumed approval empty parent removed. No profile database or user installation removed.",
+  "logs": {
+    "m4-final-live-execution.log": {
+      "sha256": "88225a09a7cff8e348faad8f764c02c9b07e8dd37411ccac71668f3176e7766f",
+      "bytes": 4155
+    },
+    "m4-final-live-approval-refusal.log": {
+      "sha256": "db5cf379197e748661cb62fea1bfbe9b2415ead73349601d66c0817837a98aa0",
+      "bytes": 4496
+    },
+    "m4-final-configure.log": {
+      "sha256": "116fb941bf89f32287bf58bb7dc34aca3aec9958174831b9c4566fc357f05137",
+      "bytes": 8479
+    }
+  },
+  "remaining": [
+    "AC10 actual desktop uninstall or explicit evidence-scope amendment",
+    "Separately supplied independent acceptance or explicit owner amendment",
+    "0575/RFC closeout and coordinator main integration"
+  ]
+}

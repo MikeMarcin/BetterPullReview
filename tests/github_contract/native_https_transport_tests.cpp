@@ -2218,6 +2218,8 @@ namespace {
 			const auto answered = perform(*row.Request, row.Admit);
 			expect(refusedAfterPost(answered) && answered.Consulted == (row.Admit.has_value() ? 1U : 0U),
 				   row.Name);
+			const auto& error = std::get<github_mutation_wire_error>(answered.Completion);
+			expect(error.ProviderFailure.has_value() && error.HttpStatus == (row.Request == &comment ? 200U : 201U) && error.TransportFailureSource == application::diagnostic_transport_failure_source::http_response, "mutation HTTP refusal retains typed status without response body");
 		}
 		const auto  rejected  = perform(comment, true);
 		const auto* rejection = std::get_if<github_mutation_wire_success>(&rejected.Completion);

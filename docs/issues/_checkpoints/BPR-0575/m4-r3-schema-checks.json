@@ -1,0 +1,42 @@
+{
+  "schema": "rfc0022.r3-integration-evidence.v1",
+  "parents": [
+    "829291bec",
+    "89f23eeece835ecafb9f8752b524644b22fbf281"
+  ],
+  "result": "Focused8/8, app build, final contract replay, tidy, format and documentation pass. Live/independent acceptance pending.",
+  "logs": {
+    "m4-r3-schema-build.log": {
+      "sha256": "2cc597f6d0426d1aa67f4d4dc78c885d2d8b60678cc0ca8a82f6138928c34084",
+      "bytes": 22954
+    },
+    "m4-r3-schema-checks.log": {
+      "sha256": "a205d9ff7fb3fc283340cf1cf2ef1323b20c5a9ddaf1307d9d0fcac4ba6cd498",
+      "bytes": 1427
+    },
+    "m4-r3-schema-tidy.log": {
+      "sha256": "2a01858bbc4fa4edb561c125f475545fd4ea6e94ba57e92010cf5fc3f13fdee0",
+      "bytes": 7640
+    },
+    "m4-r3-schema-tidy-final.log": {
+      "sha256": "eafb97db7e79e1e4c30a7cbc199b5dc2a652a364c65f64dd18919ab3062b6802",
+      "bytes": 853
+    },
+    "m4-r3-schema-final-build.log": {
+      "sha256": "8a26c4804f78668d3b89c668aa062acbd54caf4b437c6a7da7e11b6c3012b686",
+      "bytes": 10031
+    },
+    "m4-r3-schema-final-contract.log": {
+      "sha256": "f382153c5076f6dd724195b37b5d51c88e75ad29dd40b2cf7672c2bd9ec00931",
+      "bytes": 332
+    },
+    "m4-r3-schema-format-final.log": {
+      "sha256": "3aa0eeaaa1da2705d45e71e4c45b57e10b281be6881171ec47af1116b3d2f482",
+      "bytes": 98
+    },
+    "m4-r3-schema-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "bytes": 17
+    }
+  }
+}

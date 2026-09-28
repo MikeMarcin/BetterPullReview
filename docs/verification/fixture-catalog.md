@@ -1786,3 +1786,25 @@ the optional ordered index, then requires three things: a text comparison marked
 
 Default production limits and live sign-in are unchanged. `qt_diff_workbench_scale_100` additionally checks genuine equal text
 and cached unavailable publications. BPR-0626 records the passing Mac result.
+
+## RFC-BPR-0022 semantic publication fixtures
+
+`core_review_round_trip` covers placement/capability/body/state decisions
+and illegal observations. `github_review_comment_permalink` composes the real
+serialized session and SQLite journal for native, file, exact-anchor cache,
+legacy alias and 66 reached interruption courses; each course restarts three
+fresh sessions. The original unsupported tuple is explicitly synthetic. The
+later classifier2 fixtures exercise the separately owner-approved exact PR2
+contract and its refusal cases; fixture success supplies no broader service
+capability evidence. `sqlite_review_mutation_recovery_storage` covers schema
+1–3 migration into schema 4 with whole-review state preserved; D integration
+retains these records in the current schema-5 store.
+
+`application_review_round_trip_composition_contract` begins with the real Qt
+line gesture and ends with canonical server-post selection after durable
+recovery and ordinary refresh. Its native/file counters, journal reopen and
+new-session counts are asserted. `qt_composed_github_scale_100`, `_125` and `_200`
+cover semantic selection, collapsed support details, focus and accessibility
+in light, dark and high contrast. State-loss reconstruction uses a fresh host
+without a database or receipt; it is not an actual uninstall or power-loss test.
+The [criterion ledger](RFC-BPR-0022.md) records exact producing candidates.

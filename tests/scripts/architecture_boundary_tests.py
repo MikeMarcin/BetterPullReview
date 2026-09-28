@@ -4644,12 +4644,12 @@ auto finish_background_reap(
         # rewriting anything and the case then proves nothing.
         launch = (
             "const auto launched = launch_attended_application(\n"
-            "\t\tattended->Approval, *retainedSession);"
+            "\t\tattended->Approval, attended->Profile, *retainedSession);"
         )
         reordered = DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
             observation,
             "const auto launchResult = launch_attended_application("
-            "attended->Approval, *retainedSession);",
+            "attended->Approval, attended->Profile, *retainedSession);",
             1,
         ).replace(
             launch,
@@ -4738,7 +4738,7 @@ auto finish_background_reap(
             "filesystem_identity(os.fstat(expected.capsule_descriptor))",
             "inventory = root / IMAGE_INVENTORY_RELATIVE",
             "helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE",
-            "launched = run_stage_one(helper, inventory, approval, signals)",
+            "launched = run_stage_one(helper, inventory, approval, signals, **profile_arguments)",
             "STAGE_ONE_TIMEOUT_SECONDS = 1500.0",
             "STAGE_ONE_TERM_GRACE_SECONDS = 10.0",
             "STAGE_ONE_KILL_GRACE_SECONDS = 10.0",
@@ -4815,10 +4815,10 @@ auto finish_background_reap(
             1,
         ).replace(
             "            launched = run_stage_one("
-            "helper, inventory, approval, signals)\n",
+            "helper, inventory, approval, signals, **profile_arguments)\n",
             "            detach_without_force(root, arguments.hdiutil)\n"
             "            launched = run_stage_one("
-            "helper, inventory, approval, signals)\n",
+            "helper, inventory, approval, signals, **profile_arguments)\n",
             1,
         )
         self.assertNotEqual(detach_before_wait, DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT)

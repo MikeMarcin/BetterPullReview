@@ -1,0 +1,114 @@
+{
+  "schema": "rfc0022.r3-get-recovery-success.v1",
+  "mandate_revision": "r3",
+  "utc": "2026-09-27T19:51:02.868109+00:00",
+  "source_revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "image_sha256": "522e446ad4d34f233daccf45dfcd949654344c9293871305ed83f905444ebd42",
+  "approval_id": "9f9f9783040f56afffae7d6bc877bd81367ad22dd557bcaee52bf714763febf6",
+  "session": 73369,
+  "app_pid": 19358,
+  "supervisor_pid": 19246,
+  "publish_or_retry_clicks": 0,
+  "remote_review_comment_count": 1,
+  "remote_comment": {
+    "id": 4116623474,
+    "node_id": "PRRC_kwDOTyvof871XrBy",
+    "subject_type": "file",
+    "path": "off_hunk_fixture.md",
+    "line": 1,
+    "original_line": 1,
+    "side": "RIGHT",
+    "start_line": null,
+    "start_side": null,
+    "position": 1,
+    "original_position": 1,
+    "commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "original_commit_id": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "body": "https://github.com/MikeMarcin/BPR-Test/blob/61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a/off_hunk_fixture.md?plain=1#L62\n\nPlease verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub.",
+    "html_url": "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r4116623474",
+    "pull_request_review_id": 5331696949,
+    "in_reply_to_id": null,
+    "actor": {
+      "login": "MikeMarcin",
+      "id": 7605339,
+      "node_id": "MDQ6VXNlcjc2MDUzMzk="
+    }
+  },
+  "all_five_prior_journals_unchanged": true,
+  "recovered_record": {
+    "record": {
+      "version": 1,
+      "key": "e34ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653",
+      "legacy_key": "f46794511727dbebee946e2b3529a9e9447e00bbb7c5a48fca2857607d40b714",
+      "fingerprint": "e34ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653",
+      "parent_state": 8,
+      "authorization_source": 1,
+      "contract_digest": "ca5f8493ffb28b855bc2e779223502feae090a90497e416014e0cdb0dfe48943",
+      "scope_digest": "508f50481c3440a0ec9af9a6b94835ce070a567c1ab7c9d47b48d7d9d6a076ea",
+      "generation": 0,
+      "observed_at": 0,
+      "expires_at": 0,
+      "native": {
+        "key": "62116502a98ba267dcba7bfd09b166a3dfe3aa5acc898a6204330db86f60eb68",
+        "request_fingerprint": "34c597e6884d125a7d1899500706d57ff91de1dca54b1073ba4b326c7ba579cb",
+        "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+        "body": "Please verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub.",
+        "path": "off_hunk_fixture.md",
+        "comparison": "84287b3a695ed39a562f3d827dae553fe372766e5d5566e153b5971296df7cc1",
+        "zero_based_line": 61,
+        "commit_algorithm": 1,
+        "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+        "transmission": 2,
+        "state": 0,
+        "baseline_ids": [],
+        "receipt_present": false,
+        "receipt": null
+      },
+      "fallback": {
+        "key": "4276c09c34e6daa5b8f73f726dc45143b30db10b67301a4d550939450cce8418",
+        "request_fingerprint": "0cd89c737c0d68c47cb693afcaf94ef9d4130759ad9daa6a0215597c60596daf",
+        "authority_fingerprint": "a19a9af53be31e926c0b0c3bbac313265ea960be40af9623dcc62f0c8e2846f1",
+        "body": "https://github.com/MikeMarcin/BPR-Test/blob/61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a/off_hunk_fixture.md?plain=1#L62\n\nPlease verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub.",
+        "path": "off_hunk_fixture.md",
+        "comparison": "84287b3a695ed39a562f3d827dae553fe372766e5d5566e153b5971296df7cc1",
+        "zero_based_line": 61,
+        "commit_algorithm": 1,
+        "commit_oid": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a000000000000000000000000",
+        "transmission": 2,
+        "state": 1,
+        "baseline_ids": [],
+        "receipt_present": true,
+        "receipt": {
+          "comment_id": "PRRC_kwDOTyvof871XrBy",
+          "duplicate": true,
+          "representation": 1
+        }
+      }
+    },
+    "record_sha256": "a76ff9510045ea72c35767294d08745c67bb88f3187657f943b84360da506d52",
+    "bytes": 1317
+  },
+  "rendered_observation": {
+    "profile": "RFC0022 live fixture profile",
+    "account": "@MikeMarcin",
+    "base": "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+    "head": "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+    "overview": "two files; one review thread; one unresolved thread",
+    "source": "both complete80-line Markdown versions loaded; changedline10",
+    "thread": "off_hunk_fixture.md:62, Open, @MikeMarcin",
+    "body": "Please verify that this unchanged fixture line is readable through its linked source and that this discussion can continue entirely in GitHub.",
+    "automatic_prefix": "GitHub excerpt visible before verified file load; after semantic reconstruction app displayed prose alone and line62 thread label."
+  },
+  "ui_limitation": "Coordinate thread reveal and scroll intermittently returned noWindowsAvailable. AX state, overview, full source and semantic line62 thread labels were observed. No manual source clicks requested; no publication action attempted.",
+  "lifecycle": "Normal super+q UI quit; stage-zero exited0 and ordinary detach passed.",
+  "execution_log": {
+    "path": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview/build/rfc0022/m4-r3-file-read-live-execution.log",
+    "sha256": "08b3024a5fd7d27aa2929715f414d7ec56849769bd40fc8ae46edc23b03c167c",
+    "bytes": 4158
+  },
+  "pending": [
+    "Human GitHub-only collaborator source/prose/attribution/reply continuity",
+    "Separately supplied independent acceptance",
+    "Final D closeout and root integration"
+  ]
+}

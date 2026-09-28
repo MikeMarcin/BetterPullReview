@@ -507,3 +507,18 @@ Architecture tests should fail if:
 - either named UIforETW replacement span is outside its pane, has no exact-role
   pixels, or its selected ribbon fails to terminate at both pane edges while
   vertically overlapping the corresponding visible rows.
+
+## Semantic source-line comment gesture
+
+RFC-BPR-0022 exposes the ordinary comment gesture on every materialized
+current/right text line in the selected changed file, including unchanged
+lines outside a painted hunk. Exact retained endpoint, path, blob, line and
+current-head admission remain application-host responsibilities. The provider's
+bounded patch observation determines legacy/off-hunk/unknown placement; missing
+or truncated provider context stays unknown. Qt geometry is never evidence of
+what GitHub accepts.
+
+Accepted compatibility threads carry a separate semantic anchor while keeping
+the honest remote FILE subject. Selection in either direction validates the
+exact comparison before revealing a line, and canonical GitHub IDs drive
+incremental changes. See [review round trip](review-round-trip.md#file-subjects-and-selected-source-placement-rfc-bpr-0022).

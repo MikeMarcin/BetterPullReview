@@ -1,0 +1,150 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "RFC-AC-01",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-02",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-03",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-04",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-05",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-06",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-07",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-08",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-09",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-10",
+      "outcome": "pending",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "GitHub-only course accepted; actual desktop uninstall or explicit owner scope amendment pending."
+      }
+    },
+    {
+      "criterion": "RFC-AC-11",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-12",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-13",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-14",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "RFC-AC-15",
+      "outcome": "pass",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact criterion surface and inherited unchanged evidence reconciled in docs/verification/RFC-BPR-0022.md; final GET-only continuity in m4-final-continuity.json."
+      }
+    },
+    {
+      "criterion": "independent-acceptance",
+      "outcome": "pending",
+      "revision": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+      "evidence": {
+        "kind": "observation",
+        "detail": "No separate independent report supplied. Selected recipe prohibits additional reviewer agents. Explicit owner-waiver proposal remains undecided."
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 
 #include <QDateTime>
 #include <QString>
+#include <initializer_list>
 
 #include <glaze/json.hpp>
 
@@ -18,6 +19,7 @@
 #include <concepts>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
@@ -324,6 +326,16 @@ namespace bpr::adapters::github::detail {
 			struct glaze
 			{
 				static constexpr auto value = glz::object("message", &unsupported_response_json::Message, "errors", &unsupported_response_json::Errors);
+			};
+		};
+
+		struct recorded_unsupported_response_json
+		{
+			std::string                         Message, DocumentationUrl, Status;
+			std::vector<unsupported_error_json> Errors;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("message", &recorded_unsupported_response_json::Message, "documentation_url", &recorded_unsupported_response_json::DocumentationUrl, "status", &recorded_unsupported_response_json::Status, "errors", &recorded_unsupported_response_json::Errors);
 			};
 		};
 
@@ -1208,6 +1220,88 @@ namespace bpr::adapters::github::detail {
 			std::size_t      Values   = 0U;
 		};
 
+		using diagnostic_json_object = std::map<std::string, glz::raw_json_view, std::less<>>;
+
+		// Only constructed public vocabulary leaves this parser. Missing, null,
+		// empty, non-string and unknown values remain distinct observations.
+		[[nodiscard]] auto diagnostic_text(const diagnostic_json_object& aObject, const std::string_view aKey, std::initializer_list<std::string_view> aAllowed) -> std::string
+		{
+			const auto found = aObject.find(aKey);
+			if (found == aObject.end()) {
+				return "absent";
+			}
+			if (found->second.str == "null") {
+				return "null";
+			}
+			auto value = std::string{ };
+			if (glz::read<review_json_options{ }>(value, found->second.str)) {
+				return "non_string";
+			}
+			if (value.empty()) {
+				return "empty";
+			}
+			for (const auto word : aAllowed) {
+				if (value == word) {
+					return std::string{ word };
+				}
+			}
+			if (aKey == "message") {
+				for (const auto subject : { "line", "Line", "pull_request_review_thread.line" }) {
+					for (const auto quote : { "", "'", "\"", "`" }) {
+						for (const auto predicate : { " must be part of the diff", " must be a part of the diff", " is not part of the diff", " is not a part of the diff" }) {
+							for (const auto period : { "", "." }) {
+								auto recognized = std::string{ quote } + subject + quote + predicate + period;
+								if (value == recognized) {
+									return recognized;
+								}
+							}
+						}
+					}
+				}
+			}
+			return "omitted";
+		}
+
+		[[nodiscard]] auto unknown_diagnostic_members(const diagnostic_json_object& aObject, std::initializer_list<std::string_view> aKnown) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(aObject, [&](const auto& aMember) { return std::ranges::find(aKnown, aMember.first) == aKnown.end(); }));
+		}
+
+		[[nodiscard]] auto rejection_diagnostic(const std::string& aBody) -> std::string
+		{
+			auto envelope = diagnostic_json_object{ };
+			if (aBody.size() > 4096U || !json_preflight{ aBody }.run() || glz::read<review_json_options{ }>(envelope, aBody)) {
+				return " rejection=omitted_invalid_or_limit";
+			}
+			auto result = std::string{ " envelope=" } + diagnostic_text(envelope, "message", { "Validation Failed" });
+			result += " envelope_unknown=" + std::to_string(unknown_diagnostic_members(envelope, { "message", "errors", "documentation_url", "status" }));
+			result += " documentation_url=" + diagnostic_text(envelope, "documentation_url", { "https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request", "https://docs.github.com/en/rest/pulls/comments#create-a-review-comment-for-a-pull-request" });
+			result += " status=" + diagnostic_text(envelope, "status", { "422" });
+			const auto found = envelope.find("errors");
+			if (found == envelope.end()) {
+				return result + " errors=absent";
+			}
+			if (found->second.str == "null") {
+				return result + " errors=null";
+			}
+			auto errors = std::vector<diagnostic_json_object>{ };
+			if (glz::read<review_json_options{ }>(errors, found->second.str)) {
+				return result + " errors=invalid_shape";
+			}
+			if (errors.size() > 8U) {
+				return result + " errors=omitted_limit";
+			}
+			result += " errors=" + std::to_string(errors.size());
+			for (const auto& error : errors) {
+				result += " error_unknown=" + std::to_string(unknown_diagnostic_members(error, { "resource", "field", "code", "message" }));
+				result += " resource=" + diagnostic_text(error, "resource", { "PullRequestReviewComment", "PullRequestReviewThread", "PullRequestReview" });
+				result += " field=" + diagnostic_text(error, "field", { "line", "position", "path", "commit_id", "side", "subject_type", "pull_request_review_thread", "pull_request_review_thread.line", "pull_request_review_thread.start_line" });
+				result += " code=" + diagnostic_text(error, "code", { "invalid", "missing", "missing_field", "custom", "unprocessable", "already_exists" });
+				result += " message=" + diagnostic_text(error, "message", { "could not be resolved", "could not be resolved.", "must be part of the diff", "must be part of the diff.", "is not part of the diff", "is not part of the diff." });
+			}
+			return result;
+		}
+
 		template <typename T>
 		[[nodiscard]] auto document(const review_mutation_wire_response& aResponse) -> std::optional<T>
 		{
@@ -1220,6 +1314,14 @@ namespace bpr::adapters::github::detail {
 				return std::nullopt;
 			}
 			return parsed;
+		}
+
+		[[nodiscard]] auto valid_file_subject_metadata(const comment_response_json& aComment) -> bool
+		{
+			// GitHub file subjects may carry its synthetic first-line position.
+			// This is receipt metadata; the permalink alone supplies our source anchor.
+			return !aComment.StartLine && !aComment.StartSide && !aComment.InReplyToId
+				&& (!aComment.Line || (aComment.Line == 1U && aComment.OriginalLine == 1U && aComment.Side == "RIGHT"));
 		}
 
 		[[nodiscard]] auto comment_observation(const comment_response_json&                aResponse,
@@ -1239,7 +1341,7 @@ namespace bpr::adapters::github::detail {
 			const auto  wantsFile    = aExpected.Representation == core::review_publication_representation::file_comment_with_permalink;
 			const auto  expectedBody = publication_body(aExpected);
 			if ((aResponse.SubjectType && *aResponse.SubjectType != "line" && !fileSubject)
-				|| (fileSubject && (aResponse.Line || aResponse.StartLine || aResponse.StartSide))
+				|| (fileSubject && !valid_file_subject_metadata(aResponse))
 				|| (!fileSubject && !aResponse.Line)) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
@@ -1662,7 +1764,7 @@ namespace bpr::adapters::github::detail {
 		{
 			bool next = false, seen = false;
 			for (const auto& header : aResponse.Headers) {
-				if (header.Name.size() != 4 || !std::ranges::equal(header.Name, std::string_view{ "link" }, [](unsigned char a, unsigned char b) { return std::tolower(a) == std::tolower(b); })) {
+				if (header.Name.size() != 4 || !std::ranges::equal(header.Name, std::string_view{ "link" }, [](unsigned char aLeft, unsigned char aRight) { return std::tolower(aLeft) == std::tolower(aRight); })) {
 					continue;
 				}
 				if (seen || !staged_list(aExpected.Operation)) {
@@ -1969,7 +2071,7 @@ namespace bpr::adapters::github::detail {
 				if (!actor || !object.Id || !bounded_text(object.NodeId, 256) || !utf8_round_trip(object.Body) || object.Body.size() > maximum_review_mutation_body_bytes
 					|| object.IssueUrl != issueUrl || object.WebUrl != staged_web_root(target) + "#issuecomment-" + std::to_string(object.Id)
 					|| (aExpected.Comment && object.Id != aExpected.Comment)
-					|| std::ranges::any_of(result.Comments, [&](const auto& c) { return c.Id == object.Id || c.NodeId == object.NodeId; })) {
+					|| std::ranges::any_of(result.Comments, [&](const auto& aComment) { return aComment.Id == object.Id || aComment.NodeId == object.NodeId; })) {
 					return failed(review_mutation_contract_failure::identity_mismatch);
 				}
 				result.Comments.push_back(application::staged_review_comment{ .Id = object.Id, .NodeId = object.NodeId, .WebUrl = object.WebUrl, .Actor = *actor, .Body = object.Body });
@@ -1989,7 +2091,7 @@ namespace bpr::adapters::github::detail {
 			}
 			for (const auto& object : *objects) {
 				auto value = staged_comment_entity(object, aExpected);
-				if (!value || std::ranges::any_of(result.Comments, [&](const auto& c) { return c.Id == value->Id || c.NodeId == value->NodeId; })) {
+				if (!value || std::ranges::any_of(result.Comments, [&](const auto& aComment) { return aComment.Id == value->Id || aComment.NodeId == value->NodeId; })) {
 					return failed(review_mutation_contract_failure::identity_mismatch);
 				}
 				result.Comments.push_back(std::move(*value));
@@ -2006,7 +2108,7 @@ namespace bpr::adapters::github::detail {
 			}
 			for (const auto& object : *objects) {
 				auto value = staged_review_entity(object, aExpected);
-				if (!value || std::ranges::any_of(result.Reviews, [&](const auto& r) { return r.Id == value->Id || r.NodeId == value->NodeId; })) {
+				if (!value || std::ranges::any_of(result.Reviews, [&](const auto& aReview) { return aReview.Id == value->Id || aReview.NodeId == value->NodeId; })) {
 					return failed(review_mutation_contract_failure::identity_mismatch);
 				}
 				result.Reviews.push_back(std::move(*value));
@@ -2453,6 +2555,94 @@ namespace bpr::adapters::github::detail {
 		return review_mutation_viewer_observation{ .Identity = aExpected };
 	}
 
+	namespace {
+		// Owner decision de5b5b6d, mandate r3. This evidence describes one
+		// immutable PR pair, not a service-wide interpretation of the message.
+		[[nodiscard]] auto recorded_target_matches(const application::review_mutation_target_binding& aTarget) -> bool
+		{
+			return aTarget.Hostname.value() == "github.com"
+				&& aTarget.ServerContract == application::github_server_contract::github_com_2022_11_28
+				&& aTarget.Repository.Owner == "MikeMarcin" && aTarget.Repository.Name == "BPR-Test"
+				&& aTarget.RepositoryDatabaseId == 1'328'277'631U && aTarget.RepositoryNodeId == "R_kgDOTyvofw"
+				&& aTarget.BaseRepositoryDatabaseId == 1'328'277'631U
+				&& aTarget.Number.value() == 2U && aTarget.PullRequestDatabaseId == 4'650'736'621U
+				&& aTarget.PullRequestNodeId == "PR_kwDOTyvof88AAAABFTSb7Q" && aTarget.Open
+				&& core::canonical_hex(aTarget.BaseOid).view() == "a939a85a5525994fe9e9cb4c973ad9362ed427c7"
+				&& core::canonical_hex(aTarget.Semantic.ExpectedHead).view() == "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a"
+				&& aTarget.BaseRef == "codex/rfc0022-fixture-base-20260926"
+				&& aTarget.HeadRef == "codex/rfc0022-live-comments-20260926";
+		}
+		[[nodiscard]] auto recorded_actor_matches(const application::review_mutation_acting_identity& aActor) -> bool
+		{
+			return aActor.DatabaseId == 7'605'339U && aActor.NodeId == "MDQ6VXNlcjc2MDUzMzk=" && aActor.Login == "MikeMarcin";
+		}
+		[[nodiscard]] auto recorded_anchor_matches(const application::review_mutation_request& aRequest) -> bool
+		{
+			if (!aRequest.LiveBinding || !aRequest.Source || !aRequest.Source->Endpoint
+				|| !recorded_target_matches(aRequest.LiveBinding->Target) || !recorded_actor_matches(aRequest.LiveBinding->ActingIdentity)) {
+				return false;
+			}
+			const auto& source   = *aRequest.Source;
+			const auto& endpoint = *source.Endpoint;
+			const auto& anchor   = aRequest.LiveBinding->Anchor;
+			// m4-live-anchor-eligibility.json records complete provider patches:
+			// both are @@ -7,7 +7,7 @@ with exactly one addition/deletion.
+			// Their fixed base/head and content-addressed blobs bind that proof;
+			// changing any of them requires a new reviewed evidence contract.
+			const auto blob      = core::canonical_hex(endpoint.blob());
+			const bool knownBlob = (anchor.Path == "off_hunk_fixture.md" && blob.view() == "828d5c87c20a0f9d74c498e04c36b32d2948b7c5")
+				|| (anchor.Path == "off_hunk_fixture.txt" && blob.view() == "79fe8e95cf056dd629442c686696851f26631115");
+			return knownBlob && source.LineCount == 80U && anchor.Semantic.Side == core::diff_side::right
+				&& anchor.Semantic.Line < source.LineCount && (anchor.Semantic.Line < 6U || anchor.Semantic.Line >= 13U)
+				&& source.Placement != core::review_placement::legacy_line
+				&& endpoint.request().Diff.Comparison.Left.Commit == aRequest.LiveBinding->Target.BaseOid
+				&& endpoint.request().File.Change == application::workbench_file_change_kind::modified
+				&& compile_review_permalink_body({ .Target = aRequest.LiveBinding->Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, anchor.Semantic, "Source validation").has_value();
+		}
+		[[nodiscard]] auto recorded_response_metadata_valid(const review_mutation_wire_response& aResponse) -> bool
+		{
+			// Native HTTPS supplies only normalized metadata after complete TLS,
+			// content-length/encoding and duplicate-header validation. Require the
+			// complete core rate tuple again at this authority boundary.
+			if (aResponse.Headers.size() != 5U) {
+				return false;
+			}
+			auto headers = std::map<std::string, std::string_view>{ };
+			for (const auto& header : aResponse.Headers) {
+				auto name = header.Name;
+				std::ranges::transform(name, name.begin(), [](const unsigned char aByte) { return static_cast<char>(std::tolower(aByte)); });
+				if (!headers.emplace(std::move(name), header.Value).second) {
+					return false;
+				}
+			}
+			const auto number = [&headers](const char* aName) -> std::optional<std::uint64_t> {
+				const auto found = headers.find(aName);
+				if (found == headers.end() || found->second.empty()) {
+					return std::nullopt;
+				}
+				auto       value  = std::uint64_t{ };
+				const auto text   = found->second;
+				const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+				return parsed.ec == std::errc{ } && parsed.ptr == text.data() + text.size() ? std::optional{ value } : std::nullopt;
+			};
+			const auto type     = headers.find("content-type");
+			const auto resource = headers.find("x-ratelimit-resource");
+			const auto limit = number("x-ratelimit-limit"), remaining = number("x-ratelimit-remaining"), reset = number("x-ratelimit-reset");
+			return type != headers.end() && (type->second == "application/json" || type->second == "application/json; charset=utf-8")
+				&& resource != headers.end() && resource->second == "core"
+				&& limit && remaining && reset && *limit > 0U && *remaining > 0U && *remaining <= *limit && *reset > 0U;
+		}
+	}
+
+	auto recorded_off_hunk_contract(const live_review_mutation_configuration& aConfiguration) -> std::optional<off_hunk_unsupported_contract>
+	{
+		if (!valid(aConfiguration) || aConfiguration.CredentialContext.Authority.BprProfile.value() != 2U
+			|| !recorded_target_matches(aConfiguration.Target) || !recorded_actor_matches(aConfiguration.ActingIdentity)) {
+			return std::nullopt;
+		}
+		return off_hunk_unsupported_contract{ .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .RecordedDesignatedScope = true };
+	}
+
 	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
 										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
 	{
@@ -2470,6 +2660,18 @@ namespace bpr::adapters::github::detail {
 		}
 		if (aResponse.Body.size() > 4096U || !json_preflight{ aResponse.Body }.run()) {
 			return false;
+		}
+		if (aContract.RecordedDesignatedScope) {
+			auto           parsed  = recorded_unsupported_response_json{ };
+			constexpr auto options = [] { auto value = review_json_options{ }; value.error_on_unknown_keys = true; return value; }();
+			if (!recorded_anchor_matches(*semantic) || !recorded_response_metadata_valid(aResponse)
+				|| glz::read<options>(parsed, aResponse.Body) || parsed.Message != "Validation Failed"
+				|| parsed.DocumentationUrl != "https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request"
+				|| parsed.Status != "422" || parsed.Errors.size() != 1U) {
+				return false;
+			}
+			const auto& error = parsed.Errors.front();
+			return error.Resource == aContract.Resource && error.Field == aContract.Field && error.Code == aContract.Code && error.Message == aContract.Message;
 		}
 		auto           parsed  = unsupported_response_json{ };
 		constexpr auto options = [] { auto value = review_json_options{}; value.error_on_unknown_keys = true; return value; }();
@@ -2724,14 +2926,60 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_transport aLease,
 		std::unique_ptr<application::review_mutation_recovery_port>
 													 aRecovery,
-		std::optional<off_hunk_unsupported_contract> aUnsupportedContract, application::review_publication_lineage_port* aLineage) noexcept
+		std::optional<off_hunk_unsupported_contract> aUnsupportedContract, application::review_publication_lineage_port* aLineage, std::shared_ptr<application::diagnostic_log_port> aLog) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
 		, UnsupportedContract{ std::move(aUnsupportedContract) }
 		, Lineage{ aLineage }
+		, Log{ std::move(aLog) }
 	{
+	}
+
+	auto review_comment_diagnostic(const review_mutation_wire_request& aRequest, const github_mutation_wire_completion& aCompletion) noexcept -> application::diagnostic_event
+	{
+		auto event = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::failed };
+		try {
+			const auto* semantic = std::get_if<application::review_mutation_request>(&aRequest.Semantic);
+			auto        detail   = std::string{ "create_review_comment representation=" };
+			detail += semantic && semantic->Representation == core::review_publication_representation::file_comment_with_permalink ? "file" : "native";
+			if (const auto* success = std::get_if<github_mutation_wire_success>(&aCompletion)) {
+				const auto& response         = success->Response;
+				event.HttpStatus             = response.Status >= 100 && response.Status <= 599 ? static_cast<std::uint16_t>(response.Status) : 0U;
+				event.Outcome                = application::diagnostic_outcome::response_received;
+				event.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
+				detail += response_headers_valid(response) ? " metadata=valid" : " metadata=invalid";
+				if (response.Status == 422) {
+					detail += rejection_diagnostic(response.Body);
+				}
+			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&aCompletion)) {
+				event.HttpStatus             = error->HttpStatus;
+				event.TransportFailureSource = error->TransportFailureSource;
+				detail += " failure=";
+				detail += application::name(error->Failure);
+				constexpr std::array<std::string_view, 15> causes{ "authentication", "permission", "network", "api_version", "unsupported_capability", "rate_limit", "certificate", "redirect", "timeout", "process_startup", "cli_unavailable", "vault", "malformed_response", "response_limit", "unavailable" };
+				if (error->ProviderFailure) {
+					const auto index = static_cast<std::size_t>(*error->ProviderFailure);
+					detail += " provider_failure=";
+					detail += index < causes.size() ? causes[index] : "invalid";
+				}
+				detail += error->Transmission == github_mutation_transmission::indeterminate ? " transmission=indeterminate" : " transmission=not_sent";
+			} else {
+				event.Outcome = application::diagnostic_outcome::cancelled;
+				detail += " cancelled";
+			}
+			if (detail.size() > event.Summary.Text.size()) {
+				event.Summary.State = application::diagnostic_summary_state::omitted_limit;
+				return event;
+			}
+			std::ranges::copy(detail, event.Summary.Text.begin());
+			event.Summary.Size  = static_cast<std::uint16_t>(detail.size());
+			event.Summary.State = application::diagnostic_summary_state::sanitized;
+		} catch (...) {
+			event.Summary = { .State = application::diagnostic_summary_state::omitted_failure };
+		}
+		return event;
 	}
 
 	auto review_mutation_session::perform(
@@ -2747,13 +2995,19 @@ namespace bpr::adapters::github::detail {
 			|| !valid(Configuration)) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
-		auto completion = Transport->perform_review_mutation(
-			github_mutation_wire_request{
-				.Context = Configuration.CredentialContext,
-				.Wire    = std::move(aRequest),
-			},
-			aStop,
-			std::move(aWitness));
+		const auto operation         = aRequest.Operation;
+		const auto contextGeneration = Log ? Log->context_generation() : 0U;
+		const auto wireRequest       = github_mutation_wire_request{
+			.Context = Configuration.CredentialContext,
+			.Wire    = std::move(aRequest),
+		};
+		auto completion = Transport->perform_review_mutation(wireRequest, aStop, std::move(aWitness));
+		if (Log && operation == review_mutation_operation::create_review_comment) {
+			auto event              = review_comment_diagnostic(wireRequest.Wire, completion);
+			event.Request           = Configuration.CredentialContext.Request.value();
+			event.ContextGeneration = contextGeneration;
+			static_cast<void>(Log->record(event));
+		}
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}
@@ -2973,7 +3227,7 @@ namespace bpr::adapters::github::detail {
 			append_fingerprint_text(anchor, aRequest.LiveBinding->Anchor.Path);
 			append_fingerprint_integer(anchor, aRequest.LiveBinding->Anchor.Semantic.Line);
 			append_fingerprint_oid(anchor, aRequest.LiveBinding->Anchor.Commit);
-			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
+			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .ClassifierRevision = off_hunk_classifier_revision, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
 		}
 		[[nodiscard]] auto publication_fingerprint(const application::review_mutation_request& aRequest, const live_review_mutation_configuration& aConfig) -> std::array<std::uint8_t, 32>
 		{
@@ -3108,8 +3362,9 @@ namespace bpr::adapters::github::detail {
 		if (!child || child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
 			return result;
 		}
-		if (!file && response && UnsupportedContract && aRequest.Source->Placement != core::review_placement::legacy_line
-			&& definitive_off_hunk_unsupported(*response, *wire, *UnsupportedContract)) {
+		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
+		if (!file && response && contract && aRequest.Source->Placement != core::review_placement::legacy_line
+			&& definitive_off_hunk_unsupported(*response, *wire, *contract)) {
 			auto rejected          = current;
 			rejected.State         = publication_state::native_definitively_unsupported;
 			rejected.Authorization = { .Source         = application::review_fallback_authorization_source::native_rejection,
@@ -3298,7 +3553,7 @@ namespace bpr::adapters::github::detail {
 			return aResult;
 		}
 		aResult.Reconciliation = observed->Projection;
-		const auto exact       = std::ranges::any_of(observed->ExactReceipts, [&](const auto& r) { return r.ServerCommentId == aResult.Result->ServerCommentId; });
+		const auto exact       = std::ranges::any_of(observed->ExactReceipts, [&](const auto& aReceipt) { return aReceipt.ServerCommentId == aResult.Result->ServerCommentId; });
 		if (!exact) {
 			return aResult;
 		}
@@ -3386,7 +3641,7 @@ namespace bpr::adapters::github::detail {
 						|| comment.InReplyToId
 						|| (!file && (!(currentLine || originalLine) || comment.Side != expectedSide || comment.StartLine || comment.StartSide))
 						|| (file && comment.CommitId != commit.view())
-						|| (file && (comment.Line || comment.StartLine || comment.StartSide))
+						|| (file && !valid_file_subject_metadata(comment))
 						|| (child->BaselineExactCommentIds && std::ranges::binary_search(*child->BaselineExactCommentIds, comment.NodeId))) {
 						continue;
 					}
@@ -3500,7 +3755,7 @@ namespace bpr::adapters::github::detail {
 				return submission;
 			};
 
-			if (aRequest.Proposal.Durable && (!Lineage || !aRequest.Source || aRequest.Proposal.ReplyToThread || aRequest.Proposal.Durable->DraftRevision == 0 || std::ranges::all_of(aRequest.Proposal.Durable->Incarnation, [](auto b) { return b == 0; }))) {
+			if (aRequest.Proposal.Durable && (!Lineage || !aRequest.Source || aRequest.Proposal.ReplyToThread || aRequest.Proposal.Durable->DraftRevision == 0 || std::ranges::all_of(aRequest.Proposal.Durable->Incarnation, [](auto aByte) { return aByte == 0; }))) {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 			const auto loaded = Recovery->load(aRequest.IdempotencyKey);

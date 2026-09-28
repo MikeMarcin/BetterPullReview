@@ -46,3 +46,16 @@ The ordering is configurable but deterministic and inspectable.
 ## Private versus shared actions
 
 The UI labels every action as `Local` or `GitHub` in tooltips and confirmation surfaces where ambiguity is possible. `Accept file` is local. `Resolve thread` is shared. `Approve pull request` is shared.
+
+## Semantic comment placement
+
+Shared thread/comment IDs, author, body, replies, resolution and deletion come
+from GitHub. A validated permalink in a FILE root adds only a derived source
+anchor and reviewer-prose projection. A reply inherits its root; its own body
+is never interpreted as a source anchor. Source or server-body changes clear or
+recompute that placement. An invalid or foreign link leaves the shared comment
+readable at file level and does not revive a local remembered anchor.
+
+The [round-trip contract](../architecture/review-round-trip.md#file-subjects-and-selected-source-placement-rfc-bpr-0022)
+owns this distinction. Private receipts keep their existing meaning, and a
+publication receipt identifies the server post to select after refresh.

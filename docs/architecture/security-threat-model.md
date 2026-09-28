@@ -1318,6 +1318,24 @@ intermediate producers carry their captured generation and cannot repopulate it.
 files, external exports and OS crash reports retain their original privacy.
 Richer scope-aware export and complete native evidence remain later milestones.
 
+## Off-hunk publication and visible anchors
+
+An ambiguous native result followed by a file POST can create two public
+comments. RFC-BPR-0022 prevents that transition through one logical parent,
+at most two deterministic children and durable authorization before fallback.
+Only the exact completed non-creation contract can retire a native witness into
+fallback authority; production admits only the owner-approved exact PR2 recorded contract described in the RFC-0022 ledger. Broad server labels and
+status codes are insufficient.
+
+An attacker-controlled FILE comment may resemble a code link. Rehydration checks
+canonical same-host/repository/path/commit grammar and the exact retained blob
+and line bound; it neither follows the link nor grants an effect capability.
+External edits and deletion invalidate cached placement by canonical identity.
+The SQLite digest detects corruption within the owner-private store; it is not
+a defense against a malicious process running as the same user. See the
+[owning protocol](review-round-trip.md#semantic-source-line-publication-policy-rfc-bpr-0022)
+for migration, capacity, cancellation and restart rules.
+
 
 ### Review-tour outline assistance
 

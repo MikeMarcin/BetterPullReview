@@ -306,14 +306,14 @@ namespace bpr::tests::network_isolation {
 			.Repository               = "BPR-Test",
 			.RepositoryDatabaseId     = 1328277631,
 			.RepositoryNodeId         = "R_kgDOTyvofw",
-			.PullRequestNumber        = 1,
-			.PullRequestDatabaseId    = 4246446933,
-			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+			.PullRequestNumber        = 2,
+			.PullRequestDatabaseId    = 4650736621,
+			.PullRequestNodeId        = "PR_kwDOTyvof88AAAABFTSb7Q",
 			.BaseRepositoryDatabaseId = 1328277631,
 			.State                    = "open",
-			.HeadSha                  = "17990ba0c2fb50338141f35c0717f0f99639c7ba",
-			.BaseSha                  = "e2a44aa8fef704de7373463222b1872e796918c6",
-			.HeadBranch               = "codex/disposable-live-review-20260810",
+			.HeadSha                  = "61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a",
+			.BaseSha                  = "a939a85a5525994fe9e9cb4c973ad9362ed427c7",
+			.HeadBranch               = "codex/rfc0022-live-comments-20260926",
 		};
 	}
 

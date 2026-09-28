@@ -461,6 +461,16 @@ It lists `hdiutil info -plist` again before each attempt, until none remains
 or 60 seconds pass. If the image is still attached then, or the listing cannot
 be read, the build fails and reports no digest (BPR-0836).
 
+An attended course can select an existing isolated profile with
+`BPR_DESIGNATED_LIVE_MUTATION_PROFILE=<canonical-positive-profile-id>`. Create
+that profile through Profiles first. Its approval must bind its own exact
+replay namespace; another profile's subject or a spent approval is never
+reusable. The fixed stage-zero command carries the ID through the authenticated
+supervisor to the ordinary `--bpr-profile` application entry. Probe mode cannot
+select a profile. Omitting the setting retains Default. Profile selection does
+not repair or reinterpret another profile's Git cache, initialize or reset its
+replay namespace, or extend the one-comment grant.
+
 Inspect the two manifest modes without running the live lane:
 
 ```sh

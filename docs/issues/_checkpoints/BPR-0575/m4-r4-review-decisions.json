@@ -1,0 +1,178 @@
+{
+  "session": "bee55ff737d8a45a160d3ca6ad748b0c",
+  "checkout": "/Users/jaeger/.codex/worktrees/6264/BetterPullReview",
+  "sequence": 31,
+  "candidates": [
+    {
+      "id": "BPR-0573-exact-contract",
+      "title": "Accept the bounded recorded rejection contract",
+      "revision": "rfc0022-d-699c921c-6bccb96aef73",
+      "fingerprint": "89efae94abfd13e29326856d30dea3e5d85721a616e3bd6cfda1b8a9190a3875",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0573-exact-contract",
+        "fingerprint": "89efae94abfd13e29326856d30dea3e5d85721a616e3bd6cfda1b8a9190a3875",
+        "decision_id": "de5b5b6d-56ad-4cdb-8859-95c4762dfab0",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T04:57:10.168278+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-0573-github-only-continuity",
+      "title": "Check the existing discussion entirely in GitHub",
+      "revision": "rfc0022-d-0f3188093-comment4116623474-r1",
+      "fingerprint": "c5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0573-github-only-continuity",
+        "fingerprint": "c5db7cdfdb3cf700ff7887598fdf005482458f366a936548776abf89a5d862d8",
+        "decision_id": "520a36a8-b02f-486c-b538-37cbdc2d40bb",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T20:18:43.744052+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-0575-closeout-order",
+      "title": "Decide RFC0022 closeout ordering",
+      "revision": "rfc0022-d-699c921c-72cb14007e6e",
+      "fingerprint": "10ee48c097eb8ec8f61d00439b385a234acc5739df031565a6c7e9f5e0f89c1b",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0575-closeout-order",
+        "fingerprint": "10ee48c097eb8ec8f61d00439b385a234acc5739df031565a6c7e9f5e0f89c1b",
+        "decision_id": "65b980c9-5ea8-4fdc-99e4-135c9597856e",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T04:57:19.799086+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-0575-independent-acceptance-scope",
+      "title": "Decide the independent-review requirement",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "fingerprint": "cfcd8a6dc4aa9d452cf21ca4f3b5f59701e1572a972d4e381be5d1f27986fed6",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0575-independent-acceptance-scope",
+        "fingerprint": "cfcd8a6dc4aa9d452cf21ca4f3b5f59701e1572a972d4e381be5d1f27986fed6",
+        "decision_id": "74582934-e6ce-4101-83fd-bbd547de167c",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T20:38:06.636733+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-0575-native-live-scope",
+      "title": "Decide the native off-hunk live evidence scope",
+      "revision": "rfc0022-d-699c921c-462057eaed99",
+      "fingerprint": "c0e5ad566be3c1a75907e1bc51ac8751dde11fb3e289764ae11f4c48ee0cf770",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0575-native-live-scope",
+        "fingerprint": "c0e5ad566be3c1a75907e1bc51ac8751dde11fb3e289764ae11f4c48ee0cf770",
+        "decision_id": "cba39c05-4179-4548-a3c2-fd184abe35a7",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T04:57:27.798701+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "id": "BPR-0575-uninstall-evidence-scope",
+      "title": "Decide the uninstall evidence scope",
+      "revision": "rfc0022-d-0f3188093-closeout-scope-r1",
+      "fingerprint": "b8b6cb6e7a40f1657a04aad97ce2722422f595ae7fdd8934db4292eb07427fc8",
+      "phase": "ready",
+      "protected": false,
+      "decision": {
+        "candidate": "BPR-0575-uninstall-evidence-scope",
+        "fingerprint": "b8b6cb6e7a40f1657a04aad97ce2722422f595ae7fdd8934db4292eb07427fc8",
+        "decision_id": "4ca166d2-2c9c-4995-8a49-8d3d0f927f2b",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T20:37:58.879218+00:00",
+        "actor": "human"
+      }
+    }
+  ],
+  "events": [
+    {
+      "sequence": 27,
+      "time": "2026-09-27T20:37:58.879234+00:00",
+      "kind": "decision",
+      "candidate": "BPR-0575-uninstall-evidence-scope",
+      "decision": {
+        "candidate": "BPR-0575-uninstall-evidence-scope",
+        "fingerprint": "b8b6cb6e7a40f1657a04aad97ce2722422f595ae7fdd8934db4292eb07427fc8",
+        "decision_id": "4ca166d2-2c9c-4995-8a49-8d3d0f927f2b",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T20:37:58.879218+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "sequence": 28,
+      "time": "2026-09-27T20:38:06.636746+00:00",
+      "kind": "decision",
+      "candidate": "BPR-0575-independent-acceptance-scope",
+      "decision": {
+        "candidate": "BPR-0575-independent-acceptance-scope",
+        "fingerprint": "cfcd8a6dc4aa9d452cf21ca4f3b5f59701e1572a972d4e381be5d1f27986fed6",
+        "decision_id": "74582934-e6ce-4101-83fd-bbd547de167c",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-09-27T20:38:06.636733+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "sequence": 29,
+      "time": "2026-09-27T20:38:08.465193+00:00",
+      "kind": "handed-back",
+      "decided": [
+        "BPR-0573-exact-contract",
+        "BPR-0573-github-only-continuity",
+        "BPR-0575-closeout-order",
+        "BPR-0575-independent-acceptance-scope",
+        "BPR-0575-native-live-scope",
+        "BPR-0575-uninstall-evidence-scope"
+      ],
+      "pending": []
+    },
+    {
+      "sequence": 30,
+      "time": "2026-09-27T20:40:49.046162+00:00",
+      "kind": "resume-development",
+      "candidates": [
+        "BPR-0575-uninstall-evidence-scope"
+      ],
+      "preparation_stopped": false
+    },
+    {
+      "sequence": 31,
+      "time": "2026-09-27T20:40:49.143842+00:00",
+      "kind": "resume-development",
+      "candidates": [
+        "BPR-0575-independent-acceptance-scope"
+      ],
+      "preparation_stopped": false
+    }
+  ],
+  "schema": "rfc0022.r4-review-decisions.v1",
+  "assignment": "/root/rfc0022_m4_closeout",
+  "mandate_revision": "r4",
+  "production_candidate": "0f3188093c846cbbb43f624dd48c817e0ea4eec4",
+  "review_host": "Stopped through attended-review stop after hand-back29; no pending decisions."
+}
