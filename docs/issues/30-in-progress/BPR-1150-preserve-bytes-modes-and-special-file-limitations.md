@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1150"
 title: "Preserve bytes, modes and special-file limitations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054"]
 depends_on: ["BPR-1148"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC54-06", "RC54-07"], "pack_alias": "PACK-CYCLE-08", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
