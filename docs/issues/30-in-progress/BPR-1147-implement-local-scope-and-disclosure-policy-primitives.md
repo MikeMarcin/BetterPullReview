@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1147"
 title: "Implement local scope and disclosure policy primitives"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0053", "RFC-BPR-0060"]
 depends_on: ["BPR-1144"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "domain", "acceptance": ["RC53-10", "RC60-04", "RC60-05"], "pack_alias": "PACK-CYCLE-05", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
