@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1065"
 title: "Implement the thin pr-tour conversational skill"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1064"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-14","milestone":"pr-tour-skill","acceptance":["AC46-02","AC46-03","AC46-04"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
