@@ -275,22 +275,28 @@ namespace bpr::application {
 			const auto outcome = core::apply(*State.Draft, aCommand);
 			State.Refusal      = outcome.Refusal;
 			if (outcome.Changed) {
-				const bool text = aCommand.Kind == core::tour_command_kind::problem || aCommand.Kind == core::tour_command_kind::solution || aCommand.Kind == core::tour_command_kind::edit_stop;
+				// Another presentation's edit is not a gesture of this one's author: the stop this
+				// author is on stays selected unless the edit removed it.
+				const bool foreign = Origin != tour_presentation_origin::desktop && aCommand.Kind != core::tour_command_kind::observe_head;
+				const bool kept    = foreign && (!State.Selected.value() || std::ranges::find(outcome.Accepted.Stops, State.Selected, &core::tour_stop::Id) != outcome.Accepted.Stops.end());
+				const bool text    = aCommand.Kind == core::tour_command_kind::problem || aCommand.Kind == core::tour_command_kind::solution || aCommand.Kind == core::tour_command_kind::edit_stop;
 				if (aCommand.Kind == core::tour_command_kind::observe_head) {
 					Undo.clear();
 					Redo.clear();
 				} else if (aCommand.Kind != core::tour_command_kind::visit) {
 					retain(Undo, aCommand.Stop.value() ? aCommand.Stop : State.Selected, label(aCommand.Kind));
-					if (!text) {
+					if (!text && !kept) {
 						++State.SelectionRevision;
 					}
 					Redo.clear();
 				}
-				State.Draft    = std::make_shared<core::review_tour>(outcome.Accepted);
-				State.Selected = outcome.Selected;
-				State.Resume   = { aCommand.Kind == core::tour_command_kind::problem ? tour_section::problem : aCommand.Kind == core::tour_command_kind::solution ? tour_section::solution
-																																								  : tour_section::stops,
-								   outcome.Selected };
+				State.Draft = std::make_shared<core::review_tour>(outcome.Accepted);
+				if (!kept) {
+					State.Selected = outcome.Selected;
+				}
+				State.Resume = { aCommand.Kind == core::tour_command_kind::problem ? tour_section::problem : aCommand.Kind == core::tour_command_kind::solution ? tour_section::solution
+																																								: tour_section::stops,
+								 outcome.Selected };
 				pump();
 			}
 			notify();
@@ -307,8 +313,12 @@ namespace bpr::application {
 			State.Refusal              = outcome.Refusal;
 			if (outcome.Changed) {
 				retain(to, State.Selected, from.back().Label);
-				State.Selected = from.back().Selected;
-				++State.SelectionRevision;
+				const bool foreign = Origin != tour_presentation_origin::desktop;
+				const bool kept    = foreign && (!State.Selected.value() || std::ranges::find(outcome.Accepted.Stops, State.Selected, &core::tour_stop::Id) != outcome.Accepted.Stops.end());
+				if (!kept) {
+					State.Selected = from.back().Selected;
+					++State.SelectionRevision;
+				}
 				from.pop_back();
 				State.Draft       = std::make_shared<core::review_tour>(std::move(outcome.Accepted));
 				State.Resume.Stop = State.Selected;
@@ -424,6 +434,8 @@ namespace bpr::application {
 			self.import_selected(aRequest.ImportIndex);
 			break;
 		}
+		// A direct call that follows is this presentation's own gesture, whatever asked before.
+		self.Origin = tour_presentation_origin::desktop;
 		const tour_service_result result{ state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
 		if (!aRequest.RequestId.empty()) {
 			self.Receipts.push_back({ aRequest.RequestId, aRequest.Digest, static_cast<std::uint8_t>(result.Status), result.Refusal, result.Revision });

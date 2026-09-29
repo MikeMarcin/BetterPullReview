@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <functional>
 #include <map>
+#include <set>
 class QAction;
 class QCheckBox;
 class QComboBox;
@@ -72,6 +73,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto preview() const -> markdown_body_view* { return Preview; }
 		[[nodiscard]] auto publication_preview() const -> markdown_body_view* { return PublicationPreview; }
 		[[nodiscard]] auto shown() const -> const application::tour_presentation& { return Shown; }
+		/// \brief True while an input method holds uncommitted preedit text in any field; committed text is unaffected.
+		[[nodiscard]] auto composing() const -> bool { return !Composing.empty(); }
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	protected:
@@ -139,8 +142,9 @@ namespace bpr::qt {
 		QPushButton*                                           UseSaved          = nullptr;
 		QPushButton*                                           KeepLocalConflict = nullptr;
 		QPushButton*                                           UseRemoteConflict = nullptr;
-		bool                                                   SelectionChanged  = false;
-		bool                                                   Applying          = false;
+		std::set<const QObject*>                               Composing;
+		bool                                                   SelectionChanged = false;
+		bool                                                   Applying         = false;
 	};
 }
 #endif

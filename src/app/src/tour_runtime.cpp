@@ -198,7 +198,16 @@ namespace bpr::app {
 			}
 			if (!decoded->Error.empty()) {
 				const auto& code = decoded->Error;
-				const int   exit = code == "revision_conflict" ? 4 : code == "storage_unavailable" || code == "owner_unavailable"           ? 7
+				if (code == "editor_busy") {
+					return failure(code, "The desktop editor holds uncommitted input-method text. Finish or cancel the composition, then retry; nothing was changed.", 4);
+				}
+				if (code == "owner_busy") {
+					return failure(code, "The owner is loading or closing that draft. Nothing was changed; retry shortly.", 4);
+				}
+				if (code == "save_pending") {
+					return failure("outcome_unknown", "The owner has not confirmed a durable save. Inspect the exact request ID before any retry; no replay was attempted.", 6);
+				}
+				const int exit = code == "revision_conflict" ? 4 : code == "storage_unavailable" || code == "owner_unavailable"             ? 7
 					: code == "command_refused" || code == "target_ambiguous" || code == "invalid_request" || code == "request_id_required" ? 2
 																																			: 4;
 				return failure(code, "The owner refused this command. Current text is retained; inspect the exact draft and request.", exit);

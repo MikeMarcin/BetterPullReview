@@ -258,6 +258,63 @@ def owner_checks(binary, root, select, invoke, temporary):
     retry = edit("Committed before the owner died γ\n", current, "owner-3")
     assert retry.returncode == 0 and json.loads(retry.stdout)["data"]["revision"] == committed
     assert revision() == committed and problem() == "Committed before the owner died γ\n"
+    # An external-editor session outlives its owner: the save routes to the owner that exists then,
+    # carrying the revision the session captured when it began.
+    import pty
+    fixture = Path(temporary) / "owner restart editor.py"
+    fixture.write_text(r'''import json, os, pathlib, signal, subprocess, sys, time
+path = pathlib.Path(sys.argv[1])
+assert path.is_absolute() and path.read_bytes() is not None
+os.kill(int(pathlib.Path(os.environ["FIRST_OWNER_PID"]).read_text()), signal.SIGKILL)
+time.sleep(0.3)
+second = subprocess.Popen(json.loads(os.environ["SECOND_OWNER"]), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+assert second.stdout.readline().strip() == "ready"
+pathlib.Path(os.environ["SECOND_OWNER_PID"]).write_text(str(second.pid))
+path.write_bytes("edited across an owner restart \u03b1\n".encode())
+''')
+    before_restart = revision()
+    first_pid = Path(temporary) / "first owner pid"
+    second_pid = Path(temporary) / "second owner pid"
+    first = owner()
+    first_pid.write_text(str(first.pid))
+    env = dict(os.environ, BPR_TOUR_EDITOR_ARGV=json.dumps([sys.executable, str(fixture)]), FIRST_OWNER_PID=str(first_pid),
+               SECOND_OWNER=json.dumps([binary, "--serve-owner", str(root), "1"]), SECOND_OWNER_PID=str(second_pid))
+    master, slave = pty.openpty()
+    editing = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", before_restart,
+                                "--request-id", "owner-restart-1", "--data-root", str(root)], stdin=slave, stdout=slave, stderr=slave, env=env)
+    os.close(slave)
+    try:
+        transcript = bytearray()
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if readiness.select([master], [], [], 0.05)[0]:
+                try:
+                    part = os.read(master, 8192)
+                except OSError as error:
+                    if error.errno == errno.EIO:
+                        break
+                    raise
+                if not part:
+                    break
+                transcript.extend(part)
+        editing.wait(timeout=10)
+        assert editing.returncode == 0, bytes(transcript)
+    finally:
+        os.close(master)
+        if editing.poll() is None:
+            editing.kill()
+            editing.wait(timeout=10)
+        first.poll()
+        if second_pid.exists():
+            try:
+                os.kill(int(second_pid.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if first.poll() is None:
+            kill(first)
+    assert problem() == "edited across an owner restart \u03b1\n"
+    saved = json.loads(invoke("status", *select, "--request-id", "owner-restart-1", "--json").stdout)["data"]
+    assert saved["operation_recorded"] is True and saved["operation_revision"] == revision()
     print("tour-cli-owner-crash:pass")
 
 

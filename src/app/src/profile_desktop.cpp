@@ -817,27 +817,38 @@ namespace bpr::app {
 			}
 			entry.ActivationSubmitting = false;
 		}
-		/// One bounded step of the separate tour command endpoint, entirely on the effect lane so the
-		/// store is never touched from the decision lane. Serialized: one step is in flight per profile.
+		/// One bounded step of the separate tour command endpoint. The transport is read on the effect
+		/// lane; the command itself is routed on the decision lane, where the draft's window lives.
 		void poll_tour_owner(core::bpr_profile_id aProfile, runtime_entry& aEntry)
 		{
 			if (Quitting || aEntry.Closing || aEntry.MaintenanceClosing || !aEntry.Runtime || aEntry.TourOwnerPolling) {
 				return;
 			}
 			auto endpoint = aEntry.Runtime->desktop_tour_owner_server();
-			auto serving  = aEntry.Runtime->desktop_tour_owner_handler();
-			if (!endpoint || !serving) {
+			if (!endpoint) {
 				return;
 			}
 			aEntry.TourOwnerPolling = true;
-			Effects.post([self = shared_from_this(), server = std::move(endpoint), handler = std::move(serving), aProfile, serial = aEntry.StartupSerial] {
+			Effects.post([self = shared_from_this(), server = std::move(endpoint), aProfile, serial = aEntry.StartupSerial] {
+				std::optional<application::tour_owner_message> message;
 				try {
-					application::serve_tour_owner_once(*server, handler);
+					message = server->receive();
 				} catch (...) { }
-				self->Decisions.post([owner = self, aProfile, serial] {
-					if (const auto found = owner->Runtimes.find(aProfile); found != owner->Runtimes.end() && found->second.StartupSerial == serial) {
-						found->second.TourOwnerPolling = false;
+				self->Decisions.post([owner = self, aProfile, serial, received = std::move(message)]() mutable {
+					const auto found = owner->Runtimes.find(aProfile);
+					if (found == owner->Runtimes.end() || found->second.StartupSerial != serial) {
+						if (received) {
+							owner->Effects.post([reply = std::move(received->Reply)] { reply->complete({ }); });
+						}
+						return;
 					}
+					found->second.TourOwnerPolling = false;
+					if (!received) {
+						return;
+					}
+					found->second.Runtime->desktop_tour_owner_route(std::move(received->Payload), [owner, reply = std::move(received->Reply)](application::tour_channel_bytes aAnswer) {
+						owner->Effects.post([reply, answer = std::move(aAnswer)] { reply->complete(answer); });
+					});
 				});
 			});
 		}
@@ -1303,6 +1314,9 @@ namespace bpr::app {
 				auto& entry = position->second;
 				poll_activation(position->first, entry);
 				poll_tour_owner(position->first, entry);
+				if (entry.Runtime) {
+					entry.Runtime->desktop_tour_owner_tick();
+				}
 				if (entry.Startup && entry.Startup->is_quiescent()) {
 					entry.Startup.reset();
 				}

@@ -136,6 +136,62 @@ namespace {
 		result = state.complete(request->Id, target(*e.capture()), e.raw(), "other owner");
 		expect(!result, "identical owner replacement invalidates editor identity");
 	}
+	/// [[BPR-1062]]. Text another presentation changed keeps this author's caret, selection and focus.
+	void remote_change_keeps_the_authors_place()
+	{
+		qt::scoped_prose_editor e;
+		e.show();
+		e.setFocus();
+		e.present("alpha beta gamma");
+		const auto place = [&](int anchor, int caret) {
+			auto cursor = e.textCursor();
+			cursor.setPosition(anchor);
+			cursor.setPosition(caret, QTextCursor::KeepAnchor);
+			e.setTextCursor(cursor);
+		};
+		place(2, 2);
+		e.present("alpha beta gamma!");
+		expect(e.textCursor().position() == 2 && !e.textCursor().hasSelection(), "an appended remote edit leaves an earlier caret alone");
+		place(14, 14);
+		e.present("XX alpha beta gamma!");
+		expect(e.textCursor().position() == 17, "text inserted before the caret shifts it with the text it followed");
+		place(3, 9);
+		e.present("XX alpha beta gamma!!");
+		expect(e.textCursor().anchor() == 3 && e.textCursor().position() == 9, "a selection survives an edit after it");
+		place(11, 11);
+		e.present("XX alpha B gamma!!");
+		expect(e.textCursor().position() == 9 && e.raw() == "XX alpha B gamma!!", "a caret inside replaced text goes to where the replacement starts");
+		const auto owner = e.hasFocus();
+		e.present("something else entirely");
+		expect(e.hasFocus() == owner && e.textCursor().position() >= 0 && e.textCursor().position() <= 23, "a remote replacement never takes or drops focus");
+		place(4, 4);
+		e.present("new draft", true);
+		expect(e.textCursor().position() == 0, "another owner's text starts at its beginning, not at the previous caret");
+	}
+	void composing_is_visible_to_other_presentations()
+	{
+		qt::review_tour_editor         editor;
+		application::tour_presentation p;
+		p.Draft = std::make_shared<const core::review_tour>(tests::review_tour_fixture());
+		editor.present(p);
+		editor.show();
+		editor.show_problem();
+		auto* problem = editor.problem_editor();
+		problem->setFocus();
+		expect(!editor.composing(), "an idle editor holds no preedit");
+		QInputMethodEvent preedit{ QStringLiteral("仮"), { } };
+		QApplication::sendEvent(problem, &preedit);
+		expect(editor.composing(), "preedit text is composing, not committed");
+		QInputMethodEvent commit;
+		commit.setCommitString(QStringLiteral("確"));
+		QApplication::sendEvent(problem, &commit);
+		expect(!editor.composing() && problem->toPlainText().contains(QStringLiteral("確")), "commit ends composing and the text is committed");
+		QApplication::sendEvent(problem, &preedit);
+		expect(editor.composing(), "a second composition is seen");
+		QInputMethodEvent cancel{ QString{ }, { } };
+		QApplication::sendEvent(problem, &cancel);
+		expect(!editor.composing(), "cancelling composition clears it");
+	}
 	void real_tour_buttons()
 	{
 		qt::review_tour_editor         editor;
@@ -185,5 +241,7 @@ int main(int argc, char** argv)
 	unicode_paragraphs();
 	moved_caret_and_stale();
 	real_tour_buttons();
+	remote_change_keeps_the_authors_place();
+	composing_is_visible_to_other_presentations();
 	std::cout << "scoped-prose-editor-tests:pass\n";
 }

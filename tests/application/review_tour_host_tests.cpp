@@ -151,4 +151,51 @@ int main()
 		decisions.drain();
 		expect(observer.is_quiescent() && untouched->Saves == 0, "opening a PR without authoring does not consume a durable tour slot");
 	}
+	{
+		// [[BPR-1062]]. Another presentation's structural edit does not move this author's selection.
+		auto                          shared2 = std::make_shared<store_state>();
+		application::review_tour_host desktop{ tests::review_tour_fixture(), std::make_unique<store>(shared2), effects, decisions, { } };
+		desktop.start();
+		effects.drain();
+		decisions.drain();
+		const auto first = desktop.presentation().Draft->Stops.front().Id;
+		const auto seed  = *desktop.presentation().Draft;
+		expect(desktop.execute({ .Command = { .Draft = seed.Id, .Owner = seed.Owner, .ExpectedRevision = seed.Revision, .Kind = core::tour_command_kind::insert, .Stop = first, .Position = 1 } }).Status == application::tour_service_status::accepted, "the author adds a second stop");
+		const auto second = desktop.presentation().Selected;
+		expect(second != first, "the author's own gesture selects the stop it added");
+		desktop.dispatch({ .Draft = seed.Id, .Owner = seed.Owner, .ExpectedRevision = desktop.presentation().Draft->Revision, .Kind = core::tour_command_kind::visit, .Stop = first });
+		const auto                        chosen    = desktop.presentation().Selected;
+		const auto                        selection = desktop.presentation().SelectionRevision;
+		const auto                        draft     = *desktop.presentation().Draft;
+		application::tour_service_request move{ .Command = { .Draft = draft.Id, .Owner = draft.Owner, .ExpectedRevision = draft.Revision, .Kind = core::tour_command_kind::move, .Stop = second, .Position = 0, .Selection = { second } }, .Origin = application::tour_presentation_origin::command_client };
+		expect(desktop.execute(move).Status == application::tour_service_status::accepted && desktop.presentation().Draft->Stops.front().Id == second, "a command client's reorder applies");
+		expect(desktop.presentation().Selected == chosen && desktop.presentation().SelectionRevision == selection, "the author stays on the stop it was on, and no selection change is announced");
+		auto removal = application::tour_service_request{ .Command = { .Draft = draft.Id, .Owner = draft.Owner, .ExpectedRevision = desktop.presentation().Draft->Revision, .Kind = core::tour_command_kind::remove, .Stop = chosen, .Selection = { chosen } }, .Origin = application::tour_presentation_origin::command_client };
+		expect(desktop.execute(removal).Status == application::tour_service_status::accepted && desktop.presentation().Selected != chosen, "removing the author's stop moves the selection off it");
+		desktop.shutdown();
+		effects.drain();
+		decisions.drain();
+	}
+	{
+		auto                          shared3 = std::make_shared<store_state>();
+		application::review_tour_host deduplicating{ tests::review_tour_fixture(), std::make_unique<store>(shared3), effects, decisions, { } };
+		deduplicating.start();
+		effects.drain();
+		decisions.drain();
+		auto request = [&](std::string text, std::string id, std::uint8_t digest) {
+			application::tour_service_request result{ .Command = tests::tour_edit(*deduplicating.presentation().Draft, std::move(text)), .RequestId = std::move(id) };
+			result.Digest.fill(digest);
+			return result;
+		};
+		const auto first               = deduplicating.execute(request("deduplicated", "same-id", 1));
+		auto       again               = request("deduplicated", "same-id", 1);
+		again.Command.ExpectedRevision = first.Revision - 1U;
+		const auto replay              = deduplicating.execute(again);
+		expect(first.Status == application::tour_service_status::accepted && replay.Replayed && replay.Revision == first.Revision && deduplicating.presentation().Draft->Revision == first.Revision, "the same ID and payload replays the stored outcome, never a second edit or a stale-revision refusal");
+		expect(deduplicating.execute(request("another", "same-id", 2)).Refusal == core::tour_refusal::identity, "the same ID with another payload is refused");
+		expect(deduplicating.execute(request("deduplicated", "fresh-id", 3)).Status == application::tour_service_status::unchanged, "a new ID with unchanged content is a recorded no-op");
+		deduplicating.shutdown();
+		effects.drain();
+		decisions.drain();
+	}
 }

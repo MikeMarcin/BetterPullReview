@@ -8,6 +8,7 @@
 #include <QDropEvent>
 #include <QHBoxLayout>
 #include <QHideEvent>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -640,6 +641,16 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		if (aEvent->type() == QEvent::InputMethod) {
+			// Preedit text is not committed text: another presentation must wait for it, not flush it.
+			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
+				Composing.erase(aWatched);
+			} else {
+				Composing.insert(aWatched);
+			}
+		} else if (aEvent->type() == QEvent::FocusOut || aEvent->type() == QEvent::Hide) {
+			Composing.erase(aWatched);
+		}
 		if (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress) {
 			auto* key = static_cast<QKeyEvent*>(aEvent);
 			if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) && !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {

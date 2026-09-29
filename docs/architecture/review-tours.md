@@ -356,6 +356,35 @@ rather than forget one, and it records only the local outcome, never that GitHub
 accepted anything.
 
 The Windows named-pipe transport is not implemented; a Windows owner reports no
-tour endpoint. A forwarded edit reaches the stored draft, not yet a live editor
-buffer: routing through the desktop's dirty and composing editors belongs to the
-next slice.
+tour endpoint.
+
+### A draft the desktop has open
+
+A draft that a desktop window holds, current or retired, is read and written
+through that window's host, on the decision lane, so there is one committed
+history and never a second copy read from the store beside it. The endpoint is
+polled on the effect lane; each request is routed to the window session that holds
+the draft's opaque selector. The desktop lists its own draft in the profile's
+target catalog when it composes the pull request, so the CLI and the owner name
+the same draft by the same selector.
+
+Ordinary typing is committed to the host on every change, so there is no pending
+buffer to flush. Uncommitted input-method text is the exception: while any field of
+the shown draft holds preedit text the owner answers `editor_busy` and changes
+nothing, and the CLI reports that nothing was changed. A forwarded mutation is
+answered only after the host has saved it durably; if the save has not landed
+within five seconds the caller is told `outcome_unknown` and inspects the request
+ID, exactly as for a lost answer. A draft nobody has touched is never persisted
+and counts as saved.
+
+Another presentation's edit reaches an open editor as a projection. The author's
+caret, selection and scroll carry across the change, focus is not taken or given
+up, the selected stop stays selected unless the edit removed it, and no selection
+change is announced. A stale command, whether from the CLI or an old AI reply,
+is refused as a conflict; both texts remain. Structure follows stable stop IDs, and
+undo from any presentation restores the same order and IDs through the one shared
+history.
+
+Commands that read the provider (`add`, `open`, `show --source`, `walk`, refresh,
+publish and recover) are not forwarded and answer `interaction_required` while a
+desktop owns the profile. BPR-1227 tracks forwarding the source reads.

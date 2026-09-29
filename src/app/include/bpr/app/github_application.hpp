@@ -706,8 +706,12 @@ namespace bpr::app {
 		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
 		[[nodiscard]] auto desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
 		/// \brief Borrow the admitted runtime's separate versioned tour command endpoint and its owner-lane handler.
-		[[nodiscard]] auto        desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server>;
-		[[nodiscard]] auto        desktop_tour_owner_handler() const -> application::tour_owner_handler;
+		[[nodiscard]] auto desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server>;
+		/// \brief Routes one admitted tour command on the decision lane: to the live window draft when the
+		/// desktop holds it, otherwise to the profile store. `aRespond` runs exactly once, on any lane.
+		void desktop_tour_owner_route(application::tour_channel_bytes aRequest, std::function<void(application::tour_channel_bytes)> aRespond);
+		/// \brief Completes routed commands waiting for a live draft to become durable; decision lane.
+		void                      desktop_tour_owner_tick();
 		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
 		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
 		void                      set_maintenance_retirement(release_maintenance_retirement aRetire);

@@ -3083,6 +3083,22 @@ bpr_add_network_isolated_test(NAME application_profile_owner_admission_public_pa
 set_tests_properties(application_profile_owner_admission_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
 
+# [[BPR-1062]]. A real desktop author and the shipped CLI share one live draft.
+if(TARGET app_bpr)
+    bpr_add_executable(test_profile_tour_handoff_public_path profile_tour_handoff_public_path_tests.cpp)
+    target_link_libraries(test_profile_tour_handoff_public_path PRIVATE BetterPullReview::Composition)
+    target_compile_definitions(test_profile_tour_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_profile_tour_handoff_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_profile_tour_handoff_public_path)
+    bpr_enable_warnings(test_profile_tour_handoff_public_path)
+    bpr_add_network_isolated_test(NAME application_profile_tour_handoff_public_path WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_tour_handoff_contract.py"
+        --application $<TARGET_FILE:test_profile_tour_handoff_public_path>
+        --tour-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_profile_tour_handoff_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
+endif()
+
 bpr_add_executable(test_profile_window_restart_public_path profile_window_restart_public_path_tests.cpp)
 target_link_libraries(test_profile_window_restart_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_profile_window_restart_public_path PRIVATE BPR_BUILD_TESTING=1)

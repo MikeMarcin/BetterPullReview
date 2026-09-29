@@ -1,5 +1,6 @@
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QInputMethodEvent>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QTextDocument>
 #include <QTimer>
@@ -36,6 +37,28 @@ namespace bpr::qt {
 		auto position(std::string_view aRaw, std::size_t aOffset) -> int
 		{
 			return static_cast<int>(visible(aRaw.substr(0, aOffset)).size());
+		}
+		/// A caret keeps its place across a change made elsewhere: text before the changed span is
+		/// unmoved, text after it shifts by the length change, and a caret inside it goes to its start.
+		auto carried_position(const QString& aBefore, const QString& aAfter, int aPosition) -> int
+		{
+			const auto limit  = std::min(aBefore.size(), aAfter.size());
+			auto       prefix = qsizetype{ 0 };
+			while (prefix < limit && aBefore[prefix] == aAfter[prefix]) {
+				++prefix;
+			}
+			auto suffix = qsizetype{ 0 };
+			while (suffix < limit - prefix && aBefore[aBefore.size() - 1 - suffix] == aAfter[aAfter.size() - 1 - suffix]) {
+				++suffix;
+			}
+			const auto position = static_cast<qsizetype>(aPosition);
+			if (position <= prefix) {
+				return static_cast<int>(position);
+			}
+			if (position >= aBefore.size() - suffix) {
+				return static_cast<int>(std::clamp<qsizetype>(position + (aAfter.size() - aBefore.size()), 0, aAfter.size()));
+			}
+			return static_cast<int>(prefix);
 		}
 	}
 	scoped_prose_editor::scoped_prose_editor(QWidget* aParent)
@@ -88,8 +111,22 @@ namespace bpr::qt {
 		}
 		Presenting = true;
 		const QSignalBlocker block{ this };
-		if (document()->toRawText().replace(QChar{ 0x2029 }, QChar{ '\n' }) != visible(aRaw)) {
+		const auto           shown = document()->toRawText().replace(QChar{ 0x2029 }, QChar{ '\n' });
+		if (shown != visible(aRaw)) {
+			// Another presentation changed this text. Keep this author's caret, selection and scroll
+			// where they were; never take focus, and never move a caret the author did not move.
+			const auto prior  = textCursor();
+			const auto anchor = prior.anchor(), caret = prior.position();
+			const auto scroll = verticalScrollBar()->value();
 			setPlainText(visible(aRaw));
+			if (!aNewOwner) {
+				const auto text = visible(aRaw);
+				auto       live = textCursor();
+				live.setPosition(std::min(carried_position(shown, text, anchor), document()->characterCount() - 1));
+				live.setPosition(std::min(carried_position(shown, text, caret), document()->characterCount() - 1), QTextCursor::KeepAnchor);
+				setTextCursor(live);
+				verticalScrollBar()->setValue(scroll);
+			}
 		}
 		document()->clearUndoRedoStacks();
 		state            = { };

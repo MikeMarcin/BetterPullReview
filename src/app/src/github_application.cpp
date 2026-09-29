@@ -3736,23 +3736,32 @@ namespace bpr::app {
 		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
-		application::tour_owner_handler                         TourOwnerHandler;
-		worker_executor                                         ProviderEffects;
-		worker_executor                                         VaultEffects;
-		worker_executor                                         DeviceBindingEffects;
-		worker_executor                                         DeviceTransportEffects;
-		worker_executor                                         EpochEffects;
-		worker_executor                                         DiffEffects;
-		worker_executor                                         AgentEffects;
-		worker_executor                                         McpEffects;
-		worker_executor                                         WorkbenchEffects;
-		worker_executor                                         AppearanceEffects;
-		worker_executor                                         QueueEffects;
-		worker_executor                                         ReviewMutationEffects;
-		private_review_recovery_registry                        PrivateRecovery;
-		worker_executor                                         ReviewSubmissionEffects;
-		qt::event_loop_executor                                 DecisionLane;
-		std::shared_ptr<application::github_read_admission>     ReadAdmission = std::make_shared<application::github_read_admission>();
+		std::shared_ptr<const tour_owner_service>               TourOwnerService;
+		/// A routed command whose live draft is not yet durable; answered by the decision-lane tick.
+		struct waiting_tour_request
+		{
+			std::string                                          Token;
+			application::tour_channel_bytes                      Read;
+			std::function<void(application::tour_channel_bytes)> Respond;
+			std::chrono::steady_clock::time_point                Deadline;
+		};
+		std::deque<waiting_tour_request>                    WaitingTourRequests;
+		worker_executor                                     ProviderEffects;
+		worker_executor                                     VaultEffects;
+		worker_executor                                     DeviceBindingEffects;
+		worker_executor                                     DeviceTransportEffects;
+		worker_executor                                     EpochEffects;
+		worker_executor                                     DiffEffects;
+		worker_executor                                     AgentEffects;
+		worker_executor                                     McpEffects;
+		worker_executor                                     WorkbenchEffects;
+		worker_executor                                     AppearanceEffects;
+		worker_executor                                     QueueEffects;
+		worker_executor                                     ReviewMutationEffects;
+		private_review_recovery_registry                    PrivateRecovery;
+		worker_executor                                     ReviewSubmissionEffects;
+		qt::event_loop_executor                             DecisionLane;
+		std::shared_ptr<application::github_read_admission> ReadAdmission = std::make_shared<application::github_read_admission>();
 		struct window_observer
 		{
 			std::weak_ptr<const void>                                                                 Lifetime;
@@ -8576,12 +8585,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host>            RetiredTourHosts;
-		std::optional<core::tour_owner>            TourOwner;
-		core::git_commit_oid                       TourHead;
-		core::git_commit_oid                       TourAttentionHead;
-		std::optional<core::tour_code_destination> PendingTourSource;
-		auto                                       selected_tour_source() const -> std::optional<core::tour_source_range>
+		std::vector<retained_tour_host>               RetiredTourHosts;
+		std::optional<core::tour_owner>               TourOwner;
+		std::optional<application::tour_saved_target> RememberedTourTarget;
+		core::git_commit_oid                          TourHead;
+		core::git_commit_oid                          TourAttentionHead;
+		std::optional<core::tour_code_destination>    PendingTourSource;
+		auto                                          selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
 			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
@@ -8744,6 +8754,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->prepare_tour_action()->setEnabled(false);
 			Window->tour_editor()->present({ });
 		}
+		struct live_tour_view
+		{
+			application::review_tour_host* Host    = nullptr;
+			bool                           Current = false, Composing = false;
+		};
+		/// The draft this window holds in memory for an opaque selector, current or retired; decision lane.
+		auto live_tour(std::string_view aSelector) -> live_tour_view
+		{
+			const auto matches = [&](const application::review_tour_host& aHost) {
+				const auto shown = aHost.presentation();
+				if (!shown.Draft) {
+					return false;
+				}
+				application::tour_saved_target target;
+				target.Owner = shown.Draft->Owner;
+				target.Draft = shown.Draft->Id;
+				return tour_draft_token(target) == aSelector;
+			};
+			if (TourHost && matches(*TourHost)) {
+				return { TourHost.get(), true, Window && Window->tour_editor()->composing() };
+			}
+			for (const auto& retained : RetiredTourHosts) {
+				if (matches(*retained.Host)) {
+					return { retained.Host.get(), false, false };
+				}
+			}
+			return { };
+		}
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			const auto owner = core::tour_owner{ DraftWindow.Profile, aHandoff.Host, aHandoff.HostAuthority, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
@@ -8810,6 +8848,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TourHost->start();
 			refresh_tour_imports();
 		}
+		/// Lists this window's draft in the profile's exact-target catalog, so the CLI and the owner's
+		/// forwarding address it by the same opaque selector the desktop's own draft has.
+		void remember_tour_target(const core::review_tour& aSeed, const application::github_pull_request_snapshot& aSnapshot, std::string_view aHostname)
+		{
+			application::tour_saved_target target;
+			target.Owner       = aSeed.Owner;
+			target.Draft       = aSeed.Id;
+			target.HostProfile = aSnapshot.Profile;
+			target.Hostname    = std::string{ aHostname };
+			target.Repository  = { aSnapshot.Repository.Owner, aSnapshot.Repository.Name };
+			target.Number      = aSnapshot.PullRequest.Number;
+			target.Base        = aSeed.Base;
+			target.Head        = aSeed.Head;
+			if (RememberedTourTarget == target) {
+				return;
+			}
+			RememberedTourTarget = target;
+			try {
+				WorkbenchEffects.post([saved = target, root = ApplicationDataRoot, profile = DraftWindow.Profile] {
+					try {
+						static_cast<void>(adapters::sqlite::make_review_tour_store(root, profile)->remember_target(saved, { }));
+					} catch (...) { }
+				});
+			} catch (...) { }
+		}
 		void refresh_tour_imports()
 		{
 			if (!TourHost || !WindowRead->accepted_snapshot() || !TourOwner) {
@@ -8823,6 +8886,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = *TourOwner, .Base = *base, .Head = *head };
+			remember_tour_target(seed, snapshot, profile->hostname());
 			TourHost->observe_imports(observe_published_tours(seed, snapshot, profile->hostname()));
 		}
 		struct writing_operation
@@ -15442,7 +15506,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto tour = adapters::sqlite::make_tour_owner_server(*root, Config.Profile, RuntimeLease);
 				if (tour) {
 					TourOwnerServer  = *tour;
-					TourOwnerHandler = [service = std::make_shared<const tour_owner_service>(*root, Config.Profile)](std::span<const std::uint8_t> aPayload) { return service->serve(aPayload); };
+					TourOwnerService = std::make_shared<const tour_owner_service>(*root, Config.Profile);
 				}
 #if !defined(_WIN32)
 				else {
@@ -15498,7 +15562,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				);
 				profile->ActivationServer = std::move(ActivationServer);
 				profile->TourOwnerServer  = std::move(TourOwnerServer);
-				profile->TourOwnerHandler = std::move(TourOwnerHandler);
+				profile->TourOwnerService = std::move(TourOwnerService);
 				auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
 				step                      = "profile-services-start";
 				runtime->Profile->start_services();
@@ -15539,7 +15603,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
-		application::tour_owner_handler                         TourOwnerHandler;
+		std::shared_ptr<const tour_owner_service>               TourOwnerService;
 		std::optional<github_application_startup_failure>       Handoff;
 		github_application_startup_completion                   Completion;
 		std::filesystem::path                                   RegistryRoot;
@@ -15663,7 +15727,123 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto github_application::desktop_release_account() -> std::optional<release_update_account> { return Profile->release_account(); }
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server> { return Profile->TourOwnerServer; }
-	auto github_application::desktop_tour_owner_handler() const -> application::tour_owner_handler { return Profile->TourOwnerHandler; }
+	namespace {
+		auto tour_owner_error(std::string aCode) -> application::tour_channel_bytes
+		{
+			return adapters::sqlite::encode_tour_response({ .Error = std::move(aCode) });
+		}
+	}
+	void github_application::desktop_tour_owner_route(application::tour_channel_bytes aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
+	{
+		auto& profile = *Profile;
+		if (Profile->Closing || !profile.TourOwnerService) {
+			aRespond(tour_owner_error("owner_unavailable"));
+			return;
+		}
+		const auto request = adapters::sqlite::decode_tour_request(aRequest);
+		if (!request) {
+			aRespond(tour_owner_error("invalid_request"));
+			return;
+		}
+		// The draft is read or written where its author is: an open window's host is the one committed
+		// history, so a forwarded command never runs beside it on a second copy read from the store.
+		const auto found = [&]() -> implementation::live_tour_view {
+			implementation::live_tour_view result;
+			for (const auto& [context, session] : Sessions) {
+				static_cast<void>(context);
+				const auto seen = session->live_tour(request->Draft);
+				if (seen.Host && (!result.Host || (seen.Current && !result.Current))) {
+					result = seen;
+				}
+			}
+			return result;
+		}();
+		const auto serve = [service = profile.TourOwnerService, &effects = profile.WorkbenchEffects](application::tour_channel_bytes aRead, std::function<void(application::tour_channel_bytes)> aReply) {
+			effects.post([service, read = std::move(aRead), reply = std::move(aReply)] { reply(service->serve(read)); });
+		};
+		if (!found.Host) {
+			serve(std::move(aRequest), std::move(aRespond));
+			return;
+		}
+		if (found.Composing) {
+			// Preedit text is not committed text. It is neither flushed nor read past.
+			aRespond(tour_owner_error("editor_busy"));
+			return;
+		}
+		auto read = application::tour_owner_request{ .Operation = request->Operation == application::tour_owner_operation::mutate ? application::tour_owner_operation::request_status : request->Operation, .Draft = request->Draft };
+		if (request->Operation == application::tour_owner_operation::mutate) {
+			auto edit = request->Edit;
+			if (edit.RequestId.empty()) {
+				aRespond(tour_owner_error("request_id_required"));
+				return;
+			}
+			const auto draft = found.Host->presentation().Draft;
+			if (!draft) {
+				aRespond(tour_owner_error("owner_unavailable"));
+				return;
+			}
+			edit.Command.Owner = draft->Owner;
+			edit.Command.Draft = draft->Id;
+			const auto result  = found.Host->execute(edit);
+			if (result.Status == application::tour_service_status::busy) {
+				aRespond(tour_owner_error("owner_busy"));
+				return;
+			}
+			if (result.Status == application::tour_service_status::refused) {
+				aRespond(tour_owner_error(result.Refusal == core::tour_refusal::conflict ? "revision_conflict" : "command_refused"));
+				return;
+			}
+			read.Edit.RequestId = edit.RequestId;
+		} else {
+			read.Edit.RequestId = request->Edit.RequestId;
+		}
+		profile.WaitingTourRequests.push_back({ request->Draft, adapters::sqlite::encode_tour_request(read), std::move(aRespond), std::chrono::steady_clock::now() + std::chrono::seconds{ 5 } });
+		desktop_tour_owner_tick();
+	}
+	void github_application::desktop_tour_owner_tick()
+	{
+		auto& profile = *Profile;
+		for (auto waiting = profile.WaitingTourRequests.begin(); waiting != profile.WaitingTourRequests.end();) {
+			std::optional<std::string> failure;
+			bool                       ready = true;
+			for (const auto& [context, session] : Sessions) {
+				static_cast<void>(context);
+				const auto seen = session->live_tour(waiting->Token);
+				if (!seen.Host) {
+					continue;
+				}
+				const auto shown = seen.Host->presentation();
+				if (shown.Failure) {
+					failure = "storage_unavailable";
+				} else if (shown.Conflict) {
+					failure = "revision_conflict";
+				} else if (!shown.Draft || shown.Loading) {
+					ready = false;
+				} else {
+					// A draft nobody has touched is never persisted, so there is nothing to wait for.
+					const bool untouched = shown.SavedRevision == 0U && shown.Draft->Revision == 1U && shown.Draft->Problem.empty() && shown.Draft->Solution.empty() && shown.Draft->Stops.empty() && !shown.Draft->ProblemBaseline && !shown.Draft->SolutionBaseline;
+					if (!untouched && (shown.Saving || shown.SavedRevision != shown.Draft->Revision || !seen.Host->is_quiescent())) {
+						ready = false;
+					}
+				}
+			}
+			if (!failure && !ready && !Profile->Closing && std::chrono::steady_clock::now() < waiting->Deadline) {
+				++waiting;
+				continue;
+			}
+			// A command that was applied but is not yet durable is uncertain to its caller, who inspects
+			// the exact request ID rather than replaying it.
+			auto entry = std::move(*waiting);
+			waiting    = profile.WaitingTourRequests.erase(waiting);
+			if (failure) {
+				entry.Respond(tour_owner_error(*failure));
+			} else if (!ready) {
+				entry.Respond(tour_owner_error(Profile->Closing ? "owner_unavailable" : "save_pending"));
+			} else {
+				profile.WorkbenchEffects.post([service = profile.TourOwnerService, read = std::move(entry.Read), respond = std::move(entry.Respond)] { respond(service->serve(read)); });
+			}
+		}
+	}
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
 	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
 	void github_application::set_maintenance_retirement(release_maintenance_retirement aRetire) { Profile->MaintenanceRetirement = std::move(aRetire); }
