@@ -281,3 +281,36 @@ import is authorized the package here is the candidate, not an installed skill.
 HTTP, the database or an approval bypass is a prohibition, that every command it teaches
 exists, and that the real parser accepts each documented command line. It cannot show
 that a model follows the text.
+
+## Boundaries an agent session meets
+
+Reading is not visiting. `status`, `show` (with or without `--source`), `preview` and
+`assist context` never mark a stop visited or ready; `status` reports each stop's
+`suggested`, `visited`, `ready` and `completion_origin`. `ready` names exactly one stop
+and the revision just read, so each readiness is its own step against the current
+draft; it needs a non-blank title and comment and a valid source binding, so a
+body-free outline skeleton cannot be marked ready; and a command-line caller's
+completion is always `relayed`. There is no ready-all and no way to declare an
+`observed` origin: that comes only from a terminal walk or the desktop.
+
+Publication has no bypass. A machine call refuses with `interaction_required` and the
+exact command for the author to run in a terminal; `--yes`, `--approve`, `--provider`,
+`--model`, `--agent`, `--token` and `--force` are not options, and a piped `yes` is not
+a confirmation. The context packet marks `agent_identity` as `unverified`; the
+`--session` label is a caller's claim and is used for nothing. `assist complete`
+accepts exactly the parent result contract: an extra key such as `target`, `range`,
+`approval`, `provider` or `ready`, a repeated key, or text after the object makes it
+invalid and spends the ticket. Untrusted text reaches the agent only as escaped strings
+inside the prompt's evidence JSON. The packet carries the draft's own problem and
+solution, the selected passage and its neighbours and, for a comment, that stop's own
+source; never another stop's comment, an outline's private prompts, earlier text or
+undo history, and it lists what it omitted. A request too large to send
+(`context_too_large`) is refused before it can disturb a pending one.
+
+A managed host that cannot verify the agent may set `BPR_TOUR_ASSIST_POLICY=manual-only`.
+Then `assist context`, `assist complete` and `outline use` answer `context_export_refused`
+(exit 5) whatever identity is claimed, an unrecognised value refuses too, and manual
+authoring, hooks, preview and publication by the author are unaffected. `capabilities`
+reports the policy and `verified_agent_identity: unavailable`. This is a host setting, not a
+sandbox: BPR cannot verify who is calling, and a same-user agent with a shell can make any
+claim.

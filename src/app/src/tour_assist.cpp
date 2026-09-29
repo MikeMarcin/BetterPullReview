@@ -3,6 +3,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QString>
+#include <QtCore/qsystemdetection.h>
 #include <algorithm>
 namespace bpr::app {
 	namespace {
@@ -50,6 +52,15 @@ namespace bpr::app {
 			return aTicket.Scope == core::writing_scope::selection ? "selection" : aTicket.Scope == core::writing_scope::empty_field ? "empty_field"
 																																	 : "field";
 		}
+	}
+	auto tour_assist_policy() -> tour_assist_export_policy
+	{
+		const auto value = qEnvironmentVariable("BPR_TOUR_ASSIST_POLICY");
+		if (value.isEmpty() || value == QStringLiteral("open")) {
+			return tour_assist_export_policy::open;
+		}
+		// Anything else, including a misspelling, fails closed.
+		return value == QStringLiteral("manual-only") ? tour_assist_export_policy::manual_only : tour_assist_export_policy::invalid;
 	}
 	auto tour_hook_name(core::writing_hook aHook) -> std::string_view
 	{
@@ -171,12 +182,8 @@ namespace bpr::app {
 		application::tour_assist_ticket ticket{ .Hook = aQuery.Hook, .Stop = outline || aQuery.Hook != core::writing_hook::comment ? core::tour_stop_id{ } : aQuery.Stop, .Scope = scope, .Begin = begin, .End = end, .DraftRevision = draft.Revision, .HookRevision = aSettings.Revision, .Sources = sources, .Session = aQuery.Session };
 		ticket.RawDigest     = core::writing_digest(raw);
 		ticket.ContextDigest = core::writing_digest(std::string_view{ reinterpret_cast<const char*>(keyed.data()), keyed.size() });
-		auto issued          = aHost.assist_issue(std::move(ticket), aNow);
-		if (!issued) {
-			return error_for(issued.error());
-		}
+		// The prompt is built first: a request too large to send must not disturb a request already pending.
 		core::writing_request request;
-		request.Id                  = issued->Id;
 		request.Target.Hook         = aQuery.Hook;
 		request.Target.HookRevision = aSettings.Revision;
 		request.Scope               = scope;
@@ -185,8 +192,11 @@ namespace bpr::app {
 		request.Raw                 = raw;
 		const auto prompt           = application::build_writing_prompt(aSettings, request, sources);
 		if (!prompt) {
-			aHost.assist_cancel();
 			return refuse("context_too_large", "This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions.", 2);
+		}
+		auto issued = aHost.assist_issue(std::move(ticket), aNow);
+		if (!issued) {
+			return error_for(issued.error());
 		}
 		QJsonArray sourceList;
 		for (const auto& source : sources) {
@@ -213,6 +223,8 @@ namespace bpr::app {
 								  { "selection", QJsonObject{ { "begin", id_text(begin) }, { "end", id_text(end) }, { "text", text(selected) } } },
 								  { "sources", sourceList },
 								  { "omitted", omittedList },
+								  { "agent_identity", "unverified" },
+								  { "session", text(aQuery.Session) },
 								  { "draft_revision", id_text(draft.Revision) },
 								  { "expires_unix", id_text(static_cast<std::uint64_t>(issued->Expires)) },
 								  { "prompt", text(*prompt) },

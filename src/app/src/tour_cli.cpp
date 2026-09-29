@@ -414,7 +414,7 @@ namespace bpr::app {
 				}
 				for (auto i = cursor; i < end; ++i) {
 					const auto& stop = draft.Stops[i];
-					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
+					stops.append(QJsonObject{ { "stop_id", QString::number(stop.Id.value()) }, { "title", text(stop.Title) }, { "ready", stop.Preparation == core::tour_preparation::ready }, { "can_ready", core::ready(stop) }, { "completion_origin", completion_origin_name(stop.CompletionOrigin) }, { "suggested", stop.Suggestion.has_value() }, { "visited", stop.Suggestion.has_value() && stop.Suggestion->Visited }, { "remote", remote_identity(stop.Remote) }, { "source_binding", source_binding(stop) } });
 					result.Human += QStringLiteral("%1. %2 [%3]\n").arg(QString::number(stop.Id.value()), text(stop.Title), stop.Preparation == core::tour_preparation::ready ? "Ready" : "Editing");
 				}
 				result.Data["stops"]       = stops;
@@ -711,7 +711,13 @@ namespace bpr::app {
 				return assist_command(aOptions, std::move(aReaders));
 			}
 			if (aOptions.Command == "capabilities" || aOptions.Command == "help") {
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v2 for local draft commands and assist; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline\nNo GUI or AI provider required.\n", { } };
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v2 for local draft commands and assist; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", tour_assist_policy() == tour_assist_export_policy::open ? "open" : tour_assist_policy() == tour_assist_export_policy::manual_only ? "manual_only"
+																																																																																																																																																																																																																																																																																																																																																									 : "invalid" } } },
+									   { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } },
+									   { "native_device_signin", "github.com; admitted platform vault required" },
+									   { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } },
+									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline\nNo GUI or AI provider required.\n",
+									 { } };
 			}
 			const auto transport = aOptions.Values.value("--transport", "native");
 			if (transport != "native" && transport != "gh") {
@@ -1080,6 +1086,10 @@ namespace bpr::app {
 			if (aOptions.Command == "hooks") {
 				return hooks_command(aOptions, runtime, base, aReaders);
 			}
+			const auto sub = aOptions.Command == "assist" ? aOptions.Positional[0] : QString{ "use" };
+			if (sub != "cancel" && tour_assist_policy() != tour_assist_export_policy::open) {
+				return refuse("context_export_refused", "This host does not allow draft text to be exported to an agent it cannot verify. Manual authoring is unaffected: edit, add, move, remove, ready and preview still work.", 5);
+			}
 			const auto draftId = aOptions.Values.value("--draft").toStdString();
 			auto       loaded  = runtime->load(draftId, !aOptions.Interactive);
 			if (!loaded) {
@@ -1099,7 +1109,6 @@ namespace bpr::app {
 				rendered->Human += aHuman;
 				return rendered;
 			};
-			const auto sub = aOptions.Command == "assist" ? aOptions.Positional[0] : QString{ "use" };
 			if (sub == "cancel") {
 				auto cancelled = runtime->assist_cancel(token);
 				if (!cancelled) {

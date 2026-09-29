@@ -14,6 +14,13 @@ namespace bpr::app {
 	{
 		return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	}
+	/// \brief A managed host's cooperative statement about sending draft text to an agent it cannot verify.
+	/// `manual-only` refuses every assist and outline command and leaves manual authoring untouched; an
+	/// unrecognised value refuses too. It is a host setting, not a sandbox: BPR cannot verify who calls it.
+	enum class tour_assist_export_policy : std::uint8_t { open,
+														  manual_only,
+														  invalid };
+	[[nodiscard]] auto tour_assist_policy() -> tour_assist_export_policy;
 	[[nodiscard]] auto tour_hook_name(core::writing_hook aHook) -> std::string_view;
 	[[nodiscard]] auto parse_tour_hook(std::string_view aName) -> std::optional<core::writing_hook>;
 	/// \brief What the author or their agent asked to be written. The agent never supplies any of it at completion.
