@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1067"
 title: "Integrate canonical pr-tour distribution and compatibility checks"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1065"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-16","milestone":"pr-tour-skill","acceptance":["AC46-01"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
