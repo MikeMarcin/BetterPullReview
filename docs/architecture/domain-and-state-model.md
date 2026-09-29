@@ -103,6 +103,18 @@ than evicting pinned evidence. Removing a cycle requires a preview whose token
 still matches, and a removed cycle's identity is never reissued. Profile purge
 owns the file.
 
+`application::review_cycle_runtime` composes that store with a decision lane
+and an effect lane and nothing else: no account enrollment, provider, vault,
+agent adapter or executable lookup. Store calls run one at a time in request
+order. Selecting another review subject cancels work issued for the previous
+selection, and a pull-request selection is refused rather than answered from
+the cycle store. `application::review_material_bridge` routes a tagged
+material request to its own authority: pull-request blobs go unchanged to the
+existing `diff_blob_port`, cycle objects come only from this profile's catalog,
+only for a revision of the named cycle and only the object that revision
+recorded; neither side falls back to the other. The runtime's link closure is
+checked by `review_cycle_dependency_closure`.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |
