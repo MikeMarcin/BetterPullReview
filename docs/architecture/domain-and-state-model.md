@@ -88,6 +88,21 @@ revision, which is different from an empty complete capture. Scope changes are
 versioned, and a path missing from a partial capture or outside the scope is
 unknown, never deleted. The cycle catalog and its storage are the host's.
 
+`application::review_cycle_store` is the storage port, and the SQLite adapter
+keeps it in its own profile-private `state/v1/review-cycles.sqlite3`; no pull
+request table changes. The catalog row carries the profile and a random
+32-byte incarnation. Objects (capture manifests, frozen round payloads) are
+content-addressed by SHA-256 and installed and verified in their own
+transaction before any catalog row names them, so a crash leaves a complete
+record or none plus at most an unreferenced object. Every write carries a
+caller operation identity: an identical retry returns the stored receipt, and
+reuse for a different request is refused. Objects that a revision or round
+references are pinned; `reclaim` removes only unreferenced ones, and an install
+that would exceed the retained budget is refused with the inventory rather
+than evicting pinned evidence. Removing a cycle requires a preview whose token
+still matches, and a removed cycle's identity is never reissued. Profile purge
+owns the file.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

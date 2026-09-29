@@ -1,5 +1,6 @@
 #include "bpr/core/review_cycle.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -213,6 +214,15 @@ namespace {
 		}
 		expect(validate_scope_paths(std::vector<std::string>(maximum_cycle_scope_paths + 1, "a")) == cycle_refusal::bounds, "path count bound");
 		expect(validate_scope_paths({ std::string(maximum_cycle_scope_path_bytes + 1, 'a') }) == cycle_refusal::invalid_scope, "path byte bound");
+		auto wide = std::vector<std::string>{ };
+		for (char first = 'a'; wide.size() < 70; ++first) {
+			wide.push_back(std::string(1, first) + std::string(maximum_cycle_scope_path_bytes - 1, 'x'));
+			if (first == 'z') {
+				first = 'A' - 1;
+			}
+		}
+		std::ranges::sort(wide);
+		expect(validate_scope_paths(wide) == cycle_refusal::bounds, "total scope byte bound");
 		const auto refused = create({ .Authority = authority(1, 1) }, { .Authority = authority(1, 1), .Title = "x", .Scope = { .Paths = { "../escape" } } });
 		expect(!refused && refused.error() == cycle_refusal::invalid_scope, "create refuses escape");
 	}

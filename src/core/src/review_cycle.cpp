@@ -151,7 +151,10 @@ namespace bpr::core {
 
 	auto validate_scope_paths(const std::vector<std::string>& aPaths) -> cycle_refusal
 	{
-		if (aPaths.size() > maximum_cycle_scope_paths) {
+		const auto bytes = std::ranges::fold_left(aPaths, std::size_t{ 0 }, [](const std::size_t aTotal, const std::string& aPath) {
+			return aTotal + std::min(aPath.size(), maximum_cycle_scope_path_bytes + 1);
+		});
+		if (aPaths.size() > maximum_cycle_scope_paths || bytes > maximum_cycle_scope_bytes) {
 			return cycle_refusal::bounds;
 		}
 		if (!std::ranges::all_of(aPaths, [](const std::string& aPath) { return valid_scope_path(aPath); })) {

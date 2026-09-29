@@ -154,6 +154,8 @@ namespace {
 		write(aRoot / "state/v1/appearance-settings.sqlite3-wal", "sidecar fixture");
 		write(aRoot / "state/v1/review-tours.sqlite3", "private tour prose");
 		write(aRoot / "state/v1/review-tours.sqlite3-wal", "tour sidecar");
+		write(aRoot / "state/v1/review-cycles.sqlite3", "private cycle source");
+		write(aRoot / "state/v1/review-cycles.sqlite3-wal", "cycle sidecar");
 		write(aRoot / "state/v1/review-overviews.sqlite3", "private cached overview");
 		write(aRoot / "state/v1/review-overviews.sqlite3-wal", "cached overview sidecar");
 		write(aRoot / "state/v1/profile-registry.sqlite3", "shared registry");
@@ -218,6 +220,7 @@ namespace {
 		expect(!fs::exists(root.Path / "logs/diagnostics.log") && !fs::exists(root.Path / "state/v1/appearance-settings.sqlite3-wal"), "data and sidecars deleted");
 		expect(!fs::exists(root.Path / "state/v1/review-overviews.sqlite3") && !fs::exists(root.Path / "state/v1/review-overviews.sqlite3-wal"), "profile purge removes cached overview and sidecar");
 		expect(!fs::exists(root.Path / "state/v1/review-tours.sqlite3") && !fs::exists(root.Path / "state/v1/review-tours.sqlite3-wal"), "profile purge removes tour prose and baselines");
+		expect(!fs::exists(root.Path / "state/v1/review-cycles.sqlite3") && !fs::exists(root.Path / "state/v1/review-cycles.sqlite3-wal"), "profile purge removes local review cycles");
 		expect(read(root.Path / "profiles/profile-2/keep") == "sibling fixture" && read(root.Path / "state/v1/profile-registry.sqlite3") == "shared registry", "sibling and registry preserved");
 		expect(read(root.Path / "updates/transaction-1/keep") == "shared transaction" && read(root.Path / "state/v1/release-update.sqlite3") == "shared updater", "desktop updater preserved");
 		expect(read(destination.Path / "diagnostics.txt") == expected && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");

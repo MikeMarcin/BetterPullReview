@@ -48,7 +48,9 @@ namespace bpr::core {
 	inline constexpr std::size_t   maximum_cycle_title_bytes      = 256U;
 	inline constexpr std::size_t   maximum_cycle_scope_paths      = 1024U;
 	inline constexpr std::size_t   maximum_cycle_scope_path_bytes = 4096U;
-	inline constexpr std::uint64_t maximum_cycle_capture_entries  = 250'000U;
+	/// Total bytes across all scope paths, so one scope fits one stored value.
+	inline constexpr std::size_t   maximum_cycle_scope_bytes     = 256U * 1024U;
+	inline constexpr std::uint64_t maximum_cycle_capture_entries = 250'000U;
 
 	/// \brief The local authority a cycle lives under: one BPR profile's cycle
 	/// catalog. A replacement catalog has a new incarnation, so its identities
