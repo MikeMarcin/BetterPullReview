@@ -23559,8 +23559,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			probe.Evidence.ReplyPublished = implementation->Fixture->review_mutation_evidence().Replies == 1U;
 			auto* const refresh           = window->github_refresh_action();
-			if (refresh == nullptr || !refresh->isEnabled()) {
+			if (refresh == nullptr) {
 				return fail("refresh-unavailable");
+			}
+			// A refresh the application started after publishing holds the
+			// action until it answers; the run budget bounds the wait.
+			if (!refresh->isEnabled()) {
+				note("refresh=busy");
+				return result::pending;
 			}
 			refresh->trigger();
 			probe.Phase = state_type::phase::awaiting_reply_seen;

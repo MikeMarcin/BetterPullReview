@@ -7554,7 +7554,7 @@ namespace {
 				   && window.focus_order().contains(window.next_new_comment_button()),
 			   "the tray's tabs and the Comments tab's tool are declared focus stops");
 		tabs->setFocus(Qt::OtherFocusReason);
-		for (const auto [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 1 } }) {
+		for (const auto& [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 1 } }) {
 			auto press = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
 			QApplication::sendEvent(tabs, &press);
 			process_events();

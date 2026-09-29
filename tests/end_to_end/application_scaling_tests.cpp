@@ -105,7 +105,7 @@ namespace {
 			const auto sample = aSample();
 			return std::tuple{ sample.OverviewBuilds, sample.OverviewReceiptVisits, sample.ConversationThreadsVisited, sample.Ledger.ReceiptLoads,
 							   sample.Ledger.ReceiptCacheHits, sample.Ledger.Publications, sample.Workbench.AcceptedObservationRows, sample.Workbench.FileProjectionRows,
-							   sample.OverviewReceiptUpdates };
+							   sample.OverviewReceiptUpdates, sample.Ledger.Operations, sample.Ledger.Completions };
 		};
 		auto          last   = signature();
 		auto          stable = 0;
@@ -264,6 +264,9 @@ try {
 			wait_for([&] { return surface->current_result() && surface->current_result()->Alignment.Key.File == file && surface->current_semantic_index() && !surface->geometry_pending() && quiet(); }, "exact selected material settles");
 		};
 		select("src/file_0031.cpp");
+		// [[BPR-1211]]. Ledger reads the queue refresh started answer on the
+		// decision lane later; each gesture below counts only its own work.
+		settle([&] { return access::scaling_evidence(*owner); });
 		auto* tree       = window->files_tree()->tree_model();
 		auto  before     = access::scaling_evidence(*owner);
 		auto  treeBefore = tree->work_statistics();
