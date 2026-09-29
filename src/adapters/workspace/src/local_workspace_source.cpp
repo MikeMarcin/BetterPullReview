@@ -980,7 +980,7 @@ namespace bpr::adapters::workspace {
 				.Kind       = kind,
 				.Identity   = { .Volume = static_cast<std::uint64_t>(aStat.st_dev), .ObjectLow = static_cast<std::uint64_t>(aStat.st_ino) },
 				.Size       = kind == workspace_entry_kind::directory ? 0U : static_cast<std::uint64_t>(aStat.st_size),
-				.Executable = kind == workspace_entry_kind::file && (aStat.st_mode & S_IXUSR) != 0,
+				.Executable = kind == workspace_entry_kind::file ? std::optional{ (static_cast<unsigned>(aStat.st_mode) & static_cast<unsigned>(S_IXUSR)) != 0U } : std::nullopt,
 				.Modified   = modified,
 				.Changed    = changed,
 			};

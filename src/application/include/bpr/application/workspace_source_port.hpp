@@ -8,6 +8,7 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stop_token>
 #include <string>
@@ -59,15 +60,16 @@ namespace bpr::application {
 	/// \brief One entry as observed without following it.
 	/// \details `Modified` and `Changed` are opaque nanosecond stamps compared
 	/// only for equality; a matching stamp is necessary for stability, never
-	/// sufficient on its own. `Executable` is the POSIX owner-execute bit and
-	/// is always false where the platform has none.
+	/// sufficient on its own. `Executable` is the POSIX owner-execute bit of a
+	/// regular file; it is absent where the platform has none, so no mode is
+	/// ever invented.
 	struct workspace_entry_observation
 	{
 		std::string                     Name;
 		workspace_entry_kind            Kind = workspace_entry_kind::other;
 		core::workspace_object_identity Identity;
-		std::uint64_t                   Size                                                  = 0;
-		bool                            Executable                                            = false;
+		std::uint64_t                   Size = 0;
+		std::optional<bool>             Executable;
 		std::int64_t                    Modified                                              = 0;
 		std::int64_t                    Changed                                               = 0;
 		auto                            operator<=>(const workspace_entry_observation&) const = default;
