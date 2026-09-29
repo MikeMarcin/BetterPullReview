@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1200"
 title: "Signed out, a private pull request link flashes an empty Overview, and Home refuses it too quietly"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
