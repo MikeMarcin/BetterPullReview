@@ -3741,6 +3741,7 @@ namespace bpr::app {
 		struct waiting_tour_request
 		{
 			std::string                                          Token;
+			std::string                                          Json;
 			application::tour_channel_bytes                      Read;
 			std::function<void(application::tour_channel_bytes)> Respond;
 			std::chrono::steady_clock::time_point                Deadline;
@@ -15728,10 +15729,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server> { return Profile->TourOwnerServer; }
 	namespace {
-		auto tour_owner_error(std::string aCode) -> application::tour_channel_bytes
+		auto tour_owner_error(std::string aCode, std::string aMessage = { }) -> application::tour_channel_bytes
 		{
-			return adapters::sqlite::encode_tour_response({ .Error = std::move(aCode) });
+			return adapters::sqlite::encode_tour_response({ .Error = std::move(aCode), .Json = std::move(aMessage) });
 		}
+		auto assist_refusal_code(std::string_view aReason) -> std::string { return std::string{ aReason }; }
 	}
 	void github_application::desktop_tour_owner_route(application::tour_channel_bytes aRequest, std::function<void(application::tour_channel_bytes)> aRespond)
 	{
@@ -15770,8 +15772,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			aRespond(tour_owner_error("editor_busy"));
 			return;
 		}
-		auto read = application::tour_owner_request{ .Operation = request->Operation == application::tour_owner_operation::mutate ? application::tour_owner_operation::request_status : request->Operation, .Draft = request->Draft };
-		if (request->Operation == application::tour_owner_operation::mutate) {
+		const auto  accepted    = profile.WorkbenchPreferences ? profile.WorkbenchPreferences->accepted() : std::optional<application::workbench_profile_preferences>{ };
+		const auto* preferences = accepted ? &*accepted : nullptr;
+		const auto  isMutation  = request->Operation == application::tour_owner_operation::mutate;
+		const bool  assisting   = isMutation && (request->Edit.Operation == application::tour_service_operation::assist_complete || request->Edit.Operation == application::tour_service_operation::outline_use);
+		std::string outcomeJson;
+		auto        read = application::tour_owner_request{ .Operation = isMutation ? application::tour_owner_operation::request_status : (request->Operation == application::tour_owner_operation::assist_issue || request->Operation == application::tour_owner_operation::assist_cancel) ? application::tour_owner_operation::load
+																																																																							: request->Operation,
+															.Draft     = request->Draft };
+		if (isMutation) {
 			auto edit = request->Edit;
 			if (edit.RequestId.empty()) {
 				aRespond(tour_owner_error("request_id_required"));
@@ -15784,20 +15793,51 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			edit.Command.Owner = draft->Owner;
 			edit.Command.Draft = draft->Id;
-			const auto result  = found.Host->execute(edit);
+			if (assisting) {
+				// The receiver's own clock and hook revision; the caller supplied neither.
+				if (!preferences) {
+					aRespond(tour_owner_error("owner_busy"));
+					return;
+				}
+				edit.Assist.Now                 = tour_assist_now();
+				edit.Assist.CurrentHookRevision = preferences->WritingHooks.Revision;
+			}
+			const auto result = found.Host->execute(edit);
 			if (result.Status == application::tour_service_status::busy) {
 				aRespond(tour_owner_error("owner_busy"));
 				return;
 			}
 			if (result.Status == application::tour_service_status::refused) {
+				if (assisting && !result.Reason.empty()) {
+					aRespond(tour_owner_error(assist_refusal_code(result.Reason), result.Detail));
+					return;
+				}
 				aRespond(tour_owner_error(result.Refusal == core::tour_refusal::conflict ? "revision_conflict" : "command_refused"));
 				return;
 			}
+			if (assisting) {
+				outcomeJson = tour_assist_outcome_json(result, *found.Host);
+			}
 			read.Edit.RequestId = edit.RequestId;
+		} else if (request->Operation == application::tour_owner_operation::assist_issue) {
+			if (!preferences) {
+				aRespond(tour_owner_error("owner_busy"));
+				return;
+			}
+			const auto&       q = request->Assist;
+			tour_assist_query query{ .Hook = q.Hook, .Stop = q.Stop, .Range = q.HasRange ? std::optional{ std::pair{ q.Begin, q.End } } : std::nullopt, .Quote = q.HasQuote ? std::optional{ q.Quote } : std::nullopt, .Session = q.Session };
+			auto              issued = tour_assist_issue(*found.Host, preferences->WritingHooks, query, { }, tour_assist_now());
+			if (!issued) {
+				aRespond(tour_owner_error(issued.error().Code, issued.error().Message));
+				return;
+			}
+			outcomeJson = issued->ContextJson;
+		} else if (request->Operation == application::tour_owner_operation::assist_cancel) {
+			found.Host->assist_cancel();
 		} else {
 			read.Edit.RequestId = request->Edit.RequestId;
 		}
-		profile.WaitingTourRequests.push_back({ request->Draft, adapters::sqlite::encode_tour_request(read), std::move(aRespond), std::chrono::steady_clock::now() + std::chrono::seconds{ 5 } });
+		profile.WaitingTourRequests.push_back({ request->Draft, std::move(outcomeJson), adapters::sqlite::encode_tour_request(read), std::move(aRespond), std::chrono::steady_clock::now() + std::chrono::seconds{ 5 } });
 		desktop_tour_owner_tick();
 	}
 	void github_application::desktop_tour_owner_tick()
@@ -15840,7 +15880,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else if (!ready) {
 				entry.Respond(tour_owner_error(Profile->Closing ? "owner_unavailable" : "save_pending"));
 			} else {
-				profile.WorkbenchEffects.post([service = profile.TourOwnerService, read = std::move(entry.Read), respond = std::move(entry.Respond)] { respond(service->serve(read)); });
+				profile.WorkbenchEffects.post([service = profile.TourOwnerService, read = std::move(entry.Read), respond = std::move(entry.Respond), json = std::move(entry.Json)] {
+					auto answer = service->serve(read);
+					if (!json.empty()) {
+						// The durable answer, carrying what the live host said: context or the outcome of a completion.
+						if (auto decoded = adapters::sqlite::decode_tour_response(answer); decoded && decoded->Error.empty()) {
+							decoded->Json = json;
+							answer        = adapters::sqlite::encode_tour_response(std::move(*decoded));
+						}
+					}
+					respond(std::move(answer));
+				});
 			}
 		}
 	}

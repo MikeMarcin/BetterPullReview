@@ -1,19 +1,34 @@
 #ifndef BPR_APPLICATION_TOUR_OWNER_CHANNEL_HPP
 #define BPR_APPLICATION_TOUR_OWNER_CHANNEL_HPP
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include <functional>
 #include <span>
 namespace bpr::application {
 	inline constexpr std::size_t maximum_tour_channel_bytes = 5U * 1024U * 1024U;
 	enum class tour_owner_operation : std::uint8_t { load,
 													 mutate,
-													 request_status };
+													 request_status,
+													 assist_issue,
+													 assist_cancel,
+													 hooks_show };
+	/// \brief What to write, chosen by the author or their agent. The owner resolves it and reads the draft
+	/// and hook itself; no context, range offsets beyond these or target ever arrive from the caller.
+	struct tour_owner_assist_query
+	{
+		core::writing_hook Hook = core::writing_hook::problem;
+		core::tour_stop_id Stop;
+		bool               HasRange = false, HasQuote = false;
+		std::uint64_t      Begin = 0, End = 0;
+		std::string        Quote, Session;
+	};
 	/// \brief Finite local-only command. No editor, provider or publication authority crosses here.
 	struct tour_owner_request
 	{
-		tour_owner_operation Operation = tour_owner_operation::load;
-		std::string          Draft;
-		tour_service_request Edit;
+		tour_owner_operation    Operation = tour_owner_operation::load;
+		std::string             Draft;
+		tour_service_request    Edit;
+		tour_owner_assist_query Assist{ };
 	};
 	struct tour_owner_response
 	{
@@ -23,6 +38,8 @@ namespace bpr::application {
 		tour_resume_hint                    Resume;
 		std::optional<tour_request_receipt> Receipt;
 		std::string                         Error;
+		/// Assist context, assist outcome or hooks, already rendered as one bounded JSON document.
+		std::string Json;
 	};
 	enum class tour_channel_failure : std::uint8_t { unavailable,
 													 refused,

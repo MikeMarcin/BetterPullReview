@@ -5,6 +5,7 @@
 #include "bpr/application/review_tour_store.hpp"
 #include "bpr/core/review_tour_import.hpp"
 #include "bpr/core/review_tour_revision.hpp"
+#include <expected>
 #include <functional>
 #include <memory>
 namespace bpr::application {
@@ -13,7 +14,20 @@ namespace bpr::application {
 	enum class tour_service_operation : std::uint8_t { edit,
 													   undo,
 													   redo,
-													   import_selected };
+													   import_selected,
+													   assist_complete,
+													   outline_use };
+	/// \brief What the active agent returned for one issued ticket, or the author's choice from a proposal.
+	/// The agent supplies result text only: target, range and hook were fixed when the ticket was issued.
+	struct tour_assist_completion
+	{
+		std::uint64_t            Id = 0;
+		std::string              ResultJson;
+		std::int64_t             Now                 = 0;
+		std::uint64_t            CurrentHookRevision = 0;
+		std::vector<std::size_t> Indices;
+		std::size_t              Position = 0;
+	};
 	struct tour_service_request
 	{
 		core::tour_command           Command;
@@ -22,6 +36,7 @@ namespace bpr::application {
 		tour_presentation_origin     Origin      = tour_presentation_origin::desktop;
 		std::string                  RequestId{ };
 		std::array<std::uint8_t, 32> Digest{ };
+		tour_assist_completion       Assist{ };
 	};
 	enum class tour_service_status : std::uint8_t { accepted,
 													unchanged,
@@ -31,10 +46,21 @@ namespace bpr::application {
 	/// \brief Admission result; accepted edits are durable only once SavedRevision catches up.
 	struct tour_service_result
 	{
+		tour_service_result() = default;
+		tour_service_result(tour_service_status aStatus, core::tour_refusal aRefusal = core::tour_refusal::none, std::uint64_t aRevision = 0, bool aReplayed = false)
+			: Status{ aStatus }
+			, Refusal{ aRefusal }
+			, Revision{ aRevision }
+			, Replayed{ aReplayed }
+		{ }
 		tour_service_status Status   = tour_service_status::busy;
 		core::tour_refusal  Refusal  = core::tour_refusal::none;
 		std::uint64_t       Revision = 0;
 		bool                Replayed = false;
+		/// Assist and outline outcomes: a short stable code, a bounded human line, the agent's notes and any proposal.
+		std::string               Reason, Detail;
+		std::vector<writing_note> Notes;
+		std::uint64_t             Proposal = 0;
 	};
 	/// \brief Decision-lane owner with coalesced off-lane persistence.
 	/// Store and queued work belong to this host. Shutdown drains final accepted edits;
@@ -56,9 +82,15 @@ namespace bpr::application {
 		void               dispatch(const core::tour_command& aCommand);
 		[[nodiscard]] auto execute(const tour_service_request& aRequest) -> tour_service_result;
 		[[nodiscard]] auto request_status(std::string_view aId) const -> std::optional<tour_request_receipt>;
-		void               undo();
-		void               redo();
-		void               retry_save();
+		/// Issue the one live ticket for this draft, superseding any earlier one; journal-only, no revision change.
+		[[nodiscard]] auto assist_issue(tour_assist_ticket aTicket, std::int64_t aNow) -> std::expected<tour_assist_ticket, std::string>;
+		[[nodiscard]] auto assist_ticket(std::uint64_t aId) const -> std::optional<tour_assist_ticket>;
+		[[nodiscard]] auto assist_proposal(std::uint64_t aId) const -> std::optional<tour_assist_proposal>;
+		/// Retire every pending ticket and proposal. Explicit closure by the author or the caller.
+		void assist_cancel();
+		void undo();
+		void redo();
+		void retry_save();
 		/// Explicitly discard local edits after a conflict; the caller presents both copies first.
 		void               use_saved_copy();
 		void               shutdown();

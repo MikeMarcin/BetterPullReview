@@ -209,6 +209,201 @@ namespace {
 		std::atomic<int>  Fault{ 0 };
 		std::thread       Thread;
 	};
+	auto rewrite_json(const std::string& aText) -> std::string
+	{
+		return QJsonDocument{ QJsonObject{ { "schema", "bpr.review-preparation.result.v1" }, { "kind", "rewrite" }, { "status", "ok" }, { "replacement_text", QString::fromStdString(aText) }, { "notes", QJsonArray{ } } } }.toJson(QJsonDocument::Compact).toStdString();
+	}
+	/// [[BPR-1064]]. The active agent's whole path through the shipped CLI: context, an exact bounded edit,
+	/// and every way an answer can be wrong. A course never launches a model: the answers here are literal.
+	void assist_courses()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cli-assist" };
+		const auto                           dataRoot = scratch.path() / "profile data";
+		const auto                           root     = QString::fromStdString(dataRoot.string());
+		fixture_state                        state;
+		auto                                 call   = [&](QStringList args) {args.append({"--data-root",root});return run(args,state); };
+		auto                                 opened = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		expect(opened.Exit == 0, "open the draft");
+		const auto id    = opened.json()["data"].toObject()["draft_id"].toString();
+		const auto files = scratch.path();
+		auto       put   = [&](const char* name, const std::string& bytes) {
+			const auto    path = files / name;
+			std::ofstream out{ path, std::ios::binary };
+			out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+			return QString::fromStdString(path.string());
+		};
+		auto revision = [&] { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["revision"].toString(); };
+		auto edit     = [&](const QString& field, const std::string& text) { return call({ "tour", "edit", field, "--file", put("edit.md", text), "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() }); };
+		auto field    = [&](const QString& name) { return call({ "tour", "show", name, "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["text"].toString().toStdString(); };
+		auto context  = [&](QStringList extra) {
+			QStringList args{ "tour", "assist", "context", "--profile", "1", "--draft", id, "--json" };
+			args.append(extra);
+			return call(args);
+		};
+		auto              complete = [&](const QString& ticket, const std::string& json) { return call({ "tour", "assist", "complete", "--ticket", ticket, "--result", put("answer.json", json), "--profile", "1", "--draft", id, "--json" }); };
+		auto              ticketOf = [](const reply& aReply) { return aReply.json()["data"].toObject()["assist"].toObject()["ticket"].toString(); };
+		auto              code     = [](const reply& aReply) { return aReply.json()["error"].toObject()["code"].toString(); };
+		auto              problem  = [&] { return field("problem"); };
+		const std::string text     = "The cache is stale\r\nAnd the cache is stale again \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb end.\r\n";
+		expect(edit("problem", text).Exit == 0, "the author's own text");
+		// Exact targets: a repeated quote is ambiguous and is never widened.
+		auto ambiguous = context({ "--hook", "problem", "--field", "problem", "--quote", "cache" });
+		expect(ambiguous.Exit == 2 && code(ambiguous) == "ambiguous_quote", "a repeated quoted passage needs disambiguation");
+		expect(code(context({ "--hook", "problem", "--field", "problem", "--quote", "absent" })) == "quote_not_found", "an absent quote is not found");
+		expect(code(context({ "--hook", "problem", "--field", "problem", "--range-bytes", "19:22" })) == "invalid_range", "a range that starts inside a CRLF pair is refused");
+		expect(code(context({ "--hook", "problem", "--field", "problem", "--range-bytes", "5:5" })) == "invalid_range" && code(context({ "--hook", "problem", "--field", "problem", "--range-bytes", "0:9999" })) == "invalid_range", "an empty or out-of-range span is refused");
+		expect(code(context({ "--hook", "solution", "--field", "problem" })) == "invalid_field" && code(context({ "--hook", "comment", "--field", "problem" })) == "invalid_field", "a hook writes only its own field");
+		expect(context({ "--hook", "problem", "--field", "problem", "--quote", "again", "--range-bytes", "1:2" }).Exit != 0, "a quote and a range are not both accepted");
+		// A selection: only those bytes change, as one undoable edit.
+		auto selected = context({ "--hook", "problem", "--field", "problem", "--quote", "again" });
+		expect(selected.Exit == 0, "a context for one unique passage");
+		const auto packet = selected.json()["data"].toObject()["assist"].toObject();
+		expect(packet["scope"] == "selection" && packet["selection"].toObject()["text"] == "again" && packet["hook"].toObject()["name"] == "problem" && !packet["hook"].toObject()["instructions"].toString().isEmpty(), "the packet names the exact passage and the effective hook");
+		expect(packet["prompt"].toString().contains("again") && packet["prompt"].toString().contains("bpr.review-preparation.result.v1") && !packet["omitted"].toArray().isEmpty(), "the agent receives the parent contract, and what was omitted");
+		const auto beforeRewrite = revision();
+		auto       applied       = complete(ticketOf(selected), rewrite_json("once more"));
+		expect(applied.Exit == 0 && applied.json()["data"].toObject()["assist"].toObject()["applied"].toBool() && applied.json()["data"].toObject()["revision"].toString() != beforeRewrite, "a valid result applies at once");
+		const auto rewritten = text.substr(0, text.find("again")) + "once more" + text.substr(text.find("again") + 5);
+		expect(problem() == rewritten, "only the selected bytes changed; CRLF and the emoji sequence are intact");
+		auto undone = call({ "tour", "undo", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() });
+		expect(undone.Exit == 0 && undone.json()["data"].toObject()["transaction_label"] == "Rewrite Problem" && problem() == text, "one undo restores the exact bytes");
+		auto spent = complete(ticketOf(selected), rewrite_json("twice"));
+		expect(spent.Exit == 4 && code(spent) == "unknown_ticket" && problem() == text, "a spent request cannot be answered again");
+		// Stale in each way the text can move under a request.
+		auto whole = context({ "--hook", "problem", "--field", "problem" });
+		expect(whole.json()["data"].toObject()["assist"].toObject()["scope"] == "field", "no selection is the whole field");
+		expect(edit("problem", text + "more").Exit == 0, "the author types while a request is outstanding");
+		auto stale = complete(ticketOf(whole), rewrite_json("late"));
+		expect(stale.Exit == 4 && code(stale) == "stale" && problem() == text + "more", "an answer to old text is refused and nothing changes");
+		auto aba = context({ "--hook", "problem", "--field", "problem" });
+		expect(edit("problem", "changed").Exit == 0 && edit("problem", text + "more").Exit == 0, "text changes and returns to the same bytes");
+		expect(code(complete(ticketOf(aba), rewrite_json("late"))) == "stale", "an old request stays stale even when the bytes are identical again");
+		expect(edit("problem", text).Exit == 0, "restore the text");
+		auto noop = context({ "--hook", "problem", "--field", "problem" });
+		auto same = complete(ticketOf(noop), rewrite_json(text));
+		expect(same.Exit == 0 && same.json()["data"].toObject()["assist"].toObject()["reason"] == "unchanged" && !same.json()["data"].toObject()["assist"].toObject()["applied"].toBool() && problem() == text, "an identical result is a no-op");
+		auto invalid = context({ "--hook", "problem", "--field", "problem" });
+		auto broken  = complete(ticketOf(invalid), R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"x","notes":[],"target":"stop:9","range":"0:1"})");
+		expect(broken.Exit == 2 && code(broken) == "invalid_result" && problem() == text, "a result that names a target or a range is refused");
+		expect(code(complete(ticketOf(invalid), rewrite_json("retry"))) == "unknown_ticket", "a refused answer still spends its request");
+		auto first  = context({ "--hook", "problem", "--field", "problem" });
+		auto second = context({ "--hook", "problem", "--field", "problem" });
+		expect(code(complete(ticketOf(first), rewrite_json("old"))) == "unknown_ticket" && complete(ticketOf(second), rewrite_json("new")).Exit == 0 && problem() == "new", "a newer request supersedes the older");
+		expect(edit("problem", text).Exit == 0, "restore the text");
+		auto cancelled = context({ "--hook", "problem", "--field", "problem" });
+		expect(call({ "tour", "assist", "cancel", "--profile", "1", "--draft", id, "--json" }).Exit == 0 && code(complete(ticketOf(cancelled), rewrite_json("gone"))) == "unknown_ticket", "explicit cancellation retires the request");
+		auto insufficient = context({ "--hook", "problem", "--field", "problem" });
+		auto more         = complete(ticketOf(insufficient), R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"insufficient_context","reason":"Need the failing input."})");
+		expect(more.Exit == 0 && more.json()["data"].toObject()["assist"].toObject()["reason"] == "insufficient_context" && problem() == text, "insufficient context is reported and changes nothing");
+		// Hooks are shared settings: what the CLI shows and edits is what the desktop uses.
+		auto hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
+		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 4, "the four hooks");
+		const auto beforeHooks = hooks.json()["data"].toObject()["hooks_revision"].toString();
+		auto       pending     = context({ "--hook", "problem", "--field", "problem" });
+		auto       custom      = call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "Write tersely."), "--profile", "1", "--json" });
+		expect(custom.Exit == 0 && custom.json()["data"].toObject()["hooks_revision"].toString() != beforeHooks, "a hook edit advances the revision");
+		expect(code(complete(ticketOf(pending), rewrite_json("hook"))) == "stale", "an answer to the old hook is stale");
+		auto tersely = context({ "--hook", "problem", "--field", "problem" });
+		expect(tersely.json()["data"].toObject()["assist"].toObject()["hook"].toObject()["instructions"] == "Write tersely." && tersely.json()["data"].toObject()["assist"].toObject()["prompt"].toString().contains("Write tersely."), "the effective hook is the customized one");
+		expect(call({ "tour", "hooks", "reset", "problem", "--profile", "1", "--json" }).Exit == 0 && call({ "tour", "hooks", "show", "problem", "--profile", "1", "--json" }).json()["data"].toObject()["hooks"].toArray()[0].toObject()["customized"] == false, "reset returns to the shipped hook");
+		// An outline is a body-free proposal; the author chooses from it.
+		auto outline = context({ "--hook", "outline", "--sources", "src/a.cpp:1-3,src/b.cpp:2-4" });
+		expect(outline.Exit == 0 && outline.json()["data"].toObject()["assist"].toObject()["sources"].toArray().size() >= 2, "an outline context carries the named code ranges");
+		const std::string outlineJson = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Boundary","anchor_ref":"source-1","related_refs":[],"reason":"Start here","author_question":"Why?"},{"title":"Limits","anchor_ref":"source-2","related_refs":[],"reason":"Then this","author_question":""}]})";
+		auto              proposed    = complete(ticketOf(outline), outlineJson);
+		expect(proposed.Exit == 0 && !proposed.json()["data"].toObject()["assist"].toObject()["proposal"].toObject()["entries"].toArray().isEmpty() && proposed.json()["data"].toObject()["stops"].toArray().isEmpty(), "an outline result is a proposal, not stops");
+		const auto proposal = proposed.json()["data"].toObject()["assist"].toObject()["proposal"].toObject()["id"].toString();
+		auto       chosen   = call({ "tour", "outline", "use", proposal, "--indices", "1", "--profile", "1", "--draft", id, "--json" });
+		expect(chosen.Exit == 0 && chosen.json()["data"].toObject()["stops"].toArray().size() == 1, "the chosen suggestion is inserted");
+		expect(!chosen.json()["data"].toObject()["stops"].toArray()[0].toObject()["ready"].toBool(), "and is not ready");
+		expect(code(call({ "tour", "outline", "use", proposal, "--indices", "0", "--profile", "1", "--draft", id, "--json" })) == "unknown_proposal", "a proposal is used once");
+		auto anotherOutline = context({ "--hook", "outline", "--sources", "src/a.cpp:1-3" });
+		auto withBody       = complete(ticketOf(anotherOutline), R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"T","anchor_ref":"source-1","related_refs":[],"reason":"r","author_question":"","body":"written","ready":true}]})");
+		expect(withBody.Exit == 2 && code(withBody) == "invalid_result", "an outline carrying a comment body or a ready flag is refused");
+		auto       badIndices = complete(ticketOf(context({ "--hook", "outline", "--sources", "src/a.cpp:1-3" })), outlineJson.substr(0, 0) + R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"One","anchor_ref":"source-1","related_refs":[],"reason":"r","author_question":""}]})");
+		const auto again      = badIndices.json()["data"].toObject()["assist"].toObject()["proposal"].toObject()["id"].toString();
+		expect(code(call({ "tour", "outline", "use", again, "--indices", "0,0", "--profile", "1", "--draft", id, "--json" })) == "invalid_indices" && code(call({ "tour", "outline", "use", again, "--indices", "5", "--profile", "1", "--draft", id, "--json" })) == "invalid_indices", "duplicate or unknown suggestion numbers are refused");
+		// A comment is one stop's body; the stop's own pinned source is context.
+		const auto stopFile = put("stop.md", "Old comment body\n");
+		expect(call({ "tour", "add", "src/second.cpp:1-1", "--file", stopFile, "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() }).Exit == 0, "a stop with a comment");
+		const auto stops = call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["stops"].toArray();
+		const auto stop  = stops.last().toObject()["stop_id"].toString();
+		auto       body  = context({ "--hook", "comment", "--field", "stop:" + stop });
+		expect(body.Exit == 0 && body.json()["data"].toObject()["assist"].toObject()["field"] == "stop:" + stop, "a comment context for the stop");
+		const auto titleBefore = call({ "tour", "show", "stop:" + stop, "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["text"].toString().toStdString();
+		auto       reworded    = complete(ticketOf(body), rewrite_json("Explains the boundary.\n"));
+		expect(reworded.Exit == 0 && field("stop:" + stop) == "Explains the boundary.\n" && titleBefore == "Old comment body\n", "a comment rewrite changes that stop's body");
+	}
+	/// [[BPR-1064]]. The same path through a running owner: tickets pair across an owner change, a lost
+	/// answer is never applied twice, and the commands an owner cannot yet serve say so.
+	void forwarded_assist()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cli-forward-assist" };
+		const auto                           dataRoot = scratch.path() / "profile data";
+		const auto                           root     = QString::fromStdString(dataRoot.string());
+		fixture_state                        state;
+		auto                                 call   = [&](QStringList args) {args.append({"--data-root",root});return run(args,state); };
+		auto                                 opened = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		expect(opened.Exit == 0, "open the draft");
+		const auto id  = opened.json()["data"].toObject()["draft_id"].toString();
+		auto       put = [&](const char* name, const std::string& bytes) {
+			const auto    path = scratch.path() / name;
+			std::ofstream out{ path, std::ios::binary };
+			out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+			return QString::fromStdString(path.string());
+		};
+		auto revision = [&] { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["revision"].toString(); };
+		auto problem  = [&] { return call({ "tour", "show", "problem", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["text"].toString().toStdString(); };
+		auto context  = [&](QStringList extra) {
+			QStringList args{ "tour", "assist", "context", "--profile", "1", "--draft", id, "--json" };
+			args.append(extra);
+			return call(args);
+		};
+		auto complete = [&](const QString& ticket, const std::string& json, const QString& requestId = { }) {
+			QStringList args{ "tour", "assist", "complete", "--ticket", ticket, "--result", put("answer.json", json), "--profile", "1", "--draft", id, "--json" };
+			if (!requestId.isEmpty()) {
+				args.append({ "--request-id", requestId });
+			}
+			return call(args);
+		};
+		auto              ticketOf = [](const reply& aReply) { return aReply.json()["data"].toObject()["assist"].toObject()["ticket"].toString(); };
+		auto              code     = [](const reply& aReply) { return aReply.json()["error"].toObject()["code"].toString(); };
+		const std::string text     = "Cache is stale. Cache is old.\n";
+		expect(call({ "tour", "edit", "problem", "--file", put("edit.md", text), "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() }).Exit == 0, "the author's text");
+		QString carried;
+		{
+			app::tour_runtime holder{ dataRoot, "1" };
+			const auto        binding = holder.owner();
+			expect(binding.has_value(), "the holder owns the profile");
+			owner_thread serving{ *binding };
+			auto         hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
+			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 4, "the owner answers hooks from its own settings");
+			expect(call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "x"), "--profile", "1", "--json" }).Exit == 3, "a running owner's settings are not edited from outside");
+			expect(call({ "tour", "assist", "context", "--hook", "outline", "--sources", "src/a.cpp:1-3", "--profile", "1", "--draft", id, "--json" }).Exit == 3, "source reads are not forwarded");
+			auto ambiguous = context({ "--hook", "problem", "--field", "problem", "--quote", "Cache" });
+			expect(code(ambiguous) == "ambiguous_quote", "the owner resolves the quote itself");
+			auto issued = context({ "--hook", "problem", "--field", "problem", "--quote", "stale" });
+			expect(issued.Exit == 0 && issued.json()["data"].toObject()["assist"].toObject()["selection"].toObject()["text"] == "stale", "a context is issued by the owner");
+			auto applied = complete(ticketOf(issued), "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"outdated\",\"notes\":[]}");
+			expect(applied.Exit == 0 && problem() == "Cache is outdated. Cache is old.\n", "the owner applies exactly the issued range");
+			// Lost answer: the owner commits and the reply never arrives; the same request ID replays.
+			auto lostTicket = context({ "--hook", "problem", "--field", "problem", "--quote", "old" });
+			serving.set(owner_thread::fault::drop_reply);
+			const auto answer = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"ancient\",\"notes\":[]}";
+			auto       lost   = complete(ticketOf(lostTicket), answer, "assist-lost-1");
+			expect(lost.Exit == 6 && code(lost) == "outcome_unknown", "a lost answer is uncertain");
+			serving.set(owner_thread::fault::none);
+			expect(problem() == "Cache is outdated. Cache is ancient.\n", "the owner had committed it");
+			const auto after = revision();
+			auto       retry = complete(ticketOf(lostTicket), answer, "assist-lost-1");
+			expect(retry.Exit == 0 && revision() == after && problem() == "Cache is outdated. Cache is ancient.\n", "the retry under the same ID replays and applies nothing twice");
+			// A ticket issued by this owner...
+			carried = ticketOf(context({ "--hook", "problem", "--field", "problem", "--quote", "outdated" }));
+		}
+		// ...is answered after the owner is gone: the request lives in the draft's journal.
+		auto standalone = complete(carried, "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"fresh\",\"notes\":[]}");
+		expect(standalone.Exit == 0 && problem() == "Cache is fresh. Cache is ancient.\n", "a ticket outlives the owner that issued it");
+	}
 	void forwarded_owner()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "cli-forward" };
@@ -339,4 +534,6 @@ int main(int argc, char** argv)
 	}
 	cold_open();
 	forwarded_owner();
+	assist_courses();
+	forwarded_assist();
 }

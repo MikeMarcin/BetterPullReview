@@ -83,5 +83,23 @@ int main()
 	expect(!state.complete_outline(r->Id, changedOutline), "changed draft generation refuses outline");
 	r = state.begin(identity, { }, { });
 	expect(state.complete_outline(r->Id, identity) && !state.complete_outline(r->Id, identity), "outline result is consumed once for its exact identity");
+	// [[BPR-1064]]. Exact quoted passages and the shared splice, independent of any presentation.
+	{
+		const std::string text = "Alpha beta.\r\nbeta again \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb end\n";
+		const auto        once = core::writing_quote_range(text, "Alpha");
+		expect(once && once->first == 0 && once->second == 5, "a unique quote resolves to its exact bytes");
+		expect(core::writing_quote_range(text, "beta").error() == core::writing_refusal::ambiguous, "a repeated quote is ambiguous, never widened");
+		expect(core::writing_quote_range(text, "missing").error() == core::writing_refusal::not_found, "an absent quote is not found");
+		expect(core::writing_quote_range(text, "").error() == core::writing_refusal::invalid_capture && core::writing_quote_range(text, "\xff").error() == core::writing_refusal::invalid_capture, "an empty or malformed quote is refused");
+		expect(core::writing_quote_range(text, "\nbeta again").error() == core::writing_refusal::invalid_capture, "a quote that starts inside a CRLF pair is refused");
+		const auto emoji = core::writing_quote_range(text, "\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb");
+		expect(emoji.has_value() && text.substr(emoji->first, emoji->second - emoji->first) == "\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb", "a multi-scalar sequence resolves on scalar boundaries");
+		expect(core::splice_writing_result(text, 0, 5, "Omega").value() == "Omega beta.\r\nbeta again \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb end\n", "only the selected bytes change");
+		expect(core::splice_writing_result(text, 0, 5, "Alpha").error() == core::writing_refusal::unchanged, "an identical replacement is a no-op");
+		expect(core::splice_writing_result(text, 12, 12, "x").error() == core::writing_refusal::invalid_capture, "a splice inside a CRLF pair is refused");
+		expect(core::splice_writing_result(text, 3, 2, "x").error() == core::writing_refusal::invalid_capture && core::splice_writing_result(text, 0, text.size() + 1, "x").error() == core::writing_refusal::invalid_capture, "an inverted or out-of-range span is refused");
+		expect(core::splice_writing_result(text, 0, 5, "\xff").error() == core::writing_refusal::invalid_result && core::splice_writing_result(text, 0, 5, std::string(core::maximum_tour_field_bytes + 1U, 'x')).error() == core::writing_refusal::invalid_result, "malformed or oversized output is refused");
+		expect(core::splice_writing_result("", 0, 0, "drafted").value() == "drafted", "an empty field can be drafted");
+	}
 	std::cout << "review-preparation:pass\n";
 }

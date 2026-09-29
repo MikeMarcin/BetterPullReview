@@ -1,6 +1,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include <algorithm>
+#include <chrono>
 #include <deque>
 #include <utility>
 namespace bpr::application {
@@ -17,6 +18,10 @@ namespace bpr::application {
 		std::deque<tour_history_entry>           Redo;
 		tour_presentation_origin                 Origin = tour_presentation_origin::desktop;
 		std::vector<tour_request_receipt>        Receipts;
+		std::vector<tour_assist_ticket>          Tickets;
+		std::vector<tour_assist_proposal>        Proposals;
+		std::uint64_t                            AssistSequence = 0;
+		std::string                              LabelOverride;
 		std::uint64_t                            JournalGeneration = 0, SavedJournalGeneration = 0;
 		bool                                     DeferringSave = false;
 		std::uint64_t                            Request       = 0;
@@ -99,6 +104,9 @@ namespace bpr::application {
 							self->Undo                = std::move(result->value().Undo);
 							self->Redo                = std::move(result->value().Redo);
 							self->Receipts            = std::move(result->value().Receipts);
+							self->Tickets             = std::move(result->value().Tickets);
+							self->Proposals           = std::move(result->value().Proposals);
+							self->AssistSequence      = result->value().AssistSequence;
 							self->State.Resume        = result->value().Resume;
 							self->State.Selected      = self->State.Resume.Stop;
 						} else {
@@ -203,7 +211,7 @@ namespace bpr::application {
 			const auto candidate  = State.Draft;
 			const auto expected   = State.SavedRevision;
 			const auto generation = JournalGeneration;
-			const auto journal    = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo, State.Resume, Receipts });
+			const auto journal    = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo, State.Resume, Receipts, Tickets, Proposals, AssistSequence });
 			try {
 				Effects.post([self, request, candidate, expected, journal, generation] {
 					auto observed = tour_store_result<core::review_tour>{ std::unexpected(tour_store_error{ }) };
@@ -243,7 +251,7 @@ namespace bpr::application {
 		}
 		void retain(std::deque<tour_history_entry>& aHistory, core::tour_stop_id aSelected, std::string aLabel)
 		{
-			aHistory.push_back({ *State.Draft, aSelected, std::move(aLabel), Origin });
+			aHistory.push_back({ *State.Draft, aSelected, LabelOverride.empty() ? std::move(aLabel) : LabelOverride, Origin });
 			auto bytes = std::size_t{ 0 };
 			for (const auto& item : aHistory) {
 				bytes += core::retained_tour_bytes(item.Draft);
@@ -326,6 +334,165 @@ namespace bpr::application {
 			}
 			notify();
 		}
+
+		struct assist_outcome
+		{
+			std::string               Reason, Detail;
+			std::vector<writing_note> Notes;
+			std::uint64_t             Proposal = 0;
+		};
+		static auto assist_field(const core::review_tour& aDraft, core::writing_hook aHook, core::tour_stop_id aStop) -> const std::string*
+		{
+			if (aHook == core::writing_hook::problem) {
+				return &aDraft.Problem;
+			}
+			if (aHook == core::writing_hook::solution) {
+				return &aDraft.Solution;
+			}
+			if (aHook == core::writing_hook::comment) {
+				const auto stop = std::ranges::find(aDraft.Stops, aStop, &core::tour_stop::Id);
+				return stop == aDraft.Stops.end() ? nullptr : &stop->Body;
+			}
+			return nullptr;
+		}
+		void prune_assist(std::int64_t aNow)
+		{
+			std::erase_if(Tickets, [&](const auto& aTicket) { return aTicket.Expires <= aNow; });
+			std::erase_if(Proposals, [&](const auto& aProposal) { return aProposal.Expires <= aNow; });
+		}
+		auto refused_assist(assist_outcome aOutcome, std::string aReason, std::string aDetail, core::tour_refusal aRefusal = core::tour_refusal::conflict) -> assist_outcome
+		{
+			aOutcome.Reason = std::move(aReason);
+			aOutcome.Detail = std::move(aDetail);
+			State.Refusal   = aRefusal;
+			return aOutcome;
+		}
+		/// A ticket is spent by any completion that names it, whether or not the result is usable, so one
+		/// request can never yield two edits and a stale answer cannot be replayed later.
+		auto complete_assist(const tour_assist_completion& aCompletion) -> assist_outcome
+		{
+			assist_outcome out;
+			const auto     found = std::ranges::find(Tickets, aCompletion.Id, &tour_assist_ticket::Id);
+			if (found == Tickets.end()) {
+				return refused_assist(std::move(out), "unknown_ticket", "No such pending request: it was completed, superseded, cancelled or expired.");
+			}
+			auto ticket = std::move(*found);
+			Tickets.erase(found);
+			++JournalGeneration;
+			if (aCompletion.Now >= ticket.Expires) {
+				return refused_assist(std::move(out), "expired", "This request expired. Ask for context again.");
+			}
+			if (aCompletion.CurrentHookRevision != ticket.HookRevision) {
+				return refused_assist(std::move(out), "stale", "The hook instructions changed after this request. Ask for context again.");
+			}
+			if (ticket.DraftRevision != State.Draft->Revision) {
+				return refused_assist(std::move(out), "stale", "The draft changed after this request. Read it again; nothing was applied.");
+			}
+			if (ticket.Hook == core::writing_hook::outline) {
+				const auto decoded = decode_writing_result(aCompletion.ResultJson, core::writing_hook::outline, ticket.Sources, false);
+				if (!decoded) {
+					return refused_assist(std::move(out), "invalid_result", "The result is not a valid outline. Nothing was proposed.", core::tour_refusal::invalid_command);
+				}
+				std::vector<core::tour_outline_entry> entries;
+				for (const auto& stop : decoded->Stops) {
+					const auto source = std::ranges::find(ticket.Sources, stop.Anchor, &writing_source::Id);
+					if (source == ticket.Sources.end()) {
+						return refused_assist(std::move(out), "source_unavailable", "An outline anchor is not a supplied source. Nothing was proposed.", core::tour_refusal::invalid_command);
+					}
+					core::tour_outline_entry entry{ .Title = stop.Title, .Source = source->Source, .Suggestion = { stop.Anchor, stop.Reason, stop.Question } };
+					for (const auto& reference : stop.Related) {
+						const auto related = std::ranges::find(ticket.Sources, reference, &writing_source::Id);
+						if (related == ticket.Sources.end() || !related->Source) {
+							return refused_assist(std::move(out), "source_unavailable", "A related destination is unavailable. Nothing was proposed.", core::tour_refusal::invalid_command);
+						}
+						entry.Related.push_back(*related->Source);
+					}
+					entries.push_back(std::move(entry));
+				}
+				if (entries.empty()) {
+					return refused_assist(std::move(out), "empty_outline", "The outline has no stops. Nothing was proposed.", core::tour_refusal::invalid_command);
+				}
+				if (Proposals.size() >= maximum_tour_assist_proposals) {
+					Proposals.erase(Proposals.begin());
+				}
+				Proposals.push_back({ ++AssistSequence, State.Draft->Revision, std::move(entries), aCompletion.Now + std::chrono::duration_cast<std::chrono::seconds>(assist_lifetime).count() });
+				out.Proposal = Proposals.back().Id;
+				return out;
+			}
+			const auto* raw = assist_field(*State.Draft, ticket.Hook, ticket.Stop);
+			if (!raw || ticket.End > raw->size() || core::writing_digest(*raw) != ticket.RawDigest) {
+				return refused_assist(std::move(out), "stale", "The field changed after this request. Read it again; nothing was applied.");
+			}
+			const auto decoded = decode_writing_result(aCompletion.ResultJson, ticket.Hook, ticket.Sources, ticket.Scope == core::writing_scope::empty_field);
+			if (!decoded) {
+				return refused_assist(std::move(out), "invalid_result", "The result is invalid or unsupported. Your text is unchanged.", core::tour_refusal::invalid_command);
+			}
+			if (decoded->Insufficient) {
+				out.Reason = "insufficient_context";
+				out.Detail = decoded->Reason;
+				return out;
+			}
+			const auto text = core::splice_writing_result(*raw, ticket.Begin, ticket.End, decoded->Replacement);
+			if (!text) {
+				if (text.error() == core::writing_refusal::unchanged) {
+					out.Reason = "unchanged";
+					out.Detail = "The result made no change.";
+					return out;
+				}
+				return refused_assist(std::move(out), "invalid_result", "The result cannot be applied to the captured text. Your text is unchanged.", core::tour_refusal::invalid_command);
+			}
+			core::tour_command command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision };
+			if (ticket.Hook == core::writing_hook::comment) {
+				const auto stop    = std::ranges::find(State.Draft->Stops, ticket.Stop, &core::tour_stop::Id);
+				command.Kind       = core::tour_command_kind::edit_stop;
+				command.Stop       = ticket.Stop;
+				command.Value      = *stop;
+				command.Value.Body = *text;
+			} else {
+				command.Kind = ticket.Hook == core::writing_hook::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
+				command.Text = *text;
+			}
+			LabelOverride = ticket.Hook == core::writing_hook::problem ? "Rewrite Problem" : ticket.Hook == core::writing_hook::solution ? "Rewrite Solution"
+																																		 : "Rewrite comment";
+			dispatch(command);
+			LabelOverride.clear();
+			out.Notes = decoded->Notes;
+			return out;
+		}
+		auto use_outline(const tour_assist_completion& aCompletion) -> assist_outcome
+		{
+			assist_outcome out;
+			const auto     found = std::ranges::find(Proposals, aCompletion.Id, &tour_assist_proposal::Id);
+			if (found == Proposals.end()) {
+				return refused_assist(std::move(out), "unknown_proposal", "No such outline proposal: it was used, cancelled or expired.");
+			}
+			auto proposal = *found;
+			if (aCompletion.Now >= proposal.Expires || proposal.DraftRevision != State.Draft->Revision) {
+				Proposals.erase(found);
+				++JournalGeneration;
+				return refused_assist(std::move(out), aCompletion.Now >= proposal.Expires ? "expired" : "stale", "The proposal is no longer current. Ask for a new outline; nothing was inserted.");
+			}
+			std::vector<std::size_t> seen;
+			core::tour_command       command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision, .Kind = core::tour_command_kind::insert_outline, .Position = aCompletion.Position };
+			for (const auto index : aCompletion.Indices) {
+				if (index >= proposal.Entries.size() || std::ranges::find(seen, index) != seen.end()) {
+					return refused_assist(std::move(out), "invalid_indices", "Choose distinct suggestion numbers from the proposal.", core::tour_refusal::invalid_command);
+				}
+				seen.push_back(index);
+				command.Outline.push_back(proposal.Entries[index]);
+			}
+			if (command.Outline.empty() || aCompletion.Position > State.Draft->Stops.size()) {
+				return refused_assist(std::move(out), "invalid_indices", "Choose at least one suggestion and a valid position.", core::tour_refusal::invalid_command);
+			}
+			LabelOverride = "Insert outline stops";
+			dispatch(command);
+			LabelOverride.clear();
+			if (State.Refusal == core::tour_refusal::none) {
+				Proposals.erase(std::ranges::find(Proposals, aCompletion.Id, &tour_assist_proposal::Id));
+				++JournalGeneration;
+			}
+			return out;
+		}
 	};
 	review_tour_host::review_tour_host(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 		: Implementation{ std::make_shared<implementation>(std::move(aSeed), std::move(aStore), aEffects, aDecision, std::move(aPublish)) }
@@ -402,7 +569,9 @@ namespace bpr::application {
 				if (found->Digest != aRequest.Digest) {
 					return { tour_service_status::refused, core::tour_refusal::identity, state.Draft->Revision };
 				}
-				return { static_cast<tour_service_status>(found->Status), found->Refusal, found->Revision, true };
+				tour_service_result replay{ static_cast<tour_service_status>(found->Status), found->Refusal, found->Revision, true };
+				replay.Proposal = found->Value;
+				return replay;
 			}
 			if (aRequest.RequestId.size() > 64 || self.Receipts.size() >= maximum_tour_request_receipts) {
 				return { tour_service_status::refused, core::tour_refusal::bounds, state.Draft->Revision };
@@ -413,7 +582,8 @@ namespace bpr::application {
 		if (command.Owner != state.Draft->Owner || command.Draft != state.Draft->Id) {
 			return { tour_service_status::refused, core::tour_refusal::identity, revision };
 		}
-		if (command.ExpectedRevision != revision) {
+		const bool assisting = aRequest.Operation == tour_service_operation::assist_complete || aRequest.Operation == tour_service_operation::outline_use;
+		if (!assisting && command.ExpectedRevision != revision) {
 			return { tour_service_status::refused, core::tour_refusal::conflict, revision };
 		}
 		if (state.Failure) {
@@ -422,6 +592,7 @@ namespace bpr::application {
 		self.State.Refusal = core::tour_refusal::none;
 		self.Origin        = aRequest.Origin;
 		self.DeferringSave = true;
+		implementation::assist_outcome assisted;
 		switch (aRequest.Operation) {
 		case tour_service_operation::edit: self.dispatch(command); break;
 		case tour_service_operation::undo: self.restore(false); break;
@@ -433,17 +604,93 @@ namespace bpr::application {
 			}
 			self.import_selected(aRequest.ImportIndex);
 			break;
+		case tour_service_operation::assist_complete: assisted = self.complete_assist(aRequest.Assist); break;
+		case tour_service_operation::outline_use:     assisted = self.use_outline(aRequest.Assist); break;
 		}
 		// A direct call that follows is this presentation's own gesture, whatever asked before.
 		self.Origin = tour_presentation_origin::desktop;
-		const tour_service_result result{ state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
+		tour_service_result result{ state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
+		result.Reason   = std::move(assisted.Reason);
+		result.Detail   = std::move(assisted.Detail);
+		result.Notes    = std::move(assisted.Notes);
+		result.Proposal = assisted.Proposal;
 		if (!aRequest.RequestId.empty()) {
-			self.Receipts.push_back({ aRequest.RequestId, aRequest.Digest, static_cast<std::uint8_t>(result.Status), result.Refusal, result.Revision });
+			self.Receipts.push_back({ aRequest.RequestId, aRequest.Digest, static_cast<std::uint8_t>(result.Status), result.Refusal, result.Revision, assisted.Proposal });
 			++self.JournalGeneration;
 		}
 		self.DeferringSave = false;
 		self.pump();
 		return result;
+	}
+	auto review_tour_host::assist_issue(tour_assist_ticket aTicket, std::int64_t aNow) -> std::expected<tour_assist_ticket, std::string>
+	{
+		auto& self = *Implementation;
+		if (self.Closing || self.State.Loading || !self.State.Draft || self.State.Failure) {
+			return std::unexpected("busy");
+		}
+		const auto& draft = *self.State.Draft;
+		if (draft.ReadOnly) {
+			return std::unexpected("read_only");
+		}
+		if (aTicket.DraftRevision != draft.Revision) {
+			return std::unexpected("stale");
+		}
+		if (aTicket.Hook == core::writing_hook::outline) {
+			aTicket.Begin = aTicket.End = 0;
+			aTicket.RawDigest           = { };
+			aTicket.Stop                = { };
+			aTicket.Scope               = core::writing_scope::field;
+		} else {
+			const auto* raw = implementation::assist_field(draft, aTicket.Hook, aTicket.Stop);
+			if (!raw) {
+				return std::unexpected("no_such_field");
+			}
+			if (core::writing_digest(*raw) != aTicket.RawDigest) {
+				return std::unexpected("stale");
+			}
+			if (aTicket.End > raw->size() || !core::writing_boundary(*raw, aTicket.Begin) || !core::writing_boundary(*raw, aTicket.End)) {
+				return std::unexpected("invalid_range");
+			}
+			const bool whole = aTicket.Begin == 0 && aTicket.End == raw->size();
+			const auto scope = core::writing_blank(*raw) ? core::writing_scope::empty_field : whole ? core::writing_scope::field
+																									: core::writing_scope::selection;
+			if (scope != aTicket.Scope || (scope == core::writing_scope::selection && aTicket.Begin == aTicket.End)) {
+				return std::unexpected("invalid_range");
+			}
+		}
+		aTicket.Id      = ++self.AssistSequence;
+		aTicket.Expires = aNow + std::chrono::duration_cast<std::chrono::seconds>(assist_lifetime).count();
+		if (!valid(aTicket)) {
+			--self.AssistSequence;
+			return std::unexpected("invalid_ticket");
+		}
+		self.prune_assist(aNow);
+		self.Tickets.clear();
+		self.Tickets.push_back(aTicket);
+		++self.JournalGeneration;
+		self.pump();
+		return aTicket;
+	}
+	auto review_tour_host::assist_ticket(std::uint64_t aId) const -> std::optional<tour_assist_ticket>
+	{
+		const auto found = std::ranges::find(Implementation->Tickets, aId, &tour_assist_ticket::Id);
+		return found == Implementation->Tickets.end() ? std::nullopt : std::optional{ *found };
+	}
+	auto review_tour_host::assist_proposal(std::uint64_t aId) const -> std::optional<tour_assist_proposal>
+	{
+		const auto found = std::ranges::find(Implementation->Proposals, aId, &tour_assist_proposal::Id);
+		return found == Implementation->Proposals.end() ? std::nullopt : std::optional{ *found };
+	}
+	void review_tour_host::assist_cancel()
+	{
+		auto& self = *Implementation;
+		if (self.Tickets.empty() && self.Proposals.empty()) {
+			return;
+		}
+		self.Tickets.clear();
+		self.Proposals.clear();
+		++self.JournalGeneration;
+		self.pump();
 	}
 	auto review_tour_host::request_status(std::string_view aId) const -> std::optional<tour_request_receipt>
 	{

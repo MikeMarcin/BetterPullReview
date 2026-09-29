@@ -119,6 +119,7 @@ namespace bpr::core {
 		std::optional<tour_source_range> Source;
 		std::vector<tour_source_range>   Related;
 		tour_suggestion                  Suggestion;
+		auto                             operator==(const tour_outline_entry&) const -> bool = default;
 	};
 	/// \brief Current presentation observation, supplied by composition at the author gesture.
 	struct tour_attention

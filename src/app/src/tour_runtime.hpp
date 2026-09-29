@@ -5,19 +5,14 @@
 #include "bpr/application/review_submission_application_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_source.hpp"
+#include "tour_assist.hpp"
+#include "tour_cli_types.hpp"
 #include "tour_publication_plan.hpp"
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
 namespace bpr::app {
-	struct tour_cli_error
-	{
-		std::string Code, Message;
-		int         Exit = 7;
-	};
-	template <typename T>
-	using tour_cli_result = std::expected<T, tour_cli_error>;
 	struct tour_remote_read
 	{
 		application::tour_saved_target            Target;
@@ -54,6 +49,8 @@ namespace bpr::app {
 		std::size_t                                      PendingServerReviews = 0;
 		application::tour_resume_hint                    Resume{ };
 		std::optional<application::tour_request_receipt> Receipt{ };
+		/// Assist context, an assist or outline outcome, or hooks: one bounded JSON document, or empty.
+		std::string AssistJson{ };
 	};
 	/// \brief Read-only preview or journal recovery; the plan itself grants no writes.
 	struct tour_publication_preview
@@ -86,6 +83,14 @@ namespace bpr::app {
 		[[nodiscard]] auto load(std::string_view aDraft, bool aMachine) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>;
 		[[nodiscard]] auto mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>;
+		/// \brief Issues the draft's one live assist ticket. `aExtra` is source evidence this process read itself;
+		/// a running owner cannot yet read a provider for it, so a forwarded request must carry none.
+		[[nodiscard]] auto assist_issue(std::string_view aDraft, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra) -> tour_cli_result<tour_local_snapshot>;
+		[[nodiscard]] auto assist_cancel(std::string_view aDraft) -> tour_cli_result<tour_local_snapshot>;
+		/// \brief Effective hooks as one JSON document; a running owner answers from its own settings.
+		[[nodiscard]] auto hooks_show() -> tour_cli_result<std::string>;
+		/// \brief Replaces or clears one hook override. Only the profile owner may; a running desktop's settings are its own.
+		[[nodiscard]] auto hooks_store(core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<std::string>;
 		/// \brief Reads the durable outcome of one exact earlier local request; never replays it.
 		[[nodiscard]] auto request_status(std::string_view aDraft, std::string_view aRequest) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto prepare_publication(std::string_view, bool aGh, tour_publication_options, std::string_view aAttempt = { }, bool aRecover = false) -> tour_cli_result<tour_publication_preview>;

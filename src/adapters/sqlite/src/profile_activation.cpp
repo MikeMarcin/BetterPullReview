@@ -943,7 +943,7 @@ namespace bpr::adapters::sqlite {
 		}
 		auto make_tour_hello(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, bool aOwner) -> tour_hello
 		{
-			tour_hello result{ 'B', 'P', 'R', 'T', 1, 0, 0, 0 };
+			tour_hello result{ 'B', 'P', 'R', 'T', 2, 0, 0, 0 };
 			for (unsigned i = 0; i < 8; ++i) {
 				result[8 + i] = static_cast<std::uint8_t>(aProfile.value() >> (i * 8));
 			}

@@ -125,10 +125,10 @@ namespace bpr::adapters::sqlite {
 				aCodec.tour(aState.Draft);
 				return;
 			}
-			std::uint8_t marker = 84, version = 3;
+			std::uint8_t marker = 84, version = 4;
 			aCodec.byte(marker);
 			aCodec.byte(version);
-			if (marker != 84 || version < 1 || version > 3) {
+			if (marker != 84 || version < 1 || version > 4) {
 				aCodec.Good = false;
 				return;
 			}
@@ -171,6 +171,51 @@ namespace bpr::adapters::sqlite {
 					aCodec.byte(aReceipt.Status);
 					aCodec.enumeration(aReceipt.Refusal);
 					aCodec.number(aReceipt.Revision);
+					if (version >= 4) {
+						aCodec.number(aReceipt.Value);
+					}
+				});
+			}
+			if (version >= 4) {
+				aCodec.number(aState.AssistSequence);
+				aCodec.list(aState.Tickets, application::maximum_tour_assist_tickets, [&](auto& aTicket) {
+					aCodec.number(aTicket.Id);
+					aCodec.enumeration(aTicket.Hook);
+					aCodec.id(aTicket.Stop);
+					aCodec.enumeration(aTicket.Scope);
+					aCodec.number(aTicket.Begin);
+					aCodec.number(aTicket.End);
+					aCodec.number(aTicket.DraftRevision);
+					aCodec.number(aTicket.HookRevision);
+					for (auto* digest : { &aTicket.RawDigest, &aTicket.ContextDigest }) {
+						for (auto& byte : *digest) {
+							aCodec.byte(byte);
+						}
+					}
+					aCodec.list(aTicket.Sources, application::maximum_assist_sources, [&](auto& aSource) {
+						aCodec.text(aSource.Id, 128);
+						aCodec.text(aSource.Text, 4096);
+						aCodec.optional(aSource.Source, [&](auto& aRange) { aCodec.source(aRange); });
+					});
+					auto expires = static_cast<std::uint64_t>(aTicket.Expires);
+					aCodec.number(expires);
+					aTicket.Expires = static_cast<std::int64_t>(expires);
+					aCodec.text(aTicket.Session, application::maximum_assist_session_bytes);
+				});
+				aCodec.list(aState.Proposals, application::maximum_tour_assist_proposals, [&](auto& aProposal) {
+					aCodec.number(aProposal.Id);
+					aCodec.number(aProposal.DraftRevision);
+					auto expires = static_cast<std::uint64_t>(aProposal.Expires);
+					aCodec.number(expires);
+					aProposal.Expires = static_cast<std::int64_t>(expires);
+					aCodec.list(aProposal.Entries, 24, [&](auto& aEntry) {
+						aCodec.text(aEntry.Title, 180);
+						aCodec.optional(aEntry.Source, [&](auto& aRange) { aCodec.source(aRange); });
+						aCodec.list(aEntry.Related, 8, [&](auto& aRange) { aCodec.source(aRange); });
+						aCodec.text(aEntry.Suggestion.AnchorRef, 128);
+						aCodec.text(aEntry.Suggestion.Reason, 240);
+						aCodec.text(aEntry.Suggestion.Question, 240);
+					});
 				});
 			}
 		}

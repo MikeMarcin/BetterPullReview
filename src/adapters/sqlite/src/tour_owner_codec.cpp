@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+#include "bpr/application/tour_assist.hpp"
 #include "bpr/core/sha256.hpp"
 #include "review_tour_codec.hpp"
 namespace bpr::adapters::sqlite {
@@ -23,8 +24,21 @@ namespace bpr::adapters::sqlite {
 			aCodec.number(c.Attention.EditorVisible);
 			aCodec.optional(c.Attention.Source, [&](auto& aValue) { aCodec.source(aValue); });
 			aCodec.number(c.Attention.SourceUnavailable);
+			const bool assisting = aRequest.Operation == application::tour_service_operation::assist_complete || aRequest.Operation == application::tour_service_operation::outline_use;
+			if (assisting) {
+				auto& a = aRequest.Assist;
+				aCodec.number(a.Id);
+				aCodec.text(a.ResultJson, 32768);
+				aCodec.list(a.Indices, 24, [&](auto& aIndex) { aCodec.number(aIndex); });
+				aCodec.number(a.Position);
+				// The caller supplies the answer only. The receiver reads the clock and the hook itself, and
+				// the command is built from the stored ticket: nothing else may ride along.
+				if (a.Now != 0 || a.CurrentHookRevision != 0 || c.Kind != core::tour_command_kind::problem || !c.Text.empty() || c.Stop.value() != 0 || !(c.Value == core::tour_stop{ }) || c.Position != 0 || c.SplitByte != 0 || c.Baseline || !c.Selection.empty() || c.ExpectedRevision != 0) {
+					aCodec.Good = false;
+				}
+			}
 			// Observation, arbitrary restore and imported/provider state cannot enter via IPC.
-			if (aRequest.Operation > application::tour_service_operation::redo || aRequest.Origin > application::tour_presentation_origin::command_client || c.Kind > core::tour_command_kind::visit || c.Kind == core::tour_command_kind::observe_head || c.Kind == core::tour_command_kind::restore || c.Kind == core::tour_command_kind::insert_outline || c.Restore || !c.Outline.empty()) {
+			if (aRequest.Operation == application::tour_service_operation::import_selected || aRequest.Operation > application::tour_service_operation::outline_use || aRequest.Origin > application::tour_presentation_origin::command_client || c.Kind > core::tour_command_kind::visit || c.Kind == core::tour_command_kind::observe_head || c.Kind == core::tour_command_kind::restore || c.Kind == core::tour_command_kind::insert_outline || c.Restore || !c.Outline.empty()) {
 				aCodec.Good = false;
 			}
 		}
@@ -33,11 +47,26 @@ namespace bpr::adapters::sqlite {
 			aCodec.enumeration(aRequest.Operation);
 			aCodec.text(aRequest.Draft, 64);
 			aCodec.text(aRequest.Edit.RequestId, 64);
-			if (aRequest.Operation > application::tour_owner_operation::request_status || aRequest.Draft.size() != 64) {
+			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show;
+			if (aRequest.Operation > application::tour_owner_operation::hooks_show || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
 				aCodec.Good = false;
 			}
 			if (aRequest.Operation == application::tour_owner_operation::mutate) {
 				edit_codec(aCodec, aRequest.Edit);
+			}
+			if (aRequest.Operation == application::tour_owner_operation::assist_issue) {
+				auto& q = aRequest.Assist;
+				aCodec.enumeration(q.Hook);
+				aCodec.id(q.Stop);
+				aCodec.number(q.HasRange);
+				aCodec.number(q.HasQuote);
+				aCodec.number(q.Begin);
+				aCodec.number(q.End);
+				aCodec.text(q.Quote, 8192);
+				aCodec.text(q.Session, application::maximum_assist_session_bytes);
+				if (q.Hook > core::writing_hook::comment || (q.Hook == core::writing_hook::comment) != (q.Stop.value() != 0) || (q.HasRange && q.HasQuote) || (!q.HasRange && (q.Begin || q.End)) || (!q.HasQuote && !q.Quote.empty()) || !core::valid_writing_utf8(q.Quote) || !core::valid_writing_utf8(q.Session)) {
+					aCodec.Good = false;
+				}
 			}
 		}
 		void response_codec(detail::tour_codec& aCodec, application::tour_owner_response& aResponse)
@@ -50,6 +79,7 @@ namespace bpr::adapters::sqlite {
 			aCodec.id(aResponse.Resume.Stop);
 			aCodec.optional(aResponse.Receipt, [&](auto& aReceipt) { aCodec.text(aReceipt.Id,64); for(auto& aValue:aReceipt.Digest){aCodec.byte(aValue);} aCodec.byte(aReceipt.Status); aCodec.enumeration(aReceipt.Refusal); aCodec.number(aReceipt.Revision); });
 			aCodec.text(aResponse.Error, 128);
+			aCodec.text(aResponse.Json, 65536);
 			if (aResponse.Draft && core::validate(*aResponse.Draft) != core::tour_refusal::none) {
 				aCodec.Good = false;
 			}

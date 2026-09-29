@@ -112,14 +112,43 @@ namespace bpr::core {
 		if (request.Target.Hook == writing_hook::outline || request.Target != aCurrent || request.RawDigest != writing_digest(aRaw) || request.Raw != aRaw) {
 			return std::unexpected(writing_refusal::stale);
 		}
-		const auto begin = request.Selection.Begin, end = request.Selection.End;
-		if (!valid_writing_utf8(aReplacement) || aReplacement.size() > maximum_tour_field_bytes || aRaw.size() - (end - begin) > maximum_tour_field_bytes - aReplacement.size()) {
+		auto text = splice_writing_result(aRaw, request.Selection.Begin, request.Selection.End, aReplacement);
+		if (!text) {
+			return std::unexpected(text.error());
+		}
+		return writing_edit{ std::move(request), std::move(aReplacement), std::move(*text) };
+	}
+	auto splice_writing_result(std::string_view aRaw, std::size_t aBegin, std::size_t aEnd, std::string_view aReplacement) -> std::expected<std::string, writing_refusal>
+	{
+		if (aBegin > aEnd || aEnd > aRaw.size() || !writing_boundary(aRaw, aBegin) || !writing_boundary(aRaw, aEnd)) {
+			return std::unexpected(writing_refusal::invalid_capture);
+		}
+		if (!valid_writing_utf8(aReplacement) || aReplacement.size() > maximum_tour_field_bytes || aRaw.size() - (aEnd - aBegin) > maximum_tour_field_bytes - aReplacement.size()) {
 			return std::unexpected(writing_refusal::invalid_result);
 		}
-		if (aRaw.substr(begin, end - begin) == aReplacement) {
+		if (aRaw.substr(aBegin, aEnd - aBegin) == aReplacement) {
 			return std::unexpected(writing_refusal::unchanged);
 		}
-		auto text = std::string{ aRaw.substr(0, begin) } + aReplacement + std::string{ aRaw.substr(end) };
-		return writing_edit{ std::move(request), std::move(aReplacement), std::move(text) };
+		return std::string{ aRaw.substr(0, aBegin) } + std::string{ aReplacement } + std::string{ aRaw.substr(aEnd) };
+	}
+	auto writing_quote_range(std::string_view aRaw, std::string_view aQuote) -> std::expected<std::pair<std::size_t, std::size_t>, writing_refusal>
+	{
+		if (aQuote.empty() || aQuote.size() > aRaw.size() || !valid_writing_utf8(aRaw) || !valid_writing_utf8(aQuote)) {
+			return std::unexpected(aQuote.empty() || !valid_writing_utf8(aQuote) || !valid_writing_utf8(aRaw) ? writing_refusal::invalid_capture : writing_refusal::not_found);
+		}
+		std::size_t begin = std::string_view::npos, count = 0;
+		for (auto at = aRaw.find(aQuote); at != std::string_view::npos; at = aRaw.find(aQuote, at + 1)) {
+			if (++count > 1) {
+				return std::unexpected(writing_refusal::ambiguous);
+			}
+			begin = at;
+		}
+		if (count == 0) {
+			return std::unexpected(writing_refusal::not_found);
+		}
+		if (!writing_boundary(aRaw, begin) || !writing_boundary(aRaw, begin + aQuote.size())) {
+			return std::unexpected(writing_refusal::invalid_capture);
+		}
+		return std::pair{ begin, begin + aQuote.size() };
 	}
 }

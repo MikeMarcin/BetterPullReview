@@ -388,3 +388,19 @@ history.
 Commands that read the provider (`add`, `open`, `show --source`, `walk`, refresh,
 publish and recover) are not forwarded and answer `interaction_required` while a
 desktop owns the profile. BPR-1227 tracks forwarding the source reads.
+
+## Assistance tickets
+
+The active agent of RFC-BPR-0046 asks for writing help through two short-lived
+requests rather than a nested model. An assist ticket is a bounded record in the
+draft's shared journal, committed under the same compare-and-set as the draft. It
+fixes the hook, the field, the exact byte interval, the draft revision, the field's
+digest, the hook revision and a snapshot of the sources, and it expires after
+thirty minutes. The draft holds one live ticket; a new one supersedes the old.
+Answering names the ticket and supplies only a result. The result is decoded by the
+parent RFC-BPR-0043 contract, the ticket is spent, and only a result whose revision,
+field bytes and hook revision still match is spliced in through the shared text
+transaction as one undoable edit. Outline answers become body-free proposals kept
+in the same journal, and a chosen subset is inserted as Suggested stops through the
+existing structural command. Read paths issue nothing, and nothing here reads a
+provider or starts a process.

@@ -335,6 +335,83 @@ namespace {
 		const auto refused = store->save_state(forged, forged.Draft.Revision, { });
 		expect(!refused && refused.error().Failure == application::tour_store_failure::conflict, "same-revision content cannot be smuggled in beside a receipt");
 	}
+	/// [[BPR-1064]]. A pending request for the active agent belongs to the draft's journal, so it pairs
+	/// across short-lived processes and an owner change, and every bound of it is validated on read.
+	void durable_assist_tickets()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "tour-assist" };
+		const auto                           seed = tests::review_tour_fixture();
+		const auto                           run  = [&](auto&& aStep) {
+			application::manual_executor  effects, decisions;
+			application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile), effects, decisions, [](const auto&) { } };
+			host.start();
+			effects.drain();
+			decisions.drain();
+			auto result = aStep(host);
+			host.shutdown();
+			while (!host.is_quiescent()) {
+				effects.drain();
+				decisions.drain();
+			}
+			return result;
+		};
+		const std::int64_t now    = 5000;
+		const auto         issued = run([&](application::review_tour_host& aHost) {
+			const auto                      draft = aHost.presentation().Draft;
+			application::tour_assist_ticket ticket{ .Hook = core::writing_hook::problem, .Scope = core::writing_scope::selection, .Begin = 6, .End = 11, .DraftRevision = draft->Revision, .HookRevision = 3, .Sources = { { "field-before", "Crash ", std::nullopt } }, .Session = "cli" };
+			ticket.RawDigest  = core::writing_digest(draft->Problem);
+			const auto result = aHost.assist_issue(ticket, now);
+			expect(result.has_value(), "the first host issues a ticket");
+			return *result;
+		});
+		// The next process finds the same ticket and can complete it: a journal-only save was durable.
+		run([&](application::review_tour_host& aHost) {
+			const auto found = aHost.assist_ticket(issued.Id);
+			expect(found && *found == issued, "the ticket survives the process that issued it, with its bound sources");
+			const auto                        draft = aHost.presentation().Draft;
+			application::tour_service_request request{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = "complete-1", .Assist = { .Id = issued.Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"When\",\"notes\":[]}", .Now = now + 5, .CurrentHookRevision = 3 } };
+			request.Digest.fill(9);
+			const auto result = aHost.execute(request);
+			expect(result.Status == application::tour_service_status::accepted && aHost.presentation().Draft->Problem.starts_with("Crash When"), "a later process completes exactly the issued range");
+			return 0;
+		});
+		// Spending it was durable too, and a lost answer replays from the record.
+		run([&](application::review_tour_host& aHost) {
+			expect(!aHost.assist_ticket(issued.Id).has_value(), "the spent ticket did not come back");
+			const auto                        draft = aHost.presentation().Draft;
+			application::tour_service_request request{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = "complete-1", .Assist = { .Id = issued.Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"When\",\"notes\":[]}", .Now = now + 6, .CurrentHookRevision = 3 } };
+			request.Digest.fill(9);
+			expect(aHost.execute(request).Replayed, "a duplicate delivery after restart replays the stored outcome");
+			return 0;
+		});
+		// Bounds are validated on the stored record.
+		auto store = adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile);
+		auto state = store->load_state(seed.Owner, seed.Id, { });
+		expect(state && state->has_value(), "the stored record");
+		auto invalid           = state->value();
+		invalid.AssistSequence = 5;
+		application::tour_assist_ticket good{ .Id = 2, .Hook = core::writing_hook::problem, .Scope = core::writing_scope::field, .Begin = 0, .End = 1, .DraftRevision = 1, .HookRevision = 1, .Session = "x" };
+		invalid.Tickets.push_back(good);
+		expect(application::valid(invalid), "a bounded ticket is valid");
+		auto future                          = invalid;
+		future.Tickets.front().DraftRevision = invalid.Draft.Revision + 1U;
+		expect(!application::valid(future), "a ticket for a revision the draft never reached is not valid");
+		auto beyond               = invalid;
+		beyond.Tickets.front().Id = 9;
+		expect(!application::valid(beyond), "a ticket beyond the sequence is not valid");
+		auto crowded = invalid;
+		crowded.Tickets.assign(application::maximum_tour_assist_tickets + 1U, good);
+		expect(!application::valid(crowded), "the tickets are bounded");
+		auto hostile = invalid;
+		hostile.Tickets.front().Sources.push_back({ "s", std::string(4097, 'x'), std::nullopt });
+		expect(!application::valid(hostile), "an oversized source is not valid");
+		auto stopless                 = invalid;
+		stopless.Tickets.front().Hook = core::writing_hook::comment;
+		expect(!application::valid(stopless), "a comment ticket must name its stop and no other hook may");
+		expect(store->save_state(invalid, invalid.Draft.Revision, { }).has_value(), "a ticket-only save at the current revision commits");
+		auto reread = store->load_state(seed.Owner, seed.Id, { });
+		expect(reread && reread->has_value() && reread->value().Tickets.size() == 1 && reread->value().AssistSequence == 5, "and reads back");
+	}
 	void composed_storage_host()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-host" };
@@ -374,4 +451,5 @@ int main()
 	storage();
 	composed_storage_host();
 	durable_request_receipts();
+	durable_assist_tickets();
 }

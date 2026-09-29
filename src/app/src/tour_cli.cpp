@@ -96,7 +96,7 @@ namespace bpr::app {
 			std::optional<core::tour_attention> WalkAttention;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
-		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover" }; }
+		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline" }; }
 		auto local_edit(const QString& aCommand) -> bool { return QStringList{ "edit", "move", "remove", "ready", "add", "undo", "redo" }.contains(aCommand); }
 		auto service_operation(const QString& aCommand) -> application::tour_service_operation
 		{
@@ -148,7 +148,7 @@ namespace bpr::app {
 				return refuse("input_too_large", "Too many command arguments.");
 			}
 			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description" };
-			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id" };
+			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id", "--hook", "--field", "--range-bytes", "--quote", "--sources", "--session", "--ticket", "--result", "--indices" };
 			QStringList       words;
 			for (qsizetype i = 0; i < aArguments.size(); ++i) {
 				const auto& value = aArguments[i];
@@ -191,7 +191,20 @@ namespace bpr::app {
 			}
 			const bool takesArgument     = QStringList{ "open", "show", "edit", "move", "remove", "ready" }.contains(result.Command);
 			const auto expectedArguments = (takesArgument || (result.Command == "add" && !result.Values.contains("--path"))) ? 1 : 0;
-			if (result.Positional.size() != expectedArguments) {
+			if (result.Command == "hooks") {
+				const auto sub = result.Positional.value(0);
+				if (!(sub == "show" && result.Positional.size() <= 2) && !((sub == "edit" || sub == "reset") && result.Positional.size() == 2)) {
+					return refuse("invalid_input", "Use hooks show [HOOK], hooks edit HOOK or hooks reset HOOK.");
+				}
+			} else if (result.Command == "assist") {
+				if (result.Positional.size() != 1 || !QStringList{ "context", "complete", "cancel" }.contains(result.Positional[0])) {
+					return refuse("invalid_input", "Use assist context, assist complete or assist cancel.");
+				}
+			} else if (result.Command == "outline") {
+				if (result.Positional.size() != 2 || result.Positional[0] != "use") {
+					return refuse("invalid_input", "Use outline use PROPOSAL --indices LIST.");
+				}
+			} else if (result.Positional.size() != expectedArguments) {
 				return refuse("invalid_input", "Unexpected positional arguments.");
 			}
 			if (result.Values.contains("--request-id")) {
@@ -249,6 +262,20 @@ namespace bpr::app {
 			}
 			if (result.Command == "move") {
 				allowed.append({ "--before", "--after" });
+			}
+			if (result.Command == "hooks" && result.Positional.value(0) == "edit") {
+				allowed.append("--file");
+			}
+			if (result.Command == "assist") {
+				allowed.append("--draft");
+				if (result.Positional[0] == "context") {
+					allowed.append({ "--hook", "--field", "--range-bytes", "--quote", "--sources", "--session", "--transport" });
+				} else if (result.Positional[0] == "complete") {
+					allowed.append({ "--ticket", "--result", "--request-id" });
+				}
+			}
+			if (result.Command == "outline") {
+				allowed.append({ "--draft", "--indices", "--after", "--request-id" });
 			}
 			for (const auto& option : result.Values.keys()) {
 				if (!allowed.contains(option)) {
@@ -673,14 +700,18 @@ namespace bpr::app {
 			return output;
 		}
 		auto walk(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
+		auto assist_command(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
 
 		auto perform(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
 		{
 			if (aOptions.Command == "walk") {
 				return walk(aOptions, std::move(aReaders));
 			}
+			if (aOptions.Command == "hooks" || aOptions.Command == "assist" || aOptions.Command == "outline") {
+				return assist_command(aOptions, std::move(aReaders));
+			}
 			if (aOptions.Command == "capabilities" || aOptions.Command == "help") {
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "standalone; busy refusal for another owner" }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover\nNo GUI or AI provider required.\n", { } };
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v2 for local draft commands and assist; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" } }, "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline\nNo GUI or AI provider required.\n", { } };
 			}
 			const auto transport = aOptions.Values.value("--transport", "native");
 			if (transport != "native" && transport != "gh") {
@@ -945,6 +976,272 @@ namespace bpr::app {
 					++index;
 				}
 			}
+		}
+
+		auto assist_json(const QString& aJson) -> QJsonObject { return QJsonDocument::fromJson(aJson.toUtf8()).object(); }
+		auto parse_byte_range(const QString& aValue) -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+		{
+			const auto parts = aValue.split(':');
+			if (parts.size() != 2) {
+				return std::nullopt;
+			}
+			const auto zeroOk = [](const QString& aText) -> std::optional<std::uint64_t> {
+				bool       ok    = false;
+				const auto value = aText.toULongLong(&ok);
+				return ok && aText == QString::number(value) ? std::optional{ value } : std::nullopt;
+			};
+			const auto begin = zeroOk(parts[0]), end = zeroOk(parts[1]);
+			return begin && end ? std::optional{ std::pair{ *begin, *end } } : std::nullopt;
+		}
+		auto hooks_command(const command_options& aOptions, std::unique_ptr<tour_runtime>& aRuntime, const QString& aBase, tour_reader_factory aReaders) -> tour_cli_result<presentation>
+		{
+			const auto                        sub = aOptions.Positional[0];
+			std::optional<core::writing_hook> hook;
+			if (aOptions.Positional.size() == 2) {
+				hook = parse_tour_hook(aOptions.Positional[1].toStdString());
+				if (!hook) {
+					return refuse("invalid_hook", "Use problem, solution, outline or comment.");
+				}
+			}
+			auto shown = aRuntime->hooks_show();
+			if (!shown) {
+				return std::unexpected(shown.error());
+			}
+			std::string effective;
+			if (hook) {
+				for (const auto& entry : assist_json(text(*shown))["hooks"].toArray()) {
+					if (entry.toObject()["name"].toString().toStdString() == tour_hook_name(*hook)) {
+						effective = entry.toObject()["instructions"].toString().toStdString();
+					}
+				}
+			}
+			if (sub == "edit" || sub == "reset") {
+				std::string instructions;
+				if (sub == "edit") {
+					std::optional<tour_editor_candidate> candidate;
+					tour_cli_result<std::string>         input;
+					aRuntime.reset();
+					if (aOptions.Values.contains("--file")) {
+						input = read_tour_text_input(aOptions.Values["--file"]);
+					} else if (!aOptions.Interactive) {
+						return refuse("interaction_required", "Non-interactive hook edits require --file PATH or --file -.", 3);
+					} else {
+						auto edited = run_tour_editor(effective);
+						if (!edited) {
+							return std::unexpected(edited.error());
+						}
+						candidate = std::move(*edited);
+						input     = candidate->Text;
+					}
+					if (!input) {
+						return std::unexpected(input.error());
+					}
+					instructions = std::move(*input);
+					aRuntime     = std::make_unique<tour_runtime>(native_filesystem_path(aBase), aOptions.Values.value("--profile").toStdString(), aReaders);
+					if (candidate) {
+						cleanup_tour_editor(*candidate);
+					}
+				}
+				shown = aRuntime->hooks_store(*hook, std::move(instructions));
+				if (!shown) {
+					return std::unexpected(shown.error());
+				}
+			}
+			const auto   document = assist_json(text(*shown));
+			presentation result{ QJsonObject{ { "hooks", document["hooks"] }, { "hooks_revision", document["revision"] }, { "hook_version", document["version"] } }, { }, { } };
+			for (const auto& entry : document["hooks"].toArray()) {
+				const auto object = entry.toObject();
+				if (!hook || object["name"].toString().toStdString() == tour_hook_name(*hook)) {
+					result.Human += object["name"].toString() + (object["customized"].toBool() ? " (customized)\n" : " (shipped)\n");
+					if (hook) {
+						result.Human += object["instructions"].toString() + "\n";
+					}
+				}
+			}
+			return result;
+		}
+		auto assist_command(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
+		{
+			if (!aOptions.Interactive && !aOptions.Values.contains("--profile")) {
+				return refuse("target_ambiguous", "Machine commands require --profile and --draft.");
+			}
+			const auto transport = aOptions.Values.value("--transport", "native");
+			if (transport != "native" && transport != "gh") {
+				return refuse("unsupported_transport", "Use native or gh.");
+			}
+			const auto base = aOptions.Values.value("--data-root", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+			if (!QDir::isAbsolutePath(base)) {
+				return refuse("invalid_profile_root", "--data-root must be an absolute private path.");
+			}
+			auto runtime = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
+			if (const auto admission = runtime->admission(); !admission) {
+				return std::unexpected(admission.error());
+			}
+			if (aOptions.Command == "hooks") {
+				return hooks_command(aOptions, runtime, base, aReaders);
+			}
+			const auto draftId = aOptions.Values.value("--draft").toStdString();
+			auto       loaded  = runtime->load(draftId, !aOptions.Interactive);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			const auto token  = tour_runtime::draft_token(loaded->Target);
+			const auto origin = aOptions.Json ? application::tour_presentation_origin::command_client : application::tour_presentation_origin::terminal;
+			const auto finish = [&](const tour_local_snapshot& aSnapshot, QString aHuman) -> tour_cli_result<presentation> {
+				auto rendered = render_snapshot(aOptions, aSnapshot);
+				if (!rendered) {
+					return rendered;
+				}
+				rendered->Data["changed"] = aSnapshot.Draft.Revision != loaded->Draft.Revision;
+				if (!aSnapshot.AssistJson.empty()) {
+					rendered->Data["assist"] = assist_json(text(aSnapshot.AssistJson));
+				}
+				rendered->Human += aHuman;
+				return rendered;
+			};
+			const auto sub = aOptions.Command == "assist" ? aOptions.Positional[0] : QString{ "use" };
+			if (sub == "cancel") {
+				auto cancelled = runtime->assist_cancel(token);
+				if (!cancelled) {
+					return std::unexpected(cancelled.error());
+				}
+				return finish(*cancelled, "Pending requests and proposals were closed.\n");
+			}
+			if (sub == "context") {
+				const auto hook = parse_tour_hook(aOptions.Values.value("--hook").toStdString());
+				if (!hook) {
+					return refuse("invalid_hook", "Use --hook problem, solution, outline or comment.");
+				}
+				tour_assist_query query{ .Hook = *hook, .Session = aOptions.Values.value("--session", "cli").toStdString() };
+				const auto        field = aOptions.Values.value("--field");
+				if (*hook == core::writing_hook::outline) {
+					if (!field.isEmpty() || aOptions.Values.contains("--range-bytes") || aOptions.Values.contains("--quote")) {
+						return refuse("invalid_input", "An outline is for the whole draft: omit --field, --range-bytes and --quote.");
+					}
+				} else if (*hook == core::writing_hook::comment) {
+					const auto parts = field.split(':');
+					const auto id    = parts.size() == 2 && parts[0] == "stop" ? number(parts[1]) : std::nullopt;
+					if (!id) {
+						return refuse("invalid_field", "The comment hook writes one stop's body: use --field stop:ID with a stable stop ID.");
+					}
+					query.Stop = core::tour_stop_id{ *id };
+				} else if (field != QString::fromStdString(std::string{ tour_hook_name(*hook) })) {
+					return refuse("invalid_field", "Use --field problem with the problem hook and --field solution with the solution hook.");
+				}
+				if (aOptions.Values.contains("--range-bytes")) {
+					query.Range = parse_byte_range(aOptions.Values["--range-bytes"]);
+					if (!query.Range) {
+						return refuse("invalid_range", "Use --range-bytes BEGIN:END, half-open UTF-8 byte offsets.");
+					}
+				}
+				if (aOptions.Values.contains("--quote")) {
+					query.Quote = aOptions.Values["--quote"].toStdString();
+				}
+				std::vector<application::writing_source> extra;
+				const bool                               gh = transport == "gh";
+				if (aOptions.Values.contains("--sources")) {
+					if (*hook != core::writing_hook::outline) {
+						return refuse("invalid_input", "--sources gives an outline its code destinations.");
+					}
+					const auto specs = aOptions.Values["--sources"].split(',', Qt::SkipEmptyParts);
+					if (specs.isEmpty() || specs.size() > 8) {
+						return refuse("invalid_input", "Give one to eight PATH:START-END sources.");
+					}
+					int index = 0;
+					for (const auto& spec : specs) {
+						command_options probe = aOptions;
+						probe.Positional      = { spec };
+						probe.Values.remove("--path");
+						probe.Values.remove("--lines");
+						const auto destination = source_destination(probe, loaded->Draft);
+						if (!destination) {
+							return std::unexpected(destination.error());
+						}
+						runtime.reset();
+						runtime     = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
+						auto source = runtime->source(token, *destination, gh);
+						if (!source) {
+							return std::unexpected(source.error());
+						}
+						extra.push_back({ "source-" + std::to_string(++index), source->Text, source->Source });
+					}
+				}
+				if (*hook == core::writing_hook::comment) {
+					const auto stop = std::ranges::find(loaded->Draft.Stops, query.Stop, &core::tour_stop::Id);
+					if (stop != loaded->Draft.Stops.end()) {
+						if (const auto destination = stop_destination(*stop)) {
+							if (auto source = runtime->source(token, *destination, gh)) {
+								extra.push_back({ "stop-source", source->Text, source->Source });
+							}
+						}
+					}
+				}
+				auto issued = runtime->assist_issue(token, query, std::move(extra));
+				if (!issued) {
+					return std::unexpected(issued.error());
+				}
+				const auto ticket = assist_json(text(issued->AssistJson))["ticket"].toString();
+				return finish(*issued, "Ticket " + ticket + ". Answer it with assist complete; nothing changes until you do.\n");
+			}
+			if (sub == "complete") {
+				const auto ticket = number(aOptions.Values.value("--ticket"));
+				if (!ticket || !aOptions.Values.contains("--result")) {
+					return refuse("invalid_input", "Use assist complete --ticket ID --result PATH|-.");
+				}
+				runtime.reset();
+				auto input = read_tour_text_input(aOptions.Values["--result"]);
+				if (!input) {
+					return std::unexpected(input.error());
+				}
+				if (input->size() > 32768) {
+					return refuse("input_too_large", "The result is larger than 32768 bytes.");
+				}
+				runtime = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
+				application::tour_service_request request{ .Operation = application::tour_service_operation::assist_complete, .Origin = origin, .RequestId = aOptions.RequestId.toStdString(), .Assist = { .Id = *ticket, .ResultJson = std::move(*input) } };
+				auto                              done = runtime->mutate(token, std::move(request));
+				if (!done) {
+					return std::unexpected(done.error());
+				}
+				const auto object = assist_json(text(done->AssistJson));
+				QString    human;
+				if (object["applied"].toBool()) {
+					human = "Updated the captured text. Undo restores it. Nothing published.\n";
+				} else if (object.contains("proposal")) {
+					human = "Outline proposal " + object["proposal"].toObject()["id"].toString() + ". Choose suggestions with outline use.\n";
+				} else {
+					human = object["reason"].toString() + ": " + object["detail"].toString() + "\n";
+				}
+				return finish(*done, human);
+			}
+			// outline use PROPOSAL --indices LIST [--after STOP]
+			const auto proposal = number(aOptions.Positional[1]);
+			if (!proposal || !aOptions.Values.contains("--indices")) {
+				return refuse("invalid_input", "Use outline use PROPOSAL --indices 0,2 [--after STOP].");
+			}
+			std::vector<std::size_t> indices;
+			for (const auto& part : aOptions.Values["--indices"].split(',')) {
+				bool       ok    = false;
+				const auto value = part.toULongLong(&ok);
+				if (!ok || part != QString::number(value) || value > 23) {
+					return refuse("invalid_indices", "Indices are zero-based suggestion numbers, e.g. 0,2.");
+				}
+				indices.push_back(static_cast<std::size_t>(value));
+			}
+			auto position = loaded->Draft.Stops.size();
+			if (aOptions.Values.contains("--after")) {
+				const auto anchor = number(aOptions.Values["--after"]);
+				const auto found  = anchor ? std::ranges::find(loaded->Draft.Stops, core::tour_stop_id{ *anchor }, &core::tour_stop::Id) : loaded->Draft.Stops.end();
+				if (found == loaded->Draft.Stops.end()) {
+					return refuse("unknown_stop", "--after names no stop with that stable ID.");
+				}
+				position = static_cast<std::size_t>(found - loaded->Draft.Stops.begin()) + 1U;
+			}
+			application::tour_service_request request{ .Operation = application::tour_service_operation::outline_use, .Origin = origin, .RequestId = aOptions.RequestId.toStdString(), .Assist = { .Id = *proposal, .Indices = std::move(indices), .Position = position } };
+			auto                              inserted = runtime->mutate(token, std::move(request));
+			if (!inserted) {
+				return std::unexpected(inserted.error());
+			}
+			return finish(*inserted, "Inserted the chosen stops as Suggested. Each still needs your own comment and Ready.\n");
 		}
 
 	}

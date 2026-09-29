@@ -198,4 +198,95 @@ int main()
 		effects.drain();
 		decisions.drain();
 	}
+	{
+		// [[BPR-1064]]. One ticket, one exactly bounded edit, and every way an answer can be stale.
+		auto                          shared4 = std::make_shared<store_state>();
+		application::review_tour_host assisted{ tests::review_tour_fixture(), std::make_unique<store>(shared4), effects, decisions, { } };
+		assisted.start();
+		effects.drain();
+		decisions.drain();
+		const std::int64_t now   = 1000;
+		const auto         drain = [&] {
+			effects.drain();
+			decisions.drain();
+		};
+		const auto request = [&](std::string id, std::uint8_t digest, application::tour_assist_completion completion) {
+			const auto                        draft = assisted.presentation().Draft;
+			application::tour_service_request result{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = std::move(id), .Assist = std::move(completion) };
+			result.Digest.fill(digest);
+			return result;
+		};
+		const auto rewrite = [](std::string text) { return "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"" + text + "\",\"notes\":[]}"; };
+		const auto ticket  = [&](core::writing_hook hook, std::size_t begin, std::size_t end, core::writing_scope scope, std::vector<application::writing_source> sources = { }) {
+			const auto                      draft = assisted.presentation().Draft;
+			application::tour_assist_ticket t{ .Hook = hook, .Scope = scope, .Begin = begin, .End = end, .DraftRevision = draft->Revision, .HookRevision = 7, .Sources = std::move(sources), .Session = "trace" };
+			t.RawDigest = core::writing_digest(hook == core::writing_hook::solution ? draft->Solution : draft->Problem);
+			return t;
+		};
+		const std::string raw = "A caf\xc3\xa9 \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb\r\nsecond caf\xc3\xa9 line, second caf\xc3\xa9.\n";
+		expect(assisted.execute({ .Command = tests::tour_edit(*assisted.presentation().Draft, raw) }).Status == application::tour_service_status::accepted, "the author's own text");
+		drain();
+		// A selection: only those bytes change, as one undoable transaction that undo restores exactly.
+		const auto begin  = raw.find("line");
+		const auto issued = assisted.assist_issue(ticket(core::writing_hook::problem, begin, begin + 4, core::writing_scope::selection), now);
+		expect(issued.has_value() && issued->Id != 0 && issued->Expires == now + 1800, "a ticket is issued for the exact selection");
+		const auto revisionBefore = assisted.presentation().Draft->Revision;
+		const auto done           = assisted.execute(request("assist-1", 1, { .Id = issued->Id, .ResultJson = rewrite("row"), .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(done.Status == application::tour_service_status::accepted && done.Revision == revisionBefore + 1, "a valid result applies at once, with no acceptance step");
+		expect(assisted.presentation().Draft->Problem == raw.substr(0, begin) + "row" + raw.substr(begin + 4) && assisted.presentation().UndoLabel == "Rewrite Problem", "only the selected bytes changed, including CRLF and emoji outside them");
+		assisted.undo();
+		expect(assisted.presentation().Draft->Problem == raw && assisted.presentation().Draft->Revision == revisionBefore + 2, "undo restores the exact bytes with a new revision");
+		drain();
+		expect(assisted.execute(request("assist-1", 1, { .Id = issued->Id, .ResultJson = rewrite("row"), .Now = now + 1, .CurrentHookRevision = 7 })).Replayed, "a lost answer is replayed from the record, not applied again");
+		expect(assisted.execute(request("assist-2", 2, { .Id = issued->Id, .ResultJson = rewrite("row"), .Now = now + 1, .CurrentHookRevision = 7 })).Reason == "unknown_ticket", "a spent ticket cannot be used twice");
+		// Whole field, then a repeated word is the caller's job to disambiguate; here the field scope covers it all.
+		auto whole = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		expect(whole.has_value(), "a whole-field ticket");
+		auto noop = assisted.execute(request("assist-3", 3, { .Id = whole->Id, .ResultJson = rewrite("A caf\xc3\xa9 \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb\\r\\nsecond caf\xc3\xa9 line, second caf\xc3\xa9.\\n"), .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(noop.Status == application::tour_service_status::unchanged && noop.Reason == "unchanged", "an identical result is a no-op that adds no history");
+		// Stale in every way an editor can move under an outstanding request.
+		auto stale = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		expect(assisted.execute({ .Command = tests::tour_edit(*assisted.presentation().Draft, raw + "more") }).Status == application::tour_service_status::accepted, "the author types while a request is outstanding");
+		expect(assisted.execute({ .Command = tests::tour_edit(*assisted.presentation().Draft, raw) }).Status == application::tour_service_status::accepted, "and types back to identical bytes");
+		auto old = assisted.execute(request("assist-4", 4, { .Id = stale->Id, .ResultJson = rewrite("late"), .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(old.Status == application::tour_service_status::refused && old.Reason == "stale" && assisted.presentation().Draft->Problem == raw, "an answer to old bytes is refused even after the text returns to the same bytes");
+		auto moved = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		expect(assisted.execute(request("assist-5", 5, { .Id = moved->Id, .ResultJson = rewrite("hook"), .Now = now + 1, .CurrentHookRevision = 8 })).Reason == "stale", "changed hook instructions refuse an answer to the old ones");
+		auto slow = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		expect(assisted.execute(request("assist-6", 6, { .Id = slow->Id, .ResultJson = rewrite("late"), .Now = now + 1801, .CurrentHookRevision = 7 })).Reason == "expired", "an old request expires");
+		auto first  = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		auto second = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		expect(assisted.execute(request("assist-7", 7, { .Id = first->Id, .ResultJson = rewrite("old"), .Now = now + 1, .CurrentHookRevision = 7 })).Reason == "unknown_ticket" && assisted.assist_ticket(second->Id).has_value(), "a newer request supersedes the older one");
+		auto bad = assisted.execute(request("assist-8", 8, { .Id = second->Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"x\",\"notes\":[],\"target\":\"stop:9\"}", .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(bad.Status == application::tour_service_status::refused && bad.Reason == "invalid_result" && !assisted.assist_ticket(second->Id).has_value() && assisted.presentation().Draft->Problem == raw, "a result that names a target or adds fields is refused and spends the request");
+		auto insufficient = assisted.assist_issue(ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field), now);
+		auto more         = assisted.execute(request("assist-9", 9, { .Id = insufficient->Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"insufficient_context\",\"reason\":\"Need the failing case.\"}", .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(more.Reason == "insufficient_context" && more.Detail == "Need the failing case." && assisted.presentation().Draft->Problem == raw, "insufficient context is reported and changes nothing");
+		expect(!assisted.assist_issue(ticket(core::writing_hook::problem, 3, 3, core::writing_scope::selection), now) && !assisted.assist_issue(ticket(core::writing_hook::problem, raw.find("\r\n") + 1, raw.find("\r\n") + 1 + 3, core::writing_scope::selection), now), "an empty selection or one inside a CRLF pair is not a ticket");
+		auto changed = ticket(core::writing_hook::problem, 0, raw.size(), core::writing_scope::field);
+		changed.DraftRevision += 1;
+		expect(assisted.assist_issue(changed, now).error() == "stale", "a ticket for a revision the draft has not reached is refused");
+		// An outline is a body-free proposal; choosing from it inserts suggested stops, once.
+		application::writing_source anchor{ "selected-source", "code", assisted.presentation().Draft->Stops.front().Original };
+		auto                        outline     = assisted.assist_issue(ticket(core::writing_hook::outline, 0, 0, core::writing_scope::field, { anchor }), now);
+		const std::string           outlineJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"outline\",\"stops\":[{\"title\":\"Boundary\",\"anchor_ref\":\"selected-source\",\"related_refs\":[],\"reason\":\"Start here\",\"author_question\":\"Why?\"},{\"title\":\"Limits\",\"anchor_ref\":\"selected-source\",\"related_refs\":[],\"reason\":\"Then this\",\"author_question\":\"\"}]}";
+		auto                        proposed    = assisted.execute(request("assist-10", 10, { .Id = outline->Id, .ResultJson = outlineJson, .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(proposed.Status == application::tour_service_status::unchanged && proposed.Proposal != 0 && assisted.assist_proposal(proposed.Proposal)->Entries.size() == 2, "an outline result is a proposal, not an edit");
+		const auto                        stopsBefore = assisted.presentation().Draft->Stops.size();
+		application::tour_service_request use{ .Command = { .Draft = assisted.presentation().Draft->Id, .Owner = assisted.presentation().Draft->Owner }, .Operation = application::tour_service_operation::outline_use, .Origin = application::tour_presentation_origin::command_client, .RequestId = "use-1", .Assist = { .Id = proposed.Proposal, .Now = now + 2, .Indices = { 1 }, .Position = stopsBefore } };
+		use.Digest.fill(11);
+		auto insertion = assisted.execute(use);
+		expect(insertion.Status == application::tour_service_status::accepted && assisted.presentation().Draft->Stops.size() == stopsBefore + 1, "the chosen suggestion is inserted");
+		const auto& added = assisted.presentation().Draft->Stops.back();
+		expect(added.Title == "Limits" && added.Body.empty() && added.Preparation == core::tour_preparation::suggested && added.Suggestion && !added.Suggestion->Visited, "it is body-free, suggested and unvisited");
+		auto again      = use;
+		again.RequestId = "use-2";
+		again.Digest.fill(12);
+		expect(assisted.execute(again).Reason == "unknown_proposal", "a proposal is used once");
+		auto badOutline = assisted.assist_issue(ticket(core::writing_hook::outline, 0, 0, core::writing_scope::field, { anchor }), now);
+		auto withBody   = assisted.execute(request("assist-11", 13, { .Id = badOutline->Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"outline\",\"stops\":[{\"title\":\"T\",\"anchor_ref\":\"selected-source\",\"related_refs\":[],\"reason\":\"r\",\"author_question\":\"\",\"body\":\"written\",\"ready\":true}]}", .Now = now + 1, .CurrentHookRevision = 7 }));
+		expect(withBody.Status == application::tour_service_status::refused && withBody.Reason == "invalid_result", "an outline that carries a comment body or a ready flag is refused");
+		assisted.shutdown();
+		drain();
+	}
 }

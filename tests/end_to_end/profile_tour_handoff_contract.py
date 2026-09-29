@@ -136,8 +136,44 @@ def main():
             assert [stop["stop_id"] for stop in data(restored)["stops"]] == [ids[1], ids[0], ids[2]]
             after_undo = ask("outline", "OUTLINE ")
             assert after_undo.startswith(f"OUTLINE {ids[1]},{ids[0]},{ids[2]} "), after_undo
+            # The active agent's request is served where the author is: context and answer both go
+            # through the open window's draft, and never past uncommitted input-method text.
+            def complete(ticket, replacement):
+                answer = json.dumps({"schema": "bpr.review-preparation.result.v1", "kind": "rewrite", "status": "ok",
+                                     "replacement_text": replacement, "notes": []})
+                return bpr("assist", "complete", "--ticket", ticket, "--result", "-", data=answer.encode())
+            hooks = subprocess.run([args.tour_application, "tour", "hooks", "show", "--profile", "1", "--json",
+                                    "--data-root", str(root)], capture_output=True, timeout=60)
+            assert hooks.returncode == 0 and len(json.loads(hooks.stdout)["data"]["hooks"]) == 4, hooks.stdout
+            assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"
+            busy = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
+            assert busy.returncode == 4 and code(busy) == "editor_busy", busy.stdout
+            assert ask("commit \u4e2d", "COMMITTED") == "COMMITTED"
+            before_text = data(bpr("show", "problem"))["text"]
+            assert before_text.count("world") == 1, before_text
+            ask("caret 2", "CARET_SET")
+            issued = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
+            assert issued.returncode == 0, issued.stdout
+            packet = data(issued)["assist"]
+            assert packet["selection"]["text"] == "world" and packet["hook"]["name"] == "problem", packet
+            applied = complete(packet["ticket"], "there")
+            assert applied.returncode == 0 and data(applied)["assist"]["applied"] is True, applied.stdout
+            expected_text = before_text.replace("world", "there")
+            assert ask("problem", "PROBLEM ") == "PROBLEM " + expected_text
+            state = ask("state", "STATE ")
+            assert "focus=problem" in state and "saved=yes" in state, state
+            # The author keeps typing while a request is outstanding: the answer is stale and both texts stay.
+            outstanding = data(bpr("assist", "context", "--hook", "problem", "--field", "problem"))["assist"]["ticket"]
+            ask("type ?", "TYPED")
+            stale_answer = complete(outstanding, "late")
+            assert stale_answer.returncode == 4 and code(stale_answer) == "stale", stale_answer.stdout
+            assert ask("problem", "PROBLEM ") == "PROBLEM " + expected_text + "?"
+            # A source read is not something a running desktop serves yet.
+            sourced = bpr("assist", "context", "--hook", "outline", "--sources", "src/a.cpp:1-3")
+            assert sourced.returncode == 3 and code(sourced) == "interaction_required", sourced.stdout
+            committed = expected_text
             final = data(bpr("show", "problem"))["text"]
-            assert final == committed + "!"
+            assert final == committed + "?", final
             saved = ask("state", "STATE ")
             assert "saved=yes" in saved, saved
             signal.touch()

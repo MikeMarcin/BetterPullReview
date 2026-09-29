@@ -8,7 +8,8 @@ namespace bpr::application {
 	{
 		std::string                            Id;
 		std::string                            Text;
-		std::optional<core::tour_source_range> Source = std::nullopt;
+		std::optional<core::tour_source_range> Source                                          = std::nullopt;
+		auto                                   operator==(const writing_source&) const -> bool = default;
 	};
 	struct writing_note
 	{

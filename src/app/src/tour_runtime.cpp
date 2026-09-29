@@ -183,7 +183,34 @@ namespace bpr::app {
 			Lease = std::move(*lease);
 			Store = adapters::sqlite::make_review_tour_store(Root, Profile);
 		}
-		auto forward(application::tour_owner_request aRequest) -> tour_cli_result<tour_local_snapshot>
+		static auto owner_exit(std::string_view aCode) -> int
+		{
+			if (aCode == "storage_unavailable" || aCode == "owner_unavailable") {
+				return 7;
+			}
+			for (const auto invalid : { "command_refused", "target_ambiguous", "invalid_request", "request_id_required", "invalid_result", "invalid_range", "ambiguous_quote", "quote_not_found", "insufficient_context", "context_too_large", "unknown_stop", "invalid_indices", "source_unavailable", "empty_outline", "invalid_input", "read_only" }) {
+				if (aCode == invalid) {
+					return 2;
+				}
+			}
+			return 4;
+		}
+		/// The owner's answer as a CLI result; `aMessage` is its own bounded line when it gave one.
+		auto owner_failure(const application::tour_owner_response& aResponse) -> tour_cli_error
+		{
+			const auto& code = aResponse.Error;
+			if (code == "editor_busy") {
+				return { code, "The desktop editor holds uncommitted input-method text. Finish or cancel the composition, then retry; nothing was changed.", 4 };
+			}
+			if (code == "owner_busy") {
+				return { code, "The owner is loading or closing that draft. Nothing was changed; retry shortly.", 4 };
+			}
+			if (code == "save_pending") {
+				return { "outcome_unknown", "The owner has not confirmed a durable save. Inspect the exact request ID before any retry; no replay was attempted.", 6 };
+			}
+			return { code, aResponse.Json.empty() ? "The owner refused this command. Current text is retained; inspect the exact draft and request." : aResponse.Json, owner_exit(code) };
+		}
+		auto exchange(const application::tour_owner_request& aRequest) -> tour_cli_result<application::tour_owner_response>
 		{
 			const auto response = effect([&] { return adapters::sqlite::send_tour_owner(Root, Profile, adapters::sqlite::encode_tour_request(aRequest)); });
 			if (!response) {
@@ -192,30 +219,27 @@ namespace bpr::app {
 				}
 				return failure("owner_protocol_unsupported", "The profile is owned but its tour channel is unavailable. Update/reopen that owner; no second writer was opened.", 4);
 			}
-			const auto decoded = adapters::sqlite::decode_tour_response(*response);
+			auto decoded = adapters::sqlite::decode_tour_response(*response);
 			if (!decoded) {
 				return failure("outcome_unknown", "The owner response is invalid. Inspect the request before retrying.", 6);
 			}
 			if (!decoded->Error.empty()) {
-				const auto& code = decoded->Error;
-				if (code == "editor_busy") {
-					return failure(code, "The desktop editor holds uncommitted input-method text. Finish or cancel the composition, then retry; nothing was changed.", 4);
-				}
-				if (code == "owner_busy") {
-					return failure(code, "The owner is loading or closing that draft. Nothing was changed; retry shortly.", 4);
-				}
-				if (code == "save_pending") {
-					return failure("outcome_unknown", "The owner has not confirmed a durable save. Inspect the exact request ID before any retry; no replay was attempted.", 6);
-				}
-				const int exit = code == "revision_conflict" ? 4 : code == "storage_unavailable" || code == "owner_unavailable"             ? 7
-					: code == "command_refused" || code == "target_ambiguous" || code == "invalid_request" || code == "request_id_required" ? 2
-																																			: 4;
-				return failure(code, "The owner refused this command. Current text is retained; inspect the exact draft and request.", exit);
+				return std::unexpected(owner_failure(*decoded));
+			}
+			return std::move(*decoded);
+		}
+		auto forward(application::tour_owner_request aRequest) -> tour_cli_result<tour_local_snapshot>
+		{
+			const auto decoded = exchange(aRequest);
+			if (!decoded) {
+				return std::unexpected(decoded.error());
 			}
 			if (!decoded->Draft || !decoded->Target || decoded->Target->Owner.Profile != Profile || decoded->Draft->Owner != decoded->Target->Owner || draft_token(*decoded->Target) != aRequest.Draft) {
 				return failure("identity_changed", "The owner returned another draft.", 4);
 			}
-			return tour_local_snapshot{ *decoded->Target, *decoded->Draft, decoded->UndoLabel, decoded->RedoLabel, "not_refreshed", 0, decoded->Resume, decoded->Receipt };
+			tour_local_snapshot snapshot{ *decoded->Target, *decoded->Draft, decoded->UndoLabel, decoded->RedoLabel, "not_refreshed", 0, decoded->Resume, decoded->Receipt };
+			snapshot.AssistJson = decoded->Json;
+			return snapshot;
 		}
 
 		auto observe_receipt(const application::tour_saved_target& aTarget, const core::review_tour& aDraft, const application::staged_publication_record& aRecord) -> bool
@@ -462,6 +486,69 @@ namespace bpr::app {
 			}
 		}
 		return loaded;
+	}
+	auto tour_runtime::assist_issue(std::string_view aDraft, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra) -> tour_cli_result<tour_local_snapshot>
+	{
+		auto& self = *Implementation;
+		if (self.Forward) {
+			if (!aExtra.empty()) {
+				return failure("interaction_required", "Source evidence is read through the provider, which a running desktop owner does not yet forward. Ask without --sources, or close the desktop.", 3);
+			}
+			application::tour_owner_request request{ .Operation = application::tour_owner_operation::assist_issue, .Draft = std::string{ aDraft } };
+			request.Assist = { .Hook = aQuery.Hook, .Stop = aQuery.Stop, .HasRange = aQuery.Range.has_value(), .HasQuote = aQuery.Quote.has_value(), .Begin = aQuery.Range ? aQuery.Range->first : 0U, .End = aQuery.Range ? aQuery.Range->second : 0U, .Quote = aQuery.Quote.value_or(std::string{ }), .Session = aQuery.Session };
+			return self.forward(std::move(request));
+		}
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return loaded;
+		}
+		return issue_local_assist(self.Root, self.Profile, *loaded, aQuery, std::move(aExtra), [&](std::function<void()> aTask) { self.effect([&] { aTask(); return 0; }); });
+	}
+	auto tour_runtime::assist_cancel(std::string_view aDraft) -> tour_cli_result<tour_local_snapshot>
+	{
+		auto& self = *Implementation;
+		if (self.Forward) {
+			return self.forward({ .Operation = application::tour_owner_operation::assist_cancel, .Draft = std::string{ aDraft } });
+		}
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return loaded;
+		}
+		return cancel_local_assist(self.Root, self.Profile, *loaded, [&](std::function<void()> aTask) { self.effect([&] { aTask(); return 0; }); });
+	}
+	auto tour_runtime::hooks_show() -> tour_cli_result<std::string>
+	{
+		auto& self = *Implementation;
+		if (self.Failure) {
+			return std::unexpected(*self.Failure);
+		}
+		if (self.Forward) {
+			const auto decoded = self.exchange({ .Operation = application::tour_owner_operation::hooks_show });
+			if (!decoded) {
+				return std::unexpected(decoded.error());
+			}
+			return decoded->Json;
+		}
+		const auto settings = self.effect([&] { return load_tour_hook_settings(self.Root); });
+		if (!settings) {
+			return std::unexpected(settings.error());
+		}
+		return tour_hooks_json(*settings);
+	}
+	auto tour_runtime::hooks_store(core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<std::string>
+	{
+		auto& self = *Implementation;
+		if (self.Failure) {
+			return std::unexpected(*self.Failure);
+		}
+		if (self.Forward) {
+			return failure("interaction_required", "A running desktop owns these settings. Change the hook in its Agents & context settings, or close it first.", 3);
+		}
+		const auto settings = self.effect([&] { return store_tour_hook_override(self.Root, aHook, std::move(aInstructions)); });
+		if (!settings) {
+			return std::unexpected(settings.error());
+		}
+		return tour_hooks_json(*settings);
 	}
 	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
 	{

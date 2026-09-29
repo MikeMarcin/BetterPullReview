@@ -31,7 +31,9 @@ namespace bpr::core {
 												stale,
 												duplicate,
 												invalid_result,
-												unchanged };
+												unchanged,
+												ambiguous,
+												not_found };
 	/// \brief Application-owned identities. Model output never supplies this record.
 	struct writing_target
 	{
@@ -76,6 +78,12 @@ namespace bpr::core {
 	[[nodiscard]] auto writing_digest(std::string_view aText) noexcept -> std::array<std::uint8_t, 32>;
 	[[nodiscard]] auto writing_blank(std::string_view aText) noexcept -> bool;
 	[[nodiscard]] auto writing_boundary(std::string_view aText, std::size_t aOffset) noexcept -> bool;
+	/// \brief Exactly one current match of a quoted passage, as half-open byte offsets of the raw field.
+	/// Zero matches and repeated matches are errors; the scope is never widened to make one match.
+	[[nodiscard]] auto writing_quote_range(std::string_view aRaw, std::string_view aQuote) -> std::expected<std::pair<std::size_t, std::size_t>, writing_refusal>;
+	/// \brief The field text after replacing [aBegin, aEnd) with a result, or why it cannot be applied.
+	/// Shared by every presentation: same bounds, same no-op refusal, same UTF-8 and size limits.
+	[[nodiscard]] auto splice_writing_result(std::string_view aRaw, std::size_t aBegin, std::size_t aEnd, std::string_view aReplacement) -> std::expected<std::string, writing_refusal>;
 	/// \brief One bounded pending replacement. Supersession and consumption retire its ID.
 	class scoped_writing_state final
 	{

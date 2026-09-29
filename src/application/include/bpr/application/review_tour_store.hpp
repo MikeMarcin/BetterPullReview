@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_STORE_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_STORE_HPP
 #include "bpr/application/review_tour_projection.hpp"
+#include "bpr/application/tour_assist.hpp"
 #include <algorithm>
 #include <array>
 #include <deque>
@@ -35,10 +36,12 @@ namespace bpr::application {
 	{
 		std::string                  Id;
 		std::array<std::uint8_t, 32> Digest{ };
-		std::uint8_t                 Status                                                = 0;
-		core::tour_refusal           Refusal                                               = core::tour_refusal::none;
-		std::uint64_t                Revision                                              = 0;
-		auto                         operator==(const tour_request_receipt&) const -> bool = default;
+		std::uint8_t                 Status   = 0;
+		core::tour_refusal           Refusal  = core::tour_refusal::none;
+		std::uint64_t                Revision = 0;
+		/// A proposal ID for an outline completion; zero otherwise.
+		std::uint64_t Value                                                 = 0;
+		auto          operator==(const tour_request_receipt&) const -> bool = default;
 	};
 	/// One compare-and-swap record binds current content and the shared local journal.
 	struct tour_stored_state
@@ -47,6 +50,10 @@ namespace bpr::application {
 		std::deque<tour_history_entry>    Undo, Redo;
 		tour_resume_hint                  Resume{ };
 		std::vector<tour_request_receipt> Receipts{ };
+		/// Pending requests for the active agent and body-free outline proposals; bounded, expiring.
+		std::vector<tour_assist_ticket>   Tickets{ };
+		std::vector<tour_assist_proposal> Proposals{ };
+		std::uint64_t                     AssistSequence                                     = 0;
 		auto                              operator==(const tour_stored_state&) const -> bool = default;
 	};
 	[[nodiscard]] inline auto valid(const tour_stored_state& aState) -> bool
@@ -63,6 +70,19 @@ namespace bpr::application {
 				return false;
 			}
 			ids.push_back(receipt.Id);
+		}
+		if (aState.Tickets.size() > maximum_tour_assist_tickets || aState.Proposals.size() > maximum_tour_assist_proposals) {
+			return false;
+		}
+		for (const auto& ticket : aState.Tickets) {
+			if (!valid(ticket) || ticket.Id > aState.AssistSequence || ticket.DraftRevision > aState.Draft.Revision) {
+				return false;
+			}
+		}
+		for (const auto& proposal : aState.Proposals) {
+			if (!valid(proposal) || proposal.Id > aState.AssistSequence || proposal.DraftRevision > aState.Draft.Revision) {
+				return false;
+			}
 		}
 		for (const auto* history : { &aState.Undo, &aState.Redo }) {
 			std::size_t bytes = 0;

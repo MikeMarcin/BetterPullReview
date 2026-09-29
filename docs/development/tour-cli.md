@@ -224,3 +224,46 @@ nothing; retry after the composition ends. A mutation is answered once it is dur
 and `outcome_unknown` covers the rare save that has not landed within five seconds.
 Your edit appears in the open editor without moving the author's caret, focus or
 selected stop, and a stale edit is a `revision_conflict` that keeps both texts.
+
+## Hooks and assistance for the active agent
+
+`hooks show [HOOK]`, `hooks edit HOOK [--file PATH|-]` and `hooks reset HOOK` read
+and change the profile's four writing hooks (problem, solution, outline, comment),
+the same overrides the desktop's Agents & context settings edit; each change advances
+the hook revision. `hooks show` also works beside a running desktop; `edit` and
+`reset` need the profile to themselves (a running desktop's settings are its own).
+
+`assist context` prepares a request for text and launches no model. It resolves the
+target, reads the draft, takes the effective hook and returns one JSON packet: the
+hook's name, version, revision and instructions, the parent result contract, the
+exact field and byte range, the bounded sources, what was omitted, and the full
+prompt the desktop would send. `--hook problem --field problem`, `--hook solution
+--field solution` or `--hook comment --field stop:ID` name the field. With no
+selection the whole field is the target and an empty field is drafted. `--quote
+TEXT` resolves one exact current match (zero or several is an error, never widened)
+and `--range-bytes BEGIN:END` names half-open UTF-8 bytes that must sit on character
+boundaries and never inside a CRLF pair. The outline hook takes the whole draft and,
+for its code destinations, `--sources PATH:START-END,...` (standalone only: a running
+desktop does not yet read a provider for the CLI).
+
+The request is one ticket in the draft's journal. Issuing another supersedes it. It
+is bound to the draft revision, the field's bytes and the hook revision, and expires
+after 30 minutes; any edit to the draft, even one that returns the text to identical
+bytes, or a hook change makes it stale. It is durable, so the answer may come from a
+later process or another owner. `assist cancel` closes it explicitly.
+
+`assist complete --ticket ID --result PATH|-` (the imported contract sketch says
+`--input`, which the architecture gate reserves for the GitHub transport) takes exactly
+the JSON object the prompt describes. It supplies replacement text and notes only, never a target, range, hook,
+approval or ready flag, and any such field makes the result invalid. A valid result
+replaces only the ticketed bytes, at once, as one undoable transaction (`Rewrite
+Problem`, `Rewrite Solution`, `Rewrite comment`); an identical result changes nothing.
+Answering spends the ticket whether or not the result was usable. An outline answer
+is a body-free proposal, and `outline use PROPOSAL --indices 0,2 [--after STOP]`
+inserts the chosen suggestions as Suggested stops that are neither visited nor ready.
+Stop reasons are `stale`, `expired`, `unknown_ticket`, `unknown_proposal`,
+`invalid_result`, `invalid_indices`, `ambiguous_quote`, `quote_not_found`,
+`invalid_range`, `insufficient_context` and `context_too_large`.
+
+An owner serves `assist` and `outline` like other local commands, from the desktop's
+open draft when there is one, and answers with its own clock and hook revision.
