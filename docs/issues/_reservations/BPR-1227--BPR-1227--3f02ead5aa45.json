@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1227"
+  ],
+  "reserve_for": "bpr-pr-tour-cli-forwarded-source",
+  "purpose": "Forward source-bearing tour commands to the profile owner",
+  "created": "2026-09-29T00:23:59.569768+00:00",
+  "base": "aa8826e5a31d55ea6b3b34f21b5b117e02770b4c"
+}
