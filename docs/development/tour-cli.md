@@ -267,3 +267,17 @@ Stop reasons are `stale`, `expired`, `unknown_ticket`, `unknown_proposal`,
 
 An owner serves `assist` and `outline` like other local commands, from the desktop's
 open draft when there is one, and answers with its own clock and hook revision.
+
+## The pr-tour skill
+
+`packaging/agent-skills/pr-tour/` is the ready-to-import Agent Skills package for the
+conversational wrapper: `SKILL.md` plus three small references. It teaches only
+`bpr tour` commands, keeps no draft, publisher or hook copy of its own, and starts no
+model. The canonical home is the shared AgentSkills repository, installed by MASK;
+BPR keeps no hand-maintained `.claude/skills` or `.codex/skills` copy. Until that
+import is authorized the package here is the candidate, not an installed skill.
+`skill_pr_tour_package` checks the package identity (`pr-tour`, contract
+`bpr.tour.cli-result.v1`), that it stays thin, that every mention of a publisher, raw
+HTTP, the database or an approval bypass is a prohibition, that every command it teaches
+exists, and that the real parser accepts each documented command line. It cannot show
+that a model follows the text.

@@ -11,8 +11,8 @@ separate gates; definitions and local artifacts do not certify a release.
 Packaging must preserve the core/application/adapters/composition dependency
 graph and restrict Qt plugin discovery to trusted installation paths. No browser
 runtime, network server, telemetry or general remote loader is permitted. The
-existing owner-private AF_UNIX profile activation channel is the sole declared
-listener exception, bounded by the [release security policy](../docs/security/release-policy.md).
+existing owner-private AF_UNIX profile activation channel and the RFC-BPR-0045
+tour command channel are the only declared listener exceptions, bounded by the [release security policy](../docs/security/release-policy.md).
 RFC-BPR-0035
 adds only its user-confirmed, qualified macOS updater to the earlier manual policy.
 

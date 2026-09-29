@@ -236,9 +236,14 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
 - No hosted BetterPullReview service.
 - No TCP/UDP server or local web service. The existing owner-authenticated,
   owner-private AF_UNIX profile activation listener (on Windows, the equivalent
-  owner-private local named pipe, [[BPR-0979]]) is the sole declared listener
+  owner-private local named pipe, [[BPR-0979]]) is a declared listener
   exception under RFC-BPR-0014 mandate r3; it admits only bounded activation
-  intents under the exact profile lease. It grants no network-service capability.
+  intents under the exact profile lease. The RFC-BPR-0045 tour command endpoint is
+  the second and last: a separate same-user AF_UNIX rendezvous bound only under
+  the exact-root lease, with a versioned owner binding, 5 MiB frames and a closed
+  command set that the owner runs against its own draft. It carries no source
+  bodies, credentials, provider access or publication authority, and it is not
+  implemented on Windows. Neither grants a network-service capability.
   On Windows the sender also passes its foreground-activation right to that
   authenticated owner process and to no other, so the owner can bring its own
   window forward ([[BPR-0980]]). That is a user-interface permission Windows

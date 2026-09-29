@@ -14,6 +14,9 @@ if(BPR_BUILD_TOUR_CLI)
     bpr_add_network_isolated_test(NAME tour_cli_composition COMMAND test_tour_cli_composition)
     bpr_add_network_isolated_test(NAME tour_cli_process_commands
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_commands_tests.py" "$<TARGET_FILE:test_tour_cli_composition>")
+    bpr_add_network_isolated_test(NAME skill_pr_tour_package
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/pr_tour_skill_tests.py"
+        "${PROJECT_SOURCE_DIR}/packaging/agent-skills/pr-tour" "$<TARGET_FILE:test_tour_cli_composition>")
     bpr_add_network_isolated_test(NAME tour_cli_public_entry
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_tests.py" "$<TARGET_FILE:app_bpr>")
 endif()

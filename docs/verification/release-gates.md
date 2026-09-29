@@ -24,9 +24,10 @@ No release candidate is acceptable until all applicable gates pass from a clean 
 - Threat model reviewed against final dependency and process graph.
 - Secret scanning, dependency vulnerability scan, SBOM generation, static analysis, sanitizers, and fuzzers pass.
 - No embedded browser, TCP/UDP server, remote plugin/theme loader, telemetry,
-  or certificate bypass exists. The sole declared listener exception is the
-  existing bounded owner-private AF_UNIX profile activation channel; its peer,
-  frame, identity and lifetime checks must pass the release policy.
+  or certificate bypass exists. The declared listener exceptions are the
+  existing bounded owner-private AF_UNIX profile activation channel and the
+  RFC-BPR-0045 tour command channel; their peer, frame, identity and lifetime
+  checks must pass the release policy.
 - Git and AI subprocess policies are verified with hostile fixtures.
 - Diagnostics and logs pass canary redaction tests.
 

@@ -100,13 +100,19 @@ evidence may be reused only with its original scope and identity.
 ## Local IPC is not a network service
 
 Under mandate r3 the obsolete absolute “no local server” wording is replaced
-with the intended no-network-server boundary. The existing profile activation
-transport is the sole declared listener exception: a bounded binary AF_UNIX
-rendezvous, in an owner-private real directory, owned by the profile holder.
-It admits only the same OS user and the exact profile, validates a fixed-size
-versioned frame, and hands a typed activation to the existing application/core
-policy. It serves no HTTP, remote content, arbitrary command, credential, source
-body or provider endpoint. No TCP/UDP listener, loopback web server, browser/
+with the intended no-network-server boundary. The declared listener exceptions
+are exactly two, both bounded binary AF_UNIX rendezvous points owned by the
+profile holder. The profile activation transport, in an owner-private real
+directory, admits only the same OS user and the exact profile, validates a
+fixed-size versioned frame, and hands a typed activation to the existing
+application/core policy. The tour command endpoint (RFC-BPR-0045) is a separate
+per-user rendezvous bound only while the exact-root lease is held; it advertises
+a versioned owner binding, admits only the same OS user, bounds every frame to
+5 MiB, and carries a closed set of local draft, hook and assist commands that the
+owner runs against its own draft and store. Neither serves HTTP, remote content,
+an arbitrary command, a credential, a source body or a provider endpoint, and
+neither carries publication authority. The tour endpoint is not implemented on
+Windows, where an owner reports no tour channel. No TCP/UDP listener, loopback web server, browser/
 Node runtime, arbitrary plugin loader or undeclared network destination is
 allowed. This does not exempt normal outbound host capabilities from the
 [existing network/process inventory](release-updater.md).
