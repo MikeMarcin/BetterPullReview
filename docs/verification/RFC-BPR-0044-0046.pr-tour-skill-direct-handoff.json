@@ -4,7 +4,7 @@
  "run_id": "bpr-pr-tour-cli-20260927",
  "segment_id": "pr-tour-skill-direct",
  "role_banner": "Direct primary session | Claude Sonnet 5.5",
- "status": "milestone-accepted-pending-landing",
+ "status": "milestone-accepted-and-landed",
  "strategy": "direct",
  "execution_base": "4e06c4506a0532745509a3804867dfb3aff972ae",
  "prior_main_revision": "4e06c4506a0532745509a3804867dfb3aff972ae",
@@ -73,5 +73,11 @@
   "BPR-1068-1071 package/native qualification, attended courses, documentation, independent review and RFC closure"
  ],
  "next_eligible_milestone": "verification-closeout",
- "next_eligible_card": "none until BPR-1067 is Done: BPR-1068 depends on it"
+ "next_eligible_card": "none until BPR-1067 is Done: BPR-1068 depends on it",
+ "main_landing": {
+  "revision": "0a95fc0bb84530a2edb5133aeb8e918814fa281e",
+  "method": "Fast-forward of local main. No push.",
+  "verified_on_main": true,
+  "result": "DOCUMENTATION_OK on landed main; main worktree clean."
+ }
 }
