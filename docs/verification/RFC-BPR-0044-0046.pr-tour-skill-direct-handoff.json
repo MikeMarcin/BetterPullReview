@@ -1,0 +1,77 @@
+{
+ "assignment": "bpr-pr-tour-cli-extension-v1/pr-tour-skill",
+ "mandate_revision": "r2-20260928-direct-takeover-land-each-milestone",
+ "run_id": "bpr-pr-tour-cli-20260927",
+ "segment_id": "pr-tour-skill-direct",
+ "role_banner": "Direct primary session | Claude Sonnet 5.5",
+ "status": "milestone-accepted-pending-landing",
+ "strategy": "direct",
+ "execution_base": "4e06c4506a0532745509a3804867dfb3aff972ae",
+ "prior_main_revision": "4e06c4506a0532745509a3804867dfb3aff972ae",
+ "candidate_revision": "f5deb7a19cb0e19695316414fa0f04d8bfd35b23",
+ "source_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+ "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+ "completed_cards": [
+  "BPR-1064",
+  "BPR-1065",
+  "BPR-1066"
+ ],
+ "human_pending_cards": [
+  "BPR-1067"
+ ],
+ "required_pending_in_milestone": [
+  "BPR-1067: canonical import into the AgentSkills repository and MASK selection; needs that repository's owner's authorization"
+ ],
+ "opened_follow_up": [
+  "BPR-1227"
+ ],
+ "evidence_refs": [
+  "docs/verification/RFC-BPR-0044-0046.md",
+  "docs/development/tour-cli.md",
+  "packaging/agent-skills/pr-tour/SKILL.md"
+ ],
+ "engineering_acceptance": "Both milestone exits pass. No secondary publisher, draft format, model session or hook defaults were introduced: the skill package teaches only bpr tour commands, hooks and assist reuse the parent RFC-BPR-0043 contract, and BPR launches no model. Per-stop author interaction, policy, exact replacement and the real publication boundary pass focused tests through the shipped CLI and a real desktop owner; canonical distribution status is explicit and pending. No agent-transcript, agent-host load, provider verification or approval-bridge evidence is claimed.",
+ "verification": [
+  {
+   "command": "ctest --preset dev -R 'tour|application_review_tour|sqlite_review_tour|sqlite_profile|qt_scoped|application_profile_activation_public_path|application_profile_tour|architecture_boundaries|core_review|skill_pr'",
+   "result": "44/44 pass."
+  },
+  {
+   "command": "cmake --build --preset tour-cli; install; bpr tour capabilities with no DISPLAY, invalid QT_QPA_PLATFORM and DYLD_PRINT_LIBRARIES=1",
+   "result": "Builds; no GUI/Widgets/WebEngine/Quick/QPA image loaded."
+  },
+  {
+   "command": "cmake --build --preset core-only (application, host, import and preparation targets); ctest --preset core-only -R 'core_review_tour_import|application_review_tour_host|core_dependency_boundary|core_review_preparation'",
+   "result": "4/4 pass."
+  },
+  {
+   "command": "clang-format on changed C++; tidy.py --warnings-as-errors on the new translation units",
+   "result": "Changed files format clean; new code lints clean apart from lines this work did not write."
+  },
+  {
+   "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; issue_board.py validate",
+   "result": "DOCUMENTATION_OK; contract tests OK; board valid."
+  }
+ ],
+ "known_baseline_failure": {
+  "command": "ctest --preset dev -R application_profile_empty_desktop_native_menu_bar; cmake --build --preset dev|core-only",
+  "result": "The native menu-bar test fails on this tree: the windowless resident bar lacks the Help menu added to windowed windows by e0a870b34 (Sep 26); the pack changes no menu code. tests/core/agent_profile_tests.cpp:138 fails its struct-size assertion. Eight files carry format drift that predates the pack."
+ },
+ "review_handoff": {
+  "required_for_this_implementation_milestone": false,
+  "independent_review": "none requested or claimed",
+  "actual_human_native_website_agent_acceptance": "Pending BPR-1069 and the closeout cards; not replaced by fixture decisions."
+ },
+ "operator_notes": [
+  "policy correction: the tour command endpoint is a second local listener; the release policy, corporate overview, threat model, release gates and packaging instructions now declare exactly two listener exceptions.",
+  "The architecture gate reserves the literal --input for the GitHub transport, so assist complete takes --result; the imported contract sketch says --input.",
+  "BPR-1064, 1065, 1066 and 1067 were first edited before their claim commit; the claim was made by stashing and restoring the work so that history shows claim, then work, then finish."
+ ],
+ "pending_pack_obligations": [
+  "BPR-1067 distribution import (human/owner authorization)",
+  "BPR-1227 forwarding provider reads to a running owner",
+  "BPR-1068-1071 package/native qualification, attended courses, documentation, independent review and RFC closure"
+ ],
+ "next_eligible_milestone": "verification-closeout",
+ "next_eligible_card": "none until BPR-1067 is Done: BPR-1068 depends on it"
+}
