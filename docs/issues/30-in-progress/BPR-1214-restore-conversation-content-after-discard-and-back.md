@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1214"
 title: "Restore conversation content after Discard and Back"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
