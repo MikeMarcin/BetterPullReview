@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1062"
 title: "Connect desktop buffers and same-machine authoring handoff"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1060", "BPR-1061"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-11","milestone":"same-machine-handoff","acceptance":["AC45-04","AC45-07"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC45-04","outcome":"pass","revision":"637cd41df1b87748fedbd1003270bebec8c7a45f","evidence":{"kind":"command","detail":"Real desktop owner with a fixture pull request open and the shipped bpr binary (application_profile_tour_handoff_public_path): typed text is read back at once, CLI edits reach the open editor with caret and focus unchanged, independent fields proceed, a duplicate projection applies once, and a CLI reorder, removal and undo keep every stop ID and the author's selected stop; the committed text is durable and readable standalone after the owner drains. Source-bearing commands (add/open) are not forwarded while a desktop owns the profile: BPR-1227. Cross-interface reads of exact source binding, readiness and conflicts rely on the same stored draft bytes and are not re-proved through a separate skill client."}},{"criterion":"AC45-07","outcome":"pass","revision":"637cd41df1b87748fedbd1003270bebec8c7a45f","evidence":{"kind":"command","detail":"IME preedit answers editor_busy for status and edit with nothing changed, then proceeds after commit (with a negative control that fails when the gate is disabled); a stale edit after further typing is revision_conflict with both texts intact; an external-editor session whose owner is killed and replaced saves through the new owner with its captured revision exactly once; foreign selection semantics and request replay are unit-tested. Real IME hardware and another window holding the same draft are not evidenced."}}]
 ---
 
 # BPR-1062: Connect desktop buffers and same-machine authoring handoff
