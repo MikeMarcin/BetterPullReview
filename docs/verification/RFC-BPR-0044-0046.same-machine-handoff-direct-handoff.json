@@ -1,0 +1,78 @@
+{
+ "assignment": "bpr-pr-tour-cli-extension-v1/same-machine-handoff",
+ "mandate_revision": "r2-20260928-direct-takeover-land-each-milestone",
+ "run_id": "bpr-pr-tour-cli-20260927",
+ "segment_id": "same-machine-handoff-direct",
+ "role_banner": "Direct primary session | Claude Sonnet 5.5",
+ "status": "milestone-accepted-pending-landing",
+ "strategy": "direct",
+ "predecessor_segment": "same-machine-handoff (coordinator-implementer, Codex): BPR-1060 accepted; BPR-1061 claimed with uncommitted owner-forwarding work",
+ "execution_base": "fbb8b981b5c4e70280055d580f8c2a66a6f696b2",
+ "prior_main_revision": "aa8826e5a31d55ea6b3b34f21b5b117e02770b4c",
+ "candidate_revision": "3ec650755e0dc008435f8a100e1eb9cdc4c60a11",
+ "source_root": "/Users/jaeger/.codex/worktrees/6ead/BetterPullReview",
+ "main_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+ "completed_cards": [
+  "BPR-1060",
+  "BPR-1061",
+  "BPR-1062"
+ ],
+ "required_pending_in_milestone": [],
+ "opened_follow_up": [
+  "BPR-1227"
+ ],
+ "evidence_refs": [
+  "docs/verification/RFC-BPR-0044-0046.md",
+  "docs/architecture/review-tours.md",
+  "docs/development/tour-cli.md"
+ ],
+ "engineering_acceptance": "All three scoped cards and both exits pass for local draft commands: one owner per profile, a separate versioned same-user tour endpoint, request outcomes committed atomically with edits, live desktop drafts routed through the window's host with an input-method busy gate and durable-before-answer, caret/focus/selection preserved across another presentation's edit, and an external-editor save that survives an owner replacement. Provider-reading commands stay interaction_required beside a desktop owner (BPR-1227). No Windows transport, second OS user, real IME hardware or second window on the same draft is evidenced; no live mutation, credential use or human/native qualification is claimed.",
+ "verification": [
+  {
+   "command": "ctest --preset dev -R 'tour|application_review_tour_host|sqlite_review_tour|sqlite_profile|qt_scoped|application_profile_activation_public_path|application_profile_tour|architecture_boundaries|core_review_tour'",
+   "result": "36/36 pass."
+  },
+  {
+   "command": "ctest --preset dev -R application_profile_tour_handoff_public_path with the composing gate temporarily disabled",
+   "result": "Fails at the editor_busy assertion; source restored."
+  },
+  {
+   "command": "cmake --build --preset tour-cli; install; bpr tour capabilities with no DISPLAY, invalid QT_QPA_PLATFORM and DYLD_PRINT_LIBRARIES=1",
+   "result": "Builds; no GUI/Widgets/WebEngine/Quick/QPA image loaded."
+  },
+  {
+   "command": "cmake --build --preset core-only --target better_pull_review_application test_review_tour_host test_review_tour_import; ctest --preset core-only -R 'core_review_tour_import|application_review_tour_host|core_dependency_boundary'",
+   "result": "3/3 pass."
+  },
+  {
+   "command": "clang-format on all changed C++ files; tidy.py --warnings-as-errors on the changed translation units",
+   "result": "Changed files are format clean. New code lints clean; remaining findings are on lines this work did not write."
+  },
+  {
+   "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; issue_board.py validate",
+   "result": "DOCUMENTATION_OK; documentation contract tests OK; board valid."
+  }
+ ],
+ "known_baseline_failure": {
+  "command": "cmake --build --preset dev|core-only",
+  "result": "tests/core/agent_profile_tests.cpp:138 struct-size assertion fails on main and here; unrelated. Also failing format on main: workbench_window, private_review_workflow, review_comment_placement, review_tour_import.hpp and three github_contract tests."
+ },
+ "review_handoff": {
+  "required_for_this_implementation_milestone": false,
+  "independent_review": "none requested or claimed",
+  "actual_human_native_website_agent_acceptance": "Pending later qualification cards; not replaced by fixture decisions."
+ },
+ "operator_notes": [
+  "Codex WIP defects found and fixed: walk reused one request ID for every mutation; a retry naming its own ID was refused client-side on a stale revision; the closing-owner poll guard was omitted in the first desktop wiring; the desktop never listed its own draft in the target catalog.",
+  "workflow_preflight --strategy direct reports state.drift on both this worktree and main (MASK deployment drift); not repaired, out of mandate.",
+  "milestone_checkpoint.py check refused the bind output as an observation ('invalid observation fields'); acceptance is judged directly from the evidence above."
+ ],
+ "pending_pack_obligations": [
+  "BPR-1227 forwarding provider reads (planned with the skill milestone)",
+  "BPR-1064-1067 hooks, scoped assistance, canonical pr-tour skill and distribution",
+  "BPR-1068-1071 package/native/actual human/website/agent courses, independent review, documentation and RFC closure"
+ ],
+ "next_eligible_milestone": "pr-tour-skill",
+ "next_eligible_card": "BPR-1064",
+ "main_before_landing": "e0bc2bb798483370b03a5759eb473bb17ed8ec3f"
+}
