@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1066"
 title: "Test agent attention provenance authority and adversarial inputs"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1064", "BPR-1065"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-15","milestone":"pr-tour-skill","acceptance":["AC46-07","AC46-08","AC46-09"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
