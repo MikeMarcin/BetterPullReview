@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1145"
 title: "Persist cycle history, drafts, pins and operation receipts"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0053"]
 depends_on: ["BPR-1144"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "domain", "acceptance": ["RC53-04", "RC53-05", "RC53-08"], "pack_alias": "PACK-CYCLE-03", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
