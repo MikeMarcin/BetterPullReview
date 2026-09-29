@@ -150,3 +150,21 @@ pass, and `application_active_changed_scaling` passes after the settle fix
 recorded on [[BPR-1211]]. No render was inspected on this station, and AC4
 stays with the owner. Logs are in `build/logs/bpr-station-1211-1213-1214/`,
 not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, offscreen,
+`build/windows-dev` Debug with warnings as errors. `main` at `22d18416`
+did not build on Windows. The first run is at `22d18416` with the build
+fixes of `537f718d`. The second is at `f9870baa`, which contains the Linux
+station's fix `52fa4a06`. Neither build fix touches this card's code.
+
+| Row | At `22d18416` + `537f718d` | At `f9870baa` |
+|---|---|---|
+| `qt_pull_request_overview_page` | Pass, 17.22 s | Pass, 17.02 s |
+| `qt_workbench_overview` | Pass, 3.73 s | Pass, 3.63 s |
+
+Both ran offscreen. No native Windows render was captured, so AC3's
+Windows native evidence is still not captured. AC4 still waits on the
+owner, and the card stays Parked. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`new.log`, `pass2.log`), and are not committed.

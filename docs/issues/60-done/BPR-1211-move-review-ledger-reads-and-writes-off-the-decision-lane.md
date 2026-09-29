@@ -200,3 +200,20 @@ the fix: `application_workbench_composition_contract` and
 fail at both. Timings are observations, not budgets. The traced build was
 never committed. The logs are station records in
 `build/logs/bpr-station-1211-1213-1214/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, offscreen,
+`build/windows-dev` Debug with warnings as errors. `main` at `22d18416`
+did not build on Windows. The first run is at `22d18416` with the build
+fixes of `537f718d`. The second is at `f9870baa`, which contains the Linux
+station's fix `52fa4a06`. Neither build fix touches this card's code.
+
+| Row | At `22d18416` + `537f718d` | At `f9870baa` |
+|---|---|---|
+| `application_review_ledger_host` | Pass, 1.54 s | Pass, 1.54 s |
+| `application_active_changed_scaling` | Pass, 48.27 s | Pass, 51.18 s |
+
+The Linux station's failure in `application_active_changed_scaling` did
+not appear here at `22d18416`. Timings are observations, not budgets.
+The logs are station records in `C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`new.log`, `pass2.log`), and are not committed.

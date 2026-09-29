@@ -566,3 +566,79 @@ versions the fix removes the initializer finding, and the `NOLINT`
 suppresses the throw's. AC7's tidy clause holds on macOS for the header and
 these two sources. The scratch copy was removed afterwards. The logs are
 station records in `build/logs/bpr-1121-mac-ac7/`, not committed.
+
+## Windows, AC2 and AC6 (bpr-main-win, 2026-09-29)
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+Debug with warnings as errors, at `22d18416` with the build fixes of
+`537f718d`. None of those fixes touches `test_expectation.hpp` or this
+card's handling of a failure. This entry does not move the card, which
+stays on bpr-main-linux's claim.
+
+### The build and the Windows-only source
+
+The whole graph builds with no `warning` line.
+`tests/end_to_end/windows_profile_storage_startup_contract_tests.cpp`, the
+source built only here, compiles, and its row
+`application_windows_profile_storage_startup_contract` passes.
+
+### The rows
+
+The card's selection, with the Windows-only row, matches 86 rows here. They
+ran serially in 1,052 s. **77 pass.** Nine fail, and none fails at the
+unwinding this card added:
+
+| Row | Failure | Why it is not this card's |
+| --- | --- | --- |
+| `qt_markdown_body_1_0`, `_1_25`, `_2_0` | contained: `QImage::save: … Cannot open device for writing: Access is denied`, then `FAILED: write designated canary image`, and `QTemporaryDir: Unable to remove` | The resource `QTemporaryDir` is made inside the AppContainer with a protected DACL: this user full control, and `Everyone` and the low label only read control and attributes. It has no ACE for the container, so the contained process can write neither in it nor remove it. Run directly, the same executable passes. Not bisected |
+| `sqlite_review_tour_storage` | contained, exit 3 after `each command client edit advances shared history` | a new RFC-BPR-0045 store row. It passes run directly and is made uncontained in `532cffaf` |
+| `qt_agent_launch_canary` | contained: `open durable child course` | an RFC-BPR-0023 course; see [[BPR-1139]]'s Windows entry |
+| `live_review_submission_restart_recovery` | `--kill-prepared exited before checkpoint`: `FAILED: submission store opens` | a store open, not a failure ending |
+| `application_profile_activation_public_path` | `profile_activation_contract.py: error: unrecognized arguments` | the row passes an argument its script no longer accepts |
+| `application_profile_owner_admission_public_path` | `SEED_REGISTRY_REFUSAL:0`, `FAILED: seed registry` | the seed step refuses the registry under the container's temporary directory |
+| `application_profile_window_review_restoration_public_path` | `FAILED: failed reading restoration preserves exact recorded identities and sibling` | a restoration expectation, reported through this card's `FAILED:` line as intended |
+
+`application_device_binding_restart`, the macOS trial's second row, passes
+here (40.46 s).
+
+### A forced failure while a root exists
+
+The trial hook is Linux's, as the macOS entry describes, rebuilt here and
+never committed. `BPR_TRIAL_FAIL_MESSAGE` fails the first expectation
+whose message contains the text. `BPR_TRIAL_NO_UNWIND` makes `fail()` take
+its `std::exit` branch, the negative control. The header's SHA-256 was
+`ef4ccf23…b0ce3` before, `c6d78168…7e49f` with the hook, and `ef4ccf23…b0ce3`
+after the restore. `git status` was then clean. Only
+`test_windows_profile_storage_startup_contract` was built with the hook, and
+it was rebuilt after the restore. Its image contains no `BPR_TRIAL`, and it
+passes.
+
+The executable ran directly, as its row does, since it is uncontained. Its
+root is `bpr-0806-<clock>` in `%TEMP%`, which was listed before and after
+each run.
+
+| Expectation failed | Root at that point | Unwinding (as committed) | `std::exit` (control) |
+| --- | --- | --- | --- |
+| none | | exit 0, `windows-profile-storage-startup-contract:pass`, nothing left | |
+| `the registry file exists` | the owner-private root, holding `state\v1\profile-registry.sqlite3` | exit 1, the `FAILED:` line, nothing left | exit 1, the same line, and it left the root with `state\v1\profile-registry.sqlite3` |
+| `scratch root is owner-private`, inside the root's constructor | the root just made, held by its `scratch_guard` | exit 1, the `FAILED:` line, nothing left | exit 1, and it left the empty root |
+
+A first attempt of the second case ran under a PowerShell driver that
+stopped its pipeline on the child's first line of standard error. It left a
+root. That is the driver ending the child, not the course. The corrected
+driver's run is the one in the table. All three trial roots were removed by
+exact name afterwards.
+
+### Acceptance state after this run
+
+- **AC6 on Windows: met for this card's change, with nine rows red for
+  causes outside it.** The Windows-only source compiles and its row passes,
+  and 77 of the 86 rows pass. No failure is in `test_expectation.hpp` or
+  in how a failure ends.
+- **AC2, repeated on Windows:** a failure while a root exists removes the
+  root, including one inside a root's constructor. The `std::exit` control
+  leaves it.
+
+The logs, the hook and the trial driver are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`1121.log` and `.xml`,
+`trial-1121.txt`) and `…\station-0929\trial\`, and are not committed.

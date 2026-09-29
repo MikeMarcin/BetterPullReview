@@ -143,3 +143,19 @@ Ubuntu 26.04 on WSL2, GCC 15.2, Qt 6.11.2, offscreen, `build/dev`.
 
 The logs are station records in `build/logs/bpr-station-1211-1213-1214/` and
 are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, offscreen,
+`build/windows-dev` Debug with warnings as errors. `main` at `22d18416`
+did not build on Windows. The first run is at `22d18416` with the build
+fixes of `537f718d`. The second is at `f9870baa`, which contains the Linux
+station's fix `52fa4a06`. Neither build fix touches this card's code.
+
+| Row | At `22d18416` + `537f718d` | At `f9870baa` |
+|---|---|---|
+| `qt_workbench_conversation_reveal` | Pass, 15.43 s | Pass, 15.19 s |
+| `application_threaded_reply_contract` | Pass, 14.20 s | Pass, 16.24 s |
+
+Both ran offscreen. No native Windows run was made. The logs are station
+records in `C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`new.log`, `pass2.log`), and are not committed.

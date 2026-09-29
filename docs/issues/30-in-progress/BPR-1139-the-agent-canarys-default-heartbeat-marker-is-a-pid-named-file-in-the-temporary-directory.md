@@ -346,3 +346,40 @@ the driver and the results are station records in
 
 **AC5 on macOS: met.** The canary builds with no warning, and the 13 rows
 pass. The Windows run is still owed.
+
+## Windows, AC5 (bpr-main-win, 2026-09-29)
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+Debug with warnings as errors. This entry supplies the Windows half of AC5.
+It does not move the card, which stays on bpr-main-linux's claim.
+
+**The build.** `main` at `22d18416` did not build on Windows, for five
+reasons outside this card. They are fixed in `537f718d`, which changes no
+line of the canary or the course. With it, the whole graph builds with no
+`warning` line. The canary compiles `HEAD`'s marker: the `#if
+defined(_WIN32)` branch at `agent_canary_main.cpp:567` returns
+`bpr-agent-descendant-<pid>` in the temporary directory, as scoped.
+
+**The rows**, run with the card's Windows command, serially:
+
+| Rows | Result |
+| --- | --- |
+| `application_agent_invocation_cancellation_contract`, the one course that uses the default marker | pass, 19.49 s. Again at `f9870baa`: pass, 21.12 s |
+| `…_construction_cut`, `…_launcher_construction_cut`, `…_gesture_cut`, `…_staleness`, `…_cleanup_retry` contracts | 5 of 5 pass |
+| `application_agent_crash_recovery`, `application_agent_materialization_crash_recovery`, `application_agent_finding_protocol`, `agent_parent_death` | 4 of 4 pass |
+| `msvc_secure_crt_contract` | failed at `22d18416`: `tour_owner_channel_tests.cpp:170`, a POSIX-only `getenv` the text scan cannot see is in `#if !defined(_WIN32)`. Given the scoped C4996 spelling in `537f718d`, it passes |
+| `application_agent_invocation_composition_contract`, `application_agent_invocation_workspace_diagnostic_contract` | **fail**: `agent-status=Not started: Choose immutable revisions or findings in Private history, then Ask agent…`. This is the private-run refusal that [[BPR-1211]] recorded failing at its baseline on macOS. It comes from RFC-BPR-0023's admission, not from the marker |
+| `qt_agent_launch_canary` | **fails** contained in 0.05 s at `open durable child course`, `agent_launch_canary_tests.cpp:281`. That course came with RFC-BPR-0023 (`8e20e9e8`, 2026-09-27). It opens a private SQLite store under `scratch_root` inside the AppContainer, the shape that fails for the other new store rows on this station. It runs before any canary launch |
+| In all | 11 of 14 pass |
+
+The temporary directory and the AppContainer's own temporary directory were
+listed before and after. Neither gained a `bpr-agent-descendant-` entry.
+
+**AC5 on Windows: not met, for causes outside this card.** The canary
+builds and compiles `HEAD`'s marker. The course that uses the marker passes,
+and so do nine of the other twelve rows. The three that fail are red for
+reasons this card does not touch. Two fail with the same refusal that
+[[BPR-1211]] recorded at `main` on macOS. One is an RFC-BPR-0023 course that
+fails contained on Windows. The logs are
+station records in `C:\Users\mikem\bpr-main-helpers\run\station-0929\`
+(`1139-1128.log` and `.xml`, `pass2.log`), and are not committed.

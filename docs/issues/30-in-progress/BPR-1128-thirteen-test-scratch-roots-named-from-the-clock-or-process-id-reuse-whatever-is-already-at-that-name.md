@@ -446,3 +446,42 @@ this needs a card.
 
 - **AC4 on macOS: met.** The sources build with no warning, and all 18 rows
   pass. The Windows half is still owed, and the card stays In Progress.
+
+## Windows, AC4 (bpr-main-win, 2026-09-29)
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+Debug with warnings as errors. This entry supplies the Windows half of AC4.
+It does not move the card, which stays on bpr-main-linux's claim.
+
+**The build.** At `22d18416`, rows 2, 3, 4 and 6 did not compile on
+Windows. Their sources include `scratch_root.hpp`, whose Windows branch
+includes `bpr/platform/windows_private_object.hpp`, but their targets did
+not link `BetterPullReview::Platform`, as [[BPR-1126]]'s rows do.
+`537f718d` adds that link, under `if(WIN32)`, to them and to the other
+targets in the same state. It also fixes four MSVC breaks outside this
+card. No source of this card changed. With it, the whole graph builds with
+no `warning` line.
+
+**The rows**, run with the card's Windows command, serially:
+
+| Rows | Result |
+| --- | --- |
+| The six `sqlite_` rows, `contained_catalog_probe` | 7 of 7 pass. Rows 2, 3, 4 and 6 run uncontained, through the SQLite helper's Windows branch |
+| `git_anonymous_public_read`, `git_cache_contract`, `git_process_contract`, the three `git_haves_trimmed_pack_` rows, `epoch_maintenance_integration`, `agent_parent_death` | 8 of 8 pass |
+| `epoch_kill_recovery`, `epoch_transaction_kill_recovery` | **failed** at every boundary: `recovery refs do not contain one exact base/head pair`. The recovered repository held both loose refs, but the course's own `git for-each-ref` listed none. It strips the global config, and with it `core.longpaths`, and the ref's path under the temporary root is longer than `MAX_PATH`. `f9870baa` passes `-c core.longpaths=true` on Windows, as `agent_composition_kill_recovery_tests.py` already did. Then both pass, 36.03 and 57.59 s. Not this card's: the Windows code of these sources is `HEAD`'s |
+| `msvc_secure_crt_contract` | fails at `22d18416` for `tour_owner_channel_tests.cpp:170`, outside this card. Passes with `537f718d` |
+| `qt_agent_launch_canary` | **fails** contained at `open durable child course`, an RFC-BPR-0023 course that runs before any canary launch. See [[BPR-1139]]'s Windows entry |
+
+The user's temporary directory and the AppContainer's own
+(`…\Packages\bprautomatedtest\AC\Temp`) were listed before and after the
+run. Neither gained an entry with any of the eleven prefixes. The 140 older
+clock-named entries with those prefixes in `%TEMP%` were there before the
+run and are unchanged.
+
+**AC4 on Windows: met, except for `qt_agent_launch_canary`.** The sources
+build once linked, and 18 of the 19 rows pass, the two epoch rows after a
+course fix outside this card. The canary row fails for an RFC-BPR-0023
+course, not for this card's change, which compiles `HEAD`'s code on
+Windows. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`1139-1128.log` and
+`.xml`, `pass2.log`, `temp-*.txt`), and are not committed.
