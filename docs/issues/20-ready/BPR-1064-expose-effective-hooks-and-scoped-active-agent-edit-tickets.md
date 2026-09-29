@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1064"
 title: "Expose effective hooks and scoped active-agent edit tickets"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1056", "BPR-1059", "BPR-1062"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-13","milestone":"pr-tour-skill","acceptance":["AC46-05","AC46-06"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
