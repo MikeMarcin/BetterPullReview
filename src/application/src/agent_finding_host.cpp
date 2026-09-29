@@ -77,7 +77,7 @@ namespace bpr::application {
 	}
 
 	agent_finding_host::agent_finding_host(
-		review_ledger_store_supplier   aStore,
+		promoted_note_store            aStore,
 		agent_finding_projection_port& aProjection)
 		: Store{ std::move(aStore) }
 		, Projection{ aProjection }
@@ -109,8 +109,7 @@ namespace bpr::application {
 		return Delivered->Findings[aRequest.Ordinal];
 	}
 
-	auto agent_finding_host::act(const agent_finding_action_request& aRequest)
-		-> agent_finding_outcome
+	void agent_finding_host::act(const agent_finding_action_request& aRequest)
 	{
 		++Statistics.Actions;
 		auto outcome = agent_finding_outcome{
@@ -146,30 +145,34 @@ namespace bpr::application {
 					.Draft    = aRequest.Draft,
 					.Defect   = aRequest.Defect,
 				};
-				outcome.Refusal   = agent_finding_action_refusal::none;
-				auto* const store = Store ? Store() : nullptr;
+				outcome.Refusal = agent_finding_action_refusal::none;
 				if (aRequest.Action
 					== agent_finding_action::add_to_private_notes) {
-					if (store == nullptr) {
-						outcome.Refusal
-							= agent_finding_action_refusal::note_not_stored;
-						Projection.present(outcome);
-						++Statistics.PresentedOutcomes;
-						++Statistics.Refusals;
-						return outcome;
-					}
-					auto stored = store_promoted_finding(
-						*store, aRequest.Note, aRequest.Attachment, request);
-					if (stored.has_value()) {
-						outcome.Note = std::move(*stored);
-						++Statistics.StoredNotes;
-					} else {
-						outcome.NoteFailure = stored.error();
-						outcome.Promotion   = stored.error().Refusal;
-						if (stored.error().Store.has_value()) {
+					const auto note = promoted_note(aRequest.Note, aRequest.Attachment, request);
+					if (!note) {
+						outcome.NoteFailure = note.error();
+						outcome.Promotion   = note.error().Refusal;
+						if (note.error().Store.has_value()) {
 							outcome.Refusal
 								= agent_finding_action_refusal::note_not_stored;
 						}
+					} else {
+						// [[BPR-1211]]. The note is written off the decision
+						// lane and presented once the write answers.
+						const auto admitted = Store && Store(*note, [this, outcome](std::expected<local_note_record, local_note_failure> aStored) mutable {
+												  if (aStored.has_value()) {
+													  outcome.Note = std::move(*aStored);
+													  ++Statistics.StoredNotes;
+												  } else {
+													  outcome.NoteFailure = agent_note_promotion_failure{ .Store = aStored.error().Reason };
+													  outcome.Refusal     = agent_finding_action_refusal::note_not_stored;
+												  }
+												  finish(outcome);
+											  });
+						if (admitted) {
+							return;
+						}
+						outcome.Refusal = agent_finding_action_refusal::note_not_stored;
 					}
 				} else {
 					const auto promotion = core::promote_agent_finding(request);
@@ -187,16 +190,20 @@ namespace bpr::application {
 				}
 			}
 		}
-		if (!outcome.promoted()) {
+		finish(outcome);
+	}
+
+	void agent_finding_host::finish(const agent_finding_outcome& aOutcome)
+	{
+		if (!aOutcome.promoted()) {
 			++Statistics.Refusals;
 		}
 		// Presented unconditionally. A refused conversion the reviewer is
 		// never shown is indistinguishable from a queue that silently swallowed
 		// their gesture, and RFC-BPR-0012's whole point is that the reviewer
 		// stays the one who decides.
-		Projection.present(outcome);
+		Projection.present(aOutcome);
 		++Statistics.PresentedOutcomes;
-		return outcome;
 	}
 
 	auto agent_finding_host::delivered() const noexcept

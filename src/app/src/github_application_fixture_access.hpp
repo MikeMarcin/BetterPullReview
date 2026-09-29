@@ -1018,6 +1018,15 @@ namespace bpr::app::detail {
 		/// same application data root can tell persistence from a fresh write.
 		[[nodiscard]] static auto review_ledger_receipt_present(
 			github_application& aApplication) -> bool;
+		/// \brief [[BPR-1211]]. Whether this window's review ledger has
+		/// answered its opening and holds no outstanding operation.
+		[[nodiscard]] static auto review_ledger_settled(
+			github_application& aApplication) -> bool;
+		/// \brief [[BPR-1211]]. Holds the profile's review-ledger effect lane:
+		/// operations posted after this queue behind it until the returned
+		/// function releases it, or thirty seconds pass.
+		[[nodiscard]] static auto hold_review_ledger_effects(
+			github_application& aApplication) -> std::function<void()>;
 		/// \brief Selects a different appearance mode through the composed host.
 		///
 		/// \details Exists so a probe can measure what a theme change costs.
@@ -1135,6 +1144,10 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto exercise_defect_composition(
 			github_application&      aApplication,
 			defect_composition_probe aCourse) -> defect_composition_probe_result;
+		/// \brief [[BPR-1211]]. The defect course's verify and reclassify
+		/// steps, each read once its write is durable.
+		[[nodiscard]] static auto defect_composition_after_verify(
+			github_application& aApplication) -> defect_composition_probe_result;
 		[[nodiscard]] static auto defect_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> defect_composition_probe_evidence;

@@ -23,6 +23,7 @@
 #include <QSysInfo>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 
 #include <atomic>
 #include <chrono>
@@ -366,6 +367,48 @@ try {
 					   && access::scaling_evidence(*owner).ConversationPostsVisited - before.ConversationPostsVisited == 1U
 					   && access::scaling_evidence(*owner).OverviewBuilds == before.OverviewBuilds,
 				   "one conversation command observes exactly its thread and post without overview work");
+
+			// [[BPR-1211]] AC3, composed. The profile's review-ledger lane is
+			// held, as slow or contended storage would hold it. The decision
+			// lane keeps turning: a posted task runs, the reviewer changes
+			// modality, and a receipt gesture is admitted but neither written
+			// nor published until the store answers.
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto heldBefore  = access::scaling_evidence(*owner);
+			const auto shownBefore = window->review_editor()->shown_receipt();
+			expect(shownBefore.has_value() && shownBefore->Read == core::file_read_state::read && window->read_action()->isEnabled(),
+				   "the read file offers Mark unread before the ledger is held");
+			const auto releaseLedger = access::hold_review_ledger_effects(*owner);
+			window->read_action()->trigger();
+			QElapsedTimer laneTurn;
+			laneTurn.start();
+			auto turned = false;
+			QTimer::singleShot(0, window, [&turned] { turned = true; });
+			wait_for([&] { return turned; }, "the decision lane runs a posted task while ledger storage is held");
+			const auto turnMs = laneTurn.elapsed();
+			window->modality()->action(qt::review_modality::overview)->trigger();
+			QApplication::processEvents();
+			const auto overviewShown = window->current_modality() == qt::review_modality::overview;
+			window->modality()->action(qt::review_modality::read)->trigger();
+			QApplication::processEvents();
+			const auto held = access::scaling_evidence(*owner);
+			std::cout << "held_ledger lane_turn_ms=" << turnMs << " admitted=" << held.Ledger.Commands - heldBefore.Ledger.Commands
+					  << " completions=" << held.Ledger.Completions - heldBefore.Ledger.Completions << '\n';
+			expect(turnMs < 1000 && overviewShown && window->current_modality() == qt::review_modality::read,
+				   "while the store is held the decision lane runs posted work and modality gestures at once");
+			expect(held.Ledger.Commands == heldBefore.Ledger.Commands + 1U && held.Ledger.Completions == heldBefore.Ledger.Completions
+					   && window->review_editor()->shown_receipt() == shownBefore,
+				   "the held gesture is decided and queued, and nothing is written or published before the store answers");
+			releaseLedger();
+			wait_for([&] { return access::scaling_evidence(*owner).Ledger.Completions > heldBefore.Ledger.Completions
+							   && window->review_editor()->shown_receipt() && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread
+							   && quiet(); },
+					 "the held gesture is durable, then published, once the store answers");
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto released = access::scaling_evidence(*owner);
+			expect(released.Ledger.PersistenceRequests == heldBefore.Ledger.PersistenceRequests + 1U
+					   && released.Ledger.StoreFailures == heldBefore.Ledger.StoreFailures,
+				   "the released gesture was written exactly once");
 		} else {
 			expect(access::scaling_evidence(*owner).Ledger.MaterialReceiptHits > 0U, "same-root restart loads durable receipt for selected material");
 			std::cout << "reopen=1 material_receipt_hits=" << access::scaling_evidence(*owner).Ledger.MaterialReceiptHits << '\n';

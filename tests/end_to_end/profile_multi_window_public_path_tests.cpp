@@ -676,9 +676,20 @@ try {
 		expect(sqlite3_step(schemaRaw) == SQLITE_ROW, "receipt schema exists before the fault");
 		const auto receiptSchema = std::string{ reinterpret_cast<const char*>(sqlite3_column_text(schemaRaw, 0)) };
 		expect(sqlite3_step(schemaRaw) == SQLITE_DONE, "fixture finishes the schema read before its write");
+		// [[BPR-1211]]. The writer's commit runs on the profile's ledger lane.
+		// Holding that lane behind it lets the commit and its sibling
+		// notification land while the sibling's reload waits, so the fault
+		// is injected between the two as it was when the commit was inline.
 		action(*windowB, "toggleSelectedFileReadAction")->trigger();
+		const auto release = app::detail::github_application_fixture_access::hold_review_ledger_effects(*owner);
+		wait_for([&] {
+			return windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread
+				&& app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.ReceiptLoads > beforeFailedReload.Ledger.ReceiptLoads;
+		},
+				 "writer commits and the sibling's reload is queued behind the held ledger lane");
 		expect(windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread, "writer commits before the sibling read fault");
 		expect(sqlite3_exec(ledgerRaw, "ALTER TABLE file_receipt RENAME TO fixture_hidden_receipt", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture hides only its own receipt table");
+		release();
 		wait_for([&] { return app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.StoreFailures > beforeFailedReload.Ledger.StoreFailures; }, "queued sibling refresh observes the actual SQLite read failure");
 		const auto afterFailedReload = app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC);
 		expect(windowC->review_editor()->shown_receipt() == retainedReceiptC
@@ -787,6 +798,8 @@ try {
 	const auto defectScrollB     = windowB->comparison_surface()->shared_scrollbar()->value();
 	const auto defectScrollC     = windowC->comparison_surface()->shared_scrollbar()->value();
 	windowB->classify_defect_action()->trigger();
+	// [[BPR-1211]]. The classification is shown once its write is durable.
+	wait_for([&] { return windowB->defect_count() == 1U; }, "the writer's classification is durable");
 	const auto defectContext = windowB->defect_card()->context_label()->text();
 	expect(defectContext == QStringLiteral("Shared context available at the retained semantic anchor."), "writer classification starts with available retained context");
 	wait_for([&] { return windowB->defect_count() == 1U && windowC->defect_count() == 1U; }, "accepted classification reaches the sibling on a different file");

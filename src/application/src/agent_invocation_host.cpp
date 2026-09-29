@@ -237,22 +237,38 @@ namespace bpr::application {
 		void publish_session_catalog(
 			const core::agent_revision_binding& aObserved)
 		{
-			auto loaded = Sessions.session_catalog();
-			if (!loaded) {
-				project_refuse(
-					std::string{ "agent_session_catalog_" }
-					+ std::string{ name(loaded.error()) });
-				return;
-			}
-			auto projection = agent_session_catalog_projection{
-				.Latest = loaded->Latest,
-				.Next   = loaded->Next,
-			};
-			if (loaded->Latest.has_value()) {
-				projection.LatestStatus = core::observe_agent_session(
-					*loaded->Latest, aObserved);
-			}
-			project_session_catalog(projection);
+			// [[BPR-1211]]. The catalog is read off the decision lane and
+			// answered on it; an answer for a binding this host has since
+			// left is not presented.
+			Sessions.session_catalog([weak = weak_from_this(), aObserved](
+										 std::expected<agent_session_catalog_state, ledger_store_failure> aLoaded) {
+				auto self = weak.lock();
+				if (!self || !self->enter_callback()) {
+					return;
+				}
+				auto guard = callback_guard{ self };
+				{
+					std::scoped_lock lock{ self->StateMutex };
+					if (self->Binding != std::optional{ aObserved }) {
+						return;
+					}
+				}
+				if (!aLoaded) {
+					self->project_refuse(
+						std::string{ "agent_session_catalog_" }
+						+ std::string{ name(aLoaded.error()) });
+					return;
+				}
+				auto projection = agent_session_catalog_projection{
+					.Latest = aLoaded->Latest,
+					.Next   = aLoaded->Next,
+				};
+				if (aLoaded->Latest.has_value()) {
+					projection.LatestStatus = core::observe_agent_session(
+						*aLoaded->Latest, aObserved);
+				}
+				self->project_session_catalog(projection);
+			});
 		}
 
 		void publish_offerings()
@@ -409,58 +425,121 @@ namespace bpr::application {
 				}
 			}
 
-			auto job = std::shared_ptr<invocation>{ };
+			auto admission = std::optional<agent_session_admission>{ };
+			if (!admissible(aRequest)) {
+				return;
+			}
+			// Continuing is the one path that allocates nothing. The
+			// identity already exists in the catalog, which is what makes
+			// it a continuation rather than a second conversation, and
+			// re-admitting it would mint an identity the reviewer's own
+			// session is not keyed to.
+			if (aRequest.ContinuedSession.has_value()) {
+				const auto continued = *aRequest.ContinuedSession;
+				start(std::move(aRequest), *profile, std::move(*supplement), continued);
+				return;
+			}
 			{
 				std::scoped_lock lock{ StateMutex };
-				// The revision this turn is about: the one under review, or —
-				// for a continuation — the one the continued session was
-				// bound to. Both are values this host holds or was handed
-				// whole; neither is a revision a caller named on its own.
-				const auto turnBinding = aRequest.ContinuedSession.has_value()
-					? aRequest.ContinuedSession->Binding
-					: Binding.value_or(core::agent_revision_binding{ });
-				if (
-					!ApplicationSession.has_value() || !Authority.has_value()
-					|| !Binding.has_value() || ActiveInvocation
-					|| aRequest.ApplicationSession != *ApplicationSession
-					|| aRequest.Context.ApplicationSession
-						!= aRequest.ApplicationSession
-					|| aRequest.Authority != *Authority
-					|| aRequest.Context.Binding != turnBinding
-					|| !binding_matches_authority(turnBinding, *Authority)
-					|| !binding_matches_authority(*Binding, *Authority)) {
-					project_refuse(
-						ActiveInvocation ? "agent_invocation_already_running"
-										 : "stale_or_mismatched_agent_context");
+				AdmissionPending   = true;
+				AdmissionCancelled = false;
+				admission          = agent_session_admission{ .Profile = profile->Id, .Binding = *Binding };
+				ActiveJobs.store(1U, std::memory_order_release);
+			}
+			// [[BPR-1211]]. The new identity is allocated durably off the
+			// decision lane; the turn starts when its answer returns there,
+			// and only if the review it was asked about is still the one here.
+			++SessionAdmissions;
+			Sessions.admit(*admission, [weak = weak_from_this(), request = std::move(aRequest), turnProfile = *profile, turnSupplement = std::move(*supplement), expected = admission->Binding](std::expected<core::agent_session, ledger_store_failure> aAdmitted) mutable {
+				auto self = weak.lock();
+				if (!self || !self->enter_callback()) {
 					return;
 				}
-				// Continuing is the one path that allocates nothing. The
-				// identity already exists in the catalog, which is what makes
-				// it a continuation rather than a second conversation, and
-				// re-admitting it would mint an identity the reviewer's own
-				// session is not keyed to.
-				auto session = aRequest.ContinuedSession;
-				if (!session.has_value()) {
-					++SessionAdmissions;
-					auto admitted = Sessions.admit(agent_session_admission{
-						.Profile = profile->Id,
-						.Binding = *Binding,
-					});
-					if (!admitted) {
-						++SessionAdmissionFailures;
-						project_refuse(
-							std::string{ "agent_session_admission_" }
-							+ std::string{ name(admitted.error()) });
+				auto guard     = callback_guard{ self };
+				auto cancelled = false;
+				{
+					std::scoped_lock lock{ self->StateMutex };
+					self->AdmissionPending = false;
+					cancelled              = std::exchange(self->AdmissionCancelled, false);
+				}
+				const auto idle = [&self] { self->ActiveJobs.store(0U, std::memory_order_release); };
+				if (!aAdmitted) {
+					++self->SessionAdmissionFailures;
+					idle();
+					self->project_refuse(
+						std::string{ "agent_session_admission_" }
+						+ std::string{ name(aAdmitted.error()) });
+					return;
+				}
+				{
+					std::scoped_lock lock{ self->StateMutex };
+					if (self->Binding != std::optional{ expected }) {
+						idle();
+						self->project_refuse("stale_or_mismatched_agent_context");
 						return;
 					}
-					session = *admitted;
 				}
-				supplement->Session = *session;
-				job                 = std::make_shared<invocation>(
+				if (!self->admissible(request)) {
+					idle();
+					return;
+				}
+				self->start(std::move(request), turnProfile, std::move(turnSupplement), *aAdmitted);
+				// A cancel or shutdown while the identity was allocated applies
+				// to the turn it was allocated for, before any effect.
+				if (cancelled || self->Closing.load(std::memory_order_acquire)) {
+					self->cancel();
+				}
+			});
+		}
+
+		/// \brief Whether the review this host holds still admits the turn.
+		[[nodiscard]] auto admissible(const agent_invocation_request& aRequest) -> bool
+		{
+			std::scoped_lock lock{ StateMutex };
+			// The revision this turn is about: the one under review, or —
+			// for a continuation — the one the continued session was
+			// bound to. Both are values this host holds or was handed
+			// whole; neither is a revision a caller named on its own.
+			const auto turnBinding = aRequest.ContinuedSession.has_value()
+				? aRequest.ContinuedSession->Binding
+				: Binding.value_or(core::agent_revision_binding{ });
+			if (
+				!ApplicationSession.has_value() || !Authority.has_value()
+				|| !Binding.has_value() || ActiveInvocation || AdmissionPending
+				|| aRequest.ApplicationSession != *ApplicationSession
+				|| aRequest.Context.ApplicationSession
+					!= aRequest.ApplicationSession
+				|| aRequest.Authority != *Authority
+				|| aRequest.Context.Binding != turnBinding
+				|| !binding_matches_authority(turnBinding, *Authority)
+				|| !binding_matches_authority(*Binding, *Authority)) {
+				project_refuse(
+					ActiveInvocation || AdmissionPending ? "agent_invocation_already_running"
+														 : "stale_or_mismatched_agent_context");
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief Starts one admitted turn under its exact session.
+		void start(agent_invocation_request       aRequest,
+				   const core::agent_profile&     aProfile,
+				   core::agent_context_supplement aSupplement,
+				   const core::agent_session&     aSession)
+		{
+			aSupplement.Session = aSession;
+			auto job            = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				if (ActiveInvocation) {
+					project_refuse("agent_invocation_already_running");
+					return;
+				}
+				job = std::make_shared<invocation>(
 					agent_invocation_projection_identity{
 						.ApplicationSession   = aRequest.ApplicationSession,
 						.Authority            = aRequest.Authority,
-						.Session              = *session,
+						.Session              = aSession,
 						.InvocationGeneration = ++InvocationGeneration,
 					},
 					// The binding comes from the session this turn runs under,
@@ -469,7 +548,7 @@ namespace bpr::application {
 					// there is nowhere for it to say one and the one place it
 					// could restate it has already been checked equal.
 					core::agent_finding_snapshot{
-						.Binding = session->Binding,
+						.Binding = aSession.Binding,
 						.Files   = aRequest.FrozenFiles,
 					},
 					aRequest.ContinuedSession.has_value(),
@@ -485,7 +564,7 @@ namespace bpr::application {
 
 			const auto existing = aRequest.ExistingCheckoutChosen
 				? prepare_agent_workspace(
-					  *profile,
+					  aProfile,
 					  job->Identity.Session,
 					  aRequest.ExistingCheckout,
 					  true,
@@ -493,8 +572,8 @@ namespace bpr::application {
 				: workspace_preparation{ };
 			post_admission(
 				std::move(aRequest),
-				*profile,
-				*supplement,
+				aProfile,
+				std::move(aSupplement),
 				existing,
 				job);
 		}
@@ -982,7 +1061,8 @@ namespace bpr::application {
 			auto active = std::shared_ptr<invocation>{ };
 			{
 				std::scoped_lock lock{ StateMutex };
-				active = ActiveInvocation;
+				active             = ActiveInvocation;
+				AdmissionCancelled = AdmissionCancelled || AdmissionPending;
 			}
 			if (!active) {
 				return;
@@ -1065,6 +1145,10 @@ namespace bpr::application {
 		std::optional<core::agent_revision_binding> Binding;
 		std::shared_ptr<invocation>                 ActiveInvocation;
 		std::uint64_t                               InvocationGeneration = 0U;
+		/// [[BPR-1211]]. A new session is being admitted for a turn; no
+		/// second turn starts meanwhile, and a cancel reaches that turn.
+		bool AdmissionPending   = false;
+		bool AdmissionCancelled = false;
 
 		std::atomic_bool                       Closing    = false;
 		std::atomic_size_t                     ActiveJobs = 0U;

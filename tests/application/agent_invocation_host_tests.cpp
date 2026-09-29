@@ -102,31 +102,40 @@ namespace {
 		: public application::agent_session_catalog_port
 	{
 	public:
-		[[nodiscard]] auto admit(
-			const application::agent_session_admission& aAdmission)
-			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		/// [[BPR-1211]]. Answers on `aLane` when one is given, as the durable
+		/// catalog does; inline otherwise.
+		explicit session_catalog_spy(application::decision_executor* aLane = nullptr)
+			: Lane{ aLane }
 		{
-			++AdmissionAttempts;
-			if (AdmissionFailure.has_value()) {
-				return std::unexpected(*AdmissionFailure);
-			}
-			Latest = core::agent_session{
-				.Id      = core::agent_session_id{ Next++ },
-				.Profile = aAdmission.Profile,
-				.Binding = aAdmission.Binding,
-			};
-			return *Latest;
 		}
 
-		[[nodiscard]] auto session_catalog()
-			-> std::expected<
-				application::agent_session_catalog_state,
-				application::ledger_store_failure> override
+		void admit(
+			const application::agent_session_admission&                                                aAdmission,
+			std::function<void(std::expected<core::agent_session, application::ledger_store_failure>)> aDone) override
+		{
+			++AdmissionAttempts;
+			auto answer = std::expected<core::agent_session, application::ledger_store_failure>{ };
+			if (AdmissionFailure.has_value()) {
+				answer = std::unexpected(*AdmissionFailure);
+			} else {
+				Latest = core::agent_session{
+					.Id      = core::agent_session_id{ Next++ },
+					.Profile = aAdmission.Profile,
+					.Binding = aAdmission.Binding,
+				};
+				answer = *Latest;
+			}
+			deliver([done = std::move(aDone), answer] { done(answer); });
+		}
+
+		void session_catalog(
+			std::function<void(std::expected<application::agent_session_catalog_state, application::ledger_store_failure>)> aDone) override
 		{
 			++Loads;
-			return application::agent_session_catalog_state{
+			const auto answer = application::agent_session_catalog_state{
 				.Latest = Latest, .Next = core::agent_session_id{ Next }
 			};
+			deliver([done = std::move(aDone), answer] { done(answer); });
 		}
 
 		std::uint64_t                                    Next              = 41U;
@@ -134,6 +143,18 @@ namespace {
 		std::size_t                                      Loads             = 0U;
 		std::optional<application::ledger_store_failure> AdmissionFailure;
 		std::optional<core::agent_session>               Latest;
+
+	private:
+		void deliver(std::function<void()> aAnswer)
+		{
+			if (Lane != nullptr) {
+				Lane->post(std::move(aAnswer));
+			} else {
+				aAnswer();
+			}
+		}
+
+		application::decision_executor* Lane = nullptr;
 	};
 
 	class queued_executor final
@@ -586,7 +607,7 @@ namespace {
 		workspace_spy                      Workspaces;
 		process_spy                        Processes;
 		projection_spy                     Projection;
-		session_catalog_spy                Sessions;
+		session_catalog_spy                Sessions{ &Decisions };
 		std::size_t                        EnvironmentReads = 0U;
 		application::agent_invocation_host Host{
 			core::built_in_agent_profiles(),
@@ -694,6 +715,9 @@ namespace {
 			binding(core::git_host_id{ 1U }));
 		test.Host.dispatch(request(
 			core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		expect(test.Projection.Refusals.empty() && test.Sessions.AdmissionAttempts == 1U,
+			   "[[BPR-1211]] durable admission answers on the decision lane, never inside the dispatch");
+		test.Decisions.drain();
 		expect(
 			test.Sessions.AdmissionAttempts == 1U
 				&& test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
@@ -733,6 +757,7 @@ namespace {
 				core::application_session_id{ 1U },
 				authority(core::git_host_id{ 1U }),
 				observations[index]);
+			test.Decisions.drain();
 			const auto& projected = test.Projection.SessionCatalogs.back();
 			expect(
 				projected.LatestStatus.has_value()
@@ -1504,6 +1529,36 @@ namespace {
 			"the analyzed revisions survive the move intact");
 	}
 
+	/// [[BPR-1211]]. The session identity is allocated off the decision lane.
+	/// While it is, no second turn starts; an answer for a review this host
+	/// has left starts nothing.
+	void test_session_admission_answers_later_and_admits_one_turn()
+	{
+		auto test = harness{ };
+		test.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 1U }), binding(core::git_host_id{ 1U }));
+		test.Decisions.drain();
+		test.Host.dispatch(request(core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		test.Host.dispatch(request(core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		expect(test.Sessions.AdmissionAttempts == 1U && test.Projection.Refusals == std::vector<std::string>{ "agent_invocation_already_running" }
+				   && !test.Host.is_quiescent() && test.Workspaces.Starts == 0U,
+			   "a second turn is refused while the first one's identity is allocated");
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.Host.is_quiescent(), "the admitted turn then runs once");
+
+		auto stale = harness{ };
+		stale.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 1U }), binding(core::git_host_id{ 1U }));
+		stale.Decisions.drain();
+		stale.Host.dispatch(request(core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		auto moved    = binding(core::git_host_id{ 1U });
+		moved.HeadOid = commit(9U);
+		stale.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 1U }), moved);
+		stale.settle();
+		expect(stale.Sessions.AdmissionAttempts == 1U && stale.Workspaces.Starts == 0U && stale.Processes.Starts == 0U
+				   && !stale.Projection.Refusals.empty() && stale.Projection.Refusals.back() == "stale_or_mismatched_agent_context"
+				   && stale.Host.is_quiescent(),
+			   "an identity answered after the binding moved starts nothing and is refused by name");
+	}
+
 	void test_a_promoted_finding_reaches_only_the_note_authority()
 	{
 		auto       store    = ledger_store_spy{ };
@@ -1577,6 +1632,7 @@ namespace {
 auto main() -> int
 {
 	test_explicit_settings_cross_the_existing_invocation_host();
+	test_session_admission_answers_later_and_admits_one_turn();
 	test_ghes_policy_refuses_codex_before_effects();
 	test_context_refusal_precedes_durable_admission();
 	test_durable_admission_refusal_precedes_every_downstream_effect();

@@ -961,6 +961,16 @@ auto main(int argc, char** argv) -> int
 				QString::fromUtf8(
 					selectedDraft.data(),
 					static_cast<qsizetype>(selectedDraft.size())));
+			// [[BPR-1211]]. Choices are offered again when the draft host
+			// accepts the typed draft, which clears a selection made before it;
+			// the course selects once that acceptance has landed.
+			auto draftAccepted = wait_terms{ };
+			if (!wait_until_reporting(draftAccepted, [&](wait_terms& aTerms) {
+					const auto context = app::detail::github_application_fixture_access::agent_invocation_context(*application);
+					return aTerms.require("draft-accepted", context.has_value() && context->CurrentDraft.has_value() && context->CurrentDraft->Draft.Body == selectedDraft);
+				})) {
+				return fail(*application, "draft-accepted", draftAccepted.render());
+			}
 			auto privateOfferings = wait_terms{ };
 			if (!wait_until_reporting(privateOfferings, [panel](wait_terms& aTerms) {
 					aTerms.note(

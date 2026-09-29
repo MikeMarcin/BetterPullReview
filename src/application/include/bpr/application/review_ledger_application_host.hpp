@@ -1,19 +1,19 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_LEDGER_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_LEDGER_APPLICATION_HOST_HPP
 
+#include "bpr/application/port.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/review_ledger.hpp"
 
 #include <array>
 #include <compare>
+#include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <expected>
-#include <map>
-#include <mutex>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <span>
-#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -32,7 +32,7 @@ namespace bpr::application {
 		/// Durable receipt reads that reached the store.
 		std::uint64_t ReceiptLoads    = 0U;
 		std::uint64_t ReceiptLoadHits = 0U;
-		/// [[BPR-0972]]. `load_receipt` answers served by the retained durable
+		/// [[BPR-0972]]. `cached_receipt` answers served by the retained durable
 		/// receipts without a store read.
 		std::uint64_t ReceiptCacheHits = 0U;
 		/// [[BPR-0972]]. Retained durable receipts dropped because another
@@ -51,6 +51,16 @@ namespace bpr::application {
 		std::uint64_t ConversationLoads    = 0U;
 		std::uint64_t ConversationWrites   = 0U;
 		std::uint64_t ConversationFailures = 0U;
+		/// [[BPR-1211]]. Store operations admitted to the effect lane.
+		std::uint64_t Operations = 0U;
+		/// Operations refused at `maximum_outstanding_ledger_operations`.
+		std::uint64_t AdmissionRefusals = 0U;
+		/// Operations answered `cancelled`: queued at, or asked after, retirement.
+		std::uint64_t CancelledOperations = 0U;
+		/// Completions that arrived after retirement; none was applied.
+		std::uint64_t LateCompletions = 0U;
+		/// The most operations held at once.
+		std::uint64_t PeakOutstanding = 0U;
 
 		auto operator<=>(const review_ledger_host_statistics&) const = default;
 	};
@@ -129,6 +139,25 @@ namespace bpr::application {
 		auto operator<=>(const conversation_read_state&) const = default;
 	};
 
+	/// \brief Bounds the ledger operations one host holds at once.
+	///
+	/// \details [[BPR-1211]]. Queued and running operations together. A gesture
+	/// beyond the bound is refused with `ledger_store_failure::unavailable`
+	/// rather than growing a queue behind slow storage.
+	inline constexpr std::size_t maximum_outstanding_ledger_operations = 64U;
+
+	/// \brief Opens the review's durable store. Runs on the effect lane.
+	using review_ledger_store_opener = std::function<
+		std::expected<std::unique_ptr<review_ledger_store_port>, ledger_store_failure>()>;
+
+	/// \brief Receives one ledger operation's terminal on the decision lane.
+	template <typename Value>
+	using ledger_completion = std::function<void(std::expected<Value, ledger_store_failure>)>;
+
+	/// \brief Receives one note operation's terminal on the decision lane.
+	template <typename Value>
+	using local_note_completion = std::function<void(std::expected<Value, local_note_failure>)>;
+
 	/// \brief Turns receipt commands into durable state and published projections.
 	///
 	/// \details The order is the contract. A command is decided by the core, the
@@ -137,18 +166,55 @@ namespace bpr::application {
 	/// projection published before the commit would show a reader a state the
 	/// database does not hold — and would survive exactly until the next
 	/// restart contradicted it.
-	class review_ledger_application_host final : public agent_session_catalog_port
+	///
+	/// [[BPR-1211]]. Every store operation, including opening the store, runs
+	/// on the effect executor, one at a time and in the order it was asked
+	/// for. The core decides each command on the decision lane when the
+	/// command reaches the head of that queue, against the durable state the
+	/// operations before it left, and the typed completion returns to the
+	/// decision lane before anything is retained or published. Every member is
+	/// called on the decision lane and every terminal is delivered there,
+	/// exactly once. No lock is held across storage, so a read here never
+	/// waits for a slow store: reads answer from the durable values this host
+	/// has already loaded or committed.
+	///
+	/// Retirement cancels queued operations with `ledger_store_failure::cancelled`,
+	/// refuses the completion of a running one (the store may have committed it,
+	/// but this host publishes nothing more), and closes the store on the
+	/// effect lane once nothing is running.
+	class review_ledger_application_host final
 	{
 	public:
+		/// \brief Starts opening the store; `aOpened` answers on the decision lane.
 		review_ledger_application_host(
-			review_ledger_store_port& aStore,
-			receipt_projection_port&  aProjection) noexcept;
+			review_ledger_store_opener aOpen,
+			receipt_projection_port&   aProjection,
+			effect_executor&           aEffects,
+			decision_executor&         aDecisions,
+			ledger_completion<void>    aOpened   = { },
+			std::size_t                aCapacity = maximum_outstanding_ledger_operations);
+		~review_ledger_application_host();
+
+		review_ledger_application_host(const review_ledger_application_host&)                    = delete;
+		auto operator=(const review_ledger_application_host&) -> review_ledger_application_host& = delete;
+		review_ledger_application_host(review_ledger_application_host&&)                         = delete;
+		auto operator=(review_ledger_application_host&&) -> review_ledger_application_host&      = delete;
+
+		/// \brief Cancels queued work and refuses every later completion.
+		void retire() noexcept;
+		/// \brief Whether the store opened; empty until the open completes.
+		[[nodiscard]] auto available() const noexcept -> std::optional<bool>;
+		/// \brief Operations queued or running.
+		[[nodiscard]] auto outstanding() const noexcept -> std::size_t;
+		/// \brief Nothing queued, running, or waiting to deliver its terminal.
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
 		/// \brief Seeds the retained receipt for one file.
 		///
 		/// \details The host holds one file's receipt at a time, because the
 		/// core decides against the receipt the reader is acting on. It does
-		/// not hold the ledger.
+		/// not hold the ledger. A material observation still running for
+		/// another file no longer retains or publishes its answer.
 		void retain(const core::file_receipt& aReceipt);
 
 		/// \brief Loads and carries one receipt to exact selected material.
@@ -157,83 +223,40 @@ namespace bpr::application {
 		/// write. Changed material is carried by the core and committed before it is
 		/// retained or published. Thus merely reopening unchanged material performs
 		/// zero writes, while an old receipt can never be applied to new material.
-		[[nodiscard]] auto observe_material(
-			const core::file_material_observation& aObservation)
-			-> std::expected<core::file_receipt, ledger_store_failure>;
+		/// A later observation or `retain` supersedes this one's publication.
+		void observe_material(
+			const core::file_material_observation& aObservation,
+			ledger_completion<core::file_receipt>  aDone = { });
 
 		/// \brief Reloads the retained file and carries to its material only in memory.
 		/// \details Sibling invalidation must never write a carry back to durable state.
-		[[nodiscard]] auto refresh_receipt()
-			-> std::expected<core::file_receipt, ledger_store_failure>;
-
-		/// \brief Discards cached conversation receipts after a sibling write.
-		void invalidate_conversation_receipts();
+		void refresh_receipt(ledger_completion<core::file_receipt> aDone = { });
 
 		/// \brief Decides, commits, and publishes one receipt command.
 		///
-		/// \returns The core's outcome. A refused command never reaches the
-		/// store, so a rejection here means nothing was written.
-		auto submit(const core::file_receipt_command& aCommand)
-			-> core::file_receipt_outcome;
+		/// \details Decided when it reaches the head of the queue. A refused
+		/// command never reaches the store, so a rejection means nothing was
+		/// written.
+		void submit(const core::file_receipt_command&             aCommand,
+					ledger_completion<core::file_receipt_outcome> aDone = { });
 
-		/// \brief Persists one validated local note.
-		[[nodiscard]] auto persist(const local_note_record&           aNote,
-								   std::optional<local_note_revision> aExpectedRevision = std::nullopt)
-			-> std::expected<local_note_record, local_note_failure>;
-
-		/// \brief Deletes one local note identity.
-		[[nodiscard]] auto erase(local_note_id aNote, local_note_revision aExpectedRevision)
-			-> std::expected<void, local_note_failure>;
-
-		/// \brief Returns the first rejected candidate, retained until explicit dismissal.
-		[[nodiscard]] auto rejected_note() const -> std::optional<rejected_local_note_mutation>;
-		/// \brief Explicitly dismisses this window's retained rejected candidate.
-		void dismiss_rejected_note();
-
-		/// \brief Persists the exact head last reviewed by this reviewer.
-		[[nodiscard]] auto persist_last_reviewed_head(
-			const core::git_commit_oid& aHead)
-			-> std::expected<void, ledger_store_failure>;
-
-		/// \brief Clears the last-reviewed head.
-		[[nodiscard]] auto erase_last_reviewed_head()
-			-> std::expected<void, ledger_store_failure>;
-
-		/// \brief Persists one validated local defect and its retained history.
-		[[nodiscard]] auto persist(const durable_defect_record& aDefect)
-			-> std::expected<void, ledger_store_failure>;
-
-		/// \brief Deletes one local defect identity.
-		[[nodiscard]] auto erase(core::defect_id aDefect)
-			-> std::expected<void, ledger_store_failure>;
-
-		/// \brief Loads one bounded deterministic private-state observation.
-		[[nodiscard]] auto private_observation()
-			-> std::expected<private_ledger_observation, ledger_store_failure>;
-
-		/// \brief Durably admits one immutable metadata-only agent session.
-		[[nodiscard]] auto admit(const agent_session_admission& aAdmission)
-			-> std::expected<core::agent_session, ledger_store_failure> override;
-
-		/// \brief Loads the latest retained session and next durable identity.
-		[[nodiscard]] auto session_catalog()
-			-> std::expected<agent_session_catalog_state, ledger_store_failure> override;
-
-		/// \brief Reads one file's durable receipt without retaining or publishing it.
+		/// \brief One file's durable receipt, when this host already holds it.
 		///
-		/// \details [[BPR-0647]]. The overview names every file's read state,
-		/// which is the ledger's to answer; this is a read of the store through
-		/// the host, so no composition reaches for the store itself. An absent
-		/// receipt is an engaged optional's absence, not a failure.
+		/// \details [[BPR-0972]]. Outer absence: not yet read; inner absence:
+		/// read, and no receipt exists. Never reads the store.
+		[[nodiscard]] auto cached_receipt(const core::file_identity& aFile)
+			-> std::optional<std::optional<core::file_receipt>>;
+
+		/// \brief Reads the durable receipts of these files that are not yet held.
 		///
-		/// [[BPR-0972]]. The first answer for a file is read from the store and
-		/// retained, absence included; later answers come from that retained
-		/// durable value. Every commit this host makes updates it, so only a
-		/// write by another host can make it stale, and that writer's
-		/// notification must reach `invalidate_receipts` first. A store failure
-		/// retains nothing.
-		[[nodiscard]] auto load_receipt(const core::file_identity& aFile)
-			-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>;
+		/// \details [[BPR-0647]], [[BPR-0972]]. The first answer for a file is
+		/// read from the store and retained, absence included; later answers
+		/// come from that retained durable value. Every commit this host makes
+		/// updates it, so only a write by another host can make it stale, and
+		/// that writer's notification must reach `invalidate_receipts` first. A
+		/// store failure retains nothing, and neither does an answer read before
+		/// an invalidation of its file.
+		void load_receipts(std::vector<core::file_identity> aFiles, ledger_completion<void> aDone);
 
 		/// \brief Drops the retained durable receipts of files another writer changed.
 		void invalidate_receipts(std::span<const core::file_identity> aFiles);
@@ -241,7 +264,7 @@ namespace bpr::application {
 		/// \brief Drops every retained durable receipt, for a change naming no file.
 		void invalidate_all_receipts();
 
-		/// \brief Counts changes to the durable receipts `load_receipt` answers.
+		/// \brief Counts changes to the durable receipts `cached_receipt` answers.
 		///
 		/// \details Advances on every commit and every invalidation, and when a
 		/// fresh store read replaces a retained value with a different one. A
@@ -260,49 +283,73 @@ namespace bpr::application {
 
 		/// \brief Decides the read state of the observed conversations.
 		///
-		/// \details [[BPR-0656]]. Loads the review's conversation receipts
-		/// from the store once and keeps them; each thread is judged by
-		/// `core::unread_posts` against its receipt, or against an empty
-		/// receipt when none was ever written. A store failure is typed and
-		/// leaves nothing cached, so the next observation asks again.
-		[[nodiscard]] auto observe_conversations(
-			std::span<const conversation_thread_observation> aThreads)
-			-> std::expected<conversation_read_state, ledger_store_failure>;
+		/// \details [[BPR-0656]]. Each thread is judged by `core::unread_posts`
+		/// against its receipt, or against an empty receipt when none was ever
+		/// written. Empty until `load_conversation_receipts` has succeeded.
+		[[nodiscard]] auto unread_conversations(
+			std::span<const conversation_thread_observation> aThreads) const
+			-> std::optional<conversation_read_state>;
+
+		/// \brief Loads the review's conversation receipts once and keeps them.
+		/// \details A failure is typed and keeps nothing, so a later call asks again.
+		void load_conversation_receipts(ledger_completion<void> aDone);
+
+		/// \brief Discards cached conversation receipts after a sibling write.
+		void invalidate_conversation_receipts();
 
 		/// \brief Reads one conversation up to its latest post, durably.
 		///
 		/// \details The receipt the core builds is stored before it is kept,
 		/// so a refused write changes nothing the next observation reports.
-		[[nodiscard]] auto mark_conversation_read(
-			const core::conversation_observation& aLatest)
-			-> std::expected<void, ledger_store_failure>;
+		void mark_conversation_read(const core::conversation_observation& aLatest, ledger_completion<void> aDone);
+
+		/// \brief The bounded private-state observation last loaded or committed.
+		/// \details Never reads the store; `unavailable` until `load_private` succeeds.
+		[[nodiscard]] auto private_observation() const
+			-> std::expected<private_ledger_observation, ledger_store_failure>;
+
+		/// \brief Loads the bounded deterministic private-state observation.
+		/// \details A failure keeps the last loaded observation.
+		void load_private(ledger_completion<void> aDone);
+
+		/// \brief Persists one validated local note.
+		void persist(const local_note_record&                 aNote,
+					 std::optional<local_note_revision>       aExpectedRevision,
+					 local_note_completion<local_note_record> aDone);
+
+		/// \brief Deletes one local note identity.
+		void erase(local_note_id aNote, local_note_revision aExpectedRevision, local_note_completion<void> aDone);
+
+		/// \brief Returns the first rejected candidate, retained until explicit dismissal.
+		[[nodiscard]] auto rejected_note() const -> std::optional<rejected_local_note_mutation>;
+		/// \brief Explicitly dismisses this window's retained rejected candidate.
+		void dismiss_rejected_note();
+
+		/// \brief Persists the exact head last reviewed by this reviewer.
+		void persist_last_reviewed_head(const core::git_commit_oid& aHead, ledger_completion<void> aDone);
+
+		/// \brief Clears the last-reviewed head.
+		void erase_last_reviewed_head(ledger_completion<void> aDone);
+
+		/// \brief Persists one validated local defect and its retained history.
+		void persist(const durable_defect_record& aDefect, ledger_completion<void> aDone);
+
+		/// \brief Deletes one local defect identity.
+		void erase(core::defect_id aDefect, ledger_completion<void> aDone);
+
+		/// \brief Durably admits one immutable metadata-only agent session.
+		void admit(const agent_session_admission& aAdmission, ledger_completion<core::agent_session> aDone);
+
+		/// \brief Loads the latest retained session and next durable identity.
+		void session_catalog(ledger_completion<agent_session_catalog_state> aDone);
+
 		[[nodiscard]] auto retained() const noexcept -> core::file_receipt;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_ledger_host_statistics;
 
 	private:
-		review_ledger_store_port* Store      = nullptr;
-		receipt_projection_port*  Projection = nullptr;
-		[[nodiscard]] auto        conversation_receipts_locked()
-			-> std::expected<void, ledger_store_failure>;
-		void remember_durable_locked(const core::file_identity&               aFile,
-									 const std::optional<core::file_receipt>& aReceipt,
-									 bool                                     aCommitted);
-		void record_durable_change_locked(const core::file_identity& aFile);
-
-		core::file_receipt Retained;
-		/// [[BPR-0972]]. The durable receipts read or written through this host.
-		std::map<core::file_identity, std::optional<core::file_receipt>> DurableReceipts;
-		std::uint64_t                                                    DurableRevision = 0U;
-		/// [[BPR-0972]]. The files each recent revision moved, oldest first,
-		/// and the revision before which the record no longer answers.
-		std::deque<std::pair<std::uint64_t, core::file_identity>> DurableChanges;
-		std::uint64_t                                             DurableChangesFloor = 0U;
-		/// Sorted by conversation, so each thread's receipt is a binary search.
-		std::optional<std::vector<core::conversation_receipt>> ConversationReceipts;
-		review_ledger_host_statistics                          Statistics;
-		mutable std::mutex                                     Mutex;
-		std::optional<rejected_local_note_mutation>            RejectedNote;
+		struct implementation;
+		std::shared_ptr<implementation> Implementation;
 	};
 } // namespace bpr::application
 

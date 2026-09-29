@@ -46,10 +46,42 @@ replacing the workbench authority or its selected comparison. When selected
 material changes, the core reopens its receipt and the same-process refresh
 returns that file to the actionable order without detaching the rendered diff.
 
-If the SQLite store cannot open, the application installs one typed unavailable
-store behind the same host. GitHub content, epoch selection, and diff rendering
+If the SQLite store cannot open, the host answers every operation with that
+typed opening failure. GitHub content, epoch selection, and diff rendering
 continue, while the receipt actions are disabled and the workbench states that
 private review progress is unavailable.
+
+### Off the decision lane
+
+[[BPR-1211]]. Every store operation runs on the profile's review-ledger effect
+lane, including opening the store and closing it. That lane is one worker thread
+shared by the profile's windows. Each host queues its operations and runs them
+one at a time, in the order they were asked for. A receipt command is decided by
+the core on the decision lane when it reaches the head of that queue, against
+the durable state the operations before it left. Its typed completion returns to
+the decision lane, and only then is anything retained or published. A host
+holds at most 64 operations; a gesture beyond that is refused `unavailable` and
+presented, rather than growing a queue behind slow storage.
+
+No lock is held across storage. Reads answer from what the host has already
+loaded or committed and never touch the store: the retained receipt, durable
+receipts, conversation receipts and the private observation. A cache miss is an
+explicit asynchronous load that republishes when it answers. The overview reads
+all missing receipts in one operation, and the read state loads the
+conversation receipts once. The private records load once when the store opens
+and again when a sibling changes them, and this host's own writes update them
+as they become durable. A read that began before a sibling's invalidation
+retains nothing, so it cannot restore what that invalidation removed.
+
+Retiring a host, on authority replacement or when its window closes, answers
+queued operations `cancelled`. A completion that returns afterwards is refused:
+the store may have committed it, but nothing is retained or published into the
+successor, which reads the same root and so recovers what was committed. The
+store then closes on the effect lane, after the operation running there. Agent
+sessions and promoted agent notes go through the same host, and their answers
+arrive later on the decision lane. The private review store opens the same file
+after this ledger's opening has answered, as it did when that opening was
+synchronous.
 
 The core holds no part of the ledger and takes no SQLite dependency; its
 receipt policy builds and runs under the `core-only` preset, which links

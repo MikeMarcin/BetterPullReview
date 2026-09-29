@@ -133,6 +133,12 @@ FIFO and durable-before-publication tests. This finding is neither waived nor
 reported as an external blocker, and no blanket no-I/O or whole-architecture pass
 is claimed by BPR-0972.
 
+Later, on 2026-09-29, BPR-1211 moved every one of these ledger operations
+off the decision lane. The finding above is left as it was recorded. The
+evidence for that change is on the BPR-1211 card: a held store with a
+free-running decision lane, and inline-storage negative controls at host
+and composed level.
+
 ## Compiled negative controls
 
 [The durable results](bpr0972-negative-controls.json) bind eight separate mutations

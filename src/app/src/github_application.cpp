@@ -185,6 +185,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <filesystem>
@@ -197,6 +198,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <stop_token>
@@ -2930,106 +2932,6 @@ namespace bpr::app {
 		std::optional<accepted_review> Review;
 	};
 
-	/// \brief Keeps one failed ledger authority typed and fail-closed.
-	class unavailable_review_ledger_store final
-		: public application::review_ledger_store_port
-	{
-	public:
-		explicit unavailable_review_ledger_store(
-			const application::ledger_store_failure aFailure) noexcept
-			: Failure{ aFailure }
-		{
-		}
-
-		auto commit(const application::receipt_persistence_request&)
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto load(const core::file_identity&) -> std::expected<
-			std::optional<core::file_receipt>,
-			application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto store_conversation_receipt(const core::conversation_receipt&)
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto load_conversation_receipts() -> std::expected<
-			std::vector<core::conversation_receipt>,
-			application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto store_note(const application::local_note_record&, std::optional<application::local_note_revision>)
-			-> std::expected<application::local_note_record, application::local_note_failure> override
-		{
-			return std::unexpected(application::local_note_failure{ .Reason = Failure });
-		}
-
-		auto erase_note(application::local_note_id, application::local_note_revision)
-			-> std::expected<void, application::local_note_failure> override
-		{
-			return std::unexpected(application::local_note_failure{ .Reason = Failure });
-		}
-
-		auto store_last_reviewed_head(const core::git_commit_oid&)
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto erase_last_reviewed_head()
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto store_defect(const application::durable_defect_record&)
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto erase_defect(core::defect_id)
-			-> std::expected<void, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto load_private() -> std::expected<
-			application::private_ledger_observation,
-			application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto admit_agent_session(
-			const application::agent_session_admission&)
-			-> std::expected<core::agent_session, application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-		auto load_agent_session_catalog()
-			-> std::expected<
-				application::agent_session_catalog_state,
-				application::ledger_store_failure> override
-		{
-			return std::unexpected(Failure);
-		}
-
-	private:
-		application::ledger_store_failure Failure
-			= application::ledger_store_failure::unavailable;
-	};
-
 	/// \brief Names one core promotion refusal for a reviewer to read.
 	///
 	/// \details Presentation wording lives at this boundary because the core
@@ -3746,19 +3648,21 @@ namespace bpr::app {
 			std::function<void(application::tour_channel_bytes)> Respond;
 			std::chrono::steady_clock::time_point                Deadline;
 		};
-		std::deque<waiting_tour_request>                    WaitingTourRequests;
-		worker_executor                                     ProviderEffects;
-		worker_executor                                     VaultEffects;
-		worker_executor                                     DeviceBindingEffects;
-		worker_executor                                     DeviceTransportEffects;
-		worker_executor                                     EpochEffects;
-		worker_executor                                     DiffEffects;
-		worker_executor                                     AgentEffects;
-		worker_executor                                     McpEffects;
-		worker_executor                                     WorkbenchEffects;
-		worker_executor                                     AppearanceEffects;
-		worker_executor                                     QueueEffects;
-		worker_executor                                     ReviewMutationEffects;
+		std::deque<waiting_tour_request> WaitingTourRequests;
+		worker_executor                  ProviderEffects;
+		worker_executor                  VaultEffects;
+		worker_executor                  DeviceBindingEffects;
+		worker_executor                  DeviceTransportEffects;
+		worker_executor                  EpochEffects;
+		worker_executor                  DiffEffects;
+		worker_executor                  AgentEffects;
+		worker_executor                  McpEffects;
+		worker_executor                  WorkbenchEffects;
+		worker_executor                  AppearanceEffects;
+		worker_executor                  QueueEffects;
+		worker_executor                  ReviewMutationEffects;
+		/// [[BPR-1211]]. Every window's review-ledger storage, off the decision lane.
+		worker_executor                                     ReviewLedgerEffects;
 		private_review_recovery_registry                    PrivateRecovery;
 		worker_executor                                     ReviewSubmissionEffects;
 		qt::event_loop_executor                             DecisionLane;
@@ -4159,7 +4063,7 @@ namespace bpr::app {
 			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
 				|| !EpochEffects.idle() || !DiffEffects.idle() || !AgentEffects.idle() || !McpEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
-				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle()) {
+				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
 				return;
 			}
 			if (!AgentWorkspaceCleanupAttempted) {
@@ -4216,6 +4120,7 @@ namespace bpr::app {
 			QueueEffects.close_and_drain();
 			ReviewMutationEffects.close_and_drain();
 			ReviewSubmissionEffects.close_and_drain();
+			ReviewLedgerEffects.close_and_drain();
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
@@ -5818,8 +5723,22 @@ namespace bpr::app {
 		decltype(github_profile_runtime::DesktopQuit)&    DesktopQuit    = Profile->DesktopQuit;
 
 	public:
-		std::function<void()>                                 OnClosed;
-		std::shared_ptr<const int>                            WindowLifetime = std::make_shared<const int>(0);
+		std::function<void()>      OnClosed;
+		std::shared_ptr<const int> WindowLifetime = std::make_shared<const int>(0);
+
+		/// \brief Delivers one ledger answer to this window, and only while
+		/// the ledger that answered is still the one composed here.
+		template <typename Handler>
+		[[nodiscard]] auto ledger_answer(Handler aHandler)
+		{
+			return [this, weak = std::weak_ptr<const int>{ WindowLifetime }, generation = ReviewLedgerGeneration, handler = std::move(aHandler)](auto aResult) mutable {
+				if (weak.expired() || Closing || generation != ReviewLedgerGeneration || ReviewLedgerHost == nullptr) {
+					return;
+				}
+				handler(std::move(aResult));
+			};
+		}
+
 		std::unique_ptr<window_read_decision_lane>            ReadDecision;
 		std::shared_ptr<application::github_window_read_host> WindowRead;
 		std::optional<application::queue_consumer_id>         QueueConsumer;
@@ -7114,9 +7033,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!DisableAgentFindingHostComposition)
 #endif
 			{
+				// [[BPR-1211]]. A promoted note is written through the review's
+				// ledger, off the decision lane; its answer reaches the finding
+				// host only while this window and that ledger remain.
 				FindingHost = std::make_unique<application::agent_finding_host>(
-					[this]() -> application::review_ledger_store_port* {
-						return ReviewLedger.get();
+					[this](const application::local_note_record&                                                               aNote,
+						   std::function<void(std::expected<application::local_note_record, application::local_note_failure>)> aDone) {
+						if (Closing || ReviewLedgerHost == nullptr) {
+							return false;
+						}
+						ReviewLedgerHost->persist(aNote, std::nullopt, ledger_answer([this, done = std::move(aDone)](std::expected<application::local_note_record, application::local_note_failure> aStored) {
+													  if (FindingHost != nullptr) {
+														  done(std::move(aStored));
+													  }
+												  }));
+						return true;
 					},
 					*FindingProjections);
 			}
@@ -8126,7 +8057,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || ReviewLedgerHost == nullptr) {
 				return;
 			}
-			static_cast<void>(ReviewLedgerHost->submit(aCommand));
+			// [[BPR-1211]]. Decided when it reaches the head of the ledger's
+			// queue and published once durable; an answer the ledger did not
+			// publish (the selection moved meanwhile) still moves the overview.
+			ReviewLedgerHost->submit(aCommand, ledger_answer([this](const auto&) { refresh_overview_receipts(); }));
 		}
 
 		[[nodiscard]] static auto thread_identity(
@@ -8195,18 +8129,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->present_defects(std::move(histories), std::move(threads));
 		}
 
-		[[nodiscard]] auto persist_correlated_defect(
-			const application::durable_defect_record& aDefect) -> bool
+		/// \brief Persists a correlated defect; correlation does not wait for it.
+		void persist_correlated_defect(
+			const application::durable_defect_record& aDefect)
 		{
 #if defined(BPR_BUILD_TESTING)
 			if (DefectCompositionProbe.has_value()
 				&& DefectCompositionProbe->RefuseCorrelatedPersistence) {
 				++DefectCompositionProbe->RefusedPersistenceAttempts;
-				return false;
+				return;
 			}
 #endif
-			return ReviewLedgerHost != nullptr
-				&& ReviewLedgerHost->persist(aDefect).has_value();
+			if (ReviewLedgerHost != nullptr) {
+				ReviewLedgerHost->persist(aDefect, { });
+			}
+		}
+
+		/// \brief Defects whose write has not answered yet. A second gesture
+		/// on one of them would be decided against the state before the first.
+		std::set<core::defect_id> PendingDefectWrites;
+
+		/// \brief Persists one changed defect and presents it once durable.
+		void persist_defect(application::durable_defect_record aDefect, std::function<void()> aAfter = { })
+		{
+			if (ReviewLedgerHost == nullptr) {
+				return;
+			}
+			PendingDefectWrites.insert(aDefect.History.Defect.Id);
+			ReviewLedgerHost->persist(aDefect, ledger_answer([this, aDefect, after = std::move(aAfter)](const std::expected<void, application::ledger_store_failure>& aStored) {
+										  PendingDefectWrites.erase(aDefect.History.Defect.Id);
+										  if (!aStored) {
+											  return;
+										  }
+										  const auto found = std::ranges::find(DurableDefects, aDefect.History.Defect.Id, [](const application::durable_defect_record& aRecord) {
+											  return aRecord.History.Defect.Id;
+										  });
+										  if (found == DurableDefects.end()) {
+											  DurableDefects.push_back(aDefect);
+										  } else {
+											  *found = aDefect;
+										  }
+										  if (after) {
+											  after();
+										  }
+									  }));
 		}
 
 		void correlate_defects(
@@ -8253,7 +8219,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (history != durable.History) {
 						auto changed    = durable;
 						changed.History = history;
-						static_cast<void>(persist_correlated_defect(changed));
+						persist_correlated_defect(changed);
 						durable = std::move(changed);
 					}
 					records.push_back(durable.History.Defect);
@@ -8287,7 +8253,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (availability != durable.History.Availability) {
 					auto changed                 = durable;
 					changed.History.Availability = availability;
-					static_cast<void>(persist_correlated_defect(changed));
+					persist_correlated_defect(changed);
 					durable = std::move(changed);
 				}
 				records.push_back(durable.History.Defect);
@@ -8307,13 +8273,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				auto changed           = *found;
 				changed.History.Defect = record;
-				if (ReviewLedgerHost->persist(changed)) {
-					*found = std::move(changed);
-				}
+				// [[BPR-1211]]. Kept and presented once it is durable.
+				persist_defect(std::move(changed), [this] { present_defects(); });
 			}
 			present_defects();
 		}
 
+		/// \brief Adopts the ledger's private defects and correlates them.
+		/// \details Reads what the ledger last loaded; `reload_private_records`
+		/// brings it back here when the ledger has read the store.
 		void load_defects()
 		{
 			DurableDefects.clear();
@@ -8329,6 +8297,49 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			correlate_defects();
 			present_defects();
+		}
+
+		/// \brief [[BPR-1211]]. The review ledger's store answered its opening.
+		void review_ledger_opened(const bool aAvailable)
+		{
+			{
+				const auto lock       = std::scoped_lock{ ReviewLedgerStateMutex };
+				ReviewLedgerAvailable = aAvailable;
+			}
+			if (Window != nullptr) {
+				Window->clear_review_ledger(!aAvailable);
+			}
+			if (!aAvailable) {
+				return;
+			}
+			publish_read_state();
+			reload_private_records(true);
+			publish_overview();
+		}
+
+		/// \brief Reads the private records again, off the decision lane.
+		///
+		/// \details `aCorrelate` correlates the defects with the accepted
+		/// threads, as opening a review does; a sibling's change is adopted as
+		/// it was accepted, without correlating or persisting anything.
+		void reload_private_records(const bool aCorrelate)
+		{
+			if (ReviewLedgerHost == nullptr) {
+				return;
+			}
+			ReviewLedgerHost->load_private(ledger_answer([this, aCorrelate](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+				if (!aLoaded) {
+					return;
+				}
+				if (aCorrelate) {
+					load_defects();
+				} else if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
+					DurableDefects = std::move(observed->Defects);
+					present_defects();
+				}
+				refresh_agent_private_context_choices();
+				publish_overview();
+			}));
 		}
 
 		[[nodiscard]] auto conversation_endpoint_is_current(
@@ -8429,11 +8440,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.OriginalAnchor = *anchor,
 				},
 			};
-			if (!ReviewLedgerHost->persist(durable)) {
-				return;
-			}
-			DurableDefects.push_back(std::move(durable));
-			correlate_defects();
+			persist_defect(std::move(durable), [this] { correlate_defects(); });
 		}
 
 		void dispatch_defect(core::defect_command aCommand)
@@ -8450,6 +8457,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (found == DurableDefects.end()) {
 				return;
 			}
+			if (PendingDefectWrites.contains(aCommand.Id)) {
+				return;
+			}
 			const auto outcome = core::apply(found->History.Defect, aCommand);
 			if (outcome.Rejection != core::defect_rejection::none
 				|| !outcome.Changed) {
@@ -8457,11 +8467,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto changed           = *found;
 			changed.History.Defect = outcome.Defect;
-			if (!ReviewLedgerHost->persist(changed)) {
-				return;
-			}
-			*found = std::move(changed);
-			present_defects();
+			persist_defect(std::move(changed), [this] { present_defects(); });
 		}
 
 		[[nodiscard]] static auto review_mutation_target(
@@ -10517,8 +10523,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
 			DurableDefects.clear();
+			// [[BPR-1211]]. Queued ledger work is answered cancelled and a
+			// running store operation publishes nothing; the store closes on
+			// its own lane once that operation returns.
+			++ReviewLedgerGeneration;
+			ConversationReceiptsLoading = false;
+			OverviewReceiptsLoading     = false;
+			PendingDefectWrites.clear();
 			ReviewLedgerHost.reset();
-			ReviewLedger.reset();
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				ReviewLedgerAuthority.reset();
@@ -10582,43 +10594,52 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			retire_review_ledger();
 			PrivateDraftsReady = false;
 
-			const auto repository
-				= aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name;
-			auto       opened    = adapters::sqlite::make_review_ledger_store({
-				.StorageRoot = ApplicationDataRoot,
-				.Host        = std::string{ aHandoff.Hostname.value() },
-				.Account     = std::to_string(aHandoff.Account.value()),
-				.Repository  = repository,
-				.PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()),
-			});
-			const auto available = opened.has_value();
-			if (available) {
-				ReviewLedger = std::make_unique<application::observing_review_ledger_store>(std::move(*opened), Profile->ledger_observer(workbench_authority(aHandoff), DraftWindow));
-			} else {
-				ReviewLedger = std::make_unique<unavailable_review_ledger_store>(
-					opened.error());
-			}
-			ReviewLedgerHost = std::make_unique<
-				application::review_ledger_application_host>(
-				*ReviewLedger,
-				*this);
+			// [[BPR-1211]]. Opening the store, like every later read and write
+			// of it, happens on the ledger's effect lane. Until it answers the
+			// ledger is not yet available, and nothing waits for it here.
+			auto open = [scope = adapters::sqlite::review_ledger_configuration{
+							 .StorageRoot = ApplicationDataRoot,
+							 .Host        = std::string{ aHandoff.Hostname.value() },
+							 .Account     = std::to_string(aHandoff.Account.value()),
+							 .Repository  = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name,
+							 .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()),
+						 },
+						 observer = Profile->ledger_observer(workbench_authority(aHandoff), DraftWindow)]() -> std::expected<std::unique_ptr<application::review_ledger_store_port>, application::ledger_store_failure> {
+				auto opened = adapters::sqlite::make_review_ledger_store(scope);
+				if (!opened.has_value()) {
+					return std::unexpected(opened.error());
+				}
+				return std::make_unique<application::observing_review_ledger_store>(std::move(*opened), observer);
+			};
+			// The private review store opens the same ledger file and refuses a
+			// file that changes while it validates it, so it opens after this
+			// ledger's own opening has answered, as it did when that was synchronous.
+			auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
+			++ReviewLedgerGeneration;
+			ReviewLedgerHost = std::make_unique<application::review_ledger_application_host>(
+				std::move(open), *this, ReviewLedgerEffects, DecisionLane,
+				ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
+					open_private_review(std::move(privateReview));
+					review_ledger_opened(aOpened.has_value());
+				}));
 			{
 				const auto lock       = std::scoped_lock{ ReviewLedgerStateMutex };
 				ReviewLedgerAuthority = workbench_authority(aHandoff);
-				ReviewLedgerAvailable = available;
+				ReviewLedgerAvailable = false;
 			}
-			if (Window != nullptr) {
-				Window->clear_review_ledger(!available);
+		}
+
+		void open_private_review(adapters::sqlite::private_review_configuration aConfiguration)
+		{
+			if (!PrivateReview) {
+				return;
 			}
-			publish_read_state();
-			if (PrivateReview) {
-				PrivateReview->open({ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest }, [this] {
-					observe_private_review();
-					if (ReviewMutationHost) {
-						ReviewMutationHost->repair_pending_publications();
-					}
-				});
-			}
+			PrivateReview->open(std::move(aConfiguration), [this] {
+				observe_private_review();
+				if (ReviewMutationHost) {
+					ReviewMutationHost->repair_pending_publications();
+				}
+			});
 		}
 
 		void refresh_shared_ledger(const application::workbench_pull_request_authority& aSource, ledger_changes aChanges)
@@ -10653,15 +10674,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else if (aChanges.Receipts && !own) {
 				ReviewLedgerHost->invalidate_receipts(aChanges.ReceiptFiles);
 			}
-			auto overviewPublished = false;
+			// [[BPR-1211]]. Every reload below reads the store off the
+			// decision lane and republishes when it answers.
+			auto overviewRefreshing = false;
 			if (aChanges.Receipts && !own && SelectedDiffPublication && WorkbenchHost
 				&& WorkbenchHost->generation() == SelectedDiffPublication->Request.Context.Generation
 				&& WorkbenchHost->selected() == std::optional{ SelectedDiffPublication->Request.File.File }
 				&& ReviewLedgerHost->retained().File == SelectedDiffPublication->Request.File.File
 				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
-				// A failed reload retains the last accepted receipt and order. It
-				// does not mean that the selected comparison material is absent.
-				overviewPublished = ReviewLedgerHost->refresh_receipt().has_value();
+				// A reload publishes, and publishing refreshes the overview. A
+				// failed reload retains the last accepted receipt and order: it
+				// does not mean the selected comparison material is absent.
+				overviewRefreshing = true;
+				ReviewLedgerHost->refresh_receipt(ledger_answer([this](const std::expected<core::file_receipt, application::ledger_store_failure>& aRefreshed) {
+					if (!aRefreshed) {
+						refresh_overview_receipts();
+					}
+				}));
 			} else if (aChanges.Receipts && !own && WorkbenchHost && ReviewLedgerAuthority) {
 				// Without exact material every retained file is conservative again;
 				// restoring withheld rows needs no new catalogue observation.
@@ -10674,18 +10703,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (aChanges.PrivateRecords) {
 				// A sibling may be reading a different file or epoch. Reload
-				// accepted records without correlating or persisting that view.
-				if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
-					DurableDefects = std::move(observed->Defects);
-					present_defects();
-				}
-				refresh_agent_private_context_choices();
+				// accepted records without correlating or persisting that view;
+				// the reload republishes the overview.
+				reload_private_records(false);
+				return;
 			}
 			// Conversation read state is not an overview input; changed
 			// receipts move only their own rows.
-			if (!overviewPublished && aChanges.PrivateRecords) {
-				publish_overview();
-			} else if (!overviewPublished && aChanges.Receipts) {
+			if (!overviewRefreshing && aChanges.Receipts) {
 				refresh_overview_receipts();
 			}
 		}
@@ -10742,10 +10767,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!material.valid()) {
 				return;
 			}
-			static_cast<void>(ReviewLedgerHost->observe_material(
+			// [[BPR-1211]]. The receipt is read, and a carry committed, off the
+			// decision lane; the ledger publishes it once durable, and the
+			// draft is presented against it then.
+			ReviewLedgerHost->observe_material(
 				core::file_material_observation{
 					.File     = SelectedDiffPublication->Request.File.File,
 					.Material = material,
+				},
+				ledger_answer([this](const std::expected<core::file_receipt, application::ledger_store_failure>&) {
+					if (SelectedSemanticSelection.has_value()) {
+						present_review_draft(*SelectedSemanticSelection);
+					}
 				}));
 			if (SelectedSemanticSelection.has_value()) {
 				present_review_draft(*SelectedSemanticSelection);
@@ -10857,11 +10890,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				names.emplace_back(thread_identity(thread), std::move(posts));
 				threads.push_back(std::move(observation));
 			}
-			const auto state = ReviewLedgerHost->observe_conversations(threads);
+			const auto state = ReviewLedgerHost->unread_conversations(threads);
 			if (!state.has_value()) {
 				ReadStateCache.reset();
 				NotePaths.reset();
 				DefectThreadNames.reset();
+				request_conversation_receipts();
 				return std::nullopt;
 			}
 			// [[BPR-0972]]. Each unread conversation finds its threads, and each
@@ -10949,7 +10983,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return std::nullopt;
 			}
 			auto&      cache = *ReadStateCache;
-			const auto state = ReviewLedgerHost->observe_conversations(std::span{ &cache.Threads[aThread], 1U });
+			const auto state = ReviewLedgerHost->unread_conversations(std::span{ &cache.Threads[aThread], 1U });
 			if (!state.has_value()) {
 				ReadStateCache.reset();
 				NotePaths.reset();
@@ -11037,21 +11071,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!latest.has_value()) {
 				return;
 			}
-			const auto marked = ReviewLedgerHost->mark_conversation_read(core::conversation_observation{
-				.Conversation  = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
-				.LatestComment = latest->Comment,
-				.LatestEdit    = latest->Edit,
-			});
-			if (marked.has_value()) {
-				const auto cached = cached_thread(aThread);
-				auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
-				if (!unseen.has_value()) {
-					unseen = publish_read_state();
-				}
-				if (unseen.has_value()) {
-					refresh_queue_unseen(*unseen);
+			// [[BPR-1211]]. The cursor is written off the decision lane and
+			// the thread is presented read once it is durable.
+			ReviewLedgerHost->mark_conversation_read(
+				core::conversation_observation{
+					.Conversation  = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+					.LatestComment = latest->Comment,
+					.LatestEdit    = latest->Edit,
+				},
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+		}
+
+		/// \brief [[BPR-1211]]. Loads the conversation receipts off the
+		/// decision lane, once, and presents the read state when they arrive.
+		/// \details A failed load is not retried here; the next change that
+		/// needs the read state asks again.
+		void request_conversation_receipts()
+		{
+			if (ReviewLedgerHost == nullptr || ConversationReceiptsLoading) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable) {
+					return;
 				}
 			}
+			ConversationReceiptsLoading = true;
+			ReviewLedgerHost->load_conversation_receipts(ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+				ConversationReceiptsLoading = false;
+				if (!aLoaded.has_value()) {
+					return;
+				}
+				if (const auto unseen = publish_read_state(); unseen.has_value()) {
+					refresh_queue_unseen(*unseen);
+				}
+			}));
 		}
 
 		void publish_overview()
@@ -11074,25 +11141,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
 			auto context = application::overview_context{ };
+			auto missing = std::vector<core::file_identity>{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
 					const auto revision = ReviewLedgerHost->durable_receipt_revision();
-					auto       complete = true;
 					context.Receipts.reserve(snapshot->Files.size());
 					for (const auto& file : snapshot->Files) {
 						++OverviewReceiptVisits;
 						const auto identity = core::file_identity_of(file.Path);
-						const auto loaded   = ReviewLedgerHost->load_receipt(identity);
-						complete            = complete && loaded.has_value();
-						if (loaded.has_value() && loaded->has_value()) {
-							context.Receipts.push_back(**loaded);
+						const auto held     = ReviewLedgerHost->cached_receipt(identity);
+						if (!held.has_value()) {
+							missing.push_back(identity);
+						} else if (held->has_value()) {
+							context.Receipts.push_back(**held);
 						}
 					}
-					if (complete) {
+					if (missing.empty()) {
 						OverviewReceiptRevision = revision;
 					}
 				}
+			}
+			// [[BPR-1211]]. Receipts the ledger does not hold yet are read off
+			// the decision lane, in one operation; the overview is published
+			// now from what is held and again when they arrive.
+			if (!missing.empty() && !OverviewReceiptsLoading) {
+				OverviewReceiptsLoading = true;
+				ReviewLedgerHost->load_receipts(std::move(missing), ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+													OverviewReceiptsLoading = false;
+													if (aLoaded.has_value()) {
+														publish_overview();
+													}
+												}));
 			}
 			if (ReviewLedgerHost != nullptr) {
 				if (auto privateState = ReviewLedgerHost->private_observation();
@@ -11147,6 +11227,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			auto receipts = std::vector<core::file_receipt>{ };
+			auto missing  = std::vector<core::file_identity>{ };
 			receipts.reserve(changed->size());
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
@@ -11154,13 +11235,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 				for (const auto& file : *changed) {
-					const auto loaded = ReviewLedgerHost->load_receipt(file);
-					if (!loaded.has_value() || !loaded->has_value()) {
-						receipts.clear();
-						break;
+					const auto held = ReviewLedgerHost->cached_receipt(file);
+					if (!held.has_value()) {
+						missing.push_back(file);
+					} else if (held->has_value()) {
+						receipts.push_back(**held);
 					}
-					receipts.push_back(**loaded);
 				}
+			}
+			if (!missing.empty()) {
+				// [[BPR-1211]]. A sibling moved receipts this ledger no longer
+				// holds: they are read off the decision lane, then the rows move.
+				if (!OverviewReceiptsLoading) {
+					OverviewReceiptsLoading = true;
+					ReviewLedgerHost->load_receipts(std::move(missing), ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+														OverviewReceiptsLoading = false;
+														if (aLoaded.has_value()) {
+															refresh_overview_receipts();
+														}
+													}));
+				}
+				return;
 			}
 			const auto update = receipts.size() == changed->size()
 				? OverviewReceipts.apply(*PublishedOverview, receipts)
@@ -12216,27 +12311,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			EpochHost->dispatch(std::move(aIntent));
 		}
 
-		[[nodiscard]] auto admit(
-			const application::agent_session_admission& aAdmission)
-			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		/// \brief [[BPR-1211]]. Admits one agent session through this window's
+		/// ledger; the answer arrives later on the decision lane.
+		void admit(
+			const application::agent_session_admission&                                                aAdmission,
+			std::function<void(std::expected<core::agent_session, application::ledger_store_failure>)> aDone) override
 		{
 			if (Closing || ReviewLedgerHost == nullptr) {
-				return std::unexpected(
-					application::ledger_store_failure::unavailable);
+				DecisionLane.post([done = std::move(aDone)] { done(std::unexpected(application::ledger_store_failure::unavailable)); });
+				return;
 			}
-			return ReviewLedgerHost->admit(aAdmission);
+			ReviewLedgerHost->admit(aAdmission, std::move(aDone));
 		}
 
-		[[nodiscard]] auto session_catalog()
-			-> std::expected<
-				application::agent_session_catalog_state,
-				application::ledger_store_failure> override
+		/// \brief [[BPR-1211]]. Reads this window's agent session catalog; the
+		/// answer arrives later on the decision lane.
+		void session_catalog(
+			std::function<void(std::expected<application::agent_session_catalog_state, application::ledger_store_failure>)> aDone) override
 		{
 			if (Closing || ReviewLedgerHost == nullptr) {
-				return std::unexpected(
-					application::ledger_store_failure::unavailable);
+				DecisionLane.post([done = std::move(aDone)] { done(std::unexpected(application::ledger_store_failure::unavailable)); });
+				return;
 			}
-			return ReviewLedgerHost->session_catalog();
+			ReviewLedgerHost->session_catalog(std::move(aDone));
 		}
 
 		[[nodiscard]] auto current_agent_draft_observation() const
@@ -12341,14 +12438,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (found == AcceptedPrivateNotes.end()) {
 					return;
 				}
-				const auto result = ReviewLedgerHost->erase(found->Id, application::local_note_revision{ aIntent.Revision });
-				if (!result) {
-					refuse(result.error());
-					return;
-				}
-				ReviewLedgerHost->dismiss_rejected_note();
-				panel->acknowledge(0U);
-				refresh_agent_private_context_choices();
+				// [[BPR-1211]]. Deleted off the decision lane; acknowledged once durable.
+				ReviewLedgerHost->erase(found->Id, application::local_note_revision{ aIntent.Revision },
+										ledger_answer([this, refuse](const std::expected<void, application::local_note_failure>& aErased) {
+											if (!aErased) {
+												refuse(aErased.error());
+												return;
+											}
+											ReviewLedgerHost->dismiss_rejected_note();
+											Window->private_notes()->acknowledge(0U);
+											refresh_agent_private_context_choices();
+										}));
 				return;
 			}
 			auto note     = application::local_note_record{ };
@@ -12375,15 +12475,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					note.Attachment = offered;
 				}
 			}
-			note.Note.Text    = aIntent.Text;
-			const auto result = ReviewLedgerHost->persist(note, revision);
-			if (!result) {
-				refuse(result.error());
-				return;
-			}
-			ReviewLedgerHost->dismiss_rejected_note();
-			panel->acknowledge(result->Id.value());
-			refresh_agent_private_context_choices();
+			note.Note.Text = aIntent.Text;
+			// [[BPR-1211]]. Written off the decision lane; acknowledged once durable.
+			ReviewLedgerHost->persist(note, revision,
+									  ledger_answer([this, refuse](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+										  if (!aStored) {
+											  refuse(aStored.error());
+											  return;
+										  }
+										  ReviewLedgerHost->dismiss_rejected_note();
+										  Window->private_notes()->acknowledge(aStored->Id.value());
+										  refresh_agent_private_context_choices();
+									  }));
 		}
 
 		void refresh_agent_private_context_choices()
@@ -13377,7 +13480,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case application::agent_finding_action::dismiss:
 				break;
 			}
-			static_cast<void>(FindingHost->act(request));
+			FindingHost->act(request);
 		}
 
 		/// \brief Carries one side-chat gesture to the composed chat host.
@@ -14751,6 +14854,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
 		decltype(github_profile_runtime::VaultEffects)&            VaultEffects            = Profile->VaultEffects;
 		decltype(github_profile_runtime::ReviewMutationEffects)&   ReviewMutationEffects   = Profile->ReviewMutationEffects;
+		decltype(github_profile_runtime::ReviewLedgerEffects)&     ReviewLedgerEffects     = Profile->ReviewLedgerEffects;
 		decltype(github_profile_runtime::ReviewSubmissionEffects)& ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
@@ -14932,6 +15036,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			enum class phase {
 				awaiting_observation,
 				awaiting_diff,
+				awaiting_gestures,
+				awaiting_private_records,
 				awaiting_actionability,
 				awaiting_material_actionability,
 				passed,
@@ -14939,6 +15045,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 
 			phase Phase = phase::awaiting_observation;
+			/// [[BPR-1211]]. The seed course's gestures, one per quiescent
+			/// ledger, and the private writes it then makes.
+			std::size_t                                       Gesture = 0U;
+			application::review_ledger_host_statistics        GesturesBefore;
+			std::optional<application::local_note_record>     AcceptedNote;
+			std::optional<application::durable_defect_record> PrivateDefect;
+			std::size_t                                       PrivateAnswers  = 0U;
+			bool                                              PrivateAccepted = true;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
 			detail::fixture_probe_wait              Wait;
 			detail::review_ledger_composition_probe Course
@@ -15010,8 +15124,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			enum class phase {
 				awaiting_ready,
 				awaiting_diff,
+				awaiting_classified,
 				awaiting_reverse_right,
 				awaiting_epoch_change,
+				awaiting_verified,
+				awaiting_reclassified,
 				awaiting_shared_ready,
 				passed,
 				failed,
@@ -15100,8 +15217,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
 		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;
 		decltype(github_profile_runtime::ApplicationDataRoot)&       ApplicationDataRoot = Profile->ApplicationDataRoot;
-		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
 		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
+		/// [[BPR-1211]]. Advances whenever a ledger is composed or retired, so
+		/// an answer from a retired ledger never reaches its successor.
+		std::uint64_t ReviewLedgerGeneration = 0U;
+		/// Conversation receipts are being loaded for this ledger.
+		bool ConversationReceiptsLoading = false;
+		/// The overview asked for receipts it does not hold.
+		bool OverviewReceiptsLoading = false;
+
 		mutable std::mutex                                           ReviewLedgerStateMutex;
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		// [[BPR-0654]]. The overview's changed-since-review set: asked of the
@@ -22224,7 +22348,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (probe.Phase == state_type::phase::awaiting_diff) {
 			const auto* const comparison = window->comparison_surface();
 			if (comparison == nullptr || comparison->current_result() == nullptr
-				|| !implementation->LastSelectedDiff.has_value()) {
+				|| !implementation->LastSelectedDiff.has_value() || !ledger->is_quiescent()) {
 				// The file gesture's diff is computed through the Git and cache
 				// actors and published to the comparison.
 				return wait("REVIEW_LEDGER_SELECTED_DIFF_STALLED", [&](QTextStream& aStream) {
@@ -22238,7 +22362,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							<< " host_selected=" << present(host->selected().has_value())
 							<< " diff_jobs=" << static_cast<qulonglong>(work.OutstandingJobs)
 							<< " diff_pending=" << truth(work.Pending)
-							<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs);
+							<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs)
+							<< " ledger_outstanding=" << static_cast<qulonglong>(ledger->outstanding());
 				});
 			}
 			const auto& selected   = *implementation->LastSelectedDiff;
@@ -22310,68 +22435,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 
 			if (aCourse == review_ledger_composition_probe::seed) {
-				const auto before  = ledger->statistics();
-				const auto trigger = [](QAction* const aAction) {
-					if (aAction == nullptr || !aAction->isEnabled()) {
-						return false;
-					}
-					aAction->trigger();
-					return true;
-				};
-				const auto gestures = std::array{
-					trigger(window->seen_action()),
-					trigger(window->read_action()),
-					trigger(window->accept_action()),
-					trigger(window->accept_action()),
-					trigger(window->exclude_action()),
-					trigger(window->exclude_action()),
-					trigger(window->accept_action()),
-				};
-				const auto after   = ledger->statistics();
-				const auto receipt = ledger->retained();
-				probe.Evidence.GestureSequence
-					= std::ranges::all_of(gestures, std::identity{ })
-					&& after.Commands == before.Commands + gestures.size()
-					&& after.PersistenceRequests
-						== before.PersistenceRequests + gestures.size()
-					&& after.Completions == before.Completions + gestures.size()
-					&& after.StoreFailures == before.StoreFailures
-					&& receipt.File == probe.File
-					&& receipt.Material == probe.Material
-					&& receipt.Read == core::file_read_state::read
-					&& receipt.Accepted && !receipt.Excluded;
-				if (!probe.Evidence.GestureSequence) {
-					return fail();
-				}
-
-				const auto note = review_ledger_probe_note(
-					probe.File, probe.Material);
-				const auto defect = review_ledger_probe_defect(
-					probe.File, probe.Material, *defectThread);
-				if (!defect.has_value()
-					|| !review_ledger_probe_defect_match_is_non_vacuous(
-						probe.File, probe.Material, *defectThread)) {
-					return fail();
-				}
-				const auto& head         = implementation->LastAcceptedHandoff->Head;
-				const auto  acceptedNote = ledger->persist(note);
-				if (!acceptedNote
-					|| !ledger->persist_last_reviewed_head(head)
-					|| !ledger->persist(*defect)) {
-					return fail();
-				}
-				const auto privateState       = ledger->private_observation();
-				probe.Evidence.PrivateRecords = privateState.has_value()
-					&& privateState->Notes == std::vector{ *acceptedNote }
-					&& privateState->LastReviewedHead == std::optional{ head }
-					&& privateState->Defects == std::vector{ *defect }
-					&& review_ledger_probe_defect_matches_thread(
-													privateState->Defects.front(),
-													probe.File,
-													probe.Material,
-													*defectThread);
-				probe.Evidence.DurableReceipt               = true;
-				implementation->ReviewLedgerRoundTripPassed = true;
+				// [[BPR-1211]]. Each gesture is decided and made durable off the
+				// decision lane; the course gives each one a quiescent ledger,
+				// as a reviewer waiting for the button to change would.
+				probe.GesturesBefore = ledger->statistics();
+				probe.Gesture        = 0U;
+				return advance(state_type::phase::awaiting_gestures);
 			} else {
 				const auto receipt      = ledger->retained();
 				const auto privateState = ledger->private_observation();
@@ -22431,8 +22500,109 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return advance(state_type::phase::awaiting_actionability);
 		}
 
+		if (probe.Phase == state_type::phase::awaiting_gestures) {
+			if (!ledger->is_quiescent()) {
+				return wait("REVIEW_LEDGER_GESTURE_STALLED", [&](QTextStream& aStream) {
+					aStream << "gesture=" << static_cast<qulonglong>(probe.Gesture)
+							<< " ledger_outstanding=" << static_cast<qulonglong>(ledger->outstanding()) << ' ';
+					ledgerFacts(aStream);
+				});
+			}
+			const auto actions = std::array{
+				window->seen_action(),
+				window->read_action(),
+				window->accept_action(),
+				window->accept_action(),
+				window->exclude_action(),
+				window->exclude_action(),
+				window->accept_action(),
+			};
+			if (probe.Gesture < actions.size()) {
+				auto* const action = actions[probe.Gesture];
+				if (action == nullptr || !action->isEnabled()) {
+					return fail();
+				}
+				++probe.Gesture;
+				action->trigger();
+				return result::pending;
+			}
+			const auto  after   = ledger->statistics();
+			const auto  receipt = ledger->retained();
+			const auto& before  = probe.GesturesBefore;
+			probe.Evidence.GestureSequence
+				= after.Commands == before.Commands + actions.size()
+				&& after.PersistenceRequests
+					== before.PersistenceRequests + actions.size()
+				&& after.Completions == before.Completions + actions.size()
+				&& after.StoreFailures == before.StoreFailures
+				&& receipt.File == probe.File
+				&& receipt.Material == probe.Material
+				&& receipt.Read == core::file_read_state::read
+				&& receipt.Accepted && !receipt.Excluded;
+			const auto* const defectThread = implementation->accepted_thread(
+				review_ledger_probe_thread_identity());
+			if (!probe.Evidence.GestureSequence || defectThread == nullptr) {
+				return fail();
+			}
+			const auto note = review_ledger_probe_note(
+				probe.File, probe.Material);
+			probe.PrivateDefect = review_ledger_probe_defect(
+				probe.File, probe.Material, *defectThread);
+			if (!probe.PrivateDefect.has_value()
+				|| !review_ledger_probe_defect_match_is_non_vacuous(
+					probe.File, probe.Material, *defectThread)) {
+				return fail();
+			}
+			const auto answered = [&probe](const bool aAccepted) {
+				++probe.PrivateAnswers;
+				probe.PrivateAccepted = probe.PrivateAccepted && aAccepted;
+			};
+			ledger->persist(note, std::nullopt, implementation->ledger_answer([&probe, answered](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+				if (aStored.has_value()) {
+					probe.AcceptedNote = *aStored;
+				}
+				answered(aStored.has_value());
+			}));
+			ledger->persist_last_reviewed_head(implementation->LastAcceptedHandoff->Head, implementation->ledger_answer([answered](const std::expected<void, application::ledger_store_failure>& aStored) {
+				answered(aStored.has_value());
+			}));
+			ledger->persist(*probe.PrivateDefect, implementation->ledger_answer([answered](const std::expected<void, application::ledger_store_failure>& aStored) {
+				answered(aStored.has_value());
+			}));
+			return advance(state_type::phase::awaiting_private_records);
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_private_records) {
+			if (probe.PrivateAnswers < 3U || !ledger->is_quiescent()) {
+				return wait("REVIEW_LEDGER_PRIVATE_RECORDS_STALLED", [&](QTextStream& aStream) {
+					aStream << "private_answers=" << static_cast<qulonglong>(probe.PrivateAnswers) << ' ';
+					ledgerFacts(aStream);
+				});
+			}
+			const auto* const defectThread = implementation->accepted_thread(
+				review_ledger_probe_thread_identity());
+			const auto& head              = implementation->LastAcceptedHandoff->Head;
+			const auto  privateState      = ledger->private_observation();
+			probe.Evidence.PrivateRecords = probe.PrivateAccepted && probe.AcceptedNote.has_value()
+				&& defectThread != nullptr && privateState.has_value()
+				&& privateState->Notes == std::vector{ *probe.AcceptedNote }
+				&& privateState->LastReviewedHead == std::optional{ head }
+				&& privateState->Defects == std::vector{ *probe.PrivateDefect }
+				&& review_ledger_probe_defect_matches_thread(
+												privateState->Defects.front(),
+												probe.File,
+												probe.Material,
+												*defectThread);
+			probe.Evidence.DurableReceipt               = true;
+			implementation->ReviewLedgerRoundTripPassed = true;
+			if (!probe.Evidence.PrivateRecords) {
+				return fail();
+			}
+			return advance(state_type::phase::awaiting_actionability);
+		}
+
 		if (probe.Phase == state_type::phase::awaiting_actionability) {
-			if (host->outstanding_requests() != 0U) {
+			if (host->outstanding_requests() != 0U || !ledger->is_quiescent()) {
 				// The gestures' persistence and the actionability it projects
 				// reach the host as requests; the tail prints how many remain.
 				return wait("REVIEW_LEDGER_ACTIONABILITY_STALLED", [&](QTextStream& aStream) {
@@ -22457,12 +22627,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				materialBytes.back() = static_cast<std::uint8_t>(
 					materialBytes.back() ^ 0x01U);
 				probe.ReopenedMaterial = core::file_material_id{ materialBytes };
-				if (!ledger->observe_material(core::file_material_observation{
-						.File     = probe.File,
-						.Material = probe.ReopenedMaterial,
-					})) {
-					return fail();
-				}
+				ledger->observe_material(core::file_material_observation{
+					.File     = probe.File,
+					.Material = probe.ReopenedMaterial,
+				});
 				return advance(state_type::phase::awaiting_material_actionability);
 			}
 			probe.Evidence.ActionabilityProjection = actionable.size() == 1U
@@ -22475,7 +22643,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_material_actionability) {
-			if (host->outstanding_requests() != 0U) {
+			if (host->outstanding_requests() != 0U || !ledger->is_quiescent()) {
 				// The new material's observation makes the file actionable
 				// again through the host.
 				return wait("REVIEW_LEDGER_MATERIAL_ACTIONABILITY_STALLED", [&](QTextStream& aStream) {
@@ -23643,6 +23811,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return "awaiting_ready";
 			case state_type::phase::awaiting_diff:
 				return "awaiting_diff";
+			case state_type::phase::awaiting_classified:
+				return "awaiting_classified";
+			case state_type::phase::awaiting_verified:
+				return "awaiting_verified";
+			case state_type::phase::awaiting_reclassified:
+				return "awaiting_reclassified";
 			case state_type::phase::awaiting_reverse_right:
 				return "awaiting_reverse_right";
 			case state_type::phase::awaiting_epoch_change:
@@ -23678,6 +23852,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (modality == detail::course_modality_result::failed) {
 			return fail();
+		}
+		// [[BPR-1211]]. A defect command is kept once its write is durable.
+		if (probe.Phase == state_type::phase::awaiting_verified || probe.Phase == state_type::phase::awaiting_reclassified) {
+			return defect_composition_after_verify(aApplication);
 		}
 		auto* const window = implementation->Window.get();
 		if (!probe.CommentsRequested) {
@@ -23888,8 +24066,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail();
 			}
 			window->classify_defect_action()->trigger();
-			const auto* const first     = findDefect(firstDefectIdentity);
-			const auto* const second    = findDefect(secondDefectIdentity);
+			// [[BPR-1211]]. Each classification is kept once its write is durable.
+			return advance(state_type::phase::awaiting_classified);
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_classified) {
+			const auto* const first  = findDefect(firstDefectIdentity);
+			const auto* const second = findDefect(secondDefectIdentity);
+			if (first == nullptr || second == nullptr || !implementation->ReviewLedgerHost->is_quiescent()) {
+				return wait("DEFECT_CLASSIFICATION_STALLED", [&](QTextStream& aStream) {
+					aStream << "durable_defects=" << static_cast<qulonglong>(implementation->DurableDefects.size())
+							<< " ledger_outstanding=" << static_cast<qulonglong>(implementation->ReviewLedgerHost->outstanding());
+				});
+			}
 			probe.Evidence.ExactThreads = anchorMatchesThread(first, firstIdentity)
 				&& anchorMatchesThread(second, secondIdentity);
 			probe.Evidence.LocalClassification
@@ -24049,33 +24238,69 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 		window->defect_card()->verify_action()->trigger();
-		first                               = findDefect(firstDefectIdentity);
-		second                              = findDefect(secondDefectIdentity);
-		probe.Evidence.ExplicitVerification = first != nullptr && second != nullptr
-			&& first->History.Defect.State == core::defect_state::open
-			&& second->History.Defect.State == core::defect_state::verified;
-		if (!probe.Evidence.ExplicitVerification) {
-			return fail();
-		}
-		while (window->defect_card()->shown_defect().has_value()
-			   && window->defect_card()->shown_defect()->Id != first->History.Defect.Id) {
-			if (window->previous_defect_action()->isEnabled()) {
-				window->previous_defect_action()->trigger();
-			} else if (window->next_defect_action()->isEnabled()) {
-				window->next_defect_action()->trigger();
-			} else {
-				return fail();
-			}
+		return advance(state_type::phase::awaiting_verified);
+	}
+
+	auto detail::github_application_fixture_access::defect_composition_after_verify(
+		github_application& aApplication) -> detail::defect_composition_probe_result
+	{
+		using result               = detail::defect_composition_probe_result;
+		using state_type           = github_application::implementation::defect_composition_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		auto&       probe          = *implementation->DefectCompositionProbe;
+		auto* const window         = implementation->Window.get();
+		const auto  fail           = [&probe] {
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			enter_phase(probe.Phase, probe.Wait, aPhase);
+			return result::pending;
+		};
+		const auto findDefect = [implementation](const std::string_view aThread) -> const application::durable_defect_record* {
+			const auto identity = defect_identity(aThread);
+			const auto found    = std::ranges::find_if(implementation->DurableDefects, [identity](const application::durable_defect_record& aDefect) {
+				return aDefect.Conversation.value() == identity.Conversation && aDefect.History.Defect.Id.value() == identity.Defect;
+			});
+			return found == implementation->DurableDefects.end() ? nullptr : &*found;
+		};
+		const auto* first  = findDefect("review-thread:PRRT_fixture_1");
+		const auto* second = findDefect("review-thread:PRRT_fixture_3");
+		const auto  facts  = [&](QTextStream& aStream) {
+			aStream << "phase=" << static_cast<int>(probe.Phase)
+					<< " durable_defects=" << static_cast<qulonglong>(implementation->DurableDefects.size())
+					<< " ledger_outstanding=" << static_cast<qulonglong>(implementation->ReviewLedgerHost->outstanding());
+		};
+		if (!implementation->ReviewLedgerHost->is_quiescent()) {
+			return keep_waiting(aApplication, probe.Wait, "DEFECT_COMMAND_STALLED", facts) ? result::pending : fail();
 		}
 		auto* const card = window->defect_card();
-		card->severity_selector()->setCurrentIndex(
-			card->severity_selector()->findData(
-				static_cast<int>(core::defect_severity::critical)));
-		card->category_selector()->setCurrentIndex(
-			card->category_selector()->findData(
-				static_cast<int>(core::defect_category::security)));
-		card->reclassify_action()->trigger();
-		first                         = findDefect(firstDefectIdentity);
+		if (probe.Phase == state_type::phase::awaiting_verified) {
+			probe.Evidence.ExplicitVerification = first != nullptr && second != nullptr
+				&& first->History.Defect.State == core::defect_state::open
+				&& second->History.Defect.State == core::defect_state::verified;
+			if (!probe.Evidence.ExplicitVerification) {
+				return fail();
+			}
+			while (card->shown_defect().has_value()
+				   && card->shown_defect()->Id != first->History.Defect.Id) {
+				if (window->previous_defect_action()->isEnabled()) {
+					window->previous_defect_action()->trigger();
+				} else if (window->next_defect_action()->isEnabled()) {
+					window->next_defect_action()->trigger();
+				} else {
+					return fail();
+				}
+			}
+			card->severity_selector()->setCurrentIndex(
+				card->severity_selector()->findData(
+					static_cast<int>(core::defect_severity::critical)));
+			card->category_selector()->setCurrentIndex(
+				card->category_selector()->findData(
+					static_cast<int>(core::defect_category::security)));
+			card->reclassify_action()->trigger();
+			return advance(state_type::phase::awaiting_reclassified);
+		}
 		probe.Evidence.DurableHistory = probe.Evidence.DurableHistory
 			&& first != nullptr
 			&& first->History.Defect.Severity == core::defect_severity::critical
@@ -24122,6 +24347,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto* const implementation = aApplication.Implementation.get();
 		return implementation != nullptr
 			&& implementation->ReviewLedgerWasPresentOnEntry;
+	}
+
+	auto detail::github_application_fixture_access::review_ledger_settled(
+		github_application& aApplication) -> bool
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->ReviewLedgerHost != nullptr
+			&& implementation->ReviewLedgerHost->available().has_value()
+			&& implementation->ReviewLedgerHost->is_quiescent();
+	}
+
+	auto detail::github_application_fixture_access::hold_review_ledger_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		struct gate
+		{
+			std::mutex              Mutex;
+			std::condition_variable Changed;
+			bool                    Open = false;
+		};
+		auto held = std::make_shared<gate>();
+		aApplication.Implementation->ReviewLedgerEffects.post([held] {
+			auto lock = std::unique_lock{ held->Mutex };
+			static_cast<void>(held->Changed.wait_for(lock, std::chrono::seconds{ 30 }, [&held] { return held->Open; }));
+		});
+		return [held] {
+			{
+				const auto lock = std::scoped_lock{ held->Mutex };
+				held->Open      = true;
+			}
+			held->Changed.notify_all();
+		};
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_round_trip(
@@ -24281,6 +24538,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return true;
 	}
 
+	namespace {
+		/// \brief [[BPR-1211]]. Test access only: the ledger answers on the
+		/// decision lane, so a synchronous fixture question waits for its
+		/// answer, bounded, by delivering that lane's events.
+		template <typename Answer>
+		[[nodiscard]] auto await_ledger_answer(std::optional<Answer>& aAnswer) -> bool
+		{
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 10 };
+			while (!aAnswer.has_value() && std::chrono::steady_clock::now() < deadline) {
+				QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+			}
+			return aAnswer.has_value();
+		}
+
+		/// \brief Test access only: after a fixture write, the reload its own
+		/// change notification queued is also answered before the course goes on,
+		/// as it was when the write and its reload were synchronous.
+		void await_ledger_quiescence(const application::review_ledger_application_host& aLedger)
+		{
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 10 };
+			for (auto quiet = 0; quiet < 3 && std::chrono::steady_clock::now() < deadline;) {
+				QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+				quiet = aLedger.is_quiescent() ? quiet + 1 : 0;
+			}
+		}
+	}
+
 	auto detail::github_application_fixture_access::mark_head_reviewed(
 		github_application&    aApplication,
 		const std::string_view aHeadOid) -> bool
@@ -24291,9 +24575,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			|| !head.has_value()) {
 			return false;
 		}
-		const auto persisted
-			= implementation->ReviewLedgerHost->persist_last_reviewed_head(*head).has_value();
+		auto answer = std::make_shared<std::optional<bool>>();
+		implementation->ReviewLedgerHost->persist_last_reviewed_head(*head, [answer](const std::expected<void, application::ledger_store_failure>& aStored) {
+			*answer = aStored.has_value();
+		});
+		const auto persisted = await_ledger_answer(*answer) && **answer;
 		if (persisted) {
+			await_ledger_quiescence(*implementation->ReviewLedgerHost);
 			implementation->publish_overview();
 		}
 		return persisted;
@@ -24323,12 +24611,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.Id   = application::local_note_id{ 247U },
 			.Note = { .Text = std::string{ aUnselectedNote } },
 		};
-		const auto persisted
-			= implementation->ReviewLedgerHost->persist(selected).has_value()
-			&& implementation->ReviewLedgerHost->persist(unselected).has_value()
-			&& implementation->ReviewLedgerHost
-				   ->persist_last_reviewed_head(state.AcceptedRevision->Head)
-				   .has_value();
+		auto       accepted = std::make_shared<std::size_t>(0U);
+		auto       answered = std::make_shared<std::optional<bool>>();
+		const auto count    = [accepted, answered](const bool aStored) {
+			*accepted += aStored ? 1U : 0U;
+			if (!aStored || *accepted == 3U) {
+				*answered = aStored;
+			}
+		};
+		auto* const ledger = implementation->ReviewLedgerHost.get();
+		ledger->persist(selected, std::nullopt, [count](const auto& aStored) { count(aStored.has_value()); });
+		ledger->persist(unselected, std::nullopt, [count](const auto& aStored) { count(aStored.has_value()); });
+		ledger->persist_last_reviewed_head(state.AcceptedRevision->Head, [count](const auto& aStored) { count(aStored.has_value()); });
+		const auto persisted = await_ledger_answer(*answered) && **answered;
+		if (persisted && implementation->ReviewLedgerHost != nullptr) {
+			await_ledger_quiescence(*implementation->ReviewLedgerHost);
+		}
 		if (persisted) {
 			implementation->refresh_agent_private_context_choices();
 		}
@@ -24364,9 +24662,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		const auto privateState
 			= implementation->ReviewLedgerHost->private_observation();
-		const auto sessionCatalog
-			= implementation->ReviewLedgerHost->session_catalog();
-		auto* const workbench = implementation->Window->comparison_surface();
+		auto sessionAnswer = std::make_shared<std::optional<std::expected<application::agent_session_catalog_state, application::ledger_store_failure>>>();
+		implementation->ReviewLedgerHost->session_catalog([sessionAnswer](auto aCatalog) { *sessionAnswer = std::move(aCatalog); });
+		if (!await_ledger_answer(*sessionAnswer)) {
+			return std::nullopt;
+		}
+		const auto& sessionCatalog = **sessionAnswer;
+		auto* const workbench      = implementation->Window->comparison_surface();
 		if (
 			!receipt.has_value() || !privateState.has_value()
 			|| !sessionCatalog.has_value() || !sessionCatalog->Next.has_value()
@@ -24434,10 +24736,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (implementation == nullptr || implementation->ReviewLedgerHost == nullptr) {
 			return std::nullopt;
 		}
-		auto catalog = implementation->ReviewLedgerHost->session_catalog();
-		if (!catalog.has_value()) {
+		auto answer = std::make_shared<std::optional<std::expected<application::agent_session_catalog_state, application::ledger_store_failure>>>();
+		implementation->ReviewLedgerHost->session_catalog([answer](auto aCatalog) { *answer = std::move(aCatalog); });
+		if (!await_ledger_answer(*answer) || !answer->value().has_value()) {
 			return std::nullopt;
 		}
+		auto catalog = std::move(answer->value());
 		return detail::agent_session_catalog_evidence{
 			.Catalog    = std::move(*catalog),
 			.Statistics = implementation->ReviewLedgerHost->statistics(),

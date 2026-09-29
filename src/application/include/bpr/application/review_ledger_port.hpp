@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -172,18 +173,24 @@ namespace bpr::application {
 	[[nodiscard]] auto valid(const core::agent_session& aSession) noexcept -> bool;
 
 	/// \brief Narrow durable agent-session catalog used by the invocation host.
+	///
+	/// \details [[BPR-1211]]. The catalog is durable storage, so neither call
+	/// answers inside itself: each answer arrives later, exactly once, on the
+	/// caller's decision lane.
 	class agent_session_catalog_port
 	{
 	public:
 		virtual ~agent_session_catalog_port() = default;
 
 		/// \brief Allocates and commits one never-reused session identity.
-		[[nodiscard]] virtual auto admit(const agent_session_admission& aAdmission)
-			-> std::expected<core::agent_session, ledger_store_failure> = 0;
+		virtual void admit(const agent_session_admission&                                                aAdmission,
+						   std::function<void(std::expected<core::agent_session, ledger_store_failure>)> aDone)
+			= 0;
 
 		/// \brief Loads the latest retained session and next identity without writing.
-		[[nodiscard]] virtual auto session_catalog()
-			-> std::expected<agent_session_catalog_state, ledger_store_failure> = 0;
+		virtual void session_catalog(
+			std::function<void(std::expected<agent_session_catalog_state, ledger_store_failure>)> aDone)
+			= 0;
 	};
 
 	/// \brief The durable ledger, as the host sees it.

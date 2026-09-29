@@ -154,6 +154,9 @@ namespace {
 		window.home_open_action()->trigger();
 		wait_for([&] { return aProfile.session() == core::github_status::pull_request_ready; },
 				 "the review opens under the profile's own account", [&] { diagnose(aName, aProfile); }, 60000);
+		// [[BPR-1211]]. The review's ledger opens off the decision lane.
+		wait_for([&] { return github_application_fixture_access::review_ledger_settled(*aProfile.Runtime); },
+				 "the review's ledger has opened", [&] { diagnose(aName, aProfile); }, 60000);
 	}
 	auto signed_in_sign_out(running_profile& aProfile) -> QPushButton*
 	{

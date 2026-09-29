@@ -101,6 +101,17 @@ namespace bpr::application {
 		auto operator<=>(const agent_note_promotion_failure&) const = default;
 	};
 
+	/// \brief Builds the private note one promoted finding becomes.
+	///
+	/// \details The note's text is whatever `core::promote_agent_finding`
+	/// produced — the claim, byte for byte. A record the durable authority
+	/// would refuse is refused here, before any store sees it.
+	[[nodiscard]] auto promoted_note(
+		local_note_id                                aNote,
+		std::optional<local_note_attachment>         aAttachment,
+		const core::agent_finding_promotion_request& aRequest)
+		-> std::expected<local_note_record, agent_note_promotion_failure>;
+
 	/// \brief Stores one promoted finding as a private note, and nowhere else.
 	///
 	/// \details The single authority agent output may reach. The note's text is

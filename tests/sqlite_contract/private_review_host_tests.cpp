@@ -57,19 +57,34 @@ namespace {
 		std::optional<agent_session> Latest;
 		std::uint64_t                Next   = 1;
 		review_ledger_store_port*    Ledger = nullptr;
-		auto                         admit(const agent_session_admission& aRequest) -> std::expected<agent_session, ledger_store_failure> override
+		/// [[BPR-1211]]. The catalog answers later, on the decision lane.
+		decision_executor* Lane = nullptr;
+		void               admit(const agent_session_admission& aRequest, std::function<void(std::expected<agent_session, ledger_store_failure>)> aDone) override
 		{
+			auto answer = std::expected<agent_session, ledger_store_failure>{ };
 			if (Ledger) {
-				auto row = Ledger->admit_agent_session(aRequest);
-				if (row) {
-					Latest = *row;
+				answer = Ledger->admit_agent_session(aRequest);
+				if (answer) {
+					Latest = *answer;
 				}
-				return row;
+			} else {
+				Latest = agent_session{ agent_session_id{ Next++ }, aRequest.Profile, aRequest.Binding };
+				answer = *Latest;
 			}
-			Latest = agent_session{ agent_session_id{ Next++ }, aRequest.Profile, aRequest.Binding };
-			return *Latest;
+			deliver([done = std::move(aDone), answer] { done(answer); });
 		}
-		auto session_catalog() -> std::expected<agent_session_catalog_state, ledger_store_failure> override { return agent_session_catalog_state{ Latest, agent_session_id{ Next } }; }
+		void session_catalog(std::function<void(std::expected<agent_session_catalog_state, ledger_store_failure>)> aDone) override
+		{
+			deliver([done = std::move(aDone), answer = agent_session_catalog_state{ Latest, agent_session_id{ Next } }] { done(answer); });
+		}
+		void deliver(std::function<void()> aAnswer)
+		{
+			if (Lane != nullptr) {
+				Lane->post(std::move(aAnswer));
+			} else {
+				aAnswer();
+			}
+		}
 	};
 	struct workspace : agent_workspace_port
 	{
@@ -192,6 +207,7 @@ namespace {
 		{
 			Binding.Scope   = Store->frontier()->Scope;
 			Sessions.Ledger = Ledger.get();
+			Sessions.Lane   = &Decisions;
 			Authority       = { .Profile = host_profile_id{ 1 }, .ProfileRevision = core::github_profile_revision{ 1 }, .Host = Binding.Scope.Host, .HostAuthority = Binding.HostAuthority, .Account = Binding.Scope.Account, .Viewer = github_viewer_actor_id{ 3 }, .Repository = Binding.Scope.Repository, .Cache = private_review_fixture::opaque<repository_cache_scope_id>(), .PullRequest = Binding.Scope.PullRequest, .Number = pull_request_number{ 5 }, .Scope = Binding.LeftAnchor.Authority };
 			Host            = std::make_unique<agent_invocation_host>(Profiles, std::vector<agent_host_policy>{ built_in_agent_policy(Binding.Scope.Host, built_in_agent_host_kind::github_com) }, Scratch.path(), Sessions, Workspace, Process, [](const std::string&) -> std::optional<std::string> { return { }; }, Effects, Decisions, Projection, &Private);
 			Host->observe(application_session_id{ 1 }, Authority, Binding.Revision);

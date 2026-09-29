@@ -33,8 +33,7 @@ namespace bpr::application {
 		return delivery;
 	}
 
-	auto store_promoted_finding(
-		review_ledger_store_port&                    aStore,
+	auto promoted_note(
 		const local_note_id                          aNote,
 		std::optional<local_note_attachment>         aAttachment,
 		const core::agent_finding_promotion_request& aRequest)
@@ -59,7 +58,21 @@ namespace bpr::application {
 				.Store = ledger_store_failure::invalid_record,
 			});
 		}
-		const auto stored = aStore.store_note(record);
+		return record;
+	}
+
+	auto store_promoted_finding(
+		review_ledger_store_port&                    aStore,
+		const local_note_id                          aNote,
+		std::optional<local_note_attachment>         aAttachment,
+		const core::agent_finding_promotion_request& aRequest)
+		-> std::expected<local_note_record, agent_note_promotion_failure>
+	{
+		const auto record = promoted_note(aNote, std::move(aAttachment), aRequest);
+		if (!record) {
+			return std::unexpected(record.error());
+		}
+		const auto stored = aStore.store_note(*record);
 		if (!stored) {
 			return std::unexpected(
 				agent_note_promotion_failure{ .Store = stored.error().Reason });

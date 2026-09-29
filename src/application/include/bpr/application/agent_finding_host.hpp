@@ -217,8 +217,8 @@ namespace bpr::application {
 	/// \brief Holds one run's findings and turns a reviewer's ask into one
 	/// local artifact, or into a refusal the reviewer can read.
 	///
-	/// \details Two ports and nothing else: the durable ledger store, which it
-	/// touches only through `store_promoted_finding`, and the projection. There
+	/// \details Two ports and nothing else: the promoted-note store, which
+	/// writes only the note `promoted_note` built, and the projection. There
 	/// is **no mutation port, no provider, no coordinator, and no publication
 	/// path** reachable from here, which is how RFC-BPR-0012's rule that agent
 	/// output can never publish survives composition rather than being restated
@@ -230,18 +230,21 @@ namespace bpr::application {
 	class agent_finding_host final
 	{
 	public:
-		/// \brief Supplies the durable store open for the review right now.
+		/// \brief Stores one promoted note in the review open right now.
 		///
-		/// \details Read at call time rather than captured, because the store
+		/// \details Asked at call time rather than captured, because the ledger
 		/// is opened and retired as the reviewer opens pull requests. A host
-		/// that captured one reference would write a promoted note into the
-		/// store belonging to a review nobody is looking at. `nullptr` is a
-		/// complete answer and produces `note_not_stored`.
-		using review_ledger_store_supplier
-			= std::function<review_ledger_store_port*()>;
+		/// that captured one would write a promoted note into the review
+		/// nobody is looking at. [[BPR-1211]]. The note is written off the
+		/// decision lane: `false` means no durable ledger is open, which is a
+		/// complete answer and produces `note_not_stored`; otherwise the
+		/// answer arrives later, once, on the decision lane.
+		using promoted_note_store = std::function<bool(
+			const local_note_record&,
+			std::function<void(std::expected<local_note_record, local_note_failure>)>)>;
 
 		agent_finding_host(
-			review_ledger_store_supplier   aStore,
+			promoted_note_store            aStore,
 			agent_finding_projection_port& aProjection);
 
 		agent_finding_host(const agent_finding_host&)                    = delete;
@@ -257,8 +260,8 @@ namespace bpr::application {
 		void clear();
 
 		/// \brief Answers one asked-for action, and presents the answer.
-		[[nodiscard]] auto act(const agent_finding_action_request& aRequest)
-			-> agent_finding_outcome;
+		/// \details A note is presented once its durable write answers.
+		void act(const agent_finding_action_request& aRequest);
 
 		[[nodiscard]] auto delivered() const noexcept
 			-> const std::optional<agent_finding_delivery>&;
@@ -269,7 +272,9 @@ namespace bpr::application {
 		[[nodiscard]] auto locate(const agent_finding_action_request& aRequest)
 			const -> std::optional<agent_delivered_finding>;
 
-		review_ledger_store_supplier          Store;
+		void finish(const agent_finding_outcome& aOutcome);
+
+		promoted_note_store                   Store;
 		agent_finding_projection_port&        Projection;
 		std::optional<agent_finding_delivery> Delivered;
 		agent_finding_host_statistics         Statistics;

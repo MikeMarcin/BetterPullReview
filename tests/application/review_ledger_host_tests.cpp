@@ -1,16 +1,24 @@
+#include "bpr/application/manual_executor.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -386,19 +394,331 @@ namespace {
 		};
 	}
 
+	// ---- [[BPR-1211]] the asynchronous host's test rig ----------------------
+
+	/// Holds one store operation until released, or until its limit passes.
+	struct store_gate
+	{
+		std::mutex                Mutex;
+		std::condition_variable   Changed;
+		bool                      Held    = false;
+		bool                      Entered = false;
+		std::chrono::milliseconds Limit{ 2'000 };
+
+		void pass()
+		{
+			auto lock = std::unique_lock{ Mutex };
+			Entered   = true;
+			Changed.notify_all();
+			static_cast<void>(Changed.wait_for(lock, Limit, [this] { return !Held; }));
+		}
+
+		void hold()
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			Held            = true;
+			Entered         = false;
+		}
+
+		void release()
+		{
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Held            = false;
+			}
+			Changed.notify_all();
+		}
+
+		[[nodiscard]] auto wait_entered(const std::chrono::milliseconds aTimeout) -> bool
+		{
+			auto lock = std::unique_lock{ Mutex };
+			return Changed.wait_for(lock, aTimeout, [this] { return Entered; });
+		}
+	};
+
+	/// Forwards to a store the test keeps, so hosts can open, close and reopen
+	/// the same durable root. Every operation may first pass a gate.
+	class forwarding_store final : public application::review_ledger_store_port
+	{
+	public:
+		forwarding_store(application::review_ledger_store_port& aTarget, std::shared_ptr<store_gate> aGate, bool* aClosed)
+			: Target{ &aTarget }
+			, Gate{ std::move(aGate) }
+			, Closed{ aClosed }
+		{
+		}
+		forwarding_store(const forwarding_store&)                    = delete;
+		auto operator=(const forwarding_store&) -> forwarding_store& = delete;
+		forwarding_store(forwarding_store&&)                         = delete;
+		auto operator=(forwarding_store&&) -> forwarding_store&      = delete;
+		~forwarding_store() override
+		{
+			if (Closed != nullptr) {
+				*Closed = true;
+			}
+		}
+
+		auto commit(const application::receipt_persistence_request& aRequest) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->commit(aRequest);
+		}
+		auto load(const core::file_identity& aFile) -> std::expected<std::optional<core::file_receipt>, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->load(aFile);
+		}
+		auto store_conversation_receipt(const core::conversation_receipt& aReceipt) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_conversation_receipt(aReceipt);
+		}
+		auto load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->load_conversation_receipts();
+		}
+		auto store_note(const application::local_note_record& aNote, const std::optional<application::local_note_revision> aExpected)
+			-> std::expected<application::local_note_record, application::local_note_failure> override
+		{
+			pass();
+			return Target->store_note(aNote, aExpected);
+		}
+		auto erase_note(const application::local_note_id aNote, const application::local_note_revision aExpected)
+			-> std::expected<void, application::local_note_failure> override
+		{
+			pass();
+			return Target->erase_note(aNote, aExpected);
+		}
+		auto store_last_reviewed_head(const core::git_commit_oid& aHead) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_last_reviewed_head(aHead);
+		}
+		auto erase_last_reviewed_head() -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->erase_last_reviewed_head();
+		}
+		auto store_defect(const application::durable_defect_record& aDefect) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_defect(aDefect);
+		}
+		auto erase_defect(const core::defect_id aDefect) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->erase_defect(aDefect);
+		}
+		auto load_private() -> std::expected<application::private_ledger_observation, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->load_private();
+		}
+		auto admit_agent_session(const application::agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->admit_agent_session(aAdmission);
+		}
+		auto load_agent_session_catalog() -> std::expected<application::agent_session_catalog_state, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->load_agent_session_catalog();
+		}
+
+	private:
+		void pass()
+		{
+			if (Gate) {
+				Gate->pass();
+			}
+		}
+
+		application::review_ledger_store_port* Target = nullptr;
+		std::shared_ptr<store_gate>            Gate;
+		bool*                                  Closed = nullptr;
+	};
+
+	[[nodiscard]] auto opener(application::review_ledger_store_port& aStore, bool* aClosed = nullptr, std::shared_ptr<store_gate> aGate = { })
+		-> application::review_ledger_store_opener
+	{
+		return [&aStore, aClosed, aGate]() -> std::expected<std::unique_ptr<application::review_ledger_store_port>, application::ledger_store_failure> {
+			return std::make_unique<forwarding_store>(aStore, aGate, aClosed);
+		};
+	}
+
+	template <typename Value, typename Error = application::ledger_store_failure>
+	using answer = std::optional<std::expected<Value, Error>>;
+
+	/// One host over the manual lanes, with blocking helpers for the tests
+	/// that only care about what a completed operation left.
+	struct rig
+	{
+		rig(application::review_ledger_store_port& aStore, event_log& aLog,
+			const std::size_t aCapacity = application::maximum_outstanding_ledger_operations)
+			: Projection{ aLog }
+			, Host{ opener(aStore, &Closed), Projection, Effects, Lane, [this](const std::expected<void, application::ledger_store_failure>& aOpened) { Opened = aOpened.has_value(); }, aCapacity }
+		{
+			settle();
+		}
+
+		recording_projection                        Projection;
+		application::manual_executor                Lane;
+		application::manual_executor                Effects;
+		bool                                        Closed = false;
+		std::optional<bool>                         Opened;
+		application::review_ledger_application_host Host;
+
+		void settle()
+		{
+			while (Lane.pending() + Effects.pending() > 0U) {
+				Effects.drain();
+				Lane.drain();
+			}
+		}
+
+		template <typename Value, typename Error = application::ledger_store_failure>
+		[[nodiscard]] static auto into(answer<Value, Error>& aAnswer)
+		{
+			return [&aAnswer](std::expected<Value, Error> aResult) { aAnswer = std::move(aResult); };
+		}
+
+		template <typename Value, typename Error = application::ledger_store_failure>
+		[[nodiscard]] auto settled(answer<Value, Error>& aAnswer) -> std::expected<Value, Error>
+		{
+			settle();
+			expect(aAnswer.has_value(), "every operation delivers its terminal");
+			return *aAnswer;
+		}
+
+		auto submit(const core::file_receipt_command& aCommand) -> core::file_receipt_outcome
+		{
+			auto got = answer<core::file_receipt_outcome>{ };
+			Host.submit(aCommand, into(got));
+			const auto result = settled(got);
+			expect(result.has_value(), "a submitted command completes");
+			return *result;
+		}
+		auto observe(const core::file_material_observation& aObservation) -> std::expected<core::file_receipt, application::ledger_store_failure>
+		{
+			auto got = answer<core::file_receipt>{ };
+			Host.observe_material(aObservation, into(got));
+			return settled(got);
+		}
+		auto refresh() -> std::expected<core::file_receipt, application::ledger_store_failure>
+		{
+			auto got = answer<core::file_receipt>{ };
+			Host.refresh_receipt(into(got));
+			return settled(got);
+		}
+		auto load_receipt(const core::file_identity& aFile) -> std::expected<std::optional<core::file_receipt>, application::ledger_store_failure>
+		{
+			if (auto cached = Host.cached_receipt(aFile)) {
+				return *cached;
+			}
+			auto got = answer<void>{ };
+			Host.load_receipts({ aFile }, into(got));
+			if (const auto loaded = settled(got); !loaded) {
+				return std::unexpected(loaded.error());
+			}
+			const auto cached = Host.cached_receipt(aFile);
+			expect(cached.has_value(), "a successful read is retained");
+			return *cached;
+		}
+		auto observe_conversations(const std::vector<application::conversation_thread_observation>& aThreads)
+			-> std::expected<application::conversation_read_state, application::ledger_store_failure>
+		{
+			if (auto state = Host.unread_conversations(aThreads)) {
+				return *state;
+			}
+			auto got = answer<void>{ };
+			Host.load_conversation_receipts(into(got));
+			if (const auto loaded = settled(got); !loaded) {
+				return std::unexpected(loaded.error());
+			}
+			return *Host.unread_conversations(aThreads);
+		}
+		auto mark(const core::conversation_observation& aLatest) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.mark_conversation_read(aLatest, into(got));
+			return settled(got);
+		}
+		/// Loads first, as a caller that has never observed would.
+		auto private_observation() -> std::expected<application::private_ledger_observation, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.load_private(into(got));
+			if (const auto loaded = settled(got); !loaded) {
+				return std::unexpected(loaded.error());
+			}
+			return Host.private_observation();
+		}
+		auto persist(const application::local_note_record& aNote, const std::optional<application::local_note_revision> aExpected = std::nullopt)
+			-> std::expected<application::local_note_record, application::local_note_failure>
+		{
+			auto got = answer<application::local_note_record, application::local_note_failure>{ };
+			Host.persist(aNote, aExpected, into<application::local_note_record, application::local_note_failure>(got));
+			return settled(got);
+		}
+		auto erase(const application::local_note_id aNote, const application::local_note_revision aExpected)
+			-> std::expected<void, application::local_note_failure>
+		{
+			auto got = answer<void, application::local_note_failure>{ };
+			Host.erase(aNote, aExpected, into<void, application::local_note_failure>(got));
+			return settled(got);
+		}
+		auto persist(const application::durable_defect_record& aDefect) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.persist(aDefect, into(got));
+			return settled(got);
+		}
+		auto erase(const core::defect_id aDefect) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.erase(aDefect, into(got));
+			return settled(got);
+		}
+		auto persist_head(const core::git_commit_oid& aHead) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.persist_last_reviewed_head(aHead, into(got));
+			return settled(got);
+		}
+		auto erase_head() -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.erase_last_reviewed_head(into(got));
+			return settled(got);
+		}
+		auto admit(const application::agent_session_admission& aAdmission) -> std::expected<core::agent_session, application::ledger_store_failure>
+		{
+			auto got = answer<core::agent_session>{ };
+			Host.admit(aAdmission, into(got));
+			return settled(got);
+		}
+		auto catalog() -> std::expected<application::agent_session_catalog_state, application::ledger_store_failure>
+		{
+			auto got = answer<application::agent_session_catalog_state>{ };
+			Host.session_catalog(into(got));
+			return settled(got);
+		}
+	};
+
 	// The ordering is the contract. A projection published before the commit
 	// would show a reader a state the database does not hold, and would survive
 	// exactly until the next restart contradicted it.
 	void test_the_projection_follows_the_commit()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		host.retain(seed);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
 
-		const auto outcome = host.submit(
+		const auto outcome = rigged.submit(
 			command_for(seed, core::file_receipt_command_kind::mark_read));
 
 		expect(
@@ -414,25 +734,24 @@ namespace {
 				&& store.Requests.front().Receipt.Read == core::file_read_state::read,
 			"the request carries the decided receipt");
 		expect(
-			projection.Published.size() == 1U
-				&& projection.Published.front().Receipt == store.Committed,
+			rigged.Projection.Published.size() == 1U
+				&& rigged.Projection.Published.front().Receipt == store.Committed,
 			"the published projection is exactly what was committed");
 		expect(
-			host.retained().Read == core::file_read_state::read,
+			rigged.Host.retained().Read == core::file_read_state::read,
 			"the host adopts the committed receipt");
 	}
 
 	void test_a_refused_command_never_reaches_the_store()
 	{
-		auto log        = event_log{ };
-		auto store      = recording_store{ log };
-		auto projection = recording_projection{ log };
-		auto host       = application::review_ledger_application_host{ store, projection };
-		auto seed       = seeded_receipt();
-		seed.Excluded   = true;
-		host.retain(seed);
+		auto log      = event_log{ };
+		auto store    = recording_store{ log };
+		auto rigged   = rig{ store, log };
+		auto seed     = seeded_receipt();
+		seed.Excluded = true;
+		rigged.Host.retain(seed);
 
-		const auto outcome = host.submit(
+		const auto outcome = rigged.submit(
 			command_for(seed, core::file_receipt_command_kind::accept));
 
 		expect(
@@ -446,13 +765,15 @@ namespace {
 			store.Requests.empty() && !store.Committed.has_value(),
 			"a refused command writes nothing");
 		expect(
-			projection.Failures.size() == 1U
-				&& projection.Failures.front().Rejection == outcome.Rejection
-				&& !projection.Failures.front().Store.has_value(),
+			rigged.Projection.Failures.size() == 1U
+				&& rigged.Projection.Failures.front().Rejection == outcome.Rejection
+				&& !rigged.Projection.Failures.front().Store.has_value(),
 			"the refusal is published with the core's reason and no store reason");
 		expect(
-			host.retained() == seed,
+			rigged.Host.retained() == seed,
 			"the retained receipt is untouched by a refused command");
+		expect(rigged.Effects.pending() == 0U && rigged.Host.statistics().Operations == 1U,
+			   "a refused command posts no storage work beyond the store's opening");
 	}
 
 	// A failed commit must leave the host agreeing with the database. Adopting
@@ -460,58 +781,62 @@ namespace {
 	// happened to overwrite it.
 	void test_a_failed_commit_changes_nothing()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		host.retain(seed);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
 		store.fail_next(application::ledger_store_failure::conflict);
 
-		const auto outcome = host.submit(
+		const auto outcome = rigged.submit(
 			command_for(seed, core::file_receipt_command_kind::accept));
 
 		expect(
 			log == event_log{ "request", "commit-refused", "failed" },
 			"the failure is published after the refused commit, not before it");
 		expect(
-			projection.Published.empty(),
+			rigged.Projection.Published.empty(),
 			"a failed commit publishes no accepted projection");
 		expect(
-			projection.Failures.size() == 1U
-				&& projection.Failures.front().Store
+			rigged.Projection.Failures.size() == 1U
+				&& rigged.Projection.Failures.front().Store
 					== application::ledger_store_failure::conflict
-				&& projection.Failures.front().Rejection
+				&& rigged.Projection.Failures.front().Rejection
 					== core::file_receipt_rejection::none,
 			"the failure carries the store's reason and no core rejection");
 		expect(
-			host.retained() == seed && !outcome.Changed,
+			rigged.Host.retained() == seed && !outcome.Changed,
 			"the retained receipt keeps the value the database still holds");
 
 		// The next command must still work: a failure is not a poisoned host.
-		const auto recovered = host.submit(
+		const auto recovered = rigged.submit(
 			command_for(seed, core::file_receipt_command_kind::accept));
 		expect(
-			recovered.Changed && host.retained().Accepted,
+			recovered.Changed && rigged.Host.retained().Accepted,
 			"a later command succeeds after a store failure");
+
+		store.ThrowOnCommit = true;
+		const auto thrown   = rigged.submit(command_for(rigged.Host.retained(), core::file_receipt_command_kind::mark_read));
+		expect(!thrown.Changed && rigged.Projection.Failures.back().Store == application::ledger_store_failure::unavailable
+				   && rigged.Host.retained().Read != core::file_read_state::read,
+			   "a store that throws is a typed unavailable failure, not a lost terminal");
 	}
 
 	void test_an_unchanged_command_is_not_a_write()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		host.retain(seed);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
 
 		expect(
-			host.submit(command_for(seed, core::file_receipt_command_kind::accept))
+			rigged.submit(command_for(seed, core::file_receipt_command_kind::accept))
 				.Changed,
 			"the first acceptance changes the receipt");
 		const auto before = log.size();
 
-		const auto again = host.submit(
+		const auto again = rigged.submit(
 			command_for(seed, core::file_receipt_command_kind::accept));
 
 		expect(
@@ -522,29 +847,28 @@ namespace {
 			"a command that moves nothing produces no request, commit, or "
 			"publication");
 		expect(
-			host.statistics().Unchanged == 1U
-				&& host.statistics().PersistenceRequests == 1U,
+			rigged.Host.statistics().Unchanged == 1U
+				&& rigged.Host.statistics().PersistenceRequests == 1U,
 			"the unchanged command is counted without being persisted");
 	}
 
 	void test_statistics_account_for_every_command()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		host.retain(seed);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
 
-		(void)host.submit(command_for(seed, core::file_receipt_command_kind::mark_read));
-		(void)host.submit(command_for(seed, core::file_receipt_command_kind::mark_read));
+		static_cast<void>(rigged.submit(command_for(seed, core::file_receipt_command_kind::mark_read)));
+		static_cast<void>(rigged.submit(command_for(seed, core::file_receipt_command_kind::mark_read)));
 		store.fail_next(application::ledger_store_failure::unavailable);
-		(void)host.submit(command_for(seed, core::file_receipt_command_kind::accept));
+		static_cast<void>(rigged.submit(command_for(seed, core::file_receipt_command_kind::accept)));
 		auto elsewhere = command_for(seed, core::file_receipt_command_kind::accept);
 		elsewhere.File = opaque<core::file_identity>(9U);
-		(void)host.submit(elsewhere);
+		static_cast<void>(rigged.submit(elsewhere));
 
-		const auto statistics = host.statistics();
+		const auto statistics = rigged.Host.statistics();
 		expect(statistics.Commands == 4U, "every command is counted");
 		expect(
 			statistics.Rejected == 1U && statistics.Unchanged == 1U,
@@ -558,23 +882,24 @@ namespace {
 		expect(
 			statistics.FailurePublications == 2U,
 			"both the refusal and the store failure were published");
+		expect(statistics.Operations == 3U && statistics.PeakOutstanding == 1U,
+			   "the opening and the two commits were the only storage operations");
 	}
 
 	void test_private_records_are_validated_before_the_store()
 	{
-		auto log        = event_log{ };
-		auto store      = recording_store{ log };
-		auto projection = recording_projection{ log };
-		auto host       = application::review_ledger_application_host{ store, projection };
+		auto log    = event_log{ };
+		auto store  = recording_store{ log };
+		auto rigged = rig{ store, log };
 
 		auto note = private_note();
 		note.Note.Text.clear();
-		const auto badNote = host.persist(note);
-		const auto badHead = host.persist_last_reviewed_head(core::git_commit_oid{ });
+		const auto badNote = rigged.persist(note);
+		const auto badHead = rigged.persist_head(core::git_commit_oid{ });
 		auto       defect  = private_defect();
 		defect.History.Defect.Anchor.Line += 1U;
-		const auto badDefect = host.persist(defect);
-		const auto badErase  = host.erase(application::local_note_id{ }, application::local_note_revision{ 1U });
+		const auto badDefect = rigged.persist(defect);
+		const auto badErase  = rigged.erase(application::local_note_id{ }, application::local_note_revision{ 1U });
 
 		expect(
 			!badNote
@@ -594,30 +919,31 @@ namespace {
 			store.Private == application::private_ledger_observation{ },
 			"no invalid record reaches the durable port");
 		expect(
-			host.statistics().PrivateWrites == 0U
-				&& host.statistics().PrivateDeletes == 0U
-				&& host.statistics().PrivateFailures == 4U,
-			"validation failures are counted without false writes or deletes");
+			rigged.Host.statistics().PrivateWrites == 0U
+				&& rigged.Host.statistics().PrivateDeletes == 0U
+				&& rigged.Host.statistics().PrivateFailures == 4U
+				&& rigged.Host.statistics().Operations == 1U,
+			"validation failures are counted without false writes, deletes or storage work");
 	}
 
 	void test_private_records_round_trip_and_delete_through_the_host()
 	{
 		auto log          = event_log{ };
 		auto store        = recording_store{ log };
-		auto projection   = recording_projection{ log };
-		auto host         = application::review_ledger_application_host{ store, projection };
+		auto rigged       = rig{ store, log };
 		auto note         = private_note();
 		note.Revision     = application::local_note_revision{ 1U };
 		const auto head   = reviewed_head();
 		const auto defect = private_defect();
 
-		expect(host.persist(note).has_value(), "the note commits");
+		expect(!rigged.Host.private_observation().has_value(), "nothing private is answered before it is loaded");
+		expect(rigged.persist(note).has_value(), "the note commits");
 		expect(
-			host.persist_last_reviewed_head(head).has_value(),
+			rigged.persist_head(head).has_value(),
 			"the reviewed head commits");
-		expect(host.persist(defect).has_value(), "the defect commits");
+		expect(rigged.persist(defect).has_value(), "the defect commits");
 
-		const auto observed = host.private_observation();
+		const auto observed = rigged.private_observation();
 		expect(
 			observed.has_value()
 				&& *observed
@@ -631,29 +957,31 @@ namespace {
 		store.fail_next(application::ledger_store_failure::conflict);
 		auto changed       = note;
 		changed.Note.Text  = "This update must not be adopted.";
-		const auto refused = host.persist(changed);
+		const auto refused = rigged.persist(changed);
 		expect(
 			!refused
 				&& refused.error().Reason == application::ledger_store_failure::conflict,
 			"a private store failure remains typed");
 		expect(
-			store.Private.Notes == std::vector{ note },
-			"a failed private write leaves the durable observation unchanged");
+			store.Private.Notes == std::vector{ note } && rigged.Host.private_observation()->Notes == std::vector{ note },
+			"a failed private write leaves the durable and the retained observation unchanged");
 
-		expect(host.erase(note.Id, note.Revision).has_value(), "the note deletes");
+		expect(rigged.erase(note.Id, note.Revision).has_value(), "the note deletes");
 		expect(
-			host.erase_last_reviewed_head().has_value(),
+			rigged.erase_head().has_value(),
 			"the reviewed head deletes");
 		expect(
-			host.erase(defect.History.Defect.Id).has_value(),
+			rigged.erase(defect.History.Defect.Id).has_value(),
 			"the defect deletes");
-		const auto empty = host.private_observation();
+		expect(rigged.Host.private_observation() == application::private_ledger_observation{ },
+			   "each committed delete is retained without rereading the store");
+		const auto empty = rigged.private_observation();
 		expect(
 			empty.has_value()
 				&& *empty == application::private_ledger_observation{ },
 			"deletion returns the exact scope to an empty private observation");
 
-		const auto statistics = host.statistics();
+		const auto statistics = rigged.Host.statistics();
 		expect(
 			statistics.PrivateWrites == 4U
 				&& statistics.PrivateDeletes == 3U
@@ -664,12 +992,11 @@ namespace {
 
 	void test_material_observation_loads_carries_and_publishes_in_order()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		const auto first      = host.observe_material(core::file_material_observation{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		const auto first  = rigged.observe(core::file_material_observation{
 			.File     = seed.File,
 			.Material = seed.Material,
 		});
@@ -686,7 +1013,7 @@ namespace {
 		store.Committed = old;
 		log.clear();
 		const auto replacement = opaque<core::file_material_id>(19U);
-		const auto carried     = host.observe_material(
+		const auto carried     = rigged.observe(
 			core::file_material_observation{
 				.File     = old.File,
 				.Material = replacement,
@@ -699,24 +1026,23 @@ namespace {
 			   "changed material reopens read and acceptance while preserving exclusion");
 		expect(log == event_log{ "request", "committed", "published" },
 			   "carry-over commits before its receipt projection");
-		expect(host.statistics().ReceiptLoads == 2U
-				   && host.statistics().ReceiptLoadHits == 1U
-				   && host.statistics().MaterialReceiptHits == 1U
-				   && host.statistics().PersistenceRequests == 1U,
+		expect(rigged.Host.statistics().ReceiptLoads == 2U
+				   && rigged.Host.statistics().ReceiptLoadHits == 1U
+				   && rigged.Host.statistics().MaterialReceiptHits == 1U
+				   && rigged.Host.statistics().PersistenceRequests == 1U,
 			   "material observation distinguishes loads, hits, and carry-over writes");
 	}
 
 	void test_material_load_failure_is_typed_and_changes_nothing()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		host.retain(seed);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
 		store.fail_next(application::ledger_store_failure::unavailable);
 
-		const auto observed = host.observe_material(
+		const auto observed = rigged.observe(
 			core::file_material_observation{
 				.File     = seed.File,
 				.Material = opaque<core::file_material_id>(33U),
@@ -726,7 +1052,7 @@ namespace {
 				   && observed.error()
 					   == application::ledger_store_failure::unavailable,
 			   "a load failure stays typed");
-		expect(host.retained() == seed && store.Requests.empty(),
+		expect(rigged.Host.retained() == seed && store.Requests.empty(),
 			   "a failed load neither carries nor persists a receipt");
 		expect(log == event_log{ "load-refused", "failed" },
 			   "the typed load refusal reaches projection after the store terminal");
@@ -736,13 +1062,12 @@ namespace {
 	{
 		auto log                  = event_log{ };
 		auto store                = recording_store{ log };
-		auto projection           = recording_projection{ log };
-		auto host                 = application::review_ledger_application_host{ store, projection };
+		auto rigged               = rig{ store, log };
 		auto admission            = session_admission();
 		auto invalid              = admission;
 		invalid.Binding.LeftEpoch = core::epoch_ordinal{ };
 
-		const auto refused = host.admit(invalid);
+		const auto refused = rigged.admit(invalid);
 		expect(
 			!refused
 				&& refused.error()
@@ -750,8 +1075,8 @@ namespace {
 				&& store.Admissions.empty(),
 			"an invalid session never reaches durable admission");
 
-		const auto admitted = host.admit(admission);
-		const auto catalog  = host.session_catalog();
+		const auto admitted = rigged.admit(admission);
+		const auto catalog  = rigged.catalog();
 		expect(
 			admitted.has_value() && admitted->Id == core::agent_session_id{ 1U }
 				&& admitted->Profile == admission.Profile
@@ -762,9 +1087,9 @@ namespace {
 				&& catalog->Next == core::agent_session_id{ 2U },
 			"loading returns the latest retained session and monotonic next identity");
 		expect(
-			host.statistics().SessionAdmissions == 1U
-				&& host.statistics().SessionLoads == 1U
-				&& host.statistics().SessionFailures == 1U,
+			rigged.Host.statistics().SessionAdmissions == 1U
+				&& rigged.Host.statistics().SessionLoads == 1U
+				&& rigged.Host.statistics().SessionFailures == 1U,
 			"session statistics distinguish admission, load, and pre-store refusal");
 	}
 
@@ -774,12 +1099,11 @@ namespace {
 	// leaves the next observation asking again.
 	void test_conversation_read_state_loads_once_and_marks_read_through_the_store()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto thread     = core::review_conversation_id{ 41U };
-		const auto posts      = std::vector<core::conversation_post_observation>{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto thread = core::review_conversation_id{ 41U };
+		const auto posts  = std::vector<core::conversation_post_observation>{
 			{ .Comment = core::review_comment_id{ 1U }, .Edit = core::comment_edit_version{ 11U } },
 			{ .Comment = core::review_comment_id{ 2U }, .Edit = core::comment_edit_version{ 12U }, .Mine = true },
 			{ .Comment = core::review_comment_id{ 3U }, .Edit = core::comment_edit_version{ 13U } },
@@ -790,15 +1114,16 @@ namespace {
 			  .Posts        = { { .Comment = core::review_comment_id{ 9U }, .Edit = core::comment_edit_version{ 19U }, .Mine = true } } },
 		};
 
+		expect(!rigged.Host.unread_conversations(threads).has_value(), "nothing is decided before the receipts are loaded");
 		store.fail_next(application::ledger_store_failure::unavailable);
-		const auto refused = host.observe_conversations(threads);
+		const auto refused = rigged.observe_conversations(threads);
 		expect(!refused.has_value()
 				   && refused.error() == application::ledger_store_failure::unavailable
 				   && log == event_log{ "conversation-load-refused" },
 			   "a refused receipt load is typed and caches nothing");
 		log.clear();
 
-		const auto fresh = host.observe_conversations(threads);
+		const auto fresh = rigged.observe_conversations(threads);
 		expect(fresh.has_value() && fresh->UnreadThreads == 1U
 				   && fresh->Threads.size() == 1U
 				   && fresh->Threads[0].Conversation == thread
@@ -807,22 +1132,22 @@ namespace {
 					   == std::vector{ core::review_comment_id{ 1U }, core::review_comment_id{ 3U } },
 			   "with no receipt every post of someone else's is unread and my own "
 			   "thread is not");
-		const auto again = host.observe_conversations(threads);
+		const auto again = rigged.observe_conversations(threads);
 		expect(again == fresh && log == event_log{ "conversation-loaded" },
 			   "the receipts are loaded once and reused");
 
 		store.fail_next(application::ledger_store_failure::quota_exceeded);
-		const auto refusedWrite = host.mark_conversation_read(core::conversation_observation{
+		const auto refusedWrite = rigged.mark(core::conversation_observation{
 			.Conversation  = thread,
 			.LatestComment = core::review_comment_id{ 3U },
 			.LatestEdit    = core::comment_edit_version{ 13U },
 		});
 		expect(!refusedWrite.has_value()
 				   && refusedWrite.error() == application::ledger_store_failure::quota_exceeded
-				   && host.observe_conversations(threads) == fresh,
+				   && rigged.observe_conversations(threads) == fresh,
 			   "a refused Mark read changes nothing the host reports");
 
-		const auto marked = host.mark_conversation_read(core::conversation_observation{
+		const auto marked = rigged.mark(core::conversation_observation{
 			.Conversation  = thread,
 			.LatestComment = core::review_comment_id{ 3U },
 			.LatestEdit    = core::comment_edit_version{ 13U },
@@ -831,31 +1156,44 @@ namespace {
 				   && store.ConversationReceipts[0].SeenComment == core::review_comment_id{ 3U }
 				   && store.ConversationReceipts[0].AcceptedComment == core::review_comment_id{ },
 			   "Mark read stores the seen cursor at the latest post and leaves acceptance");
-		const auto read = host.observe_conversations(threads);
+		const auto read = rigged.observe_conversations(threads);
 		expect(read.has_value() && read->UnreadThreads == 0U && read->Threads.empty(),
 			   "a read conversation reports nothing unread");
 
 		auto edited             = threads;
 		edited[0].Posts[2].Edit = core::comment_edit_version{ 14U };
-		const auto reopened     = host.observe_conversations(edited);
+		const auto reopened     = rigged.observe_conversations(edited);
 		expect(reopened.has_value() && reopened->UnreadThreads == 1U
 				   && reopened->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } }
 				   && reopened->Threads[0].SeenBefore,
 			   "an edit to the seen post reopens exactly that post, in a conversation read before");
 
-		const auto repeat = host.mark_conversation_read(core::conversation_observation{
+		const auto repeat = rigged.mark(core::conversation_observation{
 			.Conversation  = thread,
 			.LatestComment = core::review_comment_id{ 3U },
 			.LatestEdit    = core::comment_edit_version{ 13U },
 		});
 		expect(repeat.has_value() && store.ConversationReceipts.size() == 1U,
 			   "an unchanged Mark read is not a write");
-		expect(!host.mark_conversation_read(core::conversation_observation{ }).has_value(),
+		expect(!rigged.mark(core::conversation_observation{ }).has_value(),
 			   "a nameless conversation is refused before the store");
-		const auto statistics = host.statistics();
+		const auto statistics = rigged.Host.statistics();
 		expect(statistics.ConversationLoads == 2U && statistics.ConversationWrites == 2U
 				   && statistics.ConversationFailures == 2U && statistics.Unchanged == 1U,
 			   "statistics account for every conversation load, write and refusal");
+
+		// A cold cache: Mark read loads the receipts first, in one operation.
+		auto       cold   = rig{ store, log };
+		const auto before = store.ConversationReceipts;
+		expect(cold.mark(core::conversation_observation{
+							 .Conversation  = core::review_conversation_id{ 42U },
+							 .LatestComment = core::review_comment_id{ 9U },
+							 .LatestEdit    = core::comment_edit_version{ 19U },
+						 })
+					   .has_value()
+				   && cold.Host.statistics().ConversationLoads == 1U && store.ConversationReceipts.size() == before.size() + 1U
+				   && cold.Host.unread_conversations(threads).has_value(),
+			   "a cold Mark read loads, decides against the loaded receipts, writes and keeps them");
 	}
 
 	void test_receipt_action_projection_contains_only_core_legal_changes()
@@ -876,13 +1214,13 @@ namespace {
 				   && !actions.Actions[3].Enabled,
 			   "the four compact slots carry the inverse gestures and core legality");
 	}
+
 	void test_hostile_note_competitors_are_bounded_before_projection()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto candidate  = private_note();
+		auto       log       = event_log{ };
+		auto       store     = recording_store{ log };
+		auto       rigged    = rig{ store, log };
+		const auto candidate = private_note();
 		for (const auto kind : { 0, 1, 2 }) {
 			auto competitor     = candidate;
 			competitor.Revision = application::local_note_revision{ 1U };
@@ -896,29 +1234,28 @@ namespace {
 				competitor.Note.Text = std::string(core::maximum_note_bytes + 1U, 'x');
 			}
 			store.HostileCurrent = competitor;
-			const auto refused   = host.persist(candidate);
-			const auto retained  = host.rejected_note();
+			const auto refused   = rigged.persist(candidate);
+			const auto retained  = rigged.Host.rejected_note();
 			expect(!refused && refused.error().Reason == application::ledger_store_failure::integrity_failure
 					   && !refused.error().Current && retained && retained->Candidate == candidate
 					   && !retained->Failure.Current,
 				   "foreign, unrevisioned and oversized competitors never enter the write projection");
-			host.dismiss_rejected_note();
-			const auto erased = host.erase(candidate.Id, application::local_note_revision{ 1U });
+			rigged.Host.dismiss_rejected_note();
+			const auto erased = rigged.erase(candidate.Id, application::local_note_revision{ 1U });
 			expect(!erased && erased.error().Reason == application::ledger_store_failure::integrity_failure
-					   && !erased.error().Current && host.rejected_note() && !host.rejected_note()->Failure.Current,
+					   && !erased.error().Current && rigged.Host.rejected_note() && !rigged.Host.rejected_note()->Failure.Current,
 				   "delete conflicts apply the same bounded exact-identity observation guard");
-			host.dismiss_rejected_note();
+			rigged.Host.dismiss_rejected_note();
 		}
 	}
 
 	void test_note_conflicts_retain_exact_window_candidate()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       first      = application::review_ledger_application_host{ store, projection };
-		auto       second     = application::review_ledger_application_host{ store, projection };
-		const auto created    = first.persist(private_note());
+		auto       log     = event_log{ };
+		auto       store   = recording_store{ log };
+		auto       first   = rig{ store, log };
+		auto       second  = rig{ store, log };
+		const auto created = first.persist(private_note());
 		expect(created.has_value(), "the initial note is accepted");
 		auto winner         = *created;
 		winner.Note.Text    = "accepted elsewhere";
@@ -927,32 +1264,32 @@ namespace {
 		auto candidate      = *created;
 		candidate.Note.Text = std::string{ "local\0candidate\n", 16U };
 		const auto refused  = second.persist(candidate, created->Revision);
-		const auto retained = second.rejected_note();
+		const auto retained = second.Host.rejected_note();
 		const auto durable  = second.private_observation();
 		expect(!refused && refused.error().Reason == application::ledger_store_failure::conflict
 				   && refused.error().Current == *accepted && retained
 				   && retained->Candidate == candidate && retained->Failure == refused.error()
 				   && retained->ExpectedRevision == created->Revision,
 			   "conflict retains every candidate byte separately from the accepted competitor");
-		expect(durable && durable->Notes == std::vector{ *accepted } && !first.rejected_note(),
+		expect(durable && durable->Notes == std::vector{ *accepted } && !first.Host.rejected_note(),
 			   "a rejected window cannot overwrite shared durable state or another window projection");
-		expect(second.rejected_note() == retained, "reading durable state does not discard the local candidate");
+		expect(second.Host.rejected_note() == retained, "reading durable state does not discard the local candidate");
 		const auto laterDelete    = second.erase(created->Id, created->Revision);
 		auto       laterCandidate = candidate;
 		laterCandidate.Note.Text  = "another refused edit";
 		const auto laterEdit      = second.persist(laterCandidate, created->Revision);
-		expect(!laterDelete && !laterEdit && second.rejected_note() == retained,
+		expect(!laterDelete && !laterEdit && second.Host.rejected_note() == retained,
 			   "later rejected edits and deletes cannot replace protected candidate bytes");
 		auto resolved            = *accepted;
 		resolved.Note.Text       = "explicit later accepted edit";
 		const auto laterAccepted = second.persist(resolved, accepted->Revision);
-		expect(laterAccepted && second.rejected_note() == retained,
+		expect(laterAccepted && second.Host.rejected_note() == retained,
 			   "even a successful durable write does not implicitly dismiss the protected candidate");
-		second.dismiss_rejected_note();
-		expect(!second.rejected_note(), "candidate dismissal is explicit");
+		second.Host.dismiss_rejected_note();
+		expect(!second.Host.rejected_note(), "candidate dismissal is explicit");
 		const auto deleted = second.erase(created->Id, created->Revision);
-		expect(!deleted && second.rejected_note() && !second.rejected_note()->Candidate
-				   && second.rejected_note()->Failure.Current == *laterAccepted,
+		expect(!deleted && second.Host.rejected_note() && !second.Host.rejected_note()->Candidate
+				   && second.Host.rejected_note()->Failure.Current == *laterAccepted,
 			   "stale deletion has a distinct typed projection with its accepted competitor");
 	}
 
@@ -1019,39 +1356,39 @@ namespace {
 
 	void test_sibling_refresh_is_observation_only()
 	{
-		auto log        = event_log{ };
-		auto store      = recording_store{ log };
-		auto projection = recording_projection{ log };
-		auto host       = application::review_ledger_application_host{ store, projection };
-		auto selected   = seeded_receipt();
-		host.retain(selected);
+		auto log      = event_log{ };
+		auto store    = recording_store{ log };
+		auto rigged   = rig{ store, log };
+		auto selected = seeded_receipt();
+		rigged.Host.retain(selected);
 		auto accepted     = selected;
 		accepted.Accepted = true;
 		accepted.Read     = core::file_read_state::read;
 		store.Committed   = accepted;
-		expect(host.refresh_receipt().value() == accepted && projection.Published.back().Receipt == accepted, "same material accepts sibling receipt");
+		expect(rigged.refresh().value() == accepted && rigged.Projection.Published.back().Receipt == accepted, "same material accepts sibling receipt");
 		// [[BPR-0824]]. The composing window's own commit echo reaches here too.
-		expect(host.statistics().ReceiptLoadHits == 1U && host.statistics().MaterialReceiptHits == 0U, "a refresh hit is not a material-observation hit");
+		expect(rigged.Host.statistics().ReceiptLoadHits == 1U && rigged.Host.statistics().MaterialReceiptHits == 0U, "a refresh hit is not a material-observation hit");
 		selected.Material = opaque<core::file_material_id>(99U);
-		host.retain(selected);
-		const auto refreshed = host.refresh_receipt();
+		rigged.Host.retain(selected);
+		const auto refreshed = rigged.refresh();
 		expect(refreshed && refreshed->File == selected.File && refreshed->Material == selected.Material && !refreshed->Accepted && refreshed->Read == core::file_read_state::unread, "different selected material carries through core in memory");
 		expect(store.Requests.empty() && store.Committed == accepted, "sibling carry never overwrites durable receipt");
 		store.Committed->File    = opaque<core::file_identity>(88U);
-		const auto beforeFailure = host.retained();
-		expect(!host.refresh_receipt() && host.retained() == beforeFailure, "wrong file store response cannot replace retained selection");
+		const auto beforeFailure = rigged.Host.retained();
+		expect(!rigged.refresh() && rigged.Host.retained() == beforeFailure, "wrong file store response cannot replace retained selection");
 		store.Committed.reset();
-		expect(host.refresh_receipt().value() == selected, "absent durable receipt resets exact selected material in memory");
+		expect(rigged.refresh().value() == selected, "absent durable receipt resets exact selected material in memory");
 		expect(store.LastLoadedFile == selected.File, "refresh loads only currently retained file");
-		const auto note = host.persist(private_note());
+		const auto note = rigged.persist(private_note());
 		expect(note.has_value(), "seed accepted note");
-		expect(!host.persist(private_note()), "retain rejected candidate");
-		const auto rejected = host.rejected_note();
-		expect(host.refresh_receipt().has_value() && host.rejected_note() == rejected, "receipt refresh preserves rejected note candidate");
-		expect(host.observe_conversations({ }).has_value(), "prime conversation cache");
-		const auto loads = host.statistics().ConversationLoads;
-		host.invalidate_conversation_receipts();
-		expect(host.observe_conversations({ }).has_value() && host.statistics().ConversationLoads == loads + 1U && store.Requests.empty(), "sibling conversation invalidation reloads without writes");
+		expect(!rigged.persist(private_note()), "retain rejected candidate");
+		const auto rejected = rigged.Host.rejected_note();
+		expect(rigged.refresh().has_value() && rigged.Host.rejected_note() == rejected, "receipt refresh preserves rejected note candidate");
+		expect(rigged.observe_conversations({ }).has_value(), "prime conversation cache");
+		const auto loads = rigged.Host.statistics().ConversationLoads;
+		rigged.Host.invalidate_conversation_receipts();
+		expect(!rigged.Host.unread_conversations({ }).has_value(), "an invalidated cache answers nothing");
+		expect(rigged.observe_conversations({ }).has_value() && rigged.Host.statistics().ConversationLoads == loads + 1U && store.Requests.empty(), "sibling conversation invalidation reloads without writes");
 	}
 
 	/// [[BPR-0972]]. The overview's per-file reads are answered from durable
@@ -1059,31 +1396,31 @@ namespace {
 	/// make one stale, and only a durable change moves the revision.
 	void test_durable_receipts_are_retained_until_another_writer_invalidates_them()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto seed       = seeded_receipt();
-		const auto other      = opaque<core::file_identity>(7U);
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		const auto other  = opaque<core::file_identity>(7U);
 
-		expect(host.load_receipt(seed.File).has_value() && !*host.load_receipt(seed.File),
+		expect(!rigged.Host.cached_receipt(seed.File).has_value(), "nothing is held before it is read");
+		expect(rigged.load_receipt(seed.File).has_value() && !*rigged.load_receipt(seed.File),
 			   "an absent durable receipt is answered twice");
-		expect(host.statistics().ReceiptLoads == 1U && host.statistics().ReceiptCacheHits == 1U,
+		expect(rigged.Host.statistics().ReceiptLoads == 1U && rigged.Host.statistics().ReceiptCacheHits == 2U,
 			   "the second answer for a file reads no store");
-		const auto unread = host.durable_receipt_revision();
+		const auto unread = rigged.Host.durable_receipt_revision();
 
 		// A selection observes unchanged material: nothing durable moves.
-		static_cast<void>(host.observe_material(core::file_material_observation{ .File = seed.File, .Material = seed.Material }));
-		expect(host.durable_receipt_revision() == unread,
+		static_cast<void>(rigged.observe(core::file_material_observation{ .File = seed.File, .Material = seed.Material }));
+		expect(rigged.Host.durable_receipt_revision() == unread,
 			   "an in-memory receipt for exact material leaves the durable revision");
 
-		const auto outcome = host.submit(command_for(seed, core::file_receipt_command_kind::mark_read));
-		expect(outcome.Changed && host.durable_receipt_revision() > unread,
+		const auto outcome = rigged.submit(command_for(seed, core::file_receipt_command_kind::mark_read));
+		expect(outcome.Changed && rigged.Host.durable_receipt_revision() > unread,
 			   "a commit through the host moves the durable revision");
-		const auto loadsAfterCommit = host.statistics().ReceiptLoads;
-		const auto committed        = host.load_receipt(seed.File);
+		const auto loadsAfterCommit = rigged.Host.statistics().ReceiptLoads;
+		const auto committed        = rigged.load_receipt(seed.File);
 		expect(committed.has_value() && committed->has_value() && (*committed)->Read == core::file_read_state::read
-				   && host.statistics().ReceiptLoads == loadsAfterCommit,
+				   && rigged.Host.statistics().ReceiptLoads == loadsAfterCommit,
 			   "the committed receipt is answered without rereading the store");
 
 		// Another host writes the store; until its notification arrives the
@@ -1091,25 +1428,440 @@ namespace {
 		auto sibling          = *store.Committed;
 		sibling.Accepted      = true;
 		store.Committed       = sibling;
-		const auto beforeNote = host.durable_receipt_revision();
-		expect(host.load_receipt(seed.File)->value().Accepted == false, "an unannounced foreign write is not guessed at");
+		const auto beforeNote = rigged.Host.durable_receipt_revision();
+		expect(rigged.load_receipt(seed.File)->value().Accepted == false, "an unannounced foreign write is not guessed at");
 		const auto files = std::array{ seed.File };
-		host.invalidate_receipts(files);
-		expect(host.durable_receipt_revision() > beforeNote && host.statistics().ReceiptInvalidations == 1U,
+		rigged.Host.invalidate_receipts(files);
+		expect(rigged.Host.durable_receipt_revision() > beforeNote && rigged.Host.statistics().ReceiptInvalidations == 1U,
 			   "a named foreign change drops that file and moves the revision");
-		expect(host.load_receipt(seed.File)->value().Accepted && host.statistics().ReceiptLoads == loadsAfterCommit + 1U,
+		expect(rigged.load_receipt(seed.File)->value().Accepted && rigged.Host.statistics().ReceiptLoads == loadsAfterCommit + 1U,
 			   "the invalidated file alone is read again");
 
 		store.fail_next(application::ledger_store_failure::unavailable);
-		expect(!host.load_receipt(other).has_value(), "a failed read is typed");
-		expect(host.load_receipt(other).has_value() && host.statistics().ReceiptLoads == loadsAfterCommit + 3U,
+		expect(!rigged.load_receipt(other).has_value(), "a failed read is typed");
+		expect(rigged.load_receipt(other).has_value() && rigged.Host.statistics().ReceiptLoads == loadsAfterCommit + 3U,
 			   "a failed read retains nothing and is asked again");
-		const auto retainedFiles = host.statistics().ReceiptInvalidations;
-		host.invalidate_all_receipts();
-		expect(host.statistics().ReceiptInvalidations == retainedFiles + 2U,
+		const auto retainedFiles = rigged.Host.statistics().ReceiptInvalidations;
+		rigged.Host.invalidate_all_receipts();
+		expect(rigged.Host.statistics().ReceiptInvalidations == retainedFiles + 2U,
 			   "a change naming no file drops every retained receipt");
+
+		// A read that began before a sibling's invalidation may predate the
+		// change the invalidation announced: it answers, and retains nothing.
+		auto pending = answer<void>{ };
+		rigged.Host.load_receipts({ seed.File }, rig::into(pending));
+		rigged.Effects.drain();
+		rigged.Host.invalidate_receipts(files);
+		rigged.settle();
+		expect(pending.has_value() && pending->has_value() && !rigged.Host.cached_receipt(seed.File).has_value(),
+			   "a read overtaken by an invalidation of its file retains nothing");
 	}
 
+	// ---- [[BPR-1211]] off the decision lane --------------------------------
+
+	/// A decision and effect lane that other threads may post to.
+	class locked_lane final : public application::decision_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override
+		{
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Tasks.push_back(std::move(aTask));
+			}
+			Posted.notify_all();
+		}
+
+		/// Runs what is posted, until nothing is.
+		auto drain() -> std::size_t
+		{
+			auto ran = std::size_t{ 0U };
+			for (;;) {
+				auto task = std::function<void()>{ };
+				{
+					const auto lock = std::scoped_lock{ Mutex };
+					if (Tasks.empty()) {
+						return ran;
+					}
+					task = std::move(Tasks.front());
+					Tasks.pop_front();
+				}
+				task();
+				++ran;
+			}
+		}
+
+		[[nodiscard]] auto wait_for_post(const std::chrono::milliseconds aTimeout) -> bool
+		{
+			auto lock = std::unique_lock{ Mutex };
+			return Posted.wait_for(lock, aTimeout, [this] { return !Tasks.empty(); });
+		}
+
+	private:
+		std::mutex                        Mutex;
+		std::condition_variable           Posted;
+		std::deque<std::function<void()>> Tasks;
+	};
+
+	/// One effect thread, FIFO, joined after draining.
+	class thread_worker final : public application::effect_executor
+	{
+	public:
+		thread_worker()
+			: Worker{ [this] { run(); } }
+		{
+		}
+		thread_worker(const thread_worker&)                    = delete;
+		auto operator=(const thread_worker&) -> thread_worker& = delete;
+		thread_worker(thread_worker&&)                         = delete;
+		auto operator=(thread_worker&&) -> thread_worker&      = delete;
+		~thread_worker() override
+		{
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Open            = false;
+			}
+			Posted.notify_all();
+			Worker.join();
+		}
+
+		void post(std::function<void()> aTask) override
+		{
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Tasks.push_back(std::move(aTask));
+			}
+			Posted.notify_all();
+		}
+
+	private:
+		void run()
+		{
+			for (;;) {
+				auto task = std::function<void()>{ };
+				{
+					auto lock = std::unique_lock{ Mutex };
+					Posted.wait(lock, [this] { return !Open || !Tasks.empty(); });
+					if (Tasks.empty()) {
+						return;
+					}
+					task = std::move(Tasks.front());
+					Tasks.pop_front();
+				}
+				task();
+			}
+		}
+
+		std::mutex                        Mutex;
+		std::condition_variable           Posted;
+		std::deque<std::function<void()>> Tasks;
+		bool                              Open = true;
+		std::thread                       Worker;
+	};
+
+	/// The negative control: storage run inline, on the caller's lane.
+	class inline_effects final : public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override { aTask(); }
+	};
+
+	/// How long `aGesture` held the decision lane while a store operation it
+	/// reached was held for `aGate.Limit`.
+	[[nodiscard]] auto lane_time_while_held(application::effect_executor& aEffects, locked_lane& aLane,
+											application::review_ledger_store_port& aStore, event_log& aLog)
+		-> std::chrono::milliseconds
+	{
+		auto gate       = std::make_shared<store_gate>();
+		gate->Limit     = std::chrono::milliseconds{ 1'500 };
+		auto projection = recording_projection{ aLog };
+		auto opened     = answer<void>{ };
+		auto host       = application::review_ledger_application_host{ opener(aStore, nullptr, gate), projection, aEffects, aLane, rig::into(opened) };
+		for (auto tries = 0; tries < 200 && !opened.has_value(); ++tries) {
+			static_cast<void>(aLane.wait_for_post(std::chrono::milliseconds{ 10 }));
+			static_cast<void>(aLane.drain());
+		}
+		expect(opened.has_value() && opened->has_value(), "the gated store opens");
+		const auto seed = seeded_receipt();
+		host.retain(seed);
+		gate->hold();
+		auto       done  = answer<core::file_receipt_outcome>{ };
+		const auto began = std::chrono::steady_clock::now();
+		host.submit(command_for(seed, core::file_receipt_command_kind::mark_read), rig::into(done));
+		const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - began);
+		gate->release();
+		for (auto tries = 0; tries < 400 && !done.has_value(); ++tries) {
+			static_cast<void>(aLane.wait_for_post(std::chrono::milliseconds{ 10 }));
+			static_cast<void>(aLane.drain());
+		}
+		expect(done.has_value() && done->has_value() && done->value().Changed, "the held commit completes once released");
+		return elapsed;
+	}
+
+	/// AC3: a store operation is held on the effect lane while the decision
+	/// lane keeps deciding, answering reads and running other work; nothing is
+	/// published until the store answers. The same gesture with storage run
+	/// inline holds the lane for the whole store wait.
+	void test_a_held_store_operation_leaves_the_decision_lane_free()
+	{
+		auto log     = event_log{ };
+		auto store   = recording_store{ log };
+		auto lane    = locked_lane{ };
+		auto gate    = std::make_shared<store_gate>();
+		auto opened  = answer<void>{ };
+		auto project = recording_projection{ log };
+		{
+			auto worker = thread_worker{ };
+			auto host   = application::review_ledger_application_host{ opener(store, nullptr, gate), project, worker, lane, rig::into(opened) };
+			for (auto tries = 0; tries < 200 && !opened.has_value(); ++tries) {
+				static_cast<void>(lane.wait_for_post(std::chrono::milliseconds{ 10 }));
+				static_cast<void>(lane.drain());
+			}
+			expect(opened.has_value() && opened->has_value() && host.available() == std::optional{ true }, "the store opens off the decision lane");
+			const auto seed = seeded_receipt();
+			host.retain(seed);
+			gate->hold();
+			auto first = answer<core::file_receipt_outcome>{ };
+			host.submit(command_for(seed, core::file_receipt_command_kind::mark_read), rig::into(first));
+			expect(gate->wait_entered(std::chrono::milliseconds{ 2'000 }), "the commit reaches the store on the effect lane");
+
+			// The store is held. The lane still answers every read and runs
+			// other work, and the next gesture is admitted behind the commit.
+			const auto began = std::chrono::steady_clock::now();
+			auto       ran   = false;
+			lane.post([&ran] { ran = true; });
+			static_cast<void>(lane.drain());
+			auto second = answer<core::file_receipt_outcome>{ };
+			host.submit(command_for(seed, core::file_receipt_command_kind::accept), rig::into(second));
+			const auto reads = host.retained() == seed && !host.cached_receipt(seed.File).has_value()
+				&& !host.private_observation().has_value() && !host.unread_conversations({ }).has_value()
+				&& host.durable_receipt_revision() == 0U && host.statistics().PersistenceRequests == 1U && !host.rejected_note().has_value();
+			const auto elapsed = std::chrono::steady_clock::now() - began;
+			expect(ran && reads && elapsed < std::chrono::milliseconds{ 500 },
+				   "while the store is held the decision lane runs, reads answer at once and a gesture is admitted");
+			expect(!first.has_value() && !second.has_value() && project.Published.empty() && host.outstanding() == 2U,
+				   "nothing is published or answered before the store completes");
+
+			gate->release();
+			for (auto tries = 0; tries < 400 && !second.has_value(); ++tries) {
+				static_cast<void>(lane.wait_for_post(std::chrono::milliseconds{ 10 }));
+				static_cast<void>(lane.drain());
+			}
+			expect(first.has_value() && second.has_value() && first->value().Changed && second->value().Changed
+					   && second->value().Receipt.Read == core::file_read_state::read && second->value().Receipt.Accepted
+					   && project.Published.size() == 2U && host.retained().Accepted && host.is_quiescent(),
+				   "the queued gesture is decided after the first commit, against what it left durable");
+		}
+
+		// Negative control: the same gesture with an inline effect lane waits
+		// out the held store on the decision lane.
+		auto       inlineLog   = event_log{ };
+		auto       inlineStore = recording_store{ inlineLog };
+		auto       inlined     = inline_effects{ };
+		auto       inlineLane  = locked_lane{ };
+		auto       worker      = thread_worker{ };
+		auto       threadLog   = event_log{ };
+		auto       threadStore = recording_store{ threadLog };
+		const auto blocked     = lane_time_while_held(inlined, inlineLane, inlineStore, inlineLog);
+		const auto free        = lane_time_while_held(worker, inlineLane, threadStore, threadLog);
+		std::cout << "held-store lane time: inline=" << blocked.count() << "ms worker=" << free.count() << "ms\n";
+		expect(blocked >= std::chrono::milliseconds{ 1'400 } && free < std::chrono::milliseconds{ 200 },
+			   "the control proves the check: storage inline on the lane holds it for the store's wait");
+	}
+
+	/// AC3: outstanding work is bounded and the refusal is typed.
+	void test_admission_is_bounded()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log, 2U };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
+		auto answers = std::array<answer<core::file_receipt_outcome>, 3U>{ };
+		for (auto& got : answers) {
+			rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::mark_read), rig::into(got));
+		}
+		expect(rigged.Host.outstanding() == 2U, "two operations are held and the third is not");
+		rigged.Lane.drain();
+		expect(answers[2].has_value() && !answers[2]->has_value() && answers[2]->error() == application::ledger_store_failure::unavailable
+				   && rigged.Projection.Failures.size() == 1U && rigged.Projection.Failures.front().Store == application::ledger_store_failure::unavailable
+				   && !answers[0].has_value() && !answers[1].has_value(),
+			   "the gesture beyond the bound is refused, typed and presented, before the held ones answer");
+		rigged.settle();
+		expect(answers[0]->value().Changed && !answers[1]->value().Changed && store.Requests.size() == 1U
+				   && rigged.Host.statistics().AdmissionRefusals == 1U && rigged.Host.statistics().PeakOutstanding == 2U,
+			   "the admitted gestures complete in order; the refused one never reached the store");
+	}
+
+	/// AC2/AC3: rapid gestures are first in, first out, each decided against
+	/// the durable result of the one before; a failed write rolls back only
+	/// itself.
+	void test_rapid_gestures_are_fifo_and_a_failure_rolls_back_only_itself()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto seed   = seeded_receipt();
+		rigged.Host.retain(seed);
+		auto read     = answer<core::file_receipt_outcome>{ };
+		auto accept   = answer<core::file_receipt_outcome>{ };
+		auto exclude  = answer<core::file_receipt_outcome>{ };
+		auto reaccept = answer<core::file_receipt_outcome>{ };
+		rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::mark_read), rig::into(read));
+		rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::accept), rig::into(accept));
+		rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::exclude), rig::into(exclude));
+		rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::accept), rig::into(reaccept));
+		expect(rigged.Effects.pending() == 1U && store.Requests.empty(), "only the first gesture's write is posted");
+
+		rigged.Effects.run_next();
+		rigged.Lane.drain();
+		expect(read.has_value() && !accept.has_value() && store.Requests.size() == 1U
+				   && log == event_log{ "request", "committed", "published" },
+			   "the first write is durable and published before the second is decided");
+		store.fail_next(application::ledger_store_failure::conflict);
+		rigged.Effects.run_next();
+		rigged.Lane.drain();
+		expect(accept.has_value() && !accept->value().Changed && rigged.Host.retained().Read == core::file_read_state::read
+				   && !rigged.Host.retained().Accepted,
+			   "a refused second write rolls back only itself");
+		rigged.settle();
+		expect(exclude->value().Changed && exclude->value().Receipt.Excluded && !exclude->value().Receipt.Accepted
+				   && reaccept.has_value() && reaccept->value().Rejection == core::file_receipt_rejection::excluded_file_cannot_be_accepted,
+			   "later gestures are decided against the durable state the failure left, in order");
+		expect(store.Committed.has_value() && store.Committed == rigged.Host.retained() && rigged.Projection.Published.size() == 2U,
+			   "the host and the store agree after every completion");
+	}
+
+	/// AC2/AC3: retirement cancels queued work with a typed terminal; a
+	/// completion arriving after it is refused and publishes nothing; the
+	/// store closes on the effect lane; a new host on the same root recovers
+	/// what the store did commit.
+	void test_retirement_cancels_refuses_late_completion_and_recovers_the_same_root()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		const auto seed   = seeded_receipt();
+		auto       closed = false;
+		{
+			auto rigged = rig{ store, log };
+			rigged.Host.retain(seed);
+			auto running = answer<core::file_receipt_outcome>{ };
+			auto queued  = answer<core::file_receipt_outcome>{ };
+			rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::mark_read), rig::into(running));
+			rigged.Host.submit(command_for(seed, core::file_receipt_command_kind::accept), rig::into(queued));
+			rigged.Host.retire();
+			rigged.Lane.drain();
+			expect(queued.has_value() && queued->error() == application::ledger_store_failure::cancelled && !running.has_value(),
+				   "retirement answers queued work cancelled, and leaves the running write to finish");
+			rigged.Effects.run_next();
+			expect(store.Committed.has_value() && store.Committed->Read == core::file_read_state::read, "the running write reached the store");
+			rigged.Lane.drain();
+			expect(running.has_value() && running->error() == application::ledger_store_failure::cancelled
+					   && rigged.Projection.Published.empty() && rigged.Projection.Failures.empty() && rigged.Host.retained() == seed,
+				   "the late completion is refused: nothing retained, published or failed into a successor");
+			expect(!rigged.Closed && rigged.Effects.pending() == 1U, "the store is closed on the effect lane, after the write");
+			rigged.Effects.drain();
+			expect(rigged.Closed && rigged.Host.is_quiescent(), "the retired host closes its store and is quiescent");
+			auto after = answer<void>{ };
+			rigged.Host.load_private(rig::into(after));
+			rigged.settle();
+			const auto statistics = rigged.Host.statistics();
+			expect(after.has_value() && after->error() == application::ledger_store_failure::cancelled
+					   && statistics.LateCompletions == 1U && statistics.CancelledOperations == 3U,
+				   "work asked of a retired host is cancelled, never run");
+			closed = rigged.Closed;
+		}
+		expect(closed, "the retired host's store was closed");
+		auto       successor = rig{ store, log };
+		const auto recovered = successor.observe(core::file_material_observation{ .File = seed.File, .Material = seed.Material });
+		expect(recovered.has_value() && recovered->Read == core::file_read_state::read && successor.Host.statistics().MaterialReceiptHits == 1U,
+			   "a successor on the same root recovers exactly what the store committed");
+	}
+
+	/// AC3: destroying a host with work outstanding drains to exactly one
+	/// terminal each, and the store closes once.
+	void test_shutdown_drains_every_terminal_once()
+	{
+		auto log       = event_log{ };
+		auto store     = recording_store{ log };
+		auto lane      = application::manual_executor{ };
+		auto effects   = application::manual_executor{ };
+		auto closed    = false;
+		auto project   = recording_projection{ log };
+		auto terminals = std::vector<std::string>{ };
+		{
+			auto host = application::review_ledger_application_host{ opener(store, &closed), project, effects, lane };
+			host.load_private([&terminals](const std::expected<void, application::ledger_store_failure>& aResult) {
+				terminals.push_back(aResult ? "private-ok" : "private-" + std::string{ application::name(aResult.error()) });
+			});
+			host.session_catalog([&terminals](const auto& aResult) {
+				terminals.push_back(aResult ? "catalog-ok" : "catalog-" + std::string{ application::name(aResult.error()) });
+			});
+			effects.run_next(); // the store opens
+			lane.drain();
+		}
+		// The host is gone; its outstanding work still answers on the lanes.
+		effects.drain();
+		lane.drain();
+		effects.drain();
+		lane.drain();
+		std::ranges::sort(terminals);
+		expect(terminals == std::vector<std::string>{ "catalog-cancelled", "private-cancelled" } && closed,
+			   "each outstanding operation answers once, cancelled, and the store closes");
+	}
+
+	/// An unopenable store answers every operation with its failure.
+	void test_an_unopenable_store_fails_typed()
+	{
+		auto log     = event_log{ };
+		auto lane    = application::manual_executor{ };
+		auto effects = application::manual_executor{ };
+		auto project = recording_projection{ log };
+		auto opened  = answer<void>{ };
+		auto host    = application::review_ledger_application_host{
+			[] { return std::expected<std::unique_ptr<application::review_ledger_store_port>, application::ledger_store_failure>{ std::unexpected(application::ledger_store_failure::integrity_failure) }; },
+			project, effects, lane, rig::into(opened)
+		};
+		expect(!host.available().has_value(), "availability is unknown until the open answers");
+		auto loaded = answer<void>{ };
+		host.load_private(rig::into(loaded));
+		while (lane.pending() + effects.pending() > 0U) {
+			effects.drain();
+			lane.drain();
+		}
+		expect(opened.has_value() && opened->error() == application::ledger_store_failure::integrity_failure
+				   && host.available() == std::optional{ false }
+				   && loaded.has_value() && loaded->error() == application::ledger_store_failure::integrity_failure
+				   && host.private_observation().error() == application::ledger_store_failure::integrity_failure,
+			   "the open failure is typed and every later operation answers it");
+	}
+
+	/// A newer material observation or `retain` supersedes an older one's
+	/// publication; the durable read is still kept.
+	void test_a_superseded_observation_neither_retains_nor_publishes()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto first  = seeded_receipt();
+		auto       second = first;
+		second.File       = opaque<core::file_identity>(3U);
+		auto older        = answer<core::file_receipt>{ };
+		auto newer        = answer<core::file_receipt>{ };
+		rigged.Host.observe_material({ .File = first.File, .Material = first.Material }, rig::into(older));
+		rigged.Host.observe_material({ .File = second.File, .Material = second.Material }, rig::into(newer));
+		rigged.settle();
+		expect(older.has_value() && older->has_value() && newer.has_value() && newer->has_value()
+				   && rigged.Projection.Published.size() == 1U && rigged.Projection.Published.front().Receipt.File == second.File
+				   && rigged.Host.retained().File == second.File && rigged.Host.cached_receipt(first.File).has_value(),
+			   "only the latest observation retains and publishes; the older read is kept");
+		auto stale = answer<core::file_receipt>{ };
+		rigged.Host.observe_material({ .File = first.File, .Material = first.Material }, rig::into(stale));
+		rigged.Host.retain({ });
+		rigged.settle();
+		expect(stale.has_value() && rigged.Projection.Published.size() == 1U && rigged.Host.retained() == core::file_receipt{ },
+			   "a cleared selection supersedes an observation still running");
+	}
 } // namespace
 
 auto main() -> int
@@ -1131,6 +1883,13 @@ auto main() -> int
 	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
+	test_a_held_store_operation_leaves_the_decision_lane_free();
+	test_admission_is_bounded();
+	test_rapid_gestures_are_fifo_and_a_failure_rolls_back_only_itself();
+	test_retirement_cancels_refuses_late_completion_and_recovers_the_same_root();
+	test_shutdown_drains_every_terminal_once();
+	test_an_unopenable_store_fails_typed();
+	test_a_superseded_observation_neither_retains_nor_publishes();
 
 	std::cout << "review-ledger-host-tests:pass\n";
 	return EXIT_SUCCESS;

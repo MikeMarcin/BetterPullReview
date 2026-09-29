@@ -723,13 +723,15 @@ rather than sampled (BPR-0498, `core_agent_finding_promotion`).
 The host carries the same absence outward. `application::agent_finding_host`
 holds one delivery so the verdict is *read* rather than supplied —
 `agent_finding_action_request` has no verdict field a widget could forge one
-into — and holds exactly two ports: a supplier of the durable ledger store open
-for the review right now, and a projection. **There is no mutation port, no
+into — and holds exactly two ports: a promoted-note store that writes through
+the review ledger open right now (off the decision lane since [[BPR-1211]], its
+answer presented when it returns), and a projection. **There is no mutation port, no
 provider, no coordinator, and no publication path reachable from it.**
 `agent_finding_outcome` has no field a `review_publication_proposal` or a
-`review_mutation_target` could occupy. `store_promoted_finding` touches exactly
-one port method, `review_ledger_store_port::store_note`; that is the single
-authority agent output may reach. Every outcome is presented, refusal included,
+`review_mutation_target` could occupy. `promoted_note` builds the one note,
+and writing it reaches exactly one port method,
+`review_ledger_store_port::store_note`; that is the single authority agent
+output may reach. Every outcome is presented, refusal included,
 and `PresentedOutcomes` is asserted equal to `Actions`, because an outcome that
 was computed and not presented is one the reviewer never saw (BPR-0500,
 BPR-0504).
