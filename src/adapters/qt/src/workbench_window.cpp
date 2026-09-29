@@ -140,6 +140,11 @@ namespace bpr::qt {
 			QPointer<QWidget> Field;
 		};
 
+		/// \brief [[BPR-1200]]. A read's first two answered pages are its
+		/// repository and its pull request: GitHub has shown both to this
+		/// connection, so the read may leave Home for Overview.
+		constexpr std::uint32_t minimum_answered_pages = 2U;
+
 		/// \brief [[BPR-1134]]. The right tray's tabs, in order.
 		constexpr int tray_comments_tab = 0;
 		constexpr int tray_findings_tab = 1;
@@ -6553,10 +6558,14 @@ namespace bpr::qt {
 		const auto readUnavailable = status == core::github_status::pull_request_failed
 			|| status == core::github_status::pull_request_cancelled;
 		// [[BPR-1200]]. A first read stays on Home, said under the bar, until
-		// something shows that this connection can read it: its overview, the
-		// review, or a cached overview. A read the connection is refused
-		// therefore never passes through an empty Overview on its way back.
-		const auto unconfirmed = loading && !LoadingOverviewShown;
+		// something shows that this connection can read it: GitHub has answered
+		// for both the repository and the pull request, the read has shown its
+		// overview, or the review or a cached overview is here. A read the
+		// connection is refused therefore never passes through an empty
+		// Overview on its way back; a long read still shows its progress on
+		// Overview from its first answers ([[BPR-0795]]).
+		const auto answered    = ReadProgress.has_value() && ReadProgress->PagesReceived >= minimum_answered_pages;
+		const auto unconfirmed = loading && !LoadingOverviewShown && !answered;
 		const auto nothing     = !HasGithubPullRequest && !HasCachedOverview && !comparing
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
 		const auto home = nothing || HomeRequested || SetupDestinationNeedsHome;
@@ -7259,7 +7268,13 @@ namespace bpr::qt {
 		const application::github_presentation_update& aUpdate)
 	{
 		if (aUpdate.ReadProgress) {
-			ReadProgress = aUpdate.ReadProgress;
+			const auto wasAnswered = ReadProgress.has_value() && ReadProgress->PagesReceived >= minimum_answered_pages;
+			ReadProgress           = aUpdate.ReadProgress;
+			// [[BPR-1200]]. The first answers that show the connection can read
+			// what was named decide the page again.
+			if (!wasAnswered && ReadProgress->PagesReceived >= minimum_answered_pages) {
+				update_home_landing();
+			}
 		}
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);

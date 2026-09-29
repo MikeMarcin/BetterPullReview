@@ -764,15 +764,21 @@ auto main(int aArgc, char** aArgv) -> int
 		home_lists_recent(*owner, firstContext, { 18, 17 });
 		resume_recent(*owner, firstContext, 17);
 		wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*owner, firstContext) > 0U; }, "resumed read terminal is held before acceptance");
-		// [[BPR-0795]]. The owner rejected an opening read that stayed on Home:
-		// a pending read enters Overview's loading state at once. Home stays one
-		// enabled gesture away for user navigation, which the steps below take.
+		// [[BPR-0795]]. The owner rejected an opening read that stayed on Home
+		// for the whole long read: a read enters Overview's loading state with
+		// its first answers. [[BPR-1200]]: until GitHub has answered for the
+		// repository and the pull request, which this held lane withholds, the
+		// read is said on Home, so a refused read never flashes an empty
+		// Overview. The Home gesture stays enabled for the steps below.
 		std::cerr << "pending-restoration home=" << first->showing_home()
 				  << " modality=" << static_cast<int>(first->current_modality())
-				  << " home-enabled=" << first->home_action()->isEnabled() << '\n';
-		expect(!first->showing_home() && first->current_modality() == qt::review_modality::overview
+				  << " home-enabled=" << first->home_action()->isEnabled()
+				  << " notice=" << first->home_open_notice()->text().toStdString() << '\n';
+		expect(first->showing_home() && first->current_modality() == qt::review_modality::overview
+				   && first->home_open_notice()->isVisible()
+				   && first->home_open_notice()->text() == QStringLiteral("Resuming the saved reading…")
 				   && first->home_action()->isEnabled(),
-			   "pending restoration shows Overview loading and leaves Home available for user navigation");
+			   "pending restoration is said under the Home bar until it is answered, with Overview prepared and Home available");
 		if (phase == "auth-home") {
 			first->home_action()->trigger();
 			std::cerr << "home-after-gesture=" << first->showing_home() << '\n';

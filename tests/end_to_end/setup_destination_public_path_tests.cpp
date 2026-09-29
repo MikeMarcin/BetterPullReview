@@ -510,15 +510,24 @@ namespace {
 			submit(window, url);
 			wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*application, context) != 0U; },
 					 "the real provider read reaches its held decision lane");
-			auto* readiness = window.epoch_selectors()->comparing_button();
-			expect(!window.showing_home() && window.overview_page()->isVisible()
-					   && window.overview_page()->width() > window.width() * 3 / 4
-					   && readiness != nullptr && readiness->isVisible() && readiness->text().contains(QStringLiteral("Loading"))
+			// [[BPR-1200]]. The held lane withholds every answer, so nothing yet
+			// shows that this connection can read the pull request: the opening
+			// is said under the Home bar rather than on an empty Overview.
+			expect(window.showing_home() && !window.overview_page()->isVisible()
+					   && window.home_open_notice()->text() == QStringLiteral("Loading the pull request.")
 					   && window.session_panel()->status() == core::github_status::loading_pull_request
 					   && !window.overview_page()->presented(),
-				   "a real pending setup opening immediately paints the unaccepted overview and loading readiness");
-			capture(window, QStringLiteral("setup-loading-overview.png"));
+				   "a real pending setup opening is said on Home until GitHub has answered for it");
+			capture(window, QStringLiteral("setup-loading-home.png"));
 			github_application_fixture_access::hold_window_read_terminal(*application, context, false);
+			// [[BPR-0795]]. Its first answers take it to Overview's loading
+			// state while the rest of the read continues.
+			auto* readiness = window.epoch_selectors()->comparing_button();
+			wait_for([&] { return !window.showing_home() || window.session_panel()->status() == core::github_status::pull_request_ready; },
+					 "the answered opening leaves Home");
+			expect(!window.showing_home() && window.overview_page()->isVisible()
+					   && window.overview_page()->width() > window.width() * 3 / 4 && readiness != nullptr && readiness->isVisible(),
+				   "the answered opening shows Overview");
 			expect(button(window, "homeSetupContinue")->isHidden(), "a public host with no account offers no sign-in stop");
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "a pasted public link opens signed out with no sign-in step");
 			auto evidence = github_application_fixture_access::evidence(*application);
