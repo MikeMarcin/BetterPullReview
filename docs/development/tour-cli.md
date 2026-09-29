@@ -330,4 +330,3 @@ digest must equal the one recorded in the verification record for the candidate 
 The package needs only a released `bpr` CLI, not the desktop or this source tree. Which
 agent hosts load it, and whether the skill activates for a real user, are separate attended
 observations that are not made here.
-
