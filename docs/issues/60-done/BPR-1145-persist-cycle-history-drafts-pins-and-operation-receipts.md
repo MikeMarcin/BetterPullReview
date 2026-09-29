@@ -39,3 +39,12 @@ a Windows station runs the same build and
 `ctest --test-dir build\dev -R "^sqlite_review_cycle_storage$|^sqlite_release_maintenance_files$" --output-on-failure`
 (the crash course is compiled out there, as in the other SQLite contracts).
 Record results in the [execution ledger](../../verification/RFC-BPR-0053-0061.md).
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `84162953`. The owed build (`test_review_cycle_storage test_release_maintenance_files`)
+is clean under GCC, with no warning and no source change.
+`sqlite_review_cycle_storage` and `sqlite_release_maintenance_files` pass.
+The SIGKILL crash course is compiled on POSIX (`!defined(_WIN32)`) and ran
+here. The Windows run is still owed. The logs are station records in
+`build/logs/bpr-station-review-cycles/` and are not committed.
