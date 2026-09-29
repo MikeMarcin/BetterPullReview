@@ -10,6 +10,7 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_thread_map.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
@@ -5919,6 +5920,108 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1214]]. Comment on a line no thread is on, Discard, Back:
+	/// the Comments drawer still shows the file's conversations.
+	void test_discard_and_back_keep_the_comments_drawer()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		process_events();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 12"), std::string{ "line 12" }.size(), "changed line 12");
+		const auto diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto       drafts = std::vector<core::review_draft_command>{ };
+		window.set_review_draft_dispatch([&drafts](core::review_draft_command aCommand) { drafts.push_back(std::move(aCommand)); });
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		auto* const panel = window.conversation_panel();
+		auto* const state = panel->findChild<QStackedWidget*>(QStringLiteral("githubConversationState"));
+		auto* const cards = panel->cards();
+		const auto  shows = [&] {
+			return state != nullptr && state->currentWidget()->objectName() == QStringLiteral("githubConversationLoaded")
+				&& cards->isVisible()
+				&& std::ranges::find(cards->cards(), std::string{ "review-thread:t22" }, &qt::thread_card::Id) != cards->cards().end();
+		};
+		expect(shows(), "the Comments drawer shows the file's thread card");
+		const auto admit = [&window](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
+				window.review_editor()->present(core::review_comment_draft{
+					.Id = core::review_draft_id{ 1U }, .Anchor = aSelection->PreferredLine, .Body = { } });
+			}
+		};
+		window.comparison_surface()->set_selection_sink(admit);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 9U), "line 10, which no thread is on, is selected");
+		admit(window.comparison_surface()->selection());
+		process_events();
+		expect(shows() && panel->anchor_line().has_value() && window.conversation_model()->rowCount() == 0
+				   && !panel->thread_map()->isVisible() && !panel->view()->isVisible(),
+			   "a line no thread is on keeps the cards; only the empty map and detail step aside");
+		auto* const comment = window.comment_action();
+		auto* const stack   = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		comment->trigger();
+		process_events();
+		expect(stack->currentWidget() == page && window.review_editor()->body_editor()->isEnabled(),
+			   "Comment opens the editable inline page");
+		window.review_editor()->body_editor()->setPlainText(QStringLiteral("local text"));
+		window.review_editor()->discard_action()->trigger();
+		process_events();
+		auto* const back = page->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+		expect(back != nullptr, "the page has Back");
+		back->click();
+		process_events();
+		expect(stack->currentWidget() != page, "Back returns to the comparison");
+		expect(shows(), "after Discard and Back the drawer shows the file's thread card without another selection");
+		save_render(window, QStringLiteral("discard-back-drawer"));
+		const auto discards  = std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
+			return aCommand.Kind == core::review_draft_command_kind::discard;
+		});
+		const auto publishes = std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
+			return aCommand.Kind == core::review_draft_command_kind::begin_publish;
+		});
+		expect(discards == 1 && publishes == 0, "Discard sends one discard and nothing publishes");
+		// The thread's own line still filters to it and shows its detail.
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22, the thread's line, is selected");
+		process_events();
+		expect(shows() && window.conversation_model()->rowCount() == 1 && panel->thread_map()->isVisible() && panel->view()->isVisible(),
+			   "the thread's line filters to it with its map and detail");
+		// Negative control: a snapshot with no conversation keeps the empty page.
+		panel->adopt({ }, QStringLiteral("no conversations"));
+		process_events();
+		expect(state->currentWidget()->objectName() == QStringLiteral("githubConversationEmptyState"),
+			   "an empty snapshot still shows the empty page");
+		window.hide();
+	}
+
 	void window_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
 
 	// [[BPR-1132]]. The assembled comparison header, file gestures and older-pair notice.
@@ -10759,6 +10862,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-0985]]. The conversation courses, which the full run does not reach
 	// past that same assertion: which thread moves code, and when.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--conversation-reveal"))) {
+		test_discard_and_back_keep_the_comments_drawer();
 		test_the_conversations_drawer_hosts_the_threaded_conversation();
 		test_same_automatically_selected_line_click_filters_conversations();
 		test_selected_file_filter_survives_diff_loading();

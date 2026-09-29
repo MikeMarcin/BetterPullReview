@@ -182,6 +182,8 @@ namespace bpr::qt {
 	private:
 		/// \brief Puts the map and the drawer's tree on the same node.
 		void synchronize_map_focus();
+		/// \brief Shows the loaded page while the snapshot holds any
+		/// conversation, and the map and detail while the anchor shows one.
 		void show_loaded_page();
 		void refresh_summary();
 		void refresh_projection();

@@ -14987,6 +14987,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			enum class phase {
 				awaiting_ready,
+				awaiting_line_comparison,
+				awaiting_line_draft,
+				awaiting_line_body,
+				awaiting_line_discarded,
 				awaiting_reply_draft,
 				awaiting_reply_body,
 				awaiting_reply_published,
@@ -14998,6 +15002,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			detail::threaded_reply_probe_evidence Evidence;
 			phase                                 Phase = phase::awaiting_ready;
 			std::string                           Diagnostic;
+			std::optional<std::uint32_t>          ThreadlessLine;
 		};
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
 		struct defect_composition_probe_state
@@ -23209,6 +23214,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		constexpr auto threadIdentity = std::string_view{ "review-thread:PRRT_fixture_1" };
 		constexpr auto replyBody      = std::string_view{ "Agreed, will do." };
+		constexpr auto discardedBody  = std::string_view{ "Local text that is discarded." };
+		// The first current-head line of review.cpp that no thread is on.
+		const auto firstThreadlessRightLine = [window, model]() -> std::optional<std::uint32_t> {
+			for (auto line = std::uint32_t{ 0U }; line < 64U; ++line) {
+				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, line)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+					return line;
+				}
+			}
+			return std::nullopt;
+		};
+		auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		auto* const loaded     = window->conversation_panel()->findChild<QWidget*>(QStringLiteral("githubConversationLoaded"));
+		if (inlinePage == nullptr || loaded == nullptr) {
+			return result::pending;
+		}
+		// The drawer's cards are on its loaded page, with the thread's card.
+		const auto drawerShowsThread = [window, cards, loaded, threadIdentity] {
+			return loaded->isVisibleTo(window->conversation_panel()) && cards->isVisibleTo(window->conversation_panel())
+				&& std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id) != cards->cards().end();
+		};
 		// A press on one of the thread's card actions, as a reviewer's.
 		const auto press = [cards, threadIdentity](const qt::card_action aAction) {
 			for (const auto& card : cards->cards()) {
@@ -23248,6 +23274,73 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!implementation->LastSelectedDiff.has_value()
 				|| !model->index_for_id(threadIdentity).isValid()) {
 				return result::pending;
+			}
+			// [[BPR-1214]]. First a comment on a line no thread is on, which
+			// is discarded, then Back: the drawer keeps the file's threads.
+			window->choose_modality(qt::review_modality::review);
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_line_comparison;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_comparison: {
+			note("comparison=" + std::to_string(window->comparison_surface()->current_result() != nullptr ? 1 : 0));
+			if (window->comparison_surface()->current_result() == nullptr) {
+				return result::pending;
+			}
+			probe.ThreadlessLine = firstThreadlessRightLine();
+			if (!probe.ThreadlessLine) {
+				return fail("no-threadless-line rows=" + std::to_string(model->rowCount()));
+			}
+			probe.Phase = state_type::phase::awaiting_line_draft;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_draft: {
+			const auto& draft = implementation->ReviewDraft;
+			note("draft=" + std::to_string(draft.has_value() ? 1 : 0)
+				 + " anchorLine=" + std::to_string(draft ? draft->Anchor.Line : 0U)
+				 + " comment=" + std::to_string(window->comment_action()->isEnabled() ? 1 : 0)
+				 + " rows=" + std::to_string(model->rowCount()));
+			if (!draft || draft->Anchor.Side != core::diff_side::right || draft->Anchor.Line != probe.ThreadlessLine
+				|| draft->ReplyToThread || !window->comment_action()->isEnabled()) {
+				return result::pending;
+			}
+			if (model->rowCount() != 0 || !drawerShowsThread()) {
+				return fail("threadless-line-hid-drawer rows=" + std::to_string(model->rowCount()));
+			}
+			window->comment_action()->trigger();
+			QCoreApplication::processEvents();
+			if (!inlinePage->isVisibleTo(window) || editor->body_editor()->isReadOnly()) {
+				return fail("comment-page-not-editable");
+			}
+			editor->body_editor()->setPlainText(QString::fromUtf8(discardedBody.data(), static_cast<qsizetype>(discardedBody.size())));
+			probe.Phase = state_type::phase::awaiting_line_body;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_body: {
+			note("body=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" }));
+			if (!implementation->ReviewDraft || implementation->ReviewDraft->Body != discardedBody) {
+				return result::pending;
+			}
+			editor->discard_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_line_discarded;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_discarded: {
+			const auto& draft = implementation->ReviewDraft;
+			note("state=" + (draft ? std::string{ core::name(draft->State) } : std::string{ "-" }));
+			if (draft && draft->State != core::review_draft_state::discarded && draft->Body == discardedBody) {
+				return result::pending;
+			}
+			auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+			if (back == nullptr) {
+				return fail("no-back");
+			}
+			back->click();
+			QCoreApplication::processEvents();
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			if (inlinePage->isVisibleTo(window) || !drawerShowsThread() || mutations.Submissions != 0U || mutations.Replies != 0U) {
+				return fail("comments-drawer-blank-after-discard-and-back page=" + std::to_string(inlinePage->isVisibleTo(window) ? 1 : 0)
+							+ " submissions=" + std::to_string(mutations.Submissions) + " replies=" + std::to_string(mutations.Replies));
 			}
 			window->choose_modality(qt::review_modality::discuss);
 			QCoreApplication::processEvents();

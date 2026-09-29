@@ -914,8 +914,14 @@ namespace bpr::qt {
 
 	void github_conversation_panel::show_loaded_page()
 	{
-		Stack->setCurrentIndex(!HasThreads ? 0 : Discuss ? 2
-														 : 1);
+		// [[BPR-1214]]. The page follows the snapshot, not the selected line:
+		// a line no thread is on still shows the cards, their scope and
+		// filters. Only the map and the detail, which have nothing to show,
+		// step aside.
+		Stack->setCurrentIndex(Retained.empty() ? 0 : Discuss ? 2
+															  : 1);
+		MapPane->setVisible(HasThreads);
+		DetailPane->setVisible(HasThreads);
 	}
 
 	void github_conversation_panel::refresh_summary()
