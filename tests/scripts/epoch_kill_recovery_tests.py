@@ -31,9 +31,13 @@ def inspect_recovered_state(git: Path, root: Path, *, preserved_empty_spools: fr
         GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0",
     )
 
+    # [[BPR-0622]]. A cache ref under a contained temporary root is longer than
+    # MAX_PATH; without core.longpaths Git for Windows silently lists no refs.
+    long_paths = ("-c", "core.longpaths=true") if os.name == "nt" else ()
+
     def inspect(*arguments: str) -> str:
         completed = subprocess.run(
-            [str(git), f"--git-dir={repositories[0]}", *arguments],
+            [str(git), *long_paths, f"--git-dir={repositories[0]}", *arguments],
             env=environment, check=True, capture_output=True, text=True, timeout=15,
         )
         return completed.stdout
