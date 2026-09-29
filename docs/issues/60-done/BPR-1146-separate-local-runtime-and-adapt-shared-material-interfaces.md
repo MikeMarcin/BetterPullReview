@@ -31,6 +31,6 @@ Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](.
 
 ## Linux — bpr-main-linux, 2026-09-29
 
-Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `84162953`. `sqlite_review_cycle_runtime` and `review_cycle_dependency_closure` builds clean under GCC and passes, with no source change.
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `84162953`. `sqlite_review_cycle_runtime` and `review_cycle_dependency_closure` build clean under GCC and pass, with no source change.
 The logs are station records in `build/logs/bpr-station-review-cycles/` and
 are not committed.
