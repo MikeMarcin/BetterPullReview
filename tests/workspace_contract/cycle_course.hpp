@@ -117,7 +117,7 @@ namespace bpr::tests::workspace_contract {
 		}
 	};
 
-	inline auto entry(const core::cycle_manifest& aManifest, const std::string& aPath) -> const core::manifest_entry&
+	inline auto entry(const core::cycle_manifest& aManifest, std::string_view aPath) -> const core::manifest_entry&
 	{
 		const auto* found = core::find_entry(aManifest, aPath);
 		expect(found != nullptr, "manifest entry present");
