@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1067"
 title: "Integrate canonical pr-tour distribution and compatibility checks"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1065"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-16","milestone":"pr-tour-skill","acceptance":["AC46-01"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC46-01","outcome":"pending","revision":"75f2933b0bb91a2455b0c5087e902e928c9d27db","evidence":{"kind":"observation","detail":"Verified: package, directory and frontmatter name are exactly pr-tour; contract and capability checks work against the real CLI; no divergent hand-maintained copy exists and the project selects the skill only from the shared source (skill_pr_tour_package). Candidate digest sha256:a06be62c08c3fc4de65cdd834d8888e079d9a2ee29524c4ed3b72483083ae2a6. Pending: the canonical import into the AgentSkills repository and its MASK selection, which need that repository's owner's authorization under its own contribution contract; no installation or cross-agent host load is claimed."}}]
 ---
 
 # BPR-1067: Integrate canonical pr-tour distribution and compatibility checks
