@@ -103,6 +103,9 @@ namespace bpr::application {
 		core::record_cycle_capture Capture;
 		/// The installed manifest; its digest must be the capture's material.
 		cycle_object_ref Manifest;
+		/// Every installed content object the manifest references. Each must
+		/// be present; all are pinned with the revision in one transaction.
+		std::vector<cycle_object_ref> Content;
 	};
 	struct cycle_freeze_commit
 	{
@@ -187,7 +190,11 @@ namespace bpr::application {
 		/// reported, never substituted.
 		virtual auto read_object(const cycle_object_ref& aObject, std::stop_token aStop) -> cycle_store_result<std::vector<std::uint8_t>> = 0;
 
-		virtual auto record_capture(const cycle_operation_id& aOperation, const cycle_capture_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt>                  = 0;
+		virtual auto record_capture(const cycle_operation_id& aOperation, const cycle_capture_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief True when the revision pinned the object, as its manifest or
+		/// as content its manifest references.
+		virtual auto revision_holds(const core::local_cycle_subject& aSubject, core::cycle_source_revision_id aRevision, const cycle_object_ref& aObject, std::stop_token aStop)
+			-> cycle_store_result<bool>                                                                                                                                                           = 0;
 		virtual auto revisions(const core::local_cycle_subject& aSubject, std::optional<core::cycle_source_revision_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_revision_page> = 0;
 
 		virtual auto begin_draft(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, std::uint64_t aExpectedRevision, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt>                                                                                     = 0;

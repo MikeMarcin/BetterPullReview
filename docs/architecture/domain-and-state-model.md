@@ -91,7 +91,7 @@ unknown, never deleted. The cycle catalog and its storage are the host's.
 `application::review_cycle_store` is the storage port, and the SQLite adapter
 keeps it in its own profile-private `state/v1/review-cycles.sqlite3`; no pull
 request table changes. The catalog row carries the profile and a random
-32-byte incarnation. Objects (capture manifests, frozen round payloads) are
+32-byte incarnation. Objects (capture manifests, the content they reference, frozen round payloads) are
 content-addressed by SHA-256 and installed and verified in their own
 transaction before any catalog row names them, so a crash leaves a complete
 record or none plus at most an unreferenced object. Every write carries a
@@ -145,6 +145,47 @@ component on POSIX, `FILE_FLAG_OPEN_REPARSE_POINT` per component on Windows
 with each ancestor held without delete sharing; a component on another volume
 is refused. It never lists `.git`, reads Git metadata only as named files, and
 never writes, runs Git, hooks or filters, or reaches the network.
+
+`application::review_cycle_capture_host` turns a bound root into a revision
+(BPR-1149). It reads the scope through the workspace port, hashes each file's
+raw bytes in chunks and installs them in the cycle store, then observes the
+whole scope again: same paths, kinds, identities, sizes and change stamps, the
+same index bytes, the same `HEAD` and the same root. Only when both passes
+agree does it install a manifest and record the revision; the store pins the
+manifest and every content object it references in the same transaction. A
+disagreement discards the attempt, and after three retries the capture reports
+`unstable` with the paths that moved; cancellation records nothing and leaves
+only reclaimable objects. The result is labelled `observed_stable`, a quiescent
+handoff observation; `immutable_source` is reserved for a Git tree or a
+qualified snapshot and no capture path produces it. For Git roots the tracked
+set, staged modes and object identities, conflict stages, sparse entries and
+intent-to-add come from parsing the index (versions 2-4) as data; untracked
+files are included unless the checkout's own `.gitignore` files or
+`info/exclude` exclude them (the reviewer's global excludes file is not read,
+so what only it ignores stays visible); tracked paths absent from the working
+tree are explicit deletions, sparse entries are visible but unread, and nested
+repositories and submodules are boundaries. Folder roots use a disclosed
+default set (version-control and tool state, regenerable caches, common
+credential stores). `bpr/core/review_cycle_manifest.hpp` holds the canonical
+manifest: sorted entries with kind, origin, availability, portable mode, raw
+SHA-256, byte profile and staged object; exclusions with their reason;
+deletions; scope and scope version; coverage and quality. Paths outside a
+capture's scope are `outside_scope` and paths a partial capture did not list
+are `unknown`; neither is ever a deletion.
+
+`bpr/core/review_cycle_material.hpp` classifies bytes without changing them
+(BPR-1150): UTF-8, UTF-8 with a byte-order mark, unsupported encoding (UTF-16
+or UTF-32 marks, malformed UTF-8), binary, and empty; LF, CRLF, CR or mixed
+line endings; a missing final newline; and the Git LFS pointer shape. Text
+ranges are byte offsets checked at scalar boundaries, with a separate mapping
+to presentation columns. A file's mode is its execute bit where the platform
+has one; on Windows a tracked file keeps its staged mode and a new file is
+never given an execute bit. Links are captured as their target bytes. A
+`filter` attribute (LFS included) is recorded rather than run: the Git object
+is a transformation of the captured bytes, so a later native publication of
+that path needs a qualified transformation path. Devices, sockets and pipes
+are visible as unsupported; files over the capture budget are visible as too
+large.
 
 ## Authority by state category
 

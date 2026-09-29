@@ -68,6 +68,25 @@ namespace bpr::tests::workspace_contract {
 
 		void operator()(const std::filesystem::path& aDirectory, const std::initializer_list<std::string_view> aArguments) const
 		{
+			run(aDirectory, aArguments, std::nullopt);
+		}
+
+		/// \brief Runs Git and returns its standard output, trimmed of the
+		/// final newline. `aScratch` receives the output file.
+		[[nodiscard]] auto output(const std::filesystem::path& aDirectory, const std::initializer_list<std::string_view> aArguments, const std::filesystem::path& aScratch) const
+			-> std::string
+		{
+			run(aDirectory, aArguments, aScratch);
+			auto text = read_file(aScratch);
+			while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+				text.pop_back();
+			}
+			return text;
+		}
+
+	private:
+		void run(const std::filesystem::path& aDirectory, const std::initializer_list<std::string_view> aArguments, const std::optional<std::filesystem::path>& aOutput) const
+		{
 			auto arguments = std::vector<std::string>{ "-C", aDirectory.string(), "-c", "core.hooksPath=" + (aDirectory / "no-hooks-here").string(), "-c",
 													   "user.name=BPR fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-c",
 													   "tag.gpgsign=false", "-c", "init.defaultBranch=main", "-c", "core.autocrlf=false", "-c", "core.fsmonitor=false", "-c",
@@ -80,17 +99,23 @@ namespace bpr::tests::workspace_contract {
 				command += ' ';
 				command += quote(argument);
 			}
+			const auto sink = aOutput ? quote(aOutput->string()) : std::string{
 #if defined(_WIN32)
-			command = "\"" + command + " >NUL 2>&1\"";
+				"NUL"
 #else
-			command += " >/dev/null 2>&1";
+				"/dev/null"
+#endif
+			};
+#if defined(_WIN32)
+			command = "\"" + command + " >" + sink + " 2>NUL\"";
+#else
+			command += " >" + sink + " 2>/dev/null";
 #endif
 			// Fixture setup only: every argument is quoted above, and the product
 			// under test never reaches a command processor.
 			expect(std::system(command.c_str()) == 0, "fixture git command"); // NOLINT(bugprone-command-processor)
 		}
 
-	private:
 		static auto quote(const std::string& aValue) -> std::string
 		{
 #if defined(_WIN32)

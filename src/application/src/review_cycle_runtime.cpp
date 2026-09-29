@@ -166,6 +166,26 @@ namespace bpr::application {
 														   std::move(aDone));
 	}
 
+	auto review_cycle_runtime::capture_workspace(workspace_source_port& aSource, cycle_capture_request aRequest, completion<cycle_capture_outcome> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_capture_outcome>([subject, source = &aSource, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_capture_outcome> {
+			if (!subject) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity });
+			}
+			const auto loaded = aStore.load(*subject, aStop);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			if (!*loaded) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::not_found });
+			}
+			auto host = review_cycle_capture_host{ *source, aStore };
+			return host.capture(**loaded, request, std::move(aStop));
+		},
+															 std::move(aDone));
+	}
+
 	void review_cycle_runtime::shutdown()
 	{
 		auto& self   = *Implementation;

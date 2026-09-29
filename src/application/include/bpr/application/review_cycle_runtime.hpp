@@ -3,6 +3,7 @@
 
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 
 #include <cstdint>
@@ -53,6 +54,11 @@ namespace bpr::application {
 		/// \brief Installs a manifest and records it as a capture of the selected cycle.
 		auto capture_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, core::cycle_capture_observation aCapture,
 							  std::vector<std::uint8_t> aManifest, completion<cycle_write_receipt> aDone) -> bool;
+
+		/// \brief Captures the selected cycle's bound workspace through `aSource`
+		/// on the effect lane: read, verify, install and record, or nothing.
+		/// \details `aSource` must stay alive until the completion runs.
+		auto capture_workspace(workspace_source_port& aSource, cycle_capture_request aRequest, completion<cycle_capture_outcome> aDone) -> bool;
 
 		/// \brief Stops admitting work and cancels outstanding calls.
 		void               shutdown();

@@ -1400,4 +1400,13 @@ a component that names a device or would be rewritten (a separator, stream
 colon, trailing dot or space) never reaches `CreateFileW`. Git metadata is read
 as data from the directories the checkout names; Git itself, hooks, filters,
 `fsmonitor` and lazy fetch are never invoked. Windows symbolic-link targets are
-reported as unsupported rather than parsed.
+reported as unsupported rather than parsed. The capture host (BPR-1149) learns the tracked set
+by parsing the index bytes, never by running Git, so a checkout whose hooks,
+`core.fsmonitor`, filter drivers, `textconv` or promisor remote are hostile
+cannot execute anything or fetch during capture; the capture contract hashes
+the whole checkout, including `.git`, before and after and finds it
+unchanged. Ignored and untracked files may hold secrets: they are either
+listed as untracked candidates the reviewer sees before sharing, or disclosed
+as excluded with their reason; `.git`, common credential stores and caches are
+excluded by default in folder roots. Captured bytes stay in the profile-private
+store.

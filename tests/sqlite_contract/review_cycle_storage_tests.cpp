@@ -359,6 +359,7 @@ namespace {
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
 			"DROP TABLE bindings;"
+			"DROP TABLE revision_objects;"
 			"ALTER TABLE revisions RENAME TO revisions_v2;"
 			"CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT;"
 			"INSERT INTO revisions SELECT cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size FROM revisions_v2;"

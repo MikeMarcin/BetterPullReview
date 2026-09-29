@@ -36,6 +36,7 @@ namespace bpr::adapters::sqlite {
 			table{ "catalog", "CREATE TABLE catalog(singleton INTEGER PRIMARY KEY CHECK(singleton=1),profile INTEGER NOT NULL,incarnation BLOB NOT NULL CHECK(length(incarnation)=32),next_cycle INTEGER NOT NULL) STRICT" },
 			table{ "cycles", "CREATE TABLE cycles(cycle INTEGER PRIMARY KEY,generation INTEGER NOT NULL,revision INTEGER NOT NULL,title TEXT NOT NULL,lifecycle INTEGER NOT NULL,scope_version INTEGER NOT NULL,scope BLOB NOT NULL,initial INTEGER,latest INTEGER,next_revision INTEGER NOT NULL,next_item INTEGER NOT NULL,next_draft INTEGER NOT NULL,next_round INTEGER NOT NULL,next_response INTEGER NOT NULL,next_verification INTEGER NOT NULL,next_publication INTEGER NOT NULL) STRICT" },
 			table{ "revisions", "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,workspace_version INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT" },
+			table{ "revision_objects", "CREATE TABLE revision_objects(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),PRIMARY KEY(cycle,revision,digest)) STRICT" },
 			table{ "bindings", "CREATE TABLE bindings(cycle INTEGER PRIMARY KEY,project BLOB NOT NULL CHECK(length(project)=32),version INTEGER NOT NULL,kind INTEGER NOT NULL,location BLOB NOT NULL,root BLOB NOT NULL CHECK(length(root)=24),repository BLOB CHECK(length(repository)=24),worktree BLOB CHECK(length(worktree)=24),admission BLOB CHECK(length(admission)=40)) STRICT" },
 			table{ "drafts", "CREATE TABLE drafts(cycle INTEGER NOT NULL,draft INTEGER NOT NULL,revision INTEGER NOT NULL,body BLOB NOT NULL,PRIMARY KEY(cycle,draft)) STRICT" },
 			table{ "rounds", "CREATE TABLE rounds(cycle INTEGER NOT NULL,round INTEGER NOT NULL,draft INTEGER NOT NULL,draft_revision INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),payload_size INTEGER NOT NULL,PRIMARY KEY(cycle,round)) STRICT" },
@@ -44,10 +45,11 @@ namespace bpr::adapters::sqlite {
 			table{ "receipts", "CREATE TABLE receipts(operation BLOB PRIMARY KEY CHECK(length(operation)=32),request BLOB NOT NULL CHECK(length(request)=32),cycle INTEGER NOT NULL,revision INTEGER NOT NULL,allocated INTEGER NOT NULL,changed INTEGER NOT NULL) STRICT" },
 		};
 		/// The first published schema differs only in `revisions`, which had no
-		/// workspace version, and in having no `bindings` table.
+		/// workspace version, and in having no `bindings` or `revision_objects`
+		/// table.
 		constexpr std::string_view revisions_v1 = "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT";
 		/// Objects some catalog row references. Everything else is reclaimable.
-		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM rounds";
+		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM revision_objects UNION SELECT digest FROM rounds";
 
 		auto fail(const cycle_store_failure aFailure) -> std::unexpected<cycle_store_error>
 		{
@@ -504,12 +506,16 @@ namespace bpr::adapters::sqlite {
 				request.u8(3).subject(aCommit.Subject).u64(aCommit.ExpectedRevision).u64(capture.ScopeVersion).bytes(capture.Material.bytes());
 				request.u64(capture.Entries).u64(capture.ExplicitDeletions).u64(capture.Unavailable);
 				request.u8(static_cast<std::uint8_t>(capture.Coverage)).u8(static_cast<std::uint8_t>(capture.Quality)).u8(aCommit.Capture.Deliberate ? 1 : 0).u64(aCommit.Manifest.Size);
-				request.u64(capture.WorkspaceVersion);
+				request.u64(capture.WorkspaceVersion).u64(aCommit.Content.size());
+				for (const auto& object : aCommit.Content) {
+					request.bytes(object.Digest.bytes()).u64(object.Size);
+				}
 				if (aCommit.Manifest.Digest != capture.Material) {
 					return refuse(core::cycle_refusal::invalid_capture);
 				}
 				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
-					if (!object_present(aDatabase, aCommit.Manifest)) {
+					if (!object_present(aDatabase, aCommit.Manifest)
+						|| !std::ranges::all_of(aCommit.Content, [aDatabase](const cycle_object_ref& aObject) { return object_present(aDatabase, aObject); })) {
 						return fail(cycle_store_failure::object_unavailable);
 					}
 					auto current = current_cycle(aDatabase, aCommit.Subject);
@@ -520,10 +526,36 @@ namespace bpr::adapters::sqlite {
 					if (auto refused = refusal(outcome.Refusal, *current)) {
 						return std::unexpected(*refused);
 					}
-					if (outcome.Changed && (!insert_revision(aDatabase, *outcome.Accepted.Latest, aCommit.Manifest.Size) || !store_cycle(aDatabase, outcome.Accepted, false))) {
+					if (outcome.Changed
+						&& (!insert_revision(aDatabase, *outcome.Accepted.Latest, aCommit.Manifest.Size) || !pin_content(aDatabase, *outcome.Accepted.Latest, aCommit.Content)
+							|| !store_cycle(aDatabase, outcome.Accepted, false))) {
 						return fail(cycle_store_failure::unavailable);
 					}
 					return cycle_write_receipt{ .Cycle = aCommit.Subject.Cycle, .Revision = outcome.Accepted.Revision, .Allocated = outcome.Captured ? outcome.Captured->Id.value() : 0U, .Changed = outcome.Changed };
+				});
+			}
+
+			auto revision_holds(const core::local_cycle_subject& aSubject, const core::cycle_source_revision_id aRevision, const cycle_object_ref& aObject, std::stop_token aStop)
+				-> cycle_store_result<bool> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<bool> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					const auto revision = read_revision(aDatabase, aSubject.Cycle, aRevision.value());
+					if (!revision) {
+						return fail(cycle_store_failure::not_found);
+					}
+					if (revision->Manifest == aObject) {
+						return true;
+					}
+					auto row = query{ aDatabase, "SELECT 1 FROM revision_objects JOIN objects USING(digest) WHERE cycle=?1 AND revision=?2 AND digest=?3 AND size=?4" };
+					row.id(1, aSubject.Cycle.value()).id(2, aRevision.value()).blob(3, aObject.Digest.bytes()).id(4, aObject.Size);
+					const auto status = row.step();
+					if (status != SQLITE_ROW && status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return status == SQLITE_ROW;
 				});
 			}
 
@@ -743,7 +775,7 @@ namespace bpr::adapters::sqlite {
 					if (*current != aPreview) {
 						return fail(cycle_store_failure::preview_stale);
 					}
-					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);
@@ -796,7 +828,7 @@ namespace bpr::adapters::sqlite {
 			{
 				auto tables = std::vector<table>{ };
 				for (const auto& definition : schema) {
-					if (aVersion == 1 && definition.Name == "bindings") {
+					if (aVersion == 1 && (definition.Name == "bindings" || definition.Name == "revision_objects")) {
 						continue;
 					}
 					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
@@ -833,11 +865,12 @@ namespace bpr::adapters::sqlite {
 				const auto definition = [](const std::string_view aName) {
 					return std::ranges::find(schema, aName, &table::Name)->Definition;
 				};
-				const auto steps = std::array<std::string, 6>{
+				const auto steps = std::array<std::string, 7>{
 					"ALTER TABLE revisions RENAME TO revisions_v1",
 					std::string{ definition("revisions") },
 					"INSERT INTO revisions SELECT cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size,0 FROM revisions_v1",
 					"DROP TABLE revisions_v1",
+					std::string{ definition("revision_objects") },
 					std::string{ definition("bindings") },
 					"PRAGMA user_version=2",
 				};
@@ -1198,6 +1231,15 @@ namespace bpr::adapters::sqlite {
 				return row.done();
 			}
 
+			/// Pins the content a revision's manifest references.
+			static auto pin_content(sqlite3* aDatabase, const core::cycle_source_revision& aRevision, const std::vector<cycle_object_ref>& aContent) -> bool
+			{
+				return std::ranges::all_of(aContent, [&](const cycle_object_ref& aObject) {
+					auto row = query{ aDatabase, "INSERT OR IGNORE INTO revision_objects(cycle,revision,digest) VALUES(?1,?2,?3)" };
+					return row.id(1, aRevision.Id.Cycle.value()).id(2, aRevision.Id.Id.value()).blob(3, aObject.Digest.bytes()).done();
+				});
+			}
+
 			static auto read_draft(sqlite3* aDatabase, const core::local_cycle_subject& aSubject, const core::cycle_round_draft_ref& aDraft)
 				-> cycle_store_result<std::optional<application::stored_cycle_draft>>
 			{
@@ -1344,8 +1386,9 @@ namespace bpr::adapters::sqlite {
 				const auto draftCount    = count("SELECT count(*) FROM drafts WHERE cycle=?1");
 				const auto roundCount    = count("SELECT count(*) FROM rounds WHERE cycle=?1");
 				const auto released      = count(
-					"SELECT coalesce(sum(size),0) FROM objects WHERE digest IN (SELECT material FROM revisions WHERE cycle=?1 UNION SELECT digest FROM rounds WHERE cycle=?1) "
-					"AND digest NOT IN (SELECT material FROM revisions WHERE cycle<>?1 UNION SELECT digest FROM rounds WHERE cycle<>?1)");
+					"SELECT coalesce(sum(size),0) FROM objects WHERE digest IN (SELECT material FROM revisions WHERE cycle=?1 UNION SELECT digest FROM revision_objects WHERE cycle=?1 "
+					"UNION SELECT digest FROM rounds WHERE cycle=?1) AND digest NOT IN (SELECT material FROM revisions WHERE cycle<>?1 UNION SELECT digest FROM revision_objects "
+					"WHERE cycle<>?1 UNION SELECT digest FROM rounds WHERE cycle<>?1)");
 				if (!revisionCount || !draftCount || !roundCount || !released) {
 					return fail(cycle_store_failure::unavailable);
 				}
