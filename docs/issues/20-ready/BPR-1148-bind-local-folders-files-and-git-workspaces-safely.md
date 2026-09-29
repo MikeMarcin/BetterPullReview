@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1148"
 title: "Bind local folders, files and Git workspaces safely"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0054"]
 depends_on: ["BPR-1146", "BPR-1147"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC54-01", "RC54-03", "RC54-10"], "pack_alias": "PACK-CYCLE-06", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
