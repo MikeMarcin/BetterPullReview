@@ -43,7 +43,7 @@ Machine reads after open require `--profile` and the opaque `draft_id` returned
 by open. Every ID and revision is a decimal string (the opaque draft handle is a
 SHA-256 lookup key). The target catalog includes profile, host authority,
 account, repository, PR and draft; it contains no global last-opened pointer.
-Concurrent profile ownership returns `owner_busy` (exit 4). `status` pages stop
+A profile another process owns is not opened a second time: local draft commands are forwarded to that owner (see "Working while the desktop is open"). `status` pages stop
 summaries using `--cursor`; `show problem|solution|stop:ID` preserves raw Markdown
 in JSON and neutralizes terminal controls in human output. `show stop:ID --source` requests bounded pinned source; unavailable material is
 reported explicitly while the current comment remains readable. No worktree
@@ -197,3 +197,30 @@ are excluded from the published projection and supply no recovery authority.
 journal even after local attribution advanced the draft revision. It reobserves
 the provider and reports `publication_state` and real receipts without writes.
 Without that journal, a pending server candidate cannot recreate lost approval.
+
+## Working while the desktop is open
+
+The profile has one owner. When the desktop owns it, `status`, `show`, `edit`,
+`move`, `remove`, `ready`, `undo` and `redo` are forwarded over a same-user local
+socket beside the desktop's activation endpoint; the CLI never opens the store,
+takes the lease or starts the desktop. An owner that predates the channel answers
+`owner_protocol_unsupported` (exit 4). Provider-reading commands (`add`, `open`,
+`show --source`, `walk`, refresh, publish, recover) answer `interaction_required`
+while a desktop owns the profile; forwarding source reads is BPR-1227. The
+transport is implemented on POSIX; a Windows owner reports no tour channel.
+
+Every local edit carries a request ID (`--request-id`, generated when omitted; at
+most 64 letters, digits or hyphens). The owner commits the outcome with the edit,
+so repeating the same ID and payload returns the stored outcome and the same ID
+with another payload is refused. If an answer is lost the CLI exits 6 with
+`outcome_unknown` and does not retry; run `status --request-id ID` to see whether
+the owner committed it (`operation_recorded`, `operation_revision`) before
+repeating anything. A retry that names its own ID is not refused merely because
+the revision has moved.
+
+A draft the desktop has open is edited where its author is. While that author holds
+uncommitted input-method text the owner answers `editor_busy` (exit 4) and changes
+nothing; retry after the composition ends. A mutation is answered once it is durable,
+and `outcome_unknown` covers the rare save that has not landed within five seconds.
+Your edit appears in the open editor without moving the author's caret, focus or
+selected stop, and a stale edit is a `revision_conflict` that keeps both texts.
