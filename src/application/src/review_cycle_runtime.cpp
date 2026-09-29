@@ -21,15 +21,18 @@ namespace bpr::application {
 		}
 
 		std::unique_ptr<review_cycle_store> Store;
-		effect_executor&                    Effects;
-		decision_executor&                  Decisions;
-		std::optional<core::review_subject> Selected;
-		std::uint64_t                       Generation = 0;
-		std::stop_source                    Stop;
-		std::deque<std::function<void()>>   Queue;
-		std::size_t                         Outstanding = 0;
-		bool                                Running     = false;
-		bool                                Closing     = false;
+		/// Created on first use; used only by work on the effect lane, which
+		/// runs one call at a time.
+		std::shared_ptr<review_cycle_comparison_host> Comparisons;
+		effect_executor&                              Effects;
+		decision_executor&                            Decisions;
+		std::optional<core::review_subject>           Selected;
+		std::uint64_t                                 Generation = 0;
+		std::stop_source                              Stop;
+		std::deque<std::function<void()>>             Queue;
+		std::size_t                                   Outstanding = 0;
+		bool                                          Running     = false;
+		bool                                          Closing     = false;
 
 		/// Starts the next queued store call when none is running.
 		void pump()
@@ -87,6 +90,14 @@ namespace bpr::application {
 			Running = false;
 			aDone(std::move(aResult));
 			pump();
+		}
+
+		auto comparisons(const core::local_cycle_authority& aAuthority) -> std::shared_ptr<review_cycle_comparison_host>
+		{
+			if (!Comparisons) {
+				Comparisons = std::make_shared<review_cycle_comparison_host>(*Store, aAuthority);
+			}
+			return Comparisons;
 		}
 
 		/// The cycle subject currently selected, if the selection is one.
@@ -186,6 +197,33 @@ namespace bpr::application {
 															 std::move(aDone));
 	}
 
+	auto review_cycle_runtime::compare_selected(core::cycle_comparison_pair aPair, std::optional<std::string> aAfter, const std::size_t aLimit, const bool aChangedOnly,
+												completion<cycle_comparison_page_observation> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_comparison_page_observation>([subject, host, aPair, after = std::move(aAfter), aLimit, aChangedOnly](review_cycle_store&, std::stop_token aStop) -> cycle_store_result<cycle_comparison_page_observation> {
+			if (!subject) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity });
+			}
+			return host->page(*subject, aPair, after, aLimit, aChangedOnly, std::move(aStop));
+		},
+																		 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::compare_file_selected(core::cycle_comparison_pair aPair, std::string aPath, core::diff_options aOptions, completion<cycle_file_observation> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_file_observation>([subject, host, aPair, path = std::move(aPath), aOptions](review_cycle_store&, std::stop_token aStop) -> cycle_store_result<cycle_file_observation> {
+			if (!subject) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity });
+			}
+			return host->file(*subject, aPair, path, aOptions, std::move(aStop));
+		},
+															  std::move(aDone));
+	}
+
 	void review_cycle_runtime::shutdown()
 	{
 		auto& self   = *Implementation;
@@ -264,15 +302,13 @@ namespace bpr::application {
 		if (request.Object.Size > request.MaximumBytes) {
 			return { .Status = review_material_status::too_large };
 		}
-		const auto before = request.Revision.value() == 1U ? std::nullopt : std::optional{ core::cycle_source_revision_id{ request.Revision.value() - 1U } };
-		const auto page   = Cycles->revisions(request.Subject, before, aStop);
-		if (!page) {
-			return { .Status = from_store(page.error().Failure) };
+		// Only an object the named revision pinned: its manifest or content the
+		// manifest references. Never a live file, never another revision's.
+		const auto holds = Cycles->revision_holds(request.Subject, request.Revision, request.Object, aStop);
+		if (!holds) {
+			return { .Status = from_store(holds.error().Failure) };
 		}
-		if (page->Revisions.empty() || page->Revisions.front().Revision.Id.Id != request.Revision) {
-			return { .Status = review_material_status::missing };
-		}
-		if (page->Revisions.front().Manifest != request.Object) {
+		if (!*holds) {
 			return { .Status = review_material_status::wrong_authority };
 		}
 		auto bytes = Cycles->read_object(request.Object, std::move(aStop));

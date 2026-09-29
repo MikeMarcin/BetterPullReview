@@ -203,6 +203,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # or moves this pin with its first run of the rows.
     "workspace_source": "dos-volume-name",
     "review_cycle_capture": "dos-volume-name",
+    "review_cycle_comparison": "dos-volume-name",
+    "review_cycle_scale": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",
     "operator_response_validation_contract": "dos-volume-name",

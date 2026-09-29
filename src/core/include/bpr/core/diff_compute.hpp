@@ -153,11 +153,61 @@ namespace bpr::core {
 		}
 	};
 
+	/// \brief Inputs of a material comparison: bytes the owner resolved from
+	/// its own immutable material, compared by the same engine and limits.
+	struct material_diff_input
+	{
+		material_comparison_key                      Key;
+		diff_options                                 Options;
+		std::optional<std::span<const std::uint8_t>> LeftBytes;
+		std::optional<std::span<const std::uint8_t>> RightBytes;
+		diff_compute_limits                          Limits;
+	};
+
+	/// \brief A material comparison's result: the same records as
+	/// `computed_file_diff`, keyed by the material comparison.
+	struct computed_material_diff
+	{
+		material_alignment                   Alignment;
+		std::optional<decoded_text_document> LeftDocument;
+		std::optional<decoded_text_document> RightDocument;
+		std::vector<intraline_edit>          Intraline;
+		std::uint64_t                        MatrixCellsConsumed              = 0U;
+		std::uint64_t                        MoveDetectionWorkConsumed        = 0U;
+		bool                                 MoveDetectionWorkLimitReached    = false;
+		bool                                 MoveDetectionSegmentLimitReached = false;
+		std::uint64_t                        PrimaryIndexWorkConsumed         = 0U;
+		bool                                 AlignmentApproximate             = false;
+
+		auto operator<=>(const computed_material_diff&) const = default;
+	};
+
+	/// \brief Describes the material diff outcome record.
+	struct material_diff_outcome
+	{
+		diff_reason_code                      Reason = diff_reason_code::none;
+		std::optional<computed_material_diff> Result;
+
+		[[nodiscard]] auto published() const noexcept -> bool
+		{
+			return Result.has_value();
+		}
+	};
+
 	/// \brief Computes the compute file diff result.
 	[[nodiscard]] auto compute_file_diff(const diff_compute_input& aInput)
 		-> diff_compute_outcome;
 	/// \brief Computes the validate computed file diff result.
 	[[nodiscard]] auto validate_computed_file_diff(const computed_file_diff& aDiff)
+		-> diff_compute_validation_result;
+	/// \brief Compares two material sides with the shared engine: the same
+	/// decoding, alignment, pairing, move and limit rules as
+	/// `compute_file_diff`, and no pull-request identity.
+	[[nodiscard]] auto compute_material_diff(const material_diff_input& aInput)
+		-> material_diff_outcome;
+	/// \brief Validates a material comparison by the rules applied to
+	/// `computed_file_diff`.
+	[[nodiscard]] auto validate_computed_material_diff(const computed_material_diff& aDiff)
 		-> diff_compute_validation_result;
 } // namespace bpr::core
 

@@ -544,408 +544,461 @@ namespace bpr::core {
 		return identity_from<move_relation_id>(encoder);
 	}
 
-	auto validate_alignment(const file_alignment& aAlignment)
-		-> alignment_validation_result
-	{
-		constexpr auto maximumRecords = static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
-		if (aAlignment.Segments.size() > maximumRecords
-			|| aAlignment.Pairs.size() > maximumRecords
-			|| aAlignment.Groups.size() > maximumRecords
-			|| aAlignment.Moves.size() > maximumRecords) {
-			return failure(alignment_validation_error::count_overflow);
+	namespace {
+		auto left_present(const file_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.LeftBlob.has_value();
 		}
-		if (!valid(aAlignment.Key)) {
-			return failure(alignment_validation_error::invalid_comparison_key);
+		auto right_present(const file_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.RightBlob.has_value();
 		}
-		const auto normalizedOptionsDigest = options_digest(aAlignment.Options);
-		if (!normalizedOptionsDigest.has_value()
-			|| *normalizedOptionsDigest != aAlignment.Key.Options) {
-			return failure(alignment_validation_error::options_digest_mismatch);
+		auto key_digest(const file_comparison_key& aKey) noexcept -> file_comparison_digest
+		{
+			return comparison_digest(aKey);
 		}
-		if (aAlignment.Digest != comparison_digest(aAlignment.Key)) {
-			return failure(
-				alignment_validation_error::comparison_digest_mismatch);
+		auto left_present(const material_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.LeftPresent;
 		}
-		if (!valid_diagnostic(aAlignment.Content, aAlignment.Diagnostic.Code)) {
-			return failure(
-				alignment_validation_error::invalid_content_diagnostic);
+		auto right_present(const material_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.RightPresent;
 		}
-		if (aAlignment.Content == diff_content_state::unavailable
-			&& ((aAlignment.Diagnostic.Code == diff_reason_code::missing_left_blob
-				 && !aAlignment.Key.LeftBlob.has_value())
-				|| (aAlignment.Diagnostic.Code
-						== diff_reason_code::missing_right_blob
-					&& !aAlignment.Key.RightBlob.has_value()))) {
-			return failure(
-				alignment_validation_error::invalid_content_diagnostic);
+		auto key_digest(const material_comparison_key& aKey) noexcept -> file_comparison_digest
+		{
+			return valid(aKey) ? aKey.Comparison : file_comparison_digest{ };
 		}
-		if (aAlignment.Content != diff_content_state::text) {
-			if (aAlignment.LeftLineCount != 0U || aAlignment.RightLineCount != 0U
-				|| !aAlignment.Segments.empty() || !aAlignment.Pairs.empty()
-				|| !aAlignment.Groups.empty() || !aAlignment.Moves.empty()) {
-				return failure(alignment_validation_error::records_for_non_text);
+
+		/// The alignment rules, shared by pull-request and material comparisons.
+		template <typename TAlignment>
+		auto validate_alignment_records(const TAlignment& aAlignment)
+			-> alignment_validation_result
+		{
+			constexpr auto maximumRecords = static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+			if (aAlignment.Segments.size() > maximumRecords
+				|| aAlignment.Pairs.size() > maximumRecords
+				|| aAlignment.Groups.size() > maximumRecords
+				|| aAlignment.Moves.size() > maximumRecords) {
+				return failure(alignment_validation_error::count_overflow);
+			}
+			if (!valid(aAlignment.Key)) {
+				return failure(alignment_validation_error::invalid_comparison_key);
+			}
+			const auto normalizedOptionsDigest = options_digest(aAlignment.Options);
+			if (!normalizedOptionsDigest.has_value()
+				|| *normalizedOptionsDigest != aAlignment.Key.Options) {
+				return failure(alignment_validation_error::options_digest_mismatch);
+			}
+			if (aAlignment.Digest != key_digest(aAlignment.Key)) {
+				return failure(
+					alignment_validation_error::comparison_digest_mismatch);
+			}
+			if (!valid_diagnostic(aAlignment.Content, aAlignment.Diagnostic.Code)) {
+				return failure(
+					alignment_validation_error::invalid_content_diagnostic);
+			}
+			if (aAlignment.Content == diff_content_state::unavailable
+				&& ((aAlignment.Diagnostic.Code == diff_reason_code::missing_left_blob
+					 && !left_present(aAlignment.Key))
+					|| (aAlignment.Diagnostic.Code
+							== diff_reason_code::missing_right_blob
+						&& !right_present(aAlignment.Key)))) {
+				return failure(
+					alignment_validation_error::invalid_content_diagnostic);
+			}
+			if (aAlignment.Content != diff_content_state::text) {
+				if (aAlignment.LeftLineCount != 0U || aAlignment.RightLineCount != 0U
+					|| !aAlignment.Segments.empty() || !aAlignment.Pairs.empty()
+					|| !aAlignment.Groups.empty() || !aAlignment.Moves.empty()) {
+					return failure(alignment_validation_error::records_for_non_text);
+				}
+				return { };
+			}
+			if ((aAlignment.Options.Pairing == pairing_policy::disabled
+				 && !aAlignment.Pairs.empty())
+				|| (aAlignment.Options.Moves == move_detection_policy::disabled
+					&& !aAlignment.Moves.empty())) {
+				return failure(
+					alignment_validation_error::records_disabled_by_options);
+			}
+			if ((!left_present(aAlignment.Key)
+				 && aAlignment.LeftLineCount != 0U)
+				|| (!right_present(aAlignment.Key)
+					&& aAlignment.RightLineCount != 0U)) {
+				return failure(
+					alignment_validation_error::invalid_content_diagnostic);
+			}
+			if (aAlignment.Segments.empty()) {
+				if (aAlignment.LeftLineCount != 0U || aAlignment.RightLineCount != 0U) {
+					return failure(alignment_validation_error::missing_text_segments);
+				}
+				return aAlignment.Pairs.empty() && aAlignment.Groups.empty()
+						&& aAlignment.Moves.empty()
+					? alignment_validation_result{ }
+					: failure(alignment_validation_error::records_without_segments);
+			}
+
+			auto segmentIndexes = std::map<alignment_segment_id, std::size_t>{ };
+			auto expectedLeft   = std::uint32_t{ 0U };
+			auto expectedRight  = std::uint32_t{ 0U };
+			for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
+				const auto& segment = aAlignment.Segments[index];
+				const auto  ordinal = static_cast<std::uint32_t>(index);
+				if (!valid(segment.Left, aAlignment.LeftLineCount)
+					|| !valid(segment.Right, aAlignment.RightLineCount)) {
+					return failure(
+						alignment_validation_error::invalid_segment_span, index);
+				}
+				if (segment.Left.Begin != expectedLeft) {
+					return failure(
+						alignment_validation_error::left_coverage_discontinuity,
+						index);
+				}
+				if (segment.Right.Begin != expectedRight) {
+					return failure(
+						alignment_validation_error::right_coverage_discontinuity,
+						index);
+				}
+				if (segment.Left.empty() && segment.Right.empty()) {
+					return failure(alignment_validation_error::empty_segment, index);
+				}
+				if (!segment_shape_valid(segment.Kind, segment.Left, segment.Right)) {
+					return failure(
+						alignment_validation_error::segment_kind_mismatch, index);
+				}
+				if (segment.Kind == alignment_kind::equal) {
+					if (segment.Group.has_value()) {
+						return failure(
+							alignment_validation_error::grouped_equal_segment,
+							index);
+					}
+				} else if (!segment.Group.has_value()) {
+					return failure(
+						alignment_validation_error::ungrouped_change, index);
+				}
+				if (!segment.Id.valid()
+					|| segment.Id
+						!= segment_identity(aAlignment.Digest,
+											segment.Kind,
+											segment.Left,
+											segment.Right,
+											ordinal)) {
+					return failure(
+						alignment_validation_error::invalid_segment_id, index);
+				}
+				const auto [iterator, inserted] = segmentIndexes.emplace(segment.Id, index);
+				if (!inserted) {
+					return failure(alignment_validation_error::duplicate_segment_id,
+								   index,
+								   iterator->second);
+				}
+				expectedLeft  = segment.Left.End;
+				expectedRight = segment.Right.End;
+			}
+			if (expectedLeft != aAlignment.LeftLineCount) {
+				return failure(
+					alignment_validation_error::incomplete_left_coverage);
+			}
+			if (expectedRight != aAlignment.RightLineCount) {
+				return failure(
+					alignment_validation_error::incomplete_right_coverage);
+			}
+
+			auto groupIndexes  = std::map<change_group_id, std::size_t>{ };
+			auto priorGroupEnd = std::uint32_t{ 0U };
+			for (std::size_t index = 0U; index < aAlignment.Groups.size(); ++index) {
+				const auto& group        = aAlignment.Groups[index];
+				const auto  ordinal      = static_cast<std::uint32_t>(index);
+				const auto  segmentCount = static_cast<std::uint32_t>(aAlignment.Segments.size());
+				if (group.Members.Begin > group.Members.End
+					|| group.Members.End > segmentCount) {
+					return failure(
+						alignment_validation_error::invalid_group_span, index);
+				}
+				if (group.Members.empty()) {
+					return failure(alignment_validation_error::empty_group, index);
+				}
+				if (index != 0U && group.Members.Begin < priorGroupEnd) {
+					return failure(
+						alignment_validation_error::unordered_group, index);
+				}
+				if (index != 0U && group.Members.Begin == priorGroupEnd) {
+					return failure(
+						alignment_validation_error::noncanonical_adjacent_group,
+						index,
+						index - 1U);
+				}
+
+				const auto  firstIndex = static_cast<std::size_t>(group.Members.Begin);
+				const auto  lastIndex  = static_cast<std::size_t>(group.Members.End - 1U);
+				const auto& first      = aAlignment.Segments[firstIndex];
+				const auto& last       = aAlignment.Segments[lastIndex];
+				if (group.Left
+						!= line_span{ .Begin = first.Left.Begin, .End = last.Left.End }
+					|| group.Right
+						!= line_span{ .Begin = first.Right.Begin, .End = last.Right.End }) {
+					return failure(
+						alignment_validation_error::group_span_mismatch, index);
+				}
+				if (group.First
+						!= alignment_boundary{
+							.Left  = first.Left.Begin,
+							.Right = first.Right.Begin,
+						}
+					|| group.Last != alignment_boundary{
+						   .Left  = last.Left.End,
+						   .Right = last.Right.End,
+					   }) {
+					return failure(
+						alignment_validation_error::group_boundary_mismatch, index);
+				}
+
+				auto added         = std::uint64_t{ 0U };
+				auto deleted       = std::uint64_t{ 0U };
+				auto replacedLeft  = std::uint64_t{ 0U };
+				auto replacedRight = std::uint64_t{ 0U };
+				for (auto member = group.Members.Begin; member < group.Members.End;
+					 ++member) {
+					const auto& segment = aAlignment.Segments[static_cast<std::size_t>(member)];
+					if (segment.Kind == alignment_kind::equal
+						|| !segment.Group.has_value() || *segment.Group != group.Id) {
+						return failure(
+							alignment_validation_error::noncontiguous_group,
+							index,
+							static_cast<std::size_t>(member));
+					}
+					switch (segment.Kind) {
+					case alignment_kind::right_only:
+						added += segment.Right.extent();
+						break;
+					case alignment_kind::left_only:
+						deleted += segment.Left.extent();
+						break;
+					case alignment_kind::replacement:
+						replacedLeft += segment.Left.extent();
+						replacedRight += segment.Right.extent();
+						break;
+					case alignment_kind::equal:
+						break;
+					}
+				}
+				if (group.AddedLines != added || group.DeletedLines != deleted
+					|| group.ReplacedLeftLines != replacedLeft
+					|| group.ReplacedRightLines != replacedRight
+					|| group.Kind
+						!= summary_kind(
+							added, deleted, replacedLeft, replacedRight)) {
+					return failure(
+						alignment_validation_error::group_summary_mismatch, index);
+				}
+				if (!group.Id.valid()
+					|| group.Id
+						!= group_identity(
+							aAlignment.Digest, group.Left, group.Right, ordinal)) {
+					return failure(
+						alignment_validation_error::invalid_group_id, index);
+				}
+				const auto [iterator, inserted] = groupIndexes.emplace(group.Id, index);
+				if (!inserted) {
+					return failure(alignment_validation_error::duplicate_group_id,
+								   index,
+								   iterator->second);
+				}
+				priorGroupEnd = group.Members.End;
+			}
+
+			for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
+				const auto& segment = aAlignment.Segments[index];
+				if (segment.Kind == alignment_kind::equal) {
+					continue;
+				}
+				const auto group = groupIndexes.find(*segment.Group);
+				if (group == groupIndexes.end()) {
+					return failure(
+						alignment_validation_error::segment_group_mismatch, index);
+				}
+				const auto& members = aAlignment.Groups[group->second].Members;
+				if (index < static_cast<std::size_t>(members.Begin)
+					|| index >= static_cast<std::size_t>(members.End)) {
+					return failure(alignment_validation_error::segment_group_mismatch,
+								   index,
+								   group->second);
+				}
+			}
+
+			auto pairIndexes      = std::map<line_pair_id, std::size_t>{ };
+			auto pairedSegments   = std::set<std::size_t>{ };
+			auto priorPairSegment = std::optional<std::size_t>{ };
+			auto priorLeft        = std::uint32_t{ 0U };
+			auto priorRight       = std::uint32_t{ 0U };
+			for (std::size_t index = 0U; index < aAlignment.Pairs.size(); ++index) {
+				const auto& pair    = aAlignment.Pairs[index];
+				const auto  ordinal = static_cast<std::uint32_t>(index);
+				if (!valid_line_pair_kind(pair.Kind)) {
+					return failure(
+						alignment_validation_error::invalid_pair_kind, index);
+				}
+				const auto foundSegment = segmentIndexes.find(pair.Segment);
+				if (foundSegment == segmentIndexes.end()) {
+					return failure(
+						alignment_validation_error::unknown_pair_segment, index);
+				}
+				const auto& segment = aAlignment.Segments[foundSegment->second];
+				if (segment.Kind != alignment_kind::replacement
+					|| pair.LeftLine < segment.Left.Begin
+					|| pair.LeftLine >= segment.Left.End
+					|| pair.RightLine < segment.Right.Begin
+					|| pair.RightLine >= segment.Right.End) {
+					return failure(
+						alignment_validation_error::pair_out_of_bounds, index);
+				}
+				if (priorPairSegment.has_value()
+					&& (foundSegment->second < *priorPairSegment
+						|| (foundSegment->second == *priorPairSegment
+							&& (pair.LeftLine <= priorLeft
+								|| pair.RightLine <= priorRight)))) {
+					return failure(
+						alignment_validation_error::nonmonotonic_pair, index);
+				}
+				if (!pair.Id.valid()
+					|| pair.Id
+						!= pair_identity(aAlignment.Digest,
+										 pair.Segment,
+										 pair.LeftLine,
+										 pair.RightLine,
+										 pair.Kind,
+										 ordinal)) {
+					return failure(
+						alignment_validation_error::invalid_pair_id, index);
+				}
+				const auto [iterator, inserted] = pairIndexes.emplace(pair.Id, index);
+				if (!inserted) {
+					return failure(alignment_validation_error::duplicate_pair_id,
+								   index,
+								   iterator->second);
+				}
+				pairedSegments.insert(foundSegment->second);
+				priorPairSegment = foundSegment->second;
+				priorLeft        = pair.LeftLine;
+				priorRight       = pair.RightLine;
+			}
+
+			auto moveIndexes       = std::map<move_relation_id, std::size_t>{ };
+			auto movePairs         = std::map<std::pair<std::size_t, std::size_t>, std::size_t>{ };
+			auto movedSources      = std::set<std::size_t>{ };
+			auto movedDestinations = std::set<std::size_t>{ };
+			auto priorMovePair     = std::optional<std::pair<std::size_t, std::size_t>>{ };
+			for (std::size_t index = 0U; index < aAlignment.Moves.size(); ++index) {
+				const auto& move        = aAlignment.Moves[index];
+				const auto  ordinal     = static_cast<std::uint32_t>(index);
+				const auto  source      = segmentIndexes.find(move.SourceDeletion);
+				const auto  destination = segmentIndexes.find(move.DestinationInsertion);
+				if (source == segmentIndexes.end()
+					|| destination == segmentIndexes.end()) {
+					return failure(
+						alignment_validation_error::unknown_move_segment, index);
+				}
+				if (aAlignment.Segments[source->second].Kind
+						!= alignment_kind::left_only
+					|| aAlignment.Segments[destination->second].Kind
+						!= alignment_kind::right_only
+					|| aAlignment.Segments[source->second].Left.extent()
+						!= aAlignment.Segments[destination->second].Right.extent()) {
+					return failure(
+						alignment_validation_error::invalid_move_topology, index);
+				}
+				const auto currentMovePair  = std::pair{ source->second, destination->second };
+				const auto existingRelation = movePairs.find(currentMovePair);
+				if (existingRelation != movePairs.end()) {
+					return failure(
+						alignment_validation_error::duplicate_move_relation,
+						index,
+						existingRelation->second);
+				}
+				if (movedSources.contains(source->second)
+					|| movedDestinations.contains(destination->second)) {
+					return failure(
+						alignment_validation_error::invalid_move_topology, index);
+				}
+				if (priorMovePair.has_value()
+					&& currentMovePair < *priorMovePair) {
+					return failure(
+						alignment_validation_error::noncanonical_move_order,
+						index,
+						index - 1U);
+				}
+				if (!move.Id.valid()
+					|| move.Id
+						!= move_identity(aAlignment.Digest,
+										 move.SourceDeletion,
+										 move.DestinationInsertion,
+										 ordinal)) {
+					return failure(
+						alignment_validation_error::invalid_move_id, index);
+				}
+				const auto [iterator, inserted] = moveIndexes.emplace(move.Id, index);
+				if (!inserted) {
+					return failure(alignment_validation_error::duplicate_move_id,
+								   index,
+								   iterator->second);
+				}
+				movePairs.emplace(currentMovePair, index);
+				movedSources.insert(source->second);
+				movedDestinations.insert(destination->second);
+				priorMovePair = currentMovePair;
+			}
+
+			// Same-kind boundaries are canonical only when secondary semantic
+			// metadata needs the two stable segment identities to remain distinct.
+			for (std::size_t index = 1U; index < aAlignment.Segments.size(); ++index) {
+				const auto& prior   = aAlignment.Segments[index - 1U];
+				const auto& current = aAlignment.Segments[index];
+				if (prior.Kind != current.Kind) {
+					continue;
+				}
+				const auto pairRefinement = current.Kind == alignment_kind::replacement
+					&& (pairedSegments.contains(index - 1U)
+						|| pairedSegments.contains(index));
+				const auto movedDeletionBoundary = current.Kind == alignment_kind::left_only
+					&& (movedSources.contains(index - 1U)
+						|| movedSources.contains(index));
+				const auto movedInsertionBoundary = current.Kind == alignment_kind::right_only
+					&& (movedDestinations.contains(index - 1U)
+						|| movedDestinations.contains(index));
+				if (!pairRefinement && !movedDeletionBoundary
+					&& !movedInsertionBoundary) {
+					return failure(
+						alignment_validation_error::noncanonical_adjacent_segment,
+						index,
+						index - 1U);
+				}
 			}
 			return { };
 		}
-		if ((aAlignment.Options.Pairing == pairing_policy::disabled
-			 && !aAlignment.Pairs.empty())
-			|| (aAlignment.Options.Moves == move_detection_policy::disabled
-				&& !aAlignment.Moves.empty())) {
-			return failure(
-				alignment_validation_error::records_disabled_by_options);
-		}
-		if ((!aAlignment.Key.LeftBlob.has_value()
-			 && aAlignment.LeftLineCount != 0U)
-			|| (!aAlignment.Key.RightBlob.has_value()
-				&& aAlignment.RightLineCount != 0U)) {
-			return failure(
-				alignment_validation_error::invalid_content_diagnostic);
-		}
-		if (aAlignment.Segments.empty()) {
-			if (aAlignment.LeftLineCount != 0U || aAlignment.RightLineCount != 0U) {
-				return failure(alignment_validation_error::missing_text_segments);
-			}
-			return aAlignment.Pairs.empty() && aAlignment.Groups.empty()
-					&& aAlignment.Moves.empty()
-				? alignment_validation_result{ }
-				: failure(alignment_validation_error::records_without_segments);
-		}
-
-		auto segmentIndexes = std::map<alignment_segment_id, std::size_t>{ };
-		auto expectedLeft   = std::uint32_t{ 0U };
-		auto expectedRight  = std::uint32_t{ 0U };
-		for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
-			const auto& segment = aAlignment.Segments[index];
-			const auto  ordinal = static_cast<std::uint32_t>(index);
-			if (!valid(segment.Left, aAlignment.LeftLineCount)
-				|| !valid(segment.Right, aAlignment.RightLineCount)) {
-				return failure(
-					alignment_validation_error::invalid_segment_span, index);
-			}
-			if (segment.Left.Begin != expectedLeft) {
-				return failure(
-					alignment_validation_error::left_coverage_discontinuity,
-					index);
-			}
-			if (segment.Right.Begin != expectedRight) {
-				return failure(
-					alignment_validation_error::right_coverage_discontinuity,
-					index);
-			}
-			if (segment.Left.empty() && segment.Right.empty()) {
-				return failure(alignment_validation_error::empty_segment, index);
-			}
-			if (!segment_shape_valid(segment.Kind, segment.Left, segment.Right)) {
-				return failure(
-					alignment_validation_error::segment_kind_mismatch, index);
-			}
-			if (segment.Kind == alignment_kind::equal) {
-				if (segment.Group.has_value()) {
-					return failure(
-						alignment_validation_error::grouped_equal_segment,
-						index);
-				}
-			} else if (!segment.Group.has_value()) {
-				return failure(
-					alignment_validation_error::ungrouped_change, index);
-			}
-			if (!segment.Id.valid()
-				|| segment.Id
-					!= segment_identity(aAlignment.Digest,
-										segment.Kind,
-										segment.Left,
-										segment.Right,
-										ordinal)) {
-				return failure(
-					alignment_validation_error::invalid_segment_id, index);
-			}
-			const auto [iterator, inserted] = segmentIndexes.emplace(segment.Id, index);
-			if (!inserted) {
-				return failure(alignment_validation_error::duplicate_segment_id,
-							   index,
-							   iterator->second);
-			}
-			expectedLeft  = segment.Left.End;
-			expectedRight = segment.Right.End;
-		}
-		if (expectedLeft != aAlignment.LeftLineCount) {
-			return failure(
-				alignment_validation_error::incomplete_left_coverage);
-		}
-		if (expectedRight != aAlignment.RightLineCount) {
-			return failure(
-				alignment_validation_error::incomplete_right_coverage);
-		}
-
-		auto groupIndexes  = std::map<change_group_id, std::size_t>{ };
-		auto priorGroupEnd = std::uint32_t{ 0U };
-		for (std::size_t index = 0U; index < aAlignment.Groups.size(); ++index) {
-			const auto& group        = aAlignment.Groups[index];
-			const auto  ordinal      = static_cast<std::uint32_t>(index);
-			const auto  segmentCount = static_cast<std::uint32_t>(aAlignment.Segments.size());
-			if (group.Members.Begin > group.Members.End
-				|| group.Members.End > segmentCount) {
-				return failure(
-					alignment_validation_error::invalid_group_span, index);
-			}
-			if (group.Members.empty()) {
-				return failure(alignment_validation_error::empty_group, index);
-			}
-			if (index != 0U && group.Members.Begin < priorGroupEnd) {
-				return failure(
-					alignment_validation_error::unordered_group, index);
-			}
-			if (index != 0U && group.Members.Begin == priorGroupEnd) {
-				return failure(
-					alignment_validation_error::noncanonical_adjacent_group,
-					index,
-					index - 1U);
-			}
-
-			const auto  firstIndex = static_cast<std::size_t>(group.Members.Begin);
-			const auto  lastIndex  = static_cast<std::size_t>(group.Members.End - 1U);
-			const auto& first      = aAlignment.Segments[firstIndex];
-			const auto& last       = aAlignment.Segments[lastIndex];
-			if (group.Left
-					!= line_span{ .Begin = first.Left.Begin, .End = last.Left.End }
-				|| group.Right
-					!= line_span{ .Begin = first.Right.Begin, .End = last.Right.End }) {
-				return failure(
-					alignment_validation_error::group_span_mismatch, index);
-			}
-			if (group.First
-					!= alignment_boundary{
-						.Left  = first.Left.Begin,
-						.Right = first.Right.Begin,
-					}
-				|| group.Last != alignment_boundary{
-					   .Left  = last.Left.End,
-					   .Right = last.Right.End,
-				   }) {
-				return failure(
-					alignment_validation_error::group_boundary_mismatch, index);
-			}
-
-			auto added         = std::uint64_t{ 0U };
-			auto deleted       = std::uint64_t{ 0U };
-			auto replacedLeft  = std::uint64_t{ 0U };
-			auto replacedRight = std::uint64_t{ 0U };
-			for (auto member = group.Members.Begin; member < group.Members.End;
-				 ++member) {
-				const auto& segment = aAlignment.Segments[static_cast<std::size_t>(member)];
-				if (segment.Kind == alignment_kind::equal
-					|| !segment.Group.has_value() || *segment.Group != group.Id) {
-					return failure(
-						alignment_validation_error::noncontiguous_group,
-						index,
-						static_cast<std::size_t>(member));
-				}
-				switch (segment.Kind) {
-				case alignment_kind::right_only:
-					added += segment.Right.extent();
-					break;
-				case alignment_kind::left_only:
-					deleted += segment.Left.extent();
-					break;
-				case alignment_kind::replacement:
-					replacedLeft += segment.Left.extent();
-					replacedRight += segment.Right.extent();
-					break;
-				case alignment_kind::equal:
-					break;
-				}
-			}
-			if (group.AddedLines != added || group.DeletedLines != deleted
-				|| group.ReplacedLeftLines != replacedLeft
-				|| group.ReplacedRightLines != replacedRight
-				|| group.Kind
-					!= summary_kind(
-						added, deleted, replacedLeft, replacedRight)) {
-				return failure(
-					alignment_validation_error::group_summary_mismatch, index);
-			}
-			if (!group.Id.valid()
-				|| group.Id
-					!= group_identity(
-						aAlignment.Digest, group.Left, group.Right, ordinal)) {
-				return failure(
-					alignment_validation_error::invalid_group_id, index);
-			}
-			const auto [iterator, inserted] = groupIndexes.emplace(group.Id, index);
-			if (!inserted) {
-				return failure(alignment_validation_error::duplicate_group_id,
-							   index,
-							   iterator->second);
-			}
-			priorGroupEnd = group.Members.End;
-		}
-
-		for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
-			const auto& segment = aAlignment.Segments[index];
-			if (segment.Kind == alignment_kind::equal) {
-				continue;
-			}
-			const auto group = groupIndexes.find(*segment.Group);
-			if (group == groupIndexes.end()) {
-				return failure(
-					alignment_validation_error::segment_group_mismatch, index);
-			}
-			const auto& members = aAlignment.Groups[group->second].Members;
-			if (index < static_cast<std::size_t>(members.Begin)
-				|| index >= static_cast<std::size_t>(members.End)) {
-				return failure(alignment_validation_error::segment_group_mismatch,
-							   index,
-							   group->second);
-			}
-		}
-
-		auto pairIndexes      = std::map<line_pair_id, std::size_t>{ };
-		auto pairedSegments   = std::set<std::size_t>{ };
-		auto priorPairSegment = std::optional<std::size_t>{ };
-		auto priorLeft        = std::uint32_t{ 0U };
-		auto priorRight       = std::uint32_t{ 0U };
-		for (std::size_t index = 0U; index < aAlignment.Pairs.size(); ++index) {
-			const auto& pair    = aAlignment.Pairs[index];
-			const auto  ordinal = static_cast<std::uint32_t>(index);
-			if (!valid_line_pair_kind(pair.Kind)) {
-				return failure(
-					alignment_validation_error::invalid_pair_kind, index);
-			}
-			const auto foundSegment = segmentIndexes.find(pair.Segment);
-			if (foundSegment == segmentIndexes.end()) {
-				return failure(
-					alignment_validation_error::unknown_pair_segment, index);
-			}
-			const auto& segment = aAlignment.Segments[foundSegment->second];
-			if (segment.Kind != alignment_kind::replacement
-				|| pair.LeftLine < segment.Left.Begin
-				|| pair.LeftLine >= segment.Left.End
-				|| pair.RightLine < segment.Right.Begin
-				|| pair.RightLine >= segment.Right.End) {
-				return failure(
-					alignment_validation_error::pair_out_of_bounds, index);
-			}
-			if (priorPairSegment.has_value()
-				&& (foundSegment->second < *priorPairSegment
-					|| (foundSegment->second == *priorPairSegment
-						&& (pair.LeftLine <= priorLeft
-							|| pair.RightLine <= priorRight)))) {
-				return failure(
-					alignment_validation_error::nonmonotonic_pair, index);
-			}
-			if (!pair.Id.valid()
-				|| pair.Id
-					!= pair_identity(aAlignment.Digest,
-									 pair.Segment,
-									 pair.LeftLine,
-									 pair.RightLine,
-									 pair.Kind,
-									 ordinal)) {
-				return failure(
-					alignment_validation_error::invalid_pair_id, index);
-			}
-			const auto [iterator, inserted] = pairIndexes.emplace(pair.Id, index);
-			if (!inserted) {
-				return failure(alignment_validation_error::duplicate_pair_id,
-							   index,
-							   iterator->second);
-			}
-			pairedSegments.insert(foundSegment->second);
-			priorPairSegment = foundSegment->second;
-			priorLeft        = pair.LeftLine;
-			priorRight       = pair.RightLine;
-		}
-
-		auto moveIndexes       = std::map<move_relation_id, std::size_t>{ };
-		auto movePairs         = std::map<std::pair<std::size_t, std::size_t>, std::size_t>{ };
-		auto movedSources      = std::set<std::size_t>{ };
-		auto movedDestinations = std::set<std::size_t>{ };
-		auto priorMovePair     = std::optional<std::pair<std::size_t, std::size_t>>{ };
-		for (std::size_t index = 0U; index < aAlignment.Moves.size(); ++index) {
-			const auto& move        = aAlignment.Moves[index];
-			const auto  ordinal     = static_cast<std::uint32_t>(index);
-			const auto  source      = segmentIndexes.find(move.SourceDeletion);
-			const auto  destination = segmentIndexes.find(move.DestinationInsertion);
-			if (source == segmentIndexes.end()
-				|| destination == segmentIndexes.end()) {
-				return failure(
-					alignment_validation_error::unknown_move_segment, index);
-			}
-			if (aAlignment.Segments[source->second].Kind
-					!= alignment_kind::left_only
-				|| aAlignment.Segments[destination->second].Kind
-					!= alignment_kind::right_only
-				|| aAlignment.Segments[source->second].Left.extent()
-					!= aAlignment.Segments[destination->second].Right.extent()) {
-				return failure(
-					alignment_validation_error::invalid_move_topology, index);
-			}
-			const auto currentMovePair  = std::pair{ source->second, destination->second };
-			const auto existingRelation = movePairs.find(currentMovePair);
-			if (existingRelation != movePairs.end()) {
-				return failure(
-					alignment_validation_error::duplicate_move_relation,
-					index,
-					existingRelation->second);
-			}
-			if (movedSources.contains(source->second)
-				|| movedDestinations.contains(destination->second)) {
-				return failure(
-					alignment_validation_error::invalid_move_topology, index);
-			}
-			if (priorMovePair.has_value()
-				&& currentMovePair < *priorMovePair) {
-				return failure(
-					alignment_validation_error::noncanonical_move_order,
-					index,
-					index - 1U);
-			}
-			if (!move.Id.valid()
-				|| move.Id
-					!= move_identity(aAlignment.Digest,
-									 move.SourceDeletion,
-									 move.DestinationInsertion,
-									 ordinal)) {
-				return failure(
-					alignment_validation_error::invalid_move_id, index);
-			}
-			const auto [iterator, inserted] = moveIndexes.emplace(move.Id, index);
-			if (!inserted) {
-				return failure(alignment_validation_error::duplicate_move_id,
-							   index,
-							   iterator->second);
-			}
-			movePairs.emplace(currentMovePair, index);
-			movedSources.insert(source->second);
-			movedDestinations.insert(destination->second);
-			priorMovePair = currentMovePair;
-		}
-
-		// Same-kind boundaries are canonical only when secondary semantic
-		// metadata needs the two stable segment identities to remain distinct.
-		for (std::size_t index = 1U; index < aAlignment.Segments.size(); ++index) {
-			const auto& prior   = aAlignment.Segments[index - 1U];
-			const auto& current = aAlignment.Segments[index];
-			if (prior.Kind != current.Kind) {
-				continue;
-			}
-			const auto pairRefinement = current.Kind == alignment_kind::replacement
-				&& (pairedSegments.contains(index - 1U)
-					|| pairedSegments.contains(index));
-			const auto movedDeletionBoundary = current.Kind == alignment_kind::left_only
-				&& (movedSources.contains(index - 1U)
-					|| movedSources.contains(index));
-			const auto movedInsertionBoundary = current.Kind == alignment_kind::right_only
-				&& (movedDestinations.contains(index - 1U)
-					|| movedDestinations.contains(index));
-			if (!pairRefinement && !movedDeletionBoundary
-				&& !movedInsertionBoundary) {
-				return failure(
-					alignment_validation_error::noncanonical_adjacent_segment,
-					index,
-					index - 1U);
-			}
-		}
-		return { };
 	}
+
+	auto valid(const material_comparison_key& aKey) noexcept -> bool
+	{
+		return aKey.Comparison.valid() && (aKey.LeftPresent || aKey.RightPresent) && aKey.Options.valid() && aKey.Algorithm.value() != 0U;
+	}
+
+	auto comparison_digest(const material_comparison_key& aKey) noexcept
+		-> file_comparison_digest
+	{
+		return valid(aKey) ? aKey.Comparison : file_comparison_digest{ };
+	}
+
+	auto validate_alignment(const file_alignment& aAlignment)
+		-> alignment_validation_result
+	{
+		return validate_alignment_records(aAlignment);
+	}
+
+	auto validate_alignment(const material_alignment& aAlignment)
+		-> alignment_validation_result
+	{
+		return validate_alignment_records(aAlignment);
+	}
+
 } // namespace bpr::core

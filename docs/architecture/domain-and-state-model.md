@@ -187,6 +187,29 @@ that path needs a qualified transformation path. Devices, sockets and pipes
 are visible as unsupported; files over the capture budget are visible as too
 large.
 
+Cycle views read only retained material (`bpr/core/review_cycle_comparison.hpp`,
+`application::review_cycle_comparison_host`, BPR-1151). A view names its
+material exactly: full source is one revision read on its own, never a diff
+against nothing; an explicit revision pair (or a round with a named result) is
+pinned and never retargets; all-cycle, since-checkpoint and this-round views
+resolve to a pair when opened and move only on explicit refresh, with a
+newer-revision signal in between. Pages list at most 256 paths in path-byte
+order over everything either manifest names, classifying each side by scope,
+coverage, exclusion ancestry and deletion, so a widened scope, an exclusion or
+a partial capture reads as unknown rather than added or deleted, and
+content-equivalent paths share one content identity. A pair's file diff goes
+through the shared engine: `compute_material_diff` applies exactly the
+decoding, alignment, pairing, move and limit rules of `compute_file_diff`
+under a `material_comparison_key` whose identity is derived from the cycle,
+pair, path and contents (`BPR-cycle-file-comparison-v1`), with no pull-request
+authority or epoch. Every byte comes through the material bridge, which serves
+only an object the named revision pinned; a missing or corrupt object is
+reported and nothing is read from the workspace, so later edits, deletions or
+a restart change nothing a view shows. A side that is unavailable or unknown
+yields no diff. The core's file-view state keeps the shown content while a
+newer request loads and drops a completion for a superseded request; the
+runtime completes work issued for a previous selection as cancelled.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

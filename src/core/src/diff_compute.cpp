@@ -907,12 +907,55 @@ namespace bpr::core {
 			return change_summary_kind::mixed;
 		}
 
-		[[nodiscard]] auto nontext_result(const diff_compute_input& aInput,
-										  const diff_content_state  aContent,
-										  const diff_reason_code    aReason)
-			-> diff_compute_outcome
+		auto left_present(const file_comparison_key& aKey) noexcept -> bool
 		{
-			auto alignment = file_alignment{
+			return aKey.LeftBlob.has_value();
+		}
+		auto right_present(const file_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.RightBlob.has_value();
+		}
+		auto left_present(const material_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.LeftPresent;
+		}
+		auto right_present(const material_comparison_key& aKey) noexcept -> bool
+		{
+			return aKey.RightPresent;
+		}
+
+		/// The record types of one comparison kind.
+		struct pull_request_comparison
+		{
+			using input     = diff_compute_input;
+			using alignment = file_alignment;
+			using computed  = computed_file_diff;
+			using outcome   = diff_compute_outcome;
+		};
+		struct material_comparison
+		{
+			using input     = material_diff_input;
+			using alignment = material_alignment;
+			using computed  = computed_material_diff;
+			using outcome   = material_diff_outcome;
+		};
+
+		auto validate_result(const computed_file_diff& aDiff) -> diff_compute_validation_result
+		{
+			return validate_computed_file_diff(aDiff);
+		}
+		auto validate_result(const computed_material_diff& aDiff) -> diff_compute_validation_result
+		{
+			return validate_computed_material_diff(aDiff);
+		}
+
+		template <typename TComparison>
+		[[nodiscard]] auto nontext_result(const typename TComparison::input& aInput,
+										  const diff_content_state           aContent,
+										  const diff_reason_code             aReason)
+			-> typename TComparison::outcome
+		{
+			auto alignment = typename TComparison::alignment{
 				.Key        = aInput.Key,
 				.Options    = aInput.Options,
 				.Digest     = comparison_digest(aInput.Key),
@@ -922,8 +965,8 @@ namespace bpr::core {
 			if (!validate_alignment(alignment).valid()) {
 				return { .Reason = diff_reason_code::invalid_alignment };
 			}
-			auto result = computed_file_diff{ .Alignment = std::move(alignment) };
-			if (!validate_computed_file_diff(result).valid()) {
+			auto result = typename TComparison::computed{ .Alignment = std::move(alignment) };
+			if (!validate_result(result).valid()) {
 				return { .Reason = diff_reason_code::invalid_alignment };
 			}
 			return { .Reason = aReason, .Result = std::move(result) };
@@ -1246,364 +1289,395 @@ namespace bpr::core {
 		}
 	} // namespace
 
-	auto validate_computed_file_diff(const computed_file_diff& aDiff)
-		-> diff_compute_validation_result
-	{
-		if (!validate_alignment(aDiff.Alignment).valid()) {
-			return compute_failure(
-				diff_compute_validation_error::invalid_alignment);
-		}
-		if (aDiff.Alignment.Content != diff_content_state::text) {
-			return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U && aDiff.MoveDetectionWorkConsumed == 0U && !aDiff.MoveDetectionWorkLimitReached && !aDiff.MoveDetectionSegmentLimitReached && !aDiff.AlignmentApproximate
-				? diff_compute_validation_result{ }
-				: compute_failure(
-					  diff_compute_validation_error::records_for_non_text);
-		}
-
-		if (aDiff.LeftDocument.has_value() != aDiff.Alignment.Key.LeftBlob.has_value() || aDiff.RightDocument.has_value() != aDiff.Alignment.Key.RightBlob.has_value()) {
-			return compute_failure(
-				diff_compute_validation_error::document_presence_mismatch);
-		}
-		if ((aDiff.LeftDocument.has_value() && aDiff.LeftDocument->Lines.size() != aDiff.Alignment.LeftLineCount) || (aDiff.RightDocument.has_value() && aDiff.RightDocument->Lines.size() != aDiff.Alignment.RightLineCount)) {
-			return compute_failure(
-				diff_compute_validation_error::document_line_count_mismatch);
-		}
-		if ((aDiff.LeftDocument.has_value() && !valid_document(*aDiff.LeftDocument)) || (aDiff.RightDocument.has_value() && !valid_document(*aDiff.RightDocument))) {
-			return compute_failure(diff_compute_validation_error::invalid_document);
-		}
-		if (
-			(aDiff.Alignment.Options.Moves == move_detection_policy::disabled
-			 && (aDiff.MoveDetectionWorkConsumed != 0U
-				 || aDiff.MoveDetectionWorkLimitReached
-				 || aDiff.MoveDetectionSegmentLimitReached))
-			|| ((aDiff.MoveDetectionWorkLimitReached
-				 || aDiff.MoveDetectionSegmentLimitReached)
-				&& !aDiff.Alignment.Moves.empty())
-			|| (aDiff.MoveDetectionWorkLimitReached
-				&& aDiff.MoveDetectionSegmentLimitReached)) {
-			return compute_failure(
-				diff_compute_validation_error::invalid_move_statistics);
-		}
-
-		for (std::size_t index = 0U; index < aDiff.Alignment.Moves.size(); ++index) {
-			const auto& move        = aDiff.Alignment.Moves[index];
-			const auto  source      = std::ranges::find(aDiff.Alignment.Segments,
-														move.SourceDeletion,
-														&alignment_segment::Id);
-			const auto  destination = std::ranges::find(aDiff.Alignment.Segments,
-														move.DestinationInsertion,
-														&alignment_segment::Id);
-			if (!aDiff.LeftDocument.has_value() || !aDiff.RightDocument.has_value() || source == aDiff.Alignment.Segments.end() || destination == aDiff.Alignment.Segments.end() || source->Left.extent() != destination->Right.extent()) {
+	namespace {
+		/// The computed-diff rules, shared by both comparison kinds.
+		template <typename TComputed>
+		auto validate_computed_records(const TComputed& aDiff)
+			-> diff_compute_validation_result
+		{
+			if (!validate_alignment(aDiff.Alignment).valid()) {
 				return compute_failure(
-					diff_compute_validation_error::invalid_move_content, index);
+					diff_compute_validation_error::invalid_alignment);
 			}
-			for (std::uint64_t offset = 0U; offset < source->Left.extent(); ++offset) {
-				const auto leftLine = static_cast<std::uint32_t>(
-					static_cast<std::uint64_t>(source->Left.Begin) + offset);
-				const auto rightLine = static_cast<std::uint32_t>(
-					static_cast<std::uint64_t>(destination->Right.Begin) + offset);
-				if (!normalized_lines_equal(*aDiff.LeftDocument,
-											leftLine,
-											*aDiff.RightDocument,
-											rightLine,
-											aDiff.Alignment.Options)) {
+			if (aDiff.Alignment.Content != diff_content_state::text) {
+				return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U && aDiff.MoveDetectionWorkConsumed == 0U && !aDiff.MoveDetectionWorkLimitReached && !aDiff.MoveDetectionSegmentLimitReached && !aDiff.AlignmentApproximate
+					? diff_compute_validation_result{ }
+					: compute_failure(
+						  diff_compute_validation_error::records_for_non_text);
+			}
+
+			if (aDiff.LeftDocument.has_value() != left_present(aDiff.Alignment.Key) || aDiff.RightDocument.has_value() != right_present(aDiff.Alignment.Key)) {
+				return compute_failure(
+					diff_compute_validation_error::document_presence_mismatch);
+			}
+			if ((aDiff.LeftDocument.has_value() && aDiff.LeftDocument->Lines.size() != aDiff.Alignment.LeftLineCount) || (aDiff.RightDocument.has_value() && aDiff.RightDocument->Lines.size() != aDiff.Alignment.RightLineCount)) {
+				return compute_failure(
+					diff_compute_validation_error::document_line_count_mismatch);
+			}
+			if ((aDiff.LeftDocument.has_value() && !valid_document(*aDiff.LeftDocument)) || (aDiff.RightDocument.has_value() && !valid_document(*aDiff.RightDocument))) {
+				return compute_failure(diff_compute_validation_error::invalid_document);
+			}
+			if (
+				(aDiff.Alignment.Options.Moves == move_detection_policy::disabled
+				 && (aDiff.MoveDetectionWorkConsumed != 0U
+					 || aDiff.MoveDetectionWorkLimitReached
+					 || aDiff.MoveDetectionSegmentLimitReached))
+				|| ((aDiff.MoveDetectionWorkLimitReached
+					 || aDiff.MoveDetectionSegmentLimitReached)
+					&& !aDiff.Alignment.Moves.empty())
+				|| (aDiff.MoveDetectionWorkLimitReached
+					&& aDiff.MoveDetectionSegmentLimitReached)) {
+				return compute_failure(
+					diff_compute_validation_error::invalid_move_statistics);
+			}
+
+			for (std::size_t index = 0U; index < aDiff.Alignment.Moves.size(); ++index) {
+				const auto& move        = aDiff.Alignment.Moves[index];
+				const auto  source      = std::ranges::find(aDiff.Alignment.Segments,
+															move.SourceDeletion,
+															&alignment_segment::Id);
+				const auto  destination = std::ranges::find(aDiff.Alignment.Segments,
+															move.DestinationInsertion,
+															&alignment_segment::Id);
+				if (!aDiff.LeftDocument.has_value() || !aDiff.RightDocument.has_value() || source == aDiff.Alignment.Segments.end() || destination == aDiff.Alignment.Segments.end() || source->Left.extent() != destination->Right.extent()) {
 					return compute_failure(
 						diff_compute_validation_error::invalid_move_content, index);
 				}
-			}
-		}
-
-		auto pairIndex      = std::size_t{ 0U };
-		auto priorPairIndex = diff_compute_validation_result::no_record;
-		auto priorLeftEnd   = std::uint64_t{ 0U };
-		auto priorRightEnd  = std::uint64_t{ 0U };
-		for (std::size_t index = 0U; index < aDiff.Intraline.size(); ++index) {
-			const auto& edit = aDiff.Intraline[index];
-			while (pairIndex < aDiff.Alignment.Pairs.size() && aDiff.Alignment.Pairs[pairIndex].Id != edit.Pair) {
-				++pairIndex;
-			}
-			if (pairIndex == aDiff.Alignment.Pairs.size()) {
-				return compute_failure(
-					diff_compute_validation_error::unknown_intraline_pair, index);
-			}
-			const auto& pair = aDiff.Alignment.Pairs[pairIndex];
-			if (pair.Kind != line_pair_kind::similar) {
-				return compute_failure(
-					diff_compute_validation_error::intraline_for_exact_pair, index);
-			}
-			const auto& leftLine  = aDiff.LeftDocument->Lines[static_cast<std::size_t>(pair.LeftLine)];
-			const auto& rightLine = aDiff.RightDocument->Lines[static_cast<std::size_t>(pair.RightLine)];
-			if (edit.Left.Begin > edit.Left.End || edit.Right.Begin > edit.Right.End || (edit.Left.empty() && edit.Right.empty()) || !byte_boundary(*aDiff.LeftDocument, leftLine, edit.Left.Begin) || !byte_boundary(*aDiff.LeftDocument, leftLine, edit.Left.End) || !byte_boundary(*aDiff.RightDocument, rightLine, edit.Right.Begin) || !byte_boundary(*aDiff.RightDocument, rightLine, edit.Right.End)) {
-				return compute_failure(
-					diff_compute_validation_error::invalid_intraline_span, index);
-			}
-			if (priorPairIndex != pairIndex) {
-				priorPairIndex = pairIndex;
-				priorLeftEnd   = 0U;
-				priorRightEnd  = 0U;
-			}
-			if (edit.Left.Begin < priorLeftEnd || edit.Right.Begin < priorRightEnd) {
-				return compute_failure(
-					diff_compute_validation_error::nonmonotonic_intraline, index);
-			}
-			priorLeftEnd  = edit.Left.End;
-			priorRightEnd = edit.Right.End;
-		}
-
-		for (std::size_t index = 0U; index < aDiff.Alignment.Segments.size(); ++index) {
-			const auto& segment = aDiff.Alignment.Segments[index];
-			if (segment.Kind != alignment_kind::equal) {
-				continue;
-			}
-			for (std::uint64_t offset = 0U; offset < segment.Left.extent(); ++offset) {
-				const auto leftLine = static_cast<std::uint32_t>(
-					static_cast<std::uint64_t>(segment.Left.Begin) + offset);
-				const auto rightLine = static_cast<std::uint32_t>(
-					static_cast<std::uint64_t>(segment.Right.Begin) + offset);
-				if (!normalized_lines_equal(*aDiff.LeftDocument,
-											leftLine,
-											*aDiff.RightDocument,
-											rightLine,
-											aDiff.Alignment.Options)) {
-					return compute_failure(
-						diff_compute_validation_error::invalid_exact_content,
-						index);
+				for (std::uint64_t offset = 0U; offset < source->Left.extent(); ++offset) {
+					const auto leftLine = static_cast<std::uint32_t>(
+						static_cast<std::uint64_t>(source->Left.Begin) + offset);
+					const auto rightLine = static_cast<std::uint32_t>(
+						static_cast<std::uint64_t>(destination->Right.Begin) + offset);
+					if (!normalized_lines_equal(*aDiff.LeftDocument,
+												leftLine,
+												*aDiff.RightDocument,
+												rightLine,
+												aDiff.Alignment.Options)) {
+						return compute_failure(
+							diff_compute_validation_error::invalid_move_content, index);
+					}
 				}
 			}
-		}
-		for (std::size_t index = 0U; index < aDiff.Alignment.Pairs.size(); ++index) {
-			const auto& pair = aDiff.Alignment.Pairs[index];
-			if (pair.Kind == line_pair_kind::exact && !normalized_lines_equal(*aDiff.LeftDocument, pair.LeftLine, *aDiff.RightDocument, pair.RightLine, aDiff.Alignment.Options)) {
-				return compute_failure(
-					diff_compute_validation_error::invalid_exact_content, index);
+
+			auto pairIndex      = std::size_t{ 0U };
+			auto priorPairIndex = diff_compute_validation_result::no_record;
+			auto priorLeftEnd   = std::uint64_t{ 0U };
+			auto priorRightEnd  = std::uint64_t{ 0U };
+			for (std::size_t index = 0U; index < aDiff.Intraline.size(); ++index) {
+				const auto& edit = aDiff.Intraline[index];
+				while (pairIndex < aDiff.Alignment.Pairs.size() && aDiff.Alignment.Pairs[pairIndex].Id != edit.Pair) {
+					++pairIndex;
+				}
+				if (pairIndex == aDiff.Alignment.Pairs.size()) {
+					return compute_failure(
+						diff_compute_validation_error::unknown_intraline_pair, index);
+				}
+				const auto& pair = aDiff.Alignment.Pairs[pairIndex];
+				if (pair.Kind != line_pair_kind::similar) {
+					return compute_failure(
+						diff_compute_validation_error::intraline_for_exact_pair, index);
+				}
+				const auto& leftLine  = aDiff.LeftDocument->Lines[static_cast<std::size_t>(pair.LeftLine)];
+				const auto& rightLine = aDiff.RightDocument->Lines[static_cast<std::size_t>(pair.RightLine)];
+				if (edit.Left.Begin > edit.Left.End || edit.Right.Begin > edit.Right.End || (edit.Left.empty() && edit.Right.empty()) || !byte_boundary(*aDiff.LeftDocument, leftLine, edit.Left.Begin) || !byte_boundary(*aDiff.LeftDocument, leftLine, edit.Left.End) || !byte_boundary(*aDiff.RightDocument, rightLine, edit.Right.Begin) || !byte_boundary(*aDiff.RightDocument, rightLine, edit.Right.End)) {
+					return compute_failure(
+						diff_compute_validation_error::invalid_intraline_span, index);
+				}
+				if (priorPairIndex != pairIndex) {
+					priorPairIndex = pairIndex;
+					priorLeftEnd   = 0U;
+					priorRightEnd  = 0U;
+				}
+				if (edit.Left.Begin < priorLeftEnd || edit.Right.Begin < priorRightEnd) {
+					return compute_failure(
+						diff_compute_validation_error::nonmonotonic_intraline, index);
+				}
+				priorLeftEnd  = edit.Left.End;
+				priorRightEnd = edit.Right.End;
 			}
+
+			for (std::size_t index = 0U; index < aDiff.Alignment.Segments.size(); ++index) {
+				const auto& segment = aDiff.Alignment.Segments[index];
+				if (segment.Kind != alignment_kind::equal) {
+					continue;
+				}
+				for (std::uint64_t offset = 0U; offset < segment.Left.extent(); ++offset) {
+					const auto leftLine = static_cast<std::uint32_t>(
+						static_cast<std::uint64_t>(segment.Left.Begin) + offset);
+					const auto rightLine = static_cast<std::uint32_t>(
+						static_cast<std::uint64_t>(segment.Right.Begin) + offset);
+					if (!normalized_lines_equal(*aDiff.LeftDocument,
+												leftLine,
+												*aDiff.RightDocument,
+												rightLine,
+												aDiff.Alignment.Options)) {
+						return compute_failure(
+							diff_compute_validation_error::invalid_exact_content,
+							index);
+					}
+				}
+			}
+			for (std::size_t index = 0U; index < aDiff.Alignment.Pairs.size(); ++index) {
+				const auto& pair = aDiff.Alignment.Pairs[index];
+				if (pair.Kind == line_pair_kind::exact && !normalized_lines_equal(*aDiff.LeftDocument, pair.LeftLine, *aDiff.RightDocument, pair.RightLine, aDiff.Alignment.Options)) {
+					return compute_failure(
+						diff_compute_validation_error::invalid_exact_content, index);
+				}
+			}
+			return { };
 		}
-		return { };
+	}
+
+	auto validate_computed_file_diff(const computed_file_diff& aDiff)
+		-> diff_compute_validation_result
+	{
+		return validate_computed_records(aDiff);
+	}
+
+	auto validate_computed_material_diff(const computed_material_diff& aDiff)
+		-> diff_compute_validation_result
+	{
+		return validate_computed_records(aDiff);
+	}
+
+	namespace {
+		/// The engine, shared by both comparison kinds.
+		template <typename TComparison>
+		auto compute_diff(const typename TComparison::input& aInput) -> typename TComparison::outcome
+		{
+			const auto digest = options_digest(aInput.Options);
+			if (!valid(aInput.Key) || !digest.has_value() || aInput.Key.Options != *digest || (!left_present(aInput.Key) && aInput.LeftBytes.has_value()) || (!right_present(aInput.Key) && aInput.RightBytes.has_value())) {
+				return { .Reason = diff_reason_code::invalid_alignment };
+			}
+			if (left_present(aInput.Key) && !aInput.LeftBytes.has_value()) {
+				return nontext_result<TComparison>(aInput,
+												   diff_content_state::unavailable,
+												   diff_reason_code::missing_left_blob);
+			}
+			if (right_present(aInput.Key) && !aInput.RightBytes.has_value()) {
+				return nontext_result<TComparison>(aInput,
+												   diff_content_state::unavailable,
+												   diff_reason_code::missing_right_blob);
+			}
+			const auto leftBytes  = aInput.LeftBytes.value_or(std::span<const std::uint8_t>{ });
+			const auto rightBytes = aInput.RightBytes.value_or(std::span<const std::uint8_t>{ });
+			if (static_cast<std::uint64_t>(leftBytes.size()) > aInput.Limits.MaximumBytesPerSide || static_cast<std::uint64_t>(rightBytes.size()) > aInput.Limits.MaximumBytesPerSide) {
+				return nontext_result<TComparison>(aInput,
+												   diff_content_state::unavailable,
+												   diff_reason_code::materialization_limit);
+			}
+			if (std::ranges::find(leftBytes, std::uint8_t{ 0U }) != leftBytes.end() || std::ranges::find(rightBytes, std::uint8_t{ 0U }) != rightBytes.end()) {
+				return nontext_result<TComparison>(
+					aInput, diff_content_state::binary, diff_reason_code::binary_file);
+			}
+			auto left = prepare_document(
+				leftBytes, aInput.Options, aInput.Limits.MaximumLinesPerSide);
+			auto right = prepare_document(
+				rightBytes, aInput.Options, aInput.Limits.MaximumLinesPerSide);
+			if (!left.has_value() || !right.has_value()) {
+				const auto decodeFailed = !valid_utf8(leftBytes) || !valid_utf8(rightBytes);
+				return nontext_result<TComparison>(aInput,
+												   diff_content_state::unavailable,
+												   decodeFailed
+													   ? diff_reason_code::decode_failure
+													   : diff_reason_code::materialization_limit);
+			}
+
+			auto budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
+			auto indexBudget = work_budget{ .Limit = aInput.Limits.MaximumPrimaryIndexWork };
+			auto approximate = false;
+			auto pending     = primary_segments(*left, *right, aInput.Options, budget, indexBudget, approximate);
+			if (!pending.has_value() || pending->size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) || pending->size() > static_cast<std::size_t>(aInput.Limits.MaximumSegments)) {
+				return nontext_result<TComparison>(aInput,
+												   diff_content_state::unavailable,
+												   diff_reason_code::compute_limit);
+			}
+			auto moved = moved_refinement{ .Segments = *pending };
+			if (aInput.Options.Moves == move_detection_policy::deterministic_exact) {
+				moved = refine_moved_subblocks(
+					*pending,
+					*left,
+					*right,
+					aInput.Limits.MaximumMoveDetectionWork,
+					aInput.Limits.MaximumSegments);
+			}
+			pending = std::move(moved.Segments);
+
+			auto alignment = typename TComparison::alignment{
+				.Key            = aInput.Key,
+				.Options        = aInput.Options,
+				.Digest         = comparison_digest(aInput.Key),
+				.LeftLineCount  = static_cast<std::uint32_t>(left->Document.Lines.size()),
+				.RightLineCount = static_cast<std::uint32_t>(right->Document.Lines.size()),
+			};
+			auto segmentGroups = std::vector<std::optional<change_group_id>>(pending->size());
+			auto groupOrdinal  = std::uint32_t{ 0U };
+			for (std::size_t index = 0U; index < pending->size();) {
+				if ((*pending)[index].Kind == alignment_kind::equal) {
+					++index;
+					continue;
+				}
+				const auto begin = index;
+				while (index < pending->size() && (*pending)[index].Kind != alignment_kind::equal) {
+					++index;
+				}
+				const auto  end           = index;
+				const auto& first         = (*pending)[begin];
+				const auto& last          = (*pending)[end - 1U];
+				const auto  leftSpan      = line_span{ first.Left.Begin, last.Left.End };
+				const auto  rightSpan     = line_span{ first.Right.Begin, last.Right.End };
+				const auto  id            = group_identity(alignment.Digest,
+														   leftSpan,
+														   rightSpan,
+														   groupOrdinal++);
+				auto        added         = std::uint64_t{ 0U };
+				auto        deleted       = std::uint64_t{ 0U };
+				auto        replacedLeft  = std::uint64_t{ 0U };
+				auto        replacedRight = std::uint64_t{ 0U };
+				for (auto member = begin; member < end; ++member) {
+					const auto& segment = (*pending)[member];
+					switch (segment.Kind) {
+					case alignment_kind::right_only:
+						added += segment.Right.extent();
+						break;
+					case alignment_kind::left_only:
+						deleted += segment.Left.extent();
+						break;
+					case alignment_kind::replacement:
+						replacedLeft += segment.Left.extent();
+						replacedRight += segment.Right.extent();
+						break;
+					case alignment_kind::equal:
+						break;
+					}
+				}
+				alignment.Groups.push_back(change_group{
+					.Id      = id,
+					.Members = {
+						static_cast<std::uint32_t>(begin),
+						static_cast<std::uint32_t>(end),
+					},
+					.Left               = leftSpan,
+					.Right              = rightSpan,
+					.First              = { .Left = first.Left.Begin, .Right = first.Right.Begin },
+					.Last               = { .Left = last.Left.End, .Right = last.Right.End },
+					.Kind               = summary_kind(added, deleted, replacedLeft, replacedRight),
+					.AddedLines         = added,
+					.DeletedLines       = deleted,
+					.ReplacedLeftLines  = replacedLeft,
+					.ReplacedRightLines = replacedRight,
+				});
+				for (auto member = begin; member < end; ++member) {
+					segmentGroups[static_cast<std::size_t>(member)] = id;
+				}
+			}
+
+			alignment.Segments.reserve(pending->size());
+			for (std::size_t index = 0U; index < pending->size(); ++index) {
+				const auto& source = (*pending)[index];
+				alignment.Segments.push_back(alignment_segment{
+					.Id    = segment_identity(alignment.Digest,
+											  source.Kind,
+											  source.Left,
+											  source.Right,
+											  static_cast<std::uint32_t>(index)),
+					.Kind  = source.Kind,
+					.Left  = source.Left,
+					.Right = source.Right,
+					.Group = segmentGroups[index],
+				});
+			}
+
+			auto intraline = std::vector<intraline_edit>{ };
+			for (std::size_t index = 0U; index < pending->size(); ++index) {
+				const auto& source = (*pending)[index];
+				if (!source.PairKind.has_value()) {
+					continue;
+				}
+				const auto ordinal = static_cast<std::uint32_t>(alignment.Pairs.size());
+				const auto pair    = line_pair{
+					.Id        = pair_identity(alignment.Digest,
+											   alignment.Segments[index].Id,
+											   source.Left.Begin,
+											   source.Right.Begin,
+											   *source.PairKind,
+											   ordinal),
+					.Segment   = alignment.Segments[index].Id,
+					.LeftLine  = source.Left.Begin,
+					.RightLine = source.Right.Begin,
+					.Kind      = *source.PairKind,
+				};
+				alignment.Pairs.push_back(pair);
+				if (pair.Kind == line_pair_kind::similar) {
+					const auto ranges = intraline_ranges(left->Document,
+														 right->Document,
+														 pair.LeftLine,
+														 pair.RightLine,
+														 budget);
+					if (!ranges.has_value()) {
+						// [[BPR-0719]]: the pair stays similar without intraline
+						// edits instead of refusing the file.
+						approximate = true;
+						continue;
+					}
+					for (const auto& [leftRange, rightRange] : *ranges) {
+						intraline.push_back(intraline_edit{
+							.Pair  = pair.Id,
+							.Left  = leftRange,
+							.Right = rightRange,
+						});
+					}
+				}
+			}
+
+			for (const auto& [source, destination] : moved.Moves) {
+				const auto ordinal = static_cast<std::uint32_t>(alignment.Moves.size());
+				alignment.Moves.push_back(move_relation{
+					.Id = move_identity(
+						alignment.Digest,
+						alignment.Segments[source].Id,
+						alignment.Segments[destination].Id,
+						ordinal),
+					.SourceDeletion       = alignment.Segments[source].Id,
+					.DestinationInsertion = alignment.Segments[destination].Id,
+				});
+			}
+			if (!validate_alignment(alignment).valid()) {
+				return { .Reason = diff_reason_code::invalid_alignment };
+			}
+			auto result = typename TComparison::computed{
+				.Alignment                        = std::move(alignment),
+				.LeftDocument                     = left_present(aInput.Key)
+					? std::optional<decoded_text_document>{ std::move(
+						  left->Document) }
+					: std::nullopt,
+				.RightDocument                    = right_present(aInput.Key)
+					? std::optional<decoded_text_document>{ std::move(
+						  right->Document) }
+					: std::nullopt,
+				.Intraline                        = std::move(intraline),
+				.MatrixCellsConsumed              = budget.Consumed,
+				.MoveDetectionWorkConsumed        = moved.WorkConsumed,
+				.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
+				.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
+				.PrimaryIndexWorkConsumed         = indexBudget.Consumed,
+				.AlignmentApproximate             = approximate,
+			};
+			if (!validate_result(result).valid()) {
+				return { .Reason = diff_reason_code::invalid_alignment };
+			}
+			return { .Reason = diff_reason_code::none, .Result = std::move(result) };
+		}
 	}
 
 	auto compute_file_diff(const diff_compute_input& aInput) -> diff_compute_outcome
 	{
-		const auto digest = options_digest(aInput.Options);
-		if (!valid(aInput.Key) || !digest.has_value() || aInput.Key.Options != *digest || (!aInput.Key.LeftBlob.has_value() && aInput.LeftBytes.has_value()) || (!aInput.Key.RightBlob.has_value() && aInput.RightBytes.has_value())) {
-			return { .Reason = diff_reason_code::invalid_alignment };
-		}
-		if (aInput.Key.LeftBlob.has_value() && !aInput.LeftBytes.has_value()) {
-			return nontext_result(aInput,
-								  diff_content_state::unavailable,
-								  diff_reason_code::missing_left_blob);
-		}
-		if (aInput.Key.RightBlob.has_value() && !aInput.RightBytes.has_value()) {
-			return nontext_result(aInput,
-								  diff_content_state::unavailable,
-								  diff_reason_code::missing_right_blob);
-		}
-		const auto leftBytes  = aInput.LeftBytes.value_or(std::span<const std::uint8_t>{ });
-		const auto rightBytes = aInput.RightBytes.value_or(std::span<const std::uint8_t>{ });
-		if (static_cast<std::uint64_t>(leftBytes.size()) > aInput.Limits.MaximumBytesPerSide || static_cast<std::uint64_t>(rightBytes.size()) > aInput.Limits.MaximumBytesPerSide) {
-			return nontext_result(aInput,
-								  diff_content_state::unavailable,
-								  diff_reason_code::materialization_limit);
-		}
-		if (std::ranges::find(leftBytes, std::uint8_t{ 0U }) != leftBytes.end() || std::ranges::find(rightBytes, std::uint8_t{ 0U }) != rightBytes.end()) {
-			return nontext_result(
-				aInput, diff_content_state::binary, diff_reason_code::binary_file);
-		}
-		auto left = prepare_document(
-			leftBytes, aInput.Options, aInput.Limits.MaximumLinesPerSide);
-		auto right = prepare_document(
-			rightBytes, aInput.Options, aInput.Limits.MaximumLinesPerSide);
-		if (!left.has_value() || !right.has_value()) {
-			const auto decodeFailed = !valid_utf8(leftBytes) || !valid_utf8(rightBytes);
-			return nontext_result(aInput,
-								  diff_content_state::unavailable,
-								  decodeFailed
-									  ? diff_reason_code::decode_failure
-									  : diff_reason_code::materialization_limit);
-		}
-
-		auto budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
-		auto indexBudget = work_budget{ .Limit = aInput.Limits.MaximumPrimaryIndexWork };
-		auto approximate = false;
-		auto pending     = primary_segments(*left, *right, aInput.Options, budget, indexBudget, approximate);
-		if (!pending.has_value() || pending->size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) || pending->size() > static_cast<std::size_t>(aInput.Limits.MaximumSegments)) {
-			return nontext_result(aInput,
-								  diff_content_state::unavailable,
-								  diff_reason_code::compute_limit);
-		}
-		auto moved = moved_refinement{ .Segments = *pending };
-		if (aInput.Options.Moves == move_detection_policy::deterministic_exact) {
-			moved = refine_moved_subblocks(
-				*pending,
-				*left,
-				*right,
-				aInput.Limits.MaximumMoveDetectionWork,
-				aInput.Limits.MaximumSegments);
-		}
-		pending = std::move(moved.Segments);
-
-		auto alignment = file_alignment{
-			.Key            = aInput.Key,
-			.Options        = aInput.Options,
-			.Digest         = comparison_digest(aInput.Key),
-			.LeftLineCount  = static_cast<std::uint32_t>(left->Document.Lines.size()),
-			.RightLineCount = static_cast<std::uint32_t>(right->Document.Lines.size()),
-		};
-		auto segmentGroups = std::vector<std::optional<change_group_id>>(pending->size());
-		auto groupOrdinal  = std::uint32_t{ 0U };
-		for (std::size_t index = 0U; index < pending->size();) {
-			if ((*pending)[index].Kind == alignment_kind::equal) {
-				++index;
-				continue;
-			}
-			const auto begin = index;
-			while (index < pending->size() && (*pending)[index].Kind != alignment_kind::equal) {
-				++index;
-			}
-			const auto  end           = index;
-			const auto& first         = (*pending)[begin];
-			const auto& last          = (*pending)[end - 1U];
-			const auto  leftSpan      = line_span{ first.Left.Begin, last.Left.End };
-			const auto  rightSpan     = line_span{ first.Right.Begin, last.Right.End };
-			const auto  id            = group_identity(alignment.Digest,
-													   leftSpan,
-													   rightSpan,
-													   groupOrdinal++);
-			auto        added         = std::uint64_t{ 0U };
-			auto        deleted       = std::uint64_t{ 0U };
-			auto        replacedLeft  = std::uint64_t{ 0U };
-			auto        replacedRight = std::uint64_t{ 0U };
-			for (auto member = begin; member < end; ++member) {
-				const auto& segment = (*pending)[member];
-				switch (segment.Kind) {
-				case alignment_kind::right_only:
-					added += segment.Right.extent();
-					break;
-				case alignment_kind::left_only:
-					deleted += segment.Left.extent();
-					break;
-				case alignment_kind::replacement:
-					replacedLeft += segment.Left.extent();
-					replacedRight += segment.Right.extent();
-					break;
-				case alignment_kind::equal:
-					break;
-				}
-			}
-			alignment.Groups.push_back(change_group{
-				.Id      = id,
-				.Members = {
-					static_cast<std::uint32_t>(begin),
-					static_cast<std::uint32_t>(end),
-				},
-				.Left               = leftSpan,
-				.Right              = rightSpan,
-				.First              = { .Left = first.Left.Begin, .Right = first.Right.Begin },
-				.Last               = { .Left = last.Left.End, .Right = last.Right.End },
-				.Kind               = summary_kind(added, deleted, replacedLeft, replacedRight),
-				.AddedLines         = added,
-				.DeletedLines       = deleted,
-				.ReplacedLeftLines  = replacedLeft,
-				.ReplacedRightLines = replacedRight,
-			});
-			for (auto member = begin; member < end; ++member) {
-				segmentGroups[static_cast<std::size_t>(member)] = id;
-			}
-		}
-
-		alignment.Segments.reserve(pending->size());
-		for (std::size_t index = 0U; index < pending->size(); ++index) {
-			const auto& source = (*pending)[index];
-			alignment.Segments.push_back(alignment_segment{
-				.Id    = segment_identity(alignment.Digest,
-										  source.Kind,
-										  source.Left,
-										  source.Right,
-										  static_cast<std::uint32_t>(index)),
-				.Kind  = source.Kind,
-				.Left  = source.Left,
-				.Right = source.Right,
-				.Group = segmentGroups[index],
-			});
-		}
-
-		auto intraline = std::vector<intraline_edit>{ };
-		for (std::size_t index = 0U; index < pending->size(); ++index) {
-			const auto& source = (*pending)[index];
-			if (!source.PairKind.has_value()) {
-				continue;
-			}
-			const auto ordinal = static_cast<std::uint32_t>(alignment.Pairs.size());
-			const auto pair    = line_pair{
-				.Id        = pair_identity(alignment.Digest,
-										   alignment.Segments[index].Id,
-										   source.Left.Begin,
-										   source.Right.Begin,
-										   *source.PairKind,
-										   ordinal),
-				.Segment   = alignment.Segments[index].Id,
-				.LeftLine  = source.Left.Begin,
-				.RightLine = source.Right.Begin,
-				.Kind      = *source.PairKind,
-			};
-			alignment.Pairs.push_back(pair);
-			if (pair.Kind == line_pair_kind::similar) {
-				const auto ranges = intraline_ranges(left->Document,
-													 right->Document,
-													 pair.LeftLine,
-													 pair.RightLine,
-													 budget);
-				if (!ranges.has_value()) {
-					// [[BPR-0719]]: the pair stays similar without intraline
-					// edits instead of refusing the file.
-					approximate = true;
-					continue;
-				}
-				for (const auto& [leftRange, rightRange] : *ranges) {
-					intraline.push_back(intraline_edit{
-						.Pair  = pair.Id,
-						.Left  = leftRange,
-						.Right = rightRange,
-					});
-				}
-			}
-		}
-
-		for (const auto& [source, destination] : moved.Moves) {
-			const auto ordinal = static_cast<std::uint32_t>(alignment.Moves.size());
-			alignment.Moves.push_back(move_relation{
-				.Id = move_identity(
-					alignment.Digest,
-					alignment.Segments[source].Id,
-					alignment.Segments[destination].Id,
-					ordinal),
-				.SourceDeletion       = alignment.Segments[source].Id,
-				.DestinationInsertion = alignment.Segments[destination].Id,
-			});
-		}
-		if (!validate_alignment(alignment).valid()) {
-			return { .Reason = diff_reason_code::invalid_alignment };
-		}
-		auto result = computed_file_diff{
-			.Alignment                        = std::move(alignment),
-			.LeftDocument                     = aInput.Key.LeftBlob.has_value()
-				? std::optional<decoded_text_document>{ std::move(
-					  left->Document) }
-				: std::nullopt,
-			.RightDocument                    = aInput.Key.RightBlob.has_value()
-				? std::optional<decoded_text_document>{ std::move(
-					  right->Document) }
-				: std::nullopt,
-			.Intraline                        = std::move(intraline),
-			.MatrixCellsConsumed              = budget.Consumed,
-			.MoveDetectionWorkConsumed        = moved.WorkConsumed,
-			.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
-			.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
-			.PrimaryIndexWorkConsumed         = indexBudget.Consumed,
-			.AlignmentApproximate             = approximate,
-		};
-		if (!validate_computed_file_diff(result).valid()) {
-			return { .Reason = diff_reason_code::invalid_alignment };
-		}
-		return { .Reason = diff_reason_code::none, .Result = std::move(result) };
+		return compute_diff<pull_request_comparison>(aInput);
 	}
+
+	auto compute_material_diff(const material_diff_input& aInput) -> material_diff_outcome
+	{
+		return compute_diff<material_comparison>(aInput);
+	}
+
 } // namespace bpr::core

@@ -26,6 +26,7 @@ add_library(
         src/review_composition.cpp
         src/review_cycle.cpp
         src/review_cycle_policy.cpp
+        src/review_cycle_comparison.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp
         src/review_cycle_manifest.cpp

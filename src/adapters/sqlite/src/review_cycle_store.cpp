@@ -449,12 +449,25 @@ namespace bpr::adapters::sqlite {
 
 			auto install(const std::span<const std::uint8_t> aBytes, std::stop_token aStop) -> cycle_store_result<cycle_object_ref> override
 			{
-				if (aBytes.size() > application::maximum_cycle_object_bytes) {
-					return fail(cycle_store_failure::bounds);
+				const auto one       = std::array{ aBytes };
+				auto       installed = install_all(one, aStop);
+				if (!installed) {
+					return std::unexpected(installed.error());
 				}
-				const auto digest = core::cycle_material_digest{ core::sha256(aBytes) };
-				const auto object = cycle_object_ref{ .Digest = digest, .Size = aBytes.size() };
-				auto       opened = open(aStop);
+				return installed->front();
+			}
+
+			auto install_all(const std::span<const std::span<const std::uint8_t>> aObjects, std::stop_token aStop) -> cycle_store_result<std::vector<cycle_object_ref>> override
+			{
+				auto objects = std::vector<cycle_object_ref>{ };
+				objects.reserve(aObjects.size());
+				for (const auto bytes : aObjects) {
+					if (bytes.size() > application::maximum_cycle_object_bytes) {
+						return fail(cycle_store_failure::bounds);
+					}
+					objects.push_back({ .Digest = core::cycle_material_digest{ core::sha256(bytes) }, .Size = bytes.size() });
+				}
+				auto opened = open(aStop);
 				if (!opened) {
 					return std::unexpected(opened.error());
 				}
@@ -464,33 +477,53 @@ namespace bpr::adapters::sqlite {
 					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 				}
 				auto guard  = transaction{ database.Database };
-				auto exists = query{ database.Database, "SELECT size FROM objects WHERE digest=?1" };
-				exists.blob(1, digest.bytes());
-				const auto present = exists.step();
-				if (present == SQLITE_ROW) {
-					if (exists.column_integer(0) != static_cast<std::int64_t>(aBytes.size())) {
-						return fail(cycle_store_failure::corrupt);
+				auto writes = std::vector<std::size_t>{ };
+				auto growth = std::uint64_t{ 0 };
+				for (std::size_t index = 0; index < objects.size(); ++index) {
+					if (std::ranges::any_of(writes, [&](const std::size_t aEarlier) { return objects[aEarlier] == objects[index]; })) {
+						continue;
 					}
-					return object;
+					const auto state = stored_state(database.Database, objects[index]);
+					if (!state) {
+						return std::unexpected(state.error());
+					}
+					if (*state == object_state::present) {
+						continue;
+					}
+					growth += objects[index].Size;
+					writes.push_back(index);
 				}
-				if (present != SQLITE_DONE) {
-					return fail(cycle_store_failure::unavailable);
+				// Pinned and unreferenced bytes together are every object's bytes,
+				// so the budget check needs one sum; the breakdown is computed only
+				// to explain a refusal.
+				if (growth > 0) {
+					const auto total = detail::scalar_integer(database.Database, "SELECT coalesce(sum(size),0) FROM objects");
+					if (!total || *total < 0) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					if (static_cast<std::uint64_t>(*total) + growth > Options.RetainedBudgetBytes) {
+						const auto retained = read_inventory(database.Database);
+						if (!retained) {
+							return std::unexpected(retained.error());
+						}
+						return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::quota, .Inventory = *retained });
+					}
 				}
-				const auto retained = read_inventory(database.Database);
-				if (!retained) {
-					return std::unexpected(retained.error());
+				for (const auto index : writes) {
+					if (!insert_object(database.Database, objects[index], aObjects[index])) {
+						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+					}
 				}
-				if (retained->PinnedBytes + retained->UnreferencedBytes + aBytes.size() > retained->Budget) {
-					return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::quota, .Inventory = *retained });
-				}
-				if (!insert_object(database.Database, object, aBytes) || !guard.commit(aStop)) {
+				if (!guard.commit(aStop)) {
 					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 				}
 				// Verify the installed bytes before any catalog row may name them.
-				if (auto verified = read_bytes(database.Database, object); !verified) {
-					return std::unexpected(verified.error());
+				for (const auto index : writes) {
+					if (auto verified = read_bytes(database.Database, objects[index]); !verified) {
+						return std::unexpected(verified.error());
+					}
 				}
-				return object;
+				return objects;
 			}
 
 			auto read_object(const cycle_object_ref& aObject, std::stop_token aStop) -> cycle_store_result<std::vector<std::uint8_t>> override
@@ -549,8 +582,10 @@ namespace bpr::adapters::sqlite {
 					if (revision->Manifest == aObject) {
 						return true;
 					}
-					auto row = query{ aDatabase, "SELECT 1 FROM revision_objects JOIN objects USING(digest) WHERE cycle=?1 AND revision=?2 AND digest=?3 AND size=?4" };
-					row.id(1, aSubject.Cycle.value()).id(2, aRevision.value()).blob(3, aObject.Digest.bytes()).id(4, aObject.Size);
+					// The pin is the revision's record; whether the bytes are still
+					// present and intact is for the read to report.
+					auto row = query{ aDatabase, "SELECT 1 FROM revision_objects WHERE cycle=?1 AND revision=?2 AND digest=?3" };
+					row.id(1, aSubject.Cycle.value()).id(2, aRevision.value()).blob(3, aObject.Digest.bytes());
 					const auto status = row.step();
 					if (status != SQLITE_ROW && status != SQLITE_DONE) {
 						return fail(cycle_store_failure::unavailable);
@@ -1297,6 +1332,29 @@ namespace bpr::adapters::sqlite {
 				auto row = query{ aDatabase, "SELECT size FROM objects WHERE digest=?1" };
 				row.blob(1, aObject.Digest.bytes());
 				return row.step() == SQLITE_ROW && row.column_integer(0) == static_cast<std::int64_t>(aObject.Size);
+			}
+
+			enum class object_state : std::uint8_t {
+				absent,
+				present,
+			};
+
+			/// Whether an object is already stored under its digest.
+			static auto stored_state(sqlite3* aDatabase, const cycle_object_ref& aObject) -> cycle_store_result<object_state>
+			{
+				auto row = query{ aDatabase, "SELECT size FROM objects WHERE digest=?1" };
+				row.blob(1, aObject.Digest.bytes());
+				const auto present = row.step();
+				if (present == SQLITE_DONE) {
+					return object_state::absent;
+				}
+				if (present != SQLITE_ROW) {
+					return fail(cycle_store_failure::unavailable);
+				}
+				if (row.column_integer(0) != static_cast<std::int64_t>(aObject.Size)) {
+					return fail(cycle_store_failure::corrupt);
+				}
+				return object_state::present;
 			}
 
 			static auto insert_object(sqlite3* aDatabase, const cycle_object_ref& aObject, const std::span<const std::uint8_t> aBytes) -> bool

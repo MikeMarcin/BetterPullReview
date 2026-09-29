@@ -186,6 +186,10 @@ namespace bpr::application {
 
 		/// \brief Durably installs and verifies one object; idempotent by content.
 		virtual auto install(std::span<const std::uint8_t> aBytes, std::stop_token aStop) -> cycle_store_result<cycle_object_ref> = 0;
+		/// \brief Installs and verifies several objects through one connection
+		/// in one transaction: all of them or none. Each is idempotent by
+		/// content; the budget applies to the batch as a whole.
+		virtual auto install_all(std::span<const std::span<const std::uint8_t>> aObjects, std::stop_token aStop) -> cycle_store_result<std::vector<cycle_object_ref>> = 0;
 		/// \brief Reads and verifies one object. Missing or corrupt bytes are
 		/// reported, never substituted.
 		virtual auto read_object(const cycle_object_ref& aObject, std::stop_token aStop) -> cycle_store_result<std::vector<std::uint8_t>> = 0;

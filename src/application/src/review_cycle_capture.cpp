@@ -11,7 +11,11 @@
 
 namespace bpr::application {
 	namespace {
-		constexpr std::size_t   changed_examples          = 16U;
+		constexpr std::size_t changed_examples = 16U;
+		/// Content installed per store transaction: one connection per batch
+		/// rather than per file.
+		constexpr std::size_t   install_batch_objects     = 512U;
+		constexpr std::uint64_t install_batch_bytes       = 32U * 1024U * 1024U;
 		constexpr std::uint64_t maximum_rule_file_bytes   = 1024U * 1024U;
 		constexpr std::uint64_t maximum_head_bytes        = 4096U;
 		constexpr std::uint64_t maximum_packed_refs_bytes = 64U * 1024U * 1024U;
@@ -244,6 +248,9 @@ namespace bpr::application {
 				}
 				if (Result.Stopped == interruption::none && Git != nullptr) {
 					account_for_tracked_paths();
+				}
+				if (Result.Stopped == interruption::none) {
+					static_cast<void>(flush());
 				}
 				std::ranges::sort(Result.Entries, { }, &core::manifest_entry::Path);
 				std::ranges::sort(Result.Stamps, { }, &core::capture_stamp::Path);
@@ -621,10 +628,11 @@ namespace bpr::application {
 				aEntry.Content    = digest;
 				++Result.FilesRead;
 				Result.BytesRead += read->BytesRead;
-				if (Mode == pass_mode::install && !install(bytes, digest)) {
+				const auto before = read->Before;
+				if (Mode == pass_mode::install && !install(std::move(bytes), digest)) {
 					return;
 				}
-				record(std::move(aEntry), stamp_of(path, core::manifest_entry_kind::file, read->Before));
+				record(std::move(aEntry), stamp_of(path, core::manifest_entry_kind::file, before));
 			}
 
 			void capture_link(core::manifest_entry aEntry, const workspace_entry_observation& aObserved)
@@ -648,30 +656,52 @@ namespace bpr::application {
 					}
 					return;
 				}
-				const auto bytes  = std::vector<std::uint8_t>{ target->begin(), target->end() };
+				auto       bytes  = std::vector<std::uint8_t>{ target->begin(), target->end() };
 				const auto digest = core::cycle_material_digest{ core::sha256(bytes) };
 				aEntry.Size       = bytes.size();
 				aEntry.Content    = digest;
-				if (Mode == pass_mode::install && !install(bytes, digest)) {
+				if (Mode == pass_mode::install && !install(std::move(bytes), digest)) {
 					return;
 				}
 				record(std::move(aEntry), stamp_of(path, core::manifest_entry_kind::symlink, aObserved));
 			}
 
-			auto install(const std::vector<std::uint8_t>& aBytes, const core::cycle_material_digest& aDigest) -> bool
+			/// Queues bytes for the next batched install.
+			auto install(std::vector<std::uint8_t> aBytes, const core::cycle_material_digest& aDigest) -> bool
 			{
-				const auto installed = Store->install(aBytes, Stop);
+				PendingBytes += aBytes.size();
+				Pending.emplace_back(std::move(aBytes), aDigest);
+				return (Pending.size() < install_batch_objects && PendingBytes < install_batch_bytes) || flush();
+			}
+
+			/// Installs the queued bytes in one transaction and checks that the
+			/// store holds exactly the digests the pass computed.
+			auto flush() -> bool
+			{
+				if (Pending.empty()) {
+					return true;
+				}
+				auto spans = std::vector<std::span<const std::uint8_t>>{ };
+				spans.reserve(Pending.size());
+				for (const auto& item : Pending) {
+					spans.emplace_back(item.first);
+				}
+				const auto installed = Store->install_all(spans, Stop);
 				if (!installed) {
 					Result.Stopped    = installed.error().Failure == cycle_store_failure::cancelled ? interruption::cancelled : interruption::store;
 					Result.StoreError = installed.error();
 					return false;
 				}
-				if (installed->Digest != aDigest) {
-					Result.Stopped    = interruption::store;
-					Result.StoreError = cycle_store_error{ .Failure = cycle_store_failure::corrupt };
-					return false;
+				for (std::size_t index = 0; index < Pending.size(); ++index) {
+					if ((*installed)[index].Digest != Pending[index].second) {
+						Result.Stopped    = interruption::store;
+						Result.StoreError = cycle_store_error{ .Failure = cycle_store_failure::corrupt };
+						return false;
+					}
+					Result.Content.push_back((*installed)[index]);
 				}
-				Result.Content.push_back(*installed);
+				Pending.clear();
+				PendingBytes = 0;
 				return true;
 			}
 
@@ -725,20 +755,22 @@ namespace bpr::application {
 					   { .Path = aPath.Path, .Kind = kind });
 			}
 
-			workspace_root_session&         Session;
-			review_cycle_store*             Store;
-			pass_mode                       Mode;
-			const core::review_cycle_state& Cycle;
-			const std::vector<std::string>& Requested;
-			const git_metadata*             Git;
-			std::uint64_t                   MaximumFileBytes;
-			std::stop_token                 Stop;
-			core::workspace_ignore_rules    Ignore;
-			core::workspace_attribute_rules Attributes;
-			core::workspace_attribute_rules InfoAttributes;
-			std::set<std::string>           Loaded;
-			std::vector<std::string>        Opaque;
-			pass_result                     Result;
+			workspace_root_session&                                                        Session;
+			review_cycle_store*                                                            Store;
+			pass_mode                                                                      Mode;
+			const core::review_cycle_state&                                                Cycle;
+			const std::vector<std::string>&                                                Requested;
+			const git_metadata*                                                            Git;
+			std::uint64_t                                                                  MaximumFileBytes;
+			std::stop_token                                                                Stop;
+			core::workspace_ignore_rules                                                   Ignore;
+			core::workspace_attribute_rules                                                Attributes;
+			core::workspace_attribute_rules                                                InfoAttributes;
+			std::set<std::string>                                                          Loaded;
+			std::vector<std::pair<std::vector<std::uint8_t>, core::cycle_material_digest>> Pending;
+			std::uint64_t                                                                  PendingBytes = 0;
+			std::vector<std::string>                                                       Opaque;
+			pass_result                                                                    Result;
 		};
 
 		auto admitted_exclusions(const std::vector<std::string>& aExclusions) -> bool

@@ -428,6 +428,52 @@ namespace bpr::core {
 	/// \brief Computes the validate alignment result.
 	[[nodiscard]] auto validate_alignment(const file_alignment& aAlignment)
 		-> alignment_validation_result;
+
+	/// \brief Identity of a comparison that is not between pull-request
+	/// epochs, such as two local cycle revisions.
+	/// \details The owner derives `Comparison` under its own domain separation
+	/// and never from a pull-request identity. The engine needs only that
+	/// identity, which sides exist, and the options and algorithm, and applies
+	/// exactly the same alignment rules as to a pull-request comparison.
+	struct material_comparison_key
+	{
+		file_comparison_digest  Comparison;
+		bool                    LeftPresent  = false;
+		bool                    RightPresent = false;
+		diff_options_digest     Options;
+		diff_algorithm_revision Algorithm;
+
+		auto operator<=>(const material_comparison_key&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] auto valid(const material_comparison_key& aKey) noexcept -> bool;
+	/// \brief The comparison identity of a valid material key, or zero.
+	[[nodiscard]] auto comparison_digest(const material_comparison_key& aKey) noexcept
+		-> file_comparison_digest;
+
+	/// \brief The shared alignment records for a material comparison.
+	struct material_alignment
+	{
+		material_comparison_key        Key;
+		diff_options                   Options;
+		file_comparison_digest         Digest;
+		std::uint32_t                  LeftLineCount  = 0;
+		std::uint32_t                  RightLineCount = 0;
+		diff_content_state             Content        = diff_content_state::text;
+		std::vector<alignment_segment> Segments;
+		std::vector<line_pair>         Pairs;
+		std::vector<change_group>      Groups;
+		std::vector<move_relation>     Moves;
+		diff_diagnostic                Diagnostic;
+
+		auto operator<=>(const material_alignment&) const = default;
+	};
+
+	/// \brief Validates a material alignment by the same rules as a
+	/// pull-request alignment.
+	[[nodiscard]] auto validate_alignment(const material_alignment& aAlignment)
+		-> alignment_validation_result;
 }
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_DIFF_MODEL_HPP

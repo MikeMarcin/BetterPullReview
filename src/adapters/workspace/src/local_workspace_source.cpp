@@ -63,6 +63,12 @@ namespace bpr::adapters::workspace {
 			return aName.size() == name.size() && std::ranges::equal(aName, name, [](const char aLeft, const char aRight) { return ascii_lower(aLeft) == aRight; });
 		}
 
+		/// A read buffer no larger than the file needs, plus one byte to see growth.
+		auto chunk_size(const std::uint64_t aExpected) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::min<std::uint64_t>(read_chunk_bytes, aExpected + 1U));
+		}
+
 		/// Splits an admitted root-relative path; the empty path has no components.
 		auto components(const std::string_view aPath) -> std::optional<std::vector<std::string>>
 		{
@@ -379,7 +385,7 @@ namespace bpr::adapters::workspace {
 		auto read_whole(const HANDLE aHandle, const std::uint64_t aMaximum, std::stop_token aStop) -> result<std::vector<std::uint8_t>>
 		{
 			auto bytes = std::vector<std::uint8_t>{ };
-			auto chunk = std::vector<std::uint8_t>(read_chunk_bytes);
+			auto chunk = std::vector<std::uint8_t>(chunk_size(aMaximum));
 			for (;;) {
 				if (aStop.stop_requested()) {
 					return fail(workspace_failure::cancelled);
@@ -695,7 +701,7 @@ namespace bpr::adapters::workspace {
 					return fail(workspace_failure::too_large);
 				}
 				auto observed = workspace_read_observation{ .Before = leaf->Facts.Entry };
-				auto chunk    = std::vector<std::uint8_t>(read_chunk_bytes);
+				auto chunk    = std::vector<std::uint8_t>(chunk_size(observed.Before.Size));
 				for (;;) {
 					if (aStop.stop_requested()) {
 						return fail(workspace_failure::cancelled);
@@ -1018,7 +1024,7 @@ namespace bpr::adapters::workspace {
 		auto read_descriptor(const int aDescriptor, const std::uint64_t aMaximum, const application::workspace_chunk_sink& aSink, std::stop_token aStop)
 			-> result<std::uint64_t>
 		{
-			auto chunk = std::vector<std::uint8_t>(read_chunk_bytes);
+			auto chunk = std::vector<std::uint8_t>(chunk_size(aMaximum));
 			auto total = std::uint64_t{ 0 };
 			for (;;) {
 				if (aStop.stop_requested()) {
