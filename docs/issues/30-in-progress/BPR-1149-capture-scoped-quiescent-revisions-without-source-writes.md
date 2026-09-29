@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1149"
 title: "Capture scoped quiescent revisions without source writes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054"]
 depends_on: ["BPR-1145", "BPR-1148"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC54-02", "RC54-04", "RC54-05"], "pack_alias": "PACK-CYCLE-07", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
