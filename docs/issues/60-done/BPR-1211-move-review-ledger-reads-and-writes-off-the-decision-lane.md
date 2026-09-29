@@ -168,3 +168,35 @@ Course adjustments made because work is now asynchronous:
   as `-std=c++98`, because the target declares no C++ standard, and it fails.
   A fresh configure compiles it as C++14 and it passes. This predates the card
   and is outside its scope.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, Qt 6.11.2, offscreen,
+`build/dev`, at `22d18416` and then the fix at `52fa4a06`.
+
+| Row | At `22d18416` | At `52fa4a06` |
+|---|---|---|
+| `application_review_ledger_host` | Pass | Pass |
+| `application_active_changed_scaling` | **Fails 5 of 5**: `unchanged history refresh reads no Overview files or receipts and rebuilds no file projection` (`overview_builds=1 overview_receipt_visits=515 receipt_loads=2`) | Pass, 5 of 5 |
+
+**Cause.** The failure is in the course, not the product. The row passes on
+Linux at the base `d25f17b6`. A temporary trace of the callers of
+`publish_overview` showed where the extra build came from. The queue refresh
+reopens the ledger, and its `load_private` answer and the `load_receipts`
+answer that follows arrive on the decision lane after the course takes its
+`before` sample. That was synchronous before this card. On this station
+they landed inside the unchanged epoch refresh's window and were counted
+against it. The rebuild is correct asynchronous work that belongs to the
+earlier gesture.
+
+**Fix (`52fa4a06`).** The course settles before sampling, and `settle` now
+also watches `Ledger.Operations` and `Ledger.Completions`. No counter or
+expectation was relaxed. The epoch refresh then reports `overview_builds=0
+overview_receipt_visits=0`, the same as the base.
+
+The composition-contract rows fail at `22d18416` exactly as they fail after
+the fix: `application_workbench_composition_contract` and
+`application_review_ledger_composition_contract` pass, and the other seven
+fail at both. Timings are observations, not budgets. The traced build was
+never committed. The logs are station records in
+`build/logs/bpr-station-1211-1213-1214/` and are not committed.

@@ -140,3 +140,13 @@ no nested paths, so the nested case is shown by the attached render; the
 fixture gives a real `UIforETW` row for the collapse. No server was started.
 Next: on hand-back, record each verdict against its fingerprint. Finish on
 two Accepts. On a Reject, apply the note and prepare a v002.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2, GCC 15.2, Qt 6.11.2, offscreen `QT_STYLE_OVERRIDE=Windows`,
+`build/dev` at `52fa4a06`. The build needed the GCC fix recorded on
+[[BPR-1214]]. `qt_pull_request_overview_page` and `qt_workbench_overview`
+pass, and `application_active_changed_scaling` passes after the settle fix
+recorded on [[BPR-1211]]. No render was inspected on this station, and AC4
+stays with the owner. Logs are in `build/logs/bpr-station-1211-1213-1214/`,
+not committed.

@@ -120,3 +120,26 @@ Documentation: no impact. No product, UX or architecture document describes
 the panel's empty page. The change is a presentation fix inside the Qt adapter.
 Windows and Linux were not run. Both courses are portable, and native runs on
 those platforms remain unobserved.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2, GCC 15.2, Qt 6.11.2, offscreen, `build/dev`.
+
+- **Build.** At `22d18416` the Qt workbench test source does not build with
+  GCC. `workbench_window_tests.cpp:7557`, from BPR-1134 (`2770ebb1`), copies a
+  structured binding in a range-for, and GCC's `-Wrange-loop-construct` is an
+  error under `-Werror`. Apple clang does not warn. `52fa4a06` binds it by
+  reference.
+- `qt_workbench_conversation_reveal`: pass.
+- `application_threaded_reply_contract`: passed at first, then failed 1 of
+  about 22 runs with `failed=refresh-unavailable` at phase 7. At that moment
+  the reply was published (`replies=1`) and the status read `Refreshing the
+  pull request.`: a refresh the application started after publishing still
+  held the refresh action, and the probe failed instead of waiting. That is a
+  race in the probe (`8651e1e1`), not in this card's page rule. In
+  `52fa4a06` the probe waits while the action is disabled, and the run budget
+  still bounds the wait. After the fix: 15 of 15 pass alone, and all six
+  focused rows pass together.
+
+The logs are station records in `build/logs/bpr-station-1211-1213-1214/` and
+are not committed.
