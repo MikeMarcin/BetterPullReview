@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1062"
 title: "Connect desktop buffers and same-machine authoring handoff"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1060", "BPR-1061"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-11","milestone":"same-machine-handoff","acceptance":["AC45-04","AC45-07"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
