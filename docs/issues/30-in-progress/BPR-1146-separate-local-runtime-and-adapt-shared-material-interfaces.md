@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1146"
 title: "Separate local runtime and adapt shared material interfaces"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0053", "RFC-BPR-0060"]
 depends_on: ["BPR-1144"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "domain", "acceptance": ["RC53-03", "RC53-06", "RC53-07"], "pack_alias": "PACK-CYCLE-04", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
