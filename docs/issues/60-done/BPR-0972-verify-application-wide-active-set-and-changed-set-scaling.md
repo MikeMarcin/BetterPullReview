@@ -92,7 +92,7 @@ and [eight compiled negative controls](../../verification/bpr0972-negative-contr
 retain exact bounds and source hashes. “Active” includes the complete accepted
 PR's compact navigation order: receipt deltas project changed file data but still
 maintain dense positions. This is O(active order + changed data), not a claim of
-O(changed data) alone. [BPR-1211](../10-backlog/BPR-1211-move-review-ledger-reads-and-writes-off-the-decision-lane.md)
+O(changed data) alone. [BPR-1211](../20-ready/BPR-1211-move-review-ledger-reads-and-writes-off-the-decision-lane.md)
 retains the named synchronous ledger I/O gap; no whole-architecture or no-I/O
 acceptance is implied. Windows/Linux native remain deferred; BPR-0967 owns
 optimized hardware latency/memory budgets.

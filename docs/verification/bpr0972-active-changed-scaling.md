@@ -111,7 +111,7 @@ restoration as receipt fanout.
 
 ## Synchronous I/O finding
 
-[BPR-1211](../issues/10-backlog/BPR-1211-move-review-ledger-reads-and-writes-off-the-decision-lane.md)
+[BPR-1211](../issues/20-ready/BPR-1211-move-review-ledger-reads-and-writes-off-the-decision-lane.md)
 retains the architectural gap: the review ledger still performs bounded SQLite
 reads/writes synchronously under its host mutex on the decision lane. The actual
 composition sites are `dispatch_receipt` → `submit`, `observe_selected_material`

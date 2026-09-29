@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1211"
 title: "Move review-ledger reads and writes off the decision lane"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
