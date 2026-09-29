@@ -4,7 +4,7 @@
  "run_id": "bpr-pr-tour-cli-20260927",
  "segment_id": "same-machine-handoff-direct",
  "role_banner": "Direct primary session | Claude Sonnet 5.5",
- "status": "milestone-accepted-pending-landing",
+ "status": "milestone-accepted-and-landed",
  "strategy": "direct",
  "predecessor_segment": "same-machine-handoff (coordinator-implementer, Codex): BPR-1060 accepted; BPR-1061 claimed with uncommitted owner-forwarding work",
  "execution_base": "fbb8b981b5c4e70280055d580f8c2a66a6f696b2",
@@ -74,5 +74,11 @@
  ],
  "next_eligible_milestone": "pr-tour-skill",
  "next_eligible_card": "BPR-1064",
- "main_before_landing": "e0bc2bb798483370b03a5759eb473bb17ed8ec3f"
+ "main_before_landing": "e0bc2bb798483370b03a5759eb473bb17ed8ec3f",
+ "main_landing": {
+  "revision": "c11c27b1a05a419d95051dd5b7d2e1ac535d628f",
+  "method": "Fast-forward of local main from e0bc2bb798483370b03a5759eb473bc17ed8ec3f (the BPR-1227 reservation). No push.",
+  "verified_on_main": true,
+  "result": "DOCUMENTATION_OK on landed main; main worktree clean. All source evidence remains bound to the candidate revision."
+ }
 }
