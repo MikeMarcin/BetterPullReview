@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1065"
 title: "Implement the thin pr-tour conversational skill"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1064"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-14","milestone":"pr-tour-skill","acceptance":["AC46-02","AC46-03","AC46-04"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC46-02","outcome":"pass","revision":"b6717e02ead025fd9c151d18c0f7c722bb5587f4","evidence":{"kind":"command","detail":"skill_pr_tour_package: the package is a 36-line SKILL.md plus three small progressively loaded references; it names GitHub access, draft state, parsing, anchors, publication and recovery only as bpr tour commands, and every mention of a publisher, raw HTTP, the database or an approval bypass is a prohibition. Fails on deliberate breakage of each check."}},{"criterion":"AC46-03","outcome":"pass","revision":"b6717e02ead025fd9c151d18c0f7c722bb5587f4","evidence":{"kind":"command","detail":"The skill checks capabilities once per binary/session, requires contract 1 and the assist capability, keeps profile and draft IDs explicit, and stops on a missing or incompatible CLI without a fallback publisher; the lint pins those statements and runs every taught command line through the real parser. Text and traces are not evidence about model behavior."}},{"criterion":"AC46-04","outcome":"pass","revision":"b6717e02ead025fd9c151d18c0f7c722bb5587f4","evidence":{"kind":"command","detail":"The conversation is manual-first Problem/Solution/individual stops, reuses known answers, persists accepted author text through edit --file - with the revision just read, and offers assistance and outlines only on request; the lint pins those boundaries. No live agent transcript is claimed."}}]
 ---
 
 # BPR-1065: Implement the thin pr-tour conversational skill
