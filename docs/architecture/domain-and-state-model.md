@@ -71,6 +71,23 @@ The host supplies the nonreversible authority-scope identity and catalog
 incarnation from validated authority/persistence state; the core neither
 hashes provider text nor reads randomness.
 
+### Review cycle identities (RFC-BPR-0053, in progress)
+
+`bpr/core/review_cycle.hpp` adds a second review subject beside the pull
+request: `review_subject` is either the unchanged `pull_request_authority` or a
+`local_cycle_subject`. A cycle subject names a BPR profile, a 32-byte cycle
+catalog incarnation, a cycle identity and a generation; it carries no host,
+account, repository or pull-request field, and none of those is made optional
+to accommodate it. Source revisions, feedback items, round drafts, rounds,
+responses, verifications and publications each have their own identity type,
+allocated from per-cycle counters in `1..INT64_MAX` that only advance, and each
+reference names the cycle that allocated it. A revision's identity orders
+observations; its material digest says which bytes it holds, so two revisions
+can share bytes and stay distinct. A cycle with no capture has no initial
+revision, which is different from an empty complete capture. Scope changes are
+versioned, and a path missing from a partial capture or outside the scope is
+unknown, never deleted. The cycle catalog and its storage are the host's.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

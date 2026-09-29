@@ -24,6 +24,7 @@ add_library(
         src/markdown_navigation.cpp
         src/model.cpp
         src/review_composition.cpp
+        src/review_cycle.cpp
         src/private_review.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
