@@ -1358,8 +1358,8 @@ these application behaviors, not installed provider enforcement or model quality
 
 [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)
 propose local review cycles over captured workspace source. Until those RFCs
-earn acceptance, nothing here is implemented and every boundary above is
-unchanged. The proposal adds two narrow surfaces. Locally, a root-bound
+earn acceptance, no cycle surface ships and every boundary above is
+unchanged; only the core decisions described at the end of this section exist. The proposal adds two narrow surfaces. Locally, a root-bound
 read-only capture host reads only the source the reviewer selects into the
 profile-private store; it never writes, resets or cleans the reviewer's
 checkout, and local cycle history does not leave the machine unless the
@@ -1372,3 +1372,18 @@ Capture, freeze, export, response import, reviewer verification and
 publication are separate grants, and imported response text grants none of
 them. The [capability and packaging contract](../rfcs/assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md)
 is the proposal's normative source.
+
+The core decision for these grants is `authorize` in
+`bpr/core/review_cycle_policy.hpp`. Its inputs are the host-established actor
+(the reviewer, a consumer holding a stored grant, or imported content), the
+capability, the cycle subject, the source's retained classification, the
+channel and the configured channel policy. Imported content holds no
+capability at all. A stored grant names one cycle subject, one frozen round and
+its digest; the response-only grant reads that round and appends a response,
+and everything else is reviewer-only. Channels that reach another program are
+refused for unclassified and enterprise source until policy allows them, and a
+configured denial gives the same answer whichever interface asks.
+Classification only becomes stricter when a workspace is reopened. Recipient
+reports are read as one of six claim words; "verified" or "approved" in a
+report is not a claim and cannot set the reviewer's decision. There is no
+execute capability.
