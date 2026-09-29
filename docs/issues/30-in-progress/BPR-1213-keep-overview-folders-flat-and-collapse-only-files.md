@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1213"
 title: "Keep Overview folders flat and collapse only their files"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
