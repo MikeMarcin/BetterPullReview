@@ -123,9 +123,13 @@ namespace bpr::core {
 						return aIndex.segment_index(aValue.Segment).has_value();
 					} else if constexpr (std::is_same_v<value_type, private_move_subject>) {
 						return std::ranges::any_of(alignment.Moves, [&](const auto& aMove) { return aMove.Id == aValue.Move; });
+					} else {
+						return false;
 					}
+				} else {
+					// A statement after a chain every branch of which returns is C4702 on MSVC.
+					return false;
 				}
-				return false;
 			},
 							  aSubject);
 		}

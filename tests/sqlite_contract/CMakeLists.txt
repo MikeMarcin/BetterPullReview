@@ -419,6 +419,11 @@ target_link_libraries(test_device_binding_storage PRIVATE BetterPullReview::Adap
 # [[BPR-1111]]. The read classifier's pin for results no contract can inject.
 target_compile_definitions(test_device_binding_storage PRIVATE BPR_SQLITE_TESTING=1)
 bpr_enable_hardening(test_device_binding_storage)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_device_binding_storage PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_device_binding_storage)
 bpr_add_network_isolated_test(NAME sqlite_device_binding_storage WINDOWS_UNCONTAINED COMMAND test_device_binding_storage)
 set_tests_properties(sqlite_device_binding_storage PROPERTIES TIMEOUT 30 PASS_REGULAR_EXPRESSION "device-binding-storage-tests:pass")
@@ -454,6 +459,11 @@ set_tests_properties(
 bpr_add_executable(test_better_pull_review_profile_registry_storage_tests profile_registry_storage_tests.cpp)
 target_link_libraries(test_better_pull_review_profile_registry_storage_tests PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_better_pull_review_profile_registry_storage_tests)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_profile_registry_storage_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_profile_registry_storage_tests)
 bpr_add_network_isolated_test(NAME sqlite_profile_registry_storage WINDOWS_UNCONTAINED COMMAND test_better_pull_review_profile_registry_storage_tests)
 set_tests_properties(sqlite_profile_registry_storage PROPERTIES TIMEOUT 60)
@@ -461,6 +471,11 @@ set_tests_properties(sqlite_profile_registry_storage PROPERTIES TIMEOUT 60)
 bpr_add_executable(test_better_pull_review_profile_storage_root_tests profile_storage_root_tests.cpp)
 target_link_libraries(test_better_pull_review_profile_storage_root_tests PRIVATE BetterPullReview::AdapterSQLite)
 bpr_enable_hardening(test_better_pull_review_profile_storage_root_tests)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_profile_storage_root_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_profile_storage_root_tests)
 bpr_add_network_isolated_test(NAME sqlite_profile_storage_root WINDOWS_UNCONTAINED COMMAND test_better_pull_review_profile_storage_root_tests)
 set_tests_properties(sqlite_profile_storage_root PROPERTIES TIMEOUT 60)
@@ -496,6 +511,11 @@ set_tests_properties(sqlite_tour_owner_channel PROPERTIES TIMEOUT 60)
 bpr_add_executable(test_better_pull_review_window_review_restoration_storage_tests window_review_restoration_storage_tests.cpp)
 target_link_libraries(test_better_pull_review_window_review_restoration_storage_tests PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_better_pull_review_window_review_restoration_storage_tests)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_window_review_restoration_storage_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_window_review_restoration_storage_tests)
 bpr_add_network_isolated_test(NAME sqlite_window_review_restoration_storage WINDOWS_UNCONTAINED COMMAND test_better_pull_review_window_review_restoration_storage_tests)
 set_tests_properties(sqlite_window_review_restoration_storage PROPERTIES TIMEOUT 60)
@@ -510,6 +530,11 @@ set_tests_properties(sqlite_release_maintenance_files PROPERTIES TIMEOUT 30)
 bpr_add_executable(test_cached_review_overview_storage cached_review_overview_storage_tests.cpp)
 target_link_libraries(test_cached_review_overview_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_cached_review_overview_storage)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_cached_review_overview_storage PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_cached_review_overview_storage)
 bpr_add_network_isolated_test(NAME sqlite_cached_review_overview WINDOWS_UNCONTAINED COMMAND test_cached_review_overview_storage)
 set_tests_properties(sqlite_cached_review_overview PROPERTIES TIMEOUT 60)
@@ -517,6 +542,11 @@ set_tests_properties(sqlite_cached_review_overview PROPERTIES TIMEOUT 60)
 bpr_add_executable(test_review_tour_storage review_tour_storage_tests.cpp)
 target_link_libraries(test_review_tour_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_review_tour_storage)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_review_tour_storage PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_review_tour_storage)
 bpr_add_network_isolated_test(NAME sqlite_review_tour_storage COMMAND test_review_tour_storage)
 
@@ -584,6 +614,11 @@ set_tests_properties(sqlite_private_review_storage PROPERTIES TIMEOUT 120 PASS_R
 bpr_add_executable(test_private_review_host private_review_host_tests.cpp)
 target_link_libraries(test_private_review_host PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
 bpr_enable_hardening(test_private_review_host)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_private_review_host PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_private_review_host)
 bpr_add_network_isolated_test(NAME application_private_review_host WINDOWS_UNCONTAINED COMMAND test_private_review_host)
 set_tests_properties(application_private_review_host PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "private-review-host-tests:pass")

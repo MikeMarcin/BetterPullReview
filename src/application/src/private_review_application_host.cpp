@@ -41,6 +41,19 @@ namespace bpr::application {
 				return std::unexpected(private_run_error{ .Store = private_store_failure::unavailable });
 			}
 		}
+		// At namespace scope: MSVC refuses `-> bool override` in a class local to a lambda.
+		struct input_claim final : agent_input_claim
+		{
+			std::unique_ptr<private_source_use> Source;
+			std::stop_token                     Stop;
+			bool                                Released = false;
+			auto                                permitted() const noexcept -> bool override { return !Released && !Stop.stop_requested(); }
+			void                                release() noexcept override
+			{
+				Source.reset();
+				Released = true;
+			}
+		};
 		auto full_body(private_review_store_port& aStore, const private_source_reference& aSource) -> agent_private_source_body
 		{
 			agent_private_source_body result{ .Source = aSource };
@@ -154,18 +167,6 @@ namespace bpr::application {
 	{
 		return attempt([&]() -> std::shared_ptr<agent_input_claim> {
 			require(aAdmission.Launch.AdmittedRun.has_value());
-			struct input_claim final : agent_input_claim
-			{
-				std::unique_ptr<private_source_use> Source;
-				std::stop_token                     Stop;
-				bool                                Released = false;
-				auto                                permitted() const noexcept -> bool override { return !Released && !Stop.stop_requested(); }
-				void                                release() noexcept override
-				{
-					Source.reset();
-					Released = true;
-				}
-			};
 			auto claim    = std::make_shared<input_claim>();
 			claim->Stop   = aStop;
 			claim->Source = take(Store.claim_sources(aAdmission.Launch.AdmittedRun->SelectedPrivateSources));

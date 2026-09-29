@@ -241,7 +241,7 @@ namespace {
 		expect(cache.Value->ReviewThreads && cache.Value->ReviewThreads->size() == 1
 				   && cache.Value->ReviewThreads->front().Comments.back().ReplyTo == "C1"
 				   && cache.Value->ReviewThreads->front().Comments.back().Body == "Historical reply"
-				   && cache.Value->ReviewThreads->front().Line == 7
+				   && cache.Value->ReviewThreads->front().Line == 7U
 				   && updates.back().Presentation.CachedOverview->ReviewThreads == cache.Value->ReviewThreads,
 			   "exact thread roots, replies and anchors persist and project without live authority");
 		host.read_cached_source("foreign.cpp");
@@ -841,7 +841,7 @@ namespace {
 			second.dispatch(open);
 		}
 		expect(provider.Calls.size() == 2 && second.is_quiescent(), "Refresh and sibling Open cannot bypass primary reset");
-		expect(updates.back().Presentation.HostDiagnostics.back().RetryAfterSeconds == 5, "blocked explicit retry projects actual remaining primary delay");
+		expect(updates.back().Presentation.HostDiagnostics.back().RetryAfterSeconds == 5U, "blocked explicit retry projects actual remaining primary delay");
 		first.cancel();
 		now.MonotonicMilliseconds = 5999;
 		second.dispatch(open);

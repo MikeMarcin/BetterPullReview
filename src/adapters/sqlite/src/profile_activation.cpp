@@ -1201,6 +1201,7 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(tour_failure::unavailable);
 			}
 #if defined(_WIN32)
+			static_cast<void>(aProfile);
 			return std::unexpected(tour_failure::unavailable);
 #else
 			const auto address = endpoint_address(*path);

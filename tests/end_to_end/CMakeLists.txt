@@ -3129,7 +3129,9 @@ set_tests_properties(application_profile_window_restart_public_path PROPERTIES
 bpr_add_executable(test_profile_window_layout_drain profile_window_layout_drain_tests.cpp)
 target_link_libraries(test_profile_window_layout_drain PRIVATE BetterPullReview::Application BetterPullReview::AdapterSQLite)
 if(WIN32)
-    target_link_libraries(test_profile_window_layout_drain PRIVATE advapi32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_profile_window_layout_drain PRIVATE advapi32 BetterPullReview::Platform)
 endif()
 bpr_enable_hardening(test_profile_window_layout_drain)
 bpr_enable_warnings(test_profile_window_layout_drain)

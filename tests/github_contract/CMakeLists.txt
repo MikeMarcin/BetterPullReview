@@ -1288,6 +1288,11 @@ target_compile_definitions(
     PRIVATE BPR_APPLICATION_TESTING=1
 )
 bpr_enable_hardening(test_better_pull_review_review_comment_permalink_tests)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_review_comment_permalink_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_review_comment_permalink_tests)
 bpr_add_network_isolated_test(
     NAME github_review_comment_permalink

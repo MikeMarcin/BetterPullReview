@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -134,13 +135,21 @@ namespace {
 		static_assert(std::is_same_v<
 					  decltype(profile_type::AllowedEnvironment),
 					  std::vector<std::string>>);
+		// `DefaultSettings` is the model and effort the profile asks for. A run
+		// records both in its provenance, so they are never where a secret goes.
+		static_assert(std::is_same_v<
+					  decltype(profile_type::DefaultSettings),
+					  core::agent_setting_facts>);
+		static_assert(
+			sizeof(core::agent_setting_facts)
+			== sizeof(std::optional<std::string>) * 2U);
 		static_assert(
 			sizeof(profile_type)
 				== sizeof(core::agent_profile_id) + sizeof(std::string) * 2U
 					+ sizeof(std::vector<std::string>)
 					+ sizeof(core::agent_protocol)
 					+ sizeof(core::agent_workspace_policy)
-					+ 6U,
+					+ sizeof(core::agent_setting_facts) + 6U,
 			"agent_profile gained or lost a field. If it gained one, say here "
 			"why it cannot hold a credential.");
 

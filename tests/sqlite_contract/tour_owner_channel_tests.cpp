@@ -167,7 +167,15 @@ namespace {
 #if !defined(_WIN32)
 	auto scratch_pattern() -> std::string
 	{
+		// POSIX-only, but the MSVC gate reads text rather than branches (BPR-0519).
+	#if defined(_MSC_VER)
+		#pragma warning(push)
+		#pragma warning(disable : 4996)
+	#endif
 		const auto* socketRoot = std::getenv("BPR_TEST_SOCKET_ROOT");
+	#if defined(_MSC_VER)
+		#pragma warning(pop)
+	#endif
 		return (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-tour-XXXXXX").string();
 	}
 
