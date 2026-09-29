@@ -975,10 +975,11 @@ namespace bpr::application {
 				outcome.Store  = receipt.error();
 				return outcome;
 			}
-			outcome.Status   = cycle_capture_status::captured;
-			outcome.Receipt  = *receipt;
-			outcome.Capture  = observation;
-			outcome.Manifest = *object;
+			outcome.Status                  = cycle_capture_status::captured;
+			outcome.Diagnostics.Explanation = core::explain_capture(observation, outcome.Diagnostics.Attempts);
+			outcome.Receipt                 = *receipt;
+			outcome.Capture                 = observation;
+			outcome.Manifest                = *object;
 			return outcome;
 		}
 		outcome.Status = cycle_capture_status::unstable;

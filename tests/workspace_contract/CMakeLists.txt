@@ -57,3 +57,13 @@ endif()
 bpr_enable_warnings(bench_review_cycle_scale)
 bpr_add_network_isolated_test(NAME review_cycle_scale WINDOWS_UNCONTAINED COMMAND bench_review_cycle_scale --files 2000)
 
+# [[BPR-1152]]. Capture recovery and retained-material budgets. The kill course
+# forks and delivers SIGKILL, so it runs on POSIX only; the rest runs everywhere.
+bpr_add_executable(test_review_cycle_recovery review_cycle_recovery_tests.cpp)
+target_link_libraries(test_review_cycle_recovery PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application BetterPullReview::SQLite3)
+bpr_enable_hardening(test_review_cycle_recovery)
+if(WIN32)
+    target_link_libraries(test_review_cycle_recovery PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_recovery)
+bpr_add_network_isolated_test(NAME review_cycle_recovery WINDOWS_UNCONTAINED COMMAND test_review_cycle_recovery)

@@ -487,10 +487,12 @@ namespace bpr::adapters::sqlite {
 					if (!state) {
 						return std::unexpected(state.error());
 					}
-					if (*state == object_state::present) {
+					if (*state == object_state::intact) {
 						continue;
 					}
-					growth += objects[index].Size;
+					// A damaged copy is replaced by the verified bytes in hand; only
+					// genuinely new bytes count against the budget.
+					growth += *state == object_state::absent ? objects[index].Size : 0U;
 					writes.push_back(index);
 				}
 				// Pinned and unreferenced bytes together are every object's bytes,
@@ -510,7 +512,7 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 				for (const auto index : writes) {
-					if (!insert_object(database.Database, objects[index], aObjects[index])) {
+					if (!replace_object(database.Database, objects[index], aObjects[index])) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}
@@ -1336,13 +1338,15 @@ namespace bpr::adapters::sqlite {
 
 			enum class object_state : std::uint8_t {
 				absent,
-				present,
+				intact,
+				/// Present under this digest but unreadable or not these bytes.
+				damaged,
 			};
 
-			/// Whether an object is already stored under its digest.
+			/// Whether an object's stored bytes still hash to its digest.
 			static auto stored_state(sqlite3* aDatabase, const cycle_object_ref& aObject) -> cycle_store_result<object_state>
 			{
-				auto row = query{ aDatabase, "SELECT size FROM objects WHERE digest=?1" };
+				auto row = query{ aDatabase, "SELECT 1 FROM objects WHERE digest=?1" };
 				row.blob(1, aObject.Digest.bytes());
 				const auto present = row.step();
 				if (present == SQLITE_DONE) {
@@ -1351,10 +1355,25 @@ namespace bpr::adapters::sqlite {
 				if (present != SQLITE_ROW) {
 					return fail(cycle_store_failure::unavailable);
 				}
-				if (row.column_integer(0) != static_cast<std::int64_t>(aObject.Size)) {
-					return fail(cycle_store_failure::corrupt);
+				const auto verified = read_bytes(aDatabase, aObject);
+				if (verified) {
+					return object_state::intact;
 				}
-				return object_state::present;
+				if (verified.error().Failure == cycle_store_failure::corrupt || verified.error().Failure == cycle_store_failure::object_unavailable) {
+					return object_state::damaged;
+				}
+				return std::unexpected(verified.error());
+			}
+
+			static auto replace_object(sqlite3* aDatabase, const cycle_object_ref& aObject, const std::span<const std::uint8_t> aBytes) -> bool
+			{
+				for (const auto sql : { "DELETE FROM object_chunks WHERE digest=?1", "DELETE FROM objects WHERE digest=?1" }) {
+					auto erase = query{ aDatabase, sql };
+					if (!erase.blob(1, aObject.Digest.bytes()).done()) {
+						return false;
+					}
+				}
+				return insert_object(aDatabase, aObject, aBytes);
 			}
 
 			static auto insert_object(sqlite3* aDatabase, const cycle_object_ref& aObject, const std::span<const std::uint8_t> aBytes) -> bool

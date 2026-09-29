@@ -335,6 +335,20 @@ namespace bpr::core {
 		return cycle_path_change::unknown;
 	}
 
+	auto explain_capture(const cycle_capture_observation& aCapture, const std::uint32_t aAttempts) noexcept -> cycle_capture_explanation
+	{
+		auto explanation = cycle_capture_explanation{
+			.Quality           = aCapture.Quality,
+			.AtomicClaim       = aCapture.Quality == cycle_capture_quality::immutable_source,
+			.Complete          = aCapture.Coverage == cycle_capture_coverage::complete,
+			.Unavailable       = aCapture.Unavailable,
+			.ExplicitDeletions = aCapture.ExplicitDeletions,
+			.Retries           = aAttempts > 0 ? aAttempts - 1 : 0,
+		};
+		explanation.Attention = !explanation.Complete || explanation.Unavailable != 0 || explanation.Retries != 0;
+		return explanation;
+	}
+
 	auto same_material(const cycle_source_revision& aLeft, const cycle_source_revision& aRight) noexcept -> bool
 	{
 		return aLeft.Capture.Material == aRight.Capture.Material;

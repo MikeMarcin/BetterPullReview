@@ -269,6 +269,21 @@ namespace {
 		expect(!judgment.Decision && judgment.Claim, "explicit clear");
 	}
 
+	void explains_capture_quality_without_claiming_atomicity()
+	{
+		using namespace bpr::core;
+		const auto quiet = explain_capture(capture(1, 1, 3, cycle_capture_coverage::complete), 1);
+		expect(!quiet.Attention && !quiet.AtomicClaim && quiet.Retries == 0 && quiet.Complete, "an ordinary stable capture raises nothing");
+		auto partial        = capture(1, 1, 3, cycle_capture_coverage::partial);
+		partial.Unavailable = 2;
+		const auto noted    = explain_capture(partial, 3);
+		expect(noted.Attention && noted.Retries == 2 && noted.Unavailable == 2 && !noted.Complete && !noted.AtomicClaim, "partial, unavailable and retried captures are noted");
+		auto immutable    = capture(1, 1, 3, cycle_capture_coverage::complete);
+		immutable.Quality = cycle_capture_quality::immutable_source;
+		expect(explain_capture(immutable, 1).AtomicClaim, "only an immutable source claims one instant");
+		expect(explain_capture(immutable, 0).Retries == 0, "no attempt, no retries");
+	}
+
 	void keeps_pull_request_authority_whole()
 	{
 		using namespace bpr::core;
@@ -293,5 +308,6 @@ int main()
 	freezes_immutable_rounds();
 	keeps_claims_apart_from_judgment();
 	keeps_pull_request_authority_whole();
+	explains_capture_quality_without_claiming_atomicity();
 	return EXIT_SUCCESS;
 }

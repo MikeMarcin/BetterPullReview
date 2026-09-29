@@ -171,6 +171,27 @@ namespace bpr::core {
 		auto          operator<=>(const cycle_capture_observation&) const = default;
 	};
 
+	/// \brief What a capture can claim, for a quiet per-cycle quality
+	/// indicator: an ordinary stable capture needs no warning, and nothing here
+	/// ever asserts that the files coexisted at one instant.
+	struct cycle_capture_explanation
+	{
+		cycle_capture_quality Quality = cycle_capture_quality::observed_stable;
+		/// Only an immutable source vouches for a single instant.
+		bool          AtomicClaim       = false;
+		bool          Complete          = false;
+		std::uint64_t Unavailable       = 0;
+		std::uint64_t ExplicitDeletions = 0;
+		/// Instability retries before the observation settled.
+		std::uint32_t Retries = 0;
+		/// Partial coverage, unavailable entries or retries: worth a look in
+		/// the indicator, never a modal warning.
+		bool Attention                                           = false;
+		auto operator<=>(const cycle_capture_explanation&) const = default;
+	};
+	/// \brief Explains one capture from its observation and attempt count.
+	[[nodiscard]] auto explain_capture(const cycle_capture_observation& aCapture, std::uint32_t aAttempts) noexcept -> cycle_capture_explanation;
+
 	/// \brief One immutable captured source revision.
 	/// \details Identity orders observations; the material digest says what
 	/// bytes they hold. Two revisions may share material and stay distinct.

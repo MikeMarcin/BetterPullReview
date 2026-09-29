@@ -210,6 +210,20 @@ yields no diff. The core's file-view state keeps the shown content while a
 newer request loads and drops a completion for a superseded request; the
 runtime completes work issued for a previous selection as cancelled.
 
+Capture recovery (BPR-1152): content, the manifest and the revision record are
+three separate store transactions, and a crash at any of them leaves the cycle
+exactly as it was or holding the whole revision; objects installed before the
+record are unreferenced candidates that `reclaim` removes, and retrying the
+same operation completes once or replays. Installing bytes whose digest is
+already stored verifies the stored copy and, when it is damaged, replaces it
+with the verified bytes in hand, so a recapture of the same content repairs a
+corrupted pin; damage nobody can re-verify stays reported. A full disk or an
+exhausted budget refuses the capture as a store failure (quota refusals carry
+the inventory) and never evicts pinned material. `explain_capture` turns a
+revision's observation and attempt count into a quiet quality indicator
+(quality, completeness, unavailable entries, retries); an ordinary stable
+capture needs no warning, and only an immutable source may claim one instant.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

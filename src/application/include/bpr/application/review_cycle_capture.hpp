@@ -71,6 +71,8 @@ namespace bpr::application {
 		/// Display labels of the first of them.
 		std::vector<std::string>    ChangedExamples;
 		core::cycle_capture_quality Quality = core::cycle_capture_quality::observed_stable;
+		/// Present when a revision was recorded.
+		std::optional<core::cycle_capture_explanation> Explanation;
 	};
 
 	struct cycle_capture_outcome
