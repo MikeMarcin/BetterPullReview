@@ -51,9 +51,10 @@ namespace bpr::qt {
 
 	/// \brief The overview's files, grouped by folder.
 	///
-	/// \details A retained folder hierarchy, including ancestors of nested
-	/// paths. Siblings keep projection order and surviving items keep their
-	/// indexes across refresh. Columns follow the
+	/// \details Flat and retained ([[BPR-1213]]): one row per folder that holds
+	/// files, named by its whole path, with its files beneath it. A folder
+	/// without files of its own takes no row. Siblings keep projection order
+	/// and surviving items keep their indexes across refresh. Columns follow the
 	/// accepted table: operation, file, added, removed, changed, read,
 	/// comments, note. The model holds the projection's rows and decides
 	/// nothing about them.
@@ -141,7 +142,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QSize override;
 
+		/// \brief Where a folder cell draws its disclosure mark, in view coordinates.
+		[[nodiscard]] static auto disclosure_rect(const QStyleOptionViewItem& aOption) -> QRect;
+
 	private:
+		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;
+		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
+
 		const overview_colours& Colours;
 	};
 

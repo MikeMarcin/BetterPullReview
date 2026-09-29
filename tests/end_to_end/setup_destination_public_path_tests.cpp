@@ -11,6 +11,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_refusal.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -147,9 +148,13 @@ namespace {
 		const auto file   = model->index_for_path(QStringLiteral("review.cpp"));
 		const auto other  = model->index_for_path(QStringLiteral("secondary.cpp"));
 		const auto folder = file.parent();
+		const auto left   = [view](const QModelIndex& aIndex) {
+			return view->visualRect(aIndex.siblingAtColumn(qt::overview_file_model::file_column)).left();
+		};
+		// [[BPR-1213]]. Flat folders: the folder row and its files share one left column.
 		expect(file.isValid() && other.parent() == folder && view->isExpanded(folder)
-				   && view->itemsExpandable() && view->rootIsDecorated(),
-			   "public Overview exposes native folder disclosure controls");
+				   && view->itemsExpandable() && view->indentation() == 0 && left(file) == left(folder) && left(other) == left(file),
+			   "public Overview exposes flat folder rows whose files align at one left column");
 		view->setCurrentIndex(folder);
 		view->setFocus();
 		QKeyEvent collapse{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };

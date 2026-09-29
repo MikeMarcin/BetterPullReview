@@ -163,18 +163,21 @@ The file and conversation regions are true collapsible drawers. Their open width
 
 ## Overview files
 
-Overview groups files under their complete folder hierarchy. Each folder has
-the native tree disclosure control; Left collapses and Right expands it.
-Collapsing an ancestor hides every descendant, while reopening retains nested
-folders' expansion choices and the same file identities and order. These
-gestures never open a comparison. If the focused file becomes hidden, focus
-moves to the collapsed folder without changing the active source selection.
+Overview groups files under flat folder rows ([[BPR-1213]]). A folder that
+holds files takes one row named by its whole path, so a folder with no file of
+its own takes no row, and every file label starts at the same left column. Each
+folder row draws the native disclosure mark before its path. Clicking the row,
+or Left and Right, hides and shows that folder's own files only. Reopening
+restores the same file identities and order. These gestures never open a
+comparison. If the focused file becomes hidden, focus moves to its folder
+without changing the active source selection.
 
 Folder expansion is local to this page. Incremental same-authority refreshes
 retain surviving items, selection and expansion; newly appearing folders start
 expanded. Exact authority invalidation clears that local state. The native tree
-exposes folder names, descendant file counts and expansion state to accessibility.
-[[BPR-0934]] records the focused and rendered public evidence.
+exposes each folder's path, file count and expansion state to accessibility.
+[[BPR-0934]] recorded the earlier nested hierarchy, which the owner's
+clarification on [[BPR-1213]] replaced with these flat rows.
 
 ## Home
 

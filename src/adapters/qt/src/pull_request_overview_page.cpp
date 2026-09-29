@@ -596,25 +596,16 @@ namespace bpr::qt {
 			folders.insert(aPath, result);
 			return result;
 		};
+		// [[BPR-1213]]. Flat: one row per folder that holds files, named by
+		// its whole path, so a folder with no file of its own takes no row and
+		// every file sits one level down, at the same left column.
 		for (const auto& row : aRows) {
-			auto* parent = &aRoot;
-			if (row.Folder.empty()) {
-				parent = folder(aRoot, QString{ });
-			} else {
-				auto path = QString{ };
-				for (const auto& component : text(row.Folder).split(QLatin1Char{ '/' })) {
-					if (!path.isEmpty()) {
-						path += QLatin1Char{ '/' };
-					}
-					path += component;
-					parent = folder(*parent, path);
-				}
-			}
-			auto file    = std::make_unique<node>();
-			file->Path   = text(row.Path);
-			file->File   = row;
-			file->Parent = parent;
-			file->Row    = static_cast<int>(parent->Children.size());
+			auto* const parent = folder(aRoot, text(row.Folder));
+			auto        file   = std::make_unique<node>();
+			file->Path         = text(row.Path);
+			file->File         = row;
+			file->Parent       = parent;
+			file->Row          = static_cast<int>(parent->Children.size());
 			parent->Children.push_back(std::move(file));
 			for (auto* ancestor = parent; ancestor != nullptr; ancestor = ancestor->Parent) {
 				++ancestor->FileCount;
@@ -797,7 +788,7 @@ namespace bpr::qt {
 				return { };
 			}
 			if (aRole == Qt::DisplayRole && aIndex.column() == file_column) {
-				return item->Path.isEmpty() ? QStringLiteral("/") : item->Path.section(QLatin1Char{ '/' }, -1);
+				return item->Path.isEmpty() ? QStringLiteral("/") : item->Path;
 			}
 			if (aRole == Qt::DisplayRole && aIndex.column() == operation_column) {
 				return QString::number(item->FileCount);
@@ -940,9 +931,62 @@ namespace bpr::qt {
 	auto overview_row_delegate::sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 		-> QSize
 	{
-		auto hint = QStyledItemDelegate::sizeHint(aOption, aIndex);
+		const auto folderPath = aIndex.column() == overview_file_model::file_column
+			&& aIndex.data(overview_file_model::folder_role).toBool();
+		auto option = aOption;
+		if (folderPath) {
+			// Measured in the weight it is painted in, so the path is never elided.
+			option.font.setWeight(QFont::DemiBold);
+		}
+		auto hint = QStyledItemDelegate::sizeHint(option, aIndex);
 		hint.setHeight(std::max(hint.height(), 22));
+		if (folderPath) {
+			hint.setWidth(hint.width() + disclosure_width(aOption));
+		}
 		return hint;
+	}
+
+	auto overview_row_delegate::disclosure_width(const QStyleOptionViewItem& aOption) -> int
+	{
+		const auto* const style = aOption.widget != nullptr ? aOption.widget->style() : QApplication::style();
+		return style->pixelMetric(QStyle::PM_TreeViewIndentation, &aOption, aOption.widget);
+	}
+
+	auto overview_row_delegate::disclosure_rect(const QStyleOptionViewItem& aOption) -> QRect
+	{
+		return QRect{ aOption.rect.left(), aOption.rect.top(), disclosure_width(aOption), aOption.rect.height() };
+	}
+
+	void overview_row_delegate::paint_folder(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+	{
+		// [[BPR-1213]]. The rows stay flat, so the view has no indentation to
+		// draw its branch in; the folder's own cell carries the native
+		// disclosure mark before its path.
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
+		const auto        text  = option.text;
+		option.text.clear();
+		style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
+
+		const auto* const tree     = qobject_cast<const QTreeView*>(option.widget);
+		const auto        expanded = tree != nullptr && tree->isExpanded(aIndex.siblingAtColumn(0));
+		auto              branch   = QStyleOption{ };
+		branch.QStyleOption::operator=(option);
+		branch.rect  = disclosure_rect(option);
+		branch.state = (option.state & (QStyle::State_Enabled | QStyle::State_Active | QStyle::State_Selected | QStyle::State_MouseOver))
+			| QStyle::State_Children | QStyle::State_Item | (expanded ? QStyle::State_Open : QStyle::State_None);
+		style->drawPrimitive(QStyle::PE_IndicatorBranch, &branch, aPainter, option.widget);
+
+		auto label = option;
+		label.text = text;
+		label.rect.setLeft(branch.rect.right() + 1);
+		label.backgroundBrush = Qt::NoBrush;
+		label.state &= ~(QStyle::State_HasFocus | QStyle::State_Selected);
+		label.font.setWeight(QFont::DemiBold);
+		const auto group = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
+		label.palette.setColor(QPalette::Text, option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText));
+		style->drawControl(QStyle::CE_ItemViewItem, &label, aPainter, label.widget);
 	}
 
 	void overview_row_delegate::paint(
@@ -957,6 +1001,10 @@ namespace bpr::qt {
 				|| column == overview_file_model::changed_column
 				|| column == overview_file_model::read_column
 				|| column == overview_file_model::comments_column);
+		if (folder && column == overview_file_model::file_column) {
+			paint_folder(aPainter, aOption, aIndex);
+			return;
+		}
 		if (!marked) {
 			auto option = aOption;
 			initStyleOption(&option, aIndex);
@@ -1275,11 +1323,15 @@ namespace bpr::qt {
 		Files->setAccessibleDescription(QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
-			"activate a file to read it; use Left and Right to collapse and expand folders"));
+			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files"));
 		Files->setModel(Model);
 		Files->setItemDelegate(new overview_row_delegate{ Colours, Files });
-		Files->setRootIsDecorated(true);
+		// [[BPR-1213]]. Flat rows: no indentation, so every file aligns at the
+		// same left column; the folder cell draws its own disclosure.
+		Files->setRootIsDecorated(false);
+		Files->setIndentation(0);
 		Files->setItemsExpandable(true);
+		Files->setExpandsOnDoubleClick(false);
 		Files->setTreePosition(overview_file_model::file_column);
 		Files->setUniformRowHeights(true);
 		Files->setAlternatingRowColors(false);
@@ -1303,6 +1355,14 @@ namespace bpr::qt {
 					Files->setCurrentIndex(aFolder);
 					break;
 				}
+			}
+		});
+		// A click on a folder row shows or hides its files; files open on
+		// activation as before. Neither dispatches anything for a folder.
+		connect(Files, &QAbstractItemView::clicked, this, [this](const QModelIndex& aIndex) {
+			if (aIndex.data(overview_file_model::folder_role).toBool()) {
+				const auto folder = aIndex.siblingAtColumn(0);
+				Files->setExpanded(folder, !Files->isExpanded(folder));
 			}
 		});
 		connect(Files, &QAbstractItemView::activated, this, [this](const QModelIndex& aIndex) {
