@@ -9,6 +9,11 @@ endif()
 bpr_add_executable(test_workspace_source workspace_source_tests.cpp)
 target_link_libraries(test_workspace_source PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite)
 bpr_enable_hardening(test_workspace_source)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_workspace_source PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_workspace_source)
 bpr_add_network_isolated_test(
     NAME workspace_source
@@ -20,6 +25,9 @@ bpr_add_network_isolated_test(
 bpr_add_executable(test_review_cycle_capture review_cycle_capture_tests.cpp)
 target_link_libraries(test_review_cycle_capture PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
 bpr_enable_hardening(test_review_cycle_capture)
+if(WIN32)
+    target_link_libraries(test_review_cycle_capture PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_review_cycle_capture)
 bpr_add_network_isolated_test(
     NAME review_cycle_capture

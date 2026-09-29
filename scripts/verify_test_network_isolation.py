@@ -196,6 +196,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_review_cycle_storage": "dos-volume-name",
     "sqlite_review_cycle_runtime": "dos-volume-name",
     "sqlite_review_tour_storage": "dos-volume-name",
+    # [[BPR-1148]], [[BPR-1149]]. Not yet measured contained: the product opens
+    # a chosen root and resolves it with GetFinalPathNameByHandleW(VOLUME_NAME_DOS),
+    # the rows keep their stores under a scratch root, and they build fixtures
+    # with Git; each is the obstacle named above. The Windows station confirms
+    # or moves this pin with its first run of the rows.
+    "workspace_source": "dos-volume-name",
+    "review_cycle_capture": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",
     "operator_response_validation_contract": "dos-volume-name",
