@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1153"
 title: "Add source-attached private feedback and related locations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0055"]
 depends_on: ["BPR-1145", "BPR-1151"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-01", "RC55-02", "RC55-10"], "pack_alias": "PACK-CYCLE-11", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
