@@ -65,7 +65,8 @@
  "operator_notes": [
   "Codex WIP defects found and fixed: walk reused one request ID for every mutation; a retry naming its own ID was refused client-side on a stale revision; the closing-owner poll guard was omitted in the first desktop wiring; the desktop never listed its own draft in the target catalog.",
   "workflow_preflight --strategy direct reports state.drift on both this worktree and main (MASK deployment drift); not repaired, out of mandate.",
-  "milestone_checkpoint.py check refused the bind output as an observation ('invalid observation fields'); acceptance is judged directly from the evidence above."
+  "milestone_checkpoint.py check refused the bind output as an observation ('invalid observation fields'); acceptance is judged directly from the evidence above.",
+  "The direct checkpoint originally bound the intake milestone because the milestone arguments were omitted; it was regenerated for same-machine-handoff after landing."
  ],
  "pending_pack_obligations": [
   "BPR-1227 forwarding provider reads (planned with the skill milestone)",
