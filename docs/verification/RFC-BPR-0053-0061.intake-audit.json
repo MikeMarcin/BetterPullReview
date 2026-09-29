@@ -1,0 +1,226 @@
+{
+  "schema": "bpr.review-cycles.intake-audit.v1",
+  "execution_base": "22d1841661b15a160e694b557c506cdbae66bb2a",
+  "import_commit": "fc4b39e8c3a54ecf931d74071d7793e5e4112496",
+  "pre_import_head": "8466534f96f254d88fed412a587188b7b45f2580",
+  "pack_manifest_sha256": "8c390caea6d678c9eb51a7a0b76b38bbd5d61bc3124778f006f0f95bab536d4f",
+  "source_snapshot_sha256": "8f9226134e287033a8f35046bc2a9ed7ca4b2480e42d6bace858ea6d26095a52",
+  "summary": {
+    "sources": 30,
+    "pre_import_match": 29,
+    "execution_base_match": 11,
+    "execution_base_missing": 0
+  },
+  "sources": [
+    {
+      "path": "docs/architecture/product-contract.md",
+      "snapshot_sha256": "385f3cb1b17d42fc27dba35c2048428972d1e8338fc39a620b4cb0891ccb8f68",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "7990a9fa8425016151919379ae9517876e7716551f44d37ab774924624c78e92"
+    },
+    {
+      "path": "docs/architecture/system-architecture.md",
+      "snapshot_sha256": "3010c13941909d8ebeb2d73e9d32b88423545387ffaa3da5e76fc961accfa505",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "6f8e04d3c4cd0b0d254b28ea7853b206f0078efade5b7ea6261a5c839b30468e"
+    },
+    {
+      "path": "docs/architecture/domain-and-state-model.md",
+      "snapshot_sha256": "603669ab718113a2505752f85b61ed70057ad662cdc3c057ed1932df33c9ee64",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "d2dbe11408e98514e6bf7707b34c5139ae2c49101cb11df7f93a5a29d2a5d71f"
+    },
+    {
+      "path": "docs/architecture/git-and-epoch-model.md",
+      "snapshot_sha256": "435204d0ce843dcdb23949d1f43a9b2f539821d0328ea837005de7aab36baea0",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "435204d0ce843dcdb23949d1f43a9b2f539821d0328ea837005de7aab36baea0"
+    },
+    {
+      "path": "docs/architecture/review-ledger.md",
+      "snapshot_sha256": "edb2816a94ea7068e6f9c63ad91e12a8ee4cedbf8df01575b6508af37e25a08c",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "e0d689692cc812d062bc2db2fd4f0ff682ed3a4b1a678cf2840208fec0b5c802"
+    },
+    {
+      "path": "docs/architecture/review-round-trip.md",
+      "snapshot_sha256": "0c64a945b161a1e01cd3696bf82f5f026b6519401837f952462309d4e7b88cf4",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "500a49b9d90d2a68efb4d072f2b25bc440ff78437e81bd351edbe06618dd331e"
+    },
+    {
+      "path": "docs/architecture/ai-agent-boundary.md",
+      "snapshot_sha256": "a3bff42ef05624db57a08a91a1d04a53e8720aa2fd8d0bdf59ec48fbcecc906a",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "d3c6069e7fc169ef81ec1524e6ffa9962c3c8f318d08d5ef0624eab6a4ae17bc"
+    },
+    {
+      "path": "docs/architecture/native-markdown.md",
+      "snapshot_sha256": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79"
+    },
+    {
+      "path": "docs/architecture/security-threat-model.md",
+      "snapshot_sha256": "93bac8f0dcae38c15be631ac6c07b9b9c0ea914d6e10f1f6291a49a6112dfbf2",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "c69dcf5f443cef3fe45bf750f5a7023fd221e861cecb3450b5e1102ca335a460"
+    },
+    {
+      "path": "docs/security/corporate-security-overview.md",
+      "snapshot_sha256": "ad29650c2f5259e6349c6c5a30ba2d49ad4d6c5958d66f2f41aab8d41ffe0a52",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "3bee46177a0c730f33da2c29d919cd8bed9793188bd48a3fbeb01c3d4c2e790f"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md",
+      "snapshot_sha256": "4ea993d7a16a7cee8542418b06fc62e89ad72826d340506b1afaa01a1d697468",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "c310d7708bd417a62d27ca3627b3ee8a4d4f98f5b54df434e22b01db9a2e9d4b"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0036-native-markdown-rendering.md",
+      "snapshot_sha256": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md",
+      "snapshot_sha256": "e8b82a2d6c8358ed2f3a8ac351a1b5954faa9fff165772051a88b7bdfe2aa166",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "e8b82a2d6c8358ed2f3a8ac351a1b5954faa9fff165772051a88b7bdfe2aa166"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0045-shared-local-tour-drafts-and-cross-interface-recovery.md",
+      "snapshot_sha256": "bcbfe2c36c242c8eaa6fd4232e784ddff1b27a1f9a4ee4a97b946dda23078c0d",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "bcbfe2c36c242c8eaa6fd4232e784ddff1b27a1f9a4ee4a97b946dda23078c0d"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0046-thin-pr-tour-agent-skill.md",
+      "snapshot_sha256": "7583b34a0232e820758204b49ddaa4d2837aaef0e2986440ff0149d7aa77a00e",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "7583b34a0232e820758204b49ddaa4d2837aaef0e2986440ff0149d7aa77a00e"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0048-feedback-authoring-native-github-integration.md",
+      "snapshot_sha256": "7121c8b95163a8c4b1d3f56d45da86068272ae149381818971aeeaa3d22b440f",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "7121c8b95163a8c4b1d3f56d45da86068272ae149381818971aeeaa3d22b440f"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0052-review-workbench-scaffolding.md",
+      "snapshot_sha256": "61b0979a57f2bcd7d57e16c90cefc41e67522c43f396a5c51e12fa9711f04696",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "39c0a571e219b27d45911b9af47983c83b0be9017fa358a67cc0930b3d094f3a"
+    },
+    {
+      "path": "docs/issues/README.md",
+      "snapshot_sha256": "7ea15a4445e5d5b62f28214ac37bb3a4581271287762cfa77683bd0f3b3cc55c",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "69b5e4590ce5530b00e9785c5dd972ed8a14ba94c50bd1945ac2c7bd42220505"
+    },
+    {
+      "path": "docs/issues/NEXT_ID",
+      "snapshot_sha256": "d8e542f46c64bd841901132e680f5c400a1e566f134fa142b2a6275d6ac0ea02",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "772c7c7ae86ea3002f208e995dbb559a5388cb249af14c70339667b62a00c35e"
+    },
+    {
+      "path": ".mask/skill-config/implement-rfc/project.json",
+      "snapshot_sha256": "4915f1fc66672180b6ed892ef907b6c0a5c5ef6fd346ed005eab9acf0a8fa805",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "3f081e519cd440ac5bc3d3369f23a7e068069d66a8511f0dd0a9a7be1b0115f1"
+    },
+    {
+      "path": "src/app/CMakeLists.txt",
+      "snapshot_sha256": "d3298bab733dcf95a8fb322a9f466e006bf5094d33d89a5da76942453a862252",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "198857bf82684a5f63ef3ecb7441f4032059fefd62f108c140010ac7de2c0ebf"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "snapshot_sha256": "f2e63d98df8f07860e9f1a8b53c761ea7c97fe9917a99f211efebd97fd9b9529",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "3ce221e27670bfa31b50fd7f5c25f1d6e2d667093532d381c03f583b28da979e"
+    },
+    {
+      "path": "src/core/include/bpr/core/review_ledger.hpp",
+      "snapshot_sha256": "3fc1289603b424d9d01c1247fe86ef7784300e4ad6dd0ca1f85c7a18585bde48",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "3fc1289603b424d9d01c1247fe86ef7784300e4ad6dd0ca1f85c7a18585bde48"
+    },
+    {
+      "path": "src/core/include/bpr/core/review_round_trip.hpp",
+      "snapshot_sha256": "08327211d149c241e207ca9e2c7e234f14b9786d423c3d2696acb3845c0583ab",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "4dad9ca160125227f25835acf7006acaae09149bec2fdc153a6d0af9bb00d930"
+    },
+    {
+      "path": "src/core/include/bpr/core/workbench_interaction.hpp",
+      "snapshot_sha256": "60dcf85f817ed4f7ede79357ac5bb86e9d41988e8d7ca5a5f6d8d1650089793f",
+      "pre_import_head": "differs",
+      "execution_base": "differs",
+      "execution_base_sha256": "dcf347538c0221982621eba7086853a39ecffb4c18b4a759ef3f15b1094fe9d7"
+    },
+    {
+      "path": "src/application/include/bpr/application/git_cache_port.hpp",
+      "snapshot_sha256": "588e48504aeddc1a8b102c3d1506b82f25faa47ec3edb3f689579c7e1872faa9",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "588e48504aeddc1a8b102c3d1506b82f25faa47ec3edb3f689579c7e1872faa9"
+    },
+    {
+      "path": "src/application/include/bpr/application/review_ledger_port.hpp",
+      "snapshot_sha256": "acb6f407258a195efa985b05b57dcf1387ae12706888badffcb911781ef0568e",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "c911103cf19ce101c6a770f7f07f478a86da8dd2b1fc8cbbcecccf625cffe3e9"
+    },
+    {
+      "path": "src/application/include/bpr/application/workbench_application_host.hpp",
+      "snapshot_sha256": "ac0a42902964544e42bf394d96ee84828d819edd87b421a7f287d8f234fed589",
+      "pre_import_head": "match",
+      "execution_base": "differs",
+      "execution_base_sha256": "70df2d270c6f6afe6c87b35d9268729c4bc63ded9150bd9e34b46ed928981006"
+    },
+    {
+      "path": "src/adapters/git/src/installed_git_cache.cpp",
+      "snapshot_sha256": "541632348a21bfa929fea8d403377e7b843acbc9897e29412e897760cc4cd76c",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "541632348a21bfa929fea8d403377e7b843acbc9897e29412e897760cc4cd76c"
+    },
+    {
+      "path": "src/adapters/sqlite/src/review_ledger_store.cpp",
+      "snapshot_sha256": "33ddaa2ae418412934e49ea3b2f303fa1a7cb6831372c9125839710f4dd0494f",
+      "pre_import_head": "match",
+      "execution_base": "match",
+      "execution_base_sha256": "33ddaa2ae418412934e49ea3b2f303fa1a7cb6831372c9125839710f4dd0494f"
+    }
+  ]
+}

@@ -11,6 +11,18 @@ designated live-publication acceptance gap.
 
 Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
 
+The proposed extension is deliberately narrow. A review cycle is a local
+subject in one BPR profile: captured source revisions, private feedback,
+frozen rounds and reviewer judgments stay on this machine unless the reviewer
+explicitly shares a round or publishes. The only new GitHub write it proposes
+is creating a new branch and pull request from a selected final result; it does
+not merge, close or push to existing pull requests, run arbitrary Git
+operations, host shared review, or execute code. A cycle may link to an
+existing pull request without inheriting its publication authority. Pull
+request identity, credentials, epochs and the shared-state authority in the
+table below are unchanged, and GitHub still wins every shared fact. Local
+cycle history is not recoverable from GitHub.
+
 ## Definition
 
 BetterPullReview is an alternative native client for reviewing code contained in GitHub pull requests. It is not a replacement pull-request server, a second collaborative review database, a merge client, or an IDE.

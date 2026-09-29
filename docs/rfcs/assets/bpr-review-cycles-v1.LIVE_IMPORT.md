@@ -17,3 +17,7 @@ The source baseline's 30 named file hashes were checked against the live checkou
 ## Validation and boundary
 
 The retained archive passed `python3 -B scripts/verify_pack.py` (114 manifest files, nine RFCs, 52 cards, eleven milestones, 90 requirements). Its own verifier is artifact-only. Native plan `check` and `adopt` passed for the mapped proposal. The repository documentation gate validates live links, status and closeout shape separately. No application build, native UI, provider mutation, model invocation, skill installation or product acceptance was performed during import. The existing RFC-BPR-0052 working tree remains outside this import commit.
+
+## Reconciliation at execution
+
+On 2026-09-29 BPR-1143 re-checked this import at `main` 22d184166 and recorded the result in the [execution ledger](../../verification/RFC-BPR-0053-0061.md). Identities, archive and plan are unchanged. Two statements above have since moved: RFC-BPR-0023 is now Auto-Verified rather than deferred, and the RFC-BPR-0044/0045 shared runtime and profile-owner channel now exist.

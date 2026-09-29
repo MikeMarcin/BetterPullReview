@@ -1353,3 +1353,22 @@ publication admission paths require a separate current visible author completion
 The restricted process protocol and profile/owner/generation checks remain the
 existing writing-assistance boundary. Deterministic process fixtures establish
 these application behaviors, not installed provider enforcement or model quality.
+
+## Review Cycles registration (proposed)
+
+[RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)
+propose local review cycles over captured workspace source. Until those RFCs
+earn acceptance, nothing here is implemented and every boundary above is
+unchanged. The proposal adds two narrow surfaces. Locally, a root-bound
+read-only capture host reads only the source the reviewer selects into the
+profile-private store; it never writes, resets or cleans the reviewer's
+checkout, and local cycle history does not leave the machine unless the
+reviewer shares a frozen round or publishes. Remotely, the only new mutation is
+an explicitly authorized new branch and pull request from a selected final
+result, through the existing native GitHub transport and credential owner; no
+shell, `gh` or authenticated Git fallback is added. GitHub credentials, pull
+request identity, epochs and shared-state authority keep their current owners.
+Capture, freeze, export, response import, reviewer verification and
+publication are separate grants, and imported response text grants none of
+them. The [capability and packaging contract](../rfcs/assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md)
+is the proposal's normative source.
