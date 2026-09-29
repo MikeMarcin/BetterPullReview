@@ -400,7 +400,7 @@ namespace bpr::adapters::workspace {
 				if (bytes.size() + got > aMaximum) {
 					return fail(workspace_failure::too_large);
 				}
-				bytes.insert(bytes.end(), chunk.begin(), chunk.begin() + got);
+				bytes.insert(bytes.end(), chunk.begin(), chunk.begin() + static_cast<std::ptrdiff_t>(got));
 			}
 		}
 
