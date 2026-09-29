@@ -314,3 +314,20 @@ authoring, hooks, preview and publication by the author are unaffected. `capabil
 reports the policy and `verified_agent_identity: unavailable`. This is a host setting, not a
 sandbox: BPR cannot verify who is calling, and a same-user agent with a shell can make any
 claim.
+
+### Distribution status
+
+The canonical import is not done, and this repository does not claim it is. The shared
+source is the local AgentSkills repository (`ssh://git@github.com/~/MikeMarcin/AgentSkills.git`,
+selected here by `.mask.json` as `agentskills`), which has its own contribution contract:
+its own RFC and card, explicit-path commits, no unrequested push, and MASK deployment by
+links. Importing `pr-tour` is therefore that repository's work, authorized by its owner.
+To do it: copy `packaging/agent-skills/pr-tour/` unchanged to `skills/pr-tour/` there,
+commit it under that repository's process, add `{"id": "pr-tour", "source": "agentskills"}`
+to this repository's `.mask.json`, and run `mask install pr-tour`. Verify the import with
+`python3 tests/scripts/pr_tour_skill_tests.py PACKAGE_DIR bpr-fixture-cli --digest`, whose
+digest must equal the one recorded in the verification record for the candidate revision.
+The package needs only a released `bpr` CLI, not the desktop or this source tree. Which
+agent hosts load it, and whether the skill activates for a real user, are separate attended
+observations that are not made here.
+

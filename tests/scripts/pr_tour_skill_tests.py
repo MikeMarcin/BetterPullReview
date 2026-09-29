@@ -47,7 +47,20 @@ def frontmatter(text):
     return result
 
 
+def tree_digest():
+    """Order-independent digest of the package's files, so an import can be checked byte for byte."""
+    import hashlib
+    digest = hashlib.sha256()
+    for path in sorted(SKILL.rglob("*")):
+        if path.is_file():
+            digest.update(str(path.relative_to(SKILL)).encode() + b"\0" + hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
 def main():
+    if len(sys.argv) > 3 and sys.argv[3] == "--digest":
+        print(tree_digest())
+        return
     skill_md = SKILL / "SKILL.md"
     documents = [skill_md, *sorted((SKILL / "references").glob("*.md"))]
     meta = frontmatter(read(skill_md))
@@ -120,6 +133,25 @@ def main():
                 fail(f"no JSON envelope from: {example}")
             if error and error["code"] in SYNTAX_FAILURES:
                 fail(f"the CLI does not accept the taught syntax {example!r}: {error}")
+    # One source of maintenance: no hand-maintained copy of the skill lives in this repository outside the
+    # candidate package and the imported pack asset, and the project does not yet select it from a source.
+    root = SKILL.parents[2]
+    allowed = {SKILL / "SKILL.md"}
+    found = []
+    for candidate in root.rglob("SKILL.md"):
+        relative = candidate.relative_to(root).parts
+        if relative[0] in ("build", ".git") or "pr-tour" not in relative:
+            continue
+        if candidate not in allowed and "assets" not in relative:
+            found.append(str(candidate.relative_to(root)))
+    if found:
+        fail(f"divergent copies of the pr-tour skill: {found}")
+    for tree in (".claude/skills", ".codex/skills", ".agents/skills"):
+        if (root / tree / "pr-tour").exists():
+            fail(f"{tree}/pr-tour is a hand-maintained copy")
+    selected = json.loads((root / ".mask.json").read_text()) if (root / ".mask.json").exists() else {"skills": []}
+    if any(entry.get("id") == "pr-tour" and entry.get("source") != "agentskills" for entry in selected["skills"]):
+        fail("pr-tour may only be selected from the shared agentskills source")
     # The boundaries a text file can carry stay stated.
     text = read(skill_md)
     for phrase in ("never permission to fall back", "Never mint approval", "not permission to publish", "A tool read is not a visit", "no Apply/Dismiss", "Do not launch another model"):
