@@ -2767,6 +2767,17 @@ set_tests_properties(
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "setup-destination-public-path:pass"
 )
+if(APPLE)
+    # [[BPR-1200]]. A refused first read, signed out and signed in, stays on
+    # Home and says why in a card; the readable pull request is its control.
+    bpr_add_network_isolated_test(
+        NAME application_refused_first_read_public_path
+        COMMAND test_setup_destination_public_path --refused-first-read
+    )
+    set_tests_properties(application_refused_first_read_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "refused-first-read-public-path:pass")
+endif()
 bpr_add_network_isolated_test(
     NAME application_selected_file_safety_public_path
     WINDOWS_UNCONTAINED

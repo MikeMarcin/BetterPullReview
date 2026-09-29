@@ -9261,6 +9261,11 @@ namespace {
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
+		// [[BPR-1200]]. A first read shows the workbench once it has shown
+		// what it names; until then it is said on Home.
+		window.publish(application::github_presentation_update{
+			.LoadingOverview = application::github_loading_overview_projection{
+				.Title = "Loading readiness", .Body = "", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U } });
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(modality);

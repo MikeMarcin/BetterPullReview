@@ -2021,6 +2021,20 @@ namespace bpr::qt {
 					clipboard->setText(HomeRefusalDetails);
 				}
 			});
+			// [[BPR-1200]]. A pull request this connection cannot read is refused
+			// in a card of its own under the bar, not in the line above: the
+			// owner missed that line. It names the pull request, says why in
+			// terms of the connection and offers what could open it.
+			HomeRefusal = new home_refusal{ HomePage };
+			homeColumn->addWidget(HomeRefusal);
+			HomeRefusal->set_action_dispatch([this](const core::pull_request_refusal_action aAction) {
+				take_refusal_action(aAction);
+			});
+			HomeRefusal->set_copy_dispatch([this] {
+				if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
+					clipboard->setText(HomeRefusalDetails);
+				}
+			});
 			auto* setupRow = new QHBoxLayout{ };
 			setupRow->setContentsMargins(24, 2, 24, 4);
 			SetupContinueButton = new QPushButton{ HomePage };
@@ -2061,6 +2075,12 @@ namespace bpr::qt {
 				}
 				if (HomeOpenDetails != nullptr) {
 					HomeOpenDetails->hide();
+				}
+				if (HomeRefusal != nullptr && HomeRefusal->isVisible()) {
+					if (!ApplyingSetupProjection && HomeSetupNotice.isEmpty()) {
+						DismissedHomeRefusal = HomeRefusal->text();
+					}
+					HomeRefusal->hide();
 				}
 				if (HomeOpenAction != nullptr) {
 					HomeOpenAction->setEnabled(
@@ -2112,6 +2132,12 @@ namespace bpr::qt {
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
 			}
+			// [[BPR-1200]]. With no list to fill it, Home's slack is a fill below
+			// the last thing shown, as the accepted board puts it under the
+			// first-launch card, so a refusal or a load in progress is said
+			// directly under the bar rather than wherever the spare height
+			// spread the rows. The list's stretch still takes it when shown.
+			homeColumn->addStretch(0);
 			if (HomeList != nullptr) {
 				HomeList->adopt_recent(*recentList);
 				HomeList->set_recent_action_dispatch([this](const int aRow) { dispatch_recent_review(aRow, true); });
@@ -6526,8 +6552,14 @@ namespace bpr::qt {
 		// bar and diagnostic are available; a retained review stays in place.
 		const auto readUnavailable = status == core::github_status::pull_request_failed
 			|| status == core::github_status::pull_request_cancelled;
-		const auto nothing = !HasGithubPullRequest && !HasCachedOverview && !comparing && !loading && (!active || readUnavailable);
-		const auto home    = nothing || HomeRequested || SetupDestinationNeedsHome;
+		// [[BPR-1200]]. A first read stays on Home, said under the bar, until
+		// something shows that this connection can read it: its overview, the
+		// review, or a cached overview. A read the connection is refused
+		// therefore never passes through an empty Overview on its way back.
+		const auto unconfirmed = loading && !LoadingOverviewShown;
+		const auto nothing     = !HasGithubPullRequest && !HasCachedOverview && !comparing
+			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
+		const auto home = nothing || HomeRequested || SetupDestinationNeedsHome;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
@@ -7235,6 +7267,10 @@ namespace bpr::qt {
 		if (aUpdate.LoadingOverview && !HasGithubPullRequest
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
 			OverviewPage->present_observation(*aUpdate.LoadingOverview);
+			// [[BPR-1200]]. The read has shown what it names, so the connection
+			// can read it: Overview now has something to be about.
+			LoadingOverviewShown = true;
+			update_home_landing();
 		}
 		if (aUpdate.CachedOverview && !HasGithubPullRequest) {
 			HasCachedOverview = true;
@@ -7312,7 +7348,12 @@ namespace bpr::qt {
 		case core::github_status::session_cancelled:
 			break;
 		}
-		const auto announcement = SessionPanel->summary_text();
+		// [[BPR-1200]]. A refusal with its own card is announced in the card's
+		// words, so a reader hears what a sighted reviewer reads.
+		const auto wording      = source == HomePage ? home_refusal_wording() : std::nullopt;
+		const auto announcement = wording.has_value()
+			? QString::fromStdString(wording->Heading) + QLatin1Char{ ' ' } + QString::fromStdString(wording->Explanation)
+			: SessionPanel->summary_text();
 		if (source == nullptr || announcement.isEmpty() || announcement == LastGithubAnnouncement) {
 			return;
 		}
@@ -7338,6 +7379,7 @@ namespace bpr::qt {
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
 			HasCachedOverview = false;
+			PullRequestRefusal.reset();
 			// An accepted identity moves the picker with its signals blocked,
 			// so the rebind the picker's own change would have performed has to
 			// be performed here as well. Both paths end at the same profile.
@@ -7352,8 +7394,17 @@ namespace bpr::qt {
 			&& !aTransition.PullRequest->Summary.has_value()) {
 			clear_github_pull_request();
 		}
+		// [[BPR-1200]]. Kept until the next read, which replaces or clears it.
+		if (aTransition.Refusal.has_value()) {
+			PullRequestRefusal = aTransition.Refusal;
+		}
 		if (aTransition.Status.has_value()) {
 			ReadProgress.reset();
+			LoadingOverviewShown = false;
+			if (aTransition.Status->Status == core::github_status::loading_pull_request
+				|| aTransition.Status->Status == core::github_status::pull_request_ready) {
+				PullRequestRefusal.reset();
+			}
 			SessionPanel->apply_status(aTransition.Status->Status);
 			if (aTransition.Status->Status == core::github_status::loading_pull_request && !HasGithubPullRequest) {
 				HasCachedOverview = false;
@@ -7528,6 +7579,7 @@ namespace bpr::qt {
 		LastWorkbenchContext.reset();
 		HasGithubPullRequest = false;
 		HasCachedOverview    = false;
+		LoadingOverviewShown = false;
 		ReviewThreadTotal    = 0U;
 		IdentityText.clear();
 		IdentityOwner.clear();
@@ -8388,6 +8440,11 @@ namespace bpr::qt {
 		return HomeOpenDetails;
 	}
 
+	auto workbench_window::home_refusal_card() const noexcept -> home_refusal*
+	{
+		return HomeRefusal;
+	}
+
 	void workbench_window::present_home_restoration_notice(const QString& aText)
 	{
 		HomeRestorationNotice = aText;
@@ -8653,12 +8710,36 @@ namespace bpr::qt {
 		}
 	}
 
+	auto workbench_window::home_refusal_wording() const -> std::optional<core::pull_request_refusal_wording>
+	{
+		if (SessionPanel == nullptr || HasGithubPullRequest || !PullRequestRefusal
+			|| SessionPanel->status() != core::github_status::pull_request_failed) {
+			return std::nullopt;
+		}
+		// The core words it from the typed refusal and this window's connection
+		// facts; the window only gathers those facts.
+		const auto  session = SessionPanel->session();
+		const auto* option  = session ? SessionPanel->profile_option(session->Profile) : nullptr;
+		return core::word_pull_request_refusal(
+			*PullRequestRefusal,
+			core::pull_request_refusal_context{
+				.Login            = session && !PublicPreviewSignedOut ? session->Login : std::string{ },
+				.GithubCliOffered = static_cast<bool>(GithubCliDiscoveryDispatch),
+				.ThroughGithubCli = option != nullptr
+					&& option->Transport == application::github_profile_transport::github_cli,
+			});
+	}
+
 	auto workbench_window::home_refusal_text() const -> QString
 	{
 		if (SessionPanel == nullptr || HasGithubPullRequest) {
 			return { };
 		}
 		if (SessionPanel->status() == core::github_status::pull_request_failed) {
+			if (const auto wording = home_refusal_wording(); wording.has_value()) {
+				return QString::fromStdString(wording->Heading) + QLatin1Char{ '\n' }
+				+ QString::fromStdString(wording->Explanation);
+			}
 			return SessionPanel->showing_diagnostic()
 				? QString::fromStdString(SessionPanel->diagnostic_text())
 				: QStringLiteral("The pull request could not be loaded.");
@@ -8666,6 +8747,23 @@ namespace bpr::qt {
 		// A signed-out mode refusal is not a pull request the bar named; it is
 		// said on the reading host's card instead.
 		return { };
+	}
+
+	void workbench_window::take_refusal_action(const core::pull_request_refusal_action aAction)
+	{
+		// [[BPR-1200]]. Each step is one Home already offers elsewhere; the
+		// refusal leads to it rather than performing anything of its own.
+		switch (aAction) {
+		case core::pull_request_refusal_action::sign_in:
+			begin_selected_sign_in();
+			return;
+		case core::pull_request_refusal_action::use_github_cli:
+			begin_github_cli_from_home();
+			return;
+		case core::pull_request_refusal_action::use_another_account:
+			open_sign_in(SessionPanel != nullptr ? SessionPanel->active_host_text() : std::string{ });
+			return;
+		}
 	}
 
 	void workbench_window::update_home_open_notice()
@@ -8693,8 +8791,12 @@ namespace bpr::qt {
 		const auto notice  = !HomeSetupNotice.isEmpty() ? HomeSetupNotice
 			: spoken                                    ? passive
 														: loading;
-		HomeOpenNotice->setText(notice);
-		HomeOpenNotice->setVisible(!notice.isEmpty());
+		// [[BPR-1200]]. A refusal the core has its own words for is its card;
+		// every other notice keeps the line.
+		const auto wording = refused ? home_refusal_wording() : std::nullopt;
+		const auto carded  = wording.has_value() && HomeRefusal != nullptr;
+		HomeOpenNotice->setText(carded ? QString{ } : notice);
+		HomeOpenNotice->setVisible(!carded && !notice.isEmpty());
 		HomeRefusalDetails.clear();
 		if (refused) {
 			HomeRefusalDetails = QString::fromStdString(SessionPanel->status_text());
@@ -8702,7 +8804,13 @@ namespace bpr::qt {
 				HomeRefusalDetails += QLatin1Char('\n') + refusal;
 			}
 		}
-		HomeOpenDetails->setVisible(refused);
+		HomeOpenDetails->setVisible(refused && !carded);
+		if (HomeRefusal != nullptr) {
+			if (carded) {
+				HomeRefusal->present(*wording);
+			}
+			HomeRefusal->setVisible(carded);
+		}
 	}
 
 	auto workbench_window::select_queue_item(

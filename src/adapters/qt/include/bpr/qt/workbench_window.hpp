@@ -22,6 +22,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/resident_filter.hpp"
@@ -805,6 +806,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open_notice() const noexcept -> QLabel*;
 		/// \brief [[BPR-0771]]. Copy details, beside a load refusal under the bar.
 		[[nodiscard]] auto home_open_details_button() const noexcept -> QPushButton*;
+		/// \brief [[BPR-1200]]. The card under the bar that says a pull request
+		/// was refused on this connection and offers what could open it.
+		[[nodiscard]] auto home_refusal_card() const noexcept -> home_refusal*;
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
 		///
 		/// \details The window is the one writer of the notice under the bar: a
@@ -1272,6 +1276,9 @@ namespace bpr::qt {
 		/// \brief Says the setup notice, or a pull request's load refusal, under the bar.
 		void               update_home_open_notice();
 		[[nodiscard]] auto home_refusal_text() const -> QString;
+		/// \brief [[BPR-1200]]. The core's words for the refusal Home is showing, if it has its own.
+		[[nodiscard]] auto home_refusal_wording() const -> std::optional<core::pull_request_refusal_wording>;
+		void               take_refusal_action(core::pull_request_refusal_action aAction);
 		/// \brief The card of the host the session is on, or of the chosen host
 		/// while none is.
 		[[nodiscard]] auto current_server_card() const -> server_card*;
@@ -1587,6 +1594,7 @@ namespace bpr::qt {
 		QAction*                              HomeOpenAction         = nullptr;
 		QLabel*                               HomeOpenNotice         = nullptr;
 		QPushButton*                          HomeOpenDetails        = nullptr;
+		home_refusal*                         HomeRefusal            = nullptr;
 		QString                               HomeSetupNotice;
 		QString                               HomeRestorationNotice;
 		QString                               HomeRefusalDetails;
@@ -1678,6 +1686,11 @@ namespace bpr::qt {
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
 		bool                                               HasCachedOverview      = false;
+		/// [[BPR-1200]]. The read in progress has shown its overview, so this
+		/// connection can read what it names.
+		bool LoadingOverviewShown = false;
+		/// [[BPR-1200]]. The first read the core last refused; cleared by the next read.
+		std::optional<core::pull_request_refusal> PullRequestRefusal;
 
 		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 

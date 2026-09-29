@@ -10,6 +10,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -34,6 +35,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyleOptionViewItem>
 #include <QTemporaryDir>
@@ -644,6 +646,70 @@ namespace {
 	}
 
 #if defined(__APPLE__)
+	/// \brief [[BPR-1200]]. Every central page the composed window shows, from
+	/// the moment it is watched: the course's evidence that a refused read
+	/// never passed through the workbench.
+	class central_passage final
+	{
+	public:
+		explicit central_passage(qt::workbench_window& aWindow)
+			: Stack{ aWindow.findChild<QStackedWidget*>(QStringLiteral("workbenchCentralStack")) }
+		{
+			expect(Stack != nullptr && Stack->currentWidget() != nullptr, "the composed window has its central stack");
+			Pages.push_back(Stack->currentWidget()->objectName());
+			Watch = QObject::connect(Stack, &QStackedWidget::currentChanged, Stack, [this](int) {
+				Pages.push_back(Stack->currentWidget()->objectName());
+			});
+		}
+		~central_passage() { QObject::disconnect(Watch); }
+		central_passage(const central_passage&)                             = delete;
+		auto operator=(const central_passage&) -> central_passage&          = delete;
+		central_passage(central_passage&&)                                  = delete;
+		auto               operator=(central_passage&&) -> central_passage& = delete;
+		[[nodiscard]] auto stayed_home() const -> bool
+		{
+			return std::ranges::all_of(Pages, [](const QString& aPage) { return aPage == QStringLiteral("workbenchHome"); });
+		}
+		[[nodiscard]] auto pages() const -> const QStringList& { return Pages; }
+
+	private:
+		QStackedWidget*         Stack = nullptr;
+		QStringList             Pages;
+		QMetaObject::Connection Watch;
+	};
+
+	/// \brief [[BPR-1200]]. The owner's case through the composition: signed
+	/// out, a link to a pull request this connection cannot read. The window
+	/// stays on Home throughout and the refusal card says to sign in.
+	void check_signed_out_refusal_stays_on_home(app::github_application& aApplication)
+	{
+		auto& window = aApplication.window();
+		expect(!window.session_panel()->session().has_value() || aApplication.status().PublicPreviewSignedOut,
+			   "the signed-out refusal course begins without an account");
+		if (!window.showing_home()) {
+			window.home_action()->trigger();
+			QApplication::processEvents();
+		}
+		const central_passage passage{ window };
+		submit(window, QStringLiteral("https://github.com/octo-org/inaccessible-repository/pull/17"));
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; },
+				 "the signed-out read of the inaccessible repository is refused",
+				 [&] { std::cerr << "pages: " << passage.pages().join(QLatin1Char{ ',' }).toStdString() << " status: " << window.session_panel()->status_text() << '\n'; });
+		QApplication::processEvents();
+		expect(passage.stayed_home(), "signed out, the refused read never passes through the workbench");
+		expect(aApplication.status().PublicPreviewSignedOut, "the refused read was read signed out");
+		auto* const card = window.home_refusal_card();
+		expect(window.showing_home() && card != nullptr && card->isVisible()
+				   && card->heading_label()->text() == QStringLiteral("Sign in to open octo-org/inaccessible-repository#17")
+				   && card->explanation_label()->text().contains(QStringLiteral("not signed in"))
+				   && !card->explanation_label()->text().contains(QStringLiteral("browser")),
+			   "Home's card names the pull request, says the app is signed out and says to sign in");
+		const auto offered = card->offered_buttons();
+		expect(!offered.empty() && offered.front()->text() == QStringLiteral("Sign in") && window.home_open_notice()->isHidden(),
+			   "the card offers Sign in first, and the line under the bar gives way to it");
+		capture(window, QStringLiteral("setup-denied-signed-out.png"));
+	}
+
 	void check_denied_read_retains_session(app::github_application& aApplication, const QString& aHostname)
 	{
 		auto&      window  = aApplication.window();
@@ -654,9 +720,24 @@ namespace {
 			return aSession && aSession->Profile == session->Profile && aSession->Host == session->Host
 				&& aSession->Account == session->Account && aSession->Login == session->Login;
 		};
+		if (!window.showing_home()) {
+			window.home_action()->trigger();
+			QApplication::processEvents();
+		}
+		auto passage = std::make_unique<central_passage>(window);
 		submit(window, QStringLiteral("https://%1/octo-org/inaccessible-repository/pull/17").arg(aHostname));
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "the inaccessible repository reaches a read refusal");
-		expect(window.home_open_notice()->text().contains(QStringLiteral("cannot read this pull request")), "the composed refusal is a permission denial");
+		QApplication::processEvents();
+		// [[BPR-1200]]. The composed refusal is a permission denial on this
+		// account, said in Home's card, and the window never left Home.
+		expect(passage->stayed_home(), "an account's refused read never passes through the workbench");
+		auto* const refusal = window.home_refusal_card();
+		expect(refusal != nullptr && refusal->isVisible()
+				   && refusal->heading_label()->text().endsWith(QStringLiteral(" cannot open octo-org/inaccessible-repository#17"))
+				   && !refusal->explanation_label()->text().contains(QStringLiteral("not signed in"))
+				   && !refusal->offered_buttons().empty()
+				   && refusal->offered_buttons().front()->text() == QStringLiteral("Use another account"),
+			   "the composed refusal is a permission denial on this account, and the card offers another account");
 		expect(sameAccount(window.session_panel()->session()) && !aApplication.status().PublicPreviewSignedOut
 				   && window.home_landing()->state() == qt::landing_state::choose_pull_request,
 			   "a denied read preserves the accepted account and signed-in Home");
@@ -672,8 +753,15 @@ namespace {
 				   && after.DeviceTransportSubmissions == before.DeviceTransportSubmissions && after.AccountFactoryCalls == before.AccountFactoryCalls,
 			   "a denied read neither touches credential slots nor starts another device or account session");
 		capture(window, QStringLiteral("setup-denied-%1.png").arg(session->Grant ? QStringLiteral("native") : QStringLiteral("cli")));
+		// The control: a pull request this account can read presents the
+		// workbench, and the same watch records it, so the predicate above
+		// would have failed a read that passed through Overview.
+		passage = std::make_unique<central_passage>(window);
 		submit(window, QStringLiteral("https://%1/octo-org/review-repository/pull/17").arg(aHostname));
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the same session opens an accessible review after the refusal");
+		QApplication::processEvents();
+		expect(!passage->stayed_home() && passage->pages().contains(QStringLiteral("workbenchReviewSurface")) && !refusal->isVisible(),
+			   "control: a readable pull request presents the workbench, which the same watch records");
 		expect(sameAccount(window.session_panel()->session()), "retrying an accessible target preserves the account");
 		expect(!window.sign_in_dialog()->isVisible(), "retrying an accessible target requires no sign-in");
 	}
@@ -703,6 +791,7 @@ namespace {
 		window.show();
 		window.home_action()->trigger();
 		QApplication::processEvents();
+		check_signed_out_refusal_stays_on_home(*application);
 		expect(window.home_landing()->primary_button()->isVisible() && window.home_landing()->primary_button()->isEnabled(), "native sign-in is offered before any PR read");
 		window.home_landing()->primary_button()->click();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic device account is accepted before any PR read");
@@ -1418,6 +1507,12 @@ try {
 		return EXIT_SUCCESS;
 	}
 #if defined(__APPLE__)
+	// [[BPR-1200]]. The refused first read, signed out and signed in, alone.
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--refused-first-read")) {
+		run_native_read_refusal_course();
+		std::cout << "refused-first-read-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--cli-source-update")) {
 		run_cli_source_update_course();
 		std::cout << "cli-source-update-public-path:pass\n";

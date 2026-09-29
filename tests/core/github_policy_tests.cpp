@@ -1,5 +1,7 @@
 #include "bpr/core/github_transition.hpp"
 
+#include "bpr/core/anonymous_read_policy.hpp"
+
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -877,6 +879,9 @@ namespace {
 			expect(
 				!state.PendingPullRequest.has_value(),
 				"matching failure clears only matching work");
+			expect(
+				!output.Refusal.has_value(),
+				"a failed refresh keeps its review and refuses nothing");
 		}
 
 		auto       state     = loaded_state();
@@ -892,6 +897,80 @@ namespace {
 					}
 				&& !cancelled.AcceptedSnapshot.has_value(),
 			"PR cancellation is a visible normal state and is non-accepting");
+	}
+
+	// [[BPR-1200]]. A first read that fails refuses the pull request it named,
+	// on the connection it was read through, whatever the reason.
+	auto test_first_read_failure_names_the_refused_pull_request() -> void
+	{
+		auto account = initial_state();
+		activate_and_ready(account);
+		const auto denied = transition(
+			account,
+			pull_request_load_failed_event{
+				.Context = open_request(account, locator("octo-org", "inaccessible-repository")),
+				.Failure = github_failure::permission,
+			});
+		expect(
+			denied.Refusal
+				== pull_request_refusal{
+					.Reason     = github_reason_code::permission_denied,
+					.Connection = refused_connection::account,
+					.Repository = locator("octo-org", "inaccessible-repository"),
+					.Number     = pull_request_number{ 17 },
+				},
+			"an account's first read refuses the named pull request on that account");
+
+		const auto unreachable = transition(
+			account,
+			pull_request_load_failed_event{
+				.Context = open_request(account),
+				.Failure = github_failure::network,
+			});
+		expect(
+			unreachable.Refusal.has_value()
+				&& unreachable.Refusal->Reason == github_reason_code::network_unavailable,
+			"the refusal carries the typed reason, not only a permission denial");
+
+		auto       signedOut  = initial_state();
+		const auto activation = transition(
+			signedOut,
+			activate_host_profile_intent{
+				.Profile = host_profile_id{ 11 },
+				.Mode    = github_access_mode::public_preview,
+			});
+		const auto ready = transition(
+			signedOut,
+			github_session_ready_event{
+				.Context            = session_context(activation),
+				.Host               = git_host_id{ 21 },
+				.Account            = github_account_id{ 0 },
+				.Capabilities       = all_supported(),
+				.CapabilityRevision = capability_revision{ 41 },
+			});
+		expect(ready.Diagnostics.empty(), "a signed-out session is ready");
+		const auto hidden = transition(
+			signedOut,
+			pull_request_load_failed_event{
+				.Context = open_request(signedOut, locator("octo-org", "private-repository"), pull_request_number{ 9 }),
+				.Failure = github_failure::permission,
+			});
+		expect(
+			hidden.Refusal
+				== pull_request_refusal{
+					.Reason     = github_reason_code::permission_denied,
+					.Connection = refused_connection::signed_out,
+					.Repository = locator("octo-org", "private-repository"),
+					.Number     = pull_request_number{ 9 },
+				},
+			"a signed-out first read is refused as signed out");
+
+		auto cancelling = initial_state();
+		activate_and_ready(cancelling);
+		const auto cancelled = transition(
+			cancelling,
+			pull_request_load_cancelled_event{ .Context = open_request(cancelling) });
+		expect(!cancelled.Refusal.has_value(), "a cancelled first read is not a refusal");
 	}
 
 	auto test_stale_failure_and_profile_switch_invalidation() -> void
@@ -1127,6 +1206,7 @@ auto main() -> int
 	test_invalid_loaded_identity_never_authorizes_snapshot();
 	test_refresh_identity_and_canonical_mismatch();
 	test_failure_categories_and_refresh_preservation();
+	test_first_read_failure_names_the_refused_pull_request();
 	test_stale_failure_and_profile_switch_invalidation();
 	test_successful_refresh_and_deterministic_replay();
 	test_session_failure_and_invalid_completion_are_safe();

@@ -86,6 +86,8 @@ namespace bpr::application {
 		std::optional<core::github_capability_delta>    Capabilities = std::nullopt;
 		std::optional<core::pull_request_summary_delta> PullRequest  = std::nullopt;
 		std::vector<core::github_diagnostic>            Diagnostics{ };
+		/// [[BPR-1200]]. The first read the core refused, and on which connection.
+		std::optional<core::pull_request_refusal> Refusal = std::nullopt;
 
 		auto operator<=>(const github_transition_projection&) const = default;
 	};

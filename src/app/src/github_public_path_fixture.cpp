@@ -2056,9 +2056,21 @@ namespace bpr::app::detail {
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
 					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr || State->LargeReviewRepeatReads);
 				}
-				auto response = State->IndependentWindowReads && Role != fixture_transport_role::anonymous
+				// [[BPR-1200]]. Signed out, the inaccessible repository is refused
+				// as GitHub refuses a reader without an account: not found. The
+				// exact outbound request still passes the strict replay first.
+				const auto deniedSignedOut = State->IndependentWindowReads && Role == fixture_transport_role::anonymous
+					&& aRequest.Wire.Operation == read_operation::get_repository
+					&& aRequest.Wire.Path == "/repos/octo-org/inaccessible-repository";
+				auto response = deniedSignedOut
+					? perform_independent_read(State->IndependentRecording, aRequest.Wire)
+					: State->IndependentWindowReads && Role != fixture_transport_role::anonymous
 					? perform_independent_read(Role == fixture_transport_role::bootstrap ? State->IndependentBootstrap : State->IndependentRecording, aRequest.Wire)
 					: recording.perform(aRequest.Wire);
+				if (deniedSignedOut && response) {
+					response->Status = 404;
+					response->Body   = R"({"message":"Not Found"})";
+				}
 				if (!response.has_value()) {
 					State->RecordingFailure = static_cast<int>(response.error().Code);
 					return github_wire_error{

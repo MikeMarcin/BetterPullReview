@@ -472,6 +472,19 @@ namespace bpr::core {
 			auto output    = reject(reason_for(aFailure));
 			output.Status  = github_status_delta{ .Status = github_status::pull_request_failed };
 			output.Changed = output.Changed | github_changed_domain::status;
+			// [[BPR-1200]]. A read with no accepted review behind it refused the
+			// pull request it named, on this connection. A refresh expects the
+			// review it already has and keeps it, so it refuses nothing here.
+			if (!aContext.ExpectedPullRequest.has_value()) {
+				output.Refusal = pull_request_refusal{
+					.Reason     = reason_for(aFailure),
+					.Connection = aContext.Mode == github_access_mode::public_preview
+						? refused_connection::signed_out
+						: refused_connection::account,
+					.Repository = aContext.Repository,
+					.Number     = aContext.Number,
+				};
+			}
 			publish_commands(aState, output);
 			return output;
 		}

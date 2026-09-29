@@ -231,6 +231,18 @@ column, and RFC-BPR-0032 gives it one job per row.
 - **A refusal under the bar**: one sentence from the existing diagnostic
   with **Copy details** beside it. A first load still in progress is said in
   the same place and carries no Copy details, because it is not a refusal.
+  A pull request the current connection cannot read is refused in a card of
+  its own there instead ([[BPR-1200]]): the style's warning icon, a heading
+  that names the pull request, a sentence that says why in terms of the
+  connection, and the steps that could open it, then Copy details. Signed
+  out it says to sign in and offers **Sign in** and, where the composition
+  can inspect gh, **Use GitHub CLI**; signed in it names the account and
+  offers **Use another account** and GitHub CLI unless the account already
+  is GitHub CLI's. The core decides the words and the steps from the typed
+  reason and the connection; Qt lays them out. The card is announced once,
+  politely, from Home in its own words. Home's spare height is a fill below
+  its last row, so the card and the loading sentence sit directly under the
+  bar.
   A refusal the reviewer has already begun rewriting stays dismissed until
   the next load. The pull-request stack's empty page is not part of Home; it
   stays parented in the hidden pull-request column so what writes to it keeps
@@ -351,6 +363,9 @@ job.
   Their jobs moved rather than disappearing: a pull request is named in the
   Home bar, a load refusal is said under that bar, Refresh is the strip's,
   and a session failure is the card's own state and its Details.
+  A first load stays on Home, said under the bar, until the read has shown
+  what it names (its overview, the review or a cached overview), so a
+  refused read never passes through an empty Overview ([[BPR-1200]]).
   If the first load fails or is cancelled before any review is accepted,
   the window returns to Home with its Open bar available. A failed load shows
   the existing diagnostic and Copy details there. Enabled drawer commands

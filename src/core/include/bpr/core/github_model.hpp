@@ -413,6 +413,31 @@ namespace bpr::core {
 		auto operator<=>(const github_diagnostic&) const = default;
 	};
 
+	/// \brief [[BPR-1200]]. The connection a first read was refused on.
+	enum class refused_connection : std::uint8_t {
+		/// Public preview: there is no account, so only public pull requests
+		/// can be read.
+		signed_out,
+		/// An account's session.
+		account,
+	};
+
+	/// \brief [[BPR-1200]]. The first read of a named pull request, refused.
+	///
+	/// \details Decided with the diagnostic when a read that had no accepted
+	/// review behind it fails, so what is said can name what was refused and
+	/// the connection that refused it. A failed refresh keeps its accepted
+	/// review and is not a refusal of this kind.
+	struct pull_request_refusal
+	{
+		github_reason_code  Reason     = github_reason_code::none;
+		refused_connection  Connection = refused_connection::account;
+		repository_locator  Repository;
+		pull_request_number Number;
+
+		auto operator<=>(const pull_request_refusal&) const = default;
+	};
+
 	/// \brief Describes the github identity delta record.
 	struct github_identity_delta
 	{
@@ -519,6 +544,7 @@ namespace bpr::core {
 		std::optional<accepted_session_delta>     AcceptedSession;
 		std::optional<accepted_snapshot_delta>    AcceptedSnapshot;
 		std::vector<github_diagnostic>            Diagnostics;
+		std::optional<pull_request_refusal>       Refusal;
 
 		auto operator<=>(const github_transition_output&) const = default;
 	};

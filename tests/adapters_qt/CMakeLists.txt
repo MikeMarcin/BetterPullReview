@@ -116,6 +116,28 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# [[BPR-1200]]. A refused first read stays on Home and says why in a card,
+# rendered at each of the three scales the card names.
+foreach(bpr_refusal_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_refusal_whole "${bpr_refusal_scale} / 100")
+    math(EXPR bpr_refusal_fraction "${bpr_refusal_scale} % 100")
+    if(bpr_refusal_fraction LESS 10)
+        set(bpr_refusal_fraction "0${bpr_refusal_fraction}")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_composed_home_refusal_scale_${bpr_refusal_scale}
+        COMMAND test_better_pull_review_qt_github_tests --home-refusal
+    )
+    set_tests_properties(
+        qt_composed_home_refusal_scale_${bpr_refusal_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_refusal_whole}.${bpr_refusal_fraction};BPR_EXPECTED_QT_SCALE=${bpr_refusal_whole}.${bpr_refusal_fraction};BPR_QT_REFUSAL_RENDER_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/composed-home-refusal-${bpr_refusal_scale}"
+            PASS_REGULAR_EXPRESSION "home-refusal:pass"
+            RUN_SERIAL TRUE
+            TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-1140]]. The GitHub CLI read consent names this platform's machine:
 # "this Mac's gh executable" on macOS, "this computer's" on Windows and Linux.
 bpr_add_network_isolated_test(

@@ -912,8 +912,11 @@ namespace {
 		provider.OnSubmit = [&] {
 			expect(presentation_state(window) == QStringLiteral("loading"),
 				   "loading is projected before provider submission");
-			expect(!window.showing_home() && window.overview_page()->isVisible(),
-				   "the real overview is visible before the provider can complete");
+			// [[BPR-1200]]. Nothing yet shows that this connection can read the
+			// pull request, so the read is said on Home rather than on an
+			// empty Overview a refusal would have to take away again.
+			expect(window.showing_home() && !window.overview_page()->isVisible(),
+				   "before the read has shown anything the window stays on Home");
 		};
 		// [[BPR-0771]]. The pull request is named in the Home bar. What the bar
 		// names is the application's decision, so this fixture stands in for it
@@ -932,18 +935,19 @@ namespace {
 		expect(provider.Request.has_value(), "public Open action reaches held provider");
 		QApplication::processEvents();
 		expect(presentation_state(window) == QStringLiteral("loading") && !host.accepted_snapshot()
-				   && !window.showing_home() && window.overview_page()->isVisible(),
-			   "the held read immediately displays the overview with no accepted snapshot");
-		expect(title->isVisible() && title->text().contains(QStringLiteral("Loading"))
+				   && window.showing_home() && !window.overview_page()->isVisible()
+				   && window.home_open_notice()->isVisible()
+				   && window.home_open_notice()->text() == QStringLiteral("Loading the pull request."),
+			   "[[BPR-1200]] the held read is said under the Home bar until it shows what it names");
+		expect(title->text().contains(QStringLiteral("Loading"))
 				   && !window.overview_page()->presented() && window.overview_page()->file_model()->file_count() == 0U,
-			   "the visible loading overview does not manufacture accepted content");
+			   "the prepared loading overview does not manufacture accepted content");
 		expect(window.home_open_details_button()->isHidden(),
 			   "the loading sentence has no Copy details");
 		auto* const stack = required_child<QStackedWidget>(window, "githubViewState");
 		expect(stack->isHidden() && !stack->isVisible() && !window.home_page()->isAncestorOf(stack),
 			   "the stack's page is not shown and is not part of Home");
 		QApplication::processEvents();
-		expect(observer.Paints > 0U, "the loading sentence paints while provider completion remains held");
 		const auto overview = application::github_pull_request_overview_observation{
 			.Context       = provider.Request->Context,
 			.Repository    = { .Repository = core::repository_id{ 1U }, .Node = application::github_node_id{ "repository" }, .Owner = "owner", .Name = "repo", .DefaultBranch = "main" },
@@ -953,6 +957,10 @@ namespace {
 		provider.Overview(overview);
 		lane.drain();
 		QApplication::processEvents();
+		expect(!window.showing_home() && window.overview_page()->isVisible() && title->isVisible()
+				   && title->text().contains(QStringLiteral("Loading")),
+			   "[[BPR-1200]] the read's overview presents the workbench while provider completion remains held");
+		expect(observer.Paints > 0U, "the loading title paints while provider completion remains held");
 		auto* observedTitle = required_child<QLabel>(window, "overviewTitle");
 		expect(observedTitle->text() == QStringLiteral("<b>Literal provisional title</b>")
 				   && observedTitle->textFormat() == Qt::PlainText
@@ -5831,6 +5839,328 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1200]]. The central page a window shows, recorded at every
+	/// change from the moment it is watched.
+	///
+	/// \details The course's predicate: a refused first read never passes
+	/// through the review surface. Recording every change, rather than looking
+	/// once at the end, is what lets a workbench shown and taken away again
+	/// before the refusal fail it.
+	class central_passage final
+	{
+	public:
+		explicit central_passage(qt::workbench_window& aWindow)
+			: Stack{ required_child<QStackedWidget>(aWindow, "workbenchCentralStack") }
+		{
+			Pages.push_back(Stack->currentWidget()->objectName());
+			Watch = QObject::connect(Stack, &QStackedWidget::currentChanged, Stack, [this](int) {
+				Pages.push_back(Stack->currentWidget()->objectName());
+			});
+		}
+
+		~central_passage()
+		{
+			QObject::disconnect(Watch);
+		}
+
+		central_passage(const central_passage&)                    = delete;
+		auto operator=(const central_passage&) -> central_passage& = delete;
+		central_passage(central_passage&&)                         = delete;
+		auto operator=(central_passage&&) -> central_passage&      = delete;
+
+		[[nodiscard]] auto stayed_home() const -> bool
+		{
+			return std::ranges::all_of(Pages, [](const QString& aPage) {
+				return aPage == QStringLiteral("workbenchHome");
+			});
+		}
+
+		[[nodiscard]] auto pages() const -> const QStringList&
+		{
+			return Pages;
+		}
+
+	private:
+		QStackedWidget*         Stack = nullptr;
+		QStringList             Pages;
+		QMetaObject::Connection Watch;
+	};
+
+	[[nodiscard]] auto refused_pull_request(
+		const core::refused_connection aConnection,
+		const std::string&             aName,
+		const core::github_reason_code aReason = core::github_reason_code::permission_denied)
+		-> core::pull_request_refusal
+	{
+		return core::pull_request_refusal{
+			.Reason     = aReason,
+			.Connection = aConnection,
+			.Repository = core::repository_locator{ .Owner = "octo-org", .Name = aName },
+			.Number     = core::pull_request_number{ 17U },
+		};
+	}
+
+	void publish_first_read(qt::workbench_window& aWindow)
+	{
+		aWindow.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::loading_pull_request },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = std::nullopt },
+			},
+		});
+		// The shipped workbench publishes its drawer commands again while a
+		// read runs; each publication decides the page afresh.
+		aWindow.publish(application::workbench_projection{ .Commands = core::project_workbench_commands({ }) });
+		QApplication::processEvents();
+	}
+
+	void publish_refusal(qt::workbench_window& aWindow, const core::pull_request_refusal& aRefusal)
+	{
+		aWindow.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::pull_request_failed },
+				.Diagnostics = { { .Code = aRefusal.Reason } },
+				.Refusal     = aRefusal,
+			},
+		});
+		QApplication::processEvents();
+	}
+
+	/// \brief [[BPR-1200]]. Saves the window as it is, beside the build, when asked.
+	void save_refusal_course_render(qt::workbench_window& aWindow, const QString& aName)
+	{
+		const auto prefix = qEnvironmentVariable("BPR_QT_REFUSAL_RENDER_PREFIX");
+		if (!prefix.isEmpty()) {
+			QApplication::processEvents();
+			expect(aWindow.grab().save(QStringLiteral("%1-%2.png").arg(prefix, aName), "PNG"),
+				   "the course render is saved in the ignored build tree");
+		}
+	}
+
+	/// \brief [[BPR-1200]]. The refusal card, rendered: every word and control
+	/// inside the window and nothing cut short, saved beside the build.
+	void check_refusal_render(qt::workbench_window& aWindow, const QString& aName)
+	{
+		QApplication::processEvents();
+		auto* const card = aWindow.home_refusal_card();
+		const auto  area = QRect{ card->mapTo(&aWindow, QPoint{ }), card->size() };
+		expect(aWindow.rect().contains(area), "the refusal card lies wholly inside the window");
+		for (auto* const label : { card->heading_label(), card->explanation_label() }) {
+			expect(label->height() >= label->heightForWidth(label->width()),
+				   "the heading and the explanation wrap in full rather than being cut short");
+		}
+		for (auto* const button : card->offered_buttons()) {
+			expect(card->rect().contains(QRect{ button->mapTo(card, QPoint{ }), button->size() })
+					   && button->width() >= button->sizeHint().width(),
+				   "every offered step fits the card at its full width");
+		}
+		const auto rendered    = aWindow.grab();
+		const auto deviceRatio = aWindow.devicePixelRatioF();
+		expect(!rendered.isNull()
+				   && rendered.width() == static_cast<int>(std::lround(static_cast<double>(aWindow.width()) * deviceRatio))
+				   && rendered.height() == static_cast<int>(std::lround(static_cast<double>(aWindow.height()) * deviceRatio)),
+			   "the refusal render has the window's exact device dimensions");
+		const auto expectedScaleText = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expectedScaleText.isEmpty()) {
+			auto       parsed = false;
+			const auto scale  = expectedScaleText.toDouble(&parsed);
+			expect(parsed && std::abs(deviceRatio - scale) < 0.02, "the refusal renders at the requested scale");
+		}
+		const auto prefix = qEnvironmentVariable("BPR_QT_REFUSAL_RENDER_PREFIX");
+		if (!prefix.isEmpty()) {
+			expect(rendered.save(QStringLiteral("%1-%2.png").arg(prefix, aName), "PNG"),
+				   "the refusal render is saved in the ignored build tree");
+		}
+	}
+
+	/// \brief [[BPR-1200]]. A pull request this connection cannot read: Home
+	/// throughout, then a card that names it, says why in terms of the
+	/// connection, offers what could open it and is announced.
+	///
+	/// \details The course runs with the shipped workbench's drawer commands
+	/// published, which is what used to keep an empty Overview up while the
+	/// read ran. Its control presents the workbench before the refusal, the
+	/// way a readable pull request's overview does, and the same predicate
+	/// must fail it.
+	auto test_a_refused_first_read_stays_on_home_and_says_why() -> void
+	{
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) { intents.push_back(std::move(aIntent)); },
+		};
+		auto cliDiscoveries = 0;
+		window.set_github_cli_discovery_dispatch([&cliDiscoveries] { ++cliDiscoveries; });
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		window.publish(application::workbench_projection{ .Commands = core::project_workbench_commands({ }) });
+		publish_session_ready(window, core::host_profile_id{ 11U });
+		auto preview = application::public_preview_presentation{ };
+		preview.Mode = application::public_preview_mode::signed_out;
+		window.publish(preview);
+		QApplication::processEvents();
+		// With drawer commands published nothing but Home's own request keeps
+		// the window there, as it is when a reviewer pastes into the bar.
+		if (!window.showing_home()) {
+			window.home_action()->trigger();
+			QApplication::processEvents();
+		}
+		expect(window.showing_home() && window.home_landing()->state() == qt::landing_state::sign_in,
+			   "the course begins signed out on Home");
+
+		auto* const card    = window.home_refusal_card();
+		auto* const notice  = window.home_open_notice();
+		auto* const details = window.home_open_details_button();
+		expect(card != nullptr && card->isHidden(), "Home composes a refusal card, hidden while nothing is refused");
+
+		// Signed out, a private pull request.
+		std::vector<accessible_announcement> announcements;
+		const auto                           signedOut = refused_pull_request(core::refused_connection::signed_out, "private-repository");
+		{
+			const scoped_accessibility_capture capture{ announcements };
+			const central_passage              passage{ window };
+			publish_first_read(window);
+			expect(window.showing_home() && !notice->isHidden()
+					   && notice->text() == QStringLiteral("Loading the pull request."),
+				   "while the first read runs the window stays on Home and says so under the bar");
+			save_refusal_course_render(window, QStringLiteral("loading"));
+			publish_refusal(window, signedOut);
+			expect(passage.stayed_home(), "a refused first read never passes through the workbench");
+		}
+		const auto expected = core::word_pull_request_refusal(signedOut, core::pull_request_refusal_context{ .GithubCliOffered = true });
+		expect(expected.has_value(), "the core words a signed-out permission refusal");
+		expect(window.showing_home() && card->isVisible()
+				   && card->heading_label()->text() == QString::fromStdString(expected->Heading)
+				   && card->explanation_label()->text() == QString::fromStdString(expected->Explanation),
+			   "Home presents the core's words for the refusal, unchanged");
+		expect(card->heading_label()->text() == QStringLiteral("Sign in to open octo-org/private-repository#17")
+				   && !card->explanation_label()->text().contains(QStringLiteral("browser")),
+			   "signed out, the card names the pull request and says to sign in, and speaks of no browser");
+		expect(notice->isHidden() && details->isHidden(),
+			   "the line under the bar and its Copy details give way to the card");
+		const auto top = [&window](const QWidget* const aWidget) {
+			return aWidget->mapTo(window.home_page(), QPoint{ }).y();
+		};
+		expect(top(window.home_open_frame()) < top(card) && top(card) < top(window.home_landing()),
+			   "the card sits beside what was refused: under the bar, above the first-launch card");
+		expect(card->heading_label()->font().bold() && card->heading_label()->font().pointSizeF() > notice->font().pointSizeF()
+				   && card->icon_label()->pixmap().isNull() == false,
+			   "the card is set apart from helper text: an icon and a heading larger and heavier than the line");
+		auto offered = card->offered_buttons();
+		expect(offered.size() == 2U && offered[0]->text() == QStringLiteral("Sign in") && offered[1]->text() == QStringLiteral("Use GitHub CLI")
+				   && std::ranges::all_of(offered, [](QPushButton* aButton) { return aButton->isVisible() && !aButton->isDefault() && !aButton->accessibleDescription().isEmpty(); })
+				   && !card->action_button(core::pull_request_refusal_action::use_another_account)->isVisible()
+				   && card->copy_details_button()->isVisible(),
+			   "signed out it offers Sign in, then Use GitHub CLI, then Copy details, with Home's filled control left to the page");
+		expect(card->accessibleName() == card->heading_label()->text()
+				   && card->accessibleDescription() == card->explanation_label()->text(),
+			   "the card's accessible name and description are its heading and explanation");
+		const auto spoken = card->heading_label()->text() + QLatin1Char{ ' ' } + card->explanation_label()->text();
+		expect(std::ranges::count_if(announcements, [&](const accessible_announcement& aAnnouncement) {
+				   return aAnnouncement.Object == window.home_page() && aAnnouncement.Message == spoken
+					   && aAnnouncement.Politeness == QAccessible::AnnouncementPoliteness::Polite;
+			   }) == 1,
+			   "the refusal is announced once, politely, from Home, in the card's words");
+		window.home_open_bar()->setFocus(Qt::TabFocusReason);
+		QApplication::processEvents();
+		auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(window.home_open_bar(), &tab);
+		QApplication::processEvents();
+		expect(QApplication::focusWidget() == offered[0], "Tab from the bar reaches the card's first step");
+		check_refusal_render(window, QStringLiteral("signed-out"));
+
+		auto* const clipboard = QApplication::clipboard();
+		clipboard->setText(QStringLiteral("before"));
+		card->copy_details_button()->click();
+		expect(clipboard->text().contains(card->heading_label()->text()) && clipboard->text().contains(card->explanation_label()->text()),
+			   "Copy details copies the status, then the refusal as the card says it");
+		offered[0]->click();
+		QApplication::processEvents();
+		expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible(),
+			   "Sign in opens the shared sign-in dialog");
+		window.sign_in_dialog()->reject();
+		QApplication::processEvents();
+		offered[1]->click();
+		QApplication::processEvents();
+		expect(cliDiscoveries == 1 && window.sign_in_dialog()->isVisible(),
+			   "Use GitHub CLI starts discovery in the shared sign-in dialog");
+		window.sign_in_dialog()->reject();
+		QApplication::processEvents();
+
+		auto typed = QKeyEvent{ QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x") };
+		QApplication::sendEvent(window.home_open_bar(), &typed);
+		QApplication::processEvents();
+		expect(card->isHidden(), "rewriting the link dismisses the card");
+		publish_refusal(window, signedOut);
+		expect(card->isHidden(), "the same refusal projected again stays dismissed until the next read");
+		window.home_open_bar()->clear();
+
+		// Signed in, an account the repository does not admit.
+		preview.Mode = application::public_preview_mode::signed_in;
+		window.publish(preview);
+		publish_session_ready(window, core::host_profile_id{ 12U });
+		const auto account = refused_pull_request(core::refused_connection::account, "inaccessible-repository");
+		// The link is pasted into the bar, so the read starts on Home.
+		if (!window.showing_home()) {
+			window.home_action()->trigger();
+			QApplication::processEvents();
+		}
+		{
+			const central_passage passage{ window };
+			publish_first_read(window);
+			publish_refusal(window, account);
+			expect(passage.stayed_home(), "an account's refused first read never passes through the workbench either");
+		}
+		offered = card->offered_buttons();
+		expect(card->isVisible() && card->heading_label()->text() == QStringLiteral("octo-reviewer cannot open octo-org/inaccessible-repository#17")
+				   && card->explanation_label()->text().contains(QStringLiteral("this app's sign-in"))
+				   && !card->explanation_label()->text().contains(QStringLiteral("not signed in")),
+			   "signed in, the card names the account and says why in terms of the account");
+		expect(offered.size() == 2U && offered[0]->text() == QStringLiteral("Use another account")
+				   && offered[1]->text() == QStringLiteral("Use GitHub CLI")
+				   && !card->action_button(core::pull_request_refusal_action::sign_in)->isVisible(),
+			   "signed in it offers another account, then GitHub CLI");
+		check_refusal_render(window, QStringLiteral("account"));
+		offered[0]->click();
+		QApplication::processEvents();
+		expect(window.sign_in_dialog()->isVisible(), "Use another account opens the shared sign-in dialog");
+		window.sign_in_dialog()->reject();
+		QApplication::processEvents();
+
+		// A refusal another connection would not change keeps its line.
+		publish_first_read(window);
+		publish_refusal(window, refused_pull_request(core::refused_connection::account, "review-repository", core::github_reason_code::network_unavailable));
+		expect(card->isHidden() && !notice->isHidden() && notice->text() == QString::fromStdString(window.github_diagnostic_text())
+				   && !details->isHidden(),
+			   "an unreachable host is still said in the line, with its Copy details");
+
+		// The control: the workbench presented before the refusal, as a
+		// readable pull request's overview presents it. The course's
+		// predicate must fail it, or it could not tell the defect apart.
+		{
+			const central_passage passage{ window };
+			publish_first_read(window);
+			expect(window.showing_home(), "the control's read starts on Home too");
+			window.publish(application::github_presentation_update{
+				.LoadingOverview = application::github_loading_overview_projection{
+					.Title = "A readable pull request", .Body = "", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U },
+			});
+			QApplication::processEvents();
+			expect(!window.showing_home(), "an overview shown by the read presents the workbench");
+			publish_refusal(window, account);
+			expect(window.showing_home() && card->isVisible(), "the control's refusal still returns to Home with its card");
+			expect(!passage.stayed_home() && passage.pages().contains(QStringLiteral("workbenchReviewSurface")),
+				   "the control, which presented the workbench before the refusal, fails the course's predicate");
+		}
+		window.hide();
+		expect(intents.empty(), "nothing in the course dispatched a GitHub intent");
+	}
+
 	/// \brief [[BPR-0771]]. The picker's job, now a card's. Connect on a card
 	/// that is not the chosen one chooses its host, rebinds the device sign-in
 	/// and dispatches exactly one activation for it through the existing intent.
@@ -7547,6 +7877,12 @@ auto main(int argc, char** argv) -> int
 		std::cout << "GitHub Qt loading and refusal tests passed\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1200]]. The refused first read's course, alone, at each scale.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--home-refusal"))) {
+		test_a_refused_first_read_stays_on_home_and_says_why();
+		std::cout << "home-refusal:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1137]]. The first-launch card's sentence on this platform, alone,
 	// so each platform confirms its own wording without the full run.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-sign-in"))) {
@@ -7603,6 +7939,7 @@ auto main(int argc, char** argv) -> int
 	test_accounts_page_carries_none_of_the_retired_chrome();
 	test_a_session_failure_is_said_in_its_card();
 	test_a_load_refusal_is_said_under_the_home_bar();
+	test_a_refused_first_read_stays_on_home_and_says_why();
 	test_a_card_connect_chooses_and_connects_its_host();
 	test_one_card_per_server_holds_its_ways_in();
 	test_accounts_page_says_each_fact_once();
