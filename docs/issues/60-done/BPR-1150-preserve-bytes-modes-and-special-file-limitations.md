@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1150"
 title: "Preserve bytes, modes and special-file limitations"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0054"]
 depends_on: ["BPR-1148"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC54-06", "RC54-07"], "pack_alias": "PACK-CYCLE-08", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"RC54-06","outcome":"pass","revision":"7419de7acf981e59791b99d11b90ec48bb7a3af7","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"core_review_cycle_material classifies a byte-golden corpus (LF, CRLF, CR, mixed, BOM, no final newline, multibyte, invalid, UTF-16) identically under any chunking and maps byte offsets to columns only at scalar boundaries; review_cycle_capture (at the BPR-1149 revision 73d474240f9519adc59236a670064f7e469d4d03) reads every retained object back byte-for-byte equal to the original file with raw SHA-256 equal to the file bytes, keeps CRLF/BOM/missing final newline, maps the execute bit to 100755/100644 and treats a mode change alone as new material; paths are admitted as raw bytes without normalization (BPR-1148)."}},{"criterion":"RC54-07","outcome":"pass","revision":"7419de7acf981e59791b99d11b90ec48bb7a3af7","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"review_cycle_capture on macOS arm64: binary, UTF-16 and invalid UTF-8 are visible file-level only; a link is kept as target bytes and not followed; a FIFO is visible as unsupported; a file over budget is visible as too large; in a Git root with index v4 a submodule gitlink is a boundary with its staged commit and not recursed; filter=lfs marks both a pointer blob (recognized) and materialized bytes (kept, never cleaned) as filter-managed. Platform-collision rows are BPR-1148's core rule. Windows link targets report unsupported (owed native run)."}},{"criterion":"BPR-1150:boundary","outcome":"pass","revision":"7419de7acf981e59791b99d11b90ec48bb7a3af7","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"core_review_cycle_material passes on macOS arm64 dev and core-only; clang-tidy and clang-format clean; architecture_boundaries passes after keeping the LFS header check free of a URL literal."}}]
 ---
 
 Pack alias: **PACK-CYCLE-08** (live `BPR-1150`, allocated at import).
