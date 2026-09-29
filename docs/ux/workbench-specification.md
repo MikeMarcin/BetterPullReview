@@ -363,9 +363,11 @@ job.
   Their jobs moved rather than disappearing: a pull request is named in the
   Home bar, a load refusal is said under that bar, Refresh is the strip's,
   and a session failure is the card's own state and its Details.
-  A first load stays on Home, said under the bar, until the read has shown
-  what it names (its overview, the review or a cached overview), so a
-  refused read never passes through an empty Overview ([[BPR-1200]]).
+  A first load stays on Home, said under the bar, until GitHub has answered
+  for both the repository and the pull request (or the read has shown its
+  overview, the review or a cached overview), so a refused read never passes
+  through an empty Overview ([[BPR-1200]]); a long read still shows its
+  progress on Overview from those first answers ([[BPR-0795]]).
   If the first load fails or is cancelled before any review is accepted,
   the window returns to Home with its Open bar available. A failed load shows
   the existing diagnostic and Copy details there. Enabled drawer commands
