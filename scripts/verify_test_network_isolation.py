@@ -188,6 +188,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "live_review_submission_provider": "dos-volume-name",
     "live_review_submission_restart_recovery": "dos-volume-name",
     "sqlite_review_ledger_storage": "dos-volume-name",
+    # Measured on JaegAW 2026-09-29, each passing uncontained. Contained, each
+    # stops at its first private store open under its scratch root ("open cycle
+    # catalog", "open without account, provider or agent", and exit 3 after
+    # "each command client edit advances shared history"). Not traced further;
+    # the same class as the BPR-0813 and [[BPR-1126]] scratch-root rows.
+    "sqlite_review_cycle_storage": "dos-volume-name",
+    "sqlite_review_cycle_runtime": "dos-volume-name",
+    "sqlite_review_tour_storage": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",
     "operator_response_validation_contract": "dos-volume-name",

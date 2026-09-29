@@ -548,19 +548,29 @@ if(WIN32)
     target_link_libraries(test_review_tour_storage PRIVATE advapi32 BetterPullReview::Platform)
 endif()
 bpr_enable_warnings(test_review_tour_storage)
-bpr_add_network_isolated_test(NAME sqlite_review_tour_storage COMMAND test_review_tour_storage)
+bpr_add_network_isolated_test(NAME sqlite_review_tour_storage WINDOWS_UNCONTAINED COMMAND test_review_tour_storage)
 
 bpr_add_executable(test_review_cycle_storage review_cycle_storage_tests.cpp)
 target_link_libraries(test_review_cycle_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_review_cycle_storage)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_review_cycle_storage PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_review_cycle_storage)
-bpr_add_network_isolated_test(NAME sqlite_review_cycle_storage COMMAND test_review_cycle_storage)
+bpr_add_network_isolated_test(NAME sqlite_review_cycle_storage WINDOWS_UNCONTAINED COMMAND test_review_cycle_storage)
 
 bpr_add_executable(test_review_cycle_runtime review_cycle_runtime_tests.cpp)
 target_link_libraries(test_review_cycle_runtime PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::Application)
 bpr_enable_hardening(test_review_cycle_runtime)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_review_cycle_runtime PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_review_cycle_runtime)
-bpr_add_network_isolated_test(NAME sqlite_review_cycle_runtime COMMAND test_review_cycle_runtime)
+bpr_add_network_isolated_test(NAME sqlite_review_cycle_runtime WINDOWS_UNCONTAINED COMMAND test_review_cycle_runtime)
 
 # The link closure of the local runtime, computed from the target graph.
 function(bpr_review_cycle_link_closure aTarget aResult)
