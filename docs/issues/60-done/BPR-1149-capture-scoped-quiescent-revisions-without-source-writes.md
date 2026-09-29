@@ -28,3 +28,11 @@ Criteria: RC54-02, RC54-04, RC54-05.
 Use the owning RFC and [integration map](../../rfcs/assets/bpr-review-cycles-v1/supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
 
 Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../../rfcs/assets/bpr-review-cycles-v1/verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `467254573`, and the fix `5303ab394`. The source volume is ext4 and `/tmp` is tmpfs.
+
+At `467254573` `review_cycle_capture` did not build with GCC: `-Wdangling-reference` read `entry(manifest, "path")` in `cycle_course.hpp` as possibly returning into the temporary `std::string`, which `-Werror` refuses (four call sites). Apple clang does not warn. The reference is into the manifest. `5303ab394` makes the helper take `std::string_view`, as `core::find_entry` already does, and changes nothing else. After it, `review_cycle_capture`, `workspace_source` and `core_review_cycle` pass. The hostile hooks, filters, textconv, fsmonitor and promisor rows, and the scope, exclusion, sparse and deletion rows, ran natively; none of the hostile configuration ran and the tree bytes were unchanged. The retry and cancellation rows also pass.
+
+The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.

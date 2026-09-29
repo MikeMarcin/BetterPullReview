@@ -28,3 +28,11 @@ Criteria: RC53-04, RC54-04, RC54-09.
 Use the owning RFC and [integration map](../../rfcs/assets/bpr-review-cycles-v1/supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
 
 Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../../rfcs/assets/bpr-review-cycles-v1/verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `467254573`, and the fix `5303ab394`. The source volume is ext4 and `/tmp` is tmpfs.
+
+`review_cycle_recovery`, `core_review_cycle` and `workspace_source` pass. The POSIX courses ran natively: SIGKILL before and after the commit of the content install, manifest install and revision record (six kills), each recovered; the file-size limit at the store's size refused the capture and lost nothing; a corrupted blob was reported, and a verified recapture repaired it.
+
+The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.

@@ -28,3 +28,11 @@ Criteria: RC54-01, RC54-03, RC54-10.
 Use the owning RFC and [integration map](../../rfcs/assets/bpr-review-cycles-v1/supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
 
 Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../../rfcs/assets/bpr-review-cycles-v1/verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror`, `build/dev` freshly configured at `467254573`, and the fix `5303ab394`. The source volume is ext4 and `/tmp` is tmpfs.
+
+`workspace_source`, `core_review_cycle_workspace`, `core_review_cycle` and `sqlite_review_cycle_storage` pass. The native collision row that was owed here ran on a case- and normalization-sensitive volume and printed `case-sensitive, normalization-sensitive volume; 2 collision(s) flagged`: both the case-fold pair and the normalization pair were written as distinct files and flagged. The link-escape, dirty/linked-worktree and root-replacement rows also ran natively.
+
+The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.
