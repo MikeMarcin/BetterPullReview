@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1061"
 title: "Add bounded authenticated owner forwarding for tour commands"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1054", "BPR-1060"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-10","milestone":"same-machine-handoff","acceptance":["AC45-05","AC45-06"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC45-05","outcome":"pass","revision":"27dbeef51cee810c143467fb6d38adbd578ba0ae","evidence":{"kind":"command","detail":"Real Unix-socket owner endpoint under the exact-root lease, closed versioned codec (5 MiB bound) and no second store writer. sqlite_tour_owner_channel, tour_cli_composition, tour_cli_process_commands and application_profile_activation_public_path pass: the shipped bpr binary reads, edits, deduplicates and inspects requests against a real desktop owner. Windows named-pipe transport and a second-OS-user peer refusal are not evidenced."}},{"criterion":"AC45-06","outcome":"pass","revision":"27dbeef51cee810c143467fb6d38adbd578ba0ae","evidence":{"kind":"command","detail":"Owner death after admission, killed owner with stale socket, replaced stale endpoint, duplicate ID same payload, same ID different payload, commit-before-lost-response, version mismatch, wrong profile, other root, oversized/zero/short/long/truncated/confused frames, stalled peer, symlink/regular-file endpoint, cancellation before and after delivery all refuse or reconcile with exactly one local effect; publication and provider commands are not channel operations. sqlite_review_tour_storage covers receipt persistence, validation and same-revision CAS."}}]
 ---
 
 # BPR-1061: Add bounded authenticated owner forwarding for tour commands
