@@ -1387,3 +1387,17 @@ Classification only becomes stricter when a workspace is reopened. Recipient
 reports are read as one of six claim words; "verified" or "approved" in a
 report is not a claim and cannot set the reviewer's decision. There is no
 execute capability.
+
+The capture host's first piece is `bpr/adapters/workspace` (BPR-1148). A root
+is opened only at a location the reviewer chose. Beneath it, every component
+is resolved without following a symbolic link, junction or other reparse point
+and without leaving the root's volume, so a link inside the checkout, a
+directory swapped for a link after it was listed, or a root replaced at its
+location cannot redirect a read outside the selection; a replaced root is
+reported and refused until an explicit rebind. Paths are admitted as raw
+bytes; `..`, absolute, drive, UNC and `.git` paths are refused, and on Windows
+a component that names a device or would be rewritten (a separator, stream
+colon, trailing dot or space) never reaches `CreateFileW`. Git metadata is read
+as data from the directories the checkout names; Git itself, hooks, filters,
+`fsmonitor` and lazy fetch are never invoked. Windows symbolic-link targets are
+reported as unsupported rather than parsed.

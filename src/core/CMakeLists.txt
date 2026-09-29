@@ -26,6 +26,8 @@ add_library(
         src/review_composition.cpp
         src/review_cycle.cpp
         src/review_cycle_policy.cpp
+        src/review_cycle_path_folding.cpp
+        src/review_cycle_workspace.cpp
         src/private_review.cpp
         src/review_ledger.cpp
         src/review_queue.cpp

@@ -1,6 +1,9 @@
 #include "bpr/core/review_cycle.hpp"
 
+#include "bpr/core/sha256.hpp"
+
 #include <algorithm>
+#include <array>
 #include <ranges>
 
 namespace bpr::core {
@@ -48,7 +51,7 @@ namespace bpr::core {
 				&& aCapture.ExplicitDeletions <= maximum_cycle_capture_entries
 				&& aCapture.Unavailable <= maximum_cycle_capture_entries
 				&& aCapture.Coverage <= cycle_capture_coverage::partial
-				&& aCapture.Quality <= cycle_capture_quality::atomic_snapshot;
+				&& aCapture.Quality <= cycle_capture_quality::immutable_source;
 		}
 
 		/// A repeated capture of the same bytes under the same scope and coverage.
@@ -90,6 +93,9 @@ namespace bpr::core {
 				if (const auto refusal = validate_scope_paths(aChange.Paths); refusal != cycle_refusal::none) {
 					return refusal;
 				}
+				if (file_bound(Cycle) && !aChange.Paths.empty()) {
+					return cycle_refusal::invalid_scope;
+				}
 				if (aChange.Paths == Cycle.Scope.Paths) {
 					return cycle_refusal::none;
 				}
@@ -104,6 +110,9 @@ namespace bpr::core {
 			{
 				if (aChange.Capture.ScopeVersion != Cycle.Scope.Version || !consistent(aChange.Capture)) {
 					return cycle_refusal::invalid_capture;
+				}
+				if (aChange.Capture.WorkspaceVersion != (Cycle.Workspace ? Cycle.Workspace->Version : 0)) {
+					return cycle_refusal::stale_workspace;
 				}
 				if (!aChange.Deliberate && repeats(Cycle.Latest, aChange.Capture)) {
 					return cycle_refusal::none;
@@ -124,6 +133,42 @@ namespace bpr::core {
 				Cycle.Latest     = std::move(revision);
 				Outcome.Changed  = true;
 				return cycle_refusal::none;
+			}
+			auto operator()(const bind_cycle_workspace& aChange) const -> cycle_refusal
+			{
+				if (!valid(aChange.Root) || (aChange.Root.Kind == workspace_root_kind::file && !Cycle.Scope.Paths.empty())) {
+					return cycle_refusal::invalid_workspace;
+				}
+				const auto& current = Cycle.Workspace;
+				if (current && directory_root(current->Root.Kind) != directory_root(aChange.Root.Kind)) {
+					return cycle_refusal::invalid_workspace;
+				}
+				if (current && current->Root.Location == aChange.Root.Location && verify_workspace(*current, aChange.Root) == workspace_verification::matches) {
+					return cycle_refusal::none;
+				}
+				if ((current || Cycle.Latest) && !aChange.Confirmed) {
+					return cycle_refusal::unconfirmed;
+				}
+				if (Cycle.Latest && !aChange.Check) {
+					return cycle_refusal::unconfirmed;
+				}
+				const auto version = current ? current->Version : 0;
+				if (version >= maximum_cycle_identity) {
+					return cycle_refusal::exhausted;
+				}
+				Cycle.Workspace = cycle_workspace_binding{
+					.Project   = current ? current->Project : derive_workspace_project(Cycle.Subject),
+					.Version   = version + 1,
+					.Root      = aChange.Root,
+					.Admission = Cycle.Latest ? aChange.Check : std::nullopt,
+				};
+				Outcome.Changed = true;
+				return cycle_refusal::none;
+			}
+
+			[[nodiscard]] static auto file_bound(const review_cycle_state& aCycle) -> bool
+			{
+				return aCycle.Workspace && aCycle.Workspace->Root.Kind == workspace_root_kind::file;
 			}
 		};
 
@@ -147,6 +192,21 @@ namespace bpr::core {
 	{
 		return valid(aSubject.Authority) && valid_cycle_id(aSubject.Cycle) && aSubject.Generation > 0
 			&& aSubject.Generation <= maximum_cycle_identity;
+	}
+
+	auto derive_workspace_project(const local_cycle_subject& aSubject) -> workspace_project_id
+	{
+		constexpr auto domain = std::string_view{ "BPR-workspace-project-v1" };
+		auto           bytes  = std::vector<std::uint8_t>(domain.begin(), domain.end());
+		bytes.push_back(0);
+		const auto& incarnation = aSubject.Authority.Incarnation.bytes();
+		bytes.insert(bytes.end(), incarnation.begin(), incarnation.end());
+		for (const auto value : { aSubject.Authority.Profile.value(), aSubject.Cycle.value(), aSubject.Generation }) {
+			for (auto shift = 56; shift >= 0; shift -= 8) {
+				bytes.push_back(static_cast<std::uint8_t>(static_cast<std::uint64_t>(value) >> static_cast<unsigned>(shift)));
+			}
+		}
+		return workspace_project_id{ sha256(bytes) };
 	}
 
 	auto validate_scope_paths(const std::vector<std::string>& aPaths) -> cycle_refusal
@@ -372,17 +432,19 @@ namespace bpr::core {
 	{
 		const auto& initial = aCycle.Initial;
 		return review_cycle_projection{
-			.Subject        = aCycle.Subject,
-			.Revision       = aCycle.Revision,
-			.Title          = aCycle.Title.substr(0, maximum_cycle_title_bytes),
-			.Lifecycle      = aCycle.Lifecycle,
-			.ScopeVersion   = aCycle.Scope.Version,
-			.ScopePaths     = aCycle.Scope.Paths.size(),
-			.Captured       = initial.has_value(),
-			.InitialEmpty   = initial && initial->Capture.Coverage == cycle_capture_coverage::complete && initial->Capture.Entries == 0,
-			.LatestCoverage = aCycle.Latest ? std::optional{ aCycle.Latest->Capture.Coverage } : std::nullopt,
-			.Latest         = aCycle.Latest ? std::optional{ aCycle.Latest->Id } : std::nullopt,
-			.Revisions      = aCycle.Next.SourceRevision - 1,
+			.Subject          = aCycle.Subject,
+			.Revision         = aCycle.Revision,
+			.Title            = aCycle.Title.substr(0, maximum_cycle_title_bytes),
+			.Lifecycle        = aCycle.Lifecycle,
+			.ScopeVersion     = aCycle.Scope.Version,
+			.ScopePaths       = aCycle.Scope.Paths.size(),
+			.Captured         = initial.has_value(),
+			.InitialEmpty     = initial && initial->Capture.Coverage == cycle_capture_coverage::complete && initial->Capture.Entries == 0,
+			.LatestCoverage   = aCycle.Latest ? std::optional{ aCycle.Latest->Capture.Coverage } : std::nullopt,
+			.Latest           = aCycle.Latest ? std::optional{ aCycle.Latest->Id } : std::nullopt,
+			.Revisions        = aCycle.Next.SourceRevision - 1,
+			.WorkspaceKind    = aCycle.Workspace ? std::optional{ aCycle.Workspace->Root.Kind } : std::nullopt,
+			.WorkspaceVersion = aCycle.Workspace ? aCycle.Workspace->Version : 0,
 		};
 	}
 }

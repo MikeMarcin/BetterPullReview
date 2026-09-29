@@ -115,6 +115,37 @@ only for a revision of the named cycle and only the object that revision
 recorded; neither side falls back to the other. The runtime's link closure is
 checked by `review_cycle_dependency_closure`.
 
+A cycle binds to one deliberately chosen root (`bpr/core/review_cycle_workspace.hpp`,
+RFC-BPR-0054): a plain folder, a single file, a Git checkout or a linked
+worktree. The binding holds a logical project identity derived from the cycle,
+never from a path, and the root observation the host made: the location as the
+user chose it, the root object's native identity (device and inode, or volume
+serial and file ID) and, for Git roots, the identities of the shared and
+per-worktree Git directories. A single-file root is identified by the directory
+holding it, so an editor that saves by replacing the file does not replace the
+root. Identity decides whether a root is still the bound one; the location
+only says where to look. Every rebind, including a moved root, is an explicit
+confirmed command that advances the binding version, and a rebind over captured
+material records the material check the reviewer confirmed. Each capture names
+the binding version it was read under and is refused when that version is not
+current, so bytes from a replaced or same-named checkout never land in the
+cycle unannounced. An imported project resolves to a local one only through an
+explicit mapping. The core also admits capture paths (root-relative raw bytes,
+no `.`, `..`, empty or `.git` segment, nothing normalized), labels non-UTF-8
+bytes with `\xNN` escapes, flags names Windows cannot hold, and finds pairs of
+paths a case- or normalization-insensitive volume would merge; nothing is ever
+combined. The SQLite store keeps the binding in its own table (schema 2, which
+migrates the first schema in place).
+
+`application::workspace_source_port` is the read-only host port and
+`bpr/adapters/workspace` its native implementation. It opens the chosen
+location (which may be reached through links the user chose) and resolves
+everything beneath it without following links: `openat` with `O_NOFOLLOW` per
+component on POSIX, `FILE_FLAG_OPEN_REPARSE_POINT` per component on Windows
+with each ancestor held without delete sharing; a component on another volume
+is refused. It never lists `.git`, reads Git metadata only as named files, and
+never writes, runs Git, hooks or filters, or reaches the network.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

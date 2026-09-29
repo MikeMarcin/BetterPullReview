@@ -3,6 +3,7 @@
 
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/review_cycle_workspace.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -140,11 +141,17 @@ namespace bpr::core {
 		/// Some of the scope was enumerated; unlisted paths are unknown.
 		partial,
 	};
+	/// \brief What a capture can honestly claim about when its bytes coexisted.
 	enum class cycle_capture_quality : std::uint8_t {
-		/// Repeated reads agreed; not a point-in-time snapshot.
+		/// A quiescent handoff observation: every file was read with stable
+		/// identity and metadata and a re-enumeration agreed. Ordinary
+		/// copying cannot prove the files coexisted at one instant, and two
+		/// agreeing passes do not either; this is not an atomic snapshot.
 		observed_stable,
-		/// A qualified snapshot backend vouched for one instant.
-		atomic_snapshot,
+		/// An immutable source (a Git tree or a separately qualified
+		/// filesystem snapshot) vouched for the bytes. No capture path in this
+		/// build produces it.
+		immutable_source,
 	};
 
 	/// \brief Bounded host summary of one capture. The manifest itself stays
@@ -153,12 +160,15 @@ namespace bpr::core {
 	{
 		std::uint64_t          ScopeVersion = 0;
 		cycle_material_digest  Material;
-		std::uint64_t          Entries                                             = 0;
-		std::uint64_t          ExplicitDeletions                                   = 0;
-		std::uint64_t          Unavailable                                         = 0;
-		cycle_capture_coverage Coverage                                            = cycle_capture_coverage::partial;
-		cycle_capture_quality  Quality                                             = cycle_capture_quality::observed_stable;
-		auto                   operator<=>(const cycle_capture_observation&) const = default;
+		std::uint64_t          Entries           = 0;
+		std::uint64_t          ExplicitDeletions = 0;
+		std::uint64_t          Unavailable       = 0;
+		cycle_capture_coverage Coverage          = cycle_capture_coverage::partial;
+		cycle_capture_quality  Quality           = cycle_capture_quality::observed_stable;
+		/// The workspace binding version the bytes were read under; zero for
+		/// a capture of a cycle with no binding.
+		std::uint64_t WorkspaceVersion                                    = 0;
+		auto          operator<=>(const cycle_capture_observation&) const = default;
 	};
 
 	/// \brief One immutable captured source revision.
@@ -191,7 +201,9 @@ namespace bpr::core {
 		std::optional<cycle_source_revision> Initial;
 		std::optional<cycle_source_revision> Latest;
 		cycle_identity_counters              Next;
-		auto                                 operator<=>(const review_cycle_state&) const = default;
+		/// Absent until a root is deliberately chosen.
+		std::optional<cycle_workspace_binding> Workspace;
+		auto                                   operator<=>(const review_cycle_state&) const = default;
 	};
 
 	/// \brief One profile catalog's cycle allocator.
@@ -218,6 +230,14 @@ namespace bpr::core {
 		invalid_capture,
 		/// Only unarchiving is accepted on an archived cycle.
 		archived,
+		/// The root observation is malformed, or a rebind would turn a file
+		/// binding into a folder binding or the reverse.
+		invalid_workspace,
+		/// A rebind, or a bind over captured material, lacks explicit
+		/// confirmation or its material check.
+		unconfirmed,
+		/// A capture names a workspace binding version that is not current.
+		stale_workspace,
 	};
 
 	struct create_review_cycle
@@ -257,7 +277,20 @@ namespace bpr::core {
 		cycle_capture_observation Capture;
 		bool                      Deliberate = false;
 	};
-	using review_cycle_change = std::variant<rename_review_cycle, archive_review_cycle, unarchive_review_cycle, change_cycle_scope, record_cycle_capture>;
+	/// \brief Binds the cycle to a deliberately chosen root, or rebinds it.
+	/// \details The first binding of a cycle with no captured material needs
+	/// nothing more. Any rebind, and any binding of a cycle that already holds
+	/// captured material, must be `Confirmed`; when material exists, `Check`
+	/// must say how the candidate compares with the latest revision. An
+	/// observation of the already-bound root at the same location is a no-op.
+	struct bind_cycle_workspace
+	{
+		workspace_root_observation              Root;
+		std::optional<workspace_material_check> Check;
+		bool                                    Confirmed = false;
+	};
+	using review_cycle_change = std::variant<rename_review_cycle, archive_review_cycle, unarchive_review_cycle, change_cycle_scope, record_cycle_capture,
+											 bind_cycle_workspace>;
 
 	struct review_cycle_command
 	{
@@ -274,6 +307,10 @@ namespace bpr::core {
 	};
 	/// \brief Applies one command. A refusal or no-op returns the input state.
 	[[nodiscard]] auto apply(const review_cycle_state& aCycle, const review_cycle_command& aCommand) -> review_cycle_outcome;
+
+	/// \brief The logical project a cycle's bindings share: derived from the
+	/// catalog incarnation, cycle and generation, never from a path.
+	[[nodiscard]] auto derive_workspace_project(const local_cycle_subject& aSubject) -> workspace_project_id;
 
 	/// \brief Validates a scope path set; `none` when acceptable.
 	[[nodiscard]] auto validate_scope_paths(const std::vector<std::string>& aPaths) -> cycle_refusal;
@@ -407,7 +444,9 @@ namespace bpr::core {
 		bool                                     InitialEmpty = false;
 		std::optional<cycle_capture_coverage>    LatestCoverage;
 		std::optional<cycle_source_revision_ref> Latest;
-		std::uint64_t                            Revisions                                         = 0;
+		std::uint64_t                            Revisions = 0;
+		std::optional<workspace_root_kind>       WorkspaceKind;
+		std::uint64_t                            WorkspaceVersion                                  = 0;
 		auto                                     operator<=>(const review_cycle_projection&) const = default;
 	};
 	[[nodiscard]] auto project(const review_cycle_state& aCycle) -> review_cycle_projection;

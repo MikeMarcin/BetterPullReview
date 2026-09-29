@@ -11,6 +11,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -286,6 +287,89 @@ namespace {
 		expect(store->catalog({ }).error().Failure == cycle_store_failure::schema_mismatch, "unexpected schema refused");
 	}
 
+	void persists_workspace_bindings()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-binding" };
+		auto                                 store   = open(scratch.path());
+		const auto                           subject = store.create(1);
+		const auto                           root    = core::workspace_root_observation{
+			.Kind       = core::workspace_root_kind::git_linked_worktree,
+			.Location   = std::string{ "/work/project-\xFF" },
+			.Root       = { .Volume = 3, .ObjectLow = 4 },
+			.Repository = core::workspace_object_identity{ .Volume = 3, .ObjectHigh = 9, .ObjectLow = 5 },
+			.Worktree   = core::workspace_object_identity{ .Volume = 3, .ObjectLow = 6 },
+		};
+		const auto bind  = core::review_cycle_command{ .Subject = subject, .ExpectedRevision = 1, .Change = core::bind_cycle_workspace{ .Root = root } };
+		const auto bound = store.Store->apply(operation(2), bind, { });
+		expect(bound && bound->Changed && bound->Revision == 2, "bind through the store");
+		auto changed                                                       = bind;
+		std::get<core::bind_cycle_workspace>(changed.Change).Root.Location = "/work/other";
+		expect(store.Store->apply(operation(2), changed, { }).error().Failure == cycle_store_failure::operation_reused, "a different root under one operation is refused");
+
+		// A capture under a stale binding version never lands.
+		const auto manifest = store.Store->install(bytes_of("bound manifest"), { });
+		auto       commit   = application::cycle_capture_commit{
+			.Subject          = subject,
+			.ExpectedRevision = 2,
+			.Capture          = { .Capture = { .ScopeVersion = 1, .Material = manifest->Digest, .Entries = 1, .Coverage = core::cycle_capture_coverage::complete } },
+			.Manifest         = *manifest,
+		};
+		const auto stale = store.Store->record_capture(operation(3), commit, { });
+		expect(!stale && stale.error().Failure == cycle_store_failure::refused && stale.error().Refusal == core::cycle_refusal::stale_workspace, "stale workspace version refused");
+		commit.Capture.Capture.WorkspaceVersion = 1;
+		expect(store.Store->record_capture(operation(4), commit, { }).has_value(), "current workspace version accepted");
+
+		const auto check  = core::workspace_material_check{ .Compared = 1, .Matching = 1 };
+		auto       moved  = root;
+		moved.Location    = "/moved/project";
+		const auto rebind = core::review_cycle_command{ .Subject = subject, .ExpectedRevision = 3, .Change = core::bind_cycle_workspace{ .Root = moved, .Check = check, .Confirmed = true } };
+		expect(store.Store->apply(operation(5), rebind, { }).has_value(), "confirmed rebind");
+
+		store.Store.reset();
+		store         = open(scratch.path());
+		const auto re = store.state(subject);
+		expect(re.Workspace && re.Workspace->Version == 2 && re.Workspace->Root == moved && re.Workspace->Admission == check, "binding reloads exactly");
+		expect(re.Workspace->Project == core::derive_workspace_project(subject), "project kept");
+		expect(re.Latest && re.Latest->Capture.WorkspaceVersion == 1, "revision keeps its workspace version");
+		const auto listed = store.Store->list(std::nullopt, { });
+		expect(listed && listed->Cycles.front().WorkspaceVersion == 2, "projection names the binding");
+
+		// Removing the cycle removes its binding.
+		const auto preview = store.Store->removal_preview(subject, { });
+		expect(preview && store.Store->remove(operation(6), *preview, { }).has_value(), "remove bound cycle");
+		sqlite3* database = nullptr;
+		expect(sqlite3_open(database_path(scratch.path()).string().c_str(), &database) == SQLITE_OK, "open for inspection");
+		sqlite3_stmt* statement = nullptr;
+		expect(sqlite3_prepare_v2(database, "SELECT count(*) FROM bindings", -1, &statement, nullptr) == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW
+				   && sqlite3_column_int64(statement, 0) == 0,
+			   "no binding left");
+		sqlite3_finalize(statement);
+		sqlite3_close(database);
+	}
+
+	void migrates_the_first_schema()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "v1 manifest", 1).has_value(), "capture before downgrade");
+		}
+		// Rewrite the file into exactly the first published shape.
+		sql(database_path(scratch.path()),
+			"DROP TABLE bindings;"
+			"ALTER TABLE revisions RENAME TO revisions_v2;"
+			"CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT;"
+			"INSERT INTO revisions SELECT cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size FROM revisions_v2;"
+			"DROP TABLE revisions_v2;"
+			"PRAGMA user_version=1;");
+		auto       store  = open(scratch.path());
+		const auto loaded = store.state(subject);
+		expect(loaded.Latest && loaded.Latest->Capture.WorkspaceVersion == 0 && !loaded.Workspace, "v1 revision reads as unbound");
+		expect(store.capture(3, subject, "v2 manifest", 1).has_value(), "writes continue after migration");
+	}
+
 #if !defined(_WIN32)
 	std::string KillPrefix;
 	bool        KillArmed = false;
@@ -386,6 +470,8 @@ int main()
 	keeps_pinned_material_under_quota();
 	previews_and_removes_a_cycle();
 	leaves_other_stores_and_refuses_foreign_schemas();
+	persists_workspace_bindings();
+	migrates_the_first_schema();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

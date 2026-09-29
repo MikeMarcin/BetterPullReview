@@ -7,9 +7,11 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <sqlite3.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace bpr::adapters::sqlite {
 	namespace {
@@ -20,7 +22,7 @@ namespace bpr::adapters::sqlite {
 		using application::cycle_write_receipt;
 
 		constexpr std::int64_t     application_id   = 0x42505243;
-		constexpr std::int64_t     schema_version   = 1;
+		constexpr std::int64_t     schema_version   = 2;
 		constexpr std::size_t      chunk_bytes      = 512U * 1024U;
 		constexpr std::int64_t     maximum_receipts = 4096;
 		constexpr std::string_view database_name    = "review-cycles.sqlite3";
@@ -33,13 +35,17 @@ namespace bpr::adapters::sqlite {
 		constexpr auto schema = std::array{
 			table{ "catalog", "CREATE TABLE catalog(singleton INTEGER PRIMARY KEY CHECK(singleton=1),profile INTEGER NOT NULL,incarnation BLOB NOT NULL CHECK(length(incarnation)=32),next_cycle INTEGER NOT NULL) STRICT" },
 			table{ "cycles", "CREATE TABLE cycles(cycle INTEGER PRIMARY KEY,generation INTEGER NOT NULL,revision INTEGER NOT NULL,title TEXT NOT NULL,lifecycle INTEGER NOT NULL,scope_version INTEGER NOT NULL,scope BLOB NOT NULL,initial INTEGER,latest INTEGER,next_revision INTEGER NOT NULL,next_item INTEGER NOT NULL,next_draft INTEGER NOT NULL,next_round INTEGER NOT NULL,next_response INTEGER NOT NULL,next_verification INTEGER NOT NULL,next_publication INTEGER NOT NULL) STRICT" },
-			table{ "revisions", "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT" },
+			table{ "revisions", "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,workspace_version INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT" },
+			table{ "bindings", "CREATE TABLE bindings(cycle INTEGER PRIMARY KEY,project BLOB NOT NULL CHECK(length(project)=32),version INTEGER NOT NULL,kind INTEGER NOT NULL,location BLOB NOT NULL,root BLOB NOT NULL CHECK(length(root)=24),repository BLOB CHECK(length(repository)=24),worktree BLOB CHECK(length(worktree)=24),admission BLOB CHECK(length(admission)=40)) STRICT" },
 			table{ "drafts", "CREATE TABLE drafts(cycle INTEGER NOT NULL,draft INTEGER NOT NULL,revision INTEGER NOT NULL,body BLOB NOT NULL,PRIMARY KEY(cycle,draft)) STRICT" },
 			table{ "rounds", "CREATE TABLE rounds(cycle INTEGER NOT NULL,round INTEGER NOT NULL,draft INTEGER NOT NULL,draft_revision INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),payload_size INTEGER NOT NULL,PRIMARY KEY(cycle,round)) STRICT" },
 			table{ "objects", "CREATE TABLE objects(digest BLOB PRIMARY KEY CHECK(length(digest)=32),size INTEGER NOT NULL,chunks INTEGER NOT NULL) STRICT" },
 			table{ "object_chunks", "CREATE TABLE object_chunks(digest BLOB NOT NULL,ordinal INTEGER NOT NULL,bytes BLOB NOT NULL,PRIMARY KEY(digest,ordinal)) STRICT" },
 			table{ "receipts", "CREATE TABLE receipts(operation BLOB PRIMARY KEY CHECK(length(operation)=32),request BLOB NOT NULL CHECK(length(request)=32),cycle INTEGER NOT NULL,revision INTEGER NOT NULL,allocated INTEGER NOT NULL,changed INTEGER NOT NULL) STRICT" },
 		};
+		/// The first published schema differs only in `revisions`, which had no
+		/// workspace version, and in having no `bindings` table.
+		constexpr std::string_view revisions_v1 = "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT";
 		/// Objects some catalog row references. Everything else is reclaimable.
 		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM rounds";
 
@@ -134,6 +140,11 @@ namespace bpr::adapters::sqlite {
 			auto text(const int aColumn, const std::string_view aText) -> query&
 			{
 				Good = Good && sqlite3_bind_text64(Statement.Value, aColumn, aText.data(), aText.size(), SQLITE_TRANSIENT, SQLITE_UTF8) == SQLITE_OK;
+				return *this;
+			}
+			auto null(const int aColumn) -> query&
+			{
+				Good = Good && sqlite3_bind_null(Statement.Value, aColumn) == SQLITE_OK;
 				return *this;
 			}
 			auto optional_id(const int aColumn, const std::optional<std::uint64_t> aValue) -> query&
@@ -236,7 +247,56 @@ namespace bpr::adapters::sqlite {
 				u64(aSubject.Authority.Profile.value()).bytes(aSubject.Authority.Incarnation.bytes());
 				return u64(aSubject.Cycle.value()).u64(aSubject.Generation);
 			}
+			auto identity(const core::workspace_object_identity& aIdentity) -> request_writer&
+			{
+				return u64(aIdentity.Volume).u64(aIdentity.ObjectHigh).u64(aIdentity.ObjectLow);
+			}
+			auto optional_identity(const std::optional<core::workspace_object_identity>& aIdentity) -> request_writer&
+			{
+				u8(aIdentity ? 1 : 0);
+				return aIdentity ? identity(*aIdentity) : *this;
+			}
+			auto check(const std::optional<core::workspace_material_check>& aCheck) -> request_writer&
+			{
+				u8(aCheck ? 1 : 0);
+				return aCheck ? u64(aCheck->Compared).u64(aCheck->Matching).u64(aCheck->Differing).u64(aCheck->Missing).u64(aCheck->Added) : *this;
+			}
+			auto root(const core::workspace_root_observation& aRoot) -> request_writer&
+			{
+				u8(static_cast<std::uint8_t>(aRoot.Kind)).text(aRoot.Location).identity(aRoot.Root);
+				return optional_identity(aRoot.Repository).optional_identity(aRoot.Worktree);
+			}
 		};
+
+		auto encode_identity(const core::workspace_object_identity& aIdentity) -> std::vector<std::uint8_t>
+		{
+			return request_writer{ }.identity(aIdentity).Bytes;
+		}
+		auto encode_check(const core::workspace_material_check& aCheck) -> std::vector<std::uint8_t>
+		{
+			return request_writer{ }.u64(aCheck.Compared).u64(aCheck.Matching).u64(aCheck.Differing).u64(aCheck.Missing).u64(aCheck.Added).Bytes;
+		}
+		/// Big-endian words of a fixed-size blob, or nothing when the size is wrong.
+		template <std::size_t Count>
+		auto decode_words(const std::span<const std::uint8_t> aBytes) -> std::optional<std::array<std::uint64_t, Count>>
+		{
+			if (aBytes.size() != Count * 8U) {
+				return std::nullopt;
+			}
+			auto words = std::array<std::uint64_t, Count>{ };
+			for (std::size_t index = 0; index != aBytes.size(); ++index) {
+				words.at(index / 8U) = (words.at(index / 8U) << 8U) | aBytes[index];
+			}
+			return words;
+		}
+		auto decode_identity(const std::span<const std::uint8_t> aBytes) -> std::optional<core::workspace_object_identity>
+		{
+			const auto words = decode_words<3>(aBytes);
+			if (!words) {
+				return std::nullopt;
+			}
+			return core::workspace_object_identity{ .Volume = (*words)[0], .ObjectHigh = (*words)[1], .ObjectLow = (*words)[2] };
+		}
 
 		auto encode_scope(const std::vector<std::string>& aPaths) -> std::vector<std::uint8_t>
 		{
@@ -366,6 +426,9 @@ namespace bpr::adapters::sqlite {
 				if (const auto* scope = std::get_if<core::change_cycle_scope>(&aCommand.Change)) {
 					request.bytes(encode_scope(scope->Paths));
 				}
+				if (const auto* bind = std::get_if<core::bind_cycle_workspace>(&aCommand.Change)) {
+					request.root(bind->Root).check(bind->Check).u8(bind->Confirmed ? 1 : 0);
+				}
 				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
 					auto current = current_cycle(aDatabase, aCommand.Subject);
 					if (!current) {
@@ -441,6 +504,7 @@ namespace bpr::adapters::sqlite {
 				request.u8(3).subject(aCommit.Subject).u64(aCommit.ExpectedRevision).u64(capture.ScopeVersion).bytes(capture.Material.bytes());
 				request.u64(capture.Entries).u64(capture.ExplicitDeletions).u64(capture.Unavailable);
 				request.u8(static_cast<std::uint8_t>(capture.Coverage)).u8(static_cast<std::uint8_t>(capture.Quality)).u8(aCommit.Capture.Deliberate ? 1 : 0).u64(aCommit.Manifest.Size);
+				request.u64(capture.WorkspaceVersion);
 				if (aCommit.Manifest.Digest != capture.Material) {
 					return refuse(core::cycle_refusal::invalid_capture);
 				}
@@ -679,7 +743,7 @@ namespace bpr::adapters::sqlite {
 					if (*current != aPreview) {
 						return fail(cycle_store_failure::preview_stale);
 					}
-					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);
@@ -727,32 +791,80 @@ namespace bpr::adapters::sqlite {
 				return *opened;
 			}
 
-			static auto schema_valid(sqlite3* aDatabase) -> bool
+			/// The tables a schema version defines.
+			static auto tables_of(const std::int64_t aVersion) -> std::vector<table>
+			{
+				auto tables = std::vector<table>{ };
+				for (const auto& definition : schema) {
+					if (aVersion == 1 && definition.Name == "bindings") {
+						continue;
+					}
+					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
+				}
+				return tables;
+			}
+
+			static auto schema_valid(sqlite3* aDatabase, const std::int64_t aVersion = schema_version) -> bool
 			{
 				const auto count = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 32)");
-				if (detail::scalar_integer(aDatabase, "PRAGMA application_id") != application_id || detail::scalar_integer(aDatabase, "PRAGMA user_version") != schema_version) {
+				if (detail::scalar_integer(aDatabase, "PRAGMA application_id") != application_id || detail::scalar_integer(aDatabase, "PRAGMA user_version") != aVersion) {
 					return false;
 				}
 				// Automatic primary-key indexes are named sqlite_autoindex_* and not counted.
-				if (!count || *count != static_cast<std::int64_t>(schema.size())) {
+				const auto tables = tables_of(aVersion);
+				if (!count || *count != static_cast<std::int64_t>(tables.size())) {
 					return false;
 				}
-				return std::ranges::all_of(schema, [aDatabase](const table& aTable) {
+				return std::ranges::all_of(tables, [aDatabase](const table& aTable) {
 					auto definition = query{ aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?1" };
 					definition.text(1, aTable.Name);
 					return definition.step() == SQLITE_ROW && detail::canonical_sql(definition.column_text(0)) == detail::canonical_sql(aTable.Definition);
 				});
 			}
 
+			/// Upgrades the first published schema in one transaction: existing
+			/// revisions were captured with no binding, so their version is zero.
+			static auto migrate_from_v1(sqlite3* aDatabase, std::stop_token aStop) -> cycle_store_result<void>
+			{
+				if (!detail::execute(aDatabase, "BEGIN IMMEDIATE", aStop)) {
+					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+				}
+				auto       guard      = transaction{ aDatabase };
+				const auto definition = [](const std::string_view aName) {
+					return std::ranges::find(schema, aName, &table::Name)->Definition;
+				};
+				const auto steps = std::array<std::string, 6>{
+					"ALTER TABLE revisions RENAME TO revisions_v1",
+					std::string{ definition("revisions") },
+					"INSERT INTO revisions SELECT cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size,0 FROM revisions_v1",
+					"DROP TABLE revisions_v1",
+					std::string{ definition("bindings") },
+					"PRAGMA user_version=2",
+				};
+				for (const auto& step : steps) {
+					if (!detail::execute(aDatabase, step, aStop)) {
+						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+					}
+				}
+				if (!schema_valid(aDatabase) || !guard.commit(aStop)) {
+					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+				}
+				return { };
+			}
+
 			auto establish(sqlite3* aDatabase, std::stop_token aStop) -> cycle_store_result<void>
 			{
 				const auto empty = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0
 					&& detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
-				if (!empty && !schema_valid(aDatabase)) {
+				const auto legacy = !empty && schema_valid(aDatabase, 1);
+				if (!empty && !legacy && !schema_valid(aDatabase)) {
 					return fail(cycle_store_failure::schema_mismatch);
 				}
 				if (!detail::configure_connection(aDatabase)) {
 					return fail(cycle_store_failure::unavailable);
+				}
+				if (legacy) {
+					return migrate_from_v1(aDatabase, aStop);
 				}
 				if (empty) {
 					if (!detail::execute(aDatabase, "BEGIN IMMEDIATE", aStop)) {
@@ -766,7 +878,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto catalog = query{ aDatabase, "INSERT INTO catalog(singleton,profile,incarnation,next_cycle) VALUES(1,?1,randomblob(32),1)" };
 					if (!catalog.id(1, Profile.value()).done() || !detail::execute(aDatabase, "PRAGMA application_id=1112560195", aStop)
-						|| !detail::execute(aDatabase, "PRAGMA user_version=1", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
+						|| !detail::execute(aDatabase, "PRAGMA user_version=2", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}
@@ -940,12 +1052,92 @@ namespace bpr::adapters::sqlite {
 				if (state.Initial.has_value() != state.Latest.has_value()) {
 					return fail(cycle_store_failure::corrupt);
 				}
+				auto binding = read_binding(aDatabase, aCycle);
+				if (!binding) {
+					return std::unexpected(binding.error());
+				}
+				state.Workspace = std::move(*binding);
 				return std::optional{ std::move(state) };
+			}
+
+			static auto read_binding(sqlite3* aDatabase, const core::review_cycle_id aCycle) -> cycle_store_result<std::optional<core::cycle_workspace_binding>>
+			{
+				auto row = query{ aDatabase, "SELECT project,version,kind,location,root,repository,worktree,admission FROM bindings WHERE cycle=?1" };
+				row.id(1, aCycle.value());
+				const auto status = row.step();
+				if (status == SQLITE_DONE) {
+					return std::optional<core::cycle_workspace_binding>{ };
+				}
+				if (status != SQLITE_ROW) {
+					return fail(cycle_store_failure::unavailable);
+				}
+				const auto project      = digest_from<core::workspace_project_id>(row.column_blob(0));
+				const auto version      = stored_id(row.column_integer(1));
+				const auto kind         = row.column_integer(2);
+				const auto location     = row.column_blob(3);
+				const auto root         = decode_identity(row.column_blob(4));
+				using nullable_identity = std::optional<core::workspace_object_identity>;
+				const auto nullable     = [&](const int aColumn) -> std::optional<nullable_identity> {
+					if (row.column_null(aColumn)) {
+						return nullable_identity{ };
+					}
+					const auto decoded = decode_identity(row.column_blob(aColumn));
+					return decoded ? std::optional<nullable_identity>{ decoded } : std::nullopt;
+				};
+				const auto repository = nullable(5);
+				const auto worktree   = nullable(6);
+				const auto admission  = row.column_null(7) ? std::optional<std::array<std::uint64_t, 5>>{ } : decode_words<5>(row.column_blob(7));
+				if (!project || !version || kind < 0 || kind > static_cast<std::int64_t>(core::workspace_root_kind::git_linked_worktree) || !root
+					|| !repository || !worktree || (!row.column_null(7) && !admission)) {
+					return fail(cycle_store_failure::corrupt);
+				}
+				auto binding = core::cycle_workspace_binding{
+					.Project = *project,
+					.Version = *version,
+					.Root    = {
+						.Kind       = static_cast<core::workspace_root_kind>(kind),
+						.Location   = std::string{ location.begin(), location.end() },
+						.Root       = *root,
+						.Repository = *repository,
+						.Worktree   = *worktree,
+					},
+				};
+				if (admission) {
+					binding.Admission = core::workspace_material_check{ .Compared = (*admission)[0], .Matching = (*admission)[1], .Differing = (*admission)[2], .Missing = (*admission)[3], .Added = (*admission)[4] };
+				}
+				if (!core::valid(binding)) {
+					return fail(cycle_store_failure::corrupt);
+				}
+				return std::optional{ std::move(binding) };
+			}
+
+			static auto store_binding(sqlite3* aDatabase, const core::review_cycle_state& aCycle) -> bool
+			{
+				if (!aCycle.Workspace) {
+					auto erase = query{ aDatabase, "DELETE FROM bindings WHERE cycle=?1" };
+					return erase.id(1, aCycle.Subject.Cycle.value()).done();
+				}
+				const auto& binding = *aCycle.Workspace;
+				const auto& root    = binding.Root;
+				auto        row     = query{ aDatabase, "INSERT OR REPLACE INTO bindings(cycle,project,version,kind,location,root,repository,worktree,admission) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)" };
+				row.id(1, aCycle.Subject.Cycle.value()).blob(2, binding.Project.bytes()).id(3, binding.Version).integer(4, static_cast<std::int64_t>(root.Kind));
+				row.blob(5, { reinterpret_cast<const std::uint8_t*>(root.Location.data()), root.Location.size() }).blob(6, encode_identity(root.Root));
+				const auto bindNullable = [&row](const int aColumn, const std::optional<std::vector<std::uint8_t>>& aBytes) {
+					if (aBytes) {
+						row.blob(aColumn, *aBytes);
+					} else {
+						row.null(aColumn);
+					}
+				};
+				bindNullable(7, root.Repository ? std::optional{ encode_identity(*root.Repository) } : std::nullopt);
+				bindNullable(8, root.Worktree ? std::optional{ encode_identity(*root.Worktree) } : std::nullopt);
+				bindNullable(9, binding.Admission ? std::optional{ encode_check(*binding.Admission) } : std::nullopt);
+				return row.done();
 			}
 
 			static auto read_revision(sqlite3* aDatabase, const core::review_cycle_id aCycle, const std::uint64_t aRevision) -> std::optional<application::stored_cycle_revision>
 			{
-				auto row = query{ aDatabase, "SELECT parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size FROM revisions WHERE cycle=?1 AND revision=?2" };
+				auto row = query{ aDatabase, "SELECT parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size,workspace_version FROM revisions WHERE cycle=?1 AND revision=?2" };
 				row.id(1, aCycle.value()).id(2, aRevision);
 				if (row.step() != SQLITE_ROW) {
 					return std::nullopt;
@@ -955,7 +1147,7 @@ namespace bpr::adapters::sqlite {
 				const auto material = digest_from<core::cycle_material_digest>(row.column_blob(2));
 				const auto coverage = row.column_integer(6);
 				const auto quality  = row.column_integer(7);
-				const auto counts   = std::array{ row.column_integer(3), row.column_integer(4), row.column_integer(5), row.column_integer(8) };
+				const auto counts   = std::array{ row.column_integer(3), row.column_integer(4), row.column_integer(5), row.column_integer(8), row.column_integer(9) };
 				if ((!row.column_null(0) && !parent) || !scope || !material || coverage < 0 || coverage > 1 || quality < 0 || quality > 1
 					|| std::ranges::any_of(counts, [](const std::int64_t aValue) { return aValue < 0; })) {
 					return std::nullopt;
@@ -972,6 +1164,7 @@ namespace bpr::adapters::sqlite {
 							.Unavailable       = static_cast<std::uint64_t>(counts[2]),
 							.Coverage          = static_cast<core::cycle_capture_coverage>(coverage),
 							.Quality           = static_cast<core::cycle_capture_quality>(quality),
+							.WorkspaceVersion  = static_cast<std::uint64_t>(counts[4]),
 						},
 					},
 					.Manifest = { .Digest = *material, .Size = static_cast<std::uint64_t>(counts[3]) },
@@ -992,16 +1185,16 @@ namespace bpr::adapters::sqlite {
 				row.optional_id(8, revision(aCycle.Initial)).optional_id(9, revision(aCycle.Latest));
 				const auto& next = aCycle.Next;
 				row.id(10, next.SourceRevision).id(11, next.FeedbackItem).id(12, next.RoundDraft).id(13, next.Round).id(14, next.Response).id(15, next.Verification).id(16, next.Publication);
-				return row.done() && sqlite3_changes(aDatabase) == 1;
+				return row.done() && sqlite3_changes(aDatabase) == 1 && store_binding(aDatabase, aCycle);
 			}
 
 			static auto insert_revision(sqlite3* aDatabase, const core::cycle_source_revision& aRevision, const std::uint64_t aManifestSize) -> bool
 			{
 				const auto& capture = aRevision.Capture;
-				auto        row     = query{ aDatabase, "INSERT INTO revisions(cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)" };
+				auto        row     = query{ aDatabase, "INSERT INTO revisions(cycle,revision,parent,scope_version,material,entries,deletions,unavailable,coverage,quality,manifest_size,workspace_version) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)" };
 				row.id(1, aRevision.Id.Cycle.value()).id(2, aRevision.Id.Id.value()).optional_id(3, aRevision.Parent ? std::optional{ aRevision.Parent->value() } : std::nullopt);
 				row.id(4, capture.ScopeVersion).blob(5, capture.Material.bytes()).id(6, capture.Entries).id(7, capture.ExplicitDeletions).id(8, capture.Unavailable);
-				row.integer(9, static_cast<std::int64_t>(capture.Coverage)).integer(10, static_cast<std::int64_t>(capture.Quality)).id(11, aManifestSize);
+				row.integer(9, static_cast<std::int64_t>(capture.Coverage)).integer(10, static_cast<std::int64_t>(capture.Quality)).id(11, aManifestSize).id(12, capture.WorkspaceVersion);
 				return row.done();
 			}
 
