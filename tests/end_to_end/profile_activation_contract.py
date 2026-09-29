@@ -145,10 +145,48 @@ def windows(root, profile):
         ).fetchall()
 
 
+def tour_owner_course(tour_application, root, start, wait_marker, quit_owner):
+    """[[BPR-1061]]. The shipped CLI reaches a real desktop owner through its tour channel."""
+    import json
+    owner = start("tour-owner", 1, "tourowner")
+    wait_marker(owner, "OWNER_READY")
+    seeded = [line for line in (root / "tourowner.log").read_text().splitlines() if line.startswith("TOUR_DRAFT ")]
+    assert len(seeded) == 1, seeded
+    _, draft, revision = seeded[0].split()
+    def bpr(*arguments, data=None):
+        return subprocess.run([tour_application, "tour", *arguments, "--profile", "1", "--draft", draft, "--json",
+                               "--data-root", str(root)], input=data, capture_output=True, timeout=30)
+    def field(result, name):
+        return json.loads(result.stdout)["data"][name]
+    status = bpr("status")
+    assert status.returncode == 0 and field(status, "draft_id") == draft and field(status, "revision") == revision, status.stdout
+    edited = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+                 data="Forwarded to the real desktop α\n".encode())
+    assert edited.returncode == 0, edited.stdout
+    after = field(edited, "revision")
+    assert after != revision
+    assert json.loads(bpr("show", "problem").stdout)["data"]["text"] == "Forwarded to the real desktop α\n"
+    duplicate = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+                    data="Forwarded to the real desktop α\n".encode())
+    assert duplicate.returncode == 0 and field(duplicate, "revision") == after, duplicate.stdout
+    clash = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+                data=b"another payload")
+    assert clash.returncode != 0 and json.loads(clash.stdout)["error"]["code"] == "command_refused", clash.stdout
+    recorded = bpr("status", "--request-id", "desktop-1")
+    assert field(recorded, "operation_recorded") is True and field(recorded, "operation_revision") == after
+    assert owner[0].poll() is None
+    quit_owner(owner)
+    # The owner drained: the committed text is durable and the next command runs standalone.
+    standalone = bpr("show", "problem")
+    assert standalone.returncode == 0 and json.loads(standalone.stdout)["data"]["text"] == "Forwarded to the real desktop α\n"
+    print("PROFILE_TOUR_FORWARDING_OK")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
     parser.add_argument("--desktop-application", required=True)
+    parser.add_argument("--tour-application")
     args = parser.parse_args()
     malformed = [
         ["--bpr-profile"], ["--bpr-profile", "0"],
@@ -267,6 +305,8 @@ def main():
                 assert owner[0].poll() is None and windows(root, 1) == before
             quit_owner(other)
             quit_owner(owner)
+            if args.tour_application and POSIX:
+                tour_owner_course(args.tour_application, root, start, wait_marker, quit_owner)
             restarted = start("owner", 1, "restarted")
             wait_marker(restarted, "OWNER_READY")
             restarted[0].kill()

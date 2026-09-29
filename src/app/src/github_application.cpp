@@ -81,6 +81,7 @@
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
@@ -88,6 +89,7 @@
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
+#include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
 #include "bpr/application/agent_chat_session_host.hpp"
@@ -3733,6 +3735,8 @@ namespace bpr::app {
 		std::shared_ptr<void>                                   StartupScratch;
 		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
+		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
+		application::tour_owner_handler                         TourOwnerHandler;
 		worker_executor                                         ProviderEffects;
 		worker_executor                                         VaultEffects;
 		worker_executor                                         DeviceBindingEffects;
@@ -15433,6 +15437,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					bpr::app::detail::terminal_text_stream{ } << "profile-activation-endpoint-unavailable "
 															  << (resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error())) << '\n';
 				}
+				// The tour command endpoint is separate: without it the owner keeps working and a
+				// CLI caller is told the owner has no tour channel, never given a second writer.
+				const auto tour = adapters::sqlite::make_tour_owner_server(*root, Config.Profile, RuntimeLease);
+				if (tour) {
+					TourOwnerServer  = *tour;
+					TourOwnerHandler = [service = std::make_shared<const tour_owner_service>(*root, Config.Profile)](std::span<const std::uint8_t> aPayload) { return service->serve(aPayload); };
+				}
+#if !defined(_WIN32)
+				else {
+					bpr::app::detail::terminal_text_stream{ } << "tour-owner-endpoint-unavailable\n";
+				}
+#endif
 			}
 			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
 			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
@@ -15481,6 +15497,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 				);
 				profile->ActivationServer = std::move(ActivationServer);
+				profile->TourOwnerServer  = std::move(TourOwnerServer);
+				profile->TourOwnerHandler = std::move(TourOwnerHandler);
 				auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
 				step                      = "profile-services-start";
 				runtime->Profile->start_services();
@@ -15520,6 +15538,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		github_application_config                               Config;
 		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
+		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
+		application::tour_owner_handler                         TourOwnerHandler;
 		std::optional<github_application_startup_failure>       Handoff;
 		github_application_startup_completion                   Completion;
 		std::filesystem::path                                   RegistryRoot;
@@ -15642,6 +15662,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 	auto github_application::desktop_release_account() -> std::optional<release_update_account> { return Profile->release_account(); }
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
+	auto github_application::desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server> { return Profile->TourOwnerServer; }
+	auto github_application::desktop_tour_owner_handler() const -> application::tour_owner_handler { return Profile->TourOwnerHandler; }
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
 	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
 	void github_application::set_maintenance_retirement(release_maintenance_retirement aRetire) { Profile->MaintenanceRetirement = std::move(aRetire); }

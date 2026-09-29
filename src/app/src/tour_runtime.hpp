@@ -1,6 +1,7 @@
 #ifndef BPR_APP_TOUR_RUNTIME_HPP
 #define BPR_APP_TOUR_RUNTIME_HPP
 #include "bpr/application/github_read_model.hpp"
+#include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/application/review_submission_application_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_source.hpp"
@@ -46,11 +47,13 @@ namespace bpr::app {
 	using tour_reader_factory = std::function<std::unique_ptr<tour_remote_reader>(std::filesystem::path, core::bpr_profile_id)>;
 	struct tour_local_snapshot
 	{
-		application::tour_saved_target Target;
-		core::review_tour              Draft;
-		std::string                    UndoLabel, RedoLabel;
-		std::string                    PublishedObservation = "not_refreshed";
-		std::size_t                    PendingServerReviews = 0;
+		application::tour_saved_target                   Target;
+		core::review_tour                                Draft;
+		std::string                                      UndoLabel, RedoLabel;
+		std::string                                      PublishedObservation = "not_refreshed";
+		std::size_t                                      PendingServerReviews = 0;
+		application::tour_resume_hint                    Resume{ };
+		std::optional<application::tour_request_receipt> Receipt{ };
 	};
 	/// \brief Read-only preview or journal recovery; the plan itself grants no writes.
 	struct tour_publication_preview
@@ -70,11 +73,21 @@ namespace bpr::app {
 		tour_runtime(std::filesystem::path aBase, std::string aProfile, tour_reader_factory aReaders = { });
 		~tour_runtime();
 		[[nodiscard]] auto admission() const -> tour_cli_result<core::bpr_profile_id>;
+		/// \brief The admitted exact root and lease, so an owner that holds this runtime can serve its tour channel.
+		struct owner_binding
+		{
+			std::filesystem::path                               Root;
+			core::bpr_profile_id                                Profile;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+		};
+		[[nodiscard]] auto owner() const -> tour_cli_result<owner_binding>;
 		[[nodiscard]] auto connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>;
 		[[nodiscard]] auto open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto load(std::string_view aDraft, bool aMachine) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>;
 		[[nodiscard]] auto mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>;
+		/// \brief Reads the durable outcome of one exact earlier local request; never replays it.
+		[[nodiscard]] auto request_status(std::string_view aDraft, std::string_view aRequest) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto prepare_publication(std::string_view, bool aGh, tour_publication_options, std::string_view aAttempt = { }, bool aRecover = false) -> tour_cli_result<tour_publication_preview>;
 		/// \brief Reobserves an exact preview after a live terminal confirmation; never persists a grant.
 		[[nodiscard]] auto        publish(const tour_publication_preview&, bool aGh) -> tour_cli_result<tour_publication_preview>;

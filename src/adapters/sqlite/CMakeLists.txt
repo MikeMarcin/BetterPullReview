@@ -18,6 +18,7 @@ add_library(
         src/profile_storage_root.cpp
         src/profile_runtime_lease.cpp
         src/profile_activation.cpp
+        src/tour_owner_codec.cpp
         src/appearance_settings_database.cpp
         src/appearance_settings_store.cpp
         src/diagnostic_preferences.cpp

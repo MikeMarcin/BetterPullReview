@@ -252,6 +252,89 @@ namespace {
 		host.shutdown();
 	}
 
+	/// [[BPR-1061]]. A request's outcome is committed with its edit and outlives the host that made it.
+	void durable_request_receipts()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "tour-receipts" };
+		const auto                           seed = tests::review_tour_fixture();
+		const auto                           run  = [&](auto&& aStep) {
+			application::manual_executor  effects, decisions;
+			application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile), effects, decisions, [](const auto&) { } };
+			host.start();
+			effects.drain();
+			decisions.drain();
+			auto result = aStep(host);
+			host.shutdown();
+			while (!host.is_quiescent()) {
+				effects.drain();
+				decisions.drain();
+			}
+			return result;
+		};
+		const auto request = [](const core::review_tour& aDraft, std::string aText, std::string aId, std::uint8_t aDigest) {
+			application::tour_service_request result{ .Command = tests::tour_edit(aDraft, std::move(aText)), .RequestId = std::move(aId) };
+			result.Digest.fill(aDigest);
+			return result;
+		};
+		const auto first = run([&](application::review_tour_host& aHost) {
+			const auto outcome = aHost.execute(request(*aHost.presentation().Draft, "receipt text", "req-a", 1));
+			expect(outcome.Status == application::tour_service_status::accepted && !outcome.Replayed, "the first request executes");
+			return std::pair{ outcome, aHost.request_status("req-a") };
+		});
+		expect(first.second && first.second->Revision == first.first.Revision, "the host reports the outcome of the exact request");
+		// Restart: the record was committed with the edit, so the new host replays it and does not edit again.
+		run([&](application::review_tour_host& aHost) {
+			expect(aHost.request_status("req-a").has_value(), "the record survives the host");
+			const auto stale                = request(*aHost.presentation().Draft, "receipt text", "req-a", 1);
+			auto       replay               = stale;
+			replay.Command.ExpectedRevision = 1;
+			const auto again                = aHost.execute(replay);
+			expect(again.Replayed && again.Status == application::tour_service_status::accepted && again.Revision == first.first.Revision, "a duplicate after restart returns the stored outcome");
+			expect(aHost.presentation().Draft->Problem == "receipt text" && aHost.presentation().Draft->Revision == first.first.Revision, "the duplicate changed nothing");
+			const auto clash = aHost.execute(request(*aHost.presentation().Draft, "another payload", "req-a", 2));
+			expect(clash.Status == application::tour_service_status::refused && clash.Refusal == core::tour_refusal::identity && !clash.Replayed, "the same ID with another payload refuses");
+			expect(aHost.presentation().Draft->Problem == "receipt text", "the clash changed nothing");
+			return 0;
+		});
+		// An unchanged or refused request also leaves a durable record, though the draft revision does not move.
+		const auto unchanged = run([&](application::review_tour_host& aHost) {
+			const auto outcome = aHost.execute(request(*aHost.presentation().Draft, "receipt text", "req-b", 3));
+			expect(outcome.Status == application::tour_service_status::unchanged, "an identical edit is unchanged");
+			return outcome;
+		});
+		run([&](application::review_tour_host& aHost) {
+			const auto record = aHost.request_status("req-b");
+			expect(record && record->Revision == unchanged.Revision && record->Status == static_cast<std::uint8_t>(application::tour_service_status::unchanged), "an outcome that did not move the revision is still durable");
+			const auto replay = aHost.execute(request(*aHost.presentation().Draft, "receipt text", "req-b", 3));
+			expect(replay.Replayed && replay.Status == application::tour_service_status::unchanged, "and replays");
+			return 0;
+		});
+		// The stored journal is validated: duplicate IDs, a revision from the future and overflow are refused.
+		auto store = adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile);
+		auto state = store->load_state(seed.Owner, seed.Id, { });
+		expect(state && state->has_value() && state->value().Receipts.size() == 2, "the store returns both records");
+		auto invalid = state->value();
+		invalid.Receipts.push_back(invalid.Receipts.front());
+		expect(!application::valid(invalid), "a duplicate request ID is not a valid journal");
+		invalid                           = state->value();
+		invalid.Receipts.front().Revision = invalid.Draft.Revision + 1U;
+		expect(!application::valid(invalid), "a record from a revision the draft never reached is not valid");
+		invalid = state->value();
+		invalid.Receipts.front().Id.assign(65U, 'x');
+		expect(!application::valid(invalid), "an over-long request ID is not valid");
+		invalid = state->value();
+		invalid.Receipts.resize(application::maximum_tour_request_receipts + 1U, invalid.Receipts.front());
+		expect(!application::valid(invalid), "the journal is bounded");
+		// A journal-only save at the same revision is compare-and-set against the committed draft.
+		auto same = state->value();
+		same.Receipts.push_back({ "req-c", { }, 1, core::tour_refusal::none, same.Draft.Revision });
+		expect(store->save_state(same, same.Draft.Revision, { }).has_value(), "a receipt-only save at the current revision commits");
+		auto forged          = same;
+		forged.Draft.Problem = "changed without a revision";
+		forged.Receipts.push_back({ "req-d", { }, 1, core::tour_refusal::none, forged.Draft.Revision });
+		const auto refused = store->save_state(forged, forged.Draft.Revision, { });
+		expect(!refused && refused.error().Failure == application::tour_store_failure::conflict, "same-revision content cannot be smuggled in beside a receipt");
+	}
 	void composed_storage_host()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-host" };
@@ -290,4 +373,5 @@ int main()
 	payload_versions();
 	storage();
 	composed_storage_host();
+	durable_request_receipts();
 }

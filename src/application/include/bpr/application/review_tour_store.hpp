@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_STORE_HPP
 #include "bpr/application/review_tour_projection.hpp"
 #include <algorithm>
+#include <array>
 #include <deque>
 #include <expected>
 #include <stop_token>
@@ -28,18 +29,40 @@ namespace bpr::application {
 		tour_presentation_origin Origin                                              = tour_presentation_origin::unknown;
 		auto                     operator==(const tour_history_entry&) const -> bool = default;
 	};
+	inline constexpr std::size_t maximum_tour_request_receipts = 4096;
+	/// \brief Durable local outcome, atomically committed with its edit; never remote authority.
+	struct tour_request_receipt
+	{
+		std::string                  Id;
+		std::array<std::uint8_t, 32> Digest{ };
+		std::uint8_t                 Status                                                = 0;
+		core::tour_refusal           Refusal                                               = core::tour_refusal::none;
+		std::uint64_t                Revision                                              = 0;
+		auto                         operator==(const tour_request_receipt&) const -> bool = default;
+	};
 	/// One compare-and-swap record binds current content and the shared local journal.
 	struct tour_stored_state
 	{
-		core::review_tour              Draft;
-		std::deque<tour_history_entry> Undo, Redo;
-		tour_resume_hint               Resume{ };
-		auto                           operator==(const tour_stored_state&) const -> bool = default;
+		core::review_tour                 Draft;
+		std::deque<tour_history_entry>    Undo, Redo;
+		tour_resume_hint                  Resume{ };
+		std::vector<tour_request_receipt> Receipts{ };
+		auto                              operator==(const tour_stored_state&) const -> bool = default;
 	};
 	[[nodiscard]] inline auto valid(const tour_stored_state& aState) -> bool
 	{
 		if (core::validate(aState.Draft) != core::tour_refusal::none || aState.Resume.Section > tour_section::stops || (aState.Resume.Stop.value() && std::ranges::find(aState.Draft.Stops, aState.Resume.Stop, &core::tour_stop::Id) == aState.Draft.Stops.end())) {
 			return false;
+		}
+		if (aState.Receipts.size() > maximum_tour_request_receipts) {
+			return false;
+		}
+		std::vector<std::string_view> ids;
+		for (const auto& receipt : aState.Receipts) {
+			if (receipt.Id.empty() || receipt.Id.size() > 64 || receipt.Id.find('\0') != std::string::npos || receipt.Status > 4 || receipt.Refusal > core::tour_refusal::exhausted || receipt.Revision == 0 || receipt.Revision > aState.Draft.Revision || std::ranges::find(ids, receipt.Id) != ids.end()) {
+				return false;
+			}
+			ids.push_back(receipt.Id);
 		}
 		for (const auto* history : { &aState.Undo, &aState.Redo }) {
 			std::size_t bytes = 0;

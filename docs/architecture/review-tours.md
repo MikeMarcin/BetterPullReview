@@ -321,3 +321,41 @@ in their separately admitted journal. Undo restores exact stored content with a
 new revision, and redo needs no AI or network. No-op edits add no transaction.
 Both history and current content commit under the existing exact revision CAS,
 so a failed or killed commit cannot retain only one half of an edit.
+
+
+## Owner forwarding
+
+While the desktop owns a profile, `bpr tour` forwards each local draft command to
+it instead of opening the store. The CLI acquires the profile lease first; only
+when that lease is busy does it try the owner's tour endpoint, which is a
+separate rendezvous beside the activation endpoint. Activation frames keep their
+fixed meaning and an owner without a tour endpoint answers
+`owner_protocol_unsupported`. The CLI never opens a second writer, steals a lease
+or starts the desktop.
+
+The endpoint is a per-user local socket bound only while the owner holds the
+exact-root lease. Each connection is authenticated as the same OS user and
+begins with an owner-advertised 64-byte binding: protocol version, profile, root
+digest and a per-owner-instance nonce. The caller sends nothing until the binding
+matches what it resolved for that profile and root, and the owner accepts a frame
+only if it echoes that binding. Frames declare a length of at most 5 MiB and are
+decoded by a closed codec: `load`, `mutate` and `request_status` for one opaque
+draft selector, with local editing commands only. Observation, restore, import,
+publication and provider operations cannot be encoded. A path, a PID or a JSON
+actor string is never authority.
+
+The owner serves one request at a time on its effect lane from its own store, as
+one bounded transaction. Every mutation carries a request ID and a payload digest
+the receiver computes itself. The outcome is committed in the same compare-and-set
+save as the edit, so the same ID with the same digest returns the stored outcome
+and the same ID with another payload is refused. A caller that lost an answer
+learns of it as `outcome_unknown` and is told to inspect the exact ID
+(`status --request-id`) before any retry; nothing is replayed on its behalf.
+The journal keeps at most 4096 outcomes per draft and refuses further requests
+rather than forget one, and it records only the local outcome, never that GitHub
+accepted anything.
+
+The Windows named-pipe transport is not implemented; a Windows owner reports no
+tour endpoint. A forwarded edit reaches the stored draft, not yet a live editor
+buffer: routing through the desktop's dirty and composing editors belongs to the
+next slice.

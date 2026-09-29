@@ -16,10 +16,12 @@ namespace bpr::application {
 													   import_selected };
 	struct tour_service_request
 	{
-		core::tour_command       Command;
-		tour_service_operation   Operation   = tour_service_operation::edit;
-		std::size_t              ImportIndex = 0;
-		tour_presentation_origin Origin      = tour_presentation_origin::desktop;
+		core::tour_command           Command;
+		tour_service_operation       Operation   = tour_service_operation::edit;
+		std::size_t                  ImportIndex = 0;
+		tour_presentation_origin     Origin      = tour_presentation_origin::desktop;
+		std::string                  RequestId{ };
+		std::array<std::uint8_t, 32> Digest{ };
 	};
 	enum class tour_service_status : std::uint8_t { accepted,
 													unchanged,
@@ -32,6 +34,7 @@ namespace bpr::application {
 		tour_service_status Status   = tour_service_status::busy;
 		core::tour_refusal  Refusal  = core::tour_refusal::none;
 		std::uint64_t       Revision = 0;
+		bool                Replayed = false;
 	};
 	/// \brief Decision-lane owner with coalesced off-lane persistence.
 	/// Store and queued work belong to this host. Shutdown drains final accepted edits;
@@ -52,6 +55,7 @@ namespace bpr::application {
 		void               observe_publication(core::review_tour aPublished);
 		void               dispatch(const core::tour_command& aCommand);
 		[[nodiscard]] auto execute(const tour_service_request& aRequest) -> tour_service_result;
+		[[nodiscard]] auto request_status(std::string_view aId) const -> std::optional<tour_request_receipt>;
 		void               undo();
 		void               redo();
 		void               retry_save();

@@ -3067,7 +3067,9 @@ bpr_enable_warnings(test_profile_activation_public_path)
 bpr_add_network_isolated_test(NAME application_profile_activation_public_path WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_activation_contract.py"
     --application $<TARGET_FILE:test_profile_activation_public_path>
-    --desktop-application $<TARGET_FILE:app_better_pull_review>)
+    --desktop-application $<TARGET_FILE:app_better_pull_review>
+    $<$<TARGET_EXISTS:app_bpr>:--tour-application>
+    $<$<TARGET_EXISTS:app_bpr>:$<TARGET_FILE:app_bpr>>)
 set_tests_properties(application_profile_activation_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 260)
 target_link_libraries(test_profile_owner_admission_public_path PRIVATE BetterPullReview::Composition)

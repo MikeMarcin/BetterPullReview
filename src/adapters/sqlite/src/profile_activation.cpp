@@ -1,4 +1,6 @@
 #include "bpr/adapters/sqlite/profile_activation.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+#include <random>
 
 #include "storage_internal.hpp"
 
@@ -912,4 +914,345 @@ namespace bpr::adapters::sqlite {
 			return std::unexpected(sent ? outcome::indeterminate : outcome::unavailable);
 		}
 	}
+
+	namespace {
+		using tour_failure = application::tour_channel_failure;
+		using tour_bytes   = application::tour_channel_bytes;
+		using tour_hello   = std::array<std::uint8_t, 64>;
+		auto tour_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
+		{
+			auto path = profile_activation_endpoint(aRoot);
+			if (!path) {
+				return std::nullopt;
+			}
+			auto name = path->native();
+#if defined(_WIN32)
+			const auto at = name.find(L"bpr-activate-");
+			if (at == std::wstring::npos) {
+				return std::nullopt;
+			}
+			name.replace(at, 13, L"bpr-tourcmd--");
+#else
+			const auto at = name.find("bpr-activate-");
+			if (at == std::string::npos) {
+				return std::nullopt;
+			}
+			name.replace(at, 13, "bpr-tourcmd--");
+#endif
+			return std::filesystem::path{ std::move(name) };
+		}
+		auto make_tour_hello(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, bool aOwner) -> tour_hello
+		{
+			tour_hello result{ 'B', 'P', 'R', 'T', 1, 0, 0, 0 };
+			for (unsigned i = 0; i < 8; ++i) {
+				result[8 + i] = static_cast<std::uint8_t>(aProfile.value() >> (i * 8));
+			}
+			const auto root = std::filesystem::canonical(aRoot).native();
+			const auto hash = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(root.data()), root.size() * sizeof(root.front()) });
+			std::copy(hash.begin(), hash.end(), result.begin() + 16);
+			if (aOwner) {
+				std::random_device random;
+				for (std::size_t i = 48; i < result.size(); ++i) {
+					result[i] = static_cast<std::uint8_t>(random());
+				}
+			}
+			return result;
+		}
+		void append_size(tour_bytes& aBytes, std::size_t aSize)
+		{
+			for (unsigned i = 0; i < 8; ++i) {
+				aBytes.push_back(static_cast<std::uint8_t>(static_cast<std::uint64_t>(aSize) >> (i * 8)));
+			}
+		}
+		auto payload_size(std::span<const std::uint8_t> aBytes) -> std::optional<std::size_t>
+		{
+			if (aBytes.size() < 8) {
+				return std::nullopt;
+			}
+			std::uint64_t size = 0;
+			for (unsigned i = 0; i < 8; ++i) {
+				size |= static_cast<std::uint64_t>(aBytes[i]) << (i * 8);
+			}
+			if (size == 0 || size > application::maximum_tour_channel_bytes) {
+				return std::nullopt;
+			}
+			return static_cast<std::size_t>(size);
+		}
+#if !defined(_WIN32)
+		auto write_tour_bytes(int aSocket, std::span<const std::uint8_t> aBytes, clock_type::time_point aDeadline, std::stop_token aStop = { }) -> bool
+		{
+			while (!aBytes.empty() && wait_socket(aSocket, POLLOUT, aDeadline, aStop)) {
+				const auto sent = send_bytes(aSocket, aBytes.data(), aBytes.size());
+				if (sent > 0) {
+					aBytes = aBytes.subspan(static_cast<std::size_t>(sent));
+				} else if (sent == 0 || (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)) {
+					return false;
+				}
+			}
+			return aBytes.empty();
+		}
+		auto read_tour_bytes(int aSocket, std::span<std::uint8_t> aBytes, clock_type::time_point aDeadline, std::stop_token aStop) -> bool
+		{
+			while (!aBytes.empty() && wait_socket(aSocket, POLLIN, aDeadline, aStop)) {
+				const auto read = ::recv(aSocket, aBytes.data(), aBytes.size(), 0);
+				if (read > 0) {
+					aBytes = aBytes.subspan(static_cast<std::size_t>(read));
+				} else if (read == 0 || (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)) {
+					return false;
+				}
+			}
+			return aBytes.empty();
+		}
+		class tour_native_reply final : public application::tour_owner_reply
+		{
+		public:
+			tour_native_reply(socket_handle aSocket, tour_hello aHello, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Socket{ std::move(aSocket) }
+				, Hello{ aHello }
+				, Lease{ std::move(aLease) }
+			{ }
+			void complete(std::span<const std::uint8_t> aResponse) noexcept override
+			{
+				const std::lock_guard lock{ Mutex };
+				if (Socket.Value < 0) {
+					return;
+				}
+				try {
+					if (!aResponse.empty() && aResponse.size() <= application::maximum_tour_channel_bytes) {
+						tour_bytes header{ Hello.begin(), Hello.end() };
+						append_size(header, aResponse.size());
+						const auto deadline = clock_type::now() + deadline_interval;
+						if (write_tour_bytes(Socket.Value, header, deadline)) {
+							static_cast<void>(write_tour_bytes(Socket.Value, aResponse, deadline));
+						}
+					}
+				} catch (...) { }
+				Socket = socket_handle{ };
+				Lease.reset();
+			}
+			auto pending() -> bool
+			{
+				const std::lock_guard lock{ Mutex };
+				return Socket.Value >= 0;
+			}
+
+		private:
+			std::mutex                                          Mutex;
+			socket_handle                                       Socket;
+			tour_hello                                          Hello;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+		};
+		class tour_native_server final : public application::tour_owner_server
+		{
+		public:
+			tour_native_server(socket_handle aListener, std::filesystem::path aRoot, std::filesystem::path aPath, tour_hello aHello, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Listener{ std::move(aListener) }
+				, Root{ std::move(aRoot) }
+				, Path{ std::move(aPath) }
+				, Hello{ aHello }
+				, Lease{ std::move(aLease) }
+			{
+				static_cast<void>(::lstat(Path.c_str(), &Identity));
+			}
+			~tour_native_server() override
+			{
+				if (auto pending = Pending.lock()) {
+					pending->complete({ });
+				}
+				Listener = socket_handle{ };
+				Client   = socket_handle{ };
+				struct stat named{ };
+				if (detail::validates_profile_runtime_lease(Root, Lease) && ::lstat(Path.c_str(), &named) == 0 && named.st_dev == Identity.st_dev && named.st_ino == Identity.st_ino) {
+					static_cast<void>(::unlink(Path.c_str()));
+				}
+			}
+			auto receive() -> std::optional<application::tour_owner_message> override
+			{
+				if (auto pending = Pending.lock(); pending && pending->pending()) {
+					return std::nullopt;
+				}
+				if (Client.Value < 0) {
+					Client = socket_handle{ ::accept(Listener.Value, nullptr, nullptr) };
+					if (Client.Value < 0) {
+						return std::nullopt;
+					}
+					Deadline = clock_type::now() + std::chrono::seconds{ 5 };
+					Input.clear();
+					Expected = 0;
+					if (!configure_socket(Client.Value) || !same_user(Client.Value) || !write_tour_bytes(Client.Value, Hello, Deadline)) {
+						Client = socket_handle{ };
+						return std::nullopt;
+					}
+				}
+				if (clock_type::now() >= Deadline) {
+					Client = socket_handle{ };
+					return std::nullopt;
+				}
+				std::array<std::uint8_t, 65536> chunk{ };
+				const auto                      read = ::recv(Client.Value, chunk.data(), chunk.size(), 0); // NOLINT(clang-analyzer-unix.BlockInCriticalSection)
+				if (read < 0) {
+					if (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+						Client = socket_handle{ };
+					}
+					return std::nullopt;
+				}
+				if (read > 0) {
+					const auto size = static_cast<std::size_t>(read);
+					if (Input.size() + size > application::maximum_tour_channel_bytes + Hello.size() + 8) {
+						Client = socket_handle{ };
+						return std::nullopt;
+					}
+					Input.insert(Input.end(), chunk.begin(), chunk.begin() + read);
+					if (Input.size() >= Hello.size() + 8 && Expected == 0) {
+						const auto length = payload_size(std::span{ Input }.subspan(Hello.size(), 8));
+						if (!length || !std::equal(Hello.begin(), Hello.end(), Input.begin())) {
+							Client = socket_handle{ };
+							return std::nullopt;
+						}
+						Expected = Hello.size() + 8 + *length;
+					}
+					if (Expected && Input.size() > Expected) {
+						Client = socket_handle{ };
+					}
+					return std::nullopt;
+				}
+				if (!Expected || Input.size() != Expected) {
+					Client = socket_handle{ };
+					return std::nullopt;
+				}
+				tour_bytes payload{ Input.begin() + static_cast<std::ptrdiff_t>(Hello.size() + 8), Input.end() };
+				if (!decode_tour_request(payload)) {
+					Client = socket_handle{ };
+					return std::nullopt;
+				}
+				auto reply = std::make_shared<tour_native_reply>(std::move(Client), Hello, Lease);
+				Pending    = reply;
+				return application::tour_owner_message{ std::move(payload), std::move(reply) };
+			}
+
+		private:
+			socket_handle                                       Listener, Client;
+			std::filesystem::path                               Root, Path;
+			tour_hello                                          Hello;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+			struct stat                                         Identity{ };
+			clock_type::time_point                              Deadline;
+			tour_bytes                                          Input;
+			std::size_t                                         Expected = 0;
+			std::weak_ptr<tour_native_reply>                    Pending;
+		};
+#endif
+	}
+	auto make_tour_owner_server(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease) -> std::expected<std::shared_ptr<application::tour_owner_server>, application::tour_channel_failure>
+	{
+		try {
+			if (!aProfile.value() || !detail::validates_profile_runtime_lease(aRoot, aLease)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			const auto path = tour_endpoint(aRoot);
+			if (!path) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+#if defined(_WIN32)
+			return std::unexpected(tour_failure::unavailable);
+#else
+			const auto address = endpoint_address(*path);
+			if (!address) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			struct stat existing{ };
+			if (::lstat(path->c_str(), &existing) == 0) {
+				if (!private_socket(path->c_str())) {
+					return std::unexpected(tour_failure::refused);
+				}
+				socket_handle probe{ ::socket(AF_UNIX, SOCK_STREAM, 0) };
+				if (!configure_socket(probe.Value) || ::connect(probe.Value, reinterpret_cast<const sockaddr*>(&*address), sizeof(*address)) == 0 || errno != ECONNREFUSED || ::unlink(path->c_str()) != 0) {
+					return std::unexpected(tour_failure::refused);
+				}
+			} else if (errno != ENOENT) {
+				return std::unexpected(tour_failure::refused);
+			}
+			socket_handle listener{ ::socket(AF_UNIX, SOCK_STREAM, 0) };
+			if (!configure_socket(listener.Value) || ::bind(listener.Value, reinterpret_cast<const sockaddr*>(&*address), sizeof(*address)) != 0) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			if (::chmod(path->c_str(), 0600) != 0 || ::listen(listener.Value, 8) != 0) {
+				static_cast<void>(::unlink(path->c_str()));
+				return std::unexpected(tour_failure::unavailable);
+			}
+			return std::make_shared<tour_native_server>(std::move(listener), aRoot, *path, make_tour_hello(aRoot, aProfile, true), std::move(aLease));
+#endif
+		} catch (...) {
+			return std::unexpected(tour_failure::unavailable);
+		}
+	}
+	auto send_tour_owner(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::span<const std::uint8_t> aPayload, std::stop_token aStop) -> std::expected<application::tour_channel_bytes, application::tour_channel_failure>
+	{
+		bool sent = false;
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected(tour_failure::cancelled);
+			}
+			if (aPayload.empty() || aPayload.size() > application::maximum_tour_channel_bytes || !decode_tour_request(aPayload)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			const auto path = tour_endpoint(aRoot);
+			if (!path) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+#if defined(_WIN32)
+			return std::unexpected(tour_failure::unavailable);
+#else
+			const auto address = endpoint_address(*path);
+			if (!address || !private_socket(path->c_str())) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			socket_handle socket{ ::socket(AF_UNIX, SOCK_STREAM, 0) };
+			if (!configure_socket(socket.Value)) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			const auto deadline = clock_type::now() + std::chrono::seconds{ 10 };
+			if (::connect(socket.Value, reinterpret_cast<const sockaddr*>(&*address), sizeof(*address)) != 0) {
+				if (errno != EINPROGRESS || !wait_socket(socket.Value, POLLOUT, deadline, aStop)) {
+					return std::unexpected(tour_failure::unavailable);
+				}
+				int       error = 0;
+				socklen_t size  = sizeof(error);
+				if (::getsockopt(socket.Value, SOL_SOCKET, SO_ERROR, &error, &size) != 0 || error) {
+					return std::unexpected(tour_failure::unavailable);
+				}
+			}
+			if (!same_user(socket.Value)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			tour_hello hello{ };
+			const auto expected = make_tour_hello(aRoot, aProfile, false);
+			if (!read_tour_bytes(socket.Value, hello, deadline, aStop) || !std::equal(expected.begin(), expected.begin() + 48, hello.begin())) {
+				return std::unexpected(tour_failure::refused);
+			}
+			tour_bytes header{ hello.begin(), hello.end() };
+			append_size(header, aPayload.size());
+			sent = true;
+			if (!write_tour_bytes(socket.Value, header, deadline, aStop) || !write_tour_bytes(socket.Value, aPayload, deadline, aStop) || ::shutdown(socket.Value, SHUT_WR) != 0) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			std::array<std::uint8_t, 72> response{ };
+			if (!read_tour_bytes(socket.Value, response, deadline, aStop) || !std::equal(hello.begin(), hello.end(), response.begin())) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			const auto size = payload_size(std::span{ response }.subspan(64));
+			if (!size) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			tour_bytes result(*size);
+			if (!read_tour_bytes(socket.Value, result, deadline, aStop) || !decode_tour_response(result)) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			return result;
+#endif
+		} catch (...) {
+			return std::unexpected(sent ? tour_failure::indeterminate : tour_failure::unavailable);
+		}
+	}
+
 }

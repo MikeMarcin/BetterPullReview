@@ -1,0 +1,537 @@
+#include "bpr/adapters/sqlite/profile_activation.hpp"
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <expected>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <optional>
+#include <stop_token>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+
+#if !defined(_WIN32)
+	#include <sys/socket.h>
+	#include <sys/stat.h>
+	#include <sys/un.h>
+	#include <unistd.h>
+#endif
+
+namespace {
+	using namespace bpr;
+	using namespace bpr::adapters::sqlite;
+	using application::tour_channel_bytes;
+	using application::tour_channel_failure;
+	using application::tour_owner_operation;
+	using application::tour_owner_request;
+	using application::tour_owner_response;
+	constexpr core::bpr_profile_id profile{ 1U };
+	const std::string              draft(64U, 'a');
+
+	/// \brief What a failed expectation throws, once its `FAILED:` line is out. [[BPR-1118]].
+	struct expectation_failed
+	{
+	};
+
+	[[noreturn]] void fail(const std::string_view aMessage)
+	{
+		std::cerr << "FAILED: " << aMessage << '\n';
+		throw expectation_failed{ };
+	}
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			fail(aMessage);
+		}
+	}
+
+	auto load_request() -> tour_channel_bytes
+	{
+		return encode_tour_request({ .Operation = tour_owner_operation::load, .Draft = draft });
+	}
+
+	auto edit_request(std::string aId, std::string aText, core::tour_command_kind aKind = core::tour_command_kind::problem) -> tour_owner_request
+	{
+		tour_owner_request result{ .Operation = tour_owner_operation::mutate, .Draft = draft };
+		result.Edit.RequestId                = std::move(aId);
+		result.Edit.Command.Kind             = aKind;
+		result.Edit.Command.Text             = std::move(aText);
+		result.Edit.Command.ExpectedRevision = 1U;
+		return result;
+	}
+
+	auto response_bytes(std::string aError) -> tour_channel_bytes
+	{
+		return encode_tour_response({ .Error = std::move(aError) });
+	}
+
+	void test_codec()
+	{
+		const auto request = edit_request("req-1", "Exact problem \xce\xb1\n");
+		const auto bytes   = encode_tour_request(request);
+		expect(!bytes.empty(), "a finite local edit encodes");
+		const auto decoded = decode_tour_request(bytes);
+		expect(decoded && decoded->Draft == draft && decoded->Edit.RequestId == "req-1" && decoded->Edit.Command.Text == request.Edit.Command.Text && decoded->Operation == tour_owner_operation::mutate, "the request round-trips exactly");
+		expect(decoded->Edit.Digest == tour_request_digest(request.Edit), "the receiver computes the payload identity itself");
+		auto changed = edit_request("req-1", "Another problem\n");
+		expect(tour_request_digest(changed.Edit) != decoded->Edit.Digest, "another payload has another identity under the same request ID");
+		auto rerouted        = request;
+		rerouted.Edit.Origin = application::tour_presentation_origin::command_client;
+		expect(tour_request_digest(rerouted.Edit) != decoded->Edit.Digest, "the presentation origin is part of the request identity");
+		auto forged = bytes;
+		forged.push_back(0);
+		expect(!decode_tour_request(forged), "trailing bytes are refused");
+		auto truncated = bytes;
+		truncated.pop_back();
+		expect(!decode_tour_request(truncated), "a truncated frame is refused");
+		expect(!decode_tour_request({ }), "an empty frame is refused");
+		tour_channel_bytes oversized(application::maximum_tour_channel_bytes + 1U, 1);
+		expect(!decode_tour_request(oversized), "an oversized frame is refused before parsing");
+		expect(encode_tour_request(edit_request("req-2", std::string(application::maximum_tour_channel_bytes + 1U, 'x'))).empty(), "an oversized request does not encode");
+		for (const auto kind : { core::tour_command_kind::observe_head, core::tour_command_kind::restore, core::tour_command_kind::insert_outline }) {
+			expect(encode_tour_request(edit_request("req-3", "x", kind)).empty(), "observation, restore and imported state cannot be requested over the channel");
+		}
+		auto restore                 = edit_request("req-4", "x");
+		restore.Edit.Command.Restore = core::review_tour{ };
+		expect(encode_tour_request(restore).empty(), "an arbitrary restore payload cannot ride a permitted kind");
+		auto badOperation           = edit_request("req-5", "x");
+		badOperation.Edit.Operation = application::tour_service_operation::import_selected;
+		expect(encode_tour_request(badOperation).empty(), "import selection is not a channel operation");
+		expect(encode_tour_request({ .Operation = tour_owner_operation::load, .Draft = "not-a-token" }).empty(), "only an exact opaque draft selector is admitted");
+		const auto reply = decode_tour_response(response_bytes("revision_conflict"));
+		expect(reply && reply->Error == "revision_conflict" && !reply->Draft, "a refusal response round-trips");
+		expect(!decode_tour_response({ }), "an empty response is refused");
+	}
+
+#if !defined(_WIN32)
+	auto scratch_pattern() -> std::string
+	{
+		const auto* socketRoot = std::getenv("BPR_TEST_SOCKET_ROOT");
+		return (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-tour-XXXXXX").string();
+	}
+
+	class scratch_directory
+	{
+	public:
+		scratch_directory()
+		{
+			auto pattern = scratch_pattern();
+			expect(::mkdtemp(pattern.data()) != nullptr, "make private scratch");
+			Path = std::filesystem::canonical(pattern);
+		}
+		~scratch_directory()
+		{
+			std::error_code ignored;
+			if (const auto endpoint = profile_activation_endpoint(Path)) {
+				std::filesystem::remove(tour_path(*endpoint), ignored);
+			}
+			std::filesystem::remove_all(Path, ignored);
+		}
+		scratch_directory(const scratch_directory&)                    = delete;
+		auto operator=(const scratch_directory&) -> scratch_directory& = delete;
+		/// \brief The tour endpoint is the activation rendezvous with its own fixed-length name.
+		static auto tour_path(std::filesystem::path aActivation) -> std::filesystem::path
+		{
+			auto       name = aActivation.native();
+			const auto at   = name.find("bpr-activate-");
+			expect(at != std::string::npos, "the activation endpoint names its rendezvous");
+			name.replace(at, 13, "bpr-tourcmd--");
+			return name;
+		}
+		auto endpoint() const -> std::filesystem::path
+		{
+			const auto activation = profile_activation_endpoint(Path);
+			expect(activation.has_value(), "the scratch root resolves an endpoint");
+			return tour_path(*activation);
+		}
+		std::filesystem::path Path;
+	};
+
+	/// \brief One client on its own thread; the request blocks until the owner answers or closes.
+	class client
+	{
+	public:
+		client(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, tour_channel_bytes aPayload, std::stop_token aStop = { })
+			: Thread{ [this, aRoot, aProfile, payload = std::move(aPayload), aStop] {
+				Result = send_tour_owner(aRoot, aProfile, payload, aStop);
+				Done   = true;
+			} }
+		{ }
+		auto wait() -> const std::expected<tour_channel_bytes, tour_channel_failure>&
+		{
+			Thread.join();
+			return Result;
+		}
+		std::atomic<bool> Done{ false };
+
+	private:
+		std::expected<tour_channel_bytes, tour_channel_failure> Result{ std::unexpected(tour_channel_failure::unavailable) };
+		std::thread                                             Thread;
+	};
+
+	auto receive(application::tour_owner_server& aServer, std::chrono::milliseconds aWithin = std::chrono::seconds{ 3 }) -> std::optional<application::tour_owner_message>
+	{
+		const auto until = std::chrono::steady_clock::now() + aWithin;
+		while (std::chrono::steady_clock::now() < until) {
+			if (auto message = aServer.receive()) {
+				return message;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		return std::nullopt;
+	}
+
+	void pump_for(application::tour_owner_server& aServer, std::chrono::milliseconds aFor)
+	{
+		const auto until = std::chrono::steady_clock::now() + aFor;
+		while (std::chrono::steady_clock::now() < until) {
+			expect(!aServer.receive(), "nothing is admitted while pumping a hostile or idle peer");
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+	}
+
+	void test_authority()
+	{
+		scratch_directory root, other;
+		auto              lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "acquire the profile lease");
+		expect(!make_tour_owner_server(root.Path, profile, { }), "a null lease is refused");
+		expect(!make_tour_owner_server(root.Path, profile, std::make_shared<application::profile_runtime_lease>()), "a forged lease is refused");
+		expect(!make_tour_owner_server(other.Path, profile, *lease), "another root's lease is refused");
+		expect(!make_tour_owner_server(root.Path, core::bpr_profile_id{ }, *lease), "the zero profile is refused");
+		auto server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(server.has_value(), "the admitted owner binds its tour endpoint");
+		expect(!make_tour_owner_server(root.Path, profile, *lease), "a duplicate listener is refused");
+		expect(std::filesystem::exists(root.endpoint()), "the endpoint is named separately from activation");
+		lease->reset();
+		expect(!acquire_profile_runtime_lease(root.Path), "the server retains the lease");
+		server->reset();
+		expect(!std::filesystem::exists(root.endpoint()), "the socket is removed when the owner drains");
+		expect(acquire_profile_runtime_lease(root.Path).has_value(), "the lease is released after the server");
+		const auto missing = send_tour_owner(root.Path, profile, load_request());
+		expect(!missing && missing.error() == tour_channel_failure::unavailable, "a missing owner is unavailable");
+	}
+
+	void test_round_trip()
+	{
+		scratch_directory root;
+		auto              lease  = acquire_profile_runtime_lease(root.Path);
+		auto              server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(lease && server, "owner endpoint");
+		client caller{ root.Path, profile, load_request() };
+		auto   message = receive(**server);
+		expect(message.has_value(), "the request arrives");
+		const auto decoded = decode_tour_request(message->Payload);
+		expect(decoded && decoded->Draft == draft && decoded->Operation == tour_owner_operation::load, "the admitted bytes are the exact request");
+		expect(!(*server)->receive(), "one pending request bounds the owner");
+		message->Reply->complete(response_bytes("target_ambiguous"));
+		const auto& result = caller.wait();
+		expect(result.has_value(), "the answer reaches the caller");
+		const auto reply = decode_tour_response(*result);
+		expect(reply && reply->Error == "target_ambiguous", "the answer is the exact owner response");
+		client second{ root.Path, profile, load_request() };
+		auto   next = receive(**server);
+		expect(next.has_value(), "the owner serves the next caller after the first completes");
+		next->Reply->complete(response_bytes("second"));
+		expect(second.wait().has_value(), "second caller answered");
+	}
+
+	void test_binding()
+	{
+		scratch_directory root, other;
+		auto              lease  = acquire_profile_runtime_lease(root.Path);
+		auto              server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(lease && server, "owner endpoint");
+		// A caller that names another profile is refused by the owner's advertised binding and sends nothing.
+		client wrongProfile{ root.Path, core::bpr_profile_id{ 2U }, load_request() };
+		pump_for(**server, std::chrono::milliseconds{ 100 });
+		const auto& refused = wrongProfile.wait();
+		expect(!refused && refused.error() == tour_channel_failure::refused, "the wrong profile is refused before any payload");
+		// A caller resolving another root finds no endpoint at all.
+		const auto elsewhere = send_tour_owner(other.Path, profile, load_request());
+		expect(!elsewhere && elsewhere.error() == tour_channel_failure::unavailable, "another root has no endpoint");
+		// Malformed payloads never leave the caller.
+		expect(send_tour_owner(root.Path, profile, { }).error() == tour_channel_failure::refused, "an empty payload is refused locally");
+		expect(send_tour_owner(root.Path, profile, tour_channel_bytes(application::maximum_tour_channel_bytes + 1U, 1)).error() == tour_channel_failure::refused, "an oversized payload is refused locally");
+		tour_channel_bytes junk(64U, 7);
+		expect(send_tour_owner(root.Path, profile, junk).error() == tour_channel_failure::refused, "an undecodable payload is refused locally");
+		expect(!(*server)->receive(), "none of it reached the owner");
+	}
+
+	auto raw_connect(const std::filesystem::path& aEndpoint) -> int
+	{
+		const int socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
+		expect(socket >= 0, "raw socket");
+		sockaddr_un address{ };
+		address.sun_family = AF_UNIX;
+		const auto path    = aEndpoint.string();
+		expect(path.size() < sizeof(address.sun_path), "the endpoint fits sun_path");
+		std::copy(path.begin(), path.end(), address.sun_path);
+		expect(::connect(socket, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0, "raw connect");
+		return socket;
+	}
+
+	void test_hostile_framing()
+	{
+		scratch_directory root;
+		auto              lease  = acquire_profile_runtime_lease(root.Path);
+		auto              server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(lease && server, "owner endpoint");
+		const auto read_hello = [&](int aSocket) {
+			std::array<std::uint8_t, 64> hello{ };
+			std::size_t                  have  = 0;
+			const auto                   until = std::chrono::steady_clock::now() + std::chrono::seconds{ 2 };
+			while (have < hello.size() && std::chrono::steady_clock::now() < until) {
+				(void)(*server)->receive();
+				const auto read = ::recv(aSocket, hello.data() + have, hello.size() - have, MSG_DONTWAIT);
+				if (read > 0) {
+					have += static_cast<std::size_t>(read);
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+				}
+			}
+			expect(have == hello.size(), "the owner advertises its 64-byte binding");
+			return hello;
+		};
+		const auto send_all = [&](int aSocket, const std::vector<std::uint8_t>& aBytes) { expect(::send(aSocket, aBytes.data(), aBytes.size(), 0) == static_cast<ssize_t>(aBytes.size()), "hostile send"); };
+		const auto frame    = [&](const std::array<std::uint8_t, 64>& aHello, std::uint64_t aLength, std::size_t aBody) {
+			std::vector<std::uint8_t> bytes{ aHello.begin(), aHello.end() };
+			for (unsigned i = 0; i < 8; ++i) {
+				bytes.push_back(static_cast<std::uint8_t>(aLength >> (i * 8)));
+			}
+			bytes.insert(bytes.end(), aBody, 0xAA);
+			return bytes;
+		};
+		// Wrong binding: a frame that does not echo the owner's advertisement is dropped.
+		{
+			const auto socket = raw_connect(root.endpoint());
+			auto       hello  = read_hello(socket);
+			auto       forged = hello;
+			forged[20]        = forged[20] == 0 ? 1 : 0;
+			send_all(socket, frame(forged, 4, 4));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// Oversized declared length.
+		{
+			const auto socket = raw_connect(root.endpoint());
+			const auto hello  = read_hello(socket);
+			send_all(socket, frame(hello, application::maximum_tour_channel_bytes + 1U, 0));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// Zero length.
+		{
+			const auto socket = raw_connect(root.endpoint());
+			const auto hello  = read_hello(socket);
+			send_all(socket, frame(hello, 0, 0));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// Declared length shorter than the bytes sent.
+		{
+			const auto socket = raw_connect(root.endpoint());
+			const auto hello  = read_hello(socket);
+			send_all(socket, frame(hello, 8, 32));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// Well framed but not a tour request: command confusion (an activation-shaped body).
+		{
+			const auto socket = raw_connect(root.endpoint());
+			const auto hello  = read_hello(socket);
+			send_all(socket, frame(hello, 8, 8));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// Truncated at EOF: the declared body never completes.
+		{
+			const auto socket = raw_connect(root.endpoint());
+			const auto hello  = read_hello(socket);
+			send_all(socket, frame(hello, 64, 10));
+			::shutdown(socket, SHUT_WR);
+			pump_for(**server, std::chrono::milliseconds{ 50 });
+			::close(socket);
+		}
+		// The owner still serves an honest caller afterwards.
+		client caller{ root.Path, profile, load_request() };
+		auto   message = receive(**server);
+		expect(message.has_value(), "hostile peers did not wedge the endpoint");
+		message->Reply->complete(response_bytes("ok"));
+		expect(caller.wait().has_value(), "honest caller answered");
+		// A stalled peer that never sends a frame expires and frees the endpoint.
+		const auto stalled = raw_connect(root.endpoint());
+		pump_for(**server, std::chrono::milliseconds{ 200 });
+		pump_for(**server, std::chrono::milliseconds{ 5100 });
+		::close(stalled);
+		client after{ root.Path, profile, load_request() };
+		auto   again = receive(**server);
+		expect(again.has_value(), "the stalled peer expired");
+		again->Reply->complete(response_bytes("ok"));
+		expect(after.wait().has_value(), "caller after the stall answered");
+	}
+
+	void test_version_mismatch()
+	{
+		scratch_directory root;
+		auto              lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "lease");
+		// A listener that advertises another protocol version stands in for a newer or older owner.
+		const auto  path   = root.endpoint();
+		const int   listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+		sockaddr_un address{ };
+		address.sun_family = AF_UNIX;
+		const auto named   = path.string();
+		std::copy(named.begin(), named.end(), address.sun_path);
+		expect(::bind(listen, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0 && ::chmod(path.c_str(), 0600) == 0 && ::listen(listen, 1) == 0, "bind the stand-in owner");
+		client    caller{ root.Path, profile, load_request() };
+		const int accepted = ::accept(listen, nullptr, nullptr);
+		expect(accepted >= 0, "the caller connects");
+		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 9 };
+		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 9");
+		const auto& result = caller.wait();
+		expect(!result && result.error() == tour_channel_failure::refused, "another protocol version is refused before a payload is sent");
+		std::array<std::uint8_t, 1> probe{ };
+		expect(::recv(accepted, probe.data(), 1, MSG_DONTWAIT) <= 0, "no request bytes reached the mismatched owner");
+		::close(accepted);
+		::close(listen);
+		std::filesystem::remove(path);
+	}
+
+	void test_stale_and_hostile_endpoints()
+	{
+		scratch_directory root;
+		const auto        path = root.endpoint();
+		{
+			// A crashed owner leaves its socket behind with nothing listening.
+			const int   listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+			sockaddr_un address{ };
+			address.sun_family = AF_UNIX;
+			const auto named   = path.string();
+			std::copy(named.begin(), named.end(), address.sun_path);
+			expect(::bind(listen, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0 && ::chmod(path.c_str(), 0600) == 0, "leave a stale socket");
+			::close(listen);
+		}
+		expect(std::filesystem::exists(path), "the stale endpoint exists");
+		const auto stale = send_tour_owner(root.Path, profile, load_request());
+		expect(!stale && stale.error() == tour_channel_failure::unavailable, "a stale endpoint is unavailable, not a delivery");
+		auto lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "the crashed owner's lease is gone");
+		auto server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(server.has_value(), "the next owner replaces a stale rendezvous");
+		client caller{ root.Path, profile, load_request() };
+		auto   message = receive(**server);
+		expect(message.has_value(), "the replaced endpoint serves");
+		message->Reply->complete(response_bytes("ok"));
+		expect(caller.wait().has_value(), "answered");
+		server->reset();
+		expect(!std::filesystem::exists(path), "the socket is removed on drain");
+		// A symlink or regular file at the rendezvous is hostile: both sides refuse and preserve it.
+		std::filesystem::create_symlink(root.Path, path);
+		expect(!make_tour_owner_server(root.Path, profile, *lease), "a symlink endpoint is refused by the owner");
+		expect(std::filesystem::is_symlink(path), "the refusal preserves the hostile entry");
+		expect(!send_tour_owner(root.Path, profile, load_request()), "the caller refuses a symlink endpoint");
+		expect(std::filesystem::remove(path), "the fixture removes its own hostile entry");
+		{
+			std::ofstream file{ path };
+			file << "not a socket";
+		}
+		expect(!make_tour_owner_server(root.Path, profile, *lease), "a regular file endpoint is refused by the owner");
+		expect(!send_tour_owner(root.Path, profile, load_request()), "the caller refuses a regular file endpoint");
+		expect(std::filesystem::exists(path), "the refusal preserves the file");
+	}
+
+	void test_owner_death_and_cancellation()
+	{
+		scratch_directory root;
+		auto              lease  = acquire_profile_runtime_lease(root.Path);
+		auto              server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(lease && server, "owner endpoint");
+		// The owner accepts the request and dies (drains) before replying: delivery is uncertain.
+		client lost{ root.Path, profile, load_request() };
+		auto   message = receive(**server);
+		expect(message.has_value(), "the request arrives");
+		message.reset();
+		server->reset();
+		const auto& outcome = lost.wait();
+		expect(!outcome && outcome.error() == tour_channel_failure::indeterminate, "an owner lost after admission is indeterminate, never a retry signal");
+		expect(!std::filesystem::exists(root.endpoint()), "the dead owner's endpoint was removed");
+		// An owner that abandons a reply object is uncertain too.
+		server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(server.has_value(), "the next owner");
+		client abandoned{ root.Path, profile, load_request() };
+		auto   again = receive(**server);
+		expect(again.has_value(), "the request arrives at the next owner");
+		again->Reply->complete({ });
+		const auto& closed = abandoned.wait();
+		expect(!closed && closed.error() == tour_channel_failure::indeterminate, "an empty completion is a close without an answer");
+		// Cancellation before delivery is a clean, effect-free cancel.
+		std::stop_source stopped;
+		stopped.request_stop();
+		const auto cancelled = send_tour_owner(root.Path, profile, load_request(), stopped.get_token());
+		expect(!cancelled && cancelled.error() == tour_channel_failure::cancelled, "cancellation before send is cancelled");
+		// Cancellation while awaiting the answer cannot claim the request was not delivered.
+		std::stop_source waiting;
+		client           interrupted{ root.Path, profile, load_request(), waiting.get_token() };
+		auto             pending = receive(**server);
+		expect(pending.has_value(), "the request arrives");
+		waiting.request_stop();
+		const auto& uncertain = interrupted.wait();
+		expect(!uncertain && uncertain.error() == tour_channel_failure::indeterminate, "cancellation after delivery is uncertain");
+		pending->Reply->complete(response_bytes("late"));
+	}
+#endif
+}
+
+int main()
+{
+	try {
+		std::cout << "test_codec" << std::endl;
+		test_codec();
+#if defined(_WIN32)
+		// [[BPR-1061]]. The Windows named-pipe transport is not implemented; the owner and the
+		// caller both report it unavailable rather than opening a second writer.
+		auto root = std::filesystem::temp_directory_path();
+		expect(!make_tour_owner_server(root, profile, { }), "no Windows tour endpoint without the native pipe");
+#else
+		std::cout << "test_authority" << std::endl;
+		test_authority();
+		std::cout << "test_round_trip" << std::endl;
+		test_round_trip();
+		std::cout << "test_binding" << std::endl;
+		test_binding();
+		std::cout << "test_hostile_framing" << std::endl;
+		test_hostile_framing();
+		std::cout << "test_version_mismatch" << std::endl;
+		test_version_mismatch();
+		std::cout << "test_stale_and_hostile_endpoints" << std::endl;
+		test_stale_and_hostile_endpoints();
+		std::cout << "test_owner_death_and_cancellation" << std::endl;
+		test_owner_death_and_cancellation();
+#endif
+	} catch (const expectation_failed&) {
+		return EXIT_FAILURE;
+	} catch (const std::exception& aError) {
+		std::cerr << "FAILED: unexpected exception: " << aError.what() << '\n';
+		return EXIT_FAILURE;
+	} catch (...) {
+		std::cerr << "FAILED: unexpected exception\n";
+		return EXIT_FAILURE;
+	}
+	std::cout << "tour-owner-channel-tests:pass\n";
+}

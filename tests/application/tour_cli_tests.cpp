@@ -1,14 +1,20 @@
 #include "../../src/app/src/tour_cli.hpp"
+#include "../../src/app/src/tour_owner_service.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <atomic>
+#include <chrono>
 #include <fstream>
 #include <iostream>
+#include <span>
 #include <sstream>
+#include <thread>
 namespace {
 	using namespace bpr;
 	using tests::expect;
@@ -100,7 +106,7 @@ namespace {
 			app::tour_runtime owner{ scratch.path() / "profile data", "1" };
 			expect(owner.admission().has_value(), "first owner lease admitted");
 			auto busy = call({ "tour", "status", "--profile", "1", "--draft", id, "--json" });
-			expect(busy.Exit == 4 && busy.json()["error"].toObject()["code"] == "owner_busy", "simultaneous caller cannot become another writer");
+			expect(busy.Exit == 4 && busy.json()["error"].toObject()["code"] == "owner_protocol_unsupported", "simultaneous caller with no owner tour channel cannot become another writer");
 		}
 		state.Account = 42;
 		auto second   = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
@@ -162,13 +168,175 @@ namespace {
 		expect(removed.Exit == 0 && removed.json()["data"].toObject()["stops"].toArray().size() == 1, "remove only changes local route");
 		expect(edit({ "tour", "move", "2", "--after", "1", "--before", "1" }).Exit != 0, "invalid extra move arguments cannot execute");
 	}
+	/// \brief The owner side of the channel on its own thread, as the desktop's effect lane serves it.
+	class owner_thread
+	{
+	public:
+		enum class fault : int { none,
+								 drop_reply };
+		explicit owner_thread(app::tour_runtime::owner_binding aBinding)
+			: Thread{ [this, binding = std::move(aBinding)] {
+				auto server = adapters::sqlite::make_tour_owner_server(binding.Root, binding.Profile, binding.Lease);
+				expect(server.has_value(), "the owner binds its tour endpoint");
+				const app::tour_owner_service         service{ binding.Root, binding.Profile };
+				const application::tour_owner_handler handler = [&](std::span<const std::uint8_t> aPayload) {
+					auto answer = service.serve(aPayload);
+					// A committed request whose answer never leaves the owner: the lost-response case.
+					const auto request = adapters::sqlite::decode_tour_request(aPayload);
+					return Fault.load() == static_cast<int>(fault::drop_reply) && request && request->Operation == application::tour_owner_operation::mutate ? application::tour_channel_bytes{ } : answer;
+				};
+				Ready = true;
+				while (!Stop) {
+					if (!application::serve_tour_owner_once(**server, handler)) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+					}
+				}
+			} }
+		{
+			while (!Ready) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+			}
+		}
+		~owner_thread()
+		{
+			Stop = true;
+			Thread.join();
+		}
+		void set(fault aFault) { Fault = static_cast<int>(aFault); }
+
+	private:
+		std::atomic<bool> Stop{ false }, Ready{ false };
+		std::atomic<int>  Fault{ 0 };
+		std::thread       Thread;
+	};
+	void forwarded_owner()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cli-forward" };
+		const auto                           dataRoot = scratch.path() / "profile data";
+		const auto                           root     = QString::fromStdString(dataRoot.string());
+		fixture_state                        state;
+		auto                                 call   = [&](QStringList args) {args.append({"--data-root",root});return run(args,state); };
+		auto                                 opened = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		expect(opened.Exit == 0, "open the draft before any owner exists");
+		const auto id            = opened.json()["data"].toObject()["draft_id"].toString();
+		auto       rev           = opened.json()["data"].toObject()["revision"].toString();
+		const auto file          = scratch.path() / "forwarded input.md";
+		auto       write         = [&](std::string_view bytes) {std::ofstream out{file,std::ios::binary};out.write(bytes.data(),static_cast<std::streamsize>(bytes.size())); };
+		const auto fileName      = QString::fromStdString(file.string());
+		auto       edit          = [&](const QString& revision, const QString& requestId) { return call({ "tour", "edit", "problem", "--file", fileName, "--profile", "1", "--draft", id, "--json", "--expected-revision", revision, "--request-id", requestId }); };
+		auto       status        = [&]() { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }); };
+		auto       requestStatus = [&](const QString& requestId) { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json", "--request-id", requestId }); };
+		auto       revision      = [](const reply& aReply) { return aReply.json()["data"].toObject()["revision"].toString(); };
+		auto       problem       = [&]() { return call({ "tour", "show", "problem", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["text"].toString(); };
+		// Standalone: no owner, so this process holds the lease for one short command.
+		write("Standalone \xce\xb1\n");
+		auto standalone = edit(rev, "standalone-1");
+		expect(standalone.Exit == 0, "a standalone edit commits");
+		const auto standaloneRevision = revision(standalone);
+		expect(standaloneRevision != rev, "the edit advanced the revision");
+		auto replayed = edit(rev, "standalone-1");
+		expect(replayed.Exit == 0 && revision(replayed) == standaloneRevision, "the same request ID and payload returns the stored outcome, not a second edit or a conflict");
+		write("Another payload\n");
+		auto clashed = edit(rev, "standalone-1");
+		expect(clashed.Exit != 0 && clashed.json()["error"].toObject()["code"] == "command_refused", "the same request ID with another payload refuses");
+		expect(revision(status()) == standaloneRevision && problem() == QString::fromUtf8("Standalone \xce\xb1\n"), "neither the replay nor the clash changed the draft");
+		rev = standaloneRevision;
+		{
+			app::tour_runtime holder{ dataRoot, "1" };
+			const auto        binding = holder.owner();
+			expect(binding.has_value(), "the holder owns the profile lease");
+			expect(status().json()["error"].toObject()["code"] == "owner_protocol_unsupported", "an owner with no tour channel is reported, not bypassed");
+			write("Never written\n");
+			expect(edit(rev, "no-channel-1").json()["error"].toObject()["code"] == "owner_protocol_unsupported", "no second writer opens the store beside an owner");
+			owner_thread serving{ *binding };
+			auto         forwardedStatus = status();
+			expect(forwardedStatus.Exit == 0 && revision(forwardedStatus) == rev && forwardedStatus.json()["data"].toObject()["draft_id"] == id, "a read is forwarded to the owner and names the same draft");
+			expect(problem() == QString::fromUtf8("Standalone \xce\xb1\n"), "the owner returns the exact committed text");
+			write("Forwarded \xce\xb2\r\n");
+			auto forwarded = edit(rev, "forward-1");
+			expect(forwarded.Exit == 0, "an edit is forwarded to the owner and commits");
+			const auto forwardedRevision = revision(forwarded);
+			expect(forwardedRevision != rev, "the owner advanced the revision");
+			expect(forwarded.json()["data"].toObject()["operation_recorded"].toBool(), "the answer carries the durable request record");
+			auto duplicate = edit(rev, "forward-1");
+			expect(duplicate.Exit == 0 && revision(duplicate) == forwardedRevision, "a duplicate forwarded request returns the stored outcome");
+			write("Different forwarded\n");
+			auto clash = edit(rev, "forward-1");
+			expect(clash.Exit != 0 && clash.json()["error"].toObject()["code"] == "command_refused", "a forwarded request ID reused with another payload refuses");
+			auto recorded = requestStatus("forward-1");
+			expect(recorded.Exit == 0 && recorded.json()["data"].toObject()["operation_recorded"].toBool() && recorded.json()["data"].toObject()["operation_revision"] == forwardedRevision, "the owner reports the exact request outcome by ID");
+			expect(!requestStatus("never-sent").json()["data"].toObject()["operation_recorded"].toBool(), "an unknown request ID is reported as unrecorded");
+			expect(problem() == QString::fromUtf8("Forwarded \xce\xb2\r\n") && revision(status()) == forwardedRevision, "the owner holds exactly one forwarded edit");
+			rev = forwardedRevision;
+			expect(call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" }).json()["error"].toObject()["code"] == "interaction_required", "provider observation is not a forwarded command");
+			// The owner commits and the answer is lost on the way back.
+			serving.set(owner_thread::fault::drop_reply);
+			write("Committed, reply lost\n");
+			auto lost = edit(rev, "lost-1");
+			expect(lost.Exit == 6 && lost.json()["error"].toObject()["code"] == "outcome_unknown", "a lost answer is uncertain and is never replayed by the client");
+			serving.set(owner_thread::fault::none);
+			auto after = requestStatus("lost-1");
+			expect(after.json()["data"].toObject()["operation_recorded"].toBool(), "the exact request ID proves the owner committed before the reply was lost");
+			const auto lostRevision = after.json()["data"].toObject()["operation_revision"].toString();
+			expect(lostRevision != rev && revision(status()) == lostRevision, "the committed edit is visible exactly once");
+			auto retried = edit(rev, "lost-1");
+			expect(retried.Exit == 0 && revision(retried) == lostRevision, "the retry under the same ID returns the stored outcome without a second effect");
+			expect(problem() == QString::fromUtf8("Committed, reply lost\n") && revision(status()) == lostRevision, "no duplicate edit followed the lost reply");
+			rev = lostRevision;
+		}
+		// The owner is gone: the draft it committed is durable and readable standalone.
+		expect(problem() == QString::fromUtf8("Committed, reply lost\n") && revision(status()) == rev, "the next process reads exactly what the owner committed");
+		auto afterOwner = requestStatus("forward-1");
+		expect(afterOwner.json()["data"].toObject()["operation_recorded"].toBool(), "the request record outlives the owner");
+	}
+}
+/// \brief A separate owner process for crash courses: `--serve-owner DATA_ROOT PROFILE [--stall-after-commit]`.
+/// It holds the profile lease and serves the tour endpoint until it is killed. With the stall flag
+/// it commits a forwarded mutation and then never answers, so a course can kill it at that instant.
+int serve_owner_process(const QStringList& aArguments)
+{
+	if (aArguments.size() < 3) {
+		return 2;
+	}
+	app::tour_runtime holder{ std::filesystem::path{ aArguments[1].toStdString() }, aArguments[2].toStdString() };
+	const auto        binding = holder.owner();
+	if (!binding) {
+		return 3;
+	}
+	auto server = adapters::sqlite::make_tour_owner_server(binding->Root, binding->Profile, binding->Lease);
+	if (!server) {
+		return 4;
+	}
+	const bool                            stall = aArguments.contains("--stall-after-commit");
+	const app::tour_owner_service         service{ binding->Root, binding->Profile };
+	const application::tour_owner_handler handler = [&](std::span<const std::uint8_t> aPayload) {
+		auto       answer  = service.serve(aPayload);
+		const auto request = adapters::sqlite::decode_tour_request(aPayload);
+		if (stall && request && request->Operation == application::tour_owner_operation::mutate) {
+			std::cout << "committed\n"
+					  << std::flush;
+			std::this_thread::sleep_for(std::chrono::hours{ 1 });
+		}
+		return answer;
+	};
+	std::cout << "ready\n"
+			  << std::flush;
+	for (;;) {
+		if (!application::serve_tour_owner_once(**server, handler)) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+	}
 }
 int main(int argc, char** argv)
 {
 	QCoreApplication app{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--serve-owner") {
+		return serve_owner_process(QCoreApplication::arguments().mid(1));
+	}
 	if (argc > 1) {
 		fixture_state state;
 		return app::run_tour_cli(QCoreApplication::arguments().mid(1), [&](auto, auto) { return std::make_unique<fixture_reader>(state); });
 	}
 	cold_open();
+	forwarded_owner();
 }

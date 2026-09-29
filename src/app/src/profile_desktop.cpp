@@ -57,6 +57,7 @@ namespace bpr::app {
 			bool                                                   MaintenanceClosing   = false;
 			bool                                                   WindowPublished      = false;
 			bool                                                   ActivationPolling    = false;
+			bool                                                   TourOwnerPolling     = false;
 			bool                                                   ActivationSubmitting = false;
 			std::shared_ptr<application::profile_activation_reply> ActivationReply;
 			core::profile_launch_intent                            ActivationIntent = core::profile_launch_intent::activate;
@@ -816,6 +817,30 @@ namespace bpr::app {
 			}
 			entry.ActivationSubmitting = false;
 		}
+		/// One bounded step of the separate tour command endpoint, entirely on the effect lane so the
+		/// store is never touched from the decision lane. Serialized: one step is in flight per profile.
+		void poll_tour_owner(core::bpr_profile_id aProfile, runtime_entry& aEntry)
+		{
+			if (Quitting || aEntry.Closing || aEntry.MaintenanceClosing || !aEntry.Runtime || aEntry.TourOwnerPolling) {
+				return;
+			}
+			auto endpoint = aEntry.Runtime->desktop_tour_owner_server();
+			auto serving  = aEntry.Runtime->desktop_tour_owner_handler();
+			if (!endpoint || !serving) {
+				return;
+			}
+			aEntry.TourOwnerPolling = true;
+			Effects.post([self = shared_from_this(), server = std::move(endpoint), handler = std::move(serving), aProfile, serial = aEntry.StartupSerial] {
+				try {
+					application::serve_tour_owner_once(*server, handler);
+				} catch (...) { }
+				self->Decisions.post([owner = self, aProfile, serial] {
+					if (const auto found = owner->Runtimes.find(aProfile); found != owner->Runtimes.end() && found->second.StartupSerial == serial) {
+						found->second.TourOwnerPolling = false;
+					}
+				});
+			});
+		}
 		void poll_activation(core::bpr_profile_id aProfile, runtime_entry& aEntry)
 		{
 			if (Quitting || aEntry.Closing || aEntry.MaintenanceClosing || !aEntry.Runtime || aEntry.ActivationPolling || aEntry.ActivationReply) {
@@ -1277,6 +1302,7 @@ namespace bpr::app {
 			for (auto position = Runtimes.begin(); position != Runtimes.end();) {
 				auto& entry = position->second;
 				poll_activation(position->first, entry);
+				poll_tour_owner(position->first, entry);
 				if (entry.Startup && entry.Startup->is_quiescent()) {
 					entry.Startup.reset();
 				}
@@ -1298,7 +1324,7 @@ namespace bpr::app {
 						static_cast<void>(Host->complete_close(context));
 					}
 				}
-				if (!entry.Closing || entry.Startup || entry.ActivationPolling || (entry.Runtime && !entry.Runtime->profile_shutdown_complete())) {
+				if (!entry.Closing || entry.Startup || entry.ActivationPolling || entry.TourOwnerPolling || (entry.Runtime && !entry.Runtime->profile_shutdown_complete())) {
 					++position;
 					continue;
 				}

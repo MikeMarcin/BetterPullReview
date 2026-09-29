@@ -11,7 +11,7 @@ namespace bpr::adapters::sqlite {
 	namespace {
 		using application::tour_store_failure;
 		using application::tour_store_result;
-		constexpr std::size_t      maximum_state_bytes = core::maximum_tour_bytes + 2 * application::maximum_tour_history_bytes + 65536;
+		constexpr std::size_t      maximum_state_bytes = core::maximum_tour_bytes + 2 * application::maximum_tour_history_bytes + 1048576;
 		constexpr std::int64_t     application_id      = 0x42505254;
 		constexpr std::string_view target_schema       = "CREATE TABLE targets(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
 		constexpr std::string_view schema              = "CREATE TABLE tours(key BLOB PRIMARY KEY,payload BLOB NOT NULL,digest BLOB NOT NULL) STRICT";
@@ -125,10 +125,10 @@ namespace bpr::adapters::sqlite {
 				aCodec.tour(aState.Draft);
 				return;
 			}
-			std::uint8_t marker = 84, version = 2;
+			std::uint8_t marker = 84, version = 3;
 			aCodec.byte(marker);
 			aCodec.byte(version);
-			if (marker != 84 || version < 1 || version > 2) {
+			if (marker != 84 || version < 1 || version > 3) {
 				aCodec.Good = false;
 				return;
 			}
@@ -161,6 +161,17 @@ namespace bpr::adapters::sqlite {
 			if (version >= 2) {
 				aCodec.enumeration(aState.Resume.Section);
 				aCodec.id(aState.Resume.Stop);
+			}
+			if (version >= 3) {
+				aCodec.list(aState.Receipts, application::maximum_tour_request_receipts, [&](auto& aReceipt) {
+					aCodec.text(aReceipt.Id, 64);
+					for (auto& byte : aReceipt.Digest) {
+						aCodec.byte(byte);
+					}
+					aCodec.byte(aReceipt.Status);
+					aCodec.enumeration(aReceipt.Refusal);
+					aCodec.number(aReceipt.Revision);
+				});
 			}
 		}
 
@@ -234,7 +245,7 @@ namespace bpr::adapters::sqlite {
 				if (aTour.Owner.Profile != Profile) {
 					return fail(tour_store_failure::wrong_profile);
 				}
-				if (!application::valid(aState) || aTour.Revision <= aExpectedRevision) {
+				if (!application::valid(aState) || aTour.Revision < aExpectedRevision) {
 					return fail(tour_store_failure::bounds);
 				}
 				auto               candidate = aState;
@@ -260,6 +271,9 @@ namespace bpr::adapters::sqlite {
 				}
 				if ((current->has_value() ? current->value().Draft.Revision : 0U) != aExpectedRevision) {
 					return std::unexpected(application::tour_store_error{ tour_store_failure::conflict, current->has_value() ? std::optional{ current->value().Draft } : std::nullopt });
+				}
+				if (aTour.Revision == aExpectedRevision && (!*current || current->value().Draft != aTour || current->value().Undo != aState.Undo || current->value().Redo != aState.Redo || current->value().Resume != aState.Resume)) {
+					return fail(tour_store_failure::conflict);
 				}
 				const auto count = detail::scalar_integer(database.Database, "SELECT count(*) FROM (SELECT 1 FROM tours LIMIT 129)");
 				if (!count || *count > 128 || (!*current && *count >= 128)) {

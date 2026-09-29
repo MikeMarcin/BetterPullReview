@@ -1,5 +1,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/tour_owner_service.hpp"
+#include "../support/review_tour_fixture.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
+#include "bpr/adapters/sqlite/profile_storage_root.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -122,6 +126,24 @@ auto main(int aArgc, char** aArgv) -> int
 		wait_for([&] { return desktop->is_quiescent(); });
 		std::cout << "OWNER_RELEASED\n";
 		return EXIT_SUCCESS;
+	}
+	if (mode == "tour-owner") {
+		// [[BPR-1061]]. The owner seeds one draft in its own store, so the course can drive the
+		// shipped CLI against a real desktop without a second writer ever opening the database.
+		auto registry = adapters::sqlite::make_profile_registry_store(root);
+		auto loaded   = registry->load({ });
+		expect(loaded.has_value(), "the running owner reads its registry");
+		auto authority = application::profile_storage_authority::select(*loaded, profile);
+		expect(authority.has_value(), "the running owner admits its profile");
+		auto resolved = adapters::sqlite::resolve_profile_storage_root(root, *authority);
+		expect(resolved.has_value(), "the running owner resolves its own profile root");
+		auto draft          = tests::review_tour_fixture();
+		draft.Owner.Profile = profile;
+		const application::tour_saved_target target{ .Owner = draft.Owner, .Draft = draft.Id, .HostProfile = core::host_profile_id{ 1 }, .Hostname = "github.com", .Repository = { "o", "r" }, .Number = core::pull_request_number{ 7 }, .Base = draft.Base, .Head = draft.Head };
+		auto                                 store = adapters::sqlite::make_review_tour_store(*resolved, profile);
+		expect(store->save(draft, 0, { }).has_value() && store->remember_target(target, { }).has_value(), "the owner seeds a local draft");
+		std::cout << "TOUR_DRAFT " << app::tour_draft_token(target) << " " << draft.Revision << "\n"
+				  << std::flush;
 	}
 	std::cout << "OWNER_READY\n"
 			  << std::flush;

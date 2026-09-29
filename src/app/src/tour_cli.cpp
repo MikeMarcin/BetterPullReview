@@ -89,6 +89,7 @@ namespace bpr::app {
 		struct command_options
 		{
 			QString                             Command;
+			QString                             RequestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 			QStringList                         Positional;
 			QMap<QString, QString>              Values;
 			bool                                Json = false, Interactive = false;
@@ -147,7 +148,7 @@ namespace bpr::app {
 				return refuse("input_too_large", "Too many command arguments.");
 			}
 			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description" };
-			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt" };
+			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id" };
 			QStringList       words;
 			for (qsizetype i = 0; i < aArguments.size(); ++i) {
 				const auto& value = aArguments[i];
@@ -193,6 +194,12 @@ namespace bpr::app {
 			if (result.Positional.size() != expectedArguments) {
 				return refuse("invalid_input", "Unexpected positional arguments.");
 			}
+			if (result.Values.contains("--request-id")) {
+				result.RequestId = result.Values["--request-id"];
+				if (result.RequestId.isEmpty() || result.RequestId.size() > 64 || !std::ranges::all_of(result.RequestId, [](QChar aChar) { return aChar.isLetterOrNumber() || aChar == '-'; })) {
+					return refuse("invalid_request_id", "Use at most 64 alphanumeric or hyphen characters.");
+				}
+			}
 			QStringList allowed{ "--json", "--non-interactive", "--no-color", "--schema-version", "--data-root" };
 			if (result.Command != "capabilities") {
 				allowed.append("--profile");
@@ -221,10 +228,14 @@ namespace bpr::app {
 			if (result.Command == "status" || result.Command == "preview") {
 				allowed.append("--cursor");
 			}
+			if (result.Command == "status") {
+				allowed.append("--request-id");
+			}
 			if (result.Command == "show") {
 				allowed.append("--source");
 			}
 			if (local_edit(result.Command)) {
+				allowed.append("--request-id");
 				allowed.append("--expected-revision");
 			}
 			if (result.Command == "edit") {
@@ -306,7 +317,7 @@ namespace bpr::app {
 		{
 			const auto& target = aSnapshot.Target;
 			const auto& owner  = target.Owner;
-			return { { "profile_id", QString::number(owner.Profile.value()) }, { "draft_id", text(tour_runtime::draft_token(target)) }, { "account_id", QString::number(owner.Account.value()) }, { "repository_id", QString::number(owner.Repository.value()) }, { "pull_request_id", QString::number(owner.PullRequest.value()) }, { "host", text(target.Hostname) }, { "repository", text(target.Repository.Owner + "/" + target.Repository.Name) }, { "number", QString::number(target.Number.value()) }, { "revision", QString::number(aSnapshot.Draft.Revision) }, { "head", text(core::canonical_hex(aSnapshot.Draft.Head).view()) }, { "local_state", "Saved locally" }, { "published_observation", text(aSnapshot.PublishedObservation) }, { "pending_server_candidates", QString::number(aSnapshot.PendingServerReviews) }, { "published_root", remote_identity(aSnapshot.Draft.Remote) }, { "prior_private_context", "unknown; GitHub does not contain unsent WIP, prior AI provenance or approval" }, { "published_change_history", aSnapshot.Draft.HasPriorObservation ? "observed_in_this_profile" : "unknown_before_this_profile" }, { "published", aSnapshot.Draft.Remote.has_value() }, { "read_only", aSnapshot.Draft.ReadOnly }, { "remote_stale", aSnapshot.Draft.RemoteStale }, { "conflict_count", QString::number(aSnapshot.Draft.Conflicts.size()) }, { "source_state", "not_loaded" }, { "undo_label", text(aSnapshot.UndoLabel) }, { "redo_label", text(aSnapshot.RedoLabel) } };
+			return { { "profile_id", QString::number(owner.Profile.value()) }, { "draft_id", text(tour_runtime::draft_token(target)) }, { "account_id", QString::number(owner.Account.value()) }, { "repository_id", QString::number(owner.Repository.value()) }, { "pull_request_id", QString::number(owner.PullRequest.value()) }, { "host", text(target.Hostname) }, { "repository", text(target.Repository.Owner + "/" + target.Repository.Name) }, { "number", QString::number(target.Number.value()) }, { "revision", QString::number(aSnapshot.Draft.Revision) }, { "head", text(core::canonical_hex(aSnapshot.Draft.Head).view()) }, { "local_state", "Saved locally" }, { "published_observation", text(aSnapshot.PublishedObservation) }, { "pending_server_candidates", QString::number(aSnapshot.PendingServerReviews) }, { "published_root", remote_identity(aSnapshot.Draft.Remote) }, { "prior_private_context", "unknown; GitHub does not contain unsent WIP, prior AI provenance or approval" }, { "published_change_history", aSnapshot.Draft.HasPriorObservation ? "observed_in_this_profile" : "unknown_before_this_profile" }, { "published", aSnapshot.Draft.Remote.has_value() }, { "read_only", aSnapshot.Draft.ReadOnly }, { "remote_stale", aSnapshot.Draft.RemoteStale }, { "conflict_count", QString::number(aSnapshot.Draft.Conflicts.size()) }, { "source_state", "not_loaded" }, { "undo_label", text(aSnapshot.UndoLabel) }, { "redo_label", text(aSnapshot.RedoLabel) }, { "operation_revision", aSnapshot.Receipt ? QString::number(aSnapshot.Receipt->Revision) : QString{ } }, { "operation_recorded", aSnapshot.Receipt.has_value() }, { "resume_stop", QString::number(aSnapshot.Resume.Stop.value()) } };
 		}
 		struct presentation
 		{
@@ -428,7 +439,9 @@ namespace bpr::app {
 			if (!expected) {
 				return refuse("revision_required", "Local edits require --expected-revision from the current snapshot.");
 			}
-			if (*expected != aDraft.Revision) {
+			// A caller that names its request ID may be retrying after a lost answer. The host returns the
+			// stored outcome for that exact ID and payload and refuses a stale revision for anything else.
+			if (*expected != aDraft.Revision && !aOptions.Values.contains("--request-id")) {
 				return refuse("revision_conflict", "The draft changed. Read its current revision before editing.", 4);
 			}
 			core::tour_command command{ .Draft = aDraft.Id, .Owner = aDraft.Owner, .ExpectedRevision = *expected };
@@ -702,7 +715,8 @@ namespace bpr::app {
 				}
 				return presentation{ { { "profile_id", QString::number(runtime->admission()->value()) }, { "account_id", text(*result) }, { "host", aOptions.Values["--host"] }, { "transport", transport } }, "Connected account " + text(*result) + " on " + aOptions.Values["--host"] + ".\n", { } };
 			}
-			auto result = pr ? runtime->open(pr->Host, pr->Repository, pr->Number, transport == "gh", aOptions.Values.value("--root").toStdString(), aOptions.Values.contains("--offline")) : runtime->load(aOptions.Values.value("--draft").toStdString(), !aOptions.Interactive);
+			auto result = pr ? runtime->open(pr->Host, pr->Repository, pr->Number, transport == "gh", aOptions.Values.value("--root").toStdString(), aOptions.Values.contains("--offline")) : aOptions.Command == "status" && aOptions.Values.contains("--request-id") ? runtime->request_status(aOptions.Values.value("--draft").toStdString(), aOptions.RequestId.toStdString())
+																																																																	   : runtime->load(aOptions.Values.value("--draft").toStdString(), !aOptions.Interactive);
 			if (!result) {
 				return std::unexpected(result.error());
 			}
@@ -784,7 +798,7 @@ namespace bpr::app {
 					}
 					runtime = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
 				}
-				result = runtime->mutate(token, { .Command = std::move(*command), .Operation = service_operation(aOptions.Command) });
+				result = runtime->mutate(token, { .Command = std::move(*command), .Operation = service_operation(aOptions.Command), .Origin = aOptions.Json ? application::tour_presentation_origin::command_client : application::tour_presentation_origin::terminal, .RequestId = aOptions.RequestId.toStdString() });
 				if (!result) {
 					auto error = result.error();
 					if (editorCandidate) {
@@ -893,7 +907,8 @@ namespace bpr::app {
 					index = std::min(index + 1, snapshot->Draft.Stops.size() - 1);
 					continue;
 				}
-				auto command = options;
+				auto command      = options;
+				command.RequestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 				command.Values.remove("--transport");
 				command.Values["--expected-revision"] = QString::number(snapshot->Draft.Revision);
 				command.Positional                    = { QString::number(stop.Id.value()) };
@@ -951,7 +966,7 @@ namespace bpr::app {
 			if (!result) {
 				error = QJsonObject{ { "code", text(result.error().Code) }, { "message", text(result.error().Message) }, { "recoverable", true } };
 			}
-			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", QUuid::createUuid().toString(QUuid::WithoutBraces) }, { "status", result ? result->Status : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
+			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", options ? options->RequestId : QString{ } }, { "status", result ? result->Status : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
 			std::cout << QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).constData() << '\n';
 		} else if (result) {
 			std::cout << terminal_text(result->Human).toUtf8().constData();

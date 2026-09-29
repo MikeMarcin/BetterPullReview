@@ -192,6 +192,75 @@ def walk_checks(binary, root, select, invoke, temporary):
     print("tour-cli-raw-terminal-rehearsal:pass")
 
 
+def owner_checks(binary, root, select, invoke, temporary):
+    """A real owner process serves the tour channel; killing it never strands or duplicates work."""
+    def revision():
+        return json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"]
+    def problem():
+        return json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+    def edit(text, expected, request_id):
+        return invoke("edit", "problem", *select, "--expected-revision", expected, "--request-id", request_id,
+                      "--file", "-", "--json", data=text.encode())
+    def owner(*extra):
+        child = subprocess.Popen([binary, "--serve-owner", str(root), "1", *extra], stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True)
+        ready = readiness.select([child.stdout], [], [], 15)[0]
+        assert ready and child.stdout.readline().strip() == "ready", child.stderr.read() if child.poll() is not None else ""
+        return child
+    def kill(child):
+        child.send_signal(signal.SIGKILL)
+        child.wait(timeout=10)
+    current = revision()
+    before_first = current
+    first = owner()
+    try:
+        forwarded = edit("Forwarded to a real owner α\n", current, "owner-1")
+        assert forwarded.returncode == 0, forwarded.stdout
+        current = json.loads(forwarded.stdout)["data"]["revision"]
+        assert problem() == "Forwarded to a real owner α\n" and revision() == current
+        assert first.poll() is None
+    finally:
+        kill(first)
+    # A killed owner leaves its socket and no lease: the next command runs standalone and sees the commit.
+    assert problem() == "Forwarded to a real owner α\n" and revision() == current
+    recorded = json.loads(invoke("status", *select, "--request-id", "owner-1", "--json").stdout)["data"]
+    assert recorded["operation_recorded"] is True and recorded["operation_revision"] == current
+    duplicate = edit("Forwarded to a real owner α\n", before_first, "owner-1")
+    assert duplicate.returncode == 0 and json.loads(duplicate.stdout)["data"]["revision"] == current
+    # A stale endpoint from the dead owner is replaced by the next owner, which serves again.
+    second = owner()
+    try:
+        again = edit("Second owner β\n", current, "owner-2")
+        assert again.returncode == 0, again.stdout
+        current = json.loads(again.stdout)["data"]["revision"]
+    finally:
+        kill(second)
+    assert problem() == "Second owner β\n"
+    # The owner commits and dies before answering: the caller is told the outcome is unknown, the
+    # request ID proves the commit, and a retry returns the stored outcome without a second edit.
+    stalled = owner("--stall-after-commit")
+    caller = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", current,
+                               "--request-id", "owner-3", "--file", "-", "--json", "--data-root", str(root)],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        caller.stdin.write("Committed before the owner died γ\n".encode())
+        caller.stdin.close()
+        ready = readiness.select([stalled.stdout], [], [], 15)[0]
+        assert ready and stalled.stdout.readline().strip() == "committed"
+    finally:
+        kill(stalled)
+    output, _ = caller.communicate(timeout=20)
+    assert caller.returncode == 6 and json.loads(output)["error"]["code"] == "outcome_unknown", output
+    assert problem() == "Committed before the owner died γ\n"
+    proven = json.loads(invoke("status", *select, "--request-id", "owner-3", "--json").stdout)["data"]
+    assert proven["operation_recorded"] is True and proven["operation_revision"] == revision()
+    committed = revision()
+    retry = edit("Committed before the owner died γ\n", current, "owner-3")
+    assert retry.returncode == 0 and json.loads(retry.stdout)["data"]["revision"] == committed
+    assert revision() == committed and problem() == "Committed before the owner died γ\n"
+    print("tour-cli-owner-crash:pass")
+
+
 def main():
     binary = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory(prefix="bpr-cli-process-") as temporary:
@@ -258,6 +327,7 @@ def main():
         if os.name != "nt":
             editor_checks(binary, root, select, invoke, temporary)
             walk_checks(binary, root, select, invoke, temporary)
+            owner_checks(binary, root, select, invoke, temporary)
     print("tour-cli-process-commands:pass")
 
 

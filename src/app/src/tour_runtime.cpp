@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_import.hpp"
@@ -12,6 +13,7 @@
 #include "tour_cancellation.hpp"
 #include "tour_decisions.hpp"
 #include "tour_observation.hpp"
+#include "tour_owner_service.hpp"
 #include <QCoreApplication>
 #include <QThread>
 #include <algorithm>
@@ -121,6 +123,7 @@ namespace bpr::app {
 		std::unique_ptr<application::review_tour_store>     Store;
 		tour_reader_factory                                 Readers;
 		std::optional<tour_cli_error>                       Failure;
+		bool                                                Forward = false;
 		template <typename TFunction>
 		auto effect(TFunction aFunction)
 		{
@@ -170,12 +173,42 @@ namespace bpr::app {
 			Root       = *root;
 			auto lease = effect([&] { return adapters::sqlite::acquire_profile_runtime_lease(Root); });
 			if (!lease) {
-				Failure = tour_cli_error{ "owner_busy", "This profile has another owner. Close it or use a compatible owner channel.", 4 };
+				if (lease.error() == application::profile_runtime_lease_failure::busy) {
+					Forward = true;
+				} else {
+					Failure = tour_cli_error{ "profile_unavailable", "The profile lease is unavailable.", 7 };
+				}
 				return;
 			}
 			Lease = std::move(*lease);
 			Store = adapters::sqlite::make_review_tour_store(Root, Profile);
 		}
+		auto forward(application::tour_owner_request aRequest) -> tour_cli_result<tour_local_snapshot>
+		{
+			const auto response = effect([&] { return adapters::sqlite::send_tour_owner(Root, Profile, adapters::sqlite::encode_tour_request(aRequest)); });
+			if (!response) {
+				if (response.error() == application::tour_channel_failure::indeterminate) {
+					return failure("outcome_unknown", "Owner delivery is uncertain. Inspect the exact request ID before any retry; no replay was attempted.", 6);
+				}
+				return failure("owner_protocol_unsupported", "The profile is owned but its tour channel is unavailable. Update/reopen that owner; no second writer was opened.", 4);
+			}
+			const auto decoded = adapters::sqlite::decode_tour_response(*response);
+			if (!decoded) {
+				return failure("outcome_unknown", "The owner response is invalid. Inspect the request before retrying.", 6);
+			}
+			if (!decoded->Error.empty()) {
+				const auto& code = decoded->Error;
+				const int   exit = code == "revision_conflict" ? 4 : code == "storage_unavailable" || code == "owner_unavailable"           ? 7
+					: code == "command_refused" || code == "target_ambiguous" || code == "invalid_request" || code == "request_id_required" ? 2
+																																			: 4;
+				return failure(code, "The owner refused this command. Current text is retained; inspect the exact draft and request.", exit);
+			}
+			if (!decoded->Draft || !decoded->Target || decoded->Target->Owner.Profile != Profile || decoded->Draft->Owner != decoded->Target->Owner || draft_token(*decoded->Target) != aRequest.Draft) {
+				return failure("identity_changed", "The owner returned another draft.", 4);
+			}
+			return tour_local_snapshot{ *decoded->Target, *decoded->Draft, decoded->UndoLabel, decoded->RedoLabel, "not_refreshed", 0, decoded->Resume, decoded->Receipt };
+		}
+
 		auto observe_receipt(const application::tour_saved_target& aTarget, const core::review_tour& aDraft, const application::staged_publication_record& aRecord) -> bool
 		{
 			const auto published = application::published_tour(aRecord, aDraft);
@@ -207,7 +240,7 @@ namespace bpr::app {
 				return tour_local_snapshot{ aTarget, core::review_tour{ .Id = aTarget.Draft, .Owner = aTarget.Owner, .Base = aTarget.Base, .Head = aTarget.Head }, { }, { } };
 			}
 			const auto& state = value->value();
-			return tour_local_snapshot{ aTarget, state.Draft, state.Undo.empty() ? std::string{ } : state.Undo.back().Label, state.Redo.empty() ? std::string{ } : state.Redo.back().Label };
+			return tour_local_snapshot{ aTarget, state.Draft, state.Undo.empty() ? std::string{ } : state.Undo.back().Label, state.Redo.empty() ? std::string{ } : state.Redo.back().Label, "not_refreshed", 0, state.Resume };
 		}
 	};
 	tour_runtime::tour_runtime(std::filesystem::path aBase, std::string aProfile, tour_reader_factory aReaders)
@@ -215,23 +248,20 @@ namespace bpr::app {
 	{ }
 	tour_runtime::~tour_runtime() { Implementation->Effects.close_and_drain(); }
 	auto tour_runtime::admission() const -> tour_cli_result<core::bpr_profile_id> { return Implementation->Failure ? tour_cli_result<core::bpr_profile_id>{ std::unexpected(*Implementation->Failure) } : tour_cli_result<core::bpr_profile_id>{ Implementation->Profile }; }
-	auto tour_runtime::draft_token(const application::tour_saved_target& aTarget) -> std::string
+	auto tour_runtime::owner() const -> tour_cli_result<owner_binding>
 	{
-		std::string key = std::to_string(aTarget.Owner.Profile.value()) + ":" + std::to_string(aTarget.Owner.Host.value()) + ":" + std::to_string(aTarget.Owner.Account.value()) + ":" + std::to_string(aTarget.Owner.Repository.value()) + ":" + std::to_string(aTarget.Owner.PullRequest.value()) + ":" + std::to_string(aTarget.Draft.value());
-		for (auto byte : aTarget.Owner.HostAuthority.bytes()) {
-			key.push_back(static_cast<char>(byte));
+		const auto& self = *Implementation;
+		if (self.Failure || !self.Lease) {
+			return failure("owner_unavailable", "This runtime does not own its profile.", 4);
 		}
-		const auto     digest = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(key.data()), key.size() });
-		constexpr char hex[]  = "0123456789abcdef";
-		std::string    result;
-		for (auto byte : digest) {
-			result.push_back(hex[byte >> 4U]);
-			result.push_back(hex[byte & 15U]);
-		}
-		return result;
+		return owner_binding{ self.Root, self.Profile, self.Lease };
 	}
+	auto tour_runtime::draft_token(const application::tour_saved_target& aTarget) -> std::string { return tour_draft_token(aTarget); }
 	auto tour_runtime::connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>
 	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
+		}
 		auto& self = *Implementation;
 		if (self.Failure) {
 			return std::unexpected(*self.Failure);
@@ -248,6 +278,9 @@ namespace bpr::app {
 		if (aDraft.empty() && aMachine) {
 			return failure("target_ambiguous", "Machine commands require --profile and the draft_id returned by open.", 2);
 		}
+		if (self.Forward) {
+			return self.forward({ .Draft = std::string{ aDraft } });
+		}
 		auto targets = self.effect([&] { return self.Store->targets({ }); });
 		if (!targets) {
 			return store_failure(targets);
@@ -260,6 +293,9 @@ namespace bpr::app {
 	}
 	auto tour_runtime::open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>
 	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
+		}
 		auto& self = *Implementation;
 		if (self.Failure) {
 			return std::unexpected(*self.Failure);
@@ -357,6 +393,9 @@ namespace bpr::app {
 	}
 	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
 	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
+		}
 		if (!core::valid(aDestination)) {
 			return failure("invalid_source", "The source destination is invalid.", 2);
 		}
@@ -379,36 +418,47 @@ namespace bpr::app {
 
 	auto tour_runtime::mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>
 	{
+		// Identity is fixed before the target is bound so a standalone and a forwarded retry agree.
+		aRequest.Digest = adapters::sqlite::tour_request_digest(aRequest);
+		if (Implementation->Forward) {
+			return Implementation->forward({ application::tour_owner_operation::mutate, std::string{ aDraft }, std::move(aRequest) });
+		}
 		auto loaded = load(aDraft, true);
 		if (!loaded) {
 			return loaded;
 		}
-		auto& self             = *Implementation;
-		aRequest.Command.Owner = loaded->Draft.Owner;
-		aRequest.Command.Draft = loaded->Draft.Id;
-		aRequest.Origin        = application::tour_presentation_origin::terminal;
-		application::manual_executor  effects, decisions;
-		application::review_tour_host host{ loaded->Draft, adapters::sqlite::make_review_tour_store(self.Root, self.Profile), effects, decisions, { } };
-		host.start();
-		self.effect([&] { effects.drain(); });
-		decisions.drain();
-		const auto result = host.execute(aRequest);
-		host.shutdown();
-		while (!host.is_quiescent()) {
-			self.effect([&] { effects.drain(); });
-			decisions.drain();
+		auto& self = *Implementation;
+		return mutate_local_tour(self.Root, self.Profile, *loaded, std::move(aRequest), [&](std::function<void()> aTask) { self.effect([&] { aTask(); return 0; }); });
+	}
+	auto tour_runtime::request_status(std::string_view aDraft, std::string_view aRequest) -> tour_cli_result<tour_local_snapshot>
+	{
+		if (Implementation->Forward) {
+			application::tour_service_request edit;
+			edit.RequestId = std::string{ aRequest };
+			return Implementation->forward({ application::tour_owner_operation::request_status, std::string{ aDraft }, std::move(edit) });
 		}
-		if (result.Status == application::tour_service_status::refused) {
-			return failure(result.Refusal == core::tour_refusal::conflict ? "revision_conflict" : "command_refused", "The exact local command was refused; read the current draft before editing.", result.Refusal == core::tour_refusal::conflict ? 4 : 2);
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return loaded;
 		}
-		const auto state = host.presentation();
-		if (state.Failure) {
-			return failure("storage_unavailable", "The local edit was not durably saved.");
+		auto& self  = *Implementation;
+		auto  state = self.effect([&] { return self.Store->load_state(loaded->Target.Owner, loaded->Target.Draft, { }); });
+		if (!state) {
+			return store_failure(state);
 		}
-		return tour_local_snapshot{ loaded->Target, *state.Draft, state.UndoLabel, state.RedoLabel };
+		if (state->has_value()) {
+			const auto& records = state->value().Receipts;
+			if (const auto found = std::ranges::find(records, aRequest, &application::tour_request_receipt::Id); found != records.end()) {
+				loaded->Receipt = *found;
+			}
+		}
+		return loaded;
 	}
 	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
 	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
+		}
 		auto loaded = load(aDraft, true);
 		if (!loaded) {
 			return std::unexpected(loaded.error());
@@ -513,6 +563,9 @@ namespace bpr::app {
 
 	auto tour_runtime::publish(const tour_publication_preview& aPreview, bool aGh) -> tour_cli_result<tour_publication_preview>
 	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
+		}
 		if (!aPreview.Plan) {
 			return failure("publication_unavailable", "There is no exact qualified plan to authorize.", 5);
 		}

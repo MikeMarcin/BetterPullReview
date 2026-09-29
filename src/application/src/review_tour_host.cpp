@@ -15,11 +15,14 @@ namespace bpr::application {
 		tour_presentation                        State;
 		std::deque<tour_history_entry>           Undo;
 		std::deque<tour_history_entry>           Redo;
-		tour_presentation_origin                 Origin  = tour_presentation_origin::desktop;
-		std::uint64_t                            Request = 0;
-		bool                                     Active  = false;
-		bool                                     Started = false;
-		bool                                     Closing = false;
+		tour_presentation_origin                 Origin = tour_presentation_origin::desktop;
+		std::vector<tour_request_receipt>        Receipts;
+		std::uint64_t                            JournalGeneration = 0, SavedJournalGeneration = 0;
+		bool                                     DeferringSave = false;
+		std::uint64_t                            Request       = 0;
+		bool                                     Active        = false;
+		bool                                     Started       = false;
+		bool                                     Closing       = false;
 		implementation(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 			: Seed{ std::move(aSeed) }
 			, Store{ std::move(aStore) }
@@ -95,6 +98,7 @@ namespace bpr::application {
 							self->State.SavedRevision = self->State.Draft->Revision;
 							self->Undo                = std::move(result->value().Undo);
 							self->Redo                = std::move(result->value().Redo);
+							self->Receipts            = std::move(result->value().Receipts);
 							self->State.Resume        = result->value().Resume;
 							self->State.Selected      = self->State.Resume.Stop;
 						} else {
@@ -186,21 +190,22 @@ namespace bpr::application {
 
 		void pump()
 		{
-			if (Active || !State.Draft || State.Failure || State.SavedRevision == State.Draft->Revision) {
+			if (DeferringSave || Active || !State.Draft || State.Failure || (State.SavedRevision == State.Draft->Revision && SavedJournalGeneration == JournalGeneration)) {
 				return;
 			}
 			if (State.Resume.Stop.value() && std::ranges::find(State.Draft->Stops, State.Resume.Stop, &core::tour_stop::Id) == State.Draft->Stops.end()) {
 				State.Resume.Stop = { };
 			}
-			Active               = true;
-			State.Saving         = true;
-			const auto request   = ++Request;
-			const auto self      = shared_from_this();
-			const auto candidate = State.Draft;
-			const auto expected  = State.SavedRevision;
-			const auto journal   = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo, State.Resume });
+			Active                = true;
+			State.Saving          = true;
+			const auto request    = ++Request;
+			const auto self       = shared_from_this();
+			const auto candidate  = State.Draft;
+			const auto expected   = State.SavedRevision;
+			const auto generation = JournalGeneration;
+			const auto journal    = std::make_shared<const tour_stored_state>(tour_stored_state{ *candidate, Undo, Redo, State.Resume, Receipts });
 			try {
-				Effects.post([self, request, candidate, expected, journal] {
+				Effects.post([self, request, candidate, expected, journal, generation] {
 					auto observed = tour_store_result<core::review_tour>{ std::unexpected(tour_store_error{ }) };
 					try {
 						observed = self->Store->save_state(*journal, expected, { });
@@ -211,14 +216,15 @@ namespace bpr::application {
 					if (!observed && observed.error().Current && (core::validate(*observed.error().Current) != core::tour_refusal::none || observed.error().Current->Owner != candidate->Owner || observed.error().Current->Id != candidate->Id)) {
 						observed = std::unexpected(tour_store_error{ tour_store_failure::corrupt, { } });
 					}
-					self->Decision.post([self, request, result = std::move(observed)]() mutable {
+					self->Decision.post([self, request, result = std::move(observed), generation]() mutable {
 						if (!self->Active || request != self->Request) {
 							return;
 						}
 						self->Active       = false;
 						self->State.Saving = false;
 						if (result) {
-							self->State.SavedRevision = result->Revision;
+							self->State.SavedRevision    = result->Revision;
+							self->SavedJournalGeneration = generation;
 						} else {
 							self->State.Failure = result.error().Failure;
 							if (result.error().Current) {
@@ -380,6 +386,18 @@ namespace bpr::application {
 		if (self.Closing || state.Loading || !state.Draft) {
 			return { tour_service_status::busy };
 		}
+		if (!aRequest.RequestId.empty()) {
+			const auto found = std::ranges::find(self.Receipts, aRequest.RequestId, &tour_request_receipt::Id);
+			if (found != self.Receipts.end()) {
+				if (found->Digest != aRequest.Digest) {
+					return { tour_service_status::refused, core::tour_refusal::identity, state.Draft->Revision };
+				}
+				return { static_cast<tour_service_status>(found->Status), found->Refusal, found->Revision, true };
+			}
+			if (aRequest.RequestId.size() > 64 || self.Receipts.size() >= maximum_tour_request_receipts) {
+				return { tour_service_status::refused, core::tour_refusal::bounds, state.Draft->Revision };
+			}
+		}
 		const auto& command  = aRequest.Command;
 		const auto  revision = state.Draft->Revision;
 		if (command.Owner != state.Draft->Owner || command.Draft != state.Draft->Id) {
@@ -393,18 +411,33 @@ namespace bpr::application {
 		}
 		self.State.Refusal = core::tour_refusal::none;
 		self.Origin        = aRequest.Origin;
+		self.DeferringSave = true;
 		switch (aRequest.Operation) {
 		case tour_service_operation::edit: self.dispatch(command); break;
 		case tour_service_operation::undo: self.restore(false); break;
 		case tour_service_operation::redo: self.restore(true); break;
 		case tour_service_operation::import_selected:
 			if (aRequest.ImportIndex >= self.Imports.size()) {
+				self.DeferringSave = false;
 				return { tour_service_status::refused, core::tour_refusal::invalid_command, revision };
 			}
 			self.import_selected(aRequest.ImportIndex);
 			break;
 		}
-		return { state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
+		const tour_service_result result{ state.Refusal != core::tour_refusal::none ? tour_service_status::refused : (state.Draft->Revision == revision ? tour_service_status::unchanged : tour_service_status::accepted), state.Refusal, state.Draft->Revision };
+		if (!aRequest.RequestId.empty()) {
+			self.Receipts.push_back({ aRequest.RequestId, aRequest.Digest, static_cast<std::uint8_t>(result.Status), result.Refusal, result.Revision });
+			++self.JournalGeneration;
+		}
+		self.DeferringSave = false;
+		self.pump();
+		return result;
+	}
+	auto review_tour_host::request_status(std::string_view aId) const -> std::optional<tour_request_receipt>
+	{
+		const auto& records = Implementation->Receipts;
+		const auto  found   = std::ranges::find(records, aId, &tour_request_receipt::Id);
+		return found == records.end() ? std::nullopt : std::optional{ *found };
 	}
 	void review_tour_host::dispatch(const core::tour_command& aCommand) { Implementation->dispatch(aCommand); }
 	void review_tour_host::undo() { Implementation->restore(false); }

@@ -8,6 +8,7 @@
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/profile_activation.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
+#include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -703,7 +704,10 @@ namespace bpr::app {
 		void               desktop_update_freeze(bool aFreeze);
 		[[nodiscard]] auto desktop_release_account() -> std::optional<release_update_account>;
 		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
-		[[nodiscard]] auto        desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
+		[[nodiscard]] auto desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
+		/// \brief Borrow the admitted runtime's separate versioned tour command endpoint and its owner-lane handler.
+		[[nodiscard]] auto        desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server>;
+		[[nodiscard]] auto        desktop_tour_owner_handler() const -> application::tour_owner_handler;
 		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
 		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
 		void                      set_maintenance_retirement(release_maintenance_retirement aRetire);
