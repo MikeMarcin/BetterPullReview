@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1151"
 title: "Feed full source and exact cycle comparisons into the workbench"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0057"]
 depends_on: ["BPR-1149", "BPR-1150"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC54-08", "RC54-09", "RC57-02"], "pack_alias": "PACK-CYCLE-09", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}

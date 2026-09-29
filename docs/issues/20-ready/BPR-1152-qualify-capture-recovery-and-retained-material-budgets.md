@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1152"
 title: "Qualify capture recovery and retained-material budgets"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0053", "RFC-BPR-0054"]
 depends_on: ["BPR-1149", "BPR-1150"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "snapshots", "acceptance": ["RC53-04", "RC54-04", "RC54-09"], "pack_alias": "PACK-CYCLE-10", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
