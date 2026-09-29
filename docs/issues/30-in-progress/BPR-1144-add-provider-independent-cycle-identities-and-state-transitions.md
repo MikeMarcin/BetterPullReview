@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1144"
 title: "Add provider-independent cycle identities and state transitions"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0053"]
 depends_on: ["BPR-1143"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "domain", "acceptance": ["RC53-01", "RC53-02", "RC53-03", "RC53-09"], "pack_alias": "PACK-CYCLE-02", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
