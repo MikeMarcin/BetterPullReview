@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1143"
 title: "Import Review Cycles and reconcile live ownership"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0058", "RFC-BPR-0059", "RFC-BPR-0060", "RFC-BPR-0061"]
 depends_on: []
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "intake", "acceptance": ["RC53-10"], "pack_alias": "PACK-CYCLE-01", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
