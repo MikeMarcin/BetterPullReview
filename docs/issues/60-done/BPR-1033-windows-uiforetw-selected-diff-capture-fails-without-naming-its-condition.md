@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1033"
 title: "Windows: application_uiforetw_selected_diff_contract fails at UIFORETW_CAPTURE_FIRST_TARGET_FAILED without naming which of its nine conditions is false"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"BPR-0875 thirteen-row run, bpr-main-win","found_at":"c4130c3a","first_seen":"2b2e5549 (dsp-004 Windows sweep, 2026-09-17)","related_cards":["BPR-0875","BPR-0859","BPR-0890"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1033--BPR-1034--6684dcafdd51.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9d3fb998b","evidence":{"kind":"observation","detail":"A failing Windows run at 585d8846 plus the change (9d3fb998) printed UIFORETW_CAPTURE_FIRST_TARGET_FACTS after the existing marker, one term per clause with its measured values (recorded on the card, bpr-main-win 2026-09-23)."}},{"criterion":"AC2","outcome":"pass","revision":"f9870baaf","evidence":{"kind":"command","detail":"application_uiforetw_selected_diff_contract passes on Windows (windows-dev, MSVC 19.51, Qt 6.11.2): at 585d8846 plus the change, at 22d18416 with 537f718d's build fixes (57.05 s) and at f9870baa (63.45 s)."}},{"criterion":"AC3","outcome":"pass","revision":"b18888aa","evidence":{"kind":"command","detail":"The row passes on Linux after BPR-1036 (bpr-main-linux, 2026-09-24) and on macOS at b18888aa (bpr-main-mac, 2026-09-24), recorded on the card."}}]
 ---
 
 # BPR-1033: Windows: application_uiforetw_selected_diff_contract fails at UIFORETW_CAPTURE_FIRST_TARGET_FAILED without naming which of its nine conditions is false
@@ -263,3 +264,34 @@ What remains: `application_uiforetw_selected_diff_contract`, once more on
 Windows at the current main revision, because the workbench has changed
 since `585d8846`. Then the finish decision. Both need no owner, and neither
 needs the foreground.
+
+## Rerun at current `main`, and finished (bpr-main-win, 2026-09-29)
+
+Claimed again at `27cc07f8` for the one run the wind-down note left:
+`application_uiforetw_selected_diff_contract` on Windows at the current
+`main`, since the workbench has changed since `585d8846`.
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+Debug with warnings as errors. `main` at `22d18416` did not build on
+Windows, for reasons outside this card; `537f718d` fixes them without
+touching the workbench, the row or its course.
+
+| Revision | `application_uiforetw_selected_diff_contract` |
+|---|---|
+| `22d18416` with `537f718d`'s build fixes | Pass, 57.05 s |
+| `f9870baa` | Pass, 63.45 s |
+
+Both runs were serial, through `ctest`, and needed no foreground. The row
+is uncontained on Windows, as pinned.
+
+**Finish.**
+- AC1: met on Windows at `585d8846` plus the change, recorded above. The
+  failing run named the clause and its measured values.
+- AC2: met. The row passes on Windows at `585d8846` plus the change, and
+  again at the current `main`, in the table above.
+- AC3: met on Linux after [[BPR-1036]], and on macOS at `b18888aa`,
+  recorded above.
+
+The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`new.log`,
+`pass2.log`), and are not committed.
