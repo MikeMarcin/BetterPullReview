@@ -159,3 +159,40 @@ under `bpr-rc59-10/20260930T142456Z/`: branches `base`, `foreign`, `ready`,
 `draft`, `lost-branch`, `lost-pull`, `raced-branch` and `raced-pull`, and PRs
 #17 to #21. The Windows run is still owed. The log (no credential in it) is a
 station record in `build/logs/bpr-station-1176/` and is not committed.
+
+## Windows RC59-10 live run: passes (bpr-main-win, 2026-09-30)
+
+This supersedes the "owed" entry above.
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev`
+Debug with `-DBPR_BUILD_LIVE_PUBLICATION_COURSE=ON`, at `123ce74e`. The
+operator confirmed this run in the station's session. Its `gh` sign-in is
+MikeMarcin, with push on BPR-Test.
+
+`tests/scripts/run_live_publication_course.py --tool
+build\windows-dev\tests\workspace_contract\Debug\review_cycle_live_publication.exe
+--git "C:/Program Files/Git/mingw64/bin/git.exe"` ran as stamp
+`20260930T185949Z`. It went through the production publisher, session and
+native HTTPS transport (Schannel) with Git for Windows 2.55.0. It touched
+only `MikeMarcin/BPR-Test`.
+
+- Ready #22 and draft #23 were created. Their heads, bases, draft flags and
+  author match the plan. The raw commit keeps `+0530` and `-0700`, and the
+  deleted file is gone from the tree.
+- The lost branch answer was recovered by reading, and continued to #24. The
+  lost pull-request answer was recovered after restart as #25, not created
+  again.
+- The foreign branch was refused as `branch_exists`, with 0 writes.
+- The raced branch and the raced pull request (#26) were recorded as another
+  actor's. Nothing was overwritten or duplicated.
+- All 12 of the driver's `git fetch` and `gh api` checks pass. The five pull
+  requests and eight branches are left on BPR-Test as evidence.
+
+The product needed no change. The driver did: its last step, removing the
+local clone, failed on Windows with `WinError 5`. Git for Windows writes
+object files read-only, and `shutil.rmtree` refuses those there. `f8d90fad`
+makes a refused entry writable and removes it again, keeping the 3.10 floor.
+The helper then removed that run's leftover clone, the same read-only tree.
+The log is a station record in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\live-rc59-10.log`, and
+is not committed.

@@ -85,3 +85,7 @@ bpr-main-linux, Ubuntu 26.04 on WSL2, GCC 15.2, at `4b6592d83`:
   OpenSSL transport and Git 2.53.0 (run `20260930T142456Z`, PRs #17 to #21).
   The owner confirmed this run in the station's session. The Windows run is
   still owed.
+
+## Windows station, 2026-09-30
+
+bpr-main-win. RC59-10: the driver passes live on `MikeMarcin/BPR-Test`, run `20260930T185949Z`, PRs #22 to #26. It went through Schannel and Git for Windows 2.55.0, and the operator confirmed the run in the station's session. The only change is the driver's own Windows cleanup fix (`f8d90fad`). The details are on [BPR-1176](../issues/60-done/BPR-1176-create-and-reconcile-the-resulting-pr-without-duplication.md). With the Linux run, no station run of RC59-10 is owed.
