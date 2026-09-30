@@ -177,7 +177,9 @@ namespace {
 		expect(notes.begin({ .Primary = core::cycle_whole_target{ }, .Body = "Update the changelog." }).has_value(), "I6");
 		const auto before  = snapshot(root);
 		const auto planned = notes.run<application::cycle_next_round_result>([&](auto aDone) {
-			return notes.Runtime.prepare_next_round_selected(session_operation(notes.NextOperation++), session_operation(notes.NextOperation++), std::move(aDone));
+			const auto beginOperation = session_operation(notes.NextOperation++);
+			const auto saveOperation  = session_operation(notes.NextOperation++);
+			return notes.Runtime.prepare_next_round_selected(beginOperation, saveOperation, std::move(aDone));
 		});
 		expect(planned && planned->Draft && planned->From == core::cycle_round_id{ 1 }, "a draft planned from F1");
 		const auto& plan = planned->Plan;
