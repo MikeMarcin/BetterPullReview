@@ -313,8 +313,10 @@ REVIEW_COURSES: dict[str, tuple[ReviewExchange, ...]] = {
 # absent (404, admitted as an observation), then a blob, a tree and a
 # one-parent commit are created with the identities the client computed, the
 # branch is created, and a second creation of the same branch answers 422
-# "Reference already exists" (admitted, never an update). The identities are
-# the installed-Git vectors of `github_publication_contract_tests.cpp`.
+# "Reference already exists" (admitted, never an update). [[BPR-1176]] Then the
+# pull requests for the exact head and base are read (none), one is created,
+# and it is read again by number. The identities are the installed-Git
+# vectors of `github_publication_contract_tests.cpp`.
 PUBLICATION_REPOSITORY = "/repos/octo-org/review-repository"
 PUBLICATION_PARENT = "a45fbcb979e80a11e91371a41a86ea707b552ee4"
 PUBLICATION_TREE = "b5358577b95747ac0e3ba9a7cc4612da70ebf3bc"
@@ -324,6 +326,20 @@ PUBLICATION_BLOB = "ce013625030ba8dba906f756967f9e9ca394464a"
 
 def publication_commit_answer(sha: str, tree: str, parents: tuple[str, ...]) -> bytes:
     return json_bytes({"sha": sha, "tree": {"sha": tree}, "parents": [{"sha": parent} for parent in parents]})
+
+
+def publication_pull_answer() -> bytes:
+    return json_bytes({
+        "number": 17,
+        "node_id": "PR_fixture_17",
+        "html_url": "https://github.com/octo-org/review-repository/pull/17",
+        "state": "open",
+        "draft": False,
+        "title": "Harden parsing",
+        "user": {"login": "fixture-reviewer"},
+        "head": {"ref": "bpr/harden", "sha": PUBLICATION_COMMIT, "repo": {"name": "review-repository", "owner": {"login": "octo-org"}}},
+        "base": {"ref": "main", "sha": PUBLICATION_PARENT},
+    })
 
 
 def publication_ref_answer(branch: str, sha: str) -> bytes:
@@ -340,6 +356,9 @@ REVIEW_COURSES["publication-course"] = (
     ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/commits", 201, publication_commit_answer(PUBLICATION_COMMIT, PUBLICATION_TREE, (PUBLICATION_PARENT,)), "core"),
     ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/refs", 201, publication_ref_answer("bpr/harden", PUBLICATION_COMMIT), "core"),
     ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/refs", 422, json_bytes({"message": "Reference already exists", "documentation_url": "https://docs.github.com/rest/git/refs#create-a-reference"}), "core"),
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}/pulls?state=all&head=octo-org%3Abpr%2Fharden&base=main&per_page=100", 200, b"[]", "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/pulls", 201, publication_pull_answer(), "core"),
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}/pulls/17", 200, publication_pull_answer(), "core"),
 )
 
 # A refused witness aborts the POST once it has been handed to the network, so

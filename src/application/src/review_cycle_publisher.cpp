@@ -79,6 +79,43 @@ namespace bpr::application {
 		{
 			return aPath.starts_with(".github/workflows/");
 		}
+
+		/// The link a confirmed pull request records, drift marked when the
+		/// server's head, base branch or base head is not what the plan named.
+		auto link_of(const core::publication_plan& aPlan, const github_pull_request_observation& aPull) -> core::publication_link
+		{
+			return {
+				.Number     = aPull.Number,
+				.NodeId     = aPull.NodeId,
+				.Url        = aPull.Url,
+				.Head       = aPull.HeadCommit,
+				.BaseBranch = aPull.BaseRef,
+				.Drifted    = aPull.HeadCommit != aPlan.Commit || aPull.BaseRef != aPlan.Destination.BaseBranch || (aPlan.TargetHead && aPull.BaseCommit != *aPlan.TargetHead),
+			};
+		}
+
+		/// Every pull request whose head is the plan's branch in the plan's
+		/// repository and whose base is the plan's base.
+		auto candidates(const core::publication_plan& aPlan, const std::vector<github_pull_request_observation>& aPulls) -> std::vector<github_pull_request_observation>
+		{
+			auto found = std::vector<github_pull_request_observation>{ };
+			std::ranges::copy_if(aPulls, std::back_inserter(found), [&aPlan](const github_pull_request_observation& aPull) { return match_pull_request(aPlan, aPull).Candidate; });
+			return found;
+		}
+	}
+
+	auto match_pull_request(const core::publication_plan& aPlan, const github_pull_request_observation& aPull) -> cycle_pull_request_match
+	{
+		const auto& destination = aPlan.Destination;
+		const auto  fold        = [](const std::string_view aLeft, const std::string_view aRight) {
+			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](const char aA, const char aB) {
+					   const auto lower = [](const char aValue) { return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue + ('a' - 'A')) : aValue; };
+					   return lower(aA) == lower(aB);
+				   });
+		};
+		const auto candidate = aPull.HeadRef == destination.NewBranch && aPull.BaseRef == destination.BaseBranch && fold(aPull.HeadOwner, destination.Owner)
+			&& fold(aPull.HeadRepository, destination.Repository);
+		return { .Candidate = candidate, .Ours = candidate && aPull.HeadCommit == aPlan.Commit && fold(aPull.Author, destination.Login) };
 	}
 
 	auto name(const cycle_publish_limit aLimit) noexcept -> std::string_view
@@ -104,6 +141,8 @@ namespace bpr::application {
 			return "blob_too_large";
 		case cycle_publish_limit::material:
 			return "material";
+		case cycle_publish_limit::pull_request_exists:
+			return "pull_request_exists";
 		}
 		return "unknown";
 	}
@@ -183,7 +222,7 @@ namespace bpr::application {
 		auto bridge = review_material_bridge{ nullptr, &Store, aSubject.Authority };
 		while (const auto step = core::next_publication_step(plan, publication.Journal)) {
 			if (step->Kind == core::publication_effect_kind::pull_request) {
-				return { .Status = cycle_publish_status::branch_created, .Publication = std::move(publication) };
+				return pull_request(aSubject, aPublication, std::move(publication), target, aStop);
 			}
 			// Bytes are read and checked before the attempt is recorded.
 			auto bytes = std::vector<std::uint8_t>{ };
@@ -282,6 +321,7 @@ namespace bpr::application {
 			}
 			auto observed = core::publication_effect_state::uncertain;
 			auto remote   = effect.Remote;
+			auto link     = std::optional<core::publication_link>{ };
 			switch (effect.Kind) {
 			case core::publication_effect_kind::blob: {
 				const auto present = Provider.observe_blob(target, *core::parse_git_entry_oid(effect.Subject), aStop);
@@ -321,16 +361,94 @@ namespace bpr::application {
 				remote   = "refs/heads/" + plan.Destination.NewBranch;
 				break;
 			}
-			case core::publication_effect_kind::pull_request:
-				continue;
+			case core::publication_effect_kind::pull_request: {
+				// A lost answer is reconciled by reading every pull request
+				// for the exact head and base: exactly one of ours is this
+				// plan's; more than one needs the reviewer; only others' is
+				// foreign; none means it was not created.
+				const auto pulls = Provider.find_pull_requests(target, plan.Destination.NewBranch, plan.Destination.BaseBranch, aStop);
+				if (!pulls) {
+					return provider(pulls.error(), std::move(publication));
+				}
+				const auto found = candidates(plan, *pulls);
+				auto       ours  = std::vector<github_pull_request_observation>{ };
+				std::ranges::copy_if(found, std::back_inserter(ours), [&plan](const github_pull_request_observation& aPull) { return match_pull_request(plan, aPull).Ours; });
+				if (ours.size() == 1U && found.size() == 1U) {
+					observed = core::publication_effect_state::confirmed;
+					link     = link_of(plan, ours.front());
+					remote   = ours.front().Url;
+				} else if (found.empty()) {
+					observed = core::publication_effect_state::absent;
+				} else if (ours.empty()) {
+					observed = core::publication_effect_state::foreign;
+				}
+				break;
+			}
 			}
 			const auto changed = Journal.change(aSubject, journal_operation(aSubject, aPublication, publication.Revision, "observe"), aPublication, publication.Revision,
-												core::observe_publication_effect{ .Sequence = effect.Sequence, .Observed = observed, .Remote = remote }, aStop);
+												core::observe_publication_effect{ .Sequence = effect.Sequence, .Observed = observed, .Remote = remote, .Link = link }, aStop);
 			if (!changed) {
 				return { .Status = cycle_publish_status::store, .Store = changed.error(), .Publication = std::move(publication) };
 			}
 			publication = changed->Publication;
 		}
 		return { .Status = cycle_publish_status::recovered, .Publication = std::move(publication) };
+	}
+	auto review_cycle_publisher::pull_request(const core::local_cycle_subject& aSubject, const core::cycle_publication_id aPublication, stored_cycle_publication aCurrent,
+											  const github_publication_target& aTarget, std::stop_token aStop) -> cycle_publish_outcome
+	{
+		auto        publication = std::move(aCurrent);
+		const auto& plan        = publication.Plan;
+		// Read before creating: a pull request this plan never asked for is
+		// never duplicated or silently adopted.
+		const auto existing = Provider.find_pull_requests(aTarget, plan.Destination.NewBranch, plan.Destination.BaseBranch, aStop);
+		if (!existing) {
+			return provider(existing.error(), std::move(publication));
+		}
+		if (!candidates(plan, *existing).empty()) {
+			return limited(cycle_publish_limit::pull_request_exists, std::move(publication));
+		}
+		const auto begun = Journal.change(aSubject, journal_operation(aSubject, aPublication, publication.Revision, "begin"), aPublication, publication.Revision,
+										  core::begin_publication_effect{ .Kind = core::publication_effect_kind::pull_request, .Subject = "pull", .Generation = publication.Journal.Generation, .Account = Account },
+										  aStop);
+		if (!begun) {
+			return { .Status = cycle_publish_status::store, .Store = begun.error(), .Publication = std::move(publication) };
+		}
+		publication        = begun->Publication;
+		const auto created = Provider.create_pull_request(
+			aTarget, { .Title = plan.PullTitle, .Body = plan.PullBody, .Head = plan.Destination.NewBranch, .Base = plan.Destination.BaseBranch, .Draft = plan.Draft }, aStop);
+		auto outcome = core::complete_publication_effect{ .Sequence = begun->Sequence };
+		if (created) {
+			outcome.Outcome = core::publication_effect_state::confirmed;
+			outcome.Remote  = created->Url;
+			outcome.Link    = link_of(plan, *created);
+		} else if (created.error().Failure == github_publication_failure::refused && created.error().HttpStatus == 422U) {
+			// Refused, perhaps because another pull request for this head
+			// appeared since the read: never create a second one.
+			const auto after = Provider.find_pull_requests(aTarget, plan.Destination.NewBranch, plan.Destination.BaseBranch, aStop);
+			outcome.Outcome  = after && !candidates(plan, *after).empty() ? core::publication_effect_state::foreign : !after ? core::publication_effect_state::uncertain
+																															 : core::publication_effect_state::refused;
+		} else {
+			outcome.Outcome = outcome_of(created.error());
+		}
+		const auto completed = Journal.change(aSubject, journal_operation(aSubject, aPublication, publication.Revision, "complete"), aPublication, publication.Revision, outcome, aStop);
+		if (!completed) {
+			return { .Status = cycle_publish_status::store, .Store = completed.error(), .Publication = std::move(publication) };
+		}
+		publication = completed->Publication;
+		if (outcome.Outcome != core::publication_effect_state::confirmed) {
+			return { .Status = cycle_publish_status::stopped, .Provider = created ? std::nullopt : std::optional{ created.error() }, .Publication = std::move(publication) };
+		}
+		// The created pull request's actual head and base, read again: a
+		// concurrent push or retarget is recorded, not hidden.
+		const auto reread = Provider.observe_pull_request(aTarget, created->Number, aStop);
+		if (reread && *reread) {
+			const auto refreshed = Journal.change(aSubject, journal_operation(aSubject, aPublication, publication.Revision, "refresh"), aPublication, publication.Revision,
+												  core::refresh_publication_link{ .Link = link_of(plan, **reread) }, aStop);
+			if (refreshed) {
+				publication = refreshed->Publication;
+			}
+		}
+		return { .Status = cycle_publish_status::linked, .Publication = std::move(publication) };
 	}
 }

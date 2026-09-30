@@ -40,6 +40,9 @@ namespace bpr::application {
 		blob_too_large,
 		/// The retained bytes are missing or not the planned object.
 		material,
+		/// A pull request for the new branch already exists and this plan
+		/// never asked for one: associating it is the reviewer's choice.
+		pull_request_exists,
 	};
 	[[nodiscard]] auto name(cycle_publish_limit aLimit) noexcept -> std::string_view;
 
@@ -73,6 +76,16 @@ namespace bpr::application {
 		std::optional<stored_cycle_publication> Publication;
 	};
 
+	/// \brief How one server pull request relates to a plan: its head is the
+	/// plan's new branch in the destination repository and its base the plan's
+	/// base; `Ours` when it is also the plan's commit under the plan's login.
+	struct cycle_pull_request_match
+	{
+		bool Candidate = false;
+		bool Ours      = false;
+	};
+	[[nodiscard]] auto match_pull_request(const core::publication_plan& aPlan, const github_pull_request_observation& aPull) -> cycle_pull_request_match;
+
 	/// \brief Runs on the effect lane; the journal host, store and provider
 	/// must outlive it. The provider is bound to one account, which is the
 	/// account every journaled write names.
@@ -89,6 +102,9 @@ namespace bpr::application {
 		auto recover(const core::local_cycle_subject& aSubject, core::cycle_publication_id aPublication, std::stop_token aStop) -> cycle_publish_outcome;
 
 	private:
+		auto pull_request(const core::local_cycle_subject& aSubject, core::cycle_publication_id aPublication, stored_cycle_publication aCurrent, const github_publication_target& aTarget,
+						  std::stop_token aStop) -> cycle_publish_outcome;
+
 		review_cycle_publication_host& Journal;
 		review_cycle_store&            Store;
 		github_publication_port&       Provider;

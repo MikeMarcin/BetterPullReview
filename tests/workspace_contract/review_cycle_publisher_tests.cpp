@@ -160,14 +160,14 @@ namespace {
 
 		// The whole run: blobs, tree, commit, then the new branch, journaled in order.
 		const auto published = publisher.publish(cycle.Subject, first.Id.Id, { });
-		expect(published.Status == cycle_publish_status::branch_created && published.Publication->Journal.Phase == core::publication_phase::branch_created, "published through the branch");
+		expect(published.Status == cycle_publish_status::linked && published.Publication->Journal.Phase == core::publication_phase::linked, "published through the branch and linked");
 		expect(std::ranges::all_of(effect_states(*published.Publication), [](const auto aState) { return aState == core::publication_effect_state::confirmed; })
-				   && published.Publication->Journal.Effects.size() == first.Plan.Blobs.size() + 3U,
+				   && published.Publication->Journal.Effects.size() == first.Plan.Blobs.size() + 4U,
 			   "each effect recorded and confirmed");
 		expect(run.Remote.Branches.at("bpr/harden") == first.Plan.Commit && run.Remote.Commits.contains(simulated_github::hex(first.Plan.Commit)),
 			   "the server holds exactly the local commit on a new branch");
 		expect(run.Remote.Commits.at(simulated_github::hex(first.Plan.Commit)).Parents == std::vector{ first.Plan.Parent }, "one parent: P");
-		expect(publisher.publish(cycle.Subject, first.Id.Id, { }).Status == cycle_publish_status::branch_created && run.Remote.Writes.at("branch") == 1, "nothing is written twice");
+		expect(publisher.publish(cycle.Subject, first.Id.Id, { }).Status == cycle_publish_status::unauthorized && run.Remote.Writes.at("branch") == 1, "nothing is written twice");
 
 		// A lost answer after the tree was stored: read first, then continue.
 		auto lost                 = run.authorized(cycle, "bpr/lost-tree");
@@ -181,7 +181,7 @@ namespace {
 			   "the read finds the tree; the authorization is spent");
 		expect(publisher.publish(cycle.Subject, lost.Id.Id, { }).Status == cycle_publish_status::unauthorized, "remaining writes wait for the reviewer");
 		run.reauthorize(cycle, *read.Publication);
-		expect(publisher.publish(cycle.Subject, lost.Id.Id, { }).Status == cycle_publish_status::branch_created && run.Remote.Writes.at("tree") == trees, "continued without writing the tree again");
+		expect(publisher.publish(cycle.Subject, lost.Id.Id, { }).Status == cycle_publish_status::linked && run.Remote.Writes.at("tree") == trees, "continued without writing the tree again");
 
 		// A lost answer after the branch was created: the journal's intent and
 		// the planned commit together make it this plan's branch.
@@ -206,7 +206,7 @@ namespace {
 		expect(unsent.Status == cycle_publish_status::stopped && unsent.Publication->Journal.Effects.back().State == core::publication_effect_state::not_sent
 				   && unsent.Publication->Journal.Generation != 0U,
 			   "a branch request that never left keeps the authorization");
-		expect(publisher.publish(cycle.Subject, moved.Id.Id, { }).Status == cycle_publish_status::branch_created, "and may be tried again");
+		expect(publisher.publish(cycle.Subject, moved.Id.Id, { }).Status == cycle_publish_status::linked, "and may be tried again");
 
 		// Refusals fail the publication; a rewritten identity is never adopted.
 		auto forbidden = run.authorized(cycle, "bpr/forbidden");
@@ -231,6 +231,129 @@ namespace {
 		auto large = run.authorized(cycle, "bpr/large");
 		expect(publisher.publish(cycle.Subject, large.Id.Id, { }).Limit == cycle_publish_limit::blob_too_large, "a blob over the upload bound");
 		std::cout << "NATIVE: objects and a new branch published through the catalog port, capability first, journaled, recovered by reading\n";
+	}
+
+	auto pulls_for(const simulated_github& aRemote, const std::string& aHead) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count(aRemote.Pulls, aHead, &application::github_pull_request_observation::HeadRef));
+	}
+
+	/// [[BPR-1176]]. The pull request: created only after the branch is
+	/// confirmed, reconciled after a lost answer without a second one, never
+	/// adopted from another author, and read again for concurrent drift.
+	void creates_and_reconciles_the_pull_request(const std::filesystem::path& aScratch, const git_runner& aGit, const std::filesystem::path& aExecutable)
+	{
+		auto       source = adapters::workspace::make_local_workspace_source();
+		auto       git    = publication_git{ aExecutable };
+		const auto root   = aScratch / "pulls";
+		std::filesystem::create_directories(root);
+		aGit(root, { "init", "-q" });
+		write_file(root / "src" / "parse.cpp", "int parse() { return 0; }\n");
+		aGit(root, { "add", "." });
+		aGit(root, { "commit", "-q", "-m", "base" });
+		auto cycle = course{ *source, root };
+		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "R0");
+		write_file(root / "src" / "parse.cpp", "int parse() { return validate(); }\n");
+		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "R1");
+
+		auto       run    = publishing{ *source, cycle, git };
+		auto       linked = run.authorized(cycle, "bpr/pr");
+		const auto parent = git.Port->list_commit({ .Checkout = root.string(), .Algorithm = core::git_hash_algorithm::sha1 }, linked.Plan.Parent, { });
+		expect(parent.has_value(), "P listed");
+		run.Remote.seed(linked.Plan.Parent, parent->Tree, parent->Entries, "main");
+		auto publisher = application::review_cycle_publisher{ run.Journal, *cycle.Store, run.Remote, application::github_server_contract::github_com_2022_11_28, reviewer };
+
+		// Created after the branch, linked with what the server says.
+		const auto created = publisher.publish(cycle.Subject, linked.Id.Id, { });
+		expect(created.Status == cycle_publish_status::linked && created.Publication->Journal.Phase == core::publication_phase::linked, "linked");
+		const auto& link = *created.Publication->Journal.Link;
+		expect(link.Number == 17U && link.Head == linked.Plan.Commit && link.BaseBranch == "main" && !link.Drifted && pulls_for(run.Remote, "bpr/pr") == 1U, "one pull request, the planned head");
+		expect(run.Remote.Pulls.front().Title == "Harden parsing" && !run.Remote.Pulls.front().Draft, "the confirmed title and draft choice");
+		expect(publisher.publish(cycle.Subject, linked.Id.Id, { }).Status == cycle_publish_status::unauthorized && pulls_for(run.Remote, "bpr/pr") == 1U, "a linked publication never creates another");
+
+		// The create's answer is lost; a restart; recovery finds exactly ours.
+		auto lost                 = run.authorized(cycle, "bpr/pr-lost");
+		run.Remote.Faults["pull"] = simulated_fault::lose_answer;
+		const auto unanswered     = publisher.publish(cycle.Subject, lost.Id.Id, { });
+		expect(unanswered.Status == cycle_publish_status::stopped && unanswered.Publication->Journal.Phase == core::publication_phase::uncertain, "an unanswered pull request is uncertain");
+		expect(publisher.publish(cycle.Subject, lost.Id.Id, { }).Status == cycle_publish_status::unauthorized, "never created again blindly");
+		expect(run.Journal.recover_after_restart(cycle.Subject, { }).has_value(), "restart");
+		const auto reconciled = publisher.recover(cycle.Subject, lost.Id.Id, { });
+		expect(reconciled.Publication->Journal.Phase == core::publication_phase::linked && reconciled.Publication->Journal.Link->Head == lost.Plan.Commit
+				   && pulls_for(run.Remote, "bpr/pr-lost") == 1U,
+			   "the uniquely evidenced pull request is associated, not recreated");
+
+		// Two candidates after a lost answer: the reviewer chooses.
+		auto ambiguous            = run.authorized(cycle, "bpr/pr-ambiguous");
+		run.Remote.Faults["pull"] = simulated_fault::lose_answer;
+		expect(publisher.publish(cycle.Subject, ambiguous.Id.Id, { }).Publication->Journal.Phase == core::publication_phase::uncertain, "uncertain");
+		auto second   = run.Remote.Pulls.back();
+		second.Number = 99U;
+		second.Author = "someone-else";
+		run.Remote.Pulls.push_back(second);
+		const auto undecided = publisher.recover(cycle.Subject, ambiguous.Id.Id, { });
+		expect(undecided.Publication->Journal.Phase == core::publication_phase::uncertain && !undecided.Publication->Journal.Link, "ambiguous matches stay uncertain");
+
+		// Another actor opens a pull request for the head just before ours.
+		auto raced                = run.authorized(cycle, "bpr/pr-raced");
+		run.Remote.Faults["pull"] = simulated_fault::race_pull;
+		const auto foreign        = publisher.publish(cycle.Subject, raced.Id.Id, { });
+		expect(foreign.Status == cycle_publish_status::stopped && foreign.Publication->Journal.Phase == core::publication_phase::target_drift && pulls_for(run.Remote, "bpr/pr-raced") == 1U
+				   && run.Remote.Pulls.back().Author == "someone-else",
+			   "a foreign pull request is never duplicated or adopted");
+
+		// A pull request already there before the step: the reviewer's call.
+		auto existing             = run.authorized(cycle, "bpr/pr-existing");
+		run.Remote.Faults["pull"] = simulated_fault::not_sent;
+		expect(publisher.publish(cycle.Subject, existing.Id.Id, { }).Publication->Journal.Effects.back().State == core::publication_effect_state::not_sent, "not sent");
+		auto theirs    = run.Remote.Pulls.front();
+		theirs.Number  = 120U;
+		theirs.HeadRef = "bpr/pr-existing";
+		theirs.Author  = "fixture-reviewer";
+		run.Remote.Pulls.push_back(theirs);
+		const auto writes = run.Remote.Writes["pull"];
+		expect(publisher.publish(cycle.Subject, existing.Id.Id, { }).Limit == application::cycle_publish_limit::pull_request_exists && run.Remote.Writes["pull"] == writes,
+			   "an existing pull request is read first and not duplicated");
+
+		// A permission refusal fails it.
+		auto forbidden            = run.authorized(cycle, "bpr/pr-forbidden");
+		run.Remote.Faults["pull"] = simulated_fault::forbid;
+		const auto refused        = publisher.publish(cycle.Subject, forbidden.Id.Id, { });
+		expect(refused.Publication->Journal.Phase == core::publication_phase::failed && pulls_for(run.Remote, "bpr/pr-forbidden") == 0U, "refused");
+
+		// Another actor pushes to the head right after creation: drift is recorded.
+		auto pushed          = run.authorized(cycle, "bpr/pr-pushed");
+		run.Remote.AfterPull = [&](application::github_pull_request_observation& aPull) { aPull.HeadCommit = linked.Plan.Parent; };
+		const auto drifted   = publisher.publish(cycle.Subject, pushed.Id.Id, { });
+		run.Remote.AfterPull = nullptr;
+		expect(drifted.Status == cycle_publish_status::linked && drifted.Publication->Journal.Link->Drifted && drifted.Publication->Journal.Link->Head == linked.Plan.Parent,
+			   "the re-read head differs from the plan: linked, with drift recorded");
+
+		// A restart between recording the attempt and making it.
+		auto interrupted = run.authorized(cycle, "bpr/pr-interrupted");
+		auto state       = interrupted;
+		while (const auto step = core::next_publication_step(state.Plan, state.Journal)) {
+			if (step->Kind == core::publication_effect_kind::pull_request) {
+				break;
+			}
+			const auto begun = run.Journal.change(cycle.Subject, operation(run.Next++), state.Id.Id, state.Revision,
+												  core::begin_publication_effect{ .Kind = step->Kind, .Subject = step->Subject, .Generation = state.Journal.Generation, .Account = reviewer }, { });
+			state            = run.Journal.change(cycle.Subject, operation(run.Next++), state.Id.Id, begun->Publication.Revision,
+												  core::complete_publication_effect{ .Sequence = begun->Sequence, .Outcome = core::publication_effect_state::confirmed }, { })
+								   ->Publication;
+		}
+		run.Remote.Branches["bpr/pr-interrupted"] = interrupted.Plan.Commit;
+		const auto begun                          = run.Journal.change(cycle.Subject, operation(run.Next++), state.Id.Id, state.Revision,
+																	   core::begin_publication_effect{ .Kind = core::publication_effect_kind::pull_request, .Subject = "pull", .Generation = state.Journal.Generation, .Account = reviewer },
+																	   { });
+		expect(begun.has_value(), "the attempt is recorded, then the process ends");
+		expect(run.Journal.recover_after_restart(cycle.Subject, { }).has_value(), "restart");
+		const auto nothing = publisher.recover(cycle.Subject, interrupted.Id.Id, { });
+		expect(nothing.Publication->Journal.Effects.back().State == core::publication_effect_state::absent && pulls_for(run.Remote, "bpr/pr-interrupted") == 0U, "the read finds none");
+		run.reauthorize(cycle, *nothing.Publication);
+		expect(publisher.publish(cycle.Subject, interrupted.Id.Id, { }).Status == cycle_publish_status::linked && pulls_for(run.Remote, "bpr/pr-interrupted") == 1U,
+			   "created once, after a fresh confirmation");
+		std::cout << "NATIVE: the pull request is created once, reconciled after a lost answer, never duplicated or adopted, and read again for drift\n";
 	}
 
 	void refuses_another_object_format(const std::filesystem::path& aScratch, const git_runner& aGit, const std::filesystem::path& aExecutable)
@@ -262,6 +385,7 @@ try {
 	expect(executable.has_value() && fixtures.has_value(), "publication needs the build's Git (--git)");
 	tests::sqlite_contract::scratch_root scratch{ "cycle-publisher" };
 	publishes_objects_and_a_branch(scratch.path(), *fixtures, *executable);
+	creates_and_reconciles_the_pull_request(scratch.path(), *fixtures, *executable);
 	refuses_another_object_format(scratch.path(), *fixtures, *executable);
 	std::cout << "review-cycle-publisher-tests:pass\n";
 	return EXIT_SUCCESS;

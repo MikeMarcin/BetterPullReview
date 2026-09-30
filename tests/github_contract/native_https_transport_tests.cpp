@@ -2148,6 +2148,12 @@ namespace {
 		expect(created && *created == application::github_branch_creation::created, "publication-branch-created");
 		const auto again = session.create_branch(target, "bpr/harden", commit, { });
 		expect(again && *again == application::github_branch_creation::exists, "publication-existing-branch-422-admitted-never-updated");
+		const auto none = session.find_pull_requests(target, "bpr/harden", "main", { });
+		expect(none && none->empty(), "publication-pull-requests-read-before-creating");
+		const auto pull = session.create_pull_request(target, { .Title = "Harden parsing", .Body = "Reviewed locally.", .Head = "bpr/harden", .Base = "main", .Draft = false }, { });
+		expect(pull && pull->Number == 17U && pull->HeadCommit == commit && pull->HeadRef == "bpr/harden" && pull->BaseRef == "main", "publication-pull-request-created");
+		const auto reread = session.observe_pull_request(target, 17U, { });
+		expect(reread && *reread && (*reread)->HeadCommit == commit && (*reread)->BaseCommit == parent, "publication-pull-request-read-again");
 	}
 
 	void run_review_exchange_fixture(

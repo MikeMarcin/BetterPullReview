@@ -63,6 +63,9 @@ namespace bpr::tests::workspace_contract {
 		std::uint64_t                                             NextPull = 17U;
 		/// Where another actor points a branch it creates first.
 		core::git_commit_oid Foreign;
+		/// Runs after a pull request is stored, before the answer: another
+		/// actor pushing to the head or moving the base.
+		std::function<void(application::github_pull_request_observation&)> AfterPull;
 
 		/// Seeds P as the head of `aBase`.
 		void seed(const core::git_commit_oid& aParent, const core::git_tree_oid& aTree, std::vector<core::git_tree_entry> aEntries, const std::string& aBase)
@@ -200,10 +203,14 @@ namespace bpr::tests::workspace_contract {
 				return failure(application::github_publication_failure::refused, application::github_publication_transmission::indeterminate, 422U);
 			}
 			Pulls.push_back(pull(aDraft, Branches.at(aDraft.Head), "fixture-reviewer"));
+			auto answer = Pulls.back();
+			if (AfterPull) {
+				AfterPull(Pulls.back());
+			}
 			if (fault == simulated_fault::lose_answer) {
 				return failure(application::github_publication_failure::unavailable, application::github_publication_transmission::indeterminate, 502U);
 			}
-			return Pulls.back();
+			return answer;
 		}
 		auto find_pull_requests(const application::github_publication_target&, const std::string& aHead, const std::string& aBase, std::stop_token)
 			-> application::github_publication_result<std::vector<application::github_pull_request_observation>> override

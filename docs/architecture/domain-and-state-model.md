@@ -532,7 +532,20 @@ never adopted; a branch name found taken at creation is target drift; a
 request that never left keeps the authorization for one more attempt, and one
 that may have taken effect is uncertain until `recover` reads the object,
 tree, commit or branch (a branch counts as this plan's only at exactly the
-planned commit). The pull request step is BPR-1176's.
+planned commit).
+
+The pull request is the last step (BPR-1176). Before creating it the
+publisher reads every pull request, open or closed, whose head is the new
+branch in the destination repository and whose base is the plan's base; any
+such pull request stops the run as `pull_request_exists`, so one the plan
+never asked for is neither duplicated nor adopted. A 422 answer is read again
+the same way and recorded as foreign when another pull request now holds the
+head. A lost answer is uncertain until `recover` finds exactly one candidate
+at the planned commit by the plan's login (associated), none (absent; created
+again only after a fresh confirmation), only others' (foreign) or several
+(still uncertain, for the reviewer to choose). A created pull request is read
+again by number, and a head, base branch or base head other than the plan's
+is recorded on the link as drift.
 
 ## Authority by state category
 
