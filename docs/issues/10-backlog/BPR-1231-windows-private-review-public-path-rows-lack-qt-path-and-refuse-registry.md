@@ -68,3 +68,11 @@ On Windows, `application_private_review_native`, `_file` and `_retry` pass:
 
 Still open: a macOS and a Linux run. The three rows also remain on
 [[BPR-1237]]'s list of unpinned rows. The card stays in Backlog until then.
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`application_private_review_native`, `_file` and `_retry` pass: 4.27, 4.50 and 4.01 s. They pass again after `4519a44f8`, which changes `private_review_store.cpp`. That is the Linux half of "macOS and Linux still pass".
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

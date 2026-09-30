@@ -64,3 +64,38 @@ here. `python3 scripts/verify_documentation.py --root .` reports
   `cbd48b91000b00f1e72e1ad62c7c384c`, prepared, no server started by this
   milestone).
 - Windows and Linux runs of the milestone's changes; only macOS was run.
+
+## Linux station, 2026-09-30
+
+bpr-main-linux: Ubuntu 26.04 on WSL2, GCC 15.2, clang-format 22.1.8, Qt 6.11.2
+offscreen, `build/dev` at `69493e235` (with the Windows station's `0dd1eb53f`).
+
+- **Full dev build.** At `69493e235` it did not compile with GCC.
+  `754502ff7` fixes two test sources: `-Wdangling-pointer` in
+  `agent_launch_tests.cpp` and `-Wshadow=local` in `gh_cli_transport_tests.cpp`.
+  After it the whole tree builds.
+- **Release graph.** The tests-off `-O3 -D_FORTIFY_SOURCE=3` graph that
+  `application_composition_contract` builds does not compile with GCC.
+  `4519a44f8` fixes five translation units: four GCC `-Wmaybe-uninitialized`
+  false positives on designated aggregates, and a discarded `write()` result.
+  The sixth, `tour_publication_plan.cpp`, is inside the round-trip pin. A patch
+  is proposed for a reviewed reseal (BPR-1228). The contract row has no Linux
+  verdict yet: it reached its 600 s limit building the Release graph.
+- **Pass:** `application_review_round_trip_composition_contract`,
+  `application_defect_composition_contract`, `application_review_tour_writing`,
+  `qt_composed_github_scale_*`, `qt_workbench_focus_order_scale_*`,
+  `dependency_modernization_contract`, `contained_temporary_usage_contract`,
+  `github_review_comment_permalink` (BPR-1230),
+  `application_private_review_native/file/retry` (BPR-1231) and
+  `live_review_submission_restart_recovery` (BPR-1233).
+- **Fail on Linux, recorded, not changed:**
+  - `coding_format_check`: clang-format 22 and 23 align four
+    `github_application.cpp` case lines differently (BPR-1243).
+  - `qt_document_tabs_scale_*`: at the window floor the tab viewport is 179 px,
+    under the 220 px minimum tab width (BPR-1241).
+  - `qt_workbench_window_scale_*`: the doubled DejaVu review bar needs 983 px
+    at 982 px (BPR-1242).
+  - `application_profile_window_review_restoration_public_path`: the same
+    failure as Windows (BPR-1236).
+- `application_agent_finding_mcp_construction_cut_contract` fails as BPR-1245
+  records.

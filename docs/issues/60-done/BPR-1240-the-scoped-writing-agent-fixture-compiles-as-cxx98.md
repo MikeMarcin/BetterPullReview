@@ -47,3 +47,11 @@ failed step, and `application_review_tour_writing` passes in the full dev run
 (27.4 s). Windows and Linux compile the file under their own presets; the
 declaration makes the level explicit there too, and was not run on those
 stations by this card.
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+The full dev build compiles `test_scoped_writing_agent`, and `application_review_tour_writing` passes. The same full build first needed two GCC-only test fixes, in `754502ff7`: `-Wdangling-pointer` in `agent_launch_tests.cpp` and `-Wshadow=local` in `gh_cli_transport_tests.cpp`.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

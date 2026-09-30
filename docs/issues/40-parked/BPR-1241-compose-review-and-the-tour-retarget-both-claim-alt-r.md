@@ -58,3 +58,11 @@ other action in the assembled window claims; Compose review keeps Option-R.
 Owner judgment is parked as attended item `BPR-1241-retarget-key-v001` in
 session `cbd48b91000b00f1e72e1ad62c7c384c` (prepared and protected, no server
 started): Accept keeps Option-Shift-U; Reject names another key in the note.
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+Evidence only; the card stays parked for the owner. `qt_workbench_focus_order_scale_{100,125,200}` pass, so the Alt+R conflict is gone here too. `qt_document_tabs_scale_{100,125,200}` fail on Linux at a different check: `activation reveals the entire active tab including after restoration`. A temporary trace, reverted and never committed, measured it with one tab at the window's floor: the strip's viewport is 179 px, but `document_tab_strip::minimum_tab_width` is 220, so the active tab (rect −41..178) cannot be fully revealed. The Linux font makes the chrome around the strip wider than on the Mac. Whether the floor, the minimum tab width or the check should give is a layout decision, so nothing was changed.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

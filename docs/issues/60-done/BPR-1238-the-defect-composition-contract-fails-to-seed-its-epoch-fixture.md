@@ -83,3 +83,11 @@ records without correlating or persisting their view.
 | Neither change (baseline) | Seed fails `DEFECT_SHARED_READY_STALLED` (control) |
 | `application_review_ledger_composition_contract`, `_overview_since_review_contract`, `_threaded_reply_contract`, `_setup_destination_public_path`, `_profile_multi_window_public_path`, `_profile_second_window_close_public_path`, `_profile_two_account_isolation_public_path`, `_active_changed_scaling`, `_private_review_{native,file,retry}` | 12 of 12 pass with the change (worktree build of the same bytes) |
 | `application_review_round_trip_composition_contract` after the reviewed reseal | Pass |
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`application_defect_composition_contract` passes, and so does `application_review_round_trip_composition_contract`.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

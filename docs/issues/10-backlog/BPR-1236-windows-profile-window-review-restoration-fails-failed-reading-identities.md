@@ -75,3 +75,11 @@ before its selection arrived. The first is a restoration defect. The second
 means the recorded state was already inconsistent. That is the owner's call.
 Nothing was changed. Whether macOS and Linux fail the same way at this
 revision is still to be run.
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`application_profile_window_review_restoration_public_path` fails on Linux the same way as on Windows: `unavailable-anchor failed (1)`, then `FAILED: failed reading restoration preserves exact recorded identities and sibling`, after 63.9 s. So the defect is not Windows-only, and the owner's question above, whether the restore or the recording is wrong, applies on Linux too. Nothing was changed.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

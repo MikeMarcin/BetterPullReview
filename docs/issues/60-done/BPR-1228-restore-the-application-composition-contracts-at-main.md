@@ -121,3 +121,11 @@ A self-test proves both halves on a synthetic graph.
 | `application_composition_contract` in the full dev run | Pass, 363 s |
 | `test_tests_off_release_graph_omits_public_path_fixture` alone (real tests-off Release configure and build) | Pass, 432 s |
 | `test_whole_review_authority_is_distinct_and_test_factory_is_private`, `test_build_edges_keep_compiles_and_drop_only_regeneration` | Pass |
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`application_review_round_trip_composition_contract` passes, before and after this station's commits `754502ff7` and `4519a44f8`, which touch no pinned file. `application_composition_contract` fails on Linux in `test_tests_off_release_graph_omits_public_path_fixture`: its tests-off Release build (`-O3 -D_FORTIFY_SOURCE=3`) does not compile with GCC 15. The Mac never saw this. A separate Release tree configured the same way (`build/station-release`) and built with `-k 0` found six translation units. `4519a44f8` fixes five of them. Four were designated aggregates that left a `std::string` member defaulted, hitting GCC's `-Wmaybe-uninitialized` false positive; they are now value-initialized and filled member by member, with the same values. The fifth was `mcp_terminal_diagnostic.hpp`, where a void cast does not discard glibc's `warn_unused_result` on `write()`. The sixth, `src/app/src/tour_publication_plan.cpp:35` (`submission.Proposal.Body`), has the same pattern but is inside this contract's pinned manifest. It is left for a reviewed reseal. A patch that compiles clean at `-O3` is in the station logs (`proposed-tour_publication_plan.patch`), and it is the only Release compile failure left. With the other five fixed, the contract row reached its 600 s limit while building the whole Release graph, so it has no Linux verdict yet.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

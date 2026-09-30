@@ -65,3 +65,11 @@ passes against a `BPR_BUILD_TOUR_CLI` scratch build, and
 Linux disk-full course, not registered). `tour_cli_publication_tests.py` and
 `tour_cli_commands_tests.py` fail in that scratch build exactly as they do
 with their pre-change scripts; that is [[BPR-1249]].
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`dependency_modernization_contract` and `contained_temporary_usage_contract` pass. `coding_format_check` fails on Linux with clang-format 22.1.8, and only on `src/app/src/github_application.cpp:9292`, `:9302`, `:9303` and `:9304`, the tour-editor `case … : …; return;` lines. clang-format 22 aligns those short case bodies to the longest label in each block. The 23.1.1 used on the Mac accepts the wider alignment. It is a formatter-version disagreement, not a new violation. Changing the lines would reseal the composition pin, so they were left. The station should have clang-format 23, or the gate should name one version.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.

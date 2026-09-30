@@ -55,3 +55,11 @@ fixing the first stale one uncovered the next:
 No product file changed. All twelve `qt_{composed_github,document_tabs,workbench_focus_order,workbench_window}_scale_*`
 rows pass (the other six with [[BPR-1241]]), and so do `qt_composed_home_refusal_scale_*`
 and the tour editor rows (15 of 15).
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/bin/clang-format`, Qt 6.11.2 offscreen with `QT_STYLE_OVERRIDE=Windows` (default font DejaVu Sans), `build/dev` (Debug, `-Werror`) freshly configured at `69493e235`, which contains the Windows station's `0dd1eb53f`.
+
+`qt_composed_github_scale_{100,125,200}` pass. `qt_workbench_window_scale_{100,125,200}` fail on Linux at `no review-bar control folds into an overflow menu at any width`. A temporary trace, reverted and never committed, measured the doubled review-bar font (DejaVu Sans 18 pt) at a 982 px window. The dates and the position words had both already yielded (`dates=0 words=0`), and the bar still wanted 983 px, so Qt showed `qt_toolbar_ext_button`. The widest items were the comparing button (360 px), the updates button (137 px) and the change-position label (111 px). This depends on the font and was not seen on the Mac. It is a layout decision, so nothing was changed.
+
+The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
