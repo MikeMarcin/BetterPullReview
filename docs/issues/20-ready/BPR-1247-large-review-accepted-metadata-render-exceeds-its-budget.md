@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1247"
 title: "Large review: accepted_metadata_render takes 382 ms against its 250 ms Mac fixture budget"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0967","BPR-1211"]}

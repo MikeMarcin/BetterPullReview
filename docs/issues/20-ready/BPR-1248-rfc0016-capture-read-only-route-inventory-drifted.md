@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1248"
 title: "The RFC-0016 device capture contract's read-only route inventory and GraphQL digest drifted"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json"}

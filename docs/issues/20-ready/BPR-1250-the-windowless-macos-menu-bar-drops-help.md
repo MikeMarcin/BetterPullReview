@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1250"
 title: "Closing the last window takes Help off the macOS menu bar"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 platforms: ["mac"]

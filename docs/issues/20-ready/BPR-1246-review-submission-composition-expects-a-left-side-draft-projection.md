@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1246"
 title: "The review submission composition course expects a left-side draft projection BPR-0587 no longer offers"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1207","BPR-1238"]}
