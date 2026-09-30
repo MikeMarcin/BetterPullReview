@@ -739,7 +739,9 @@ namespace bpr::qt {
 		DuplicateStops = action(tr("Duplicate"), QStringLiteral("tourDuplicate"), QKeySequence{ QStringLiteral("Ctrl+D") }, [this] { structural(core::tour_command_kind::duplicate); });
 		MergeStops     = action(tr("Merge"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
 		MergeStops->setToolTip(tr("Select two or more adjacent stops to merge in route order."));
-		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+R") }, [this] { trigger(tour_editor_action::retarget_stop); });
+		// [[BPR-1241]]. Option-R (Alt+R) is the window's Compose review; a second claim
+		// on it in the same window is ambiguous and neither action would run.
+		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+Shift+U") }, [this] { trigger(tour_editor_action::retarget_stop); });
 		RemoveStops = action(tr("Remove"), QStringLiteral("tourRemove"), QKeySequence{ Qt::Key_Delete }, [this] { structural(core::tour_command_kind::remove); });
 		RemoveStops->setShortcuts({ QKeySequence{ Qt::Key_Delete }, QKeySequence{ Qt::Key_Backspace } });
 		const auto shortcut = [&](const QString& aName, const QKeySequence& aKeys, QWidget* aOwner, auto aCallback) {
