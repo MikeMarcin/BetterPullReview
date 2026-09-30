@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1174"
 title: "Implement finite publication authorization and recovery journal"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1172", "BPR-1145"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-06", "RC59-07"], "pack_alias": "PACK-CYCLE-32", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
