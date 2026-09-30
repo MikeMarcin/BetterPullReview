@@ -40,5 +40,10 @@ Owed on the Windows station (MSVC, `build\dev`, exercises `MoveFileExW`): the sa
 ## Pending owner judgment
 
 RC56-04 asks whether a person can understand and act on the saved document
-without BPR. That is asked as one Accept/Reject item in the attended session;
-every automated share is recorded in the ledger.
+without BPR. It is asked as one Accept/Reject item,
+`BPR-1159-readable-round-v001`, in attended session
+`cbd48b91000b00f1e72e1ad62c7c384c` (added at sequence 642). The candidate is
+`/Users/jaeger/bpr-cycles-portable-review.MRsbKJ/RC-17-F1.md` (SHA-256
+`79186a22…fc236b3d4`), written by the product renderer at `a5eb785a4` for the
+pack's eight-item round, with the same round as `RC-17-F1.bpr-review.zip`
+beside it; both are read-only. Every automated share is recorded in the ledger.
