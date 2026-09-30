@@ -388,14 +388,14 @@ namespace bpr::qt {
 		if (copied.Text.empty()) {
 			return;
 		}
-		auto* data = new QMimeData{ };
-		data->setText(QString::fromUtf8(copied.Text.data(), static_cast<qsizetype>(copied.Text.size())));
+		auto* mime = new QMimeData{ };
+		mime->setText(QString::fromUtf8(copied.Text.data(), static_cast<qsizetype>(copied.Text.size())));
 		if (copied.Box) {
-			data->setData(QString::fromLatin1(box_mime_type), QByteArray{ "1" });
+			mime->setData(QString::fromLatin1(box_mime_type), QByteArray{ "1" });
 			// Visual Studio's marker, so a box copied here pastes as a box there.
-			data->setData(QStringLiteral("MSDEVColumnSelect"), QByteArray{ });
+			mime->setData(QStringLiteral("MSDEVColumnSelect"), QByteArray{ });
 		}
-		QApplication::clipboard()->setMimeData(data);
+		QApplication::clipboard()->setMimeData(mime);
 		if (aCut) {
 			// Replacing every selection with nothing removes exactly what was copied.
 			apply(core::insert_text{ });
@@ -404,12 +404,12 @@ namespace bpr::qt {
 
 	void suggestion_editor::paste()
 	{
-		const auto* data = QApplication::clipboard()->mimeData();
-		if (data == nullptr || !data->hasText()) {
+		const auto* mime = QApplication::clipboard()->mimeData();
+		if (mime == nullptr || !mime->hasText()) {
 			return;
 		}
-		const auto box = data->hasFormat(QString::fromLatin1(box_mime_type)) || data->hasFormat(QStringLiteral("MSDEVColumnSelect"));
-		apply(core::paste_text{ .Text = utf8(data->text()), .Box = box });
+		const auto box = mime->hasFormat(QString::fromLatin1(box_mime_type)) || mime->hasFormat(QStringLiteral("MSDEVColumnSelect"));
+		apply(core::paste_text{ .Text = utf8(mime->text()), .Box = box });
 	}
 
 	void suggestion_editor::mousePressEvent(QMouseEvent* aEvent)

@@ -209,7 +209,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_scale": "dos-volume-name",
     "review_cycle_recovery": "dos-volume-name",
     # [[BPR-1153]], [[BPR-1155]], [[BPR-1157]], [[BPR-1158]]. The same scratch-root store and chosen-root course as the
-    # rows above; not yet measured contained.
+    # rows above. Measured on JaegAW 2026-09-29: review_cycle_feedback,
+    # review_cycle_suggestion, review_cycle_workbench and the desktop course pass
+    # uncontained, and contained each fails before its course completes (the
+    # first two at "catalog", the workbench at "opened without an account,
+    # provider or agent", the desktop course at "Open Project offered signed
+    # out"). review_cycle_round is not yet measured contained.
     "review_cycle_feedback": "dos-volume-name",
     "review_cycle_suggestion": "dos-volume-name",
     "review_cycle_round": "dos-volume-name",
