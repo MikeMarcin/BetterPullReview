@@ -83,6 +83,20 @@ namespace bpr::application {
 		/// \brief Where a note's target stands in one revision of the selected cycle.
 		auto observe_feedback_selected(core::cycle_feedback_target aTarget, core::cycle_source_revision_id aAgainst, completion<cycle_correspondence_observation> aDone) -> bool;
 
+		/// \brief Adds an exact suggestion to a note of the selected cycle after
+		/// verifying its selection against the retained bytes.
+		auto add_suggestion_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, std::uint64_t aExpectedVersion, core::suggest_change aChange,
+									 completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief Revises, revalidates or records a suggestion as already
+		/// applied; a candidate is verified and an application confirmed from
+		/// retained bytes first.
+		auto change_suggestion_selected(cycle_operation_id aOperation, core::cycle_suggestion_ref aSuggestion, std::uint64_t aExpectedRevision, core::cycle_suggestion_change aChange,
+										completion<cycle_write_receipt> aDone) -> bool;
+		auto suggestions_selected(core::cycle_feedback_item_ref aItem, completion<std::vector<core::cycle_suggestion>> aDone) -> bool;
+		auto preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool;
+		auto preflight_suggestions_selected(std::vector<core::cycle_suggestion> aSuggestions, std::optional<core::cycle_source_revision_id> aAgainst,
+											completion<cycle_suggestion_preflight_observation> aDone) -> bool;
+
 		/// \brief Stops admitting work and cancels outstanding calls.
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

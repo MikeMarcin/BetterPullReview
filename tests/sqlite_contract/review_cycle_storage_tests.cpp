@@ -360,6 +360,7 @@ namespace {
 		sql(database_path(scratch.path()),
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
+			"DROP TABLE suggestions;"
 			"DROP TABLE bindings;"
 			"DROP TABLE revision_objects;"
 			"ALTER TABLE revisions RENAME TO revisions_v2;"
@@ -384,8 +385,8 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
-		// The second published shape had everything but feedback.
-		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; PRAGMA user_version=2;");
+		// The second published shape had everything but feedback and suggestions.
+		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
 		expect(loaded.Latest && loaded.Revision == 2, "v2 cycle reads unchanged");

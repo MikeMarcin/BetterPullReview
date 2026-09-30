@@ -77,3 +77,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_feedback)
 bpr_add_network_isolated_test(NAME review_cycle_feedback WINDOWS_UNCONTAINED COMMAND test_review_cycle_feedback)
+
+# [[BPR-1155]]. Exact suggestion records, previews and preflight on retained material.
+bpr_add_executable(test_review_cycle_suggestion review_cycle_suggestion_tests.cpp)
+target_link_libraries(test_review_cycle_suggestion PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_suggestion)
+if(WIN32)
+    target_link_libraries(test_review_cycle_suggestion PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_suggestion)
+bpr_add_network_isolated_test(NAME review_cycle_suggestion WINDOWS_UNCONTAINED COMMAND test_review_cycle_suggestion)

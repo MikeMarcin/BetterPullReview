@@ -32,6 +32,11 @@ namespace bpr::application {
 		{
 			return { .Left = std::nullopt, .Right = { .Cycle = aSubject.Cycle, .Id = aRevision } };
 		}
+
+		auto refused(const core::cycle_refusal aRefusal) -> cycle_store_error
+		{
+			return { .Failure = cycle_store_failure::refused, .Refusal = aRefusal };
+		}
 	}
 
 	auto verify_feedback_targets(review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const std::span<const core::cycle_feedback_target* const> aTargets,
@@ -74,5 +79,49 @@ namespace bpr::application {
 			current.Bytes = std::span<const std::uint8_t>{ file.Source };
 		}
 		return { .Status = file.Status, .Correspondence = core::observe_correspondence(aTarget, current) };
+	}
+
+	auto preview_cycle_suggestion(review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_suggestion& aSuggestion, std::stop_token aStop)
+		-> cycle_suggestion_preview_observation
+	{
+		auto file = aHost.file(aSubject, full_source(aSubject, aSuggestion.Source), aSuggestion.Path, { }, std::move(aStop));
+		if (file.Status != review_material_status::available) {
+			return { .Status = file.Status };
+		}
+		auto preview = core::preview_suggestion(aSuggestion, file.Source);
+		// A suggestion whose original no longer verifies was recorded wrongly.
+		return { .Status = preview ? review_material_status::available : review_material_status::corrupt, .Before = std::move(file.Source), .Preview = std::move(preview) };
+	}
+
+	auto preflight_cycle_suggestions(review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const std::span<const core::cycle_suggestion> aSuggestions,
+									 const std::optional<core::cycle_source_revision_id> aAgainst, std::stop_token aStop) -> cycle_suggestion_preflight_observation
+	{
+		if (aSuggestions.empty()) {
+			return { .Status = review_material_status::available, .Preflight = core::cycle_suggestion_preflight{ } };
+		}
+		const auto& first   = aSuggestions.front();
+		const auto  against = aAgainst.value_or(first.Source);
+		const auto  file    = aHost.file(aSubject, full_source(aSubject, against), first.Path, { }, std::move(aStop));
+		if (file.Status != review_material_status::available) {
+			return { .Status = file.Status, .Against = against };
+		}
+		return { .Status = review_material_status::available, .Against = against, .Preflight = core::preflight_suggestions(aSuggestions, file.Source) };
+	}
+
+	auto confirm_suggestion_applied(review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_suggestion& aSuggestion,
+									const core::cycle_source_revision_id aResult, std::stop_token aStop) -> cycle_store_result<void>
+	{
+		const auto original = aHost.file(aSubject, full_source(aSubject, aSuggestion.Source), aSuggestion.Path, { }, aStop);
+		if (original.Status != review_material_status::available) {
+			return std::unexpected(failure_of(original.Status));
+		}
+		const auto later = aHost.file(aSubject, full_source(aSubject, aResult), aSuggestion.Path, { }, aStop);
+		if (!later.Path || later.Path->Right.State != core::cycle_path_state::present || !later.Path->Right.Content) {
+			return std::unexpected(later.Status == review_material_status::cancelled ? failure_of(later.Status) : refused(core::cycle_refusal::invalid_target));
+		}
+		if (core::observe_application(aSuggestion, original.Source, *later.Path->Right.Content) != core::cycle_application_observation::already_applied) {
+			return std::unexpected(refused(core::cycle_refusal::invalid_target));
+		}
+		return { };
 	}
 }

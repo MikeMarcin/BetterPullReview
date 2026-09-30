@@ -150,8 +150,10 @@ namespace bpr::core {
 		cycle_feedback_target                Primary;
 		std::vector<cycle_related_reference> Related;
 		private_thread_lineage               Lineage;
-		std::uint64_t                        NextTurn                                        = 1;
-		auto                                 operator<=>(const cycle_feedback_thread&) const = default;
+		std::uint64_t                        NextTurn = 1;
+		/// Suggestions are numbered per thread (`review_cycle_suggestion.hpp`).
+		std::uint64_t NextSuggestion                                  = 1;
+		auto          operator<=>(const cycle_feedback_thread&) const = default;
 	};
 	/// \brief A revision's identity within its thread.
 	struct cycle_feedback_revision_ref

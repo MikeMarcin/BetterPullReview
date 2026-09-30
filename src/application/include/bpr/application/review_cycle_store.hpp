@@ -3,6 +3,7 @@
 
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
+#include "bpr/core/review_cycle_suggestion.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -164,6 +165,12 @@ namespace bpr::application {
 		std::vector<core::cycle_feedback_revision>           Revisions;
 		std::optional<core::private_review_turn_revision_id> Next;
 	};
+	/// \brief One suggestion's revisions in order.
+	struct cycle_suggestion_history_page
+	{
+		std::vector<core::cycle_suggestion> Revisions;
+		std::optional<std::uint64_t>        Next;
+	};
 
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
 	/// are not recoverable from GitHub or from exported rounds.
@@ -243,6 +250,22 @@ namespace bpr::application {
 		virtual auto feedback(const core::local_cycle_subject& aSubject, std::optional<core::cycle_feedback_item_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_feedback_page>                     = 0;
 		virtual auto feedback_revisions(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::optional<core::private_review_turn_revision_id> aAfter, std::stop_token aStop)
 			-> cycle_store_result<cycle_feedback_revision_page> = 0;
+
+		/// \brief Adds an exact suggestion to a note (BPR-1155). The selection
+		/// must name content its revision pinned, and is verified against the
+		/// retained bytes before this is called. `Allocated` is the suggestion;
+		/// `Revision` the thread version after the write. Nothing is written
+		/// anywhere but this store.
+		virtual auto add_suggestion(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::uint64_t aExpectedVersion,
+									const core::suggest_change& aChange, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief Records a suggestion's successor revision. `Revision` is the
+		/// suggestion revision after the write.
+		virtual auto change_suggestion(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_suggestion_ref& aSuggestion, std::uint64_t aExpectedRevision,
+									   const core::cycle_suggestion_change& aChange, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The latest revision of each of a note's suggestions, in order.
+		virtual auto suggestions(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_suggestion>> = 0;
+		virtual auto suggestion_history(const core::local_cycle_subject& aSubject, const core::cycle_suggestion_ref& aSuggestion, std::optional<std::uint64_t> aAfter, std::stop_token aStop)
+			-> cycle_store_result<cycle_suggestion_history_page> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

@@ -44,13 +44,15 @@ namespace bpr::adapters::sqlite {
 			table{ "objects", "CREATE TABLE objects(digest BLOB PRIMARY KEY CHECK(length(digest)=32),size INTEGER NOT NULL,chunks INTEGER NOT NULL) STRICT" },
 			table{ "object_chunks", "CREATE TABLE object_chunks(digest BLOB NOT NULL,ordinal INTEGER NOT NULL,bytes BLOB NOT NULL,PRIMARY KEY(digest,ordinal)) STRICT" },
 			table{ "receipts", "CREATE TABLE receipts(operation BLOB PRIMARY KEY CHECK(length(operation)=32),request BLOB NOT NULL CHECK(length(request)=32),cycle INTEGER NOT NULL,revision INTEGER NOT NULL,allocated INTEGER NOT NULL,changed INTEGER NOT NULL) STRICT" },
-			table{ "feedback", "CREATE TABLE feedback(cycle INTEGER NOT NULL,item INTEGER NOT NULL,version INTEGER NOT NULL,last_order INTEGER NOT NULL,lifecycle INTEGER NOT NULL,next_turn INTEGER NOT NULL,target BLOB NOT NULL,related BLOB NOT NULL,PRIMARY KEY(cycle,item)) STRICT" },
+			table{ "feedback", "CREATE TABLE feedback(cycle INTEGER NOT NULL,item INTEGER NOT NULL,version INTEGER NOT NULL,last_order INTEGER NOT NULL,lifecycle INTEGER NOT NULL,next_turn INTEGER NOT NULL,next_suggestion INTEGER NOT NULL,target BLOB NOT NULL,related BLOB NOT NULL,PRIMARY KEY(cycle,item)) STRICT" },
 			table{ "feedback_revisions", "CREATE TABLE feedback_revisions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,revision INTEGER NOT NULL,turn INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),author BLOB NOT NULL,completion INTEGER NOT NULL,lineage BLOB NOT NULL,body BLOB NOT NULL,PRIMARY KEY(cycle,item,revision)) STRICT" },
+			table{ "suggestions", "CREATE TABLE suggestions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,suggestion INTEGER NOT NULL,revision INTEGER NOT NULL,record BLOB NOT NULL,PRIMARY KEY(cycle,item,suggestion,revision)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
-		/// content pins, and neither the first nor the second had feedback.
+		/// content pins, and neither the first nor the second had feedback or
+		/// suggestions.
 		constexpr auto added_in_v2 = std::array<std::string_view, 2>{ "bindings", "revision_objects" };
-		constexpr auto added_in_v3 = std::array<std::string_view, 2>{ "feedback", "feedback_revisions" };
+		constexpr auto added_in_v3 = std::array<std::string_view, 3>{ "feedback", "feedback_revisions", "suggestions" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
@@ -310,6 +312,27 @@ namespace bpr::adapters::sqlite {
 			{
 				return u64(aRef.Position.Turn.value()).u64(aRef.Position.Revision.value()).u64(aRef.Position.Order.value()).bytes(aRef.Digest.bytes());
 			}
+			auto anchor(const core::cycle_source_anchor& aAnchor) -> request_writer&
+			{
+				return target(core::cycle_feedback_target{ aAnchor });
+			}
+			auto suggestion(const core::cycle_suggestion& aSuggestion) -> request_writer&
+			{
+				u64(aSuggestion.Source.value()).text(aSuggestion.Path).bytes(aSuggestion.OriginalBlob.bytes()).u64(aSuggestion.Start).u64(aSuggestion.End);
+				text(aSuggestion.Original).text(aSuggestion.Replacement).u8(static_cast<std::uint8_t>(aSuggestion.Intent)).u8(static_cast<std::uint8_t>(aSuggestion.State));
+				return u8(aSuggestion.AppliedIn ? 1 : 0).u64(aSuggestion.AppliedIn ? aSuggestion.AppliedIn->value() : 0U);
+			}
+			auto suggestion_change(const core::cycle_suggestion_change& aChange) -> request_writer&
+			{
+				u8(static_cast<std::uint8_t>(aChange.index()));
+				if (const auto* revise = std::get_if<core::revise_suggestion>(&aChange)) {
+					return text(revise->Replacement).u8(static_cast<std::uint8_t>(revise->Intent));
+				}
+				if (const auto* revalidate = std::get_if<core::revalidate_suggestion>(&aChange)) {
+					return anchor(revalidate->Candidate);
+				}
+				return u64(std::get<core::observe_suggestion_applied>(aChange).Result.value());
+			}
 			auto change(const core::cycle_feedback_change& aChange) -> request_writer&
 			{
 				u8(static_cast<std::uint8_t>(aChange.index()));
@@ -440,6 +463,27 @@ namespace bpr::adapters::sqlite {
 				author.Model          = optional_text();
 				author.Effort         = optional_text();
 				return author;
+			}
+			auto suggestion(const core::cycle_suggestion_ref& aId, const std::uint64_t aRevision) -> core::cycle_suggestion
+			{
+				auto value         = core::cycle_suggestion{ .Id = aId, .Revision = aRevision, .Source = core::cycle_source_revision_id{ u64() } };
+				value.Path         = text();
+				value.OriginalBlob = digest<core::cycle_material_digest>();
+				value.Start        = u64();
+				value.End          = u64();
+				value.Original     = text();
+				value.Replacement  = text();
+				const auto intent  = u8();
+				const auto state   = u8();
+				Good               = Good && intent <= static_cast<std::uint8_t>(core::cycle_suggestion_intent::illustrative) && state <= static_cast<std::uint8_t>(core::cycle_suggestion_state::observed_already_applied);
+				value.Intent       = static_cast<core::cycle_suggestion_intent>(intent);
+				value.State        = static_cast<core::cycle_suggestion_state>(state);
+				const auto applied = u8() != 0;
+				const auto result  = u64();
+				if (applied) {
+					value.AppliedIn = core::cycle_source_revision_id{ result };
+				}
+				return value;
 			}
 			auto revision_ref(const core::cycle_feedback_item_ref& aItem) -> core::cycle_feedback_revision_ref
 			{
@@ -1108,6 +1152,161 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto add_suggestion(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem,
+								const std::uint64_t aExpectedVersion, const core::suggest_change& aChange, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> override
+			{
+				auto request = request_writer{ };
+				request.u8(11).subject(aSubject).u64(aItem.Cycle.value()).u64(aItem.Id.value()).u64(aExpectedVersion).anchor(aChange.Selection).text(aChange.Replacement);
+				request.u8(static_cast<std::uint8_t>(aChange.Intent));
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aSubject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					auto thread = read_thread(aDatabase, aSubject, aItem);
+					if (!thread) {
+						return std::unexpected(thread.error());
+					}
+					if (!*thread) {
+						return fail(cycle_store_failure::not_found);
+					}
+					const auto existing = count_suggestions(aDatabase, aItem);
+					if (!existing) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					const auto added = core::add_suggestion(*current, **thread, aExpectedVersion, aChange, *existing);
+					if (!added) {
+						return added.error() == core::cycle_refusal::conflict ? fail(cycle_store_failure::conflict) : refuse(added.error());
+					}
+					const auto target = core::cycle_feedback_target{ aChange.Selection };
+					if (const auto pinned = targets_pinned(aDatabase, aSubject.Cycle, { &target }); !pinned) {
+						return std::unexpected(pinned.error());
+					}
+					if (!store_thread(aDatabase, added->Thread, false) || !insert_suggestion(aDatabase, added->Suggestion)) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = added->Thread.Lineage.Version, .Allocated = added->Suggestion.Id.Id.value(), .Changed = true };
+				});
+			}
+
+			auto change_suggestion(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_suggestion_ref& aSuggestion,
+								   const std::uint64_t aExpectedRevision, const core::cycle_suggestion_change& aChange, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> override
+			{
+				auto request = request_writer{ };
+				request.u8(12).subject(aSubject).u64(aSuggestion.Item.Cycle.value()).u64(aSuggestion.Item.Id.value()).u64(aSuggestion.Id.value()).u64(aExpectedRevision);
+				request.suggestion_change(aChange);
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aSubject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					if (current->Lifecycle == core::cycle_lifecycle::archived) {
+						return refuse(core::cycle_refusal::archived);
+					}
+					auto thread = read_thread(aDatabase, aSubject, aSuggestion.Item);
+					if (!thread) {
+						return std::unexpected(thread.error());
+					}
+					if (!*thread) {
+						return fail(cycle_store_failure::not_found);
+					}
+					if ((*thread)->Lineage.Lifecycle == core::private_thread_lifecycle::archived) {
+						return refuse(core::cycle_refusal::closed);
+					}
+					auto latest = latest_suggestion(aDatabase, aSuggestion);
+					if (!latest) {
+						return std::unexpected(latest.error());
+					}
+					if (!*latest) {
+						return fail(cycle_store_failure::not_found);
+					}
+					const auto changed = core::change_suggestion(**latest, aExpectedRevision, aChange);
+					if (!changed) {
+						return changed.error() == core::cycle_refusal::conflict ? fail(cycle_store_failure::conflict) : refuse(changed.error());
+					}
+					if (const auto* revalidate = std::get_if<core::revalidate_suggestion>(&aChange)) {
+						const auto target = core::cycle_feedback_target{ revalidate->Candidate };
+						if (!core::valid_target(*current, target)) {
+							return refuse(core::cycle_refusal::invalid_target);
+						}
+						if (const auto pinned = targets_pinned(aDatabase, aSubject.Cycle, { &target }); !pinned) {
+							return std::unexpected(pinned.error());
+						}
+					}
+					if (const auto* applied = std::get_if<core::observe_suggestion_applied>(&aChange); applied != nullptr && applied->Result.value() >= current->Next.SourceRevision) {
+						return refuse(core::cycle_refusal::invalid_target);
+					}
+					if (!insert_suggestion(aDatabase, *changed)) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = changed->Revision, .Allocated = aSuggestion.Id.value(), .Changed = true };
+				});
+			}
+
+			auto suggestions(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop)
+				-> cycle_store_result<std::vector<core::cycle_suggestion>> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::vector<core::cycle_suggestion>> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					if (!core::belongs_to(aItem, aSubject)) {
+						return refuse(core::cycle_refusal::invalid_identity);
+					}
+					auto rows = query{ aDatabase, "SELECT suggestion,max(revision) FROM suggestions WHERE cycle=?1 AND item=?2 GROUP BY suggestion ORDER BY suggestion LIMIT ?3" };
+					rows.id(1, aItem.Cycle.value()).id(2, aItem.Id.value()).id(3, core::maximum_cycle_suggestions);
+					auto found  = std::vector<core::cycle_suggestion>{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						const auto id       = stored_id(rows.column_integer(0));
+						const auto revision = stored_id(rows.column_integer(1));
+						auto       value    = id && revision ? read_suggestion(aDatabase, { .Item = aItem, .Id = core::cycle_suggestion_id{ *id } }, *revision) : std::nullopt;
+						if (!value) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						found.push_back(std::move(*value));
+					}
+					if (status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return found;
+				});
+			}
+
+			auto suggestion_history(const core::local_cycle_subject& aSubject, const core::cycle_suggestion_ref& aSuggestion, const std::optional<std::uint64_t> aAfter, std::stop_token aStop)
+				-> cycle_store_result<application::cycle_suggestion_history_page> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<application::cycle_suggestion_history_page> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					if (!core::belongs_to(aSuggestion.Item, aSubject)) {
+						return refuse(core::cycle_refusal::invalid_identity);
+					}
+					auto rows = query{ aDatabase, "SELECT revision FROM suggestions WHERE cycle=?1 AND item=?2 AND suggestion=?3 AND revision>?4 ORDER BY revision LIMIT ?5" };
+					rows.id(1, aSuggestion.Item.Cycle.value()).id(2, aSuggestion.Item.Id.value()).id(3, aSuggestion.Id.value()).id(4, aAfter.value_or(0U));
+					rows.id(5, application::maximum_cycle_page_entries + 1U);
+					auto page   = application::cycle_suggestion_history_page{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						if (page.Revisions.size() == application::maximum_cycle_page_entries) {
+							page.Next = page.Revisions.back().Revision;
+							break;
+						}
+						const auto revision = stored_id(rows.column_integer(0));
+						auto       value    = revision ? read_suggestion(aDatabase, aSuggestion, *revision) : std::nullopt;
+						if (!value) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						page.Revisions.push_back(std::move(*value));
+					}
+					if (status != SQLITE_ROW && status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return page;
+				});
+			}
+
 			auto inventory(std::stop_token aStop) -> cycle_store_result<application::cycle_retention_inventory> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) { return read_inventory(aDatabase); });
@@ -1152,7 +1351,8 @@ namespace bpr::adapters::sqlite {
 						return fail(cycle_store_failure::preview_stale);
 					}
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
-											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1",
+											"DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);
@@ -1401,7 +1601,7 @@ namespace bpr::adapters::sqlite {
 				if (!core::belongs_to(aItem, aSubject)) {
 					return refuse(core::cycle_refusal::invalid_identity);
 				}
-				auto row = query{ aDatabase, "SELECT version,last_order,lifecycle,next_turn,target,related FROM feedback WHERE cycle=?1 AND item=?2" };
+				auto row = query{ aDatabase, "SELECT version,last_order,lifecycle,next_turn,next_suggestion,target,related FROM feedback WHERE cycle=?1 AND item=?2" };
 				row.id(1, aItem.Cycle.value()).id(2, aItem.Id.value());
 				const auto status = row.step();
 				if (status == SQLITE_DONE) {
@@ -1414,14 +1614,16 @@ namespace bpr::adapters::sqlite {
 				const auto order     = stored_id(row.column_integer(1));
 				const auto lifecycle = row.column_integer(2);
 				const auto nextTurn  = stored_id(row.column_integer(3));
-				auto       target    = record_reader{ row.column_blob(4) };
-				auto       related   = record_reader{ row.column_blob(5) };
+				const auto nextSugg  = stored_id(row.column_integer(4));
+				auto       target    = record_reader{ row.column_blob(5) };
+				auto       related   = record_reader{ row.column_blob(6) };
 				auto       thread    = core::cycle_feedback_thread{ .Id = aItem, .Primary = target.target(), .Related = related.related() };
-				if (!version || !order || !nextTurn || lifecycle < 0 || lifecycle > static_cast<std::int64_t>(core::private_thread_lifecycle::archived) || !target.done() || !related.done()) {
+				if (!version || !order || !nextTurn || !nextSugg || lifecycle < 0 || lifecycle > static_cast<std::int64_t>(core::private_thread_lifecycle::archived) || !target.done() || !related.done()) {
 					return fail(cycle_store_failure::corrupt);
 				}
-				thread.Lineage  = { .Version = *version, .LastOrder = core::private_vertex_order{ *order }, .Lifecycle = static_cast<core::private_thread_lifecycle>(lifecycle) };
-				thread.NextTurn = *nextTurn;
+				thread.Lineage        = { .Version = *version, .LastOrder = core::private_vertex_order{ *order }, .Lifecycle = static_cast<core::private_thread_lifecycle>(lifecycle) };
+				thread.NextTurn       = *nextTurn;
+				thread.NextSuggestion = *nextSugg;
 				if (!core::valid(thread)) {
 					return fail(cycle_store_failure::corrupt);
 				}
@@ -1430,13 +1632,13 @@ namespace bpr::adapters::sqlite {
 
 			static auto store_thread(sqlite3* aDatabase, const core::cycle_feedback_thread& aThread, const bool aInsert) -> bool
 			{
-				const auto sql     = aInsert ? "INSERT INTO feedback(cycle,item,version,last_order,lifecycle,next_turn,target,related) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)"
-											 : "UPDATE feedback SET version=?3,last_order=?4,lifecycle=?5,next_turn=?6,target=?7,related=?8 WHERE cycle=?1 AND item=?2";
+				const auto sql     = aInsert ? "INSERT INTO feedback(cycle,item,version,last_order,lifecycle,next_turn,next_suggestion,target,related) VALUES(?1,?2,?3,?4,?5,?6,?9,?7,?8)"
+											 : "UPDATE feedback SET version=?3,last_order=?4,lifecycle=?5,next_turn=?6,next_suggestion=?9,target=?7,related=?8 WHERE cycle=?1 AND item=?2";
 				auto       row     = query{ aDatabase, sql };
 				const auto target  = request_writer{ }.target(aThread.Primary).Bytes;
 				const auto related = request_writer{ }.related(aThread.Related).Bytes;
 				row.id(1, aThread.Id.Cycle.value()).id(2, aThread.Id.Id.value()).id(3, aThread.Lineage.Version).id(4, aThread.Lineage.LastOrder.value());
-				row.integer(5, static_cast<std::int64_t>(aThread.Lineage.Lifecycle)).id(6, aThread.NextTurn).blob(7, target).blob(8, related);
+				row.integer(5, static_cast<std::int64_t>(aThread.Lineage.Lifecycle)).id(6, aThread.NextTurn).blob(7, target).blob(8, related).id(9, aThread.NextSuggestion);
 				return row.done() && sqlite3_changes(aDatabase) == 1;
 			}
 
@@ -1527,6 +1729,56 @@ namespace bpr::adapters::sqlite {
 					return fail(cycle_store_failure::corrupt);
 				}
 				return *id == *named ? revision : read_feedback_revision(aDatabase, aThread.Id, *id);
+			}
+
+			static auto count_suggestions(sqlite3* aDatabase, const core::cycle_feedback_item_ref& aItem) -> std::optional<std::size_t>
+			{
+				auto row = query{ aDatabase, "SELECT count(DISTINCT suggestion) FROM suggestions WHERE cycle=?1 AND item=?2" };
+				row.id(1, aItem.Cycle.value()).id(2, aItem.Id.value());
+				if (row.step() != SQLITE_ROW || row.column_integer(0) < 0) {
+					return std::nullopt;
+				}
+				return static_cast<std::size_t>(row.column_integer(0));
+			}
+
+			static auto insert_suggestion(sqlite3* aDatabase, const core::cycle_suggestion& aSuggestion) -> bool
+			{
+				auto row = query{ aDatabase, "INSERT INTO suggestions(cycle,item,suggestion,revision,record) VALUES(?1,?2,?3,?4,?5)" };
+				row.id(1, aSuggestion.Id.Item.Cycle.value()).id(2, aSuggestion.Id.Item.Id.value()).id(3, aSuggestion.Id.Id.value()).id(4, aSuggestion.Revision);
+				return row.blob(5, request_writer{ }.suggestion(aSuggestion).Bytes).done();
+			}
+
+			static auto read_suggestion(sqlite3* aDatabase, const core::cycle_suggestion_ref& aSuggestion, const std::uint64_t aRevision) -> std::optional<core::cycle_suggestion>
+			{
+				auto row = query{ aDatabase, "SELECT record FROM suggestions WHERE cycle=?1 AND item=?2 AND suggestion=?3 AND revision=?4" };
+				row.id(1, aSuggestion.Item.Cycle.value()).id(2, aSuggestion.Item.Id.value()).id(3, aSuggestion.Id.value()).id(4, aRevision);
+				if (row.step() != SQLITE_ROW) {
+					return std::nullopt;
+				}
+				auto reader = record_reader{ row.column_blob(0) };
+				auto value  = reader.suggestion(aSuggestion, aRevision);
+				if (!reader.done() || !core::valid(value)) {
+					return std::nullopt;
+				}
+				return value;
+			}
+
+			static auto latest_suggestion(sqlite3* aDatabase, const core::cycle_suggestion_ref& aSuggestion) -> cycle_store_result<std::optional<core::cycle_suggestion>>
+			{
+				auto row = query{ aDatabase, "SELECT max(revision) FROM suggestions WHERE cycle=?1 AND item=?2 AND suggestion=?3" };
+				row.id(1, aSuggestion.Item.Cycle.value()).id(2, aSuggestion.Item.Id.value()).id(3, aSuggestion.Id.value());
+				if (row.step() != SQLITE_ROW) {
+					return fail(cycle_store_failure::unavailable);
+				}
+				if (row.column_null(0)) {
+					return std::optional<core::cycle_suggestion>{ };
+				}
+				const auto revision = stored_id(row.column_integer(0));
+				auto       value    = revision ? read_suggestion(aDatabase, aSuggestion, *revision) : std::nullopt;
+				if (!value) {
+					return fail(cycle_store_failure::corrupt);
+				}
+				return value;
 			}
 
 			auto read_catalog(sqlite3* aDatabase) const -> cycle_store_result<core::review_cycle_catalog>

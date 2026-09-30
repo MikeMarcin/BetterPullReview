@@ -254,6 +254,29 @@ revisions in their own tables (schema 3, migrating schema 1 or 2 in place),
 pages them at 64 threads, or 64 revisions and 512 KiB of bodies, and removes
 them with the cycle.
 
+A note may carry up to 64 exact suggestions (`bpr/core/review_cycle_suggestion.hpp`,
+BPR-1155), numbered per thread and kept as immutable revisions: the source
+revision, path and content digest of the file, a half-open byte range with
+its exact original bytes, the exact replacement bytes (an empty range is an
+insertion and an empty replacement a deletion), an intent (`exact_replacement`
+or `illustrative`) and a state (`proposed`, or `observed_already_applied` with
+the revision that showed it). Previews and applications are pure byte
+functions held in memory; nothing writes a workspace, and suggested code is
+never compiled or run. `preflight_suggestions` decides a whole set against one
+file's exact bytes: every edit must name that file's whole content digest
+(matching text in a changed file is `stale_blob`), its range must hold its
+original bytes, illustrative and already-applied edits are never applied, and
+overlapping or contained ranges, two insertions at one boundary, or an
+insertion on a replaced range's boundary conflict. Only a set with no finding
+is applied, in descending offset order over original coordinates. A changed
+file is followed only by revalidating onto a range that holds exactly the
+original bytes; an application is recorded only when a later revision's file
+is exactly the suggested result (similar text stays unknown). Both are
+checked against retained bytes by `application::review_cycle_feedback`'s
+helpers before the store records them. `encode_suggestion_wire` carries both
+sides as base64 with their lengths and SHA-256 and refuses any mismatch on
+the way back.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

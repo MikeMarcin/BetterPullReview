@@ -318,7 +318,7 @@ namespace bpr::core {
 	{
 		if (!valid_cycle_id(aThread.Id.Cycle) || !valid_cycle_id(aThread.Id.Id) || !well_formed(aThread.Primary)
 			|| aThread.Related.size() > maximum_cycle_related_references || !valid_private_lineage(aThread.Lineage) || aThread.NextTurn < 2U
-			|| aThread.NextTurn > maximum_private_identity + 1U) {
+			|| aThread.NextTurn > maximum_private_identity + 1U || aThread.NextSuggestion == 0U || aThread.NextSuggestion > maximum_cycle_identity + 1U) {
 			return false;
 		}
 		for (std::size_t index = 0; index < aThread.Related.size(); ++index) {

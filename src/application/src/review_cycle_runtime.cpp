@@ -1,5 +1,6 @@
 #include "bpr/application/review_cycle_runtime.hpp"
 
+#include <algorithm>
 #include <array>
 #include <deque>
 #include <utility>
@@ -307,6 +308,98 @@ namespace bpr::application {
 			return observe_feedback_target(*host, *subject, target, aAgainst, std::move(aStop));
 		},
 																		std::move(aDone));
+	}
+
+	auto review_cycle_runtime::add_suggestion_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, const std::uint64_t aExpectedVersion, core::suggest_change aChange,
+													   completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_write_receipt>([subject, host, aOperation, aItem, aExpectedVersion, change = std::move(aChange)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			const auto target  = core::cycle_feedback_target{ change.Selection };
+			const auto targets = std::array{ &target };
+			if (auto verified = verify_feedback_targets(*host, *subject, targets, aStop); !verified) {
+				return std::unexpected(verified.error());
+			}
+			return aStore.add_suggestion(aOperation, *subject, aItem, aExpectedVersion, change, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::change_suggestion_selected(cycle_operation_id aOperation, core::cycle_suggestion_ref aSuggestion, const std::uint64_t aExpectedRevision,
+														  core::cycle_suggestion_change aChange, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_write_receipt>([subject, host, aOperation, aSuggestion, aExpectedRevision, change = std::move(aChange)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			if (const auto* revalidate = std::get_if<core::revalidate_suggestion>(&change)) {
+				const auto target  = core::cycle_feedback_target{ revalidate->Candidate };
+				const auto targets = std::array{ &target };
+				if (auto verified = verify_feedback_targets(*host, *subject, targets, aStop); !verified) {
+					return std::unexpected(verified.error());
+				}
+			}
+			if (const auto* applied = std::get_if<core::observe_suggestion_applied>(&change)) {
+				const auto current = aStore.suggestions(*subject, aSuggestion.Item, aStop);
+				if (!current) {
+					return std::unexpected(current.error());
+				}
+				const auto found = std::ranges::find(*current, aSuggestion, &core::cycle_suggestion::Id);
+				if (found == current->end()) {
+					return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::not_found });
+				}
+				if (auto confirmed = confirm_suggestion_applied(*host, *subject, *found, applied->Result, aStop); !confirmed) {
+					return std::unexpected(confirmed.error());
+				}
+			}
+			return aStore.change_suggestion(aOperation, *subject, aSuggestion, aExpectedRevision, change, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::suggestions_selected(core::cycle_feedback_item_ref aItem, completion<std::vector<core::cycle_suggestion>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<std::vector<core::cycle_suggestion>>([subject, aItem](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_suggestion>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.suggestions(*subject, aItem, aStop);
+		},
+																		   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_suggestion_preview_observation>([subject, host, suggestion = std::move(aSuggestion)](review_cycle_store&, std::stop_token aStop) -> cycle_store_result<cycle_suggestion_preview_observation> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return preview_cycle_suggestion(*host, *subject, suggestion, std::move(aStop));
+		},
+																			std::move(aDone));
+	}
+
+	auto review_cycle_runtime::preflight_suggestions_selected(std::vector<core::cycle_suggestion> aSuggestions, std::optional<core::cycle_source_revision_id> aAgainst,
+															  completion<cycle_suggestion_preflight_observation> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_suggestion_preflight_observation>([subject, host, suggestions = std::move(aSuggestions), aAgainst](review_cycle_store&, std::stop_token aStop) -> cycle_store_result<cycle_suggestion_preflight_observation> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return preflight_cycle_suggestions(*host, *subject, suggestions, aAgainst, std::move(aStop));
+		},
+																			  std::move(aDone));
 	}
 
 	void review_cycle_runtime::shutdown()
