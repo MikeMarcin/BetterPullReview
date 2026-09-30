@@ -291,6 +291,26 @@ superseded wordings, private references and adapter, provider, model and
 effort details stay private until named, and derivation and reply links
 never travel. A pasted answer that names a model stays `self_reported`.
 
+The desktop surface (BPR-1156, BPR-1157) composes the same runtime with the
+workspace source in `application::review_cycle_workbench`: File > Open
+Project… and Home's Review Cycles section observe the chosen root, resume the
+active cycle already bound to that root object or create one titled after it,
+bind it and capture R0, then show full source. Its tabs are the RFC-BPR-0052
+tab gestures over `core::cycle_tabs_state` (`review_cycle_tabs.hpp`): each tab
+is one exact revision, path and reading line, keeps its revision when newer
+material is captured, refuses comparison gestures (full source only), and is
+kept in the cycle store's `views` table (schema 4) so a restart restores it.
+The Qt page (`bpr/qt/review_cycle_view.hpp`) takes the review surface's place
+in the window with its own review bar, folding Updates line, tabs, files
+drawer, one source pane and notes tray; the title row names the cycle with a
+Local cycle badge, and another pull request arriving takes the surface back.
+A native selection becomes an exact byte anchor of the retained bytes. The
+focused suggestion editor (`suggestion_text_editing.hpp` with
+`bpr/qt/suggestion_editor.hpp`) keeps exact lines with their own endings and
+offers multiple carets, box selection, virtual space, IME composition and
+ordinary undo; its composer previews the edit in context and never writes a
+file.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

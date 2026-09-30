@@ -4,6 +4,7 @@
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
+#include "bpr/core/review_cycle_tabs.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -266,6 +267,12 @@ namespace bpr::application {
 		virtual auto suggestions(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_suggestion>> = 0;
 		virtual auto suggestion_history(const core::local_cycle_subject& aSubject, const core::cycle_suggestion_ref& aSuggestion, std::optional<std::uint64_t> aAfter, std::stop_token aStop)
 			-> cycle_store_result<cycle_suggestion_history_page> = 0;
+
+		/// \brief Keeps the cycle's document tabs: exact views and the active
+		/// one (BPR-1157). The last write wins; it is presentation state, not
+		/// review history, and needs no operation identity.
+		virtual auto save_tabs(const core::local_cycle_subject& aSubject, const core::cycle_tabs_record& aRecord, std::stop_token aStop) -> cycle_store_result<void> = 0;
+		virtual auto load_tabs(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_tabs_record>>       = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

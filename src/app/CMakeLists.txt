@@ -55,6 +55,7 @@ if(BPR_BUILD_QT)
             src/tour_owner_service.cpp
             src/tour_assist.cpp
             src/private_review_workflow.cpp
+            src/review_cycle_desktop.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
             src/terminal_diagnostics.cpp
@@ -82,6 +83,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterGitHub
             BetterPullReview::AdapterGit
             BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterWorkspace
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI

@@ -402,6 +402,79 @@ namespace bpr::application {
 																			  std::move(aDone));
 	}
 
+	auto review_cycle_runtime::observe_workspace(workspace_source_port& aSource, std::string aLocation, completion<workspace_root_observation_result> aDone) -> bool
+	{
+		return Implementation->submit<workspace_root_observation_result>([source = &aSource, location = std::move(aLocation)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<workspace_root_observation_result> {
+			auto       host     = review_cycle_capture_host{ *source, aStore };
+			const auto observed = host.observe(location, std::move(aStop));
+			if (!observed) {
+				return workspace_root_observation_result{ .Failure = observed.error() };
+			}
+			return workspace_root_observation_result{ .Root = *observed };
+		},
+																		 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::list(std::optional<core::review_cycle_id> aAfter, completion<cycle_page> aDone) -> bool
+	{
+		return Implementation->submit<cycle_page>([aAfter](review_cycle_store& aStore, std::stop_token aStop) { return aStore.list(aAfter, aStop); }, std::move(aDone));
+	}
+
+	auto review_cycle_runtime::load(core::local_cycle_subject aSubject, completion<std::optional<core::review_cycle_state>> aDone) -> bool
+	{
+		return Implementation->submit<std::optional<core::review_cycle_state>>([aSubject](review_cycle_store& aStore, std::stop_token aStop) { return aStore.load(aSubject, aStop); },
+																			   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::apply_selected(cycle_operation_id aOperation, const std::uint64_t aExpectedRevision, core::review_cycle_change aChange, completion<cycle_write_receipt> aDone)
+		-> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_write_receipt>([subject, aOperation, aExpectedRevision, change = std::move(aChange)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.apply(aOperation, { .Subject = *subject, .ExpectedRevision = aExpectedRevision, .Change = change }, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::revisions_selected(std::optional<core::cycle_source_revision_id> aAfter, completion<cycle_revision_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_revision_page>([subject, aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_revision_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.revisions(*subject, aAfter, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::save_tabs_selected(core::cycle_tabs_record aRecord, completion<void> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<void>([subject, record = std::move(aRecord)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<void> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.save_tabs(*subject, record, aStop);
+		},
+											std::move(aDone));
+	}
+
+	auto review_cycle_runtime::load_tabs_selected(completion<std::optional<core::cycle_tabs_record>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<std::optional<core::cycle_tabs_record>>([subject](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_tabs_record>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.load_tabs(*subject, aStop);
+		},
+																			  std::move(aDone));
+	}
+
 	void review_cycle_runtime::shutdown()
 	{
 		auto& self   = *Implementation;

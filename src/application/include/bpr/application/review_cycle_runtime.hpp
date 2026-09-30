@@ -25,6 +25,13 @@
 /// else: no GitHub account, provider, credential vault, agent adapter or
 /// executable lookup is needed to open, create, capture or reopen a cycle.
 namespace bpr::application {
+	/// \brief What observing a chosen root found (BPR-1157).
+	struct workspace_root_observation_result
+	{
+		std::optional<core::workspace_root_observation> Root;
+		std::optional<workspace_failure>                Failure;
+	};
+
 	/// \brief Owns the cycle store on the decision lane.
 	/// \details Store calls run one at a time on the effect lane in request
 	/// order; each accepted call completes exactly once on the decision lane.
@@ -96,6 +103,20 @@ namespace bpr::application {
 		auto preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool;
 		auto preflight_suggestions_selected(std::vector<core::cycle_suggestion> aSuggestions, std::optional<core::cycle_source_revision_id> aAgainst,
 											completion<cycle_suggestion_preflight_observation> aDone) -> bool;
+
+		/// \brief Observes a deliberately chosen root on the effect lane:
+		/// identity only, nothing captured. `aSource` must stay alive until the
+		/// completion runs.
+		auto observe_workspace(workspace_source_port& aSource, std::string aLocation, completion<workspace_root_observation_result> aDone) -> bool;
+		/// \brief One page of this profile's cycles, whatever is selected.
+		auto list(std::optional<core::review_cycle_id> aAfter, completion<cycle_page> aDone) -> bool;
+		/// \brief One cycle's state, whatever is selected (for recents).
+		auto load(core::local_cycle_subject aSubject, completion<std::optional<core::review_cycle_state>> aDone) -> bool;
+		/// \brief Applies one change to the selected cycle (rename, scope, bind).
+		auto apply_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, core::review_cycle_change aChange, completion<cycle_write_receipt> aDone) -> bool;
+		auto revisions_selected(std::optional<core::cycle_source_revision_id> aAfter, completion<cycle_revision_page> aDone) -> bool;
+		auto save_tabs_selected(core::cycle_tabs_record aRecord, completion<void> aDone) -> bool;
+		auto load_tabs_selected(completion<std::optional<core::cycle_tabs_record>> aDone) -> bool;
 
 		/// \brief Stops admitting work and cancels outstanding calls.
 		void               shutdown();

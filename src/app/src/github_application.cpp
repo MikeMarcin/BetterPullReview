@@ -26,6 +26,7 @@
 #include "bpr/qt/github_thread_map.hpp"
 #include "live_review_submission_provider.hpp"
 #include "private_review_workflow.hpp"
+#include "review_cycle_desktop.hpp"
 #include "review_mutation_execution_authority.hpp"
 #include "review_submission_execution_authority.hpp"
 #include "review_submission_workflow.hpp"
@@ -6510,6 +6511,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			});
 			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
+			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane);
 			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
@@ -8584,7 +8586,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 		}
 
-		std::unique_ptr<application::review_tour_host>    TourHost;
+		std::unique_ptr<application::review_tour_host> TourHost;
+		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
+		std::unique_ptr<review_cycle_desktop>             CycleDesktop;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
 		struct retained_tour_host
@@ -14555,6 +14559,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (TourHost) {
 				TourHost->shutdown();
 			}
+			if (CycleDesktop) {
+				CycleDesktop->shutdown();
+			}
 			for (auto& retained : RetiredTourHosts) {
 				retained.Host->shutdown();
 			}
@@ -14635,6 +14642,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
+				|| (CycleDesktop && !CycleDesktop->is_quiescent())
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())

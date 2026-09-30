@@ -87,3 +87,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_suggestion)
 bpr_add_network_isolated_test(NAME review_cycle_suggestion WINDOWS_UNCONTAINED COMMAND test_review_cycle_suggestion)
+
+# [[BPR-1157]]. The desktop's local cycle host: Open Project to a first note.
+bpr_add_executable(test_review_cycle_workbench review_cycle_workbench_tests.cpp)
+target_link_libraries(test_review_cycle_workbench PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_workbench)
+if(WIN32)
+    target_link_libraries(test_review_cycle_workbench PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_workbench)
+bpr_add_network_isolated_test(NAME review_cycle_workbench WINDOWS_UNCONTAINED COMMAND test_review_cycle_workbench)

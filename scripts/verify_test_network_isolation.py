@@ -208,10 +208,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_comparison": "dos-volume-name",
     "review_cycle_scale": "dos-volume-name",
     "review_cycle_recovery": "dos-volume-name",
-    # [[BPR-1153]], [[BPR-1155]]. The same scratch-root store and chosen-root course as the
+    # [[BPR-1153]], [[BPR-1155]], [[BPR-1157]]. The same scratch-root store and chosen-root course as the
     # rows above; not yet measured contained.
     "review_cycle_feedback": "dos-volume-name",
     "review_cycle_suggestion": "dos-volume-name",
+    "review_cycle_workbench": "dos-volume-name",
+    "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",
     "operator_response_validation_contract": "dos-volume-name",

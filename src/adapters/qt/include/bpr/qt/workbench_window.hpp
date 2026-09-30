@@ -8,6 +8,7 @@
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/public_preview_projection.hpp"
+#include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/window_review_restoration_ports.hpp"
@@ -105,6 +106,7 @@ namespace bpr::qt {
 	// the window places it and hands it out, and a consumer of the shell does
 	// not need the panel's shape to ask for it.
 	class device_authorization_panel;
+	class review_cycle_view;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -678,6 +680,23 @@ namespace bpr::qt {
 		/// active workbench exists. Nothing of the workbench makes sense before.
 		[[nodiscard]] auto home_page() const noexcept -> QWidget*;
 		[[nodiscard]] auto showing_home() const -> bool;
+
+		/// \brief [[BPR-1157]]. File > Open Project…: the local Review Cycles entry.
+		[[nodiscard]] auto open_project_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1157]]. Takes the local cycle page as the review surface's
+		/// alternative: the same place, the title row and the window, no new row.
+		void               adopt_local_cycle(review_cycle_view* aView);
+		[[nodiscard]] auto local_cycle() const noexcept -> review_cycle_view*;
+		/// \brief Shows the local cycle page, titled in the title row with its
+		/// Local cycle badge. A pull request stays open behind it.
+		void show_local_cycle(const QString& aTitle);
+		/// \brief Returns to Home or to the open pull request.
+		void               leave_local_cycle();
+		[[nodiscard]] auto showing_local_cycle() const noexcept -> bool;
+		/// \brief Home's Review Cycles section: Open Project and recent cycles.
+		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
+		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
+		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
 		/// [[BPR-0727]]. The reason of the last gesture the core refused, as
 		/// published; `none` until one is.
 		[[nodiscard]] auto last_refusal() const noexcept -> core::workbench_reason_code;
@@ -1411,9 +1430,19 @@ namespace bpr::qt {
 		core::dif_resolution                  DifResolution;
 		bool                                  DifResolutionReady = false;
 		QWidget*                              HomePage           = nullptr;
-		bool                                  StripHome          = false;
-		bool                                  HomeRequested      = false;
-		bool                                  HomeFocused        = false;
+		/// [[BPR-1157]]. The local cycle page and Home's Review Cycles section.
+		review_cycle_view*                                    LocalCyclePage  = nullptr;
+		bool                                                  LocalCycleShown = false;
+		QString                                               LocalCycleTitle;
+		QAction*                                              OpenProjectAction = nullptr;
+		QWidget*                                              HomeCycles        = nullptr;
+		QListWidget*                                          HomeCyclesList    = nullptr;
+		std::vector<application::review_cycle_recent>         CycleRecents;
+		std::function<void()>                                 OpenProjectDispatch;
+		std::function<void(const core::local_cycle_subject&)> ResumeCycleDispatch;
+		bool                                                  StripHome     = false;
+		bool                                                  HomeRequested = false;
+		bool                                                  HomeFocused   = false;
 		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
 		/// Comments tab's column, tool and count. ConversationScroll is the
 		/// Notes tab's column.
@@ -1513,7 +1542,7 @@ namespace bpr::qt {
 		review_tour_editor*                    TourEditor                       = nullptr;
 		QAction*                               PrepareTourAction                = nullptr;
 		QAction*                               AddTourStopAction                = nullptr;
-		private_review_panel*                 PrivateReview = nullptr;
+		private_review_panel*                  PrivateReview                    = nullptr;
 		side_chat_panel*                       SideChat                         = nullptr;
 		finding_queue_view*                    FindingQueue                     = nullptr;
 		review_draft_editor*                   ReviewEditor                     = nullptr;

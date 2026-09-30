@@ -23,7 +23,7 @@ namespace bpr::adapters::sqlite {
 		using application::cycle_write_receipt;
 
 		constexpr std::int64_t     application_id   = 0x42505243;
-		constexpr std::int64_t     schema_version   = 3;
+		constexpr std::int64_t     schema_version   = 4;
 		constexpr std::size_t      chunk_bytes      = 512U * 1024U;
 		constexpr std::int64_t     maximum_receipts = 4096;
 		constexpr std::string_view database_name    = "review-cycles.sqlite3";
@@ -47,12 +47,15 @@ namespace bpr::adapters::sqlite {
 			table{ "feedback", "CREATE TABLE feedback(cycle INTEGER NOT NULL,item INTEGER NOT NULL,version INTEGER NOT NULL,last_order INTEGER NOT NULL,lifecycle INTEGER NOT NULL,next_turn INTEGER NOT NULL,next_suggestion INTEGER NOT NULL,target BLOB NOT NULL,related BLOB NOT NULL,PRIMARY KEY(cycle,item)) STRICT" },
 			table{ "feedback_revisions", "CREATE TABLE feedback_revisions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,revision INTEGER NOT NULL,turn INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),author BLOB NOT NULL,completion INTEGER NOT NULL,lineage BLOB NOT NULL,body BLOB NOT NULL,PRIMARY KEY(cycle,item,revision)) STRICT" },
 			table{ "suggestions", "CREATE TABLE suggestions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,suggestion INTEGER NOT NULL,revision INTEGER NOT NULL,record BLOB NOT NULL,PRIMARY KEY(cycle,item,suggestion,revision)) STRICT" },
+			table{ "views", "CREATE TABLE views(cycle INTEGER PRIMARY KEY,record BLOB NOT NULL) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
 		/// content pins, and neither the first nor the second had feedback or
 		/// suggestions.
 		constexpr auto added_in_v2 = std::array<std::string_view, 2>{ "bindings", "revision_objects" };
 		constexpr auto added_in_v3 = std::array<std::string_view, 3>{ "feedback", "feedback_revisions", "suggestions" };
+		/// The fourth schema added the document-tab views.
+		constexpr auto added_in_v4 = std::array<std::string_view, 1>{ "views" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
@@ -333,6 +336,14 @@ namespace bpr::adapters::sqlite {
 				}
 				return u64(std::get<core::observe_suggestion_applied>(aChange).Result.value());
 			}
+			auto tabs(const core::cycle_tabs_record& aRecord) -> request_writer&
+			{
+				u8(aRecord.Revision ? 1 : 0).u64(aRecord.Revision ? aRecord.Revision->value() : 0U).u64(aRecord.Views.size());
+				for (const auto& view : aRecord.Views) {
+					u64(view.Revision.value()).text(view.Path).u64(view.Line);
+				}
+				return u8(aRecord.Active ? 1 : 0).u64(aRecord.Active.value_or(0U));
+			}
 			auto change(const core::cycle_feedback_change& aChange) -> request_writer&
 			{
 				u8(static_cast<std::uint8_t>(aChange.index()));
@@ -484,6 +495,32 @@ namespace bpr::adapters::sqlite {
 					value.AppliedIn = core::cycle_source_revision_id{ result };
 				}
 				return value;
+			}
+			auto tabs() -> core::cycle_tabs_record
+			{
+				auto       record  = core::cycle_tabs_record{ };
+				const auto present = u8() != 0;
+				const auto current = u64();
+				if (present) {
+					record.Revision = core::cycle_source_revision_id{ current };
+				}
+				const auto count = u64();
+				if (count > core::maximum_cycle_tabs) {
+					Good = false;
+					return record;
+				}
+				for (auto index = std::uint64_t{ 0 }; Good && index < count; ++index) {
+					auto view = core::cycle_tab_view{ .Revision = core::cycle_source_revision_id{ u64() } };
+					view.Path = text();
+					view.Line = u64();
+					record.Views.push_back(std::move(view));
+				}
+				const auto active = u8() != 0;
+				const auto at     = u64();
+				if (active) {
+					record.Active = static_cast<std::size_t>(at);
+				}
+				return record;
 			}
 			auto revision_ref(const core::cycle_feedback_item_ref& aItem) -> core::cycle_feedback_revision_ref
 			{
@@ -1307,6 +1344,57 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto save_tabs(const core::local_cycle_subject& aSubject, const core::cycle_tabs_record& aRecord, std::stop_token aStop) -> cycle_store_result<void> override
+			{
+				auto opened = open(aStop);
+				if (!opened) {
+					return std::unexpected(opened.error());
+				}
+				const auto database = connection{ *opened };
+				const auto progress = detail::progress_scope{ database.Database, aStop };
+				if (!detail::execute(database.Database, "BEGIN IMMEDIATE", aStop)) {
+					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+				}
+				auto guard   = transaction{ database.Database };
+				auto current = current_cycle(database.Database, aSubject);
+				if (!current) {
+					return std::unexpected(current.error());
+				}
+				auto check = core::cycle_tabs_state{ };
+				if (core::restore(check, *current, aRecord).Reason != core::document_tab_reason::none) {
+					return refuse(core::cycle_refusal::invalid_target);
+				}
+				auto row = query{ database.Database, "INSERT OR REPLACE INTO views(cycle,record) VALUES(?1,?2)" };
+				if (!row.id(1, aSubject.Cycle.value()).blob(2, request_writer{ }.tabs(aRecord).Bytes).done() || !guard.commit(aStop)) {
+					return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
+				}
+				return { };
+			}
+
+			auto load_tabs(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_tabs_record>> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::optional<core::cycle_tabs_record>> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto row = query{ aDatabase, "SELECT record FROM views WHERE cycle=?1" };
+					row.id(1, aSubject.Cycle.value());
+					const auto status = row.step();
+					if (status == SQLITE_DONE) {
+						return std::optional<core::cycle_tabs_record>{ };
+					}
+					if (status != SQLITE_ROW) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					auto reader = record_reader{ row.column_blob(0) };
+					auto record = reader.tabs();
+					if (!reader.done()) {
+						return fail(cycle_store_failure::corrupt);
+					}
+					return std::optional{ std::move(record) };
+				});
+			}
+
 			auto inventory(std::stop_token aStop) -> cycle_store_result<application::cycle_retention_inventory> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) { return read_inventory(aDatabase); });
@@ -1351,7 +1439,7 @@ namespace bpr::adapters::sqlite {
 						return fail(cycle_store_failure::preview_stale);
 					}
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
-											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1",
+											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1", "DELETE FROM views WHERE cycle=?1",
 											"DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
@@ -1406,7 +1494,7 @@ namespace bpr::adapters::sqlite {
 				const auto named  = [](const auto& aNames, const std::string_view aName) { return std::ranges::find(aNames, aName) != aNames.end(); };
 				auto       tables = std::vector<table>{ };
 				for (const auto& definition : schema) {
-					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name))) {
+					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name)) || (aVersion < 4 && named(added_in_v4, definition.Name))) {
 						continue;
 					}
 					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
@@ -1454,8 +1542,11 @@ namespace bpr::adapters::sqlite {
 											  });
 					std::ranges::transform(added_in_v2, std::back_inserter(steps), definition);
 				}
-				std::ranges::transform(added_in_v3, std::back_inserter(steps), definition);
-				steps.emplace_back("PRAGMA user_version=3");
+				if (aFrom < 3) {
+					std::ranges::transform(added_in_v3, std::back_inserter(steps), definition);
+				}
+				std::ranges::transform(added_in_v4, std::back_inserter(steps), definition);
+				steps.emplace_back("PRAGMA user_version=4");
 				for (const auto& step : steps) {
 					if (!detail::execute(aDatabase, step, aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
@@ -1471,9 +1562,10 @@ namespace bpr::adapters::sqlite {
 			{
 				const auto empty = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0
 					&& detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema") == 0;
-				const auto legacy = empty ? 0 : schema_valid(aDatabase, 1) ? 1
-					: schema_valid(aDatabase, 2)                           ? 2
-																		   : 0;
+				auto legacy = std::int64_t{ 0 };
+				for (std::int64_t version = 1; !empty && legacy == 0 && version < schema_version; ++version) {
+					legacy = schema_valid(aDatabase, version) ? version : 0;
+				}
 				if (!empty && legacy == 0 && !schema_valid(aDatabase)) {
 					return fail(cycle_store_failure::schema_mismatch);
 				}
@@ -1495,7 +1587,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto catalog = query{ aDatabase, "INSERT INTO catalog(singleton,profile,incarnation,next_cycle) VALUES(1,?1,randomblob(32),1)" };
 					if (!catalog.id(1, Profile.value()).done() || !detail::execute(aDatabase, "PRAGMA application_id=1112560195", aStop)
-						|| !detail::execute(aDatabase, "PRAGMA user_version=3", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
+						|| !detail::execute(aDatabase, "PRAGMA user_version=4", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}

@@ -3321,3 +3321,22 @@ set_tests_properties(application_private_review_retry PROPERTIES
     RESOURCE_LOCK bpr_private_review_course)
 bpr_bound_automated_run(application_private_review_retry
     TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)
+
+# [[BPR-1157]]. The real workbench window with the real local-cycle
+# composition: no-account Open Project to a first note and a suggestion,
+# Home's Review Cycles section, and a switch to a pull request and back.
+bpr_add_executable(test_review_cycle_desktop_public_path review_cycle_desktop_public_path.cpp)
+target_link_libraries(test_review_cycle_desktop_public_path PRIVATE BetterPullReview::Composition)
+target_include_directories(test_review_cycle_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+target_compile_features(test_review_cycle_desktop_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_review_cycle_desktop_public_path)
+if(WIN32)
+    target_link_libraries(test_review_cycle_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_desktop_public_path)
+bpr_add_network_isolated_test(NAME application_review_cycle_desktop_public_path WINDOWS_UNCONTAINED
+    COMMAND test_review_cycle_desktop_public_path)
+set_tests_properties(application_review_cycle_desktop_public_path PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_CYCLE_DESKTOP_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-desktop"
+    PASS_REGULAR_EXPRESSION "review-cycle-desktop-public-path:pass"
+    TIMEOUT 120)

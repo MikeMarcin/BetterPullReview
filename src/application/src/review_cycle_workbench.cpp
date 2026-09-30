@@ -1,0 +1,666 @@
+#include "bpr/application/review_cycle_workbench.hpp"
+
+#include "bpr/core/sha256.hpp"
+
+#include <algorithm>
+#include <filesystem>
+#include <functional>
+#include <iterator>
+#include <type_traits>
+#include <utility>
+
+namespace bpr::application {
+	namespace {
+		auto store_words(const cycle_store_error& aError) -> std::string
+		{
+			switch (aError.Failure) {
+			case cycle_store_failure::quota:              return "The retained-material budget is full; nothing was evicted. Remove an old cycle to make room.";
+			case cycle_store_failure::conflict:           return "The cycle changed while this was prepared. Try again.";
+			case cycle_store_failure::object_unavailable: return "Retained material is missing; nothing was substituted.";
+			case cycle_store_failure::corrupt:            return "Retained material is damaged; nothing was substituted.";
+			case cycle_store_failure::refused:            return "The cycle refused this change.";
+			case cycle_store_failure::cancelled:          return { };
+			default:                                      return "The local cycle store is unavailable.";
+			}
+		}
+
+		auto workspace_words(const workspace_failure aFailure) -> std::string
+		{
+			switch (aFailure) {
+			case workspace_failure::missing:           return "The chosen folder or file no longer exists.";
+			case workspace_failure::permission_denied: return "The chosen folder or file cannot be read.";
+			case workspace_failure::unsupported:       return "The chosen item is not a folder or a regular file.";
+			default:                                   return "The chosen folder or file could not be opened.";
+			}
+		}
+
+		auto capture_words(const cycle_capture_outcome& aOutcome) -> std::string
+		{
+			switch (aOutcome.Status) {
+			case cycle_capture_status::captured:         return { };
+			case cycle_capture_status::unstable:         return "Files kept changing while they were read; nothing was recorded. Capture again when the folder is quiet.";
+			case cycle_capture_status::root_changed:     return "The chosen folder was replaced while it was read; nothing was recorded.";
+			case cycle_capture_status::too_many_entries: return "The folder holds more entries than one capture keeps; narrow the scope.";
+			case cycle_capture_status::store:            return aOutcome.Store ? store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
+			case cycle_capture_status::workspace:        return aOutcome.Workspace ? workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
+			case cycle_capture_status::not_bound:        return "The cycle has no folder to capture.";
+			case cycle_capture_status::cancelled:        return { };
+			}
+			return { };
+		}
+
+		/// An intelligible default title: the chosen folder's or file's name.
+		auto default_title(const std::string& aLocation) -> std::string
+		{
+			auto path = std::filesystem::path{ aLocation };
+			while (path.has_relative_path() && path.filename().empty()) {
+				path = path.parent_path();
+			}
+			auto name = path.filename().string();
+			if (name.empty()) {
+				return "Local project";
+			}
+			return name.substr(0, core::maximum_cycle_title_bytes);
+		}
+	}
+
+	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
+	{
+		implementation(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
+					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed)
+			: Runtime{ std::move(aStore), aEffects, aDecisions }
+			, Source{ aSource }
+			, Port{ aPort }
+			, Seed{ aSeed }
+		{
+		}
+
+		review_cycle_runtime                      Runtime;
+		workspace_source_port&                    Source;
+		review_cycle_workbench_port&              Port;
+		std::array<std::uint8_t, 32>              Seed;
+		std::uint64_t                             Counter = 0;
+		review_cycle_workbench_projection         View;
+		std::optional<core::review_cycle_catalog> Catalog;
+		std::optional<core::review_cycle_state>   Cycle;
+		std::optional<core::local_cycle_subject>  Subject;
+		core::cycle_tabs_state                    Tabs;
+		/// Advances whenever another cycle is opened or the cycle is closed.
+		std::uint64_t Generation = 0;
+		std::uint64_t SourceLoad = 0;
+		bool          Closing    = false;
+
+		auto operation() -> cycle_operation_id
+		{
+			auto bytes = std::vector<std::uint8_t>(Seed.begin(), Seed.end());
+			++Counter;
+			for (auto shift = 56; shift >= 0; shift -= 8) {
+				bytes.push_back(static_cast<std::uint8_t>(Counter >> static_cast<unsigned>(shift)));
+			}
+			return cycle_operation_id{ core::sha256(bytes) };
+		}
+
+		void publish()
+		{
+			Port.publish(View);
+		}
+
+		void fail(const std::string& aMessage)
+		{
+			View.Activity = review_cycle_activity::idle;
+			View.Message  = aMessage;
+			publish();
+		}
+
+		/// A completion wrapper that runs only while this host lives and the
+		/// same cycle is still open.
+		template <typename T, typename TThen>
+		auto guarded(TThen aThen) -> review_cycle_runtime::completion<T>
+		{
+			return [weak = weak_from_this(), generation = Generation, then = std::move(aThen)](cycle_store_result<T> aResult) mutable {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				if (!aResult) {
+					if (aResult.error().Failure != cycle_store_failure::cancelled) {
+						self->fail(store_words(aResult.error()));
+					}
+					return;
+				}
+				if constexpr (std::is_void_v<T>) {
+					then(*self);
+				} else {
+					then(*self, std::move(*aResult));
+				}
+			};
+		}
+
+		void with_catalog(std::function<void(implementation&)> aThen)
+		{
+			if (Catalog) {
+				aThen(*this);
+				return;
+			}
+			Runtime.open(guarded<core::review_cycle_catalog>([then = std::move(aThen)](implementation& aSelf, core::review_cycle_catalog aCatalog) mutable {
+				aSelf.Catalog = aCatalog;
+				then(aSelf);
+			}));
+		}
+
+		void refresh_recents()
+		{
+			with_catalog([](implementation& aSelf) {
+				aSelf.Runtime.list(std::nullopt, aSelf.guarded<cycle_page>([](implementation& aHost, cycle_page aPage) {
+					auto cycles = std::move(aPage.Cycles);
+					std::ranges::sort(cycles, [](const auto& aLeft, const auto& aRight) { return aLeft.Subject.Cycle > aRight.Subject.Cycle; });
+					if (cycles.size() > maximum_recents) {
+						cycles.resize(maximum_recents);
+					}
+					aHost.collect_recents(std::move(cycles), 0U, { });
+				}));
+			});
+		}
+
+		void collect_recents(std::vector<core::review_cycle_projection> aCycles, const std::size_t aIndex, std::vector<review_cycle_recent> aFound)
+		{
+			if (aIndex >= aCycles.size()) {
+				Port.publish(aFound);
+				return;
+			}
+			const auto subject = aCycles[aIndex].Subject;
+			Runtime.load(subject, guarded<std::optional<core::review_cycle_state>>([cycles = std::move(aCycles), aIndex, found = std::move(aFound)](implementation& aSelf, std::optional<core::review_cycle_state> aState) mutable {
+							 if (aState && aState->Lifecycle == core::cycle_lifecycle::active) {
+								 found.push_back({ .Cycle = cycles[aIndex], .Location = aState->Workspace ? aState->Workspace->Root.Location : std::string{ } });
+							 }
+							 aSelf.collect_recents(std::move(cycles), aIndex + 1U, std::move(found));
+						 }));
+		}
+
+		void open_project(std::string aLocation)
+		{
+			++Generation;
+			View          = { };
+			View.Activity = review_cycle_activity::opening;
+			View.Location = aLocation;
+			publish();
+			with_catalog([location = std::move(aLocation)](implementation& aSelf) {
+				aSelf.Runtime.observe_workspace(aSelf.Source, location, aSelf.guarded<workspace_root_observation_result>([location](implementation& aHost, workspace_root_observation_result aResult) {
+					if (!aResult.Root) {
+						aHost.fail(workspace_words(aResult.Failure.value_or(workspace_failure::io)));
+						return;
+					}
+					aHost.find_bound(*aResult.Root, std::nullopt, { });
+				}));
+			});
+		}
+
+		/// Scans the catalog for a cycle already bound to this root.
+		void find_bound(core::workspace_root_observation aRoot, const std::optional<core::review_cycle_id> aAfter, std::vector<core::local_cycle_subject> aSubjects)
+		{
+			Runtime.list(aAfter, guarded<cycle_page>([root = std::move(aRoot), subjects = std::move(aSubjects)](implementation& aSelf, cycle_page aPage) mutable {
+							 for (const auto& cycle : aPage.Cycles) {
+								 if (cycle.WorkspaceKind == root.Kind && cycle.Lifecycle == core::cycle_lifecycle::active) {
+									 subjects.push_back(cycle.Subject);
+								 }
+							 }
+							 if (aPage.Next) {
+								 aSelf.find_bound(std::move(root), aPage.Next, std::move(subjects));
+								 return;
+							 }
+							 aSelf.match_bound(std::move(root), std::move(subjects), 0U);
+						 }));
+		}
+
+		void match_bound(core::workspace_root_observation aRoot, std::vector<core::local_cycle_subject> aSubjects, const std::size_t aIndex)
+		{
+			if (aIndex >= aSubjects.size()) {
+				create_bound(std::move(aRoot));
+				return;
+			}
+			const auto subject = aSubjects[aIndex];
+			Runtime.load(subject, guarded<std::optional<core::review_cycle_state>>([root = std::move(aRoot), subjects = std::move(aSubjects), aIndex](implementation& aSelf, std::optional<core::review_cycle_state> aState) mutable {
+							 // The same root object, wherever it now is, is the same project.
+							 if (aState && aState->Workspace && aState->Workspace->Root.Root == root.Root) {
+								 aSelf.select(aState->Subject);
+								 aSelf.load(true);
+								 return;
+							 }
+							 aSelf.match_bound(std::move(root), std::move(subjects), aIndex + 1U);
+						 }));
+		}
+
+		void create_bound(core::workspace_root_observation aRoot)
+		{
+			const auto command = core::create_review_cycle{ .Authority = Catalog->Authority, .Title = default_title(View.Location), .Scope = { } };
+			Runtime.create(operation(), command, guarded<cycle_write_receipt>([root = std::move(aRoot)](implementation& aSelf, cycle_write_receipt aReceipt) mutable {
+							   aSelf.select({ .Authority = aSelf.Catalog->Authority, .Cycle = aReceipt.Cycle, .Generation = 1 });
+							   aSelf.Runtime.apply_selected(aSelf.operation(), aReceipt.Revision, core::bind_cycle_workspace{ .Root = std::move(root) }, aSelf.guarded<cycle_write_receipt>([](implementation& aHost, cycle_write_receipt) {
+								   aHost.load(true);
+							   }));
+						   }));
+		}
+
+		void select(const core::local_cycle_subject& aSubject)
+		{
+			Subject = aSubject;
+			Cycle.reset();
+			Tabs = { };
+			Runtime.select(aSubject);
+		}
+
+		void capture()
+		{
+			View.Activity = review_cycle_activity::capturing;
+			publish();
+			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision };
+			Runtime.capture_workspace(Source, std::move(request), guarded<cycle_capture_outcome>([](implementation& aSelf, cycle_capture_outcome aOutcome) {
+										  if (aOutcome.Status != cycle_capture_status::captured) {
+											  aSelf.fail(capture_words(aOutcome));
+											  return;
+										  }
+										  aSelf.View.Quality = aOutcome.Diagnostics.Explanation;
+										  aSelf.load(false);
+									  }));
+		}
+
+		/// Loads the open cycle: state, revisions, files, tabs, notes and the active source.
+		void load(const bool aCaptureWhenEmpty)
+		{
+			View.Activity = review_cycle_activity::loading;
+			publish();
+			Runtime.load_selected(guarded<std::optional<core::review_cycle_state>>([aCaptureWhenEmpty](implementation& aSelf, std::optional<core::review_cycle_state> aState) {
+				if (!aState) {
+					aSelf.fail("The cycle no longer exists.");
+					return;
+				}
+				aSelf.Cycle      = std::move(*aState);
+				aSelf.View.Cycle = core::project(*aSelf.Cycle);
+				if (aSelf.Cycle->Workspace) {
+					aSelf.View.Location = aSelf.Cycle->Workspace->Root.Location;
+				}
+				if (!aSelf.Cycle->Latest) {
+					if (aCaptureWhenEmpty && aSelf.Cycle->Workspace) {
+						aSelf.capture();
+						return;
+					}
+					aSelf.View.Activity = review_cycle_activity::idle;
+					aSelf.publish();
+					return;
+				}
+				aSelf.load_revisions(std::nullopt, { });
+			}));
+		}
+
+		void load_revisions(const std::optional<core::cycle_source_revision_id> aAfter, std::vector<core::cycle_source_revision_id> aFound)
+		{
+			Runtime.revisions_selected(aAfter, guarded<cycle_revision_page>([found = std::move(aFound)](implementation& aSelf, cycle_revision_page aPage) mutable {
+										   for (const auto& revision : aPage.Revisions) {
+											   found.push_back(revision.Revision.Id.Id);
+										   }
+										   if (aPage.Next) {
+											   aSelf.load_revisions(aPage.Next, std::move(found));
+											   return;
+										   }
+										   aSelf.View.Revisions = std::move(found);
+										   aSelf.load_files(std::nullopt, { });
+									   }));
+		}
+
+		void load_files(const std::optional<std::string>& aAfter, std::vector<review_cycle_file_entry> aFound)
+		{
+			const auto pair = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = Cycle->Latest->Id };
+			Runtime.compare_selected(pair, aAfter, core::maximum_cycle_comparison_page, false, guarded<cycle_comparison_page_observation>([found = std::move(aFound)](implementation& aSelf, cycle_comparison_page_observation aPage) mutable {
+										 if (!aPage.Page) {
+											 aSelf.fail("The captured file list could not be read.");
+											 return;
+										 }
+										 for (const auto& entry : aPage.Page->Entries) {
+											 if (entry.Right.Kind == core::manifest_entry_kind::file) {
+												 found.push_back({ .Path = entry.Path, .State = entry.Right.State, .Text = entry.Right.Text, .Size = entry.Right.Size });
+											 }
+										 }
+										 const auto full = found.size() >= maximum_listed_files;
+										 if (aPage.Page->Next && !full) {
+											 aSelf.load_files(aPage.Page->Next, std::move(found));
+											 return;
+										 }
+										 aSelf.View.FilesTruncated = full && aPage.Page->Next.has_value();
+										 aSelf.View.Files          = std::move(found);
+										 aSelf.load_tabs();
+									 }));
+		}
+
+		void load_tabs()
+		{
+			Runtime.load_tabs_selected(guarded<std::optional<core::cycle_tabs_record>>([](implementation& aSelf, std::optional<core::cycle_tabs_record> aRecord) {
+				auto restored = false;
+				if (aRecord) {
+					restored = core::restore(aSelf.Tabs, *aSelf.Cycle, *aRecord).Reason == core::document_tab_reason::none;
+				}
+				if (!restored || !aSelf.Tabs.Revision) {
+					aSelf.Tabs.Revision = aSelf.Cycle->Latest->Id.Id;
+				}
+				// Full source first: the first readable file opens in one pane.
+				if (aSelf.Tabs.Tabs.empty()) {
+					const auto first = std::ranges::find_if(aSelf.View.Files, [](const review_cycle_file_entry& aFile) {
+						return aFile.State == core::cycle_path_state::present && aFile.Text != core::material_text_kind::binary && aFile.Text != core::material_text_kind::unsupported_encoding;
+					});
+					if (first != aSelf.View.Files.end()) {
+						static_cast<void>(core::open_path(aSelf.Tabs, first->Path, false));
+					}
+				}
+				aSelf.publish_tabs();
+				aSelf.load_notes();
+				aSelf.load_source();
+			}));
+		}
+
+		void publish_tabs()
+		{
+			View.Tabs      = Tabs.Tabs;
+			View.ActiveTab = Tabs.Active;
+		}
+
+		void save_tabs()
+		{
+			Runtime.save_tabs_selected(core::persisted(Tabs), guarded<void>([](implementation&) { }));
+		}
+
+		void load_source()
+		{
+			const auto* tab = core::active_tab(Tabs);
+			if (tab == nullptr) {
+				View.Source.reset();
+				View.Activity = review_cycle_activity::idle;
+				publish();
+				return;
+			}
+			const auto request = ++SourceLoad;
+			const auto view    = *tab;
+			const auto pair    = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = { .Cycle = Subject->Cycle, .Id = view.View.Revision } };
+			Runtime.compare_file_selected(pair, view.View.Path, { }, guarded<cycle_file_observation>([request, view](implementation& aSelf, cycle_file_observation aFile) {
+											  // A newer tab gesture's load wins; this one is dropped.
+											  if (request != aSelf.SourceLoad) {
+												  return;
+											  }
+											  aSelf.View.Source = review_cycle_source_view{
+												  .Tab      = view.Id,
+												  .Revision = view.View.Revision,
+												  .Path     = view.View.Path,
+												  .Status   = aFile.Status,
+												  .Bytes    = std::move(aFile.Source),
+												  .Text     = aFile.Path ? aFile.Path->Right.Text : core::material_text_kind::empty,
+												  .Line     = view.View.Line,
+											  };
+											  aSelf.View.Activity = review_cycle_activity::idle;
+											  aSelf.observe_notes();
+											  aSelf.publish();
+										  }));
+		}
+
+		void load_notes()
+		{
+			collect_threads(std::nullopt, { });
+		}
+
+		void collect_threads(const std::optional<core::cycle_feedback_item_id> aAfter, std::vector<core::cycle_feedback_thread> aFound)
+		{
+			Runtime.feedback_selected(aAfter, guarded<cycle_feedback_page>([found = std::move(aFound)](implementation& aSelf, cycle_feedback_page aPage) mutable {
+										  std::ranges::move(aPage.Threads, std::back_inserter(found));
+										  if (aPage.Next) {
+											  aSelf.collect_threads(aPage.Next, std::move(found));
+											  return;
+										  }
+										  aSelf.describe_threads(std::move(found), 0U, { });
+									  }));
+		}
+
+		void describe_threads(std::vector<core::cycle_feedback_thread> aThreads, const std::size_t aIndex, std::vector<review_cycle_note_entry> aNotes)
+		{
+			if (aIndex >= aThreads.size()) {
+				View.Notes = std::move(aNotes);
+				observe_notes();
+				publish();
+				return;
+			}
+			const auto item = aThreads[aIndex].Id;
+			describe_revisions(std::move(aThreads), aIndex, std::move(aNotes), item, std::nullopt, { });
+		}
+
+		void describe_revisions(std::vector<core::cycle_feedback_thread> aThreads, const std::size_t aIndex, std::vector<review_cycle_note_entry> aNotes,
+								const core::cycle_feedback_item_ref aItem, const std::optional<core::private_review_turn_revision_id> aAfter,
+								std::vector<core::cycle_feedback_revision> aRevisions)
+		{
+			Runtime.feedback_revisions_selected(aItem, aAfter, guarded<cycle_feedback_revision_page>([threads = std::move(aThreads), aIndex, notes = std::move(aNotes), aItem, revisions = std::move(aRevisions)](implementation& aSelf, cycle_feedback_revision_page aPage) mutable {
+													std::ranges::move(aPage.Revisions, std::back_inserter(revisions));
+													if (aPage.Next) {
+														aSelf.describe_revisions(std::move(threads), aIndex, std::move(notes), aItem, aPage.Next, std::move(revisions));
+														return;
+													}
+													aSelf.Runtime.suggestions_selected(aItem, aSelf.guarded<std::vector<core::cycle_suggestion>>([pending = std::move(threads), aIndex, listed = std::move(notes), history = std::move(revisions)](implementation& aHost, std::vector<core::cycle_suggestion> aSuggestions) mutable {
+														const auto& thread  = pending[aIndex];
+														auto        wording = std::find_if(history.rbegin(), history.rend(), [](const core::cycle_feedback_revision& aRevision) {
+															return aRevision.Identity.Position.Turn == core::private_review_turn_id{ 1 };
+														});
+														auto        turns   = std::vector<core::private_review_turn_id>{ };
+														for (const auto& revision : history) {
+															if (std::ranges::find(turns, revision.Identity.Position.Turn) == turns.end()) {
+																turns.push_back(revision.Identity.Position.Turn);
+															}
+														}
+														listed.push_back({
+															.Item        = thread.Id,
+															.Primary     = thread.Primary,
+															.Related     = thread.Related,
+															.Body        = wording != history.rend() ? wording->Body : std::string{ },
+															.Provenance  = wording != history.rend() ? wording->Author.Provenance : core::authored_provenance::unknown,
+															.Turns       = turns.size(),
+															.Suggestions = aSuggestions.size(),
+															.Lifecycle   = thread.Lineage.Lifecycle,
+															.Version     = thread.Lineage.Version,
+														});
+														aHost.describe_threads(std::move(pending), aIndex + 1U, std::move(listed));
+													}));
+												}));
+		}
+
+		/// Observes, for notes on the active tab's file from another revision,
+		/// where their original attachment stands in the tab's revision.
+		void observe_notes()
+		{
+			if (!View.Source) {
+				return;
+			}
+			const auto revision = View.Source->Revision;
+			const auto path     = View.Source->Path;
+			for (std::size_t index = 0; index < View.Notes.size(); ++index) {
+				auto&       note     = View.Notes[index];
+				const auto  original = core::source_revision_of(note.Primary);
+				const auto* file     = std::get_if<core::cycle_file_target>(&note.Primary);
+				const auto* anchor   = std::get_if<core::cycle_source_anchor>(&note.Primary);
+				const auto  target   = file != nullptr ? file->Path : anchor != nullptr ? anchor->Path
+																						: std::string{ };
+				if (!original || target != path || *original == revision || (note.Correspondence && note.Correspondence->Against == revision)) {
+					continue;
+				}
+				const auto item = note.Item;
+				Runtime.observe_feedback_selected(note.Primary, revision, guarded<cycle_correspondence_observation>([item, revision](implementation& aSelf, cycle_correspondence_observation aObserved) {
+													  const auto found = std::ranges::find(aSelf.View.Notes, item, &review_cycle_note_entry::Item);
+													  if (found != aSelf.View.Notes.end() && aSelf.View.Source && aSelf.View.Source->Revision == revision) {
+														  found->Correspondence = aObserved.Correspondence;
+														  aSelf.publish();
+													  }
+												  }));
+			}
+		}
+
+		void tab_changed(const core::cycle_tabs_output aOutput)
+		{
+			if (!aOutput.Changed) {
+				return;
+			}
+			publish_tabs();
+			save_tabs();
+			load_source();
+		}
+
+		void comment(core::begin_cycle_feedback aNote)
+		{
+			if (!Cycle) {
+				return;
+			}
+			View.Activity = review_cycle_activity::saving;
+			publish();
+			Runtime.begin_feedback_selected(operation(), Cycle->Revision, std::move(aNote), guarded<cycle_write_receipt>([](implementation& aSelf, cycle_write_receipt aReceipt) {
+												aSelf.Cycle->Revision = aReceipt.Revision;
+												++aSelf.Cycle->Next.FeedbackItem;
+												aSelf.View.Activity = review_cycle_activity::idle;
+												aSelf.View.Message.clear();
+												aSelf.load_notes();
+											}));
+		}
+
+		void suggest(review_cycle_suggestion_request aRequest)
+		{
+			if (!Cycle) {
+				return;
+			}
+			View.Activity = review_cycle_activity::saving;
+			publish();
+			auto note = core::begin_cycle_feedback{ .Primary = aRequest.Selection, .Body = aRequest.Rationale };
+			Runtime.begin_feedback_selected(operation(), Cycle->Revision, std::move(note), guarded<cycle_write_receipt>([request = std::move(aRequest)](implementation& aSelf, cycle_write_receipt aReceipt) mutable {
+												aSelf.Cycle->Revision = aReceipt.Revision;
+												++aSelf.Cycle->Next.FeedbackItem;
+												const auto item   = core::cycle_feedback_item_ref{ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } };
+												auto       change = core::suggest_change{ .Selection = std::move(request.Selection), .Replacement = std::move(request.Replacement), .Intent = request.Intent };
+												aSelf.Runtime.add_suggestion_selected(aSelf.operation(), item, 1, std::move(change), aSelf.guarded<cycle_write_receipt>([](implementation& aHost, cycle_write_receipt) {
+													aHost.View.Activity = review_cycle_activity::idle;
+													aHost.View.Message.clear();
+													aHost.load_notes();
+												}));
+											}));
+		}
+	};
+
+	review_cycle_workbench::review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
+												   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed)
+		: Implementation{ std::make_shared<implementation>(std::move(aStore), aSource, aEffects, aDecisions, aPort, aSeed) }
+	{
+	}
+
+	review_cycle_workbench::~review_cycle_workbench()
+	{
+		shutdown();
+	}
+
+	void review_cycle_workbench::refresh_recents()
+	{
+		Implementation->refresh_recents();
+	}
+
+	void review_cycle_workbench::open_project(std::string aLocation)
+	{
+		Implementation->open_project(std::move(aLocation));
+	}
+
+	void review_cycle_workbench::resume(const core::local_cycle_subject aSubject)
+	{
+		auto& self = *Implementation;
+		++self.Generation;
+		self.View = { };
+		self.select(aSubject);
+		self.load(true);
+	}
+
+	void review_cycle_workbench::close()
+	{
+		auto& self = *Implementation;
+		++self.Generation;
+		self.Subject.reset();
+		self.Cycle.reset();
+		self.Tabs = { };
+		self.View = { };
+		self.Runtime.select(core::review_subject{ core::pull_request_authority{ } });
+		self.publish();
+	}
+
+	void review_cycle_workbench::tab(const core::document_tab_intent& aIntent)
+	{
+		auto& self = *Implementation;
+		if (!self.Subject) {
+			return;
+		}
+		auto paths = std::vector<std::string>{ };
+		paths.reserve(self.View.Files.size());
+		for (const auto& file : self.View.Files) {
+			paths.push_back(file.Path);
+		}
+		self.tab_changed(core::transition(self.Tabs, *self.Subject, aIntent, paths));
+	}
+
+	void review_cycle_workbench::open_file(const std::string& aPath, const bool aNewTab)
+	{
+		auto& self = *Implementation;
+		if (self.Subject) {
+			self.tab_changed(core::open_path(self.Tabs, aPath, aNewTab));
+		}
+	}
+
+	void review_cycle_workbench::observe_line(const core::document_tab_id aTab, const std::uint64_t aLine)
+	{
+		auto& self = *Implementation;
+		if (core::observe_line(self.Tabs, aTab, aLine).Changed) {
+			self.publish_tabs();
+			self.save_tabs();
+		}
+	}
+
+	void review_cycle_workbench::comment(core::begin_cycle_feedback aNote)
+	{
+		Implementation->comment(std::move(aNote));
+	}
+
+	void review_cycle_workbench::suggest(review_cycle_suggestion_request aRequest)
+	{
+		Implementation->suggest(std::move(aRequest));
+	}
+
+	void review_cycle_workbench::relate(const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference)
+	{
+		auto&      self = *Implementation;
+		const auto item = aItem;
+		if (!self.Cycle) {
+			return;
+		}
+		self.View.Activity = review_cycle_activity::saving;
+		self.publish();
+		self.Runtime.change_feedback_selected(self.operation(), item, aVersion, core::add_feedback_reference{ std::move(aReference) },
+											  self.guarded<cycle_write_receipt>([](implementation& aSelf, cycle_write_receipt) {
+												  aSelf.View.Activity = review_cycle_activity::idle;
+												  aSelf.View.Message.clear();
+												  aSelf.load_notes();
+											  }));
+	}
+
+	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&
+	{
+		return Implementation->View;
+	}
+
+	auto review_cycle_workbench::selected() const noexcept -> std::optional<core::local_cycle_subject>
+	{
+		return Implementation->Subject;
+	}
+
+	void review_cycle_workbench::shutdown()
+	{
+		Implementation->Closing = true;
+		Implementation->Runtime.shutdown();
+	}
+
+	auto review_cycle_workbench::is_quiescent() const noexcept -> bool
+	{
+		return Implementation->Runtime.is_quiescent();
+	}
+}

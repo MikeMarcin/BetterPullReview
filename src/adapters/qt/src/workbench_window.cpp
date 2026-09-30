@@ -2,6 +2,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "github_presentation_text.hpp"
@@ -18,12 +19,12 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
-#include "bpr/qt/private_review_panel.hpp"
-#include <QTabWidget>
 #include "bpr/qt/usage_ring.hpp"
+#include <QTabWidget>
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -2127,6 +2128,47 @@ namespace bpr::qt {
 					[this](int) { update_recent_resume_action(); });
 			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
 				dispatch_recent_review(HomeRecentList->currentRow(), true);
+			});
+			// [[BPR-1157]]. Review Cycles beside the pull request ways in: Open
+			// Project and the cycles this profile keeps, most recent first. It
+			// needs no account, so it stays whether or not one is signed in.
+			HomeCycles = new QWidget{ HomePage };
+			HomeCycles->setObjectName(QStringLiteral("homeReviewCycles"));
+			HomeCycles->setAccessibleName(QStringLiteral("Review Cycles"));
+			HomeCycles->setContentsMargins(24, 4, 24, 4);
+			auto* const cyclesColumn = new QVBoxLayout{ HomeCycles };
+			cyclesColumn->setContentsMargins(0, 0, 0, 0);
+			auto* const cyclesHeader = new QHBoxLayout{ };
+			auto* const cyclesTitle  = new QLabel{ QStringLiteral("Review Cycles"), HomeCycles };
+			cyclesTitle->setObjectName(QStringLiteral("homeReviewCyclesTitle"));
+			auto cyclesFont = cyclesTitle->font();
+			cyclesFont.setWeight(QFont::DemiBold);
+			cyclesTitle->setFont(cyclesFont);
+			cyclesHeader->addWidget(cyclesTitle);
+			cyclesHeader->addStretch(1);
+			auto* const openProject = new QToolButton{ HomeCycles };
+			openProject->setObjectName(QStringLiteral("homeOpenProjectButton"));
+			openProject->setText(QStringLiteral("Open Project…"));
+			openProject->setToolTip(QStringLiteral("Review a local folder or file: no account, remote or agent needed"));
+			cyclesHeader->addWidget(openProject);
+			cyclesColumn->addLayout(cyclesHeader);
+			HomeCyclesList = new QListWidget{ HomeCycles };
+			HomeCyclesList->setObjectName(QStringLiteral("homeReviewCyclesList"));
+			HomeCyclesList->setAccessibleName(QStringLiteral("Recent review cycles"));
+			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 5 + 8);
+			HomeCyclesList->hide();
+			cyclesColumn->addWidget(HomeCyclesList);
+			homeColumn->addWidget(HomeCycles);
+			connect(openProject, &QToolButton::clicked, this, [this] {
+				if (OpenProjectAction != nullptr) {
+					OpenProjectAction->trigger();
+				}
+			});
+			connect(HomeCyclesList, &QListWidget::itemActivated, this, [this](QListWidgetItem* const aItem) {
+				const auto row = aItem == nullptr ? -1 : HomeCyclesList->row(aItem);
+				if (row >= 0 && static_cast<std::size_t>(row) < CycleRecents.size() && ResumeCycleDispatch) {
+					ResumeCycleDispatch(CycleRecents[static_cast<std::size_t>(row)].Cycle.Subject);
+				}
 			});
 			build_queue_landing(HomePage, *homeColumn);
 			if (auto* const landing = HomePage->findChild<QWidget*>(
@@ -6568,7 +6610,10 @@ namespace bpr::qt {
 		const auto unconfirmed = loading && !LoadingOverviewShown && !answered;
 		const auto nothing     = !HasGithubPullRequest && !HasCachedOverview && !comparing
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
-		const auto home = nothing || HomeRequested || SetupDestinationNeedsHome;
+		const auto home = (nothing && !LocalCycleShown) || HomeRequested || SetupDestinationNeedsHome;
+		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
+		// title row keeps only what Home keeps plus the cycle's name.
+		const auto cycle = !home && LocalCycleShown && LocalCyclePage != nullptr;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
@@ -6588,7 +6633,8 @@ namespace bpr::qt {
 					? focused
 					: nullptr;
 			}
-			CentralStack->setCurrentWidget(home ? HomePage : ReviewSurface);
+			CentralStack->setCurrentWidget(home ? HomePage : cycle ? static_cast<QWidget*>(LocalCyclePage)
+																   : ReviewSurface);
 			// [[BPR-0732]], [[BPR-0775]]. The bar has focus when Home appears,
 			// signed in or out. Only on arrival, so a projection cannot steal
 			// focus from wherever the reviewer has moved it since.
@@ -6602,8 +6648,9 @@ namespace bpr::qt {
 		// settings at its right, the inset and the spacers that place them.
 		// Drawers, navigation, the modalities, review details and refresh
 		// are a pull request's, and return with one.
-		if (PrimaryToolbar != nullptr && (StripHome != home || home)) {
-			StripHome = home;
+		const auto stripHome = home || cycle;
+		if (PrimaryToolbar != nullptr && (StripHome != stripHome || stripHome)) {
+			StripHome = stripHome;
 			for (auto* const action : PrimaryToolbar->actions()) {
 				const auto name = action->objectName();
 				const auto kept = action == AccountAction || action == SettingsAction
@@ -6616,9 +6663,10 @@ namespace bpr::qt {
 					|| name == QLatin1String{ "workbenchCaptionButtonsAction" }
 					// With a review open behind Home, the modalities are the
 					// way back to it.
-					|| (HasGithubPullRequest
-						&& name == QLatin1String{ "workbenchModalityAction" });
-				action->setVisible(!home || kept);
+					|| (HasGithubPullRequest && !cycle
+						&& name == QLatin1String{ "workbenchModalityAction" })
+					|| (cycle && action == IdentityAction);
+				action->setVisible(!stripHome || kept);
 			}
 			// [[BPR-0783]]. Group, State headers and Filter are Home's own, and
 			// only while an account can fill the list: absent from the review
@@ -6632,7 +6680,7 @@ namespace bpr::qt {
 				}
 			}
 			if (GithubRefreshAction != nullptr) {
-				GithubRefreshAction->setVisible(!home);
+				GithubRefreshAction->setVisible(!stripHome);
 			}
 			if (QueueRefreshAction != nullptr) {
 				QueueRefreshAction->setVisible(home && HomeAccount);
@@ -6782,6 +6830,82 @@ namespace bpr::qt {
 	auto workbench_window::home_page() const noexcept -> QWidget*
 	{
 		return HomePage;
+	}
+
+	auto workbench_window::open_project_action() const noexcept -> QAction*
+	{
+		return OpenProjectAction;
+	}
+
+	void workbench_window::adopt_local_cycle(review_cycle_view* const aView)
+	{
+		if (LocalCyclePage != nullptr || aView == nullptr || CentralStack == nullptr) {
+			return;
+		}
+		LocalCyclePage = aView;
+		CentralStack->addWidget(static_cast<QWidget*>(aView));
+	}
+
+	auto workbench_window::local_cycle() const noexcept -> review_cycle_view*
+	{
+		return LocalCyclePage;
+	}
+
+	void workbench_window::show_local_cycle(const QString& aTitle)
+	{
+		LocalCycleTitle = aTitle;
+		LocalCycleShown = true;
+		HomeRequested   = false;
+		update_home_landing();
+		update_strip_identity();
+		apply_strip_width();
+	}
+
+	void workbench_window::leave_local_cycle()
+	{
+		if (!LocalCycleShown) {
+			return;
+		}
+		LocalCycleShown = false;
+		LocalCycleTitle.clear();
+		update_home_landing();
+		update_strip_identity();
+		apply_strip_width();
+	}
+
+	auto workbench_window::showing_local_cycle() const noexcept -> bool
+	{
+		return LocalCycleShown && CentralStack != nullptr && LocalCyclePage != nullptr && CentralStack->currentWidget() == static_cast<QWidget*>(LocalCyclePage);
+	}
+
+	void workbench_window::present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents)
+	{
+		CycleRecents = aRecents;
+		if (HomeCyclesList == nullptr) {
+			return;
+		}
+		HomeCyclesList->clear();
+		for (const auto& recent : CycleRecents) {
+			const auto  title    = QString::fromUtf8(recent.Cycle.Title.data(), static_cast<qsizetype>(recent.Cycle.Title.size()));
+			const auto  location = QString::fromUtf8(recent.Location.data(), static_cast<qsizetype>(recent.Location.size()));
+			auto* const item     = new QListWidgetItem{ location.isEmpty() ? title : QStringLiteral("%1  —  %2").arg(title, location), HomeCyclesList };
+			item->setToolTip(location);
+		}
+		HomeCyclesList->setVisible(!CycleRecents.empty());
+	}
+
+	void workbench_window::set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume)
+	{
+		OpenProjectDispatch = std::move(aOpenProject);
+		ResumeCycleDispatch = std::move(aResume);
+		if (OpenProjectAction != nullptr) {
+			OpenProjectAction->setEnabled(static_cast<bool>(OpenProjectDispatch));
+		}
+	}
+
+	auto workbench_window::home_cycles_list() const noexcept -> QListWidget*
+	{
+		return HomeCyclesList;
 	}
 
 	auto workbench_window::showing_home() const -> bool
@@ -7020,6 +7144,15 @@ namespace bpr::qt {
 		const auto margins = IdentityLabel->contentsMargins();
 		const auto room    = std::max(strip_identity_budget() - margins.left() - margins.right(), 0);
 		auto       text    = QString{ };
+		if (LocalCycleShown && !showing_home()) {
+			// [[BPR-1157]]. A local cycle is named by its title and badged as
+			// local: no repository, number or account.
+			const auto badge = QStringLiteral("  ·  Local cycle");
+			text             = metrics.elidedText(LocalCycleTitle, Qt::ElideRight, std::max(room - metrics.horizontalAdvance(badge), identity_fragment_width)) + badge;
+			IdentityLabel->setText(text);
+			IdentityLabel->setToolTip(LocalCycleTitle + badge);
+			return;
+		}
 		if (!IdentityText.isEmpty()) {
 			// [[BPR-1129]]. The name has the room the navigation took, so the
 			// forms follow the room rather than fixed widths: the whole name
@@ -7469,6 +7602,15 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
+		}
+		// [[BPR-1157]]. Another pull request arriving takes the review surface
+		// back from a local cycle; the same one refreshed behind it does not.
+		const auto arriving = IdentityOwner != QString::fromStdString(aPullRequest.Owner)
+			|| IdentityRepository != QString::fromStdString(aPullRequest.RepositoryName)
+			|| IdentityNumber != QString::number(aPullRequest.Number.value());
+		if (arriving && LocalCycleShown) {
+			LocalCycleShown = false;
+			LocalCycleTitle.clear();
 		}
 		IdentityOwner      = QString::fromStdString(aPullRequest.Owner);
 		IdentityRepository = QString::fromStdString(aPullRequest.RepositoryName);
@@ -9330,7 +9472,7 @@ namespace bpr::qt {
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
-		IdentityAction->setVisible(!StripHome && !IdentityText.isEmpty());
+		IdentityAction->setVisible((!StripHome && !IdentityText.isEmpty()) || (LocalCycleShown && !showing_home()));
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
 		};
@@ -9527,6 +9669,17 @@ namespace bpr::qt {
 		ProfileStatusAction->setObjectName(QStringLiteral("profileManagementStatusAction"));
 		ProfileStatusAction->setEnabled(false);
 		ProfileStatusAction->setVisible(false);
+		// [[BPR-1157]]. The local Review Cycles entry, before Quit.
+		OpenProjectAction = fileMenu->addAction(QStringLiteral("Open Project…"));
+		OpenProjectAction->setObjectName(QStringLiteral("openProjectAction"));
+		OpenProjectAction->setToolTip(QStringLiteral("Review a local folder or file as a Review Cycle"));
+		OpenProjectAction->setEnabled(false);
+		connect(OpenProjectAction, &QAction::triggered, this, [this] {
+			if (OpenProjectDispatch) {
+				OpenProjectDispatch();
+			}
+		});
+		fileMenu->addSeparator();
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("quitProfilesAction"));
 		QuitProfilesAction->setMenuRole(QAction::QuitRole);

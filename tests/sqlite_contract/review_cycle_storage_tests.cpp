@@ -361,6 +361,7 @@ namespace {
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
+			"DROP TABLE views;"
 			"DROP TABLE bindings;"
 			"DROP TABLE revision_objects;"
 			"ALTER TABLE revisions RENAME TO revisions_v2;"
@@ -386,7 +387,7 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; PRAGMA user_version=2;");
+		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
 		expect(loaded.Latest && loaded.Revision == 2, "v2 cycle reads unchanged");
@@ -399,6 +400,32 @@ namespace {
 		sql(database_path(scratch.path()), "DROP TABLE feedback_revisions;");
 		auto damaged = adapters::sqlite::make_review_cycle_store(scratch.path(), profile);
 		expect(damaged->catalog({ }).error().Failure == cycle_store_failure::schema_mismatch, "missing feedback table refused");
+	}
+
+	void migrates_the_third_schema()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v3" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "v3 manifest", 1).has_value(), "capture before downgrade");
+			const auto note = store.Store->begin_feedback(operation(3), subject, store.state(subject).Revision, { .Primary = core::cycle_whole_target{ }, .Body = "kept" }, { });
+			expect(note.has_value(), "feedback before downgrade");
+		}
+		// The third published shape had everything but the tab views.
+		sql(database_path(scratch.path()), "DROP TABLE views; PRAGMA user_version=3;");
+		auto       store = open(scratch.path());
+		const auto page  = store.Store->feedback(subject, std::nullopt, { });
+		expect(page && page->Threads.size() == 1, "v3 feedback reads unchanged");
+		const auto record = core::cycle_tabs_record{ .Revision = core::cycle_source_revision_id{ 1 }, .Views = { { .Revision = core::cycle_source_revision_id{ 1 }, .Path = "src/a.cpp", .Line = 12 } }, .Active = 0U };
+		expect(store.Store->save_tabs(subject, record, { }).has_value(), "tabs saved after migration");
+		const auto loaded = store.Store->load_tabs(subject, { });
+		expect(loaded && *loaded && **loaded == record, "tabs read back exactly");
+		auto future              = record;
+		future.Views[0].Revision = core::cycle_source_revision_id{ 7 };
+		const auto refused       = store.Store->save_tabs(subject, future, { });
+		expect(!refused && refused.error().Refusal == core::cycle_refusal::invalid_target, "a revision the cycle never had is refused");
 	}
 
 #if !defined(_WIN32)
@@ -504,6 +531,7 @@ int main()
 	persists_workspace_bindings();
 	migrates_the_first_schema();
 	migrates_the_second_schema();
+	migrates_the_third_schema();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_SUGGESTION_TEXT_EDITING_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_SUGGESTION_TEXT_EDITING_HPP
 
+#include "bpr/core/diff_compute.hpp"
+
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -25,13 +27,6 @@
 /// cross a line break. The Qt view owns painting, focus, IME composition and
 /// the clipboard, and passes semantic edits here.
 namespace bpr::core {
-	enum class text_line_ending : std::uint8_t {
-		none,
-		lf,
-		crlf,
-		cr,
-	};
-
 	struct text_line
 	{
 		std::string      Content;

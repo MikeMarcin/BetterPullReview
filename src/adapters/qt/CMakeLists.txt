@@ -5,6 +5,7 @@ add_library(
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp
+        src/review_cycle_view.cpp
         src/writing_hooks_panel.cpp
         src/release_maintenance_panel.cpp
         src/release_update_panel.cpp

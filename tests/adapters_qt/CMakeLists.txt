@@ -1591,3 +1591,21 @@ foreach(suggestion_scale IN ITEMS 1.0 2.0)
         TIMEOUT 60
     )
 endforeach()
+
+# [[BPR-1157]]. The local cycle page presented from a projection.
+bpr_add_executable(test_better_pull_review_review_cycle_view_tests review_cycle_view_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_review_cycle_view_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_view_tests)
+foreach(cycle_scale IN ITEMS 1.0 2.0)
+    string(REPLACE "." "_" cycle_suffix "${cycle_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_review_cycle_view_${cycle_suffix}"
+        COMMAND test_better_pull_review_review_cycle_view_tests
+    )
+    set_tests_properties("qt_review_cycle_view_${cycle_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${cycle_scale};BPR_CYCLE_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-${cycle_suffix}"
+        PASS_REGULAR_EXPRESSION "review-cycle-view-tests:pass"
+        TIMEOUT 60
+    )
+endforeach()
