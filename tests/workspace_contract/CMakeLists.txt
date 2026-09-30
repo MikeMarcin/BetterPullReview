@@ -208,3 +208,29 @@ if(TARGET Git::Git)
     bpr_enable_warnings(test_review_cycle_publisher)
     bpr_add_network_isolated_test(NAME review_cycle_publisher WINDOWS_UNCONTAINED COMMAND test_review_cycle_publisher ${bpr_workspace_git_arguments})
 endif()
+
+# [[BPR-1176]]. RC59-10's live publication course against the one owner-
+# designated disposable repository. Not a test row and not built by default:
+# it reaches GitHub.com, so only an explicit configure builds it, and only a
+# person runs it (tests/scripts/run_live_publication_course.sh).
+option(BPR_BUILD_LIVE_PUBLICATION_COURSE "Build the RC59-10 live publication course (reaches github.com/MikeMarcin/BPR-Test)" OFF)
+if(BPR_BUILD_LIVE_PUBLICATION_COURSE AND BPR_BUILD_QT)
+    bpr_add_executable(tool_review_cycle_live_publication review_cycle_live_publication.cpp)
+    target_link_libraries(
+        tool_review_cycle_live_publication
+        PRIVATE
+            BetterPullReview::AdapterWorkspace
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterGit
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            Qt6::Core
+            Qt6::Network
+    )
+    target_include_directories(tool_review_cycle_live_publication PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(tool_review_cycle_live_publication)
+    if(WIN32)
+        target_link_libraries(tool_review_cycle_live_publication PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(tool_review_cycle_live_publication)
+endif()

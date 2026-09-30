@@ -265,6 +265,31 @@ then stays visible for the owner to grant permission, inspect the exact
 metadata-only banner, and click it. No automation may grant Notification Center
 permission or substitute for the click.
 
+## Live publication course (RC59-10)
+
+RFC-BPR-0059's native publication is qualified live on one repository only,
+github.com/MikeMarcin/BPR-Test, which the owner designated as a disposable
+target on 2026-09-30 ([[BPR-1176]]). The course is not a test row and no
+default graph builds it:
+
+```sh
+cmake -S . -B build/dev -DBPR_BUILD_LIVE_PUBLICATION_COURSE=ON
+cmake --build build/dev --target tool_review_cycle_live_publication
+python3 tests/scripts/run_live_publication_course.py \
+    --tool build/dev/tests/workspace_contract/review_cycle_live_publication --git /usr/bin/git
+cmake -S . -B build/dev -DBPR_BUILD_LIVE_PUBLICATION_COURSE=OFF
+```
+
+It needs a `gh` sign-in that can push to BPR-Test. The driver clones the
+repository, pushes a base branch and a "foreign" branch under
+`bpr-rc59-10/<UTC stamp>/`, and hands the credential to the tool on standard
+input. The tool composes the shipped store, installed-Git catalog, publisher,
+`github_publication_session` and production native HTTPS transport; the
+owner and repository are constants in it. The driver then checks the result
+through `git fetch` and `gh api`. Branches and pull requests are left on
+BPR-Test as evidence; nothing is deleted, closed or force-updated. GHES has no
+designated target and no course.
+
 ## Automated-test network boundary
 
 Every registered test uses `bpr_add_network_isolated_test`; raw `add_test` is
