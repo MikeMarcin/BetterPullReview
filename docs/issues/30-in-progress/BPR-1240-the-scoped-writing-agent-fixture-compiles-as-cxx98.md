@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1240"
 title: "The scoped writing agent fixture compiles as C++98 because its target declares no standard"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded by the BPR-1211 implementer on 2026-09-29; filed by the main stabilization milestone","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1211"]}
