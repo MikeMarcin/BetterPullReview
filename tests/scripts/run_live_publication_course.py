@@ -32,6 +32,7 @@ import os
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -68,6 +69,21 @@ def git(checkout: pathlib.Path, *arguments: str) -> str:
         ],
         cwd=checkout,
     )
+
+
+def remove_clone(path: pathlib.Path) -> None:
+    """Removes the local clone. Git for Windows writes its object files
+    read-only, which `shutil.rmtree` refuses to delete there, so each refused
+    entry is made writable and removed again."""
+
+    def writable(function, target, _error) -> None:
+        os.chmod(target, stat.S_IWRITE)
+        function(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=writable)
+    else:
+        shutil.rmtree(path, onerror=writable)
 
 
 def gh_api(path: str) -> dict:
@@ -170,7 +186,7 @@ def main() -> int:
     for ref in refs:
         print(f"  {ref['ref']} {ref['object']['sha']}")
     if all(checks.values()):
-        shutil.rmtree(work)
+        remove_clone(work)
         return 0
     print(f"DRIVER local clone kept for inspection: {checkout}")
     return 1
