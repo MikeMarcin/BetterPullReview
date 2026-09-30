@@ -123,3 +123,39 @@ station. They are recorded above:
 - `git_process_contract` and `github_publication_contract` pass.
 - The `;` alternates separator is right.
 - The publication rows' uncontained pins are measured.
+
+## RC59-10 live course — Linux, bpr-main-linux, 2026-09-30
+
+The owner confirmed this station's run on 2026-09-30, in this station's own
+session, against the designated `MikeMarcin/BPR-Test` only. Environment:
+Ubuntu 26.04 on WSL2, GCC 15.2, `build/dev` (Debug) configured with
+`-DBPR_BUILD_LIVE_PUBLICATION_COURSE=ON` for the run and back to `OFF`
+afterwards. The native transport uses OpenSSL 3.5.5, the publication catalog
+uses Git 2.53.0 (`/usr/bin/git`), and `gh` 2.97.0 is signed in as `MikeMarcin`.
+Source at `4b6592d83`. The tool built with no warning.
+
+The ledger's driver command passes (run stamp `20260930T142456Z`), and every
+case matches the macOS run:
+
+| Case | Result |
+|---|---|
+| One plan end to end, ready PR [#17](https://github.com/MikeMarcin/BPR-Test/pull/17), commit `652af6e44`, tree `db481bcd6`, one parent `281d00807` | Pass |
+| Draft PR [#18](https://github.com/MikeMarcin/BPR-Test/pull/18) | Pass |
+| Lost branch answer: `uncertain`, recovered by reading, then PR [#19](https://github.com/MikeMarcin/BPR-Test/pull/19) | Pass |
+| Lost PR answer, then restart: recovered as exactly [#20](https://github.com/MikeMarcin/BPR-Test/pull/20) | Pass |
+| Foreign branch: `branch_exists`, zero writes | Pass |
+| Branch raced between read and write: recorded foreign, `target_drift` | Pass |
+| PR raced: another actor's [#21](https://github.com/MikeMarcin/BPR-Test/pull/21), one PR for the head | Pass |
+
+The driver's second-client checks pass. `git fetch` gives the tool's commit
+and tree, with one parent (the pushed base). The raw commit keeps `+0530` and
+`-0700`. `src/old.cpp` is deleted and `src/validate.cpp` is added. `gh api`
+reads #17 as not draft, with the commit as head and the base at the parent,
+authored by the signed-in login, and #18 as draft. So RC59-10 also holds
+through the OpenSSL transport.
+
+Nothing was deleted, closed or force-updated. Left on BPR-Test as evidence,
+under `bpr-rc59-10/20260930T142456Z/`: branches `base`, `foreign`, `ready`,
+`draft`, `lost-branch`, `lost-pull`, `raced-branch` and `raced-pull`, and PRs
+#17 to #21. The Windows run is still owed. The log (no credential in it) is a
+station record in `build/logs/bpr-station-1176/` and is not committed.

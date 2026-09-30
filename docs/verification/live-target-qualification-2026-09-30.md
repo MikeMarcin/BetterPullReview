@@ -72,3 +72,16 @@ running and was left alone.
   attended session for BPR-0143 and BPR-1222; a designated GHES target before
   GHES is admitted for native publication; the verdict on
   `BPR-1176-rc59-10-scope`.
+
+## Linux station, 2026-09-30
+
+bpr-main-linux, Ubuntu 26.04 on WSL2, GCC 15.2, at `4b6592d83`:
+
+- BPR-1253: the tests-off Release graph compiles with no failure and no
+  warning. `application_review_round_trip_composition_contract` passes.
+  `application_composition_contract` passes when run directly (8 tests,
+  672 s), but under ctest it exceeds its 600 s limit on this machine.
+- RC59-10: the driver passes live on `MikeMarcin/BPR-Test` through the
+  OpenSSL transport and Git 2.53.0 (run `20260930T142456Z`, PRs #17 to #21).
+  The owner confirmed this run in the station's session. The Windows run is
+  still owed.

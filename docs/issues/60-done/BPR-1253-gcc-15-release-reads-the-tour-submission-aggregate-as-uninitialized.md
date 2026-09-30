@@ -64,3 +64,23 @@ Linux station (GCC 15.2, `-O3 -D_FORTIFY_SOURCE=3`): rebuild the tests-off
 Release tree (`build/station-release`) with `-k 0` and confirm
 `tour_publication_plan.cpp` compiles with no `-Wmaybe-uninitialized`, then
 `ctest --test-dir build/dev -R "^application_composition_contract$|^application_review_round_trip_composition_contract$" --output-on-failure`.
+
+## Linux — bpr-main-linux, 2026-09-30
+
+Ubuntu 26.04 on WSL2, GCC 15.2, at `4b6592d83`, which contains `4169e0973`.
+
+- **The tests-off Release graph compiles.** `build/station-release`
+  (`-DBPR_BUILD_QT=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release`, as the
+  contract configures it) rebuilt with `-k 0` has no failed step and no
+  warning. It links `src/app/better_pull_review`. The last GCC 15 `-O3`
+  failure is gone.
+- `application_review_round_trip_composition_contract` passes, 2.2 s.
+- `application_composition_contract` hits ctest's 600 s limit on this
+  station: the row configures and builds a fresh Release graph in a temporary
+  directory. The same registered command, run directly through the network
+  sandbox, passes: `Ran 8 tests in 672.643s`, `OK`, including
+  `test_tests_off_release_graph_omits_public_path_fixture`. The row's limit
+  is too short for this machine's full Release build. Nothing else fails.
+
+The logs are station records in `build/logs/bpr-station-1253/` and are not
+committed.
