@@ -43,3 +43,15 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 `core_review_cycle_publication`, `review_cycle_publication` and `sqlite_review_cycle_storage` pass.
 
 The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-publication/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-30
+
+At `e9e65eab`, with one MSVC rename in the Git adapter, `build/windows-dev`
+builds with no warning. The publication rows pass, except
+`review_cycle_candidate`, which fails at its symbolic-link case: on Windows a
+new link is left out of the candidate and the preview without a word
+([[BPR-1244]]). With that case bypassed in a probe, the rest of the course
+passes, and the Git for Windows canary is live but never run by the product.
+The four new uncontained pins are measured and confirmed. The details are in
+the [execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station (publication)".
