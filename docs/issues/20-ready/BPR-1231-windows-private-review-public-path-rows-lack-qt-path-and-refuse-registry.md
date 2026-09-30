@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1231"
 title: "Windows: application_private_review_native, _file and _retry cannot start the application (no Qt PATH), then refuse startup at the registry"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -76,3 +76,9 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `application_private_review_native`, `_file` and `_retry` pass: 4.27, 4.50 and 4.01 s. They pass again after `4519a44f8`, which changes `private_review_store.cpp`. That is the Linux half of "macOS and Linux still pass".
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## macOS — red-test backlog milestone, 2026-09-30
+
+macOS 26 (Darwin 25.6) arm64, Apple clang, Qt 6.11.2 offscreen, `build/dev` (Debug, `-Werror`) at `69493e235`, which contains the Windows fix.
+
+`application_private_review_native`, `_file` and `_retry` pass through `ctest`: 28.30, 25.76 and 25.09 s (run three at a time). With the Linux run above, that is "macOS and Linux still pass". The three rows remain on [[BPR-1237]]'s unpinned list, which that card owns.

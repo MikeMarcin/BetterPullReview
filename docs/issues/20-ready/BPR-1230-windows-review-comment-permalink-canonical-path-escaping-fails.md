@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1230"
 title: "Windows: github_review_comment_permalink fails at canonical RFC0022 path escaping, contained and uncontained"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -80,3 +80,9 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `github_review_comment_permalink` passes, 3.92 s. That is the Linux half of "macOS and Linux still pass".
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## macOS — red-test backlog milestone, 2026-09-30
+
+macOS 26 (Darwin 25.6) arm64, Apple clang, Qt 6.11.2 offscreen, `build/dev` (Debug, `-Werror`) at `69493e235`, which contains the Windows fix.
+
+`github_review_comment_permalink` passes through `ctest`, 3.63 s. With the Linux run above, that is "macOS and Linux still pass"; all three platforms now pass.
