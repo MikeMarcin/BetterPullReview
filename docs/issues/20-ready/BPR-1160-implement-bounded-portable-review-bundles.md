@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1160"
 title: "Implement bounded portable review bundles"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0056"]
 depends_on: ["BPR-1158"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-05"], "pack_alias": "PACK-CYCLE-18", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}

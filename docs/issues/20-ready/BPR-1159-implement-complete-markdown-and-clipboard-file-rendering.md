@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1159"
 title: "Implement complete Markdown and clipboard/file rendering"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0056"]
 depends_on: ["BPR-1158"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-03", "RC56-04", "RC56-08"], "pack_alias": "PACK-CYCLE-17", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
