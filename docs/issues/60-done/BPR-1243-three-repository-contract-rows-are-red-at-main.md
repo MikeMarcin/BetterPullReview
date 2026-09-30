@@ -80,3 +80,13 @@ Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscree
 
 `coding_format_check` failed: clang-format 22.1.8 and 23 align the short cases in `dispatch_tour_action` differently. `fd05277e` writes four of them one statement per line, which both versions accept. It carries a reviewed reseal on top of BPR-1246's. Then the check passes, 32.32 s. `dependency_modernization_contract` passes, 127.13 s, and `contained_temporary_usage_contract` passes, 4.66 s.
 The details are in [main stabilization](../../verification/main-stabilization-2026-09-30.md).
+
+## macOS — live target qualification milestone, 2026-09-30
+
+macOS arm64, Homebrew clang-format 23.1.1, `build/dev` at `634e8ac6c`, which
+contains the Windows station's `fd05277e`. clang-format 23 accepts the rewritten
+`dispatch_tour_action` block: `cmake --build --preset dev --target coding-format-check`
+checks 1159 files and passes, and
+`clang-format --dry-run --Werror src/app/src/github_application.cpp` reports
+nothing. So `fd05277e` is clean under both clang-format 22 (Windows, Linux) and
+23 (macOS), and no further formatting change or reseal is needed.
