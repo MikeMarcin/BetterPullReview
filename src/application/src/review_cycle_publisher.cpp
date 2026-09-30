@@ -4,7 +4,10 @@
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
+#include <iterator>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 

@@ -743,14 +743,13 @@ namespace bpr::core {
 					if (aChange.Sequence == 0U || aChange.Sequence > aJournal.Effects.size()) {
 						return refuse(publication_refusal::unknown_effect);
 					}
-					auto&      effect  = next.Effects[aChange.Sequence - 1U];
-					const auto outcome = [&aChange] {
-						if constexpr (observing) {
-							return aChange.Observed;
-						} else {
-							return aChange.Outcome;
-						}
-					}();
+					auto& effect  = next.Effects[aChange.Sequence - 1U];
+					auto  outcome = publication_effect_state::uncertain;
+					if constexpr (observing) {
+						outcome = aChange.Observed;
+					} else {
+						outcome = aChange.Outcome;
+					}
 					const auto expected = observing ? publication_effect_state::uncertain : publication_effect_state::intended;
 					const auto allowed  = observing ? (outcome == publication_effect_state::confirmed || outcome == publication_effect_state::absent || outcome == publication_effect_state::foreign
 													   || outcome == publication_effect_state::uncertain)

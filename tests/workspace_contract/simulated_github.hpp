@@ -15,9 +15,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <expected>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <optional>
+#include <span>
+#include <stop_token>
 #include <string>
 #include <utility>
 #include <vector>
