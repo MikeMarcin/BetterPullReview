@@ -6935,6 +6935,155 @@ namespace bpr::adapters::git {
 				};
 			}
 
+			[[nodiscard]] auto write_blob(
+				const application::publication_repository& aRepository,
+				const core::git_entry_oid&                 aExpected,
+				const std::span<const std::uint8_t>        aBytes,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<void> override
+			{
+				if (!aExpected.valid() || aExpected.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				auto stored = run(*context, { "hash-object", "-t", "blob", "-w", "--no-filters", "--stdin" }, standard_output_limit, aStop,
+								  std::string{ reinterpret_cast<const char*>(aBytes.data()), aBytes.size() });
+				if (!stored) {
+					return std::unexpected{ stored.error() };
+				}
+				return matches(*stored, core::canonical_hex(aExpected).view());
+			}
+
+			[[nodiscard]] auto write_tree(
+				const application::publication_repository&   aRepository,
+				const application::publication_tree_request& aRequest,
+				const std::stop_token                        aStop)
+				-> application::publication_git_result<void> override
+			{
+				const auto algorithm = aRepository.Algorithm;
+				if (!aRequest.Base.valid() || aRequest.Base.algorithm() != algorithm || !aRequest.Expected.valid() || aRequest.Expected.algorithm() != algorithm
+					|| aRequest.Changes.size() + aRequest.Deletions.size() > core::maximum_git_tree_entries) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				auto records = std::string{ };
+				for (const auto& change : aRequest.Changes) {
+					if (!change.Object.valid() || change.Object.algorithm() != algorithm || !core::valid_git_entry_mode(change.Mode) || change.Path.empty()
+						|| change.Path.find('\0') != std::string::npos) {
+						return failure(application::publication_git_failure::invalid_repository);
+					}
+					records.append(octal(change.Mode)).append(" ").append(core::canonical_hex(change.Object).view()).append("\t").append(change.Path);
+					records.push_back('\0');
+				}
+				const auto zero = std::string(algorithm == core::git_hash_algorithm::sha1 ? 40U : 64U, '0');
+				for (const auto& deletion : aRequest.Deletions) {
+					if (deletion.empty() || deletion.find('\0') != std::string::npos) {
+						return failure(application::publication_git_failure::invalid_repository);
+					}
+					records.append("0 ").append(zero).append("\t").append(deletion);
+					records.push_back('\0');
+				}
+				auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				// One private index at a time, shared by no checkout.
+				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
+				if (!boundary.valid()) {
+					return failure(aStop.stop_requested() ? application::publication_git_failure::cancelled : application::publication_git_failure::unavailable);
+				}
+				const auto index = IsolationRoot / "tmp" / "publication-index";
+				auto       error = std::error_code{ };
+				std::filesystem::remove(index, error);
+				if (error) {
+					return failure(application::publication_git_failure::unavailable);
+				}
+				context->Index     = path_text(index);
+				const auto cleanup = [&index] {
+					auto ignored = std::error_code{ };
+					std::filesystem::remove(index, ignored);
+				};
+				const auto base = run(*context, { "read-tree", core::canonical_hex(aRequest.Base).view() }, standard_output_limit, aStop);
+				if (!base) {
+					cleanup();
+					return std::unexpected{ missing_or(base.error()) };
+				}
+				if (!records.empty()) {
+					const auto updated = run(*context, { "update-index", "-z", "--index-info" }, standard_output_limit, aStop, std::move(records));
+					if (!updated) {
+						cleanup();
+						return std::unexpected{ updated.error() };
+					}
+				}
+				const auto written = run(*context, { "write-tree" }, standard_output_limit, aStop);
+				cleanup();
+				if (!written) {
+					return std::unexpected{ missing_or(written.error()) };
+				}
+				return matches(*written, core::canonical_hex(aRequest.Expected).view());
+			}
+
+			[[nodiscard]] auto write_commit(
+				const application::publication_repository& aRepository,
+				const core::git_commit_content&            aCommit,
+				const core::git_commit_oid&                aExpected,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<void> override
+			{
+				if (!aExpected.valid() || aExpected.algorithm() != aRepository.Algorithm || aCommit.Tree.algorithm() != aRepository.Algorithm
+					|| !core::encode_git_commit(aCommit).has_value()) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				context->Signatures = {
+					{ "GIT_AUTHOR_NAME", aCommit.Author.Name },
+					{ "GIT_AUTHOR_EMAIL", aCommit.Author.Email },
+					{ "GIT_AUTHOR_DATE", git_date(aCommit.Author) },
+					{ "GIT_COMMITTER_NAME", aCommit.Committer.Name },
+					{ "GIT_COMMITTER_EMAIL", aCommit.Committer.Email },
+					{ "GIT_COMMITTER_DATE", git_date(aCommit.Committer) },
+				};
+				auto arguments = std::vector<std::string>{ "commit-tree", "--no-gpg-sign", std::string{ core::canonical_hex(aCommit.Tree).view() } };
+				for (const auto& parent : aCommit.Parents) {
+					arguments.emplace_back("-p");
+					arguments.emplace_back(core::canonical_hex(parent).view());
+				}
+				const auto written = run_arguments(*context, std::move(arguments), standard_output_limit, aStop, aCommit.Message);
+				if (!written) {
+					return std::unexpected{ missing_or(written.error()) };
+				}
+				return matches(*written, core::canonical_hex(aExpected).view());
+			}
+
+			[[nodiscard]] auto diff_trees(
+				const application::publication_repository& aRepository,
+				const core::git_tree_oid&                  aFrom,
+				const core::git_tree_oid&                  aTo,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<std::vector<std::uint8_t>> override
+			{
+				if (!aFrom.valid() || !aTo.valid() || aFrom.algorithm() != aRepository.Algorithm || aTo.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				auto patch = run(*context,
+								 { "diff-tree", "-r", "-p", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames", "--no-color", core::canonical_hex(aFrom).view(),
+								   core::canonical_hex(aTo).view() },
+								 application::maximum_publication_patch_bytes, aStop);
+				if (!patch) {
+					return std::unexpected{ missing_or(patch.error()) };
+				}
+				return std::vector<std::uint8_t>(patch->begin(), patch->end());
+			}
+
 		private:
 			static constexpr std::size_t maximum_commit_object_bytes = 1024U * 1024U;
 			static constexpr std::size_t maximum_listing_bytes       = 64U * 1024U * 1024U;
@@ -6943,7 +7092,46 @@ namespace bpr::adapters::git {
 			{
 				std::filesystem::path Store;
 				std::string           SourceObjects;
+				/// A private index for this command, when one is in use.
+				std::string Index;
+				/// Author and committer fields for `commit-tree`.
+				std::vector<std::pair<std::string, std::string>> Signatures;
 			};
+
+			[[nodiscard]] static auto octal(const std::uint32_t aMode) -> std::string
+			{
+				auto text  = std::string{ };
+				auto value = aMode;
+				do {
+					text.insert(text.begin(), static_cast<char>('0' + (value & 7U)));
+					value >>= 3U;
+				} while (value != 0U);
+				return text;
+			}
+
+			/// Git's raw date: seconds and a signed hhmm offset.
+			[[nodiscard]] static auto git_date(const core::git_signature& aSignature) -> std::string
+			{
+				const auto minutes = aSignature.OffsetMinutes < 0 ? -aSignature.OffsetMinutes : aSignature.OffsetMinutes;
+				auto       text    = std::to_string(aSignature.Seconds) + (aSignature.OffsetMinutes < 0 ? " -" : " +");
+				text.push_back(static_cast<char>('0' + minutes / 600));
+				text.push_back(static_cast<char>('0' + (minutes / 60) % 10));
+				text.push_back(static_cast<char>('0' + (minutes % 60) / 10));
+				text.push_back(static_cast<char>('0' + minutes % 10));
+				return text;
+			}
+
+			/// Git's one-line answer must be exactly the expected identity.
+			[[nodiscard]] static auto matches(const std::string_view aOutput, const std::string_view aExpected) -> application::publication_git_result<void>
+			{
+				if (aOutput.size() != aExpected.size() + 1U || aOutput.back() != '\n') {
+					return failure(application::publication_git_failure::malformed);
+				}
+				if (aOutput.substr(0U, aExpected.size()) != aExpected) {
+					return failure(application::publication_git_failure::identity_mismatch);
+				}
+				return { };
+			}
 
 			[[nodiscard]] static auto failure(
 				const application::publication_git_failure aFailure,
@@ -6979,8 +7167,6 @@ namespace bpr::adapters::git {
 				return aError;
 			}
 
-			/// Runs one plumbing command in the private store with the
-			/// checkout's objects as a read-only alternate.
 			[[nodiscard]] auto run(
 				const command_context&                        aContext,
 				const std::initializer_list<std::string_view> aArguments,
@@ -6989,20 +7175,40 @@ namespace bpr::adapters::git {
 				std::string                                   aInput = { })
 				-> application::publication_git_result<std::string>
 			{
-				auto arguments = common_git_arguments(aContext.Store, HooksRoot);
+				auto arguments = std::vector<std::string>{ };
 				for (const auto argument : aArguments) {
 					arguments.emplace_back(argument);
 				}
+				return run_arguments(aContext, std::move(arguments), aOutputLimit, aStop, std::move(aInput));
+			}
+
+			/// Runs one plumbing command in the private store with the
+			/// checkout's objects as a read-only alternate.
+			[[nodiscard]] auto run_arguments(
+				const command_context&   aContext,
+				std::vector<std::string> aArguments,
+				const std::size_t        aOutputLimit,
+				const std::stop_token    aStop,
+				std::string              aInput = { })
+				-> application::publication_git_result<std::string>
+			{
+				auto arguments = common_git_arguments(aContext.Store, HooksRoot);
+				std::ranges::move(aArguments, std::back_inserter(arguments));
 				if (!empty_private_directory(TemplatesRoot) || !empty_private_directory(HooksRoot)) {
 					return failure(application::publication_git_failure::unavailable);
 				}
+				auto environment = std::vector<std::pair<std::string, std::string>>{ { "GIT_ALTERNATE_OBJECT_DIRECTORIES", aContext.SourceObjects } };
+				if (!aContext.Index.empty()) {
+					environment.emplace_back("GIT_INDEX_FILE", aContext.Index);
+				}
+				environment.insert(environment.end(), aContext.Signatures.begin(), aContext.Signatures.end());
 				auto result = Worker->submit(
 					process_request{
 						.Arguments           = std::move(arguments),
 						.Input               = memory_input{ std::move(aInput) },
 						.Timeout             = pack_process_timeout,
 						.StandardOutputLimit = aOutputLimit,
-						.Environment         = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", aContext.SourceObjects } },
+						.Environment         = std::move(environment),
 					},
 					aStop);
 				if (!result) {
@@ -7054,7 +7260,7 @@ namespace bpr::adapters::git {
 						return std::nullopt;
 					}
 				}
-				const auto objects = resolve_canonical_existing(*common / "objects");
+				auto objects = resolve_canonical_existing(*common / "objects");
 				if (!objects || !std::filesystem::is_directory(*objects, error) || error) {
 					return std::nullopt;
 				}

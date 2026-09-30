@@ -55,6 +55,7 @@ namespace bpr::core {
 						.Mode          = mode_of(*entry, aBase),
 						.Object        = identity->Raw,
 						.Content       = entry->Content,
+						.Size          = entry->Size,
 						.Tracked       = entry->Origin == manifest_origin::tracked,
 						.FilterManaged = entry->FilterManaged,
 					};

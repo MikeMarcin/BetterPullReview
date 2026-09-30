@@ -478,6 +478,24 @@ collisions cannot be built natively; a candidate equal to P is "no change";
 and a target that moved past P is shown with the selected paths it changed.
 Planning writes nothing, anywhere.
 
+A buildable plan becomes one squashed candidate (BPR-1173,
+`bpr/core/review_cycle_candidate.hpp`): a single commit whose only parent is
+P, whose tree is the plan's candidate, and whose author, committer, times and
+message are exactly what the reviewer confirmed, with no trailer added and no
+signature. The only byte-changing transformation is a named CRLF-to-LF
+normalization of a selected text path, recorded with its before and after
+blobs; it makes a different tree and commit. The host checks every retained
+byte against the planned identity before installed Git sees it, stores blobs
+with no filter, builds the tree in a private index and writes the commit with
+`commit-tree --no-gpg-sign`, all in the BPR-owned store, and refuses the
+result unless Git names each object exactly as the core computed. A changed
+filter-managed (LFS) path, a submodule change, a file/folder collision,
+required signing, an undecided improvement or an unchanged tree is a named
+limit, never a silently different candidate. External preparation keeps the
+selection usable: a binary patch against P and plain instructions to apply,
+stage, commit and push with the reviewer's own tools, naming the paths their
+filters must still process and saying it is not native publication.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

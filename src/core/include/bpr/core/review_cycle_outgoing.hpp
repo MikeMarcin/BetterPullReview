@@ -135,8 +135,9 @@ namespace bpr::core {
 		outgoing_state               State = outgoing_state::absent;
 		std::uint32_t                Mode  = 0;
 		std::optional<git_entry_oid> Object;
-		/// The captured bytes' digest (captures only).
+		/// The captured bytes' digest and size (captures only).
 		std::optional<cycle_material_digest> Content;
+		std::uint64_t                        Size = 0;
 		/// Tracked by the checkout's index (captures only).
 		bool Tracked = false;
 		/// A Git filter (such as LFS) turns these bytes into the committed object.

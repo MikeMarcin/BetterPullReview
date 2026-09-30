@@ -702,6 +702,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_outgoing_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_outgoing_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_outgoing COMMAND test_better_pull_review_review_cycle_outgoing_tests)
 
+# [[BPR-1173]]. The squashed candidate: one parent, exact metadata, named normalization and limits.
+bpr_add_executable(test_better_pull_review_review_cycle_candidate_tests review_cycle_candidate_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_candidate_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_candidate_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_candidate_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_candidate COMMAND test_better_pull_review_review_cycle_candidate_tests)
+
 # [[BPR-1158]]. Canonical round payloads, the pack's golden round and assembly.
 bpr_add_executable(test_better_pull_review_review_cycle_round_tests review_cycle_round_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE BetterPullReview::Core)

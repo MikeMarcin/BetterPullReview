@@ -1,4 +1,3 @@
-#include "../git_contract/windows_system_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
@@ -6,6 +5,7 @@
 #include "bpr/application/review_cycle_outgoing.hpp"
 #include "cycle_course.hpp"
 #include "cycle_session.hpp"
+#include "publication_course.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -37,48 +37,10 @@ namespace {
 	using tests::expect;
 	using tests::workspace_contract::course;
 	using tests::workspace_contract::git_runner;
+	using tests::workspace_contract::publication_git;
 	using tests::workspace_contract::session;
+	using tests::workspace_contract::snapshot;
 	using tests::workspace_contract::write_file;
-
-	/// The build's Git, handed to the product as its installed Git.
-	auto git_executable(const int aArgc, char** aArgv) -> std::optional<std::filesystem::path>
-	{
-		for (int index = 1; index + 1 < aArgc; ++index) {
-			if (std::string_view{ aArgv[index] } == "--git") {
-				return std::filesystem::path{ aArgv[index + 1] };
-			}
-		}
-		return std::nullopt;
-	}
-
-	/// Every regular file under a root, the repository directory included.
-	auto snapshot(const std::filesystem::path& aRoot) -> std::map<std::string, std::string>
-	{
-		auto files = std::map<std::string, std::string>{ };
-		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
-			if (entry.is_regular_file()) {
-				files.emplace(entry.path().lexically_relative(aRoot).generic_string(), tests::workspace_contract::read_file(entry.path()));
-			}
-		}
-		return files;
-	}
-
-	struct publication_git
-	{
-		tests::sqlite_contract::scratch_root                     Root{ "cycle-publication-git" };
-		std::unique_ptr<application::publication_candidate_port> Port;
-
-		explicit publication_git(const std::filesystem::path& aExecutable)
-		{
-			auto made = adapters::git::make_installed_git_publication({
-				.GitExecutable     = std::filesystem::canonical(aExecutable),
-				.IsolationRoot     = std::filesystem::canonical(Root.path()),
-				.WindowsSystemRoot = tests::git_contract::windows_system_root(),
-			});
-			expect(made.has_value(), "installed Git publication catalog");
-			Port = std::move(*made);
-		}
-	};
 
 	auto row(const core::outgoing_plan& aPlan, const std::string_view aPath) -> const core::outgoing_row*
 	{
@@ -220,7 +182,7 @@ namespace {
 
 auto main(const int aArgc, char** aArgv) -> int
 try {
-	const auto executable = git_executable(aArgc, aArgv);
+	const auto executable = tests::workspace_contract::git_executable(aArgc, aArgv);
 	const auto fixtures   = tests::workspace_contract::git_from(aArgc, aArgv);
 	expect(executable.has_value() && fixtures.has_value(), "publication needs the build's Git (--git)");
 	tests::sqlite_contract::scratch_root scratch{ "cycle-outgoing" };

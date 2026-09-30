@@ -5,8 +5,11 @@
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/application/workspace_source_port.hpp"
+#include "bpr/core/review_cycle_candidate.hpp"
 #include "bpr/core/review_cycle_outgoing.hpp"
 
+#include <cstdint>
+#include <expected>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -54,6 +57,9 @@ namespace bpr::application {
 		material,
 		/// The core refused; see `Refusal`.
 		refused,
+		/// The candidate cannot be built natively, or nothing would change;
+		/// see the candidate or external outcome's `Limit`.
+		limited,
 		cancelled,
 	};
 
@@ -77,16 +83,59 @@ namespace bpr::application {
 	[[nodiscard]] auto resolve_reference(workspace_root_session& aSession, std::string_view aName, core::git_hash_algorithm aAlgorithm, std::stop_token aStop)
 		-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>;
 
-	/// \brief Plans outgoing content. Runs on the effect lane; the source,
-	/// store and candidate port must outlive it.
+	struct cycle_candidate_request
+	{
+		cycle_outgoing_request  Outgoing;
+		core::candidate_request Candidate;
+	};
+
+	/// \brief A built candidate: every object is in the private store and
+	/// Git computed exactly the identities the core did.
+	struct cycle_candidate_outcome
+	{
+		cycle_outgoing_outcome                     Outcome;
+		std::optional<core::candidate_refusal>     Limit;
+		std::optional<core::publication_candidate> Candidate;
+	};
+
+	/// \brief The selection as a patch for the reviewer's own Git tools.
+	struct cycle_external_outcome
+	{
+		cycle_outgoing_outcome                    Outcome;
+		std::optional<core::candidate_refusal>    Limit;
+		std::optional<core::external_preparation> Preparation;
+		/// A binary patch from P's tree to the prepared tree.
+		std::vector<std::uint8_t> Patch;
+	};
+
+	/// \brief Plans and builds outgoing content. Runs on the effect lane; the
+	/// source, store and candidate port must outlive it.
+	/// \details Building writes only the BPR-owned private store: retained
+	/// bytes are checked against the planned identity before Git sees them,
+	/// the tree is made in a private index, and the one-parent commit carries
+	/// exactly the confirmed metadata with no signature and no hook.
 	class review_cycle_outgoing_host
 	{
 	public:
 		review_cycle_outgoing_host(workspace_source_port& aSource, review_cycle_store& aStore, publication_candidate_port& aGit) noexcept;
 
 		auto plan(const core::review_cycle_state& aCycle, const cycle_outgoing_request& aRequest, std::stop_token aStop) -> cycle_outgoing_outcome;
+		auto build(const core::review_cycle_state& aCycle, const cycle_candidate_request& aRequest, std::stop_token aStop) -> cycle_candidate_outcome;
+		auto prepare_external(const core::review_cycle_state& aCycle, const cycle_outgoing_request& aRequest, const core::candidate_requirements& aRequirements, std::stop_token aStop)
+			-> cycle_external_outcome;
 
 	private:
+		struct assembled_plan
+		{
+			core::outgoing_request Request;
+			core::outgoing_plan    Plan;
+			publication_repository Repository;
+		};
+
+		auto assemble(const core::review_cycle_state& aCycle, const cycle_outgoing_request& aRequest, const std::stop_token& aStop) -> std::expected<assembled_plan, cycle_outgoing_outcome>;
+		auto write_blobs(const core::review_cycle_state& aCycle, const assembled_plan& aAssembled, const std::vector<core::candidate_blob>& aBlobs, const std::stop_token& aStop)
+			-> std::optional<cycle_outgoing_outcome>;
+
 		workspace_source_port&      Source;
 		review_cycle_store&         Store;
 		publication_candidate_port& Git;

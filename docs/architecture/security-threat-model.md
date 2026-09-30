@@ -1440,3 +1440,24 @@ Claimed authors, models, results and evidence are stored and shown as claims;
 evidence text, paths, URLs and test reports are never opened, resolved or run,
 and appending a response or a pasted reply grants no capability, verification
 or publication and changes no source.
+
+Publication preparation (BPR-1172, BPR-1173) is the first cycle surface that
+runs Git, and it is a separate, finite catalog (`publication_candidate_port`,
+`bpr/adapters/git/installed_git_publication.hpp`) that shares the epoch
+cache's isolated runner but none of its repositories or operations. Every
+command runs with `--git-dir` naming a BPR-owned bare store in the profile's
+isolation root, under that root's own home, configuration and empty template
+and hook directories, with no system configuration, credential helper,
+protocol or lazy fetch; the checkout's object directory is supplied only as
+`GIT_ALTERNATE_OBJECT_DIRECTORIES` for one command. The checkout's
+configuration, hooks, references, index and attributes are therefore never
+read and nothing is written there: the candidate contract hashes the whole
+checkout, including `.git`, before and after a build and finds it unchanged,
+plants `core.fsmonitor`, `core.hooksPath`, hook, filter, `diff.external`,
+`gpg.program`, pager and upload-pack canaries that never fire, and proves the
+canaries live with ordinary Git afterwards. References are read as data. A
+listing is admitted only when the commit's bytes hash to the requested commit
+and the listing rebuilds its tree; blobs, trees and commits are admitted only
+when Git names them exactly as the core computed. No filter, hook, signing
+program or repository script runs, and nothing is sent anywhere; the new
+branch and pull request remain a separate, not yet present capability.

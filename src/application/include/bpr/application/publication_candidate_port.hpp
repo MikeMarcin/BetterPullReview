@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <stop_token>
 #include <string>
 #include <vector>
@@ -41,6 +42,9 @@ namespace bpr::application {
 		malformed,
 		/// More entries or bytes than a candidate admits.
 		bounds,
+		/// Git stored another identity than the one computed for these exact
+		/// bytes, entries or commit fields. Nothing is admitted.
+		identity_mismatch,
 		cancelled,
 	};
 
@@ -66,6 +70,19 @@ namespace bpr::application {
 		std::vector<core::git_tree_entry> Entries;
 	};
 
+	/// \brief A tree built in the private index from a base tree and changes.
+	struct publication_tree_request
+	{
+		core::git_tree_oid Base;
+		/// Entries added or replaced; their objects must already be stored.
+		std::vector<core::git_tree_entry> Changes;
+		std::vector<std::string>          Deletions;
+		/// The tree the core computed; anything else is refused.
+		core::git_tree_oid Expected;
+	};
+
+	inline constexpr std::uint64_t maximum_publication_patch_bytes = 64U * 1024U * 1024U;
+
 	class publication_candidate_port
 	{
 	public:
@@ -75,6 +92,20 @@ namespace bpr::application {
 		/// checkout's repository.
 		virtual auto list_commit(const publication_repository& aRepository, const core::git_commit_oid& aCommit, std::stop_token aStop)
 			-> publication_git_result<publication_commit_listing> = 0;
+		/// \brief Stores exactly these bytes as a blob, with no filter or
+		/// line-ending conversion, and checks Git named them `aExpected`.
+		virtual auto write_blob(const publication_repository& aRepository, const core::git_entry_oid& aExpected, std::span<const std::uint8_t> aBytes, std::stop_token aStop)
+			-> publication_git_result<void> = 0;
+		/// \brief Builds a tree in a private index, never the checkout's.
+		virtual auto write_tree(const publication_repository& aRepository, const publication_tree_request& aRequest, std::stop_token aStop) -> publication_git_result<void> = 0;
+		/// \brief Writes one commit with exactly these fields and no signature,
+		/// and checks Git named it `aExpected`. Runs no hook.
+		virtual auto write_commit(const publication_repository& aRepository, const core::git_commit_content& aCommit, const core::git_commit_oid& aExpected, std::stop_token aStop)
+			-> publication_git_result<void> = 0;
+		/// \brief A binary patch from one stored tree to another, with no
+		/// external diff or text conversion.
+		virtual auto diff_trees(const publication_repository& aRepository, const core::git_tree_oid& aFrom, const core::git_tree_oid& aTo, std::stop_token aStop)
+			-> publication_git_result<std::vector<std::uint8_t>> = 0;
 	};
 }
 
