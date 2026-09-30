@@ -35,3 +35,11 @@ Passed on macOS arm64 at `b74cbe414`. Owed on the Linux station (GCC 15, `build/
 `ctest --test-dir build/dev -R "^core_review_cycle_response$|^review_cycle_response$|^sqlite_review_cycle_storage$|^qt_review_cycle_view_|^application_review_cycle_desktop_public_path$" --output-on-failure`.
 Owed on the Windows station (MSVC, `build\dev`): the same selector plus
 `|^test_network_isolation_manifest$` (measure the new `review_cycle_response` pin contained).
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror` (Debug, where libstdc++ checks its assertions), Qt 6.11.2 offscreen, `build/dev` freshly configured at `52f28dd1b`, and the fix `f4fb1d5bc`.
+
+`core_review_cycle_response`, `review_cycle_response`, `sqlite_review_cycle_storage`, `qt_review_cycle_view_1_0` and `_2_0`, and `application_review_cycle_desktop_public_path` pass. The build of these targets is clean under GCC.
+
+The logs are station records in `build/logs/bpr-station-iteration/` and are not committed.
