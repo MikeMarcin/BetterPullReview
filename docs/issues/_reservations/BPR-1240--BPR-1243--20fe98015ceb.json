@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1240",
+    "BPR-1241",
+    "BPR-1242",
+    "BPR-1243"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "main stabilization: Mac baseline reds",
+  "created": "2026-09-30T06:29:19.850049+00:00",
+  "base": "1254858c2c5c29c23e5cc1e8ea254e26ba0a4d52"
+}
