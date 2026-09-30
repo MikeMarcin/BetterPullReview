@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1243"
 title: "Three repository contract rows are red at main: format, dependency modernization and contained temporaries"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"full dev run of the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1121","BPR-0653"]}
