@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1162"
 title: "Attach external rounds with explicit project mapping"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0056", "RFC-BPR-0057"]
 depends_on: ["BPR-1160", "BPR-1146", "BPR-1147"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-05", "RC57-08"], "pack_alias": "PACK-CYCLE-20", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
