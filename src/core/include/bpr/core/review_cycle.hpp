@@ -428,6 +428,12 @@ namespace bpr::core {
 	[[nodiscard]] auto freeze_round(const review_cycle_state& aCycle, const cycle_round_draft& aDraft,
 									std::uint64_t aExpectedDraftRevision, const cycle_round_digest& aDigest,
 									const std::optional<cycle_round>& aPrior) -> std::expected<frozen_cycle_round, cycle_refusal>;
+	/// \brief As `freeze_round`, for a payload that names its own round: the
+	/// round frozen or reused must be `aNamed`, otherwise nothing is frozen and
+	/// the caller rebuilds the payload for the round actually next.
+	[[nodiscard]] auto freeze_named_round(const review_cycle_state& aCycle, const cycle_round_draft& aDraft, std::uint64_t aExpectedDraftRevision,
+										  const cycle_round_digest& aDigest, const std::optional<cycle_round>& aPrior, cycle_round_id aNamed)
+		-> std::expected<frozen_cycle_round, cycle_refusal>;
 
 	/// \brief How far a round's delivery is evidenced. Stronger states need
 	/// stronger evidence; a saved file proves neither receipt nor reading.

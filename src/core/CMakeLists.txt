@@ -29,6 +29,8 @@ add_library(
         src/review_cycle_comparison.cpp
         src/review_cycle_disclosure.cpp
         src/review_cycle_feedback.cpp
+        src/review_cycle_json.cpp
+        src/review_cycle_round.cpp
         src/review_cycle_suggestion.cpp
         src/review_cycle_tabs.cpp
         src/suggestion_text_editing.cpp

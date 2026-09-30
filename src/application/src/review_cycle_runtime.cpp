@@ -375,6 +375,80 @@ namespace bpr::application {
 																		   std::move(aDone));
 	}
 
+	auto review_cycle_runtime::begin_round_selected(cycle_operation_id aOperation, const std::uint64_t aExpectedRevision, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_write_receipt>([subject, aOperation, aExpectedRevision](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.begin_draft(aOperation, *subject, aExpectedRevision, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::save_round_selected(cycle_operation_id aOperation, core::cycle_round_draft_ref aDraft, const std::uint64_t aExpectedRevision,
+												   core::cycle_round_selection aSelection, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_write_receipt>([subject, aOperation, aDraft, aExpectedRevision, selection = std::move(aSelection)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return save_round_selection(aStore, aOperation, *subject, aDraft, aExpectedRevision, selection, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::load_round_selected(core::cycle_round_draft_ref aDraft, completion<cycle_round_draft_content> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_round_draft_content>([subject, aDraft](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_round_draft_content> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return load_round_selection(aStore, *subject, aDraft, aStop);
+		},
+																 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::freeze_round_selected(cycle_round_freeze_request aRequest, completion<cycle_round_freeze_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_round_freeze_result>([subject, host, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return freeze_cycle_round(aStore, *host, *subject, request, aStop);
+		},
+																 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::read_round_selected(const core::cycle_round_id aRound, completion<cycle_frozen_round> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_frozen_round>([subject, aRound](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_frozen_round> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_cycle_round(aStore, *subject, aRound, aStop);
+		},
+														  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_round_page>([subject, aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_round_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.rounds(*subject, aAfter, aStop);
+		},
+														std::move(aDone));
+	}
+
 	auto review_cycle_runtime::preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

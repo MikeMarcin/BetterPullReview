@@ -13,6 +13,7 @@ add_library(
         src/review_cycle_capture.cpp
         src/review_cycle_comparison.cpp
         src/review_cycle_feedback.cpp
+        src/review_cycle_round.cpp
         src/review_cycle_workbench.cpp
         src/review_cycle_runtime.cpp
         src/review_tour_source.cpp

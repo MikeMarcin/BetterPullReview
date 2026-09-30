@@ -433,6 +433,17 @@ namespace bpr::core {
 		return frozen_cycle_round{ .Cycle = std::move(next), .Round = round };
 	}
 
+	auto freeze_named_round(const review_cycle_state& aCycle, const cycle_round_draft& aDraft, const std::uint64_t aExpectedDraftRevision,
+							const cycle_round_digest& aDigest, const std::optional<cycle_round>& aPrior, const cycle_round_id aNamed)
+		-> std::expected<frozen_cycle_round, cycle_refusal>
+	{
+		auto frozen = freeze_round(aCycle, aDraft, aExpectedDraftRevision, aDigest, aPrior);
+		if (frozen && frozen->Round.Id.Id != aNamed) {
+			return std::unexpected{ cycle_refusal::conflict };
+		}
+		return frozen;
+	}
+
 	auto record_claim(const cycle_item_judgment& aJudgment, const cycle_response_claim aClaim) -> cycle_item_judgment
 	{
 		auto next  = aJudgment;

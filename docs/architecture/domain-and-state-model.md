@@ -311,6 +311,33 @@ offers multiple carets, box selection, virtual space, IME composition and
 ordinary undo; its composer previews the edit in context and never writes a
 file.
 
+A round (RFC-BPR-0056, BPR-1158) is one assignment frozen from a round draft
+(`bpr/core/review_cycle_round.hpp`). The draft stores the reviewer's selection
+as canonical JSON (`bpr.cycle.round-draft.v1`): the revision under review, an
+action (`discuss`, `plan` or `implement`), goal, constraints, requested write
+scope, the chosen notes in the reviewer's order (each pinned to the exact
+wording and suggestion revisions selected, with an optional per-item action
+and related notes) and explicit source context. `assemble_round` checks every
+pin against the store's current records and refuses a stale wording or
+suggestion, an archived, unknown or repeated note, a relation outside the
+round, context its revision does not hold, and anything over the round
+budgets (4,096 items, 16 MiB of instructions, 8 MiB of context unless 64 MiB
+is explicitly admitted), naming the item or context and the measure; it never
+substitutes, summarizes or drops. The payload (`bpr.cycle.round.v1`) carries
+only each note's current wording, its primary and included related locations,
+the selected suggestions' exact bytes and the selected source (one entry per
+file and revision), under wire names (`RC-n`, `Fn`, `Rn`, `In`, `SGn.m`,
+`Sn`) and a logical project derived from identities, never a path. Its digest
+is the SHA-256 of its `bpr.cycle.canonical-json.v1` bytes
+(`bpr/core/review_cycle_json.hpp`: sorted keys, no whitespace, no floats, no
+normalization); the reader refuses duplicate keys, lone surrogates, invalid
+UTF-8, fractions and nesting beyond 32. A freeze
+(`application::freeze_cycle_round`) needs a flushed editor showing the stored
+draft revision, installs the payload and commits the round naming it
+(`freeze_named_round`); an interrupted freeze leaves at most an unreferenced
+object, the same draft revision reuses its round, and an edit is a new draft
+revision and a new round.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

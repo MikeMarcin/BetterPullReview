@@ -97,3 +97,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_workbench)
 bpr_add_network_isolated_test(NAME review_cycle_workbench WINDOWS_UNCONTAINED COMMAND test_review_cycle_workbench)
+
+# [[BPR-1158]]. Round drafts frozen into one canonical payload through the runtime and store.
+bpr_add_executable(test_review_cycle_round review_cycle_round_tests.cpp)
+target_link_libraries(test_review_cycle_round PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_round)
+if(WIN32)
+    target_link_libraries(test_review_cycle_round PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_round)
+bpr_add_network_isolated_test(NAME review_cycle_round WINDOWS_UNCONTAINED COMMAND test_review_cycle_round)

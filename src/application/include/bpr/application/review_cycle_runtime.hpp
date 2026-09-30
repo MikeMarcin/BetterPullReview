@@ -5,6 +5,7 @@
 #include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_feedback.hpp"
+#include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 
@@ -103,6 +104,20 @@ namespace bpr::application {
 		auto preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool;
 		auto preflight_suggestions_selected(std::vector<core::cycle_suggestion> aSuggestions, std::optional<core::cycle_source_revision_id> aAgainst,
 											completion<cycle_suggestion_preflight_observation> aDone) -> bool;
+
+		/// \brief Starts a round draft on the selected cycle (BPR-1158).
+		/// `Allocated` is the draft.
+		auto begin_round_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief Stores a selection as the draft's next revision.
+		auto save_round_selected(cycle_operation_id aOperation, core::cycle_round_draft_ref aDraft, std::uint64_t aExpectedRevision, core::cycle_round_selection aSelection,
+								 completion<cycle_write_receipt> aDone) -> bool;
+		auto load_round_selected(core::cycle_round_draft_ref aDraft, completion<cycle_round_draft_content> aDone) -> bool;
+		/// \brief Freezes a draft revision of the selected cycle into one
+		/// immutable round, or says what in the selection must change.
+		auto freeze_round_selected(cycle_round_freeze_request aRequest, completion<cycle_round_freeze_result> aDone) -> bool;
+		/// \brief One frozen round of the selected cycle, verified against its digest.
+		auto read_round_selected(core::cycle_round_id aRound, completion<cycle_frozen_round> aDone) -> bool;
+		auto rounds_selected(std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool;
 
 		/// \brief Observes a deliberately chosen root on the effect lane:
 		/// identity only, nothing captured. `aSource` must stay alive until the

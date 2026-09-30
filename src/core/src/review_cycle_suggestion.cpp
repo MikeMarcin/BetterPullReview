@@ -1,5 +1,6 @@
 #include "bpr/core/review_cycle_suggestion.hpp"
 
+#include "bpr/core/review_cycle_json.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -58,77 +59,19 @@ namespace bpr::core {
 			return aLeft.Start < aRight.End && aRight.Start < aLeft.End;
 		}
 
-		constexpr auto base64_alphabet = std::string_view{ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" };
-
 		auto base64(const std::string_view aBytes) -> std::string
 		{
-			auto result = std::string{ };
-			result.reserve((aBytes.size() + 2U) / 3U * 4U);
-			for (std::size_t index = 0; index < aBytes.size(); index += 3U) {
-				const auto remaining = aBytes.size() - index;
-				auto       group     = static_cast<std::uint32_t>(static_cast<unsigned char>(aBytes[index])) << 16U;
-				if (remaining > 1U) {
-					group |= static_cast<std::uint32_t>(static_cast<unsigned char>(aBytes[index + 1U])) << 8U;
-				}
-				if (remaining > 2U) {
-					group |= static_cast<std::uint32_t>(static_cast<unsigned char>(aBytes[index + 2U]));
-				}
-				result.push_back(base64_alphabet[(group >> 18U) & 0x3FU]);
-				result.push_back(base64_alphabet[(group >> 12U) & 0x3FU]);
-				result.push_back(remaining > 1U ? base64_alphabet[(group >> 6U) & 0x3FU] : '=');
-				result.push_back(remaining > 2U ? base64_alphabet[group & 0x3FU] : '=');
-			}
-			return result;
+			return encode_cycle_base64(aBytes);
 		}
 
-		/// Strict: padded, canonical, nothing but the alphabet.
 		auto unbase64(const std::string_view aText) -> std::optional<std::string>
 		{
-			if (aText.size() % 4U != 0U) {
-				return std::nullopt;
-			}
-			auto result = std::string{ };
-			result.reserve(aText.size() / 4U * 3U);
-			for (std::size_t index = 0; index < aText.size(); index += 4U) {
-				auto group   = std::uint32_t{ 0 };
-				auto padding = 0U;
-				for (std::size_t offset = 0; offset < 4U; ++offset) {
-					const auto symbol = aText[index + offset];
-					if (symbol == '=' && index + 4U == aText.size() && offset >= 2U) {
-						++padding;
-						group <<= 6U;
-						continue;
-					}
-					const auto value = base64_alphabet.find(symbol);
-					if (value == std::string_view::npos || padding != 0U) {
-						return std::nullopt;
-					}
-					group = (group << 6U) | static_cast<std::uint32_t>(value);
-				}
-				// Canonical form: the bits a padding symbol stands for are zero.
-				if ((padding == 1U && (group & 0xFFU) != 0U) || (padding == 2U && (group & 0xFFFFU) != 0U)) {
-					return std::nullopt;
-				}
-				result.push_back(static_cast<char>((group >> 16U) & 0xFFU));
-				if (padding < 2U) {
-					result.push_back(static_cast<char>((group >> 8U) & 0xFFU));
-				}
-				if (padding < 1U) {
-					result.push_back(static_cast<char>(group & 0xFFU));
-				}
-			}
-			return result;
+			return decode_cycle_base64(aText);
 		}
 
 		auto hex(const std::array<std::uint8_t, 32>& aBytes) -> std::string
 		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           result = std::string{ };
-			for (const auto byte : aBytes) {
-				result.push_back(digits[byte >> 4U]);
-				result.push_back(digits[byte & 0x0FU]);
-			}
-			return result;
+			return cycle_hex(aBytes);
 		}
 
 		auto number(const std::string_view aText) -> std::optional<std::uint64_t>

@@ -120,6 +120,9 @@ namespace bpr::application {
 		std::uint64_t               ExpectedDraftRevision = 0;
 		/// The installed canonical payload; its digest is the round digest.
 		cycle_object_ref Payload;
+		/// The round the payload names. When present, a freeze that would
+		/// allocate or reuse another round is a conflict and commits nothing.
+		std::optional<core::cycle_round_id> Round;
 	};
 
 	struct cycle_page

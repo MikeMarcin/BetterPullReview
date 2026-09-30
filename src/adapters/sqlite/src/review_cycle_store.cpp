@@ -979,6 +979,9 @@ namespace bpr::adapters::sqlite {
 				auto request = request_writer{ };
 				request.u8(6).subject(aCommit.Subject).u64(aCommit.Draft.Cycle.value()).u64(aCommit.Draft.Id.value()).u64(aCommit.ExpectedDraftRevision);
 				request.bytes(aCommit.Payload.Digest.bytes()).u64(aCommit.Payload.Size);
+				if (aCommit.Round) {
+					request.u64(aCommit.Round->value());
+				}
 				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
 					if (!object_present(aDatabase, aCommit.Payload)) {
 						return fail(cycle_store_failure::object_unavailable);
@@ -999,7 +1002,8 @@ namespace bpr::adapters::sqlite {
 						return std::unexpected(prior.error());
 					}
 					const auto digest = core::cycle_round_digest{ aCommit.Payload.Digest.bytes() };
-					const auto frozen = core::freeze_round(*current, (*stored)->Draft, aCommit.ExpectedDraftRevision, digest, *prior);
+					const auto frozen = aCommit.Round ? core::freeze_named_round(*current, (*stored)->Draft, aCommit.ExpectedDraftRevision, digest, *prior, *aCommit.Round)
+													  : core::freeze_round(*current, (*stored)->Draft, aCommit.ExpectedDraftRevision, digest, *prior);
 					if (!frozen) {
 						return frozen.error() == core::cycle_refusal::conflict ? fail(cycle_store_failure::conflict) : refuse(frozen.error());
 					}
