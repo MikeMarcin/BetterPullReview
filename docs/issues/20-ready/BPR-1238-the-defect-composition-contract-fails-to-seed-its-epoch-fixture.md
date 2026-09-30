@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1238"
 title: "The defect composition contract fails to seed its epoch fixture"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"red at baseline in the Review Cycles snapshots integration pass (fails identically at 8374ea995); filed by the authoring milestone implementer on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1238--BPR-1238--1bcc75d6c30d.json"}
