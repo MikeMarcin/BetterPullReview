@@ -3289,6 +3289,7 @@ endforeach()
 
 
 bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
+target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)
 bpr_enable_hardening(test_scoped_writing_agent)
 bpr_enable_warnings(test_scoped_writing_agent)
 bpr_add_network_isolated_test(NAME application_review_tour_writing
