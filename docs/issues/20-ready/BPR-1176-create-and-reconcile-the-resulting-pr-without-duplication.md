@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1176"
 title: "Create and reconcile the resulting PR without duplication"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1175"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-05", "RC59-07", "RC59-10"], "pack_alias": "PACK-CYCLE-34", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 acceptance: [{"criterion":"RC59-05","outcome":"pass","revision":"fab189080207f43aec407eb1af4169be70b91b31","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"This card's share (the pull request): native_https_transport_fixture publication-course reads PRs for the exact head/base, creates one and reads it again through the production transport; review_cycle_publisher creates it only after the branch is confirmed, with the confirmed text and draft choice, and never again once linked. Objects/branch share is BPR-1175's."}},{"criterion":"RC59-07","outcome":"pass","revision":"fab189080207f43aec407eb1af4169be70b91b31","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"This card's share, macOS arm64 review_cycle_publisher: lost create answer plus restart recovered as the one PR of ours, never recreated; two candidates stay uncertain; a foreign PR opened just before ours is recorded foreign with no duplicate; an existing PR stops the step with no write; 403 fails; a push to the head after creation is recorded as drift; a restart between intent and attempt reads nothing and creates once after fresh confirmation. Mutation adopting one-of-several fails the course. Full fault matrix is BPR-1178's."}},{"criterion":"RC59-10","outcome":"pending","revision":"fab189080207f43aec407eb1af4169be70b91b31","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Needs one separately approved disposable GitHub/GHES target course per claimed host. No safe target has been named; nothing was created on GitHub, GHES is not admitted for native publication. Blocked on safe-github-publication-target; fixture and loopback evidence is not live qualification."}},{"criterion":"BPR-1176:boundary","outcome":"pass","revision":"fab189080207f43aec407eb1af4169be70b91b31","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"133 focused ctest rows pass on macOS arm64 after a full -k 0 dev build (only BPR-1211's test_scoped_writing_agent fails); clang-format and clang-tidy clean. Linux and Windows runs owed with the selectors on the card."}}]
-blocked_by: "safe-github-publication-target"
 ---
 
 Pack alias: **PACK-CYCLE-34** (live `BPR-1176`, allocated at import).
@@ -62,3 +61,14 @@ the [execution ledger](../../verification/RFC-BPR-0053-0061.md), under
 "Windows station (publication)".
 
 This entry adds evidence only. The card's status is unchanged.
+
+## Owner designation — 2026-09-30
+
+Asked "BPR-1176 stays blocked until you specify a safe GitHub target", the
+owner answered on 2026-09-30: "You can do anything you need to with the
+MikeMarcin/BPR-Test github repo". That names github.com
+`MikeMarcin/BPR-Test` (public, the `MikeMarcin` account has admin, no
+workflow files on any branch) as the disposable target for the RC59-10
+course, under the existing `gh` sign-in on the Mac. It designates nothing on
+GHES, so GHES stays unadmitted for native publication and its course stays
+owed. The `safe-github-publication-target` blocker is lifted for GitHub.com.
