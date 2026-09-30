@@ -117,3 +117,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_export)
 bpr_add_network_isolated_test(NAME review_cycle_export WINDOWS_UNCONTAINED COMMAND test_review_cycle_export)
+
+# [[BPR-1160]]. A round saved as a bundle, read back and opened into another profile's quarantine.
+bpr_add_executable(test_review_cycle_bundle review_cycle_bundle_tests.cpp)
+target_link_libraries(test_review_cycle_bundle PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_bundle)
+if(WIN32)
+    target_link_libraries(test_review_cycle_bundle PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_bundle)
+bpr_add_network_isolated_test(NAME review_cycle_bundle WINDOWS_UNCONTAINED COMMAND test_review_cycle_bundle "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")

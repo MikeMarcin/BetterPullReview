@@ -208,18 +208,19 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_comparison": "dos-volume-name",
     "review_cycle_scale": "dos-volume-name",
     "review_cycle_recovery": "dos-volume-name",
-    # [[BPR-1153]], [[BPR-1155]], [[BPR-1157]], [[BPR-1158]], [[BPR-1159]]. The same scratch-root store and chosen-root course as the
+    # [[BPR-1153]], [[BPR-1155]], [[BPR-1157]], [[BPR-1158]], [[BPR-1159]], [[BPR-1160]]. The same scratch-root store and chosen-root course as the
     # rows above. Measured on JaegAW 2026-09-29: review_cycle_feedback,
     # review_cycle_suggestion, review_cycle_workbench and the desktop course pass
     # uncontained, and contained each fails before its course completes (the
     # first two at "catalog", the workbench at "opened without an account,
     # provider or agent", the desktop course at "Open Project offered signed
-    # out"). review_cycle_round and review_cycle_export are not yet measured
-    # contained.
+    # out"). review_cycle_round, review_cycle_export and review_cycle_bundle
+    # are not yet measured contained.
     "review_cycle_feedback": "dos-volume-name",
     "review_cycle_suggestion": "dos-volume-name",
     "review_cycle_round": "dos-volume-name",
     "review_cycle_export": "dos-volume-name",
+    "review_cycle_bundle": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",

@@ -5,6 +5,7 @@
 #include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_feedback.hpp"
+#include "bpr/application/review_cycle_import.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
@@ -118,6 +119,13 @@ namespace bpr::application {
 		/// \brief One frozen round of the selected cycle, verified against its digest.
 		auto read_round_selected(core::cycle_round_id aRound, completion<cycle_frozen_round> aDone) -> bool;
 		auto rounds_selected(std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool;
+
+		/// \brief Opens a portable bundle into this profile's quarantine,
+		/// whatever is selected (BPR-1160). Needs no account, provider or agent.
+		auto import_bundle(cycle_operation_id aOperation, std::vector<std::uint8_t> aBundle, completion<cycle_import_result> aDone) -> bool;
+		auto imports(std::optional<core::cycle_import_id> aAfter, completion<cycle_import_page> aDone) -> bool;
+		/// \brief One quarantined round, verified against its digest.
+		auto read_import(core::cycle_import_id aImport, completion<cycle_imported_round> aDone) -> bool;
 
 		/// \brief Observes a deliberately chosen root on the effect lane:
 		/// identity only, nothing captured. `aSource` must stay alive until the

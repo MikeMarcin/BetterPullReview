@@ -23,7 +23,7 @@ namespace bpr::adapters::sqlite {
 		using application::cycle_write_receipt;
 
 		constexpr std::int64_t     application_id   = 0x42505243;
-		constexpr std::int64_t     schema_version   = 4;
+		constexpr std::int64_t     schema_version   = 5;
 		constexpr std::size_t      chunk_bytes      = 512U * 1024U;
 		constexpr std::int64_t     maximum_receipts = 4096;
 		constexpr std::string_view database_name    = "review-cycles.sqlite3";
@@ -48,6 +48,9 @@ namespace bpr::adapters::sqlite {
 			table{ "feedback_revisions", "CREATE TABLE feedback_revisions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,revision INTEGER NOT NULL,turn INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),author BLOB NOT NULL,completion INTEGER NOT NULL,lineage BLOB NOT NULL,body BLOB NOT NULL,PRIMARY KEY(cycle,item,revision)) STRICT" },
 			table{ "suggestions", "CREATE TABLE suggestions(cycle INTEGER NOT NULL,item INTEGER NOT NULL,suggestion INTEGER NOT NULL,revision INTEGER NOT NULL,record BLOB NOT NULL,PRIMARY KEY(cycle,item,suggestion,revision)) STRICT" },
 			table{ "views", "CREATE TABLE views(cycle INTEGER PRIMARY KEY,record BLOB NOT NULL) STRICT" },
+			table{ "imports", "CREATE TABLE imports(import INTEGER PRIMARY KEY,digest BLOB NOT NULL UNIQUE CHECK(length(digest)=32),payload_size INTEGER NOT NULL,foreign_cycle TEXT NOT NULL,foreign_round TEXT NOT NULL,foreign_project TEXT NOT NULL,association BLOB) STRICT" },
+			table{ "import_objects", "CREATE TABLE import_objects(import INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),size INTEGER NOT NULL,PRIMARY KEY(import,digest)) STRICT" },
+			table{ "import_forks", "CREATE TABLE import_forks(import INTEGER NOT NULL,foreign_item TEXT NOT NULL,cycle INTEGER NOT NULL,item INTEGER NOT NULL,PRIMARY KEY(import,foreign_item)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
 		/// content pins, and neither the first nor the second had feedback or
@@ -56,12 +59,14 @@ namespace bpr::adapters::sqlite {
 		constexpr auto added_in_v3 = std::array<std::string_view, 3>{ "feedback", "feedback_revisions", "suggestions" };
 		/// The fourth schema added the document-tab views.
 		constexpr auto added_in_v4 = std::array<std::string_view, 1>{ "views" };
+		/// The fifth added quarantined imported rounds and their forks.
+		constexpr auto added_in_v5 = std::array<std::string_view, 3>{ "imports", "import_objects", "import_forks" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
 		constexpr std::string_view revisions_v1 = "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT";
 		/// Objects some catalog row references. Everything else is reclaimable.
-		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM revision_objects UNION SELECT digest FROM rounds";
+		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM revision_objects UNION SELECT digest FROM rounds UNION SELECT digest FROM imports UNION SELECT digest FROM import_objects";
 
 		auto fail(const cycle_store_failure aFailure) -> std::unexpected<cycle_store_error>
 		{
@@ -1399,6 +1404,96 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto admit_import(const application::cycle_operation_id& aOperation, const application::cycle_import_commit& aCommit, std::stop_token aStop)
+				-> cycle_store_result<cycle_write_receipt> override
+			{
+				const auto& summary = aCommit.Summary;
+				const auto  named   = [](const std::string& aName) { return !aName.empty() && aName.size() <= 128U; };
+				if (!summary.Digest.valid() || aCommit.Payload.Digest.bytes() != summary.Digest.bytes() || !named(summary.ForeignCycle) || !named(summary.ForeignRound)
+					|| !named(summary.ForeignProject) || aCommit.Objects.size() > 10'000U) {
+					return fail(cycle_store_failure::bounds);
+				}
+				auto request = request_writer{ };
+				request.u8(13).bytes(summary.Digest.bytes()).u64(aCommit.Payload.Size).text(summary.ForeignCycle).text(summary.ForeignRound).text(summary.ForeignProject).u64(aCommit.Objects.size());
+				for (const auto& object : aCommit.Objects) {
+					request.bytes(object.Digest.bytes()).u64(object.Size);
+				}
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					if (!object_present(aDatabase, aCommit.Payload)
+						|| !std::ranges::all_of(aCommit.Objects, [aDatabase](const cycle_object_ref& aObject) { return object_present(aDatabase, aObject); })) {
+						return fail(cycle_store_failure::object_unavailable);
+					}
+					auto existing = query{ aDatabase, "SELECT import FROM imports WHERE digest=?1" };
+					existing.blob(1, summary.Digest.bytes());
+					const auto found = existing.step();
+					if (found == SQLITE_ROW) {
+						const auto id = stored_id(existing.column_integer(0));
+						if (!id) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						return cycle_write_receipt{ .Allocated = *id, .Changed = false };
+					}
+					const auto next = detail::scalar_integer(aDatabase, "SELECT coalesce(max(import),0)+1 FROM imports");
+					if (found != SQLITE_DONE || !next || *next <= 0) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					auto insert = query{ aDatabase, "INSERT INTO imports(import,digest,payload_size,foreign_cycle,foreign_round,foreign_project,association) VALUES(?1,?2,?3,?4,?5,?6,NULL)" };
+					insert.integer(1, *next).blob(2, summary.Digest.bytes()).id(3, aCommit.Payload.Size).text(4, summary.ForeignCycle).text(5, summary.ForeignRound).text(6, summary.ForeignProject);
+					if (!insert.done()) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					for (const auto& object : aCommit.Objects) {
+						auto pin = query{ aDatabase, "INSERT OR IGNORE INTO import_objects(import,digest,size) VALUES(?1,?2,?3)" };
+						if (!pin.integer(1, *next).blob(2, object.Digest.bytes()).id(3, object.Size).done()) {
+							return fail(cycle_store_failure::unavailable);
+						}
+					}
+					return cycle_write_receipt{ .Allocated = static_cast<std::uint64_t>(*next), .Changed = true };
+				});
+			}
+
+			auto imports(const std::optional<core::cycle_import_id> aAfter, std::stop_token aStop) -> cycle_store_result<application::cycle_import_page> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<application::cycle_import_page> {
+					auto rows = query{ aDatabase, "SELECT import,digest,payload_size,foreign_cycle,foreign_round,foreign_project FROM imports WHERE import>?1 ORDER BY import LIMIT ?2" };
+					rows.id(1, aAfter ? aAfter->value() : 0U).id(2, application::maximum_cycle_page_entries + 1U);
+					auto page   = application::cycle_import_page{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						if (page.Imports.size() == application::maximum_cycle_page_entries) {
+							page.Next = page.Imports.back().Summary.Id;
+							break;
+						}
+						auto record = decode_import(aDatabase, rows);
+						if (!record) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						page.Imports.push_back(std::move(*record));
+					}
+					if (status != SQLITE_ROW && status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return page;
+				});
+			}
+
+			auto load_import(const core::cycle_import_id aImport, std::stop_token aStop) -> cycle_store_result<std::optional<application::stored_cycle_import>> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::optional<application::stored_cycle_import>> {
+					auto row = query{ aDatabase, "SELECT import,digest,payload_size,foreign_cycle,foreign_round,foreign_project FROM imports WHERE import=?1" };
+					row.id(1, aImport.value());
+					const auto status = row.step();
+					if (status == SQLITE_DONE) {
+						return std::optional<application::stored_cycle_import>{ };
+					}
+					auto record = status == SQLITE_ROW ? decode_import(aDatabase, row) : std::nullopt;
+					if (!record) {
+						return fail(cycle_store_failure::corrupt);
+					}
+					return record;
+				});
+			}
+
 			auto inventory(std::stop_token aStop) -> cycle_store_result<application::cycle_retention_inventory> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) { return read_inventory(aDatabase); });
@@ -1498,7 +1593,8 @@ namespace bpr::adapters::sqlite {
 				const auto named  = [](const auto& aNames, const std::string_view aName) { return std::ranges::find(aNames, aName) != aNames.end(); };
 				auto       tables = std::vector<table>{ };
 				for (const auto& definition : schema) {
-					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name)) || (aVersion < 4 && named(added_in_v4, definition.Name))) {
+					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name)) || (aVersion < 4 && named(added_in_v4, definition.Name))
+						|| (aVersion < 5 && named(added_in_v5, definition.Name))) {
 						continue;
 					}
 					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
@@ -1549,8 +1645,11 @@ namespace bpr::adapters::sqlite {
 				if (aFrom < 3) {
 					std::ranges::transform(added_in_v3, std::back_inserter(steps), definition);
 				}
-				std::ranges::transform(added_in_v4, std::back_inserter(steps), definition);
-				steps.emplace_back("PRAGMA user_version=4");
+				if (aFrom < 4) {
+					std::ranges::transform(added_in_v4, std::back_inserter(steps), definition);
+				}
+				std::ranges::transform(added_in_v5, std::back_inserter(steps), definition);
+				steps.emplace_back("PRAGMA user_version=5");
 				for (const auto& step : steps) {
 					if (!detail::execute(aDatabase, step, aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
@@ -1591,7 +1690,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto catalog = query{ aDatabase, "INSERT INTO catalog(singleton,profile,incarnation,next_cycle) VALUES(1,?1,randomblob(32),1)" };
 					if (!catalog.id(1, Profile.value()).done() || !detail::execute(aDatabase, "PRAGMA application_id=1112560195", aStop)
-						|| !detail::execute(aDatabase, "PRAGMA user_version=4", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
+						|| !detail::execute(aDatabase, "PRAGMA user_version=5", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}
@@ -1640,12 +1739,13 @@ namespace bpr::adapters::sqlite {
 					if (!std::ranges::equal(prior.column_blob(0), request)) {
 						return fail(cycle_store_failure::operation_reused);
 					}
-					const auto cycle = stored_id(prior.column_integer(1));
-					if (!cycle) {
+					// Zero names no cycle: an import's receipt.
+					const auto cycle = prior.column_integer(1);
+					if (cycle < 0) {
 						return fail(cycle_store_failure::corrupt);
 					}
 					return cycle_write_receipt{
-						.Cycle     = core::review_cycle_id{ *cycle },
+						.Cycle     = core::review_cycle_id{ static_cast<std::uint64_t>(cycle) },
 						.Revision  = static_cast<std::uint64_t>(prior.column_integer(2)),
 						.Allocated = static_cast<std::uint64_t>(prior.column_integer(3)),
 						.Changed   = prior.column_integer(4) != 0,
@@ -2179,6 +2279,32 @@ namespace bpr::adapters::sqlite {
 					return fail(status == SQLITE_ROW ? cycle_store_failure::corrupt : cycle_store_failure::unavailable);
 				}
 				return std::optional{ round->Round };
+			}
+
+			/// One `imports` row (import, digest, size, foreign names) and its pins.
+			static auto decode_import(sqlite3* aDatabase, query& aRow) -> std::optional<application::stored_cycle_import>
+			{
+				const auto id     = stored_id(aRow.column_integer(0));
+				const auto digest = digest_from<core::cycle_material_digest>(aRow.column_blob(1));
+				const auto size   = aRow.column_integer(2);
+				if (!id || !digest || size < 0) {
+					return std::nullopt;
+				}
+				auto record = application::stored_cycle_import{
+					.Summary = { .Id = core::cycle_import_id{ *id }, .Digest = core::cycle_round_digest{ digest->bytes() }, .ForeignCycle = std::string{ aRow.column_text(3) }, .ForeignRound = std::string{ aRow.column_text(4) }, .ForeignProject = std::string{ aRow.column_text(5) } },
+					.Payload = { .Digest = *digest, .Size = static_cast<std::uint64_t>(size) },
+				};
+				auto pins = query{ aDatabase, "SELECT digest,size FROM import_objects WHERE import=?1 ORDER BY digest" };
+				pins.id(1, *id);
+				auto status = pins.step();
+				for (; status == SQLITE_ROW; status = pins.step()) {
+					const auto pinned = digest_from<core::cycle_material_digest>(pins.column_blob(0));
+					if (!pinned || pins.column_integer(1) < 0) {
+						return std::nullopt;
+					}
+					record.Objects.push_back({ .Digest = *pinned, .Size = static_cast<std::uint64_t>(pins.column_integer(1)) });
+				}
+				return status == SQLITE_DONE ? std::optional{ std::move(record) } : std::nullopt;
 			}
 
 			static auto object_present(sqlite3* aDatabase, const cycle_object_ref& aObject) -> bool

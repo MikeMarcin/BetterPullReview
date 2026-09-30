@@ -449,6 +449,30 @@ namespace bpr::application {
 														std::move(aDone));
 	}
 
+	auto review_cycle_runtime::import_bundle(cycle_operation_id aOperation, std::vector<std::uint8_t> aBundle, completion<cycle_import_result> aDone) -> bool
+	{
+		return Implementation->submit<cycle_import_result>([aOperation, bundle = std::move(aBundle)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_result> {
+			return import_round_bundle(aStore, aOperation, bundle, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::imports(const std::optional<core::cycle_import_id> aAfter, completion<cycle_import_page> aDone) -> bool
+	{
+		return Implementation->submit<cycle_import_page>([aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_page> {
+			return aStore.imports(aAfter, aStop);
+		},
+														 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::read_import(const core::cycle_import_id aImport, completion<cycle_imported_round> aDone) -> bool
+	{
+		return Implementation->submit<cycle_imported_round>([aImport](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_imported_round> {
+			return read_imported_round(aStore, aImport, aStop);
+		},
+															std::move(aDone));
+	}
+
 	auto review_cycle_runtime::preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

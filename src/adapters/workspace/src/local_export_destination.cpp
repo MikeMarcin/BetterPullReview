@@ -16,6 +16,7 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #if defined(_WIN32)
 	#if !defined(NOMINMAX)
@@ -126,6 +127,92 @@ namespace bpr::adapters::workspace {
 		}
 #endif
 
+		/// Streams one regular file without following a link. Nothing when no
+		/// file is there; a link, directory or device is `not_regular`.
+		template <typename TSink>
+		auto stream_regular(const std::filesystem::path& aFile, const std::uint64_t aMaximumBytes, std::stop_token aStop, TSink&& aSink)
+			-> std::expected<std::optional<std::uint64_t>, cycle_export_failure>
+		{
+			auto buffer = std::array<std::uint8_t, chunk_bytes>{ };
+			auto total  = std::uint64_t{ 0 };
+#if defined(_WIN32)
+			const auto attributes = ::GetFileAttributesW(aFile.c_str());
+			if (attributes == INVALID_FILE_ATTRIBUTES) {
+				if (::GetLastError() == ERROR_FILE_NOT_FOUND) {
+					return std::optional<std::uint64_t>{ };
+				}
+				return std::unexpected(cycle_export_failure::unavailable);
+			}
+			if ((attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE)) != 0U) {
+				return std::unexpected(cycle_export_failure::not_regular);
+			}
+			const auto file = handle{ ::CreateFileW(aFile.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr) };
+			auto       size = LARGE_INTEGER{ };
+			if (!file.valid() || ::GetFileType(file.get()) != FILE_TYPE_DISK || !::GetFileSizeEx(file.get(), &size)) {
+				return std::unexpected(cycle_export_failure::unavailable);
+			}
+			if (static_cast<std::uint64_t>(size.QuadPart) > aMaximumBytes) {
+				return std::unexpected(cycle_export_failure::too_large);
+			}
+			while (true) {
+				if (aStop.stop_requested()) {
+					return std::unexpected(cycle_export_failure::cancelled);
+				}
+				auto read = DWORD{ 0 };
+				if (!::ReadFile(file.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr)) {
+					return std::unexpected(cycle_export_failure::unavailable);
+				}
+				if (read == 0U) {
+					break;
+				}
+				total += read;
+				if (total > aMaximumBytes) {
+					return std::unexpected(cycle_export_failure::too_large);
+				}
+				aSink(std::span<const std::uint8_t>{ buffer.data(), read });
+			}
+#else
+			struct stat status{ };
+			if (::lstat(aFile.c_str(), &status) != 0) {
+				if (errno == ENOENT) {
+					return std::optional<std::uint64_t>{ };
+				}
+				return std::unexpected(cycle_export_failure::unavailable);
+			}
+			if (!S_ISREG(status.st_mode)) {
+				return std::unexpected(cycle_export_failure::not_regular);
+			}
+			if (static_cast<std::uint64_t>(status.st_size) > aMaximumBytes) {
+				return std::unexpected(cycle_export_failure::too_large);
+			}
+			const auto file = descriptor{ ::open(aFile.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC) };
+			if (file.get() < 0) {
+				return std::unexpected(errno == ELOOP ? cycle_export_failure::not_regular : cycle_export_failure::unavailable);
+			}
+			while (true) {
+				if (aStop.stop_requested()) {
+					return std::unexpected(cycle_export_failure::cancelled);
+				}
+				const auto read = ::read(file.get(), buffer.data(), buffer.size());
+				if (read < 0 && errno == EINTR) {
+					continue;
+				}
+				if (read < 0) {
+					return std::unexpected(cycle_export_failure::unavailable);
+				}
+				if (read == 0) {
+					break;
+				}
+				total += static_cast<std::uint64_t>(read);
+				if (total > aMaximumBytes) {
+					return std::unexpected(cycle_export_failure::too_large);
+				}
+				aSink(std::span<const std::uint8_t>{ buffer.data(), static_cast<std::size_t>(read) });
+			}
+#endif
+			return std::optional{ total };
+		}
+
 		class local_export_destination final : public application::cycle_export_destination
 		{
 		public:
@@ -139,84 +226,15 @@ namespace bpr::adapters::workspace {
 				if (!usable()) {
 					return std::unexpected(cycle_export_failure::unavailable);
 				}
-#if defined(_WIN32)
-				const auto attributes = ::GetFileAttributesW(File.c_str());
-				if (attributes == INVALID_FILE_ATTRIBUTES) {
-					const auto error = ::GetLastError();
-					return error == ERROR_FILE_NOT_FOUND ? std::expected<std::optional<cycle_object_ref>, cycle_export_failure>{ std::nullopt }
-														 : std::unexpected(cycle_export_failure::unavailable);
-				}
-				if ((attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE)) != 0U) {
-					return std::unexpected(cycle_export_failure::not_regular);
-				}
-				const auto file = handle{ ::CreateFileW(File.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr) };
-				auto       size = LARGE_INTEGER{ };
-				if (!file.valid() || ::GetFileType(file.get()) != FILE_TYPE_DISK || !::GetFileSizeEx(file.get(), &size)) {
-					return std::unexpected(cycle_export_failure::unavailable);
-				}
-				if (static_cast<std::uint64_t>(size.QuadPart) > aMaximumBytes) {
-					return std::unexpected(cycle_export_failure::too_large);
-				}
 				auto stream = core::sha256_stream{ };
-				auto total  = std::uint64_t{ 0 };
-				auto buffer = std::array<std::uint8_t, chunk_bytes>{ };
-				while (true) {
-					if (aStop.stop_requested()) {
-						return std::unexpected(cycle_export_failure::cancelled);
-					}
-					auto read = DWORD{ 0 };
-					if (!::ReadFile(file.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr)) {
-						return std::unexpected(cycle_export_failure::unavailable);
-					}
-					if (read == 0U) {
-						break;
-					}
-					total += read;
-					if (total > aMaximumBytes) {
-						return std::unexpected(cycle_export_failure::too_large);
-					}
-					stream.update({ buffer.data(), read });
+				auto total  = stream_regular(File, aMaximumBytes, aStop, [&](const std::span<const std::uint8_t> aChunk) { stream.update(aChunk); });
+				if (!total) {
+					return std::unexpected(total.error());
 				}
-#else
-				struct stat status{ };
-				if (::lstat(File.c_str(), &status) != 0) {
-					return errno == ENOENT ? std::expected<std::optional<cycle_object_ref>, cycle_export_failure>{ std::nullopt } : std::unexpected(cycle_export_failure::unavailable);
+				if (!*total) {
+					return std::optional<cycle_object_ref>{ };
 				}
-				if (!S_ISREG(status.st_mode)) {
-					return std::unexpected(cycle_export_failure::not_regular);
-				}
-				if (static_cast<std::uint64_t>(status.st_size) > aMaximumBytes) {
-					return std::unexpected(cycle_export_failure::too_large);
-				}
-				const auto file = descriptor{ ::open(File.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC) };
-				if (file.get() < 0) {
-					return std::unexpected(errno == ELOOP ? cycle_export_failure::not_regular : cycle_export_failure::unavailable);
-				}
-				auto stream = core::sha256_stream{ };
-				auto total  = std::uint64_t{ 0 };
-				auto buffer = std::array<std::uint8_t, chunk_bytes>{ };
-				while (true) {
-					if (aStop.stop_requested()) {
-						return std::unexpected(cycle_export_failure::cancelled);
-					}
-					const auto read = ::read(file.get(), buffer.data(), buffer.size());
-					if (read < 0 && errno == EINTR) {
-						continue;
-					}
-					if (read < 0) {
-						return std::unexpected(cycle_export_failure::unavailable);
-					}
-					if (read == 0) {
-						break;
-					}
-					total += static_cast<std::uint64_t>(read);
-					if (total > aMaximumBytes) {
-						return std::unexpected(cycle_export_failure::too_large);
-					}
-					stream.update({ buffer.data(), static_cast<std::size_t>(read) });
-				}
-#endif
-				return std::optional{ cycle_object_ref{ .Digest = core::cycle_material_digest{ stream.finish() }, .Size = total } };
+				return std::optional{ cycle_object_ref{ .Digest = core::cycle_material_digest{ stream.finish() }, .Size = **total } };
 			}
 
 			auto create(const std::span<const std::uint8_t> aBytes, std::stop_token aStop) -> std::expected<void, cycle_export_failure> override
@@ -382,6 +400,22 @@ namespace bpr::adapters::workspace {
 
 			std::filesystem::path File;
 		};
+	}
+
+	auto read_chosen_file(const std::filesystem::path& aFile, const std::uint64_t aMaximumBytes, std::stop_token aStop) -> std::expected<std::vector<std::uint8_t>, application::cycle_export_failure>
+	{
+		if (!aFile.is_absolute() || !aFile.has_filename()) {
+			return std::unexpected(cycle_export_failure::unavailable);
+		}
+		auto bytes = std::vector<std::uint8_t>{ };
+		auto total = stream_regular(aFile, aMaximumBytes, std::move(aStop), [&](const std::span<const std::uint8_t> aChunk) { bytes.insert(bytes.end(), aChunk.begin(), aChunk.end()); });
+		if (!total) {
+			return std::unexpected(total.error());
+		}
+		if (!*total) {
+			return std::unexpected(cycle_export_failure::unavailable);
+		}
+		return bytes;
 	}
 
 	auto make_local_export_destination(std::filesystem::path aFile) -> std::unique_ptr<application::cycle_export_destination>

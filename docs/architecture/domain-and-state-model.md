@@ -357,6 +357,24 @@ temporary file moved into place without replacing anything, an identical
 file left untouched, and other bytes replaced only when the reviewer confirmed
 exactly those bytes and they are still there.
 
+A portable bundle (`bpr/core/review_cycle_bundle.hpp`, BPR-1160) is a
+`.bpr-review.zip` of `manifest.json`, `round.json` (the envelope),
+`review.md` (the document above) and `objects/<sha256>` attachments holding
+each selected source's exact bytes. `build_round_bundle` is deterministic for a
+round (stored members, fixed timestamps, UTF-8 names), and the pack's own
+reference oracle accepts what it writes; `open_round_bundle` reads stored and
+deflated archives from any producer (`bpr/core/review_cycle_zip.hpp`, a
+bounded inflater with CRC checks) and validates the container, names,
+manifest, round, derived document and attachments before returning anything.
+`application::import_round_bundle` admits a validated bundle into the cycle
+store's quarantine: the canonical payload and attachments are installed as
+objects, and schema 5's `imports` and `import_objects` tables pin them under a
+record keyed by the round digest that keeps the sender's cycle, round and
+project names exactly as sent. The same round imported again, or after a
+restart, finds that record; a refused bundle installs nothing; an interrupted
+import leaves only unreferenced objects. Schema 5 migrates schemas 1 to 4 in
+place.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

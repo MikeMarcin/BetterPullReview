@@ -3,6 +3,7 @@
 
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
+#include "bpr/core/review_cycle_import.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 
@@ -176,6 +177,28 @@ namespace bpr::application {
 		std::optional<std::uint64_t>        Next;
 	};
 
+	/// \brief An imported round to admit to quarantine (BPR-1160). Every
+	/// object must already be installed; the payload's digest is the round's.
+	struct cycle_import_commit
+	{
+		core::cycle_import_summary    Summary;
+		cycle_object_ref              Payload;
+		std::vector<cycle_object_ref> Objects;
+	};
+	/// \brief One quarantined imported round.
+	struct stored_cycle_import
+	{
+		core::cycle_import_summary    Summary;
+		cycle_object_ref              Payload;
+		std::vector<cycle_object_ref> Objects;
+		auto                          operator<=>(const stored_cycle_import&) const = default;
+	};
+	struct cycle_import_page
+	{
+		std::vector<stored_cycle_import>     Imports;
+		std::optional<core::cycle_import_id> Next;
+	};
+
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
 	/// are not recoverable from GitHub or from exported rounds.
 	struct cycle_removal_preview
@@ -276,6 +299,14 @@ namespace bpr::application {
 		/// review history, and needs no operation identity.
 		virtual auto save_tabs(const core::local_cycle_subject& aSubject, const core::cycle_tabs_record& aRecord, std::stop_token aStop) -> cycle_store_result<void> = 0;
 		virtual auto load_tabs(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_tabs_record>>       = 0;
+
+		/// \brief Admits an imported round to quarantine in one transaction,
+		/// pinning its payload and attachments (BPR-1160). A round already
+		/// admitted, by digest, returns its record unchanged. `Allocated` is
+		/// the import; `Cycle` and `Revision` are zero: no cycle changes.
+		virtual auto admit_import(const cycle_operation_id& aOperation, const cycle_import_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		virtual auto imports(std::optional<core::cycle_import_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_import_page>                                     = 0;
+		virtual auto load_import(core::cycle_import_id aImport, std::stop_token aStop) -> cycle_store_result<std::optional<stored_cycle_import>>                              = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

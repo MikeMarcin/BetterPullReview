@@ -1410,3 +1410,23 @@ listed as untracked candidates the reviewer sees before sharing, or disclosed
 as excluded with their reason; `.git`, common credential stores and caches are
 excluded by default in folder roots. Captured bytes stay in the profile-private
 store.
+
+Portable rounds (BPR-1158–1160) leave the machine only when the reviewer
+copies or saves one. A round's payload carries only what was selected: no
+replies, earlier wordings, private references, authorship details, workspace
+location or store path. Save writes the one file the reviewer chose, through a
+flushed temporary file moved into place without replacing anything, and
+replaces other bytes only when the reviewer confirmed exactly those bytes. An
+incoming `.bpr-review.zip` is untrusted data: `bpr/core/review_cycle_zip.hpp`
+and `review_cycle_bundle.hpp` validate it in memory before anything is stored,
+refusing multi-disk and ZIP64 layouts, encryption, methods other than stored
+and deflate, links, directories and special entries, names that are not UTF-8
+or not portable (absolute, drive, UNC, traversal including percent-encoded
+traversal, controls, backslash, colon, trailing dot or space, reserved device
+names), names another platform would merge, overlapping member data, members
+over 512 MiB in total or over a 100:1 expansion, CRC mismatches, unlisted or
+mismatched members, duplicate JSON keys, and any round, derived document or
+attachment that does not match the canonical payload. Only a bundle that
+passes every check is admitted, as content-addressed objects in the
+profile-private store with the sender's identities kept as sent; no member is
+written to a named file, no source is changed and nothing is run.

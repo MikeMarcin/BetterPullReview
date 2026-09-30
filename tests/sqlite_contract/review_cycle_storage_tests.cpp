@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <span>
 #include <string>
 #include <variant>
 #include <vector>
@@ -358,6 +359,7 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
+			"DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
@@ -387,7 +389,8 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
+		sql(database_path(scratch.path()), "DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+										   "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
 		expect(loaded.Latest && loaded.Revision == 2, "v2 cycle reads unchanged");
@@ -414,7 +417,8 @@ namespace {
 			expect(note.has_value(), "feedback before downgrade");
 		}
 		// The third published shape had everything but the tab views.
-		sql(database_path(scratch.path()), "DROP TABLE views; PRAGMA user_version=3;");
+		sql(database_path(scratch.path()), "DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+										   "DROP TABLE views; PRAGMA user_version=3;");
 		auto       store = open(scratch.path());
 		const auto page  = store.Store->feedback(subject, std::nullopt, { });
 		expect(page && page->Threads.size() == 1, "v3 feedback reads unchanged");
@@ -519,6 +523,51 @@ namespace {
 #endif
 }
 
+namespace {
+	/// [[BPR-1160]]. The fourth published shape had everything but imports;
+	/// after migration an imported round is admitted once, by digest, pinned,
+	/// replayed on retry, and refused while its payload is not installed.
+	void migrates_the_fourth_schema_and_quarantines_imports()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v4" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "v4 manifest", 1).has_value(), "capture before downgrade");
+		}
+		sql(database_path(scratch.path()), "DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
+		auto store = open(scratch.path());
+		expect(store.state(subject).Latest.has_value(), "v4 cycle reads unchanged");
+
+		const auto spanOf   = [](const std::string& aBytes) { return std::span{ reinterpret_cast<const std::uint8_t*>(aBytes.data()), aBytes.size() }; };
+		const auto objectOf = [&](const std::string& aBytes) {
+			return application::cycle_object_ref{ .Digest = core::cycle_material_digest{ core::sha256(spanOf(aBytes)) }, .Size = aBytes.size() };
+		};
+		const auto payload  = std::string{ "{\"schema\":\"bpr.cycle.round.v1\"}" };
+		const auto attached = std::string{ "attached source" };
+		const auto summary  = core::cycle_import_summary{ .Digest = core::cycle_round_digest{ core::sha256(spanOf(payload)) }, .ForeignCycle = "RC-17", .ForeignRound = "F1", .ForeignProject = "example-cache" };
+		const auto commit   = application::cycle_import_commit{ .Summary = summary, .Payload = objectOf(payload), .Objects = { objectOf(attached) } };
+		const auto absent   = store.Store->admit_import(operation(20), commit, { });
+		expect(!absent && absent.error().Failure == cycle_store_failure::object_unavailable, "an import whose bytes are not installed is refused");
+		expect(store.Store->imports(std::nullopt, { })->Imports.empty(), "and admits nothing");
+		const auto pieces = std::vector<std::span<const std::uint8_t>>{ spanOf(payload), spanOf(attached) };
+		expect(store.Store->install_all(pieces, { }).has_value(), "bytes installed");
+		const auto admitted = store.Store->admit_import(operation(21), commit, { });
+		expect(admitted && admitted->Changed && admitted->Allocated == 1U && admitted->Cycle == core::review_cycle_id{ 0 }, "admitted as import 1; no cycle changes");
+		const auto replayed = store.Store->admit_import(operation(21), commit, { });
+		expect(replayed && replayed->Replayed && replayed->Allocated == 1U, "a retried operation replays");
+		const auto again = store.Store->admit_import(operation(22), commit, { });
+		expect(again && !again->Changed && again->Allocated == 1U, "the same round again finds its record");
+		const auto loaded = store.Store->load_import(core::cycle_import_id{ 1 }, { });
+		expect(loaded && *loaded && (*loaded)->Summary.ForeignCycle == "RC-17" && (*loaded)->Summary.ForeignProject == "example-cache" && (*loaded)->Objects == std::vector{ objectOf(attached) },
+			   "sender identities and pins read back exactly");
+		const auto reclaimed = store.Store->reclaim({ });
+		expect(reclaimed && reclaimed->UnreferencedObjects == 0U && store.Store->read_object(objectOf(attached), { }).has_value(), "quarantined bytes are pinned, never reclaimed");
+		expect(store.Store->imports(std::nullopt, { })->Imports.size() == 1U, "one quarantined round");
+	}
+}
+
 int main()
 {
 	creates_and_reopens_a_provider_free_cycle();
@@ -532,6 +581,7 @@ int main()
 	migrates_the_first_schema();
 	migrates_the_second_schema();
 	migrates_the_third_schema();
+	migrates_the_fourth_schema_and_quarantines_imports();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif
