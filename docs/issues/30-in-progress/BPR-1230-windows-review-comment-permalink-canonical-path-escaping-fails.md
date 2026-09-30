@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1230"
 title: "Windows: github_review_comment_permalink fails at canonical RFC0022 path escaping, contained and uncontained"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
