@@ -43,3 +43,14 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 `core_review_cycle_views`, `core_review_cycle_tabs`, `core_review_cycle_comparison`, `sqlite_review_cycle_storage`, `review_cycle_workbench`, `qt_review_cycle_view_1_0` and `_2_0`, and `application_review_cycle_desktop_public_path` pass. The build of these targets is clean under GCC.
 
 The logs are station records in `build/logs/bpr-station-iteration/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `52f28dd1`, `build/windows-dev` (MSVC 19.51) builds with no warning and no
+source change. The manual-iteration rows pass offscreen: the six
+`core_review_cycle` rows, `sqlite_review_cycle_storage`,
+`review_cycle_{workbench,response,verification}`, `qt_review_cycle_view_*`
+and `application_review_cycle_desktop_public_path`. The two new uncontained
+pins are measured and confirmed in `fb9196d8`. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, manual iteration".
