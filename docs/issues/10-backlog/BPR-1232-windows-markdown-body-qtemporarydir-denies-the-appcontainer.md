@@ -53,3 +53,25 @@ because of its ACL, not because of an early exit.
 - The three rows pass on Windows, and leave nothing in the AppContainer's
   temporary directory.
 - macOS and Linux still pass.
+
+## Fixed at `491c682f`, verified on Windows (bpr-main-win, 2026-09-29)
+
+The cause is `QTemporaryDir`'s owner-only directory. On Windows, Qt writes
+that as the protected DACL recorded above, the same shape
+`scripts/contained_temporary_support.py` documents for CPython's
+`tempfile`. On Windows the course now makes its resource directory itself.
+It uses `QDir::mkdir`, without a mode, at a random name, and `mkdir` refuses a
+name that is taken. So the directory inherits the container temporary
+directory's entries, and the course removes it. POSIX keeps `QTemporaryDir`.
+
+| At `491c682f`, contained | Result |
+|---|---|
+| `qt_markdown_body_1_0`, `_1_25`, `_2_0` | pass, 2.38, 2.58 and 3.42 s |
+| AppContainer temporary directory after the run | no `better_pull_review_markdown_body_view_tests-` entry added |
+
+The runs before the fix, recorded above, are the control. The same rows failed
+at `write designated canary image` and left their directories.
+
+Still open: a macOS and a Linux run, where the course still uses
+`QTemporaryDir`, to show the rows still pass there. The card stays in Backlog
+until then.
