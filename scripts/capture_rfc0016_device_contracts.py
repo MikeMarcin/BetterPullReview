@@ -235,6 +235,12 @@ OBSERVED_FIELDS = {
     "slow_down": ["error", "error_description", "error_uri", "interval"],
 }
 
+# The designated read-only probe that BPR-0276's owner-attended capture sent on
+# 2026-08-24. It is recorded evidence, not the provider's current review query
+# (github_read_contract.cpp): the attended review binds route-probes.json by
+# digest, and request_contract_sha256 binds this exact text. Leave it unchanged
+# when the provider's query grows; a new probe needs a new attended capture.
+# BPR-1248 restored it after f44c95dd7 edited it with the provider's query.
 GRAPHQL_DOCUMENT = (
     "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
     "repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid "
@@ -242,7 +248,7 @@ GRAPHQL_DOCUMENT = (
     "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
     "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
     "subjectType path diffSide line originalLine comments(first:100){totalCount "
-    "nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{login ... on "
+    "nodes{id bodyText path line originalLine outdated author{login ... on "
     "Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} "
     "pageInfo{hasNextPage endCursor}}}}}"
 )
