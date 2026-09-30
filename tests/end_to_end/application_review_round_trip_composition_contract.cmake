@@ -483,6 +483,15 @@ endfunction()
 # The only pinned-scope change is clang-format's alignment of one declaration
 # in private_review_workflow.cpp (`lock` beside `rows`). No behavior change;
 # github_application.cpp and the mutation pin are unchanged.
+# BPR-1246 reseal: 94250ab9..this candidate; no intervening pinned-scope commit.
+# dispatch_review_draft takes an optional settlement callback, called once with
+# whether the command was accepted, including on the private review's later
+# answer. promote_private_item (note and chat-reply promotion) now shows
+# Comments on that answer and refuses only when the draft was not accepted;
+# before, it read the draft on return and refused every private-review
+# promotion it had in fact made. Draft commands still go through the same
+# private review and shared-draft owners. No grant, provider or publication
+# path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -501,7 +510,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4a7b8e38debc4d97f61282b81c551dd605985b5c68dee1742daa2049a8a4184e"
+		"d1559f4666936e992878c87263a3151a4206ccad02dec95254b8f503e7276c9c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -687,7 +696,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8b630337e489b7df6eb504b8c37998898504e6b6bdb9126263740a761deee160"
+        "95863ec6f2aece2ffa5538db1b2687676aa47cc3e79119012db74749cef89eef"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

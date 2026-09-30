@@ -157,6 +157,7 @@
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QPointer>
 #include <QPushButton>
 #include <QRect>
 #include <QSaveFile>
@@ -10074,22 +10075,40 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		void dispatch_review_draft(core::revisioned_review_draft_command aRevisionedCommand)
+		/// \brief Applies one draft command, and says once whether it was accepted.
+		///
+		/// \details [[BPR-1246]]. With private review the command is written
+		/// durably first and accepted later, on the private review's answer, so
+		/// a caller that acts on the accepted draft passes `aSettled` rather than
+		/// reading `ReviewDraft` on return. It is called at most once: with
+		/// true after `finish_review_draft_command` accepted the command, with
+		/// false when the command was refused or never applied. A window that
+		/// closes before the private answer arrives never calls it.
+		void dispatch_review_draft(core::revisioned_review_draft_command aRevisionedCommand, std::function<void(bool)> aSettled = { })
 		{
+			const auto settle = [&aSettled](const bool aAccepted) {
+				if (aSettled) {
+					std::exchange(aSettled, { })(aAccepted);
+				}
+			};
 			if (Closing || !ReviewDraft.has_value()
 				|| ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
+				settle(false);
 				return;
 			}
 			if (!SharedDrafts) {
+				settle(false);
 				return;
 			}
 			const auto& aCommand = aRevisionedCommand.Command;
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish
 				&& (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment")))) {
+				settle(false);
 				return;
 			}
 			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
+				settle(false);
 				return;
 			}
 			if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
@@ -10098,36 +10117,49 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (PrivateReview && PrivateDraftsReady) {
 				if (aRevisionedCommand.Scope != DraftScope || aRevisionedCommand.ExpectedRevision != ReviewDraftRevision || aCommand.Id != ReviewDraft->Id) {
 					Window->review_editor()->present_conflict({ .Accepted = { *ReviewDraft, ReviewDraftRevision, DraftScope }, .Refusal = core::revisioned_draft_refusal::conflict });
+					settle(false);
 					return;
 				}
 				if (aCommand.Kind == core::review_draft_command_kind::begin_publish && ReviewDraft->State == core::review_draft_state::publishing) {
+					auto finished = false;
 					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
 						const auto retained = SharedDrafts->read(DraftConsumer, ReviewDraft->Id);
 						if (retained.Accepted) {
 							finish_review_draft_command(aRevisionedCommand, retained);
+							finished = true;
 						}
 					}
+					settle(finished);
 					return;
 				}
 				if (PrivateDraftCommandPending) {
+					settle(false);
 					return;
 				}
 				PrivateDraftCommandPending = true;
 				const auto owner           = SharedDrafts;
-				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand](auto aCommit) {
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, settled = std::move(aSettled)](auto aCommit) {
 					PrivateDraftCommandPending = false;
+					const auto answer          = [&settled](const bool aAccepted) {
+						if (settled) {
+							settled(aAccepted);
+						}
+					};
 					if (Closing || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						answer(false);
 						return;
 					}
 					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
 					if (accepted.Accepted) {
 						finish_review_draft_command(aRevisionedCommand, accepted);
 					}
+					answer(accepted.Accepted.has_value() && !accepted.Failure);
 				});
 				return;
 			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
 			finish_review_draft_command(aRevisionedCommand, outcome);
+			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
 		void                                                         finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
@@ -12382,11 +12414,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		/// \brief Copies one selected private item through the existing Comment target.
-		[[nodiscard]] auto promote_private_item(std::string aText) -> bool
+		/// \brief Copies one private item's text into Comment's draft, then
+		/// shows that draft.
+		///
+		/// \details `aRefused` is called, at most once, when the copy is not
+		/// made. [[BPR-1246]]: with private review the draft is accepted on the
+		/// private review's answer, after this returns, so the result is read
+		/// there. Reading it on return refused every promotion the reviewer
+		/// then saw arrive in the draft.
+		void promote_private_item(std::string aText, std::function<void()> aRefused)
 		{
 			if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
 				|| !Window->comment_action()->isEnabled() || Window->review_editor()->body_editor()->isReadOnly()) {
-				return false;
+				aRefused();
+				return;
 			}
 			const auto anchor = ReviewDraft->Anchor;
 			const auto scope  = DraftScope;
@@ -12395,21 +12436,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->comment_action()->trigger();
 			if (!ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
 				|| !Window->comment_action()->isEnabled() || !Window->review_editor()->publish_action()->isEnabled()) {
-				return false;
+				aRefused();
+				return;
 			}
 			const auto command = core::promote_private_text(aText, core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			if (!command) {
-				return false;
+				aRefused();
+				return;
 			}
-			dispatch_review_draft(*command);
-			if (!ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
-				|| ReviewDraft->Id != command->Command.Id || ReviewDraft->Body != aText
-				|| Window->review_editor()->rejected_candidate()) {
-				return false;
-			}
-			Window->tray_tabs()->setCurrentIndex(0);
-			Window->open_review_composition(true);
-			return true;
+			dispatch_review_draft(*command, [this, anchor, scope, id = command->Command.Id, text = std::move(aText), refused = std::move(aRefused)](const bool aAccepted) {
+				if (Closing || Window == nullptr) {
+					return;
+				}
+				if (!aAccepted || !ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
+					|| ReviewDraft->Id != id || ReviewDraft->Body != text
+					|| Window->review_editor()->rejected_candidate()) {
+					refused();
+					return;
+				}
+				Window->tray_tabs()->setCurrentIndex(0);
+				Window->open_review_composition(true);
+			});
 		}
 
 		void dispatch_private_note(const qt::private_note_intent& aIntent)
@@ -12434,8 +12481,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			if (aIntent.Action == qt::private_note_action::promote) {
-				if (found == AcceptedPrivateNotes.end() || !promote_private_item(found->Note.Text)) {
-					panel->refuse(QStringLiteral("Select Comment's current-head target and resolve any draft conflict before promoting."));
+				const auto refuse = [guarded = QPointer{ panel }] {
+					if (guarded != nullptr) {
+						guarded->refuse(QStringLiteral("Select Comment's current-head target and resolve any draft conflict before promoting."));
+					}
+				};
+				if (found == AcceptedPrivateNotes.end()) {
+					refuse();
+				} else {
+					promote_private_item(found->Note.Text, refuse);
 				}
 				return;
 			}
@@ -13548,9 +13602,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!projection || projection->Session.Id != promote->Session) {
 					return;
 				}
-				const auto found = std::ranges::find(projection->Replies, promote->Reply, &application::agent_chat_reply::Id);
-				if (found == projection->Replies.end() || !promote_private_item(found->Text)) {
+				const auto found  = std::ranges::find(projection->Replies, promote->Reply, &application::agent_chat_reply::Id);
+				const auto refuse = [this] {
 					present_agent_refusal("promote reply", "select a current-head Comment target and resolve any draft conflict");
+				};
+				if (found == projection->Replies.end()) {
+					refuse();
+				} else {
+					promote_private_item(found->Text, refuse);
 				}
 				return;
 			}

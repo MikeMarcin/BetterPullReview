@@ -20,6 +20,7 @@
 #include <QScrollBar>
 #include <QSpinBox>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QToolButton>
@@ -137,9 +138,12 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return window.statistics().FileSelections > selections; }, "normal file selection dispatched");
 				expect(editor.shown_draft() == draft, "file navigation preserves the PR-scoped summary");
 				window.close_review_composition();
-				wait([&] { return window.review_editor()->shown_draft().has_value(); }, "current line has a local inline draft projection");
-				expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 45U), "select the deletion on the left side");
-				wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Side == core::diff_side::left; }, "left-side draft projection");
+				// [[BPR-1246]]. A new draft is offered only on a right-side line
+				// ([[BPR-0587]], [[BPR-1207]]): the deletion on the left gets no
+				// draft projection, and Comment and Publish stay refused there.
+				wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::left, 45U); }, "select the deletion on the left side");
+				QApplication::processEvents();
+				expect(!window.review_editor()->shown_draft() || window.review_editor()->shown_draft()->Anchor.Side != core::diff_side::left, "left deletion is offered no new draft");
 				expect(!window.comment_action()->isEnabled() && window.comment_action()->toolTip().contains(QStringLiteral("right, current-head"))
 						   && !window.review_editor()->publish_action()->isEnabled(),
 					   "left deletion does not offer a new Comment or Publish");
@@ -186,9 +190,11 @@ auto main(int argc, char** argv) -> int
 				expect(notes->notes_list()->item(0)->data(Qt::UserRole) != noteId && !notes->notes_list()->item(0)->text().contains(QStringLiteral("Pull request")), "newest note names its file");
 				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_note_bytes) + 1, QLatin1Char{ 'x' }));
 				notes->save_action()->trigger();
-				expect(notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_note_bytes) + 1
-						   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")),
-					   "refused write retains the full local candidate and says why");
+				// [[BPR-1246]]. The ledger answers on its own lane ([[BPR-1211]]),
+				// so the refusal is waited for rather than read at once.
+				wait([&] { return notes->body_editor()->toPlainText().size() == static_cast<qsizetype>(core::maximum_note_bytes) + 1
+							   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")); },
+					 "refused write retains the full local candidate and says why");
 				notes->discard_action()->trigger();
 				expect(notes->body_editor()->toPlainText() == QStringLiteral("Private file note"), "explicit discard restores the accepted note");
 				notes->body_editor()->setPlainText(QStringLiteral("Edited file note"));
@@ -198,9 +204,12 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return notes->notes_list()->count() == 1; }, "revision-checked note delete commits");
 				notes->notes_list()->setCurrentRow(0);
 				QApplication::processEvents();
-				auto* const purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
-				expect(purpose != nullptr && purpose->isVisible()
-						   && purpose->width() <= window.findings_tab_scroll()->width()
+				// [[BPR-1246]]. The purpose sits above the Notes pages' tab widget
+				// ([[BPR-1242]]), not inside the Agent tools column.
+				auto* const purpose    = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
+				auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+				expect(purpose != nullptr && purpose->isVisible() && notesPages != nullptr
+						   && purpose->width() <= notesPages->width()
 						   && purpose->height() >= purpose->heightForWidth(purpose->width()),
 					   "the Notes privacy explanation wraps within the composed tray");
 				if (argc > 1) {
