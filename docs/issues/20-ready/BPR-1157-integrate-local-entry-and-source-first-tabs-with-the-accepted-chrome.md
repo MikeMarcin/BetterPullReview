@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1157"
 title: "Integrate local entry and source-first tabs with the accepted chrome"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0061"]
 depends_on: ["BPR-1146", "BPR-1151"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC61-01", "RC61-02", "RC61-03", "RC61-09"], "pack_alias": "PACK-CYCLE-15", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
