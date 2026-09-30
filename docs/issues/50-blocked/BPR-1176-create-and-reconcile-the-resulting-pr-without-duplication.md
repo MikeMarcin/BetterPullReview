@@ -40,3 +40,11 @@ Owed on the Windows station (MSVC, `build\dev`):
 ## Blocker: no safe GitHub publication target
 
 RC59-10 needs one separately approved disposable GitHub/GHES target course per claimed host. The owner has named no safe target, so no remote branch, commit or pull request has been created and GHES stays unadmitted for native publication. RC59-05 and RC59-07 pass on fixture, simulation and loopback evidence only for this card's share. The owed live course is recorded in the [ledger](../../verification/RFC-BPR-0053-0061.md). Unblock by naming a disposable repository and account for the live course.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror` (Debug), `build/dev` freshly configured at `e9e65eab2`, `/usr/bin/git`. Everything ran locally against the fixtures, with no live GitHub.
+
+Evidence only; the card stays blocked. Its rows, `review_cycle_publisher`, `github_publication_contract` and `native_https_transport_fixture`, pass locally.
+
+The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-publication/` and are not committed.

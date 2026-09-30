@@ -35,3 +35,11 @@ Passed on macOS arm64 at `b7fc9328f`. Owed on the Linux station (GCC 15, `build/
 `ctest --test-dir build/dev -R "^core_git_objects$|^core_review_cycle_outgoing$|^review_cycle_outgoing$|^git_process_contract$" --output-on-failure`.
 Owed on the Windows station (MSVC, `build\dev`): the same selector plus
 `|^test_network_isolation_manifest$` (the alternates separator is `;`; measure the new `review_cycle_outgoing` pin contained).
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror` (Debug), `build/dev` freshly configured at `e9e65eab2`, `/usr/bin/git`. Everything ran locally against the fixtures, with no live GitHub.
+
+`core_git_objects`, `core_review_cycle_outgoing`, `review_cycle_outgoing` and `git_process_contract` pass.
+
+The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-publication/` and are not committed.

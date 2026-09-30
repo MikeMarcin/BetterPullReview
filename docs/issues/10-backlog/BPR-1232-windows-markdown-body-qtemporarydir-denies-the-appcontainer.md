@@ -75,3 +75,12 @@ at `write designated canary image` and left their directories.
 Still open: a macOS and a Linux run, where the course still uses
 `QTemporaryDir`, to show the rows still pass there. The card stays in Backlog
 until then.
+
+## Linux, the POSIX `QTemporaryDir` path (bpr-main-linux, 2026-09-29)
+
+Ubuntu 26.04 on WSL2, GCC 15.2, Qt 6.11.2 offscreen, `build/dev` Debug at
+`e9e65eab2`, which contains `491c682f`. `qt_markdown_body_1_0`, `_1_25` and
+`_2_0` pass in 0.32, 0.31 and 0.60 s. A second run of the three, with a
+listing of `/tmp` taken before and after, added no entry to `/tmp`. That is
+the Linux half of "macOS and Linux still pass". The logs are in
+`build/logs/bpr-station-publication/` and are not committed.

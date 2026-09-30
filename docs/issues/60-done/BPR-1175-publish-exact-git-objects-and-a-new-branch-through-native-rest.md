@@ -40,3 +40,11 @@ Owed on the Windows station (MSVC, `build\dev`):
 ## Live evidence
 
 Not run. No designated safe GitHub target exists; RC59-10's live course is BPR-1176's and BPR-1178's and stays owed.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror` (Debug), `build/dev` freshly configured at `e9e65eab2`, `/usr/bin/git`. Everything ran locally against the fixtures, with no live GitHub.
+
+`core_review_cycle_publication`, `review_cycle_publisher`, `github_publication_contract` and `native_https_transport_fixture` pass, against the local fixture and simulated GitHub only.
+
+The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-publication/` and are not committed.
