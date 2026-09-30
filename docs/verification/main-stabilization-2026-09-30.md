@@ -24,7 +24,7 @@ Triaged and filed, not fixed here:
 (3 review submission rows),
 [BPR-1247](../issues/30-in-progress/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)
 (2 large-review rows),
-[BPR-1248](../issues/30-in-progress/BPR-1248-rfc0016-capture-read-only-route-inventory-drifted.md)
+[BPR-1248](../issues/60-done/BPR-1248-rfc0016-capture-read-only-route-inventory-drifted.md)
 (RFC-0016 capture pin),
 [BPR-1249](../issues/30-in-progress/BPR-1249-tour-cli-terminal-courses-fail-on-macos.md)
 (two tour CLI courses outside the dev preset) and
