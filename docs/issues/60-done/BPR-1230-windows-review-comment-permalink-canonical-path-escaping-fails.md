@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1230"
 title: "Windows: github_review_comment_permalink fails at canonical RFC0022 path escaping, contained and uncontained"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
+acceptance: [{"criterion":"The row passes on Windows, and the escaping assertion passes unchanged","outcome":"pass","revision":"9f8c34cc","evidence":{"kind":"observation","detail":"bpr-main-win: github_review_comment_permalink passes through ctest, 11.14 s, with the escaping assertion unchanged; recorded on the card."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"69493e235","evidence":{"kind":"command","detail":"Linux (bpr-main-linux, 69493e235): github_review_comment_permalink passes, 3.92 s. macOS arm64 (69493e235): passes through ctest, 3.63 s. Recorded on the card."}}]
 ---
 
 # BPR-1230: Windows: github_review_comment_permalink fails at canonical RFC0022 path escaping, contained and uncontained
