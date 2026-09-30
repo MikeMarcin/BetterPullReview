@@ -1573,3 +1573,21 @@ bpr_enable_hardening(test_private_review_panel)
 bpr_enable_warnings(test_private_review_panel)
 bpr_add_network_isolated_test(NAME qt_private_review_panel COMMAND test_private_review_panel)
 set_tests_properties(qt_private_review_panel PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" RUN_SERIAL TRUE)
+
+# [[BPR-1156]]. The focused suggestion editor and composer, driven through real Qt events.
+bpr_add_executable(test_better_pull_review_suggestion_editor_tests suggestion_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_suggestion_editor_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_suggestion_editor_tests)
+bpr_enable_warnings(test_better_pull_review_suggestion_editor_tests)
+foreach(suggestion_scale IN ITEMS 1.0 2.0)
+    string(REPLACE "." "_" suggestion_suffix "${suggestion_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_suggestion_editor_${suggestion_suffix}"
+        COMMAND test_better_pull_review_suggestion_editor_tests
+    )
+    set_tests_properties("qt_suggestion_editor_${suggestion_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${suggestion_scale};BPR_SUGGESTION_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/suggestion-${suggestion_suffix}"
+        PASS_REGULAR_EXPRESSION "suggestion-editor-tests:pass"
+        TIMEOUT 60
+    )
+endforeach()

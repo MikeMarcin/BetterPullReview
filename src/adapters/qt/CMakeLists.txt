@@ -3,6 +3,8 @@ add_library(
     STATIC
         src/review_tour_editor.cpp
         src/scoped_prose_editor.cpp
+        src/suggestion_editor.cpp
+        src/suggestion_composer.cpp
         src/writing_hooks_panel.cpp
         src/release_maintenance_panel.cpp
         src/release_update_panel.cpp
