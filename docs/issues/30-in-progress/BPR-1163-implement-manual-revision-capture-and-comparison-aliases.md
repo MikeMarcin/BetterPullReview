@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1163"
 title: "Implement manual revision capture and comparison aliases"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0057"]
 depends_on: ["BPR-1151", "BPR-1152", "BPR-1158"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "manual-iteration", "acceptance": ["RC57-01", "RC57-02", "RC57-09"], "pack_alias": "PACK-CYCLE-21", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
