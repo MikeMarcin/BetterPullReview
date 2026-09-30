@@ -259,6 +259,19 @@ namespace bpr::core {
 		unconfirmed,
 		/// A capture names a workspace binding version that is not current.
 		stale_workspace,
+		/// A feedback target is malformed, or names a revision this cycle
+		/// never allocated or bytes that revision does not hold.
+		invalid_target,
+		/// A feedback author's provenance or recorded fields are inconsistent.
+		invalid_author,
+		/// Only an adapter's output may be less than complete.
+		invalid_completion,
+		/// A reply or edit names no revision of this thread.
+		missing_source,
+		/// Editing incomplete text needs explicit adoption.
+		incomplete_source,
+		/// The feedback thread is archived; only reopening is accepted.
+		closed,
 	};
 
 	struct create_review_cycle
@@ -333,6 +346,9 @@ namespace bpr::core {
 	/// catalog incarnation, cycle and generation, never from a path.
 	[[nodiscard]] auto derive_workspace_project(const local_cycle_subject& aSubject) -> workspace_project_id;
 
+	/// \brief True for one normalized root-relative path: `/`-separated, with
+	/// no empty, `.` or `..` segment, no backslash and no NUL.
+	[[nodiscard]] auto valid_cycle_path(std::string_view aPath) -> bool;
 	/// \brief Validates a scope path set; `none` when acceptable.
 	[[nodiscard]] auto validate_scope_paths(const std::vector<std::string>& aPaths) -> cycle_refusal;
 	/// \brief True when a normalized path lies in the scope.

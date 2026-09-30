@@ -358,6 +358,8 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
+			"DROP TABLE feedback;"
+			"DROP TABLE feedback_revisions;"
 			"DROP TABLE bindings;"
 			"DROP TABLE revision_objects;"
 			"ALTER TABLE revisions RENAME TO revisions_v2;"
@@ -369,6 +371,33 @@ namespace {
 		const auto loaded = store.state(subject);
 		expect(loaded.Latest && loaded.Latest->Capture.WorkspaceVersion == 0 && !loaded.Workspace, "v1 revision reads as unbound");
 		expect(store.capture(3, subject, "v2 manifest", 1).has_value(), "writes continue after migration");
+		const auto note = store.Store->begin_feedback(operation(4), subject, store.state(subject).Revision, { .Primary = core::cycle_whole_target{ }, .Body = "after v1" }, { });
+		expect(note && note->Allocated == 1, "feedback after migrating the first schema");
+	}
+
+	void migrates_the_second_schema()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v2" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
+		}
+		// The second published shape had everything but feedback.
+		sql(database_path(scratch.path()), "DROP TABLE feedback; DROP TABLE feedback_revisions; PRAGMA user_version=2;");
+		auto       store  = open(scratch.path());
+		const auto loaded = store.state(subject);
+		expect(loaded.Latest && loaded.Revision == 2, "v2 cycle reads unchanged");
+		const auto note = store.Store->begin_feedback(operation(3), subject, loaded.Revision, { .Primary = core::cycle_module_target{ .Path = "src" }, .Body = "after v2" }, { });
+		expect(note && note->Allocated == 1, "feedback after migrating the second schema");
+		const auto page = store.Store->feedback(subject, std::nullopt, { });
+		expect(page && page->Threads.size() == 1 && std::holds_alternative<core::cycle_module_target>(page->Threads.front().Primary), "feedback reads back");
+		// A third, unknown shape is still refused.
+		store.Store.reset();
+		sql(database_path(scratch.path()), "DROP TABLE feedback_revisions;");
+		auto damaged = adapters::sqlite::make_review_cycle_store(scratch.path(), profile);
+		expect(damaged->catalog({ }).error().Failure == cycle_store_failure::schema_mismatch, "missing feedback table refused");
 	}
 
 #if !defined(_WIN32)
@@ -473,6 +502,7 @@ int main()
 	leaves_other_stores_and_refuses_foreign_schemas();
 	persists_workspace_bindings();
 	migrates_the_first_schema();
+	migrates_the_second_schema();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

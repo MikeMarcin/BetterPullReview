@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_STORE_HPP
 
 #include "bpr/core/review_cycle.hpp"
+#include "bpr/core/review_cycle_feedback.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,8 +14,9 @@
 
 /// \file
 /// \brief Durable local Review Cycles catalog (RFC-BPR-0053).
-/// \details One profile-private store holds cycles, captured revisions, round
-/// drafts, frozen rounds and the immutable objects they reference. It is a
+/// \details One profile-private store holds cycles, captured revisions,
+/// private feedback threads, round drafts, frozen rounds and the immutable
+/// objects they reference. It is a
 /// separate database: no pull-request table or record changes.
 namespace bpr::application {
 	/// \brief Caller-chosen request identity. Retrying with the same identity
@@ -33,6 +35,8 @@ namespace bpr::application {
 	inline constexpr std::uint64_t maximum_cycle_object_bytes = 128U * 1024U * 1024U;
 	inline constexpr std::size_t   maximum_cycle_draft_bytes  = 512U * 1024U;
 	inline constexpr std::size_t   maximum_cycle_page_entries = 64U;
+	/// A feedback revision page stops at this many body bytes, after at least one revision.
+	inline constexpr std::size_t maximum_cycle_feedback_page_bytes = 512U * 1024U;
 	/// The RFC's 2 GiB soft quota exceeds the shared connection policy's 1 GiB
 	/// page ceiling, so the default is the stricter admitted limit.
 	inline constexpr std::uint64_t default_cycle_retained_budget_bytes = 768U * 1024U * 1024U;
@@ -148,6 +152,18 @@ namespace bpr::application {
 		std::vector<stored_cycle_round>     Rounds;
 		std::optional<core::cycle_round_id> Next;
 	};
+	/// \brief Feedback threads in item order, archived ones included.
+	struct cycle_feedback_page
+	{
+		std::vector<core::cycle_feedback_thread>    Threads;
+		std::optional<core::cycle_feedback_item_id> Next;
+	};
+	/// \brief One thread's revisions in order.
+	struct cycle_feedback_revision_page
+	{
+		std::vector<core::cycle_feedback_revision>           Revisions;
+		std::optional<core::private_review_turn_revision_id> Next;
+	};
 
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
 	/// are not recoverable from GitHub or from exported rounds.
@@ -158,6 +174,7 @@ namespace bpr::application {
 		std::uint64_t             Revisions = 0;
 		std::uint64_t             Drafts    = 0;
 		std::uint64_t             Rounds    = 0;
+		std::uint64_t             Feedback  = 0;
 		/// Object bytes only this cycle references.
 		std::uint64_t ReleasedBytes = 0;
 		/// Binds `remove` to exactly what was previewed.
@@ -209,6 +226,23 @@ namespace bpr::application {
 		/// existing round.
 		virtual auto freeze(const cycle_operation_id& aOperation, const cycle_freeze_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt>           = 0;
 		virtual auto rounds(const core::local_cycle_subject& aSubject, std::optional<core::cycle_round_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_round_page> = 0;
+
+		/// \brief Starts a private feedback item (RFC-BPR-0055).
+		/// \details Every file or anchor target must name content its revision
+		/// pinned; the bytes themselves are verified against retained material
+		/// before this is called (`review_cycle_feedback_host`). `Allocated`
+		/// is the item; `Revision` the cycle revision after the write.
+		virtual auto begin_feedback(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, std::uint64_t aExpectedRevision, const core::begin_cycle_feedback& aCommand, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief Appends, edits, adds a reference or changes lifecycle. The
+		/// store supplies the revision a reply or edit names. `Revision` is the
+		/// thread version after the write; `Allocated` the new revision, or zero.
+		virtual auto change_feedback(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::uint64_t aExpectedVersion,
+									 const core::cycle_feedback_change& aChange, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt>                                                                 = 0;
+		virtual auto load_feedback(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_feedback_thread>> = 0;
+		virtual auto feedback(const core::local_cycle_subject& aSubject, std::optional<core::cycle_feedback_item_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_feedback_page>                     = 0;
+		virtual auto feedback_revisions(const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::optional<core::private_review_turn_revision_id> aAfter, std::stop_token aStop)
+			-> cycle_store_result<cycle_feedback_revision_page> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

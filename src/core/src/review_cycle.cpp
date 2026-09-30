@@ -209,6 +209,11 @@ namespace bpr::core {
 		return workspace_project_id{ sha256(bytes) };
 	}
 
+	auto valid_cycle_path(const std::string_view aPath) -> bool
+	{
+		return valid_scope_path(aPath);
+	}
+
 	auto validate_scope_paths(const std::vector<std::string>& aPaths) -> cycle_refusal
 	{
 		const auto bytes = std::ranges::fold_left(aPaths, std::size_t{ 0 }, [](const std::size_t aTotal, const std::string& aPath) {

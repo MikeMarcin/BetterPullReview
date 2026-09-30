@@ -224,6 +224,36 @@ revision's observation and attempt count into a quiet quality indicator
 (quality, completeness, unavailable entries, retries); an ordinary stable
 capture needs no warning, and only an immutable source may claim one instant.
 
+Private cycle feedback (`bpr/core/review_cycle_feedback.hpp`, RFC-BPR-0055,
+BPR-1153) is a versioned private thread about one primary target, with up to 32
+related references appended over time. A target is the whole cycle, a module
+path, a file of a captured revision (by its content digest), or an anchor: a
+half-open byte range of one file of one revision holding its exact bytes and
+up to two lines (at most 512 bytes) of context on each side, with a symbol
+kept only as a hint. Line numbers are a presentation of those offsets (LF,
+CRLF and a lone CR each end a line); module and cycle notes have no line at
+all. The original attachment never changes. Where it stands in other material
+is a separate observation, `exact_material`, `exact_mapped`, `ambiguous`,
+`deleted`, `unavailable` or `unmapped`, derived from that revision's retained
+bytes: repeated text is mapped only when the complete original context singles
+out one occurrence, and re-attaching a note to newer source appends a
+reference that names what it rebinds. `application::verify_feedback_targets`
+checks every file and anchor target against the exact bytes its revision
+pinned before the store records it, and the store also refuses a digest the
+revision did not pin, so a note cannot name bytes that only the live
+workspace holds. The shared slice of RFC-BPR-0023's private threads,
+`bpr/core/private_thread_lineage.hpp`, is what both thread kinds use: thread,
+turn, revision and order identities, the header (version, last order,
+lifecycle) and its write, advance and lifecycle rules, completion,
+edit/adoption derivation, body digests and bounds, and the four provenance
+classes (`human`, `adapter_observed`, `self_reported`, `unknown`).
+Pull-request threads keep their own scope, binding, actor and store; nothing
+of RFC-BPR-0023's pull-request promotion or composition is involved. Cycle
+revisions are numbered per thread, and the SQLite store keeps threads and
+revisions in their own tables (schema 3, migrating schema 1 or 2 in place),
+pages them at 64 threads, or 64 revisions and 512 KiB of bodies, and removes
+them with the cycle.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

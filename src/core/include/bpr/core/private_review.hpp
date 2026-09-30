@@ -4,6 +4,7 @@
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/private_thread_lineage.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_ledger.hpp"
 
@@ -14,28 +15,13 @@
 #include <variant>
 
 namespace bpr::core {
-	using private_review_thread_id        = strong_id<struct private_review_thread_id_tag>;
-	using private_review_turn_id          = strong_id<struct private_review_turn_id_tag>;
-	using private_review_turn_revision_id = strong_id<struct private_review_turn_revision_id_tag>;
-	using agent_run_id                    = strong_id<struct agent_run_id_tag>;
-	using review_composition_id           = strong_id<struct review_composition_id_tag>;
-	using review_composition_revision_id  = strong_id<struct review_composition_revision_id_tag>;
-	using review_publication_lineage_id   = strong_id<struct review_publication_lineage_id_tag>;
-	using private_vertex_order            = strong_id<struct private_vertex_order_tag>;
-	using private_ledger_incarnation      = fixed_identity_256<struct private_ledger_incarnation_tag>;
-	using private_body_digest             = fixed_identity_256<struct private_body_digest_tag>;
+	using agent_run_id                   = strong_id<struct agent_run_id_tag>;
+	using review_composition_id          = strong_id<struct review_composition_id_tag>;
+	using review_composition_revision_id = strong_id<struct review_composition_revision_id_tag>;
+	using review_publication_lineage_id  = strong_id<struct review_publication_lineage_id_tag>;
+	using private_ledger_incarnation     = fixed_identity_256<struct private_ledger_incarnation_tag>;
 
-	inline constexpr std::uint64_t maximum_private_identity             = std::numeric_limits<std::int64_t>::max();
-	inline constexpr std::size_t   maximum_private_reviewer_body_bytes  = 16U * 1024U;
-	inline constexpr std::size_t   maximum_private_assistant_body_bytes = 1024U * 1024U;
-	inline constexpr std::size_t   maximum_private_sources              = 256U;
-
-	/// \brief Checks the positive, non-wrapping durable ledger ordinal domain.
-	template <typename TTag>
-	[[nodiscard]] constexpr auto valid_private_id(strong_id<TTag> aId) noexcept -> bool
-	{
-		return aId.value() > 0 && aId.value() <= maximum_private_identity;
-	}
+	inline constexpr std::size_t maximum_private_sources = 256U;
 
 	/// \brief Durable namespace; a replacement ledger cannot reuse old references.
 	struct private_review_scope
@@ -142,58 +128,18 @@ namespace bpr::core {
 		auto operator<=>(const private_legacy_unknown_actor&) const = default;
 	};
 	using private_review_actor = std::variant<private_legacy_unknown_actor, private_reviewer_actor, private_agent_actor>;
+	/// \brief The shared provenance class of a pull-request thread actor: the
+	/// reviewer is human, an admitted run is adapter-observed and a migrated
+	/// row that never recorded its author is unknown.
+	[[nodiscard]] auto provenance_of(const private_review_actor& aActor) noexcept -> authored_provenance;
 
-	enum class private_thread_lifecycle : std::uint8_t { open,
-														 resolved_locally,
-														 archived };
-	enum class private_revision_completion : std::uint8_t { complete,
-															incomplete,
-															failed,
-															cancelled };
 	enum class private_subject_availability : std::uint8_t { current,
 															 stale,
 															 unplaceable };
-	enum class private_derivation_kind : std::uint8_t {
-		replies_to,
-		edited_from,
-		copied_from,
-		refined_from,
-		composed_from,
-		promoted_from_finding,
-		adopted_from_incomplete_run
-	};
-	enum class private_review_refusal : std::uint8_t {
-		invalid_identity,
-		invalid_binding,
-		invalid_subject,
-		invalid_actor,
-		invalid_completion,
-		bounds,
-		conflict,
-		archived,
-		invalid_transition,
-		missing_source,
-		wrong_scope,
-		digest_mismatch,
-		incomplete_source,
-		duplicate_source,
-		cycle,
-		ambiguous_target,
-		invalid_target,
-		source_changed,
-		invalid_provenance,
-		invalid_mode
-	};
-
-	[[nodiscard]] auto stable_name(private_thread_lifecycle aState) noexcept -> std::string_view;
-	[[nodiscard]] auto stable_name(private_revision_completion aState) noexcept -> std::string_view;
-	[[nodiscard]] auto stable_name(private_subject_availability aState) noexcept -> std::string_view;
-	[[nodiscard]] auto stable_name(private_review_refusal aReason) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(private_subject_availability aValue) noexcept -> std::string_view;
 	[[nodiscard]] auto valid_private_scope(const private_review_scope& aScope) noexcept -> bool;
 	[[nodiscard]] auto valid_private_binding(const private_review_binding& aBinding) noexcept -> bool;
 	[[nodiscard]] auto scope_of(const private_thread_binding& aBinding) noexcept -> const private_review_scope&;
-	/// \brief SHA-256 over exact bytes, including whitespace and embedded NUL.
-	[[nodiscard]] auto private_digest(std::string_view aBody) noexcept -> private_body_digest;
 	/// \brief Validates diff subjects only against their immutable semantic index.
 	/// Shared/finding existence is a separate store observation; IDs alone grant no publication target.
 	[[nodiscard]] auto valid_private_subject(const exact_private_subject& aSubject, const diff_semantic_index* aIndex = nullptr) noexcept -> bool;

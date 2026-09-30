@@ -4,6 +4,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
+#include "bpr/application/review_cycle_feedback.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 
@@ -69,6 +70,18 @@ namespace bpr::application {
 							  completion<cycle_comparison_page_observation> aDone) -> bool;
 		/// \brief One file of a resolved pair (or full source) of the selected cycle.
 		auto compare_file_selected(core::cycle_comparison_pair aPair, std::string aPath, core::diff_options aOptions, completion<cycle_file_observation> aDone) -> bool;
+
+		/// \brief Starts a note on the selected cycle after verifying each
+		/// target against its revision's retained bytes.
+		auto begin_feedback_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, core::begin_cycle_feedback aCommand, completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief Changes one note of the selected cycle; an added reference is
+		/// verified first.
+		auto change_feedback_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, std::uint64_t aExpectedVersion, core::cycle_feedback_change aChange,
+									  completion<cycle_write_receipt> aDone) -> bool;
+		auto feedback_selected(std::optional<core::cycle_feedback_item_id> aAfter, completion<cycle_feedback_page> aDone) -> bool;
+		auto feedback_revisions_selected(core::cycle_feedback_item_ref aItem, std::optional<core::private_review_turn_revision_id> aAfter, completion<cycle_feedback_revision_page> aDone) -> bool;
+		/// \brief Where a note's target stands in one revision of the selected cycle.
+		auto observe_feedback_selected(core::cycle_feedback_target aTarget, core::cycle_source_revision_id aAgainst, completion<cycle_correspondence_observation> aDone) -> bool;
 
 		/// \brief Stops admitting work and cancels outstanding calls.
 		void               shutdown();

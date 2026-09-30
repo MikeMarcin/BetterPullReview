@@ -27,6 +27,7 @@ add_library(
         src/review_cycle.cpp
         src/review_cycle_policy.cpp
         src/review_cycle_comparison.cpp
+        src/review_cycle_feedback.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp
         src/review_cycle_manifest.cpp
@@ -34,6 +35,7 @@ add_library(
         src/review_cycle_path_folding.cpp
         src/review_cycle_workspace.cpp
         src/private_review.cpp
+        src/private_thread_lineage.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
         src/release_update.cpp

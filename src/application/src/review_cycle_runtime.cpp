@@ -1,5 +1,6 @@
 #include "bpr/application/review_cycle_runtime.hpp"
 
+#include <array>
 #include <deque>
 #include <utility>
 
@@ -8,6 +9,11 @@ namespace bpr::application {
 		auto cancelled() -> cycle_store_error
 		{
 			return cycle_store_error{ .Failure = cycle_store_failure::cancelled };
+		}
+		/// The cycle store never answers for a pull-request selection.
+		auto refused_selection() -> cycle_store_error
+		{
+			return cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity };
 		}
 	}
 
@@ -222,6 +228,85 @@ namespace bpr::application {
 			return host->file(*subject, aPair, path, aOptions, std::move(aStop));
 		},
 															  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::begin_feedback_selected(cycle_operation_id aOperation, const std::uint64_t aExpectedRevision, core::begin_cycle_feedback aCommand,
+													   completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_write_receipt>([subject, host, aOperation, aExpectedRevision, command = std::move(aCommand)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			auto targets = std::vector<const core::cycle_feedback_target*>{ &command.Primary };
+			for (const auto& reference : command.Related) {
+				targets.push_back(&reference.Target);
+			}
+			if (auto verified = verify_feedback_targets(*host, *subject, targets, aStop); !verified) {
+				return std::unexpected(verified.error());
+			}
+			return aStore.begin_feedback(aOperation, *subject, aExpectedRevision, command, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::change_feedback_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, const std::uint64_t aExpectedVersion,
+														core::cycle_feedback_change aChange, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_write_receipt>([subject, host, aOperation, aItem, aExpectedVersion, change = std::move(aChange)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			if (const auto* reference = std::get_if<core::add_feedback_reference>(&change)) {
+				const auto targets = std::array{ &reference->Reference.Target };
+				if (auto verified = verify_feedback_targets(*host, *subject, targets, aStop); !verified) {
+					return std::unexpected(verified.error());
+				}
+			}
+			return aStore.change_feedback(aOperation, *subject, aItem, aExpectedVersion, change, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::feedback_selected(std::optional<core::cycle_feedback_item_id> aAfter, completion<cycle_feedback_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_feedback_page>([subject, aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_feedback_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.feedback(*subject, aAfter, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::feedback_revisions_selected(core::cycle_feedback_item_ref aItem, std::optional<core::private_review_turn_revision_id> aAfter,
+														   completion<cycle_feedback_revision_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_feedback_revision_page>([subject, aItem, aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_feedback_revision_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.feedback_revisions(*subject, aItem, aAfter, aStop);
+		},
+																	std::move(aDone));
+	}
+
+	auto review_cycle_runtime::observe_feedback_selected(core::cycle_feedback_target aTarget, const core::cycle_source_revision_id aAgainst, completion<cycle_correspondence_observation> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_correspondence_observation>([subject, host, target = std::move(aTarget), aAgainst](review_cycle_store&, std::stop_token aStop) -> cycle_store_result<cycle_correspondence_observation> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return observe_feedback_target(*host, *subject, target, aAgainst, std::move(aStop));
+		},
+																		std::move(aDone));
 	}
 
 	void review_cycle_runtime::shutdown()

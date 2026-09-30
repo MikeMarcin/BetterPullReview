@@ -67,3 +67,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_recovery)
 bpr_add_network_isolated_test(NAME review_cycle_recovery WINDOWS_UNCONTAINED COMMAND test_review_cycle_recovery)
+
+# [[BPR-1153]]. Private cycle feedback on retained material through the runtime.
+bpr_add_executable(test_review_cycle_feedback review_cycle_feedback_tests.cpp)
+target_link_libraries(test_review_cycle_feedback PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_feedback)
+if(WIN32)
+    target_link_libraries(test_review_cycle_feedback PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_feedback)
+bpr_add_network_isolated_test(NAME review_cycle_feedback WINDOWS_UNCONTAINED COMMAND test_review_cycle_feedback)
