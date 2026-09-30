@@ -27,6 +27,11 @@ namespace bpr::qt {
 				QuitProfiles();
 			}
 		});
+		// [[BPR-1250]]. The window's local Review Cycles entry ([[BPR-1157]]),
+		// offered and disabled with the rest of the window's commands.
+		auto* const openProject = fileMenu->addAction(QStringLiteral("Open Project…"));
+		openProject->setObjectName(QStringLiteral("desktopOpenProjectAction"));
+		openProject->setEnabled(false);
 		// [[BPR-1195]]. Keep the workbench's tab command after Quit moves to
 		// the macOS application menu; otherwise the now-empty File menu vanishes.
 		auto* const closeTab = fileMenu->addAction(tr("Close Tab"));
@@ -78,6 +83,15 @@ namespace bpr::qt {
 		comment->setObjectName(QStringLiteral("desktopComposeInlineDraftAction"));
 		comment->setShortcut(QKeySequence{ QStringLiteral("Alt+C") });
 		comment->setEnabled(false);
+		// [[BPR-1250]]. And the review tour's two commands (RFC-BPR-0045).
+		auto* const prepareTour = PullRequestMenu->addAction(tr("Prepare review &tour"));
+		prepareTour->setObjectName(QStringLiteral("desktopPrepareReviewTourAction"));
+		prepareTour->setShortcut(QKeySequence{ QStringLiteral("Alt+T") });
+		prepareTour->setEnabled(false);
+		auto* const addTourStop = PullRequestMenu->addAction(tr("Add tour stop"));
+		addTourStop->setObjectName(QStringLiteral("desktopAddTourStopAction"));
+		addTourStop->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+T") });
+		addTourStop->setEnabled(false);
 		// [[BPR-0796]]. The workbench window's View menu, offered here and disabled.
 		// Without it the last close took View off the bar and the merged Preferences
 		// item out of the application menu, leaving one visible menu where
@@ -127,6 +141,29 @@ namespace bpr::qt {
 		settings->setMenuRole(QAction::PreferencesRole);
 		settings->setShortcut(QKeySequence::Preferences);
 		settings->setEnabled(false);
+		// [[BPR-1250]]. The workbench window's Help menu (RFC-BPR-0027's
+		// diagnostics), offered here and disabled for the same reason as View.
+		// Without it the last close took Help off the bar on macOS, because the
+		// only item the resident bar gave it, Check for Updates…, is hidden where
+		// the application menu carries it natively. Diagnostics opens a window's
+		// Settings and an export is a profile's, so with no window neither has an
+		// owner. The object name is the one `release_update_menu::attach` looks
+		// for, so Check for Updates… joins this menu as it joins the window's.
+		HelpMenu = addMenu(QStringLiteral("&Help"));
+		HelpMenu->setObjectName(QStringLiteral("releaseUpdateMenu"));
+		HelpMenu->setAccessibleName(QStringLiteral("Help"));
+		HelpMenu->setAccessibleDescription(
+			QStringLiteral("Diagnostics and their export, unavailable while no window is open"));
+		auto* const diagnostics = HelpMenu->addAction(QStringLiteral("Diagnostics…"));
+		diagnostics->setObjectName(QStringLiteral("desktopOpenDiagnosticsAction"));
+		diagnostics->setEnabled(false);
+		HelpMenu->addSeparator();
+		auto* const anonymized = HelpMenu->addAction(QStringLiteral("Export anonymized diagnostics…"));
+		anonymized->setObjectName(QStringLiteral("desktopExportAnonymizedDiagnosticsAction"));
+		anonymized->setEnabled(false);
+		auto* const identifying = HelpMenu->addAction(QStringLiteral("Export with identifying details…"));
+		identifying->setObjectName(QStringLiteral("desktopExportIdentifyingDiagnosticsAction"));
+		identifying->setEnabled(false);
 	}
 
 	void desktop_menu_bar::set_dispatch(application::profile_management_dispatch aDispatch,
@@ -194,4 +231,5 @@ namespace bpr::qt {
 	auto desktop_menu_bar::quit_action() const noexcept -> QAction* { return QuitProfilesAction; }
 	auto desktop_menu_bar::view_menu() const noexcept -> QMenu* { return ViewMenu; }
 	auto desktop_menu_bar::pull_request_menu() const noexcept -> QMenu* { return PullRequestMenu; }
+	auto desktop_menu_bar::help_menu() const noexcept -> QMenu* { return HelpMenu; }
 }

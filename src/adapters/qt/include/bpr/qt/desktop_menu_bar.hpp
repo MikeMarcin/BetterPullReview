@@ -52,11 +52,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		/// \brief [[BPR-1035]]. The window's Pull Request menu, offered with no window and disabled.
 		[[nodiscard]] auto pull_request_menu() const noexcept -> QMenu*;
+		/// \brief [[BPR-1250]]. The window's Help menu, its diagnostic commands
+		/// offered with no window and disabled.
+		[[nodiscard]] auto help_menu() const noexcept -> QMenu*;
 
 	private:
 		QMenu*                                   ProfilesMenu         = nullptr;
 		QMenu*                                   PullRequestMenu      = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
+		QMenu*                                   HelpMenu             = nullptr;
 		QAction*                                 NewBprWindowAction   = nullptr;
 		QAction*                                 ManageProfilesAction = nullptr;
 		QAction*                                 QuitProfilesAction   = nullptr;

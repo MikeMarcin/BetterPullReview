@@ -373,17 +373,32 @@ namespace {
 			}
 			return names;
 		}();
-		expect(titles == QStringList{ QStringLiteral("&File"), QStringLiteral("&Profiles"), QStringLiteral("P&ull Request"), QStringLiteral("&View") },
-			   "in the window bar's order: File, Profiles, Pull Request, View");
+		expect(titles == QStringList{ QStringLiteral("&File"), QStringLiteral("&Profiles"), QStringLiteral("P&ull Request"), QStringLiteral("&View"), QStringLiteral("&Help") },
+			   "in the window bar's order: File, Profiles, Pull Request, View, Help");
+		// [[BPR-1250]]. And the window's Help menu, its diagnostics offered and
+		// disabled, under the name the update menu attaches to.
+		auto* const help = menu.help_menu();
+		expect(help != nullptr && help->title() == QStringLiteral("&Help") && help->objectName() == QStringLiteral("releaseUpdateMenu")
+				   && help->accessibleName() == QStringLiteral("Help"),
+			   "the desktop bar offers Help where Check for Updates… attaches");
+		const auto helpActions = help->actions();
+		expect(helpActions.size() == 4 && helpActions[0]->text() == QStringLiteral("Diagnostics…") && helpActions[1]->isSeparator()
+				   && helpActions[2]->text() == QStringLiteral("Export anonymized diagnostics…")
+				   && helpActions[3]->text() == QStringLiteral("Export with identifying details…")
+				   && !helpActions[0]->isEnabled() && !helpActions[2]->isEnabled() && !helpActions[3]->isEnabled(),
+			   "with the window's diagnostic commands, none actionable with no window open");
 		const auto pullRequestActions = pullRequest->actions();
-		expect(pullRequestActions.size() == 5 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
+		expect(pullRequestActions.size() == 7 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
 				   && pullRequestActions[1]->text() == QStringLiteral("&Save Repository")
 				   && pullRequestActions[2]->isSeparator()
 				   && pullRequestActions[3]->text() == QStringLiteral("Compose &review")
 				   && pullRequestActions[4]->text() == QStringLiteral("Co&mment")
+				   && pullRequestActions[5]->text() == QStringLiteral("Prepare review &tour")
+				   && pullRequestActions[6]->text() == QStringLiteral("Add tour stop")
 				   && !pullRequestActions[0]->isEnabled() && !pullRequestActions[1]->isEnabled()
-				   && !pullRequestActions[3]->isEnabled() && !pullRequestActions[4]->isEnabled(),
-			   "with Follow, Save Repository and composition, none actionable with no pull request open");
+				   && !pullRequestActions[3]->isEnabled() && !pullRequestActions[4]->isEnabled()
+				   && !pullRequestActions[5]->isEnabled() && !pullRequestActions[6]->isEnabled(),
+			   "with Follow, Save Repository, composition and the review tour, none actionable with no pull request open");
 
 		// [[BPR-1195]]. File survives Quit's merge into the macOS application
 		// menu, and the scaffolding's commands keep their discoverable shortcuts.
@@ -393,10 +408,11 @@ namespace {
 				   && pullRequest->accessibleName() == QStringLiteral("Pull Request"),
 			   "the resident menus retain their accessible names");
 		const auto fileActions = file->actions();
-		expect(fileActions.size() == 2 && fileActions[0] == menu.quit_action()
-				   && fileActions[1]->text() == QStringLiteral("Close Tab") && !fileActions[1]->isEnabled(),
-			   "File retains Close Tab after Quit, disabled without an open tab");
-		expect(fileActions[1]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
+		expect(fileActions.size() == 3 && fileActions[0] == menu.quit_action()
+				   && fileActions[1]->text() == QStringLiteral("Open Project…") && !fileActions[1]->isEnabled()
+				   && fileActions[2]->text() == QStringLiteral("Close Tab") && !fileActions[2]->isEnabled(),
+			   "File retains Open Project… and Close Tab after Quit, disabled with no window");
+		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[3]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[4]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
 				   && viewActions[2]->shortcut().isEmpty(),
@@ -410,7 +426,7 @@ namespace {
 				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], viewActions[2], viewActions[3], viewActions[4], pullRequestActions[3], pullRequestActions[4] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], pullRequestActions[3], pullRequestActions[4], pullRequestActions[5], pullRequestActions[6], helpActions[0], helpActions[2], helpActions[3] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,

@@ -23,6 +23,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // RFC-BPR-0033 B1 and B2, the native half. The offscreen management course proves
@@ -199,10 +200,26 @@ namespace {
 		std::vector<std::string> ViewItems;
 		std::string              Description;
 	};
+	/// \brief The description with each "unavailable — reason" title reduced
+	/// to its command.
+	///
+	/// \details [[BPR-1250]]. A window names why Comment is unavailable in the
+	/// item's own title (fa194e6bc), and the reason is the window's state: a
+	/// window on Home says to select a line. The bar is the same bar when the
+	/// same commands are offered, whatever each says about its current state.
+	auto commands_only(std::string aDescription) -> std::string
+	{
+		constexpr auto marker = std::string_view{ " unavailable — " };
+		for (auto found = aDescription.find(marker); found != std::string::npos; found = aDescription.find(marker, found)) {
+			const auto end = aDescription.find_first_of(";]", found);
+			aDescription.erase(found, end == std::string::npos ? std::string::npos : end - found);
+		}
+		return aDescription;
+	}
 	auto snapshot_menu_bar() -> menu_bar_snapshot
 	{
 		return { native::main_menu_visible_titles(), native::main_menu_items("Apple"),
-				 native::main_menu_items("View"), native::describe_main_menu() };
+				 native::main_menu_items("View"), commands_only(native::describe_main_menu()) };
 	}
 	void check_update_menu()
 	{
