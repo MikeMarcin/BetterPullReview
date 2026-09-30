@@ -496,6 +496,28 @@ selection usable: a binary patch against P and plain instructions to apply,
 stage, commit and push with the reviewer's own tools, naming the paths their
 filters must still process and saying it is not native publication.
 
+A publication is a finite plan and a journal (BPR-1174,
+`bpr/core/review_cycle_publication.hpp`), kept in schema 7's `publications`
+table with the plan's canonical bytes and digest. The plan binds the exact
+candidate (parent, tree, commit, every changed blob and transformation), the
+target head it was made against, the destination (host, account and login,
+owner, repository, base and new branch) and the pull request's title, body
+and draft choice; `render_publication_preview` states all of it with the
+digest. Only the reviewer, confirming that digest under the plan's own
+account, authorizes it, through the cycle policy's `publish` decision: an
+imported approval, a consumer grant, another account or a digest of an
+edited plan authorizes nothing, and recording a newer plan supersedes older
+ones nothing was attempted for. The journal records each remote effect in
+order (distinct blobs, tree, commit, new branch, pull request) as intended
+before it is attempted, then confirmed, refused, not sent, uncertain or
+foreign. A confirmed effect is never attempted again; an uncertain one blocks
+every write until a read has observed it (confirmed, absent, foreign or still
+uncertain), and uncertainty, a restart or cancellation spends the
+authorization, so remaining writes need the reviewer again. A refusal fails
+the publication, a branch name held elsewhere is target drift, and a
+cancelled publication keeps its confirmed effects without claiming to undo
+them.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

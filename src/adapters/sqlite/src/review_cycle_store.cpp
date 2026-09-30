@@ -23,7 +23,7 @@ namespace bpr::adapters::sqlite {
 		using application::cycle_write_receipt;
 
 		constexpr std::int64_t     application_id   = 0x42505243;
-		constexpr std::int64_t     schema_version   = 6;
+		constexpr std::int64_t     schema_version   = 7;
 		constexpr std::size_t      chunk_bytes      = 512U * 1024U;
 		constexpr std::int64_t     maximum_receipts = 4096;
 		constexpr std::string_view database_name    = "review-cycles.sqlite3";
@@ -54,6 +54,7 @@ namespace bpr::adapters::sqlite {
 			table{ "checkpoints", "CREATE TABLE checkpoints(cycle INTEGER NOT NULL,ordinal INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(cycle,ordinal)) STRICT" },
 			table{ "verifications", "CREATE TABLE verifications(cycle INTEGER NOT NULL,verification INTEGER NOT NULL,item INTEGER NOT NULL,wording INTEGER NOT NULL,checked INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),decision INTEGER NOT NULL,PRIMARY KEY(cycle,verification)) STRICT" },
 			table{ "responses", "CREATE TABLE responses(cycle INTEGER NOT NULL,response INTEGER NOT NULL,round INTEGER NOT NULL,round_digest BLOB NOT NULL CHECK(length(round_digest)=32),channel INTEGER NOT NULL,foreign_id TEXT NOT NULL,content BLOB NOT NULL CHECK(length(content)=32),size INTEGER NOT NULL,PRIMARY KEY(cycle,response)) STRICT" },
+			table{ "publications", "CREATE TABLE publications(cycle INTEGER NOT NULL,publication INTEGER NOT NULL,revision INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),plan BLOB NOT NULL,journal BLOB NOT NULL,PRIMARY KEY(cycle,publication)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
 		/// content pins, and neither the first nor the second had feedback or
@@ -67,6 +68,8 @@ namespace bpr::adapters::sqlite {
 		/// The sixth added the reviewer's review checkpoints (BPR-1163),
 		/// reviewer decisions (BPR-1165) and recipient statements (BPR-1164).
 		constexpr auto added_in_v6 = std::array<std::string_view, 3>{ "checkpoints", "verifications", "responses" };
+		/// The seventh added publication plans and their journals (BPR-1174).
+		constexpr auto added_in_v7 = std::array<std::string_view, 1>{ "publications" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
@@ -1959,6 +1962,149 @@ namespace bpr::adapters::sqlite {
 				return read_inventory(database.Database);
 			}
 
+			auto record_publication(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::publication_plan& aPlan, std::stop_token aStop)
+				-> cycle_store_result<cycle_write_receipt> override
+			{
+				const auto plan    = core::encode_publication_plan(aPlan);
+				auto       request = request_writer{ };
+				request.u8(19).subject(aSubject).bytes(plan);
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aSubject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					// Only a plan that decodes back to itself is recorded.
+					if (core::decode_publication_plan(plan) != aPlan) {
+						return publication_refused(core::publication_refusal::invalid_plan);
+					}
+					if (!current->Latest || !core::valid_cycle_id(aPlan.Final) || aPlan.Final.value() > current->Latest->Id.Id.value()) {
+						return refuse(core::cycle_refusal::invalid_target);
+					}
+					const auto allocated = current->Next.Publication;
+					if (allocated == 0U || allocated > core::maximum_cycle_identity) {
+						return fail(cycle_store_failure::refused);
+					}
+					// A newer plan supersedes older ones nothing was attempted for.
+					auto open = query{ aDatabase, "SELECT publication,revision,plan,journal FROM publications WHERE cycle=?1" };
+					open.id(1, aSubject.Cycle.value());
+					auto superseded = std::vector<std::pair<std::uint64_t, std::vector<std::uint8_t>>>{ };
+					for (auto status = open.step(); status != SQLITE_DONE; status = open.step()) {
+						if (status != SQLITE_ROW) {
+							return fail(cycle_store_failure::unavailable);
+						}
+						const auto older        = stored_id(open.column_integer(0));
+						const auto olderPlan    = core::decode_publication_plan(open.column_blob(2));
+						const auto olderJournal = core::decode_publication_journal(open.column_blob(3));
+						if (!older || !olderPlan || !olderJournal) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						if (const auto replaced = core::apply_publication(*olderPlan, *olderJournal, core::supersede_publication{ })) {
+							superseded.emplace_back(*older, core::encode_publication_journal(replaced->Journal));
+						}
+					}
+					for (const auto& [older, journal] : superseded) {
+						auto update = query{ aDatabase, "UPDATE publications SET revision=revision+1,journal=?3 WHERE cycle=?1 AND publication=?2" };
+						if (!update.id(1, aSubject.Cycle.value()).id(2, older).blob(3, journal).done()) {
+							return fail(cycle_store_failure::unavailable);
+						}
+					}
+					const auto journal = core::encode_publication_journal(core::start_publication(aPlan));
+					auto       row     = query{ aDatabase, "INSERT INTO publications(cycle,publication,revision,digest,plan,journal) VALUES(?1,?2,1,?3,?4,?5)" };
+					row.id(1, aSubject.Cycle.value()).id(2, allocated).blob(3, core::publication_plan_digest(aPlan).bytes()).blob(4, plan).blob(5, journal);
+					auto counter = query{ aDatabase, "UPDATE cycles SET next_publication=?2 WHERE cycle=?1" };
+					if (!row.done() || !counter.id(1, aSubject.Cycle.value()).id(2, allocated + 1U).done()) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = 1, .Allocated = allocated, .Changed = true };
+				});
+			}
+
+			auto change_publication(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_publication_id aPublication,
+									const std::uint64_t aExpectedRevision, const core::publication_command& aCommand, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> override
+			{
+				auto request = request_writer{ };
+				request.u8(20).subject(aSubject).u64(aPublication.value()).u64(aExpectedRevision);
+				publication_command(request, aCommand);
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto stored = publication(aDatabase, aSubject, aPublication);
+					if (!stored) {
+						return std::unexpected(stored.error());
+					}
+					if (!*stored) {
+						return refuse(core::cycle_refusal::invalid_identity);
+					}
+					if ((*stored)->Revision != aExpectedRevision) {
+						return fail(cycle_store_failure::conflict);
+					}
+					// An authorization names this very cycle.
+					if (const auto* authorization = std::get_if<core::authorize_publication>(&aCommand); authorization != nullptr && authorization->Subject != aSubject) {
+						return publication_refused(core::publication_refusal::not_reviewer);
+					}
+					auto changed = core::apply_publication((*stored)->Plan, (*stored)->Journal, aCommand);
+					if (!changed) {
+						return publication_refused(changed.error());
+					}
+					const auto revision = aExpectedRevision + 1U;
+					auto       row      = query{ aDatabase, "UPDATE publications SET revision=?3,journal=?4 WHERE cycle=?1 AND publication=?2 AND revision=?5" };
+					row.id(1, aSubject.Cycle.value()).id(2, aPublication.value()).id(3, revision).blob(4, core::encode_publication_journal(changed->Journal)).id(5, aExpectedRevision);
+					if (!row.done() || sqlite3_changes(aDatabase) != 1) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = revision, .Allocated = changed->Sequence, .Changed = true };
+				});
+			}
+
+			auto load_publication(const core::local_cycle_subject& aSubject, const core::cycle_publication_id aPublication, std::stop_token aStop)
+				-> cycle_store_result<std::optional<application::stored_cycle_publication>> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::optional<application::stored_cycle_publication>> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					return publication(aDatabase, aSubject, aPublication);
+				});
+			}
+
+			auto publications(const core::local_cycle_subject& aSubject, const std::optional<core::cycle_publication_id> aAfter, std::stop_token aStop)
+				-> cycle_store_result<application::cycle_publication_page> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<application::cycle_publication_page> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto rows = query{ aDatabase, "SELECT publication FROM publications WHERE cycle=?1 AND publication>?2 ORDER BY publication LIMIT ?3" };
+					rows.id(1, aSubject.Cycle.value()).integer(2, static_cast<std::int64_t>(aAfter ? aAfter->value() : 0U)).integer(3, static_cast<std::int64_t>(application::maximum_cycle_page_entries) + 1);
+					auto ids    = std::vector<std::uint64_t>{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						const auto id = stored_id(rows.column_integer(0));
+						if (!id) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						ids.push_back(*id);
+					}
+					if (status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					auto page = application::cycle_publication_page{ };
+					for (const auto id : ids) {
+						if (page.Publications.size() == application::maximum_cycle_page_entries) {
+							page.Next = page.Publications.back().Id.Id;
+							break;
+						}
+						auto stored = publication(aDatabase, aSubject, core::cycle_publication_id{ id });
+						if (!stored || !*stored) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						page.Publications.push_back(std::move(**stored));
+					}
+					return page;
+				});
+			}
+
 			auto removal_preview(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<application::cycle_removal_preview> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) { return preview(aDatabase, aSubject); });
@@ -1982,7 +2128,8 @@ namespace bpr::adapters::sqlite {
 					}
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
 											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1", "DELETE FROM views WHERE cycle=?1",
-											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM verifications WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM verifications WHERE cycle=?1",
+											"DELETE FROM publications WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);
@@ -1993,6 +2140,69 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
+			static auto publication_refused(const core::publication_refusal aRefusal) -> std::unexpected<cycle_store_error>
+			{
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Publication = aRefusal });
+			}
+
+			/// One publication row, decoded and checked against its digest.
+			static auto publication(sqlite3* aDatabase, const core::local_cycle_subject& aSubject, const core::cycle_publication_id aPublication)
+				-> cycle_store_result<std::optional<application::stored_cycle_publication>>
+			{
+				auto row = query{ aDatabase, "SELECT revision,digest,plan,journal FROM publications WHERE cycle=?1 AND publication=?2" };
+				row.id(1, aSubject.Cycle.value()).id(2, aPublication.value());
+				const auto status = row.step();
+				if (status == SQLITE_DONE) {
+					return std::optional<application::stored_cycle_publication>{ };
+				}
+				if (status != SQLITE_ROW) {
+					return fail(cycle_store_failure::unavailable);
+				}
+				const auto revision = stored_id(row.column_integer(0));
+				const auto digest   = digest_from<core::cycle_material_digest>(row.column_blob(1));
+				auto       plan     = core::decode_publication_plan(row.column_blob(2));
+				auto       journal  = core::decode_publication_journal(row.column_blob(3));
+				if (!revision || !digest || !plan || !journal || core::publication_plan_digest(*plan) != *digest || journal->PlanDigest != *digest) {
+					return fail(cycle_store_failure::corrupt);
+				}
+				return std::optional{ application::stored_cycle_publication{
+					.Id       = { .Cycle = aSubject.Cycle, .Id = aPublication },
+					.Revision = *revision,
+					.Plan     = std::move(*plan),
+					.Journal  = std::move(*journal),
+				} };
+			}
+
+			/// The command's exact fields, so a replayed operation must name the same change.
+			static void publication_command(request_writer& aRequest, const core::publication_command& aCommand)
+			{
+				aRequest.u8(static_cast<std::uint8_t>(aCommand.index()));
+				const auto link = [&aRequest](const std::optional<core::publication_link>& aLink) {
+					aRequest.u8(aLink ? 1 : 0);
+					if (aLink) {
+						aRequest.u64(aLink->Number).text(aLink->NodeId).text(aLink->Url).bytes(aLink->Head.bytes()).text(aLink->BaseBranch).u8(aLink->Drifted ? 1 : 0);
+					}
+				};
+				std::visit(
+					[&](const auto& aChange) {
+						using change_type = std::decay_t<decltype(aChange)>;
+						if constexpr (std::is_same_v<change_type, core::authorize_publication>) {
+							aRequest.subject(aChange.Subject).u8(static_cast<std::uint8_t>(aChange.Actor)).bytes(aChange.PlanDigest.bytes()).u64(aChange.Account.value());
+						} else if constexpr (std::is_same_v<change_type, core::begin_publication_effect>) {
+							aRequest.u8(static_cast<std::uint8_t>(aChange.Kind)).text(aChange.Subject).u64(aChange.Generation).u64(aChange.Account.value());
+						} else if constexpr (std::is_same_v<change_type, core::complete_publication_effect>) {
+							aRequest.u64(aChange.Sequence).u8(static_cast<std::uint8_t>(aChange.Outcome)).text(aChange.Remote);
+							link(aChange.Link);
+						} else if constexpr (std::is_same_v<change_type, core::observe_publication_effect>) {
+							aRequest.u64(aChange.Sequence).u8(static_cast<std::uint8_t>(aChange.Observed)).text(aChange.Remote);
+							link(aChange.Link);
+						} else if constexpr (std::is_same_v<change_type, core::refresh_publication_link>) {
+							link(aChange.Link);
+						}
+					},
+					aCommand);
+			}
+
 			static auto cancelled_or(const std::stop_token& aStop, const cycle_store_failure aFailure) -> cycle_store_failure
 			{
 				return aStop.stop_requested() ? cycle_store_failure::cancelled : aFailure;
@@ -2037,7 +2247,8 @@ namespace bpr::adapters::sqlite {
 				auto       tables = std::vector<table>{ };
 				for (const auto& definition : schema) {
 					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name)) || (aVersion < 4 && named(added_in_v4, definition.Name))
-						|| (aVersion < 5 && named(added_in_v5, definition.Name)) || (aVersion < 6 && named(added_in_v6, definition.Name))) {
+						|| (aVersion < 5 && named(added_in_v5, definition.Name)) || (aVersion < 6 && named(added_in_v6, definition.Name))
+						|| (aVersion < 7 && named(added_in_v7, definition.Name))) {
 						continue;
 					}
 					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
@@ -2094,8 +2305,11 @@ namespace bpr::adapters::sqlite {
 				if (aFrom < 5) {
 					std::ranges::transform(added_in_v5, std::back_inserter(steps), definition);
 				}
-				std::ranges::transform(added_in_v6, std::back_inserter(steps), definition);
-				steps.emplace_back("PRAGMA user_version=6");
+				if (aFrom < 6) {
+					std::ranges::transform(added_in_v6, std::back_inserter(steps), definition);
+				}
+				std::ranges::transform(added_in_v7, std::back_inserter(steps), definition);
+				steps.emplace_back("PRAGMA user_version=7");
 				for (const auto& step : steps) {
 					if (!detail::execute(aDatabase, step, aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
@@ -2136,7 +2350,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto catalog = query{ aDatabase, "INSERT INTO catalog(singleton,profile,incarnation,next_cycle) VALUES(1,?1,randomblob(32),1)" };
 					if (!catalog.id(1, Profile.value()).done() || !detail::execute(aDatabase, "PRAGMA application_id=1112560195", aStop)
-						|| !detail::execute(aDatabase, "PRAGMA user_version=6", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
+						|| !detail::execute(aDatabase, "PRAGMA user_version=7", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}

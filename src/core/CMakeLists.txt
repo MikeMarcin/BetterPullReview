@@ -42,6 +42,7 @@ add_library(
         src/review_cycle_verification.cpp
         src/review_cycle_outgoing.cpp
         src/review_cycle_candidate.cpp
+        src/review_cycle_publication.cpp
         src/git_objects.cpp
         src/suggestion_text_editing.cpp
         src/review_cycle_git.cpp

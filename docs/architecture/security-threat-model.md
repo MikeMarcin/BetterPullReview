@@ -1461,3 +1461,15 @@ and the listing rebuilds its tree; blobs, trees and commits are admitted only
 when Git names them exactly as the core computed. No filter, hook, signing
 program or repository script runs, and nothing is sent anywhere; the new
 branch and pull request remain a separate, not yet present capability.
+
+Publication authority (BPR-1174) is a finite plan, not a standing grant. The
+plan's digest covers the candidate, the destination host, account,
+repository and branches and the public title and body; only the reviewer's
+confirmation of that digest under the same account authorizes it, through the
+cycle policy's `publish` capability, which imported content and consumer
+grants never hold. There is no generic "yes", and an approval string inside
+an imported round, response or plan file is data. Every remote effect is
+journaled before it is attempted; a lost answer or a restart makes it
+uncertain, spends the authorization and blocks further writes until a read
+has observed what happened, so a crash cannot turn into a blind retry or a
+duplicate pull request.

@@ -4,6 +4,7 @@
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_import.hpp"
+#include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
@@ -85,8 +86,10 @@ namespace bpr::application {
 
 	struct cycle_store_error
 	{
-		cycle_store_failure                      Failure = cycle_store_failure::unavailable;
-		core::cycle_refusal                      Refusal = core::cycle_refusal::none;
+		cycle_store_failure Failure = cycle_store_failure::unavailable;
+		core::cycle_refusal Refusal = core::cycle_refusal::none;
+		/// A publication command the core refused (BPR-1174).
+		std::optional<core::publication_refusal> Publication;
 		std::optional<core::review_cycle_state>  Current;
 		std::optional<cycle_retention_inventory> Inventory;
 	};
@@ -235,6 +238,22 @@ namespace bpr::application {
 	{
 		std::vector<core::cycle_verification_record> Verifications;
 		std::optional<core::cycle_verification_id>   Next;
+	};
+
+	/// \brief One recorded publication: the finite plan and its journal
+	/// (BPR-1174). `Revision` advances with every journal change.
+	struct stored_cycle_publication
+	{
+		core::cycle_publication_ref Id;
+		std::uint64_t               Revision = 0;
+		core::publication_plan      Plan;
+		core::publication_journal   Journal;
+		auto                        operator<=>(const stored_cycle_publication&) const = default;
+	};
+	struct cycle_publication_page
+	{
+		std::vector<stored_cycle_publication>     Publications;
+		std::optional<core::cycle_publication_id> Next;
 	};
 
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
@@ -387,6 +406,22 @@ namespace bpr::application {
 			-> cycle_store_result<cycle_write_receipt> = 0;
 		/// \brief The cycle's decisions in append order.
 		virtual auto verifications(const core::local_cycle_subject& aSubject, std::optional<core::cycle_verification_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_verification_page> = 0;
+
+		/// \brief Records a finite publication plan with a new journal
+		/// (BPR-1174). Nothing is authorized. The final revision must be
+		/// captured. `Allocated` is the publication; `Revision` the journal's (1).
+		virtual auto record_publication(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::publication_plan& aPlan, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief Applies one journal command through the core in one
+		/// transaction, before the effect it records is attempted. A stale
+		/// revision is a conflict; a refusal names the publication refusal.
+		/// `Revision` is the journal's after the change; `Allocated` the effect
+		/// sequence a begun effect was given, or zero.
+		virtual auto change_publication(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, core::cycle_publication_id aPublication,
+										std::uint64_t aExpectedRevision, const core::publication_command& aCommand, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		virtual auto load_publication(const core::local_cycle_subject& aSubject, core::cycle_publication_id aPublication, std::stop_token aStop)
+			-> cycle_store_result<std::optional<stored_cycle_publication>>                                                                                                                          = 0;
+		virtual auto publications(const core::local_cycle_subject& aSubject, std::optional<core::cycle_publication_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_publication_page> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

@@ -359,7 +359,7 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
-			"DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+			"DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
@@ -389,7 +389,7 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
@@ -417,7 +417,7 @@ namespace {
 			expect(note.has_value(), "feedback before downgrade");
 		}
 		// The third published shape had everything but the tab views.
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE views; PRAGMA user_version=3;");
 		auto       store = open(scratch.path());
 		const auto page  = store.Store->feedback(subject, std::nullopt, { });
@@ -536,7 +536,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v4 manifest", 1).has_value(), "capture before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
+		sql(database_path(scratch.path()), "DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v4 cycle reads unchanged");
 
@@ -585,7 +585,7 @@ namespace {
 			expect(store.capture(2, subject, "v5 manifest", 1).has_value(), "capture before downgrade");
 			expect(store.Store->save_tabs(subject, plain, { }).has_value(), "a full-source record before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
+		sql(database_path(scratch.path()), "DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v5 cycle reads unchanged");
 		const auto old = store.Store->load_tabs(subject, { });
@@ -625,6 +625,138 @@ namespace {
 	}
 }
 
+namespace {
+	/// A finite plan over a synthetic candidate: P holds `a.cpp`, the final
+	/// capture changes it.
+	auto publication_plan(const std::string& aTitle = "Harden parsing") -> core::publication_plan
+	{
+		const auto oid = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			bytes[0]   = aSeed;
+			bytes[19]  = 0xB1;
+			return core::git_entry_oid{ core::git_hash_algorithm::sha1, bytes };
+		};
+		const auto content = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			bytes[0]   = aSeed;
+			return core::cycle_material_digest{ bytes };
+		};
+		const auto capture = [&](const std::uint8_t aSeed) {
+			return core::cycle_manifest{ .ScopeVersion = 1,
+										 .RootKind     = core::workspace_root_kind::git_checkout,
+										 .Coverage     = core::cycle_capture_coverage::complete,
+										 .ObjectFormat = core::git_hash_algorithm::sha1,
+										 .Entries      = { { .Path    = "a.cpp",
+															 .Origin  = core::manifest_origin::tracked,
+															 .Mode    = core::git_mode_regular,
+															 .Size    = 1,
+															 .Content = content(aSeed),
+															 .Profile = { .Kind = core::material_text_kind::utf8, .Size = 1 } } } };
+		};
+		auto base            = std::vector<core::git_tree_entry>{ { .Path = "a.cpp", .Mode = core::git_mode_regular, .Object = oid(1) } };
+		auto parent          = std::array<std::uint8_t, 32>{ };
+		parent[0]            = 0xC0;
+		const auto tree      = core::build_git_trees(base, core::git_hash_algorithm::sha1);
+		auto       request   = core::outgoing_request{ .StartRevision = core::cycle_source_revision_id{ 1 },
+													   .FinalRevision = core::cycle_source_revision_id{ 2 },
+													   .Start         = capture(1),
+													   .Final         = capture(2),
+													   .Base          = { .Commit = core::git_commit_oid{ core::git_hash_algorithm::sha1, parent }, .Tree = tree->Root, .Entries = std::move(base) },
+													   .Identities    = { { .Content = content(1), .Raw = oid(1) }, { .Content = content(2), .Raw = oid(2) } } };
+		const auto outgoing  = core::plan_outgoing(request);
+		const auto candidate = core::prepare_candidate(*outgoing, request.Identities,
+													   { .Metadata = { .Author    = { .Name = "Ada", .Email = "ada@example.invalid", .Seconds = 1700000000 },
+																	   .Committer = { .Name = "Ada", .Email = "ada@example.invalid", .Seconds = 1700000000 },
+																	   .Title     = "Harden parsing" } });
+		const auto plan      = core::make_publication_plan(*outgoing, *candidate,
+														   { .Host = "github.com", .Account = core::github_account_id{ 42 }, .Login = "ada", .Owner = "example", .Repository = "parser", .BaseBranch = "main", .NewBranch = "bpr/harden" },
+														   aTitle, "", false);
+		expect(plan.has_value(), "publication plan");
+		return *plan;
+	}
+
+	/// [[BPR-1174]]. The sixth published shape had everything but
+	/// publications; plans and journals are recorded, changed only through
+	/// the core, replayed and conflicted like every other write, survive a
+	/// restart with an attempt in flight, and leave with the cycle.
+	void migrates_the_sixth_schema_and_journals_publications()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v6" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "v6 manifest", 1).has_value(), "R1 before downgrade");
+		}
+		sql(database_path(scratch.path()), "DROP TABLE publications; PRAGMA user_version=6;");
+		auto store = open(scratch.path());
+		expect(store.state(subject).Latest.has_value(), "v6 cycle reads unchanged");
+		expect(store.Store->publications(subject, std::nullopt, { })->Publications.empty(), "no publication after migration");
+		const auto plan  = publication_plan();
+		const auto early = store.Store->record_publication(operation(40), subject, plan, { });
+		expect(!early && early.error().Refusal == core::cycle_refusal::invalid_target, "a plan whose final revision was never captured");
+		expect(store.capture(3, subject, "v7 manifest", 1).has_value(), "R2");
+
+		const auto recorded = store.Store->record_publication(operation(41), subject, plan, { });
+		expect(recorded && recorded->Changed && recorded->Allocated == 1U && recorded->Revision == 1U, "publication 1 recorded, nothing authorized");
+		expect(store.Store->record_publication(operation(41), subject, plan, { })->Replayed, "a retried record replays");
+		const auto id        = core::cycle_publication_id{ 1 };
+		const auto digest    = core::publication_plan_digest(plan);
+		auto       authorize = core::authorize_publication{ .Subject = subject, .Actor = core::cycle_actor::imported_content, .PlanDigest = digest, .Account = core::github_account_id{ 42 } };
+		const auto forged    = store.Store->change_publication(operation(42), subject, id, 1, authorize, { });
+		expect(!forged && forged.error().Publication == core::publication_refusal::not_reviewer, "a forged approval changes nothing");
+		authorize.Actor      = core::cycle_actor::reviewer;
+		authorize.PlanDigest = core::publication_plan_digest(publication_plan("Harden the parser"));
+		const auto edited    = store.Store->change_publication(operation(43), subject, id, 1, authorize, { });
+		expect(!edited && edited.error().Publication == core::publication_refusal::stale_plan, "a confirmation of an edited plan");
+		authorize.PlanDigest  = digest;
+		const auto authorized = store.Store->change_publication(operation(44), subject, id, 1, authorize, { });
+		expect(authorized && authorized->Revision == 2U, "authorized");
+		expect(store.Store->change_publication(operation(44), subject, id, 1, authorize, { })->Replayed, "a retried authorization replays");
+		expect(store.Store->change_publication(operation(45), subject, id, 1, authorize, { }).error().Failure == cycle_store_failure::conflict, "a stale journal revision");
+		expect(store.Store->change_publication(operation(44), subject, id, 2, authorize, { }).error().Failure == cycle_store_failure::operation_reused, "an operation names one change");
+
+		const auto loaded = store.Store->load_publication(subject, id, { });
+		expect(loaded && *loaded && (*loaded)->Plan == plan && (*loaded)->Journal.Generation == 1U, "plan and journal read back");
+		const auto step  = *core::next_publication_step(plan, (*loaded)->Journal);
+		const auto begun = store.Store->change_publication(operation(46), subject, id, 2,
+														   core::begin_publication_effect{ .Kind = step.Kind, .Subject = step.Subject, .Generation = 1, .Account = core::github_account_id{ 42 } }, { });
+		expect(begun && begun->Allocated == 1U && begun->Revision == 3U, "the attempt is journaled before it is made");
+
+		// The process ends with the attempt in flight.
+		store.Store.reset();
+		auto       reopened = open(scratch.path());
+		const auto inflight = reopened.Store->load_publication(subject, id, { });
+		expect(inflight && *inflight && (*inflight)->Journal.Effects.size() == 1U && (*inflight)->Journal.Effects[0].State == core::publication_effect_state::intended, "the intent survives");
+		const auto restarted = reopened.Store->change_publication(operation(47), subject, id, 3, core::restart_publication{ }, { });
+		expect(restarted.has_value(), "restart recorded");
+		const auto after = reopened.Store->load_publication(subject, id, { });
+		expect((*after)->Journal.Phase == core::publication_phase::uncertain && (*after)->Journal.Generation == 0U, "uncertain, with no authorization left");
+		const auto blind = reopened.Store->change_publication(operation(48), subject, id, 4,
+															  core::begin_publication_effect{ .Kind = step.Kind, .Subject = step.Subject, .Generation = 1, .Account = core::github_account_id{ 42 } }, { });
+		expect(!blind && blind.error().Publication == core::publication_refusal::unresolved, "no blind retry after a restart");
+		expect(reopened.Store->publications(subject, std::nullopt, { })->Publications.size() == 1U, "one publication listed");
+
+		// An edited plan is a new plan. It supersedes a plan nothing was
+		// attempted for, never one with effects to account for.
+		const auto second = reopened.Store->record_publication(operation(50), subject, publication_plan("Harden the parser"), { });
+		const auto third  = reopened.Store->record_publication(operation(51), subject, publication_plan("Harden the lexer"), { });
+		expect(second && second->Allocated == 2U && third && third->Allocated == 3U, "publications 2 and 3");
+		const auto page = reopened.Store->publications(subject, std::nullopt, { });
+		expect(page && page->Publications.size() == 3U && page->Publications[0].Journal.Phase == core::publication_phase::uncertain
+				   && page->Publications[1].Journal.Phase == core::publication_phase::superseded && page->Publications[2].Journal.Phase == core::publication_phase::prepared,
+			   "the uncertain one waits for recovery; the untried one is superseded");
+		auto old            = authorize;
+		old.PlanDigest      = core::publication_plan_digest(publication_plan("Harden the parser"));
+		const auto obsolete = reopened.Store->change_publication(operation(52), subject, core::cycle_publication_id{ 2 }, page->Publications[1].Revision, old, { });
+		expect(!obsolete && obsolete.error().Publication == core::publication_refusal::closed, "a superseded plan cannot be authorized");
+
+		const auto preview = reopened.Store->removal_preview(subject, { });
+		expect(preview && reopened.Store->remove(operation(49), *preview, { }).has_value(), "explicit removal");
+		expect(!reopened.Store->load_publication(subject, id, { }).has_value(), "and its publications leave with it");
+	}
+}
+
 int main()
 {
 	creates_and_reopens_a_provider_free_cycle();
@@ -640,6 +772,7 @@ int main()
 	migrates_the_third_schema();
 	migrates_the_fourth_schema_and_quarantines_imports();
 	migrates_the_fifth_schema_and_keeps_checkpoints();
+	migrates_the_sixth_schema_and_journals_publications();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif
