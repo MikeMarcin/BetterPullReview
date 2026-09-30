@@ -36,3 +36,17 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 `core_review_cycle_suggestion` and `review_cycle_suggestion` pass.
 
 The build is clean under GCC with no warnings. The logs are station records in `build/logs/bpr-station-authoring/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `2631bcf3`, with `f42d4e3a` and the Linux station's `384525fb`,
+`build/windows-dev` (MSVC 19.51) builds with no warning. `f42d4e3a` renamed
+two locals in `suggestion_editor.cpp` for C4458. `384525fb` fixed the
+course's read of an emptied optional in `review_cycle_workbench`, the same
+fix this station had made. The authoring rows pass offscreen: the six core rows,
+`sqlite_review_cycle_storage`, `review_cycle_{feedback,suggestion,workbench}`,
+`qt_suggestion_editor_*`, `qt_review_cycle_view_*` and
+`application_review_cycle_desktop_public_path`. The four new uncontained pins
+are measured and confirmed. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, authoring".

@@ -37,3 +37,19 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 Evidence only; the card stays parked for the owner. At `2631bcf31`, `review_cycle_workbench` aborted on Linux: `std::optional<review_cycle_projection>::operator->` asserted on an empty optional. GCC 15's libstdc++ checks this in the unoptimized dev build; libc++ on macOS does not by default. The course held `resumed` as a reference to the host's live projection, called `close()`, which empties `Cycle`, and then read `resumed.Cycle->Subject`. That is undefined behaviour in the test, not the product. `384525fb9` copies the subject before closing. After it, `review_cycle_workbench` (tabs, revision, path and reading line restored after restart; resume from recents), `core_review_cycle_tabs`, `qt_review_cycle_view_1_0` and `_2_0` (900-pixel compact width and named regions, offscreen), and `application_review_cycle_desktop_public_path` (six 1280x800 renders produced; not inspected) pass. For RC61-09 this is the Linux automated share of keyboard and focus. It ran offscreen, not in a native desktop session; the owner's Mac observation and the Windows run remain.
 
 The build is clean under GCC with no warnings. The logs are station records in `build/logs/bpr-station-authoring/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `2631bcf3`, with `f42d4e3a` and the Linux station's `384525fb`,
+`build/windows-dev` (MSVC 19.51) builds with no warning. `f42d4e3a` renamed
+two locals in `suggestion_editor.cpp` for C4458. `384525fb` fixed the
+course's read of an emptied optional in `review_cycle_workbench`, the same
+fix this station had made. The authoring rows pass offscreen: the six core rows,
+`sqlite_review_cycle_storage`, `review_cycle_{feedback,suggestion,workbench}`,
+`qt_suggestion_editor_*`, `qt_review_cycle_view_*` and
+`application_review_cycle_desktop_public_path`. The four new uncontained pins
+are measured and confirmed. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, authoring".
+
+No native Windows attended run was made. This entry adds evidence only, and the card stays Parked.

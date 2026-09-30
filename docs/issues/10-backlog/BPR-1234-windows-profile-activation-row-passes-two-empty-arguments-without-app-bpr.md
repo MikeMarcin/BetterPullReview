@@ -59,3 +59,14 @@ identically at `8374ea995`. The cause is not Windows-specific, so the macOS
 row does not "still pass" without `app_bpr`; the fix above applies to every
 platform. (The authoring milestone briefly filed this as a duplicate before
 this card reached `main`; it was withdrawn.)
+
+## Fixed at `ab9d3fd7`, verified on Windows (bpr-main-win, 2026-09-29)
+
+The pair now comes from `bpr_activation_tour_arguments`, set only under
+`if(TARGET app_bpr)`. `src/app` defines `app_bpr` before `tests` is
+configured, so the check is reliable. The script did not change. On
+Windows, where `app_bpr` is not built, the row passes: 17.19 s.
+
+Still open: a run on macOS or Linux, where `app_bpr` exists, to show the
+pair is still passed. And the row's uncontained pin is still unmeasured on
+Windows. The card stays in Backlog until both are recorded.
