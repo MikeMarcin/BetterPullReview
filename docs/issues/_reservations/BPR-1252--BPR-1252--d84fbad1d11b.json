@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1252"
+  ],
+  "reserve_for": "red-test-backlog",
+  "purpose": "setup destination row near its timeout on macOS",
+  "created": "2026-09-30T10:01:48.274193+00:00",
+  "base": "f79d5a97d9fb1d2fa8e0206cadffd77397c973b7"
+}
