@@ -42,3 +42,33 @@ changed in `24b7f66a` (2026-09-27). Its target needed
 
 - The row passes on Windows, and the escaping assertion passes unchanged.
 - macOS and Linux still pass.
+
+## Fixed at `9f8c34cc`, verified on Windows (bpr-main-win, 2026-09-30)
+
+There were three causes. Two were in the product.
+
+- `compile_tour_permalink` built its `std::filesystem::path` from a
+  `std::string`. Windows reads that in the ANSI code page, so `α` came back as
+  different bytes. The path is now built from the UTF-8 bytes. This was the
+  failure recorded above.
+- A review permalink went through `generic_u8string()`. On Windows that turns
+  a backslash, a legal byte in a Git path, into a separator before
+  `encoded_path` could refuse it. So `dir/back\slash.cpp` compiled into a link
+  to `dir/back/slash.cpp`. The path is now taken as given, and `encoded_path`
+  refuses a backslash before its own generic conversion.
+  - Production endpoint paths come from Git tree entries, which are always
+    separated by `/`. So nothing legitimate is refused.
+- In the test, the endpoint path was built from a UTF-8 `std::string` in the
+  same way, and it now converts from UTF-8. Its `dir/bad\xFF` case is
+  POSIX-only. A Windows path is UTF-16 and cannot hold bytes that are not
+  UTF-8: MSVC's conversion throws, and the row aborted.
+
+The row is now `WINDOWS_UNCONTAINED`, pinned with its measurement. Contained, it
+stops at `publication SQLite journal opens` under its scratch root, as its
+sibling store rows do.
+
+On Windows, `github_review_comment_permalink` passes, 11.14 s, through `ctest`.
+`test_network_isolation_manifest` does not name it.
+
+Still open: a macOS and a Linux run of the row. The card stays in Backlog
+until then.

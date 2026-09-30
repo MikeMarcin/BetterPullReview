@@ -50,3 +50,21 @@ reports as not pinned ([[BPR-1237]]).
 
 - The three rows pass on Windows, and print `PRIVATE_REVIEW_PUBLIC_PATH_OK`.
 - macOS and Linux still pass.
+
+## Fixed at `e175008d`, verified on Windows (bpr-main-win, 2026-09-30)
+
+The Qt `PATH` part of the observation above came from a direct run. Under
+`ctest` the rows already get Qt's `bin` on `PATH`. The failure was the
+registry refusal alone.
+
+`private_review_public_path.py` made its root with `tempfile` and
+`mkdir(mode=0o700)`. On Windows that writes CPython's descriptor (SYSTEM,
+Administrators, OWNER RIGHTS), which the profile registry refuses. The course
+now uses `contained_temporary_directory` and `make_root_private`, as the other
+Python courses do. POSIX is unchanged.
+
+On Windows, `application_private_review_native`, `_file` and `_retry` pass:
+23.89, 24.20 and 22.13 s.
+
+Still open: a macOS and a Linux run. The three rows also remain on
+[[BPR-1237]]'s list of unpinned rows. The card stays in Backlog until then.

@@ -45,3 +45,17 @@ not the AppContainer. The store sources changed on 2026-09-26 (`a6513264`,
 
 - The row passes on Windows.
 - macOS and Linux still pass.
+
+## Fixed at `c52aa0e8`, verified on Windows (bpr-main-win, 2026-09-30)
+
+The cause is [[BPR-1231]]'s. The course made its root, and each boundary's
+directory, with `mkdir(mode=0o700)`, and on Windows the submission store
+refuses that descriptor. `make_root_private` now narrows them. The contained
+temporary root itself is narrowed too, because the unresolved phases write in
+it directly.
+
+On Windows, `live_review_submission_restart_recovery` passes, 1.08 s. All five
+kill boundaries recover (`prepared`, `witnessed`, `published`, `resolved` and
+`published-moved`). Then the unresolved, moved and prepared phases pass.
+
+Still open: a macOS and a Linux run. The card stays in Backlog until then.
