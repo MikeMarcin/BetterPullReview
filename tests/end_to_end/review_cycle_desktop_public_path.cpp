@@ -106,6 +106,8 @@ try {
 	auto* const modality = window.findChild<QWidget*>(QStringLiteral("workbenchModalityAction"));
 	static_cast<void>(modality);
 	capture(window, QStringLiteral("desktop-cycle-r0"));
+	auto* const status = window.findChild<QLabel*>(QStringLiteral("workbenchStatus"));
+	expect(status != nullptr && !status->text().contains(QStringLiteral("pull request")), "the status line does not ask for a pull request");
 
 	// The first note: open the parser, select a range, comment.
 	emit page->files()->itemActivated(page->files()->item(1));

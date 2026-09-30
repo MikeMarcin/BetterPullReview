@@ -10822,6 +10822,11 @@ namespace bpr::qt {
 
 	auto workbench_window::status_line() const -> QString
 	{
+		// [[BPR-1157]]. A local cycle is not waiting for a pull request; the
+		// cycle page says what it is doing itself.
+		if (showing_local_cycle()) {
+			return { };
+		}
 		auto status = QString{ };
 		// [[BPR-0775]]. On Home the line is the session's, and never that no
 		// pull request is open: Home is what the window shows when none is. A
