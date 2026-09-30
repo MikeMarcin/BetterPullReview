@@ -20,7 +20,7 @@ arm64 (Darwin 25.6), dev preset (Debug, `/usr/bin/c++`), Qt 6.11.2 offscreen.
 Triaged and filed, not fixed here:
 [BPR-1245](../issues/30-in-progress/BPR-1245-agent-composition-courses-predate-rfc-0023-private-drafts-and-runs.md)
 (15 agent composition rows),
-[BPR-1246](../issues/20-ready/BPR-1246-review-submission-composition-expects-a-left-side-draft-projection.md)
+[BPR-1246](../issues/30-in-progress/BPR-1246-review-submission-composition-expects-a-left-side-draft-projection.md)
 (3 review submission rows),
 [BPR-1247](../issues/20-ready/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)
 (2 large-review rows),
