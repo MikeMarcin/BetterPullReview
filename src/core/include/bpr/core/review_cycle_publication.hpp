@@ -108,6 +108,12 @@ namespace bpr::core {
 	/// \brief Validates destination fields: host and names by GitHub's rules,
 	/// branches as safe new reference names that differ.
 	[[nodiscard]] auto valid(const publication_destination& aDestination) -> bool;
+	/// \brief A branch name Git and GitHub both accept as a new reference.
+	[[nodiscard]] auto valid_publication_branch(std::string_view aName) -> bool;
+	/// \brief An account login or repository owner by GitHub's rules.
+	[[nodiscard]] auto valid_publication_owner(std::string_view aName) -> bool;
+	/// \brief A repository name by GitHub's rules.
+	[[nodiscard]] auto valid_publication_repository(std::string_view aName) -> bool;
 
 	/// \brief Binds a built candidate to a destination and pull request text.
 	[[nodiscard]] auto make_publication_plan(const outgoing_plan& aPlan, const publication_candidate& aCandidate, const publication_destination& aDestination,

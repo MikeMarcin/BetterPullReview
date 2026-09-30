@@ -63,6 +63,8 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
             src/github_cli_process_runner.cpp
             src/github_host_profile.cpp
 			src/github_mutation_contract.cpp
+            src/github_publication_contract.cpp
+            src/github_publication_session.cpp
             src/review_comment_permalink.cpp
             src/github_paged_read.cpp
             src/github_device_authorization_contract.cpp

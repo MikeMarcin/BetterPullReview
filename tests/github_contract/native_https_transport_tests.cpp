@@ -988,6 +988,7 @@ namespace {
 		mutation_graphql_witness_failure,
 		mutation_status_refusal,
 		mutation_graphql_core_resource,
+		publication_course,
 		proxy_fallback,
 		same_redirect,
 		same_query_redirect,
@@ -1080,6 +1081,9 @@ namespace {
 		}
 		if (aValue == "mutation-graphql-core-resource") {
 			return fixture_scenario::mutation_graphql_core_resource;
+		}
+		if (aValue == "publication-course") {
+			return fixture_scenario::publication_course;
 		}
 		if (aValue == "proxy-fallback") {
 			return fixture_scenario::proxy_fallback;
@@ -1238,6 +1242,8 @@ namespace {
 			return "mutation-status-refusal";
 		case fixture_scenario::mutation_graphql_core_resource:
 			return "mutation-graphql-core-resource";
+		case fixture_scenario::publication_course:
+			return "publication-course";
 		case fixture_scenario::proxy_fallback:
 			return "proxy-fallback";
 		case fixture_scenario::same_redirect:
@@ -1618,6 +1624,7 @@ namespace {
 		case fixture_scenario::mutation_graphql_witness_failure:
 		case fixture_scenario::mutation_status_refusal:
 		case fixture_scenario::mutation_graphql_core_resource:
+		case fixture_scenario::publication_course:
 		case fixture_scenario::proxy_fallback:
 		case fixture_scenario::same_redirect:
 		case fixture_scenario::response_metadata:
@@ -1877,7 +1884,8 @@ namespace {
 			|| aScenario == fixture_scenario::mutation_review_submission
 			|| aScenario == fixture_scenario::mutation_graphql_witness_failure
 			|| aScenario == fixture_scenario::mutation_status_refusal
-			|| aScenario == fixture_scenario::mutation_graphql_core_resource;
+			|| aScenario == fixture_scenario::mutation_graphql_core_resource
+			|| aScenario == fixture_scenario::publication_course;
 	}
 
 	class fixture_review_mutation_lease final
@@ -2092,6 +2100,56 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1175]]. The production publication session over the
+	/// production transport, against the loopback fixture's scripted server.
+	void run_publication_course(
+		native_https_transport&                                 aTransport,
+		const validated_github_host_profile&                    aProfile,
+		const application::github_credential_operation_context& aContext)
+	{
+		const auto oid = [](const std::string_view aHex) {
+			const auto parsed = core::parse_git_entry_oid(aHex);
+			expect(parsed.has_value(), "publication-fixture-identity");
+			return *parsed;
+		};
+		const auto parent  = core::retag<core::git_commit_oid_kind>(oid("a45fbcb979e80a11e91371a41a86ea707b552ee4"));
+		const auto tree    = core::retag<core::git_tree_oid_kind>(oid("b5358577b95747ac0e3ba9a7cc4612da70ebf3bc"));
+		const auto commit  = core::retag<core::git_commit_oid_kind>(oid("a18180d187116b193478f0fdf147af7d95bc1a32"));
+		const auto hello   = oid("ce013625030ba8dba906f756967f9e9ca394464a");
+		auto       session = github_publication_session{ aTransport, aContext };
+		const auto target  = application::github_publication_target{
+			.Host       = std::string{ aProfile.hostname() },
+			.Server     = aProfile.server_contract(),
+			.Account    = aContext.Authority.Account,
+			.Login      = "fixture-reviewer",
+			.Owner      = "octo-org",
+			.Repository = "review-repository",
+		};
+		const auto repository = session.observe_repository(target, { });
+		expect(repository && repository->CanPush && !repository->Archived, "publication-capability-read");
+		const auto observed = session.observe_commit(target, parent, { });
+		expect(observed && *observed && (*observed)->Commit == parent, "publication-parent-on-server");
+		const auto base = session.observe_branch(target, "main", { });
+		expect(base && *base && **base == parent, "publication-base-head");
+		const auto absent = session.observe_branch(target, "bpr/harden", { });
+		expect(absent && !*absent, "publication-new-branch-absent-404-admitted");
+		const auto hello_bytes = std::string_view{ "hello\n" };
+		expect(session.create_blob(target, { reinterpret_cast<const std::uint8_t*>(hello_bytes.data()), hello_bytes.size() }, hello, { }).has_value(), "publication-blob-created-as-computed");
+		expect(session.create_tree(target, (*observed)->Tree, { { .Path = "README", .Mode = core::git_mode_regular, .Object = hello } }, { }, tree, { }).has_value(), "publication-tree-created-as-computed");
+		const auto content = core::git_commit_content{
+			.Tree      = tree,
+			.Parents   = { parent },
+			.Author    = { .Name = "Ada Lovelace", .Email = "ada@example.invalid", .Seconds = 1700000000 },
+			.Committer = { .Name = "Ada Lovelace", .Email = "ada@example.invalid", .Seconds = 1700000000 },
+			.Message   = "Second\n",
+		};
+		expect(session.create_commit(target, content, commit, { }).has_value(), "publication-commit-created-as-computed");
+		const auto created = session.create_branch(target, "bpr/harden", commit, { });
+		expect(created && *created == application::github_branch_creation::created, "publication-branch-created");
+		const auto again = session.create_branch(target, "bpr/harden", commit, { });
+		expect(again && *again == application::github_branch_creation::exists, "publication-existing-branch-422-admitted-never-updated");
+	}
+
 	void run_review_exchange_fixture(
 		const fixture_scenario                 aScenario,
 		const validated_github_host_profile&   aProfile,
@@ -2110,6 +2168,10 @@ namespace {
 		expect(transport.has_value(), "review-exchange-transport");
 		if (aScenario == fixture_scenario::mutation_graphql_course) {
 			run_review_mutation_course(**transport, aProfile);
+			return;
+		}
+		if (aScenario == fixture_scenario::publication_course) {
+			run_publication_course(**transport, aProfile, context);
 			return;
 		}
 

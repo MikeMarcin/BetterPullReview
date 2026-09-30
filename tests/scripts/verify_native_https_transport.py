@@ -70,6 +70,7 @@ SCENARIOS = (
     "mutation-graphql-witness-failure",
     "mutation-status-refusal",
     "mutation-graphql-core-resource",
+    "publication-course",
     "proxy-fallback",
     "same-redirect",
     "same-query-redirect",
@@ -306,6 +307,40 @@ REVIEW_COURSES: dict[str, tuple[ReviewExchange, ...]] = {
         ReviewExchange(OBSERVE_THREAD, 200, thread_answer(False), "core"),
     ),
 }
+
+# [[BPR-1175]]. The publication catalog's reads and writes over the production
+# transport: the repository, P and the base branch are read, the new branch is
+# absent (404, admitted as an observation), then a blob, a tree and a
+# one-parent commit are created with the identities the client computed, the
+# branch is created, and a second creation of the same branch answers 422
+# "Reference already exists" (admitted, never an update). The identities are
+# the installed-Git vectors of `github_publication_contract_tests.cpp`.
+PUBLICATION_REPOSITORY = "/repos/octo-org/review-repository"
+PUBLICATION_PARENT = "a45fbcb979e80a11e91371a41a86ea707b552ee4"
+PUBLICATION_TREE = "b5358577b95747ac0e3ba9a7cc4612da70ebf3bc"
+PUBLICATION_COMMIT = "a18180d187116b193478f0fdf147af7d95bc1a32"
+PUBLICATION_BLOB = "ce013625030ba8dba906f756967f9e9ca394464a"
+
+
+def publication_commit_answer(sha: str, tree: str, parents: tuple[str, ...]) -> bytes:
+    return json_bytes({"sha": sha, "tree": {"sha": tree}, "parents": [{"sha": parent} for parent in parents]})
+
+
+def publication_ref_answer(branch: str, sha: str) -> bytes:
+    return json_bytes({"ref": f"refs/heads/{branch}", "object": {"sha": sha, "type": "commit"}})
+
+
+REVIEW_COURSES["publication-course"] = (
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}", 200, json_bytes({"name": "review-repository", "full_name": "octo-org/review-repository", "owner": {"login": "octo-org"}, "archived": False, "default_branch": "main", "permissions": {"push": True}}), "core"),
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}/git/commits/{PUBLICATION_PARENT}", 200, publication_commit_answer(PUBLICATION_PARENT, "4b825dc642cb6eb9a060e54bf8d69288fbee4904", ()), "core"),
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}/git/ref/heads/main", 200, publication_ref_answer("main", PUBLICATION_PARENT), "core"),
+    ReviewExchange(f"GET {PUBLICATION_REPOSITORY}/git/ref/heads/bpr/harden", 404, json_bytes({"message": "Not Found"}), "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/blobs", 201, json_bytes({"sha": PUBLICATION_BLOB, "url": f"https://api.github.com{PUBLICATION_REPOSITORY}/git/blobs/{PUBLICATION_BLOB}"}), "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/trees", 201, json_bytes({"sha": PUBLICATION_TREE, "tree": [], "truncated": False}), "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/commits", 201, publication_commit_answer(PUBLICATION_COMMIT, PUBLICATION_TREE, (PUBLICATION_PARENT,)), "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/refs", 201, publication_ref_answer("bpr/harden", PUBLICATION_COMMIT), "core"),
+    ReviewExchange(f"POST {PUBLICATION_REPOSITORY}/git/refs", 422, json_bytes({"message": "Reference already exists", "documentation_url": "https://docs.github.com/rest/git/refs#create-a-reference"}), "core"),
+)
 
 # A refused witness aborts the POST once it has been handed to the network, so
 # the fixture may see the connection, and at most that one request.
@@ -1123,7 +1158,7 @@ class LoopbackConnectTlsFixture:
             return
         answer = response_bytes(
             planned.status,
-            {200: "OK", 201: "Created", 422: "Unprocessable Content"}[planned.status],
+            {200: "OK", 201: "Created", 404: "Not Found", 422: "Unprocessable Content"}[planned.status],
             planned.body,
             rate_limit_headers(planned.resource) + ((("Location", "https://foreign.example.test/"),) if planned.location else ()),
         )

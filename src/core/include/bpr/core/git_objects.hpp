@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_GIT_OBJECTS_HPP
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/sha1.hpp"
 #include "bpr/core/sha256.hpp"
 

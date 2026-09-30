@@ -437,6 +437,21 @@ namespace bpr::core {
 		return "unknown";
 	}
 
+	auto valid_publication_branch(const std::string_view aName) -> bool
+	{
+		return valid_branch(aName);
+	}
+
+	auto valid_publication_owner(const std::string_view aName) -> bool
+	{
+		return valid_login(aName, maximum_publication_owner_bytes);
+	}
+
+	auto valid_publication_repository(const std::string_view aName) -> bool
+	{
+		return valid_repository_name(aName);
+	}
+
 	auto valid(const publication_destination& aDestination) -> bool
 	{
 		return valid_host(aDestination.Host) && aDestination.Account.value() != 0U && valid_login(aDestination.Login, maximum_publication_login_bytes)

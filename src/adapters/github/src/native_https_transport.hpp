@@ -4,6 +4,7 @@
 #include "github_device_authorization_contract.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
+#include "github_publication_contract.hpp"
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/git_smart_transport_port.hpp"
@@ -119,7 +120,8 @@ namespace bpr::adapters::github::detail {
 
 	class native_https_transport final
 		: public github_wire_transport_port,
-		  public github_mutation_wire_transport
+		  public github_mutation_wire_transport,
+		  public github_publication_wire_transport
 	{
 	public:
 		class implementation;
@@ -149,6 +151,12 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                      aStop,
 			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion override;
+
+		/// \brief [[BPR-1175]]. One exchange of the publication catalog.
+		[[nodiscard]] auto perform_publication(
+			const github_publication_wire_call& aCall,
+			std::stop_token                     aStop)
+			-> github_publication_wire_completion override;
 
 		/// \brief Computes the device authorization exchange result.
 		///

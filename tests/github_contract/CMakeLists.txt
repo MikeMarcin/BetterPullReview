@@ -702,6 +702,14 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_github_mutation_contract_tests
 )
 
+# [[BPR-1175]]. The publication catalog's exact REST contract and account-bound session.
+bpr_add_executable(test_better_pull_review_github_publication_contract_tests github_publication_contract_tests.cpp)
+target_link_libraries(test_better_pull_review_github_publication_contract_tests PRIVATE glaze::glaze BetterPullReview::AdapterGitHub BetterPullReview::Application Qt6::Core)
+target_include_directories(test_better_pull_review_github_publication_contract_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+bpr_enable_hardening(test_better_pull_review_github_publication_contract_tests)
+bpr_enable_warnings(test_better_pull_review_github_publication_contract_tests)
+bpr_add_network_isolated_test(NAME github_publication_contract COMMAND test_better_pull_review_github_publication_contract_tests)
+
 bpr_add_executable(
     test_better_pull_review_live_review_mutation_provider_tests
     live_review_mutation_provider_tests.cpp

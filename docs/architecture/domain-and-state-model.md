@@ -518,6 +518,22 @@ the publication, a branch name held elsewhere is target drift, and a
 cancelled publication keeps its confirmed effects without claiming to undo
 them.
 
+Publishing an authorized plan (BPR-1175, `application::review_cycle_publisher`
+over `github_publication_port`) reads capability before any write: the plan's
+account is the one authenticated, the repository admits pushes and is not
+archived, the object format is SHA-1, no changed path is a workflow file (the
+`workflow` scope is not observable here), every blob is within the 128 KiB
+upload bound, P exists on the server, the base branch is where the plan saw it
+and the new branch does not exist unless this plan's journal intended it.
+Each step is then journaled, attempted and completed with what was observed;
+retained bytes are re-hashed before upload, and the first step that is not
+confirmed stops the run. A write answered with another identity is refused,
+never adopted; a branch name found taken at creation is target drift; a
+request that never left keeps the authorization for one more attempt, and one
+that may have taken effect is uncertain until `recover` reads the object,
+tree, commit or branch (a branch counts as this plan's only at exactly the
+planned commit). The pull request step is BPR-1176's.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

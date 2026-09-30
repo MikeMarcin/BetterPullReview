@@ -187,6 +187,9 @@ namespace bpr::adapters::github::detail {
 			capability_probe,
 			review_mutation,
 			device_authorization,
+			/// [[BPR-1175]]. The publication catalog: REST reads and writes of
+			/// Git objects, a new branch and a pull request.
+			publication,
 		};
 
 		struct native_request
@@ -521,6 +524,25 @@ namespace bpr::adapters::github::detail {
 				.Headers                 = aRequest.Wire.Headers,
 				.Body                    = aRequest.Wire.Body,
 				.AdmittedContractStatus  = aRequest.Wire.Operation == review_mutation_operation::create_review_comment ? 422 : 0,
+				.SuccessfulStatus        = aExchange.SuccessfulStatus,
+			};
+		}
+
+		[[nodiscard]] auto
+		native_request_from(const github_publication_wire_call& aCall,
+							const publication_exchange&         aExchange)
+			-> native_request
+		{
+			return {
+				.Surface                 = native_request_surface::publication,
+				.RateLimitResource       = application::github_rate_limit_resource::core,
+				.RequireRateLimitHeaders = true,
+				.Method                  = aCall.Wire.Method,
+				.Path                    = aCall.Wire.Path,
+				.Query                   = aCall.Wire.Query,
+				.Headers                 = aCall.Wire.Headers,
+				.Body                    = aCall.Wire.Body,
+				.AdmittedContractStatus  = aExchange.AdmittedStatus,
 				.SuccessfulStatus        = aExchange.SuccessfulStatus,
 			};
 		}
@@ -1545,7 +1567,9 @@ namespace bpr::adapters::github::detail {
 				|| rateResourceCount > 1U
 				|| (linkCount != 0U
 					&& aState.Operation->Request.Surface
-						!= native_request_surface::rest_read)
+						!= native_request_surface::rest_read
+					&& aState.Operation->Request.Surface
+						!= native_request_surface::publication)
 				|| (aState.RetryAfter.has_value()
 					&& !parse_retry_after(aState.RetryAfter).has_value())
 				|| (aState.RateLimitLimit.has_value()
@@ -2564,6 +2588,58 @@ namespace bpr::adapters::github::detail {
 					: github_mutation_transmission::definitely_not_sent);
 		}
 
+		/// [[BPR-1175]]. One publication exchange. The operation, not its
+		/// path, fixes the method and the statuses admitted; the request must
+		/// be exactly what the contract compiles. A write that reached Qt is
+		/// never sent again through another proxy, and its completion says
+		/// whether it may have left.
+		[[nodiscard]] auto perform_publication(
+			const github_publication_wire_call& aCall,
+			const std::stop_token               aStop)
+			-> github_publication_wire_completion
+		{
+			if (aStop.stop_requested()) {
+				return github_publication_wire_cancelled{ };
+			}
+			const auto     exchange = publication_exchange_for(aCall.Wire.Operation);
+			native_request native;
+			try {
+				if (!application::valid(aCall.Context) || !exchange.has_value()
+					|| exchange->Method != aCall.Wire.Method
+					|| !validate_outbound_publication_request(aCall.Wire)
+					|| Profile.server_contract() != aCall.Wire.Target.Server) {
+					return github_publication_wire_error{ };
+				}
+				native                         = native_request_from(aCall, *exchange);
+				native.RequireRateLimitHeaders = Profile.server_contract()
+					== application::github_server_contract::github_com_2022_11_28;
+				if (!valid_request_shape(native)) {
+					return github_publication_wire_error{ };
+				}
+			} catch (...) {
+				return github_publication_wire_error{ };
+			}
+			auto postCreated = std::make_shared<std::atomic_bool>(false);
+			auto admit       = [postCreated]() mutable {
+				postCreated->store(true, std::memory_order_release);
+				return true;
+			};
+			auto       result       = perform_validated(aCall, std::move(native), aStop, std::move(admit));
+			const auto transmission = postCreated->load(std::memory_order_acquire) ? github_mutation_transmission::indeterminate : github_mutation_transmission::definitely_not_sent;
+			if (auto* success = std::get_if<hop_success>(&result)) {
+				return github_publication_wire_success{
+					.Response = { .Status = success->Status, .Headers = std::move(success->Headers), .Body = std::move(success->Body) },
+				};
+			}
+			if (auto* error = std::get_if<application::github_provider_error>(&result)) {
+				return github_publication_wire_error{ .Error = *error, .Transmission = transmission };
+			}
+			if (std::holds_alternative<hop_cancelled>(result)) {
+				return github_publication_wire_cancelled{ .Transmission = transmission };
+			}
+			return github_publication_wire_error{ .Transmission = transmission };
+		}
+
 		[[nodiscard]] auto perform_device_authorization(
 			const device_authorization_wire_request& aRequest,
 			const std::stop_token                    aStop)
@@ -3184,6 +3260,17 @@ namespace bpr::adapters::github::detail {
 				&& authority_matches_profile(aRequest.Context.Authority, Profile);
 		}
 
+		/// [[BPR-1175]]. Publication runs only under the account binding it
+		/// names, exactly like a review mutation.
+		[[nodiscard]] auto credential_matches(
+			const github_publication_wire_call& aCall) const noexcept -> bool
+		{
+			const auto* credential = std::get_if<account_credential>(&Credential);
+			return credential != nullptr
+				&& aCall.Context == credential->Context
+				&& authority_matches_profile(aCall.Context.Authority, Profile);
+		}
+
 		[[nodiscard]] auto credential_matches(
 			const application::git_smart_request_context&     aContext,
 			const std::optional<core::application_session_id> aAuthenticationSession) const noexcept
@@ -3624,7 +3711,8 @@ namespace bpr::adapters::github::detail {
 			// Persist the witness before giving any mutation verb to Qt. Marking
 			// the attempt conservatively also prevents proxy fallback after an
 			// admission failure; no request is created when durability refuses.
-			if (aOperation->Request.Surface == native_request_surface::review_mutation
+			if ((aOperation->Request.Surface == native_request_surface::review_mutation
+				 || aOperation->Request.Surface == native_request_surface::publication)
 				&& aOperation->Request.Method != http_method::get) {
 				aOperation->MutationPostCreated = true;
 				auto witnessed                  = false;
@@ -3793,7 +3881,10 @@ namespace bpr::adapters::github::detail {
 			if (error != QNetworkReply::NoError
 				&& !(admittedStatus
 					 && (error == QNetworkReply::ProtocolInvalidOperationError
-						 || (state.Status == 422 && error == QNetworkReply::UnknownContentError)))) {
+						 || (state.Status == 422 && error == QNetworkReply::UnknownContentError)
+						 // [[BPR-1175]]. A publication read admits 404 as the
+						 // observation that the object or branch is absent.
+						 || (state.Status == 404 && error == QNetworkReply::ContentNotFoundError)))) {
 				auto result                   = provider_error(network_failure(error));
 				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
 				result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;
@@ -4395,6 +4486,17 @@ namespace bpr::adapters::github::detail {
 									application::github_provider_failure::network);
 		}
 		return Implementation->perform_capability_probe(aRequest, aStop);
+	}
+
+	auto native_https_transport::perform_publication(
+		const github_publication_wire_call& aCall,
+		const std::stop_token               aStop)
+		-> github_publication_wire_completion
+	{
+		if (Implementation == nullptr) {
+			return github_publication_wire_error{ };
+		}
+		return Implementation->perform_publication(aCall, aStop);
 	}
 
 	auto native_https_transport::perform_review_mutation(

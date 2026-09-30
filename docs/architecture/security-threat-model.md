@@ -1473,3 +1473,18 @@ journaled before it is attempted; a lost answer or a restart makes it
 uncertain, spends the authorization and blocks further writes until a read
 has observed what happened, so a crash cannot turn into a blind retry or a
 duplicate pull request.
+
+The GitHub publication catalog (BPR-1175) is a new provider-write capability,
+separate from review-comment publication. `github_publication_session` admits
+only the host, account and server contract of the credential context it is
+bound to, and native publication only for the GitHub.com contract (GHES stays
+unqualified until it has its own evidence). Its requests are a closed list of
+REST reads and POSTs compiled from typed requests; the native HTTPS transport
+refuses any request that does not recompile to itself, sends it under the
+existing account authority with the same trust, proxy, redirect and bound
+rules, never replays a POST through another proxy candidate, and reports
+whether a failed write may have left. Every created blob, tree and commit must
+be the identity computed locally, a branch is created with `POST git/refs`,
+which never updates an existing reference, and no update, delete, force, fork,
+merge or close request exists. Installed Git gains no push: the publication
+catalog's Git runs with no credential helper and every protocol disabled.
