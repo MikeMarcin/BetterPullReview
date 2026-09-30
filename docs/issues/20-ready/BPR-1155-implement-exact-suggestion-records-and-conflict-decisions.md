@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1155"
 title: "Implement exact suggestion records and conflict decisions"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0055"]
 depends_on: ["BPR-1153", "BPR-1150"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-04", "RC55-05", "RC55-06"], "pack_alias": "PACK-CYCLE-13", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
