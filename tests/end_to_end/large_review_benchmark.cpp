@@ -109,6 +109,9 @@ namespace bpr::e2e::large_review {
 		std::string Name;
 		double      MeasuredMs = 0, LimitMs = 0;
 		bool        Passed = false;
+		/// [[BPR-1247]]. False for a limit justified only by optimized
+		/// measurements, in a Debug build: measured and reported, not a gate.
+		bool Enforced = true;
 	};
 	struct active_input_measurement
 	{
@@ -1089,24 +1092,33 @@ namespace bpr::e2e::large_review {
 		// revalidate the existing completion limits and justify the new startup
 		// and metadata limits. Debug measurements are diagnostic only. All
 		// observed phase gaps must also meet the unchanged 100 ms target.
-		const auto record = [&](const std::string& aName, double aMeasured, double aLimit) {
-			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit });
+		//
+		// [[BPR-1247]]. The limits BPR-0967 introduced from optimized
+		// measurements alone ("no Debug budget justification") gate optimized
+		// builds. A Debug build still measures and reports them, marked not
+		// enforced; the historical Debug limits gate every build.
+		const auto optimized = aReport.BuildConfiguration != "Debug";
+		const auto record    = [&](const std::string& aName, double aMeasured, double aLimit, bool aEnforced = true) {
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced });
 		};
-		const auto phase = [&](const char* aName, double aLimit) {
+		const auto optimized_record = [&](const std::string& aName, double aMeasured, double aLimit) {
+			record(aName, aMeasured, aLimit, optimized);
+		};
+		const auto phase = [&](const char* aName, double aLimit, bool aEnforced = true) {
 			const auto found = std::ranges::find(aReport.Phases, aName, &phase_measurement::Name);
 			require(found != aReport.Phases.end(), "required responsiveness phase missing");
-			record(aName, found->ElapsedMs, aLimit);
+			record(aName, found->ElapsedMs, aLimit, aEnforced);
 		};
 		record("composition_startup_render", aReport.CompositionStartupMs, 1'000.0);
-		record("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
-		record("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
-		record("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
-		record("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
-		record("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
+		optimized_record("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
+		optimized_record("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
+		optimized_record("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
+		optimized_record("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
+		optimized_record("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
 		phase("paged_review_and_git_load", 12'000.0);
 		phase("large_file_selection", 2'500.0);
 		phase("binary_fallback_render", 1'250.0);
-		phase("generated_source_render", 2'500.0);
+		phase("generated_source_render", 2'500.0, optimized);
 		phase("large_source_revisit_render", 1'000.0);
 		// These complete intervals meet the original target after the source,
 		// Overview and repeated conversation-label measurement repairs.
@@ -1124,7 +1136,9 @@ namespace bpr::e2e::large_review {
 		record("next_change_dispatch", std::ranges::max(aReport.ChangeActionMs), aReport.InputIntervalLimitMs);
 		record("wheel_dispatch", aReport.MaxWheelEventMs, aReport.InputIntervalLimitMs);
 		record("measurement_input_gap", aReport.MaxMeasurementInputIntervalMs, aReport.InputIntervalLimitMs);
-		require(aReport.InputBudgetFailures.empty() && std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac fixture responsiveness budget exceeded");
+		require(aReport.InputBudgetFailures.empty()
+					&& std::ranges::all_of(aReport.CompletionBudgets, [](const latency_budget& aBudget) { return aBudget.Passed || !aBudget.Enforced; }),
+				"Mac fixture responsiveness budget exceeded");
 	}
 
 	void verify_active_work_budgets(benchmark_report& aReport)
