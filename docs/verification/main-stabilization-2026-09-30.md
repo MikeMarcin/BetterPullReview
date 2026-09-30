@@ -28,7 +28,7 @@ Triaged and filed, not fixed here:
 (RFC-0016 capture pin),
 [BPR-1249](../issues/30-in-progress/BPR-1249-tour-cli-terminal-courses-fail-on-macos.md)
 (two tour CLI courses outside the dev preset) and
-[BPR-1250](../issues/30-in-progress/BPR-1250-the-windowless-macos-menu-bar-drops-help.md)
+[BPR-1250](../issues/40-parked/BPR-1250-the-windowless-macos-menu-bar-drops-help.md)
 (windowless Help).
 
 ## Integration pass
