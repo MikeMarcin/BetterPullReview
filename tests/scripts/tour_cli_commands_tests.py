@@ -7,8 +7,10 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
-import tempfile
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def editor_checks(binary, root, select, invoke, temporary):
@@ -320,7 +322,7 @@ path.write_bytes("edited across an owner restart \u03b1\n".encode())
 
 def main():
     binary = str(Path(sys.argv[1]).resolve())
-    with tempfile.TemporaryDirectory(prefix="bpr-cli-process-") as temporary:
+    with contained_temporary_directory(prefix="bpr-cli-process-") as temporary:
         root = Path(temporary).resolve() / "private data"
         def invoke(*args, data=None):
             return subprocess.run([binary, "tour", *args, "--data-root", str(root)],

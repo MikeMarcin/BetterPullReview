@@ -5,13 +5,13 @@ namespace bpr::core {
 	/// \brief Bounded raw objects admitted by the host for the exact PR. Links are inert equality keys.
 	struct tour_remote_object
 	{
-		tour_remote_binding              Binding;
-		std::string                      Raw;
-		std::string                      Version;
+		tour_remote_binding                  Binding;
+		std::string                          Raw;
+		std::string                          Version;
 		std::optional<tour_code_destination> Source;
-		bool                             Available        = true;
-		bool                             ValidDestination = true;
-		bool                             Root             = false;
+		bool                                 Available        = true;
+		bool                                 ValidDestination = true;
+		bool                                 Root             = false;
 	};
 	struct tour_import_candidate
 	{

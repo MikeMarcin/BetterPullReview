@@ -161,7 +161,7 @@ namespace {
 		const auto     many  = anchor(1, "l.txt", lines, "TARGET");
 		expect(many.Before == "3\n4\n" && many.After == "\n6\n7\n", "two context lines");
 		const auto longLine = std::string(2000U, 'a') + "TARGET" + std::string(2000U, 'b');
-		const auto bounded   = anchor(1, "l.txt", longLine, "TARGET");
+		const auto bounded  = anchor(1, "l.txt", longLine, "TARGET");
 		expect(bounded.Before.size() == maximum_cycle_anchor_context_bytes && bounded.After.size() == maximum_cycle_anchor_context_bytes, "context bound");
 
 		// LF, CRLF and a lone CR each end a line; an insertion shows as its line.

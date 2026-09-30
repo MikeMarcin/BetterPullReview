@@ -659,21 +659,24 @@ class DependencyModernizationTests(unittest.TestCase):
         # `assertIn` over the file would pass with the list reduced to one
         # package, because `Qt6` is a substring of `Qt6Core` and `Qt6Core` of
         # `Qt6CoreTools`.
-        validated = re.search(
-            r"foreach\(package IN ITEMS ([^)]*)\)", provider
+        # [[BPR-1243]]. d62902a86 builds the non-GUI tour runtime without Qt Gui
+        # and Widgets, so the list is the always-required packages plus the GUI
+        # pair a Qt build appends, and the loop walks that list.
+        base = re.search(r"set\(bpr_qt_packages ([^)]*)\)", provider)
+        gui = re.search(
+            r"if\(BPR_BUILD_QT\)\s*\n\s*list\(APPEND bpr_qt_packages ([^)]*)\)",
+            provider,
         )
-        self.assertIsNotNone(validated, "the validator's package list is gone")
-        validated_packages = set((validated.group(1) if validated else "").split())
+        self.assertIsNotNone(base, "the validator's package list is gone")
+        self.assertIsNotNone(gui, "a Qt build no longer validates Gui and Widgets")
+        self.assertRegex(provider, r"foreach\(package IN LISTS bpr_qt_packages\)")
         self.assertEqual(
-            validated_packages,
-            {
-                "Qt6",
-                "Qt6Core",
-                "Qt6Gui",
-                "Qt6Widgets",
-                "Qt6Network",
-                "Qt6CoreTools",
-            },
+            set((base.group(1) if base else "").split()),
+            {"Qt6", "Qt6Core", "Qt6Network", "Qt6CoreTools"},
+        )
+        self.assertEqual(
+            set((gui.group(1) if gui else "").split()),
+            {"Qt6Gui", "Qt6Widgets"},
         )
         self.assertIn("Qt6ConfigVersionImpl.cmake", provider)
         self.assertIn(

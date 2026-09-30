@@ -8,8 +8,10 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 SKILL = Path(sys.argv[1]).resolve()
 CLI = str(Path(sys.argv[2]).resolve())
@@ -115,7 +117,7 @@ def main():
     if len(examples) < 20:
         fail("too few command examples to check")
     # Every taught command line is accepted by the real parser. Semantic failures (an unknown draft) are fine here.
-    with tempfile.TemporaryDirectory(prefix="bpr-skill-") as root:
+    with contained_temporary_directory(prefix="bpr-skill-") as root:
         private = Path(root) / "data"
         for example in examples:
             line = example

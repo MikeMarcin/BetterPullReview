@@ -555,18 +555,18 @@ namespace {
 		-> std::string_view
 	{
 		switch (aOperation) {
-case review_mutation_operation::staged_list_reviews: return "staged_list_reviews";
-case review_mutation_operation::staged_read_review: return "staged_read_review";
-case review_mutation_operation::staged_list_comments: return "staged_list_comments";
-case review_mutation_operation::staged_create_pending: return "staged_create_pending";
-case review_mutation_operation::staged_update_comment: return "staged_update_comment";
-case review_mutation_operation::staged_update_summary: return "staged_update_summary";
-case review_mutation_operation::staged_submit_comment: return "staged_submit_comment";
-case review_mutation_operation::staged_discard_pending: return "staged_discard_pending";
-case review_mutation_operation::staged_update_description: return "staged_update_description";
-case review_mutation_operation::staged_list_issue_comments: return "staged_list_issue_comments";
-case review_mutation_operation::staged_create_issue_comment: return "staged_create_issue_comment";
-case review_mutation_operation::staged_update_issue_comment: return "staged_update_issue_comment";
+		case review_mutation_operation::staged_list_reviews:         return "staged_list_reviews";
+		case review_mutation_operation::staged_read_review:          return "staged_read_review";
+		case review_mutation_operation::staged_list_comments:        return "staged_list_comments";
+		case review_mutation_operation::staged_create_pending:       return "staged_create_pending";
+		case review_mutation_operation::staged_update_comment:       return "staged_update_comment";
+		case review_mutation_operation::staged_update_summary:       return "staged_update_summary";
+		case review_mutation_operation::staged_submit_comment:       return "staged_submit_comment";
+		case review_mutation_operation::staged_discard_pending:      return "staged_discard_pending";
+		case review_mutation_operation::staged_update_description:   return "staged_update_description";
+		case review_mutation_operation::staged_list_issue_comments:  return "staged_list_issue_comments";
+		case review_mutation_operation::staged_create_issue_comment: return "staged_create_issue_comment";
+		case review_mutation_operation::staged_update_issue_comment: return "staged_update_issue_comment";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";

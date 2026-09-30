@@ -5,15 +5,17 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
-import tempfile
 
 from verify_logging_recovery import start_child, stop_child, wait_line
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def disk_full(executable):
     if platform.system() != "Darwin":
         raise RuntimeError("this native disk-image course requires macOS")
-    with tempfile.TemporaryDirectory(prefix="bpr-log-full-") as temporary:
+    with contained_temporary_directory(prefix="bpr-log-full-") as temporary:
         scratch = Path(temporary).resolve()
         image = scratch / "volume.dmg"
         mount = scratch / "mount"

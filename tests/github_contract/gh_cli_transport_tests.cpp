@@ -1676,7 +1676,7 @@ namespace {
 			const auto                  base    = mutation_request_for(*profile);
 			const auto                  binding = *std::get<application::review_mutation_request>(base.Wire.Semantic).LiveBinding;
 			for (const auto& [operation, method] : rows) {
-				application::staged_review_request semantic{ .Binding = {binding.Target,binding.ActingIdentity}, .Operation = operation };
+				application::staged_review_request semantic{ .Binding = { binding.Target, binding.ActingIdentity }, .Operation = operation };
 				const std::string                  text = "Literal `$(touch /nope)`; & \"quoted\"\nsecond line";
 				if (operation == operation::read_review || operation == operation::list_comments || operation == operation::update_summary || operation == operation::submit_comment || operation == operation::discard_pending) {
 					semantic.Review = application::review_database_id{ 18446744073709551615ULL };

@@ -479,6 +479,10 @@ endfunction()
 # only a changed history through the existing ledger lane. The defect probe
 # (BPR_BUILD_TESTING) selects a right-side line before its shared follow-up.
 # No grant, provider or publication path changes; mutation pin unchanged.
+# BPR-1243 reseal: 6e1bf4dd..this candidate; no intervening pinned-scope commit.
+# The only pinned-scope change is clang-format's alignment of one declaration
+# in private_review_workflow.cpp (`lock` beside `rows`). No behavior change;
+# github_application.cpp and the mutation pin are unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -683,7 +687,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e0e582df6e09b7932acc988a434e886e5b67c50ca25a579c327ec8464cd14e1b"
+        "8b630337e489b7df6eb504b8c37998898504e6b6bdb9126263740a761deee160"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

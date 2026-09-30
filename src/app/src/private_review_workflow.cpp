@@ -821,7 +821,7 @@ namespace bpr::app {
 	}
 	auto private_review_workflow::pending(const core::review_mutation_target& aTarget, core::github_account_id aActor) -> std::vector<application::private_publication_record>
 	{
-		const auto lock = std::scoped_lock{ Gate };
+		const auto                                           lock = std::scoped_lock{ Gate };
 		std::vector<application::private_publication_record> rows;
 		for (const auto& context : Contexts) {
 			const auto& scope = context->Scope;

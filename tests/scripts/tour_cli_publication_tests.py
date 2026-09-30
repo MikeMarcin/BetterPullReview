@@ -6,8 +6,10 @@ import select
 import signal
 import subprocess
 import sys
-import tempfile
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def main():
@@ -55,7 +57,7 @@ def main():
                 child.kill()
                 child.wait(timeout=3)
             os.close(master)
-    with tempfile.TemporaryDirectory(prefix="bpr-tour-publication-") as directory:
+    with contained_temporary_directory(prefix="bpr-tour-publication-") as directory:
         parent = Path(directory)
         parent.chmod(0o700)
         for mode, answer, concurrent, expected in [("publish", b"publish\n", None, 0), ("cancel", b"\n", None, 130), ("yes", b"yes\n", None, 130), ("stale", b"publish\n", "edit", 4), ("unqualified", b"publish\n", None, 5)]:
