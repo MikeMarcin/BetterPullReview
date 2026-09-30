@@ -11,6 +11,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "end_to_end"))
+# [[BPR-1233]]. On Windows `mkdir(mode=0o700)` writes CPython's owner-only
+# descriptor, which the submission store refuses; this writes the stores' own.
+from bpr_narrow_owner_private import make_root_private  # noqa: E402
 
 
 from process_kill_support import kill_at_checkpoint, run  # noqa: E402
@@ -19,7 +23,7 @@ from process_kill_support import kill_at_checkpoint, run  # noqa: E402
 def verify_killed_recovery(executable: Path, root: Path) -> None:
     for boundary in ("prepared", "witnessed", "published", "resolved", "published-moved"):
         course = root / f"killed-{boundary}"
-        course.mkdir(mode=0o700)
+        make_root_private(course)
         kill_boundary = "published" if boundary == "published-moved" else boundary
         kill_at_checkpoint(executable, f"--kill-{kill_boundary}", course)
         server = course / "server-reviews"
@@ -59,15 +63,16 @@ def main() -> int:
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-review-submission-restart-") as raw:
         root = Path(raw)
+        make_root_private(root)
         verify_killed_recovery(arguments.executable, root)
         first = run(arguments.executable, "--write-unresolved", root)
         second = run(arguments.executable, "--recover-unresolved", root)
         moved_root = root / "moved"
-        moved_root.mkdir(mode=0o700)
+        make_root_private(moved_root)
         run(arguments.executable, "--write-unresolved", moved_root)
         moved = run(arguments.executable, "--recover-moved", moved_root)
         prepared_root = root / "prepared"
-        prepared_root.mkdir(mode=0o700)
+        make_root_private(prepared_root)
         prepared_first = run(
             arguments.executable, "--write-prepared", prepared_root
         )
