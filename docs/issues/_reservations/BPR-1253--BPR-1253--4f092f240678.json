@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1253"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "GCC 15 -O3 Release: tour_publication_plan designated aggregate (live target qualification milestone)",
+  "created": "2026-09-30T10:14:05.492945+00:00",
+  "base": "b712704f98a87c33d31ce0447ca2cc6b60ca2d17"
+}
