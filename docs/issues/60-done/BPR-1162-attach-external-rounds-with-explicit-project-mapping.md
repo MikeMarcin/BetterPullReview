@@ -43,3 +43,15 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 The owed Linux command, `ctest --test-dir build/dev -R "^core_review_cycle_import$|^review_cycle_attach$|^core_review_cycle_feedback$|^review_cycle_feedback$" --output-on-failure`, passes 4 of 4.
 
 The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-rounds/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `bfc02529`, `build/windows-dev` (MSVC 19.51) builds with no warning and no
+source change. The portable-rounds rows pass: the core round, markdown,
+bundle and import rows; `review_cycle_{round,export,bundle,attach,feedback,suggestion}`;
+and `sqlite_review_cycle_storage`. `core_review_cycle_bundle_pack_oracle`
+passes after `77c8fa0b`, which gives its Python scratch root the contained
+helper. The four new uncontained pins are measured and confirmed. The details,
+including Save to file's Windows replace semantics, are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, portable rounds".
