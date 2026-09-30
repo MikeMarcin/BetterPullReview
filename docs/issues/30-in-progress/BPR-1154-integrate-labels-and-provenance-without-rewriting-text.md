@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1154"
 title: "Integrate labels and provenance without rewriting text"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0055"]
 depends_on: ["BPR-1153"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-03", "RC55-08", "RC55-10"], "pack_alias": "PACK-CYCLE-12", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
