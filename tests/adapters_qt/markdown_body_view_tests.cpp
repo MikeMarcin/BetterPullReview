@@ -28,6 +28,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -315,6 +316,40 @@ Final content: Ω 日本語 😀
 		}
 		aView.setPalette(inherited);
 	}
+
+	/// Review Cycles notes (BPR-1154): every Conventional Comments label, Plain
+	/// and malformed prefixes render as ordinary Markdown and keep their exact
+	/// source bytes; the reader never interprets or rewrites a label.
+	void check_labelled_bodies(qt::markdown_body_view& aView)
+	{
+		const auto bodies = std::vector<std::string>{
+			"praise: Clear naming.",
+			"nitpick: Trailing space.",
+			"suggestion: Return early.",
+			"issue (blocking): Unchecked input.",
+			"todo: Add a test.",
+			"question: Why two passes?",
+			"thought: Could be lazy.",
+			"chore: Update the notice.",
+			"note: Mirrors the parser.",
+			"typo: recieve",
+			"polish: Tighten the wording.",
+			"quibble (non-blocking, style): Prefer auto.",
+			"Plain text with no label.",
+			"suggestion(blocking) :spacing is odd",
+			"> issue: quoted\r\n\r\n**nitpick**: bold prefix\r\n",
+		};
+		auto index = 0;
+		for (const auto& body : bodies) {
+			aView.set_body(body, "cycle-note:" + std::to_string(index++));
+			settle();
+			expect(aView.rendered_available() && aView.original_body() == body, "labelled note renders and keeps its bytes");
+			aView.copy_source();
+			expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body, "copy returns the authored bytes");
+			const auto first = QString::fromUtf8(body.data(), static_cast<qsizetype>(body.size())).section(QLatin1Char(':'), 0, 0).remove(QLatin1Char('>')).remove(QLatin1Char('*')).trimmed();
+			expect(aView.rendered_view()->document()->toPlainText().contains(first), "the label is shown as the author wrote it");
+		}
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -330,6 +365,7 @@ try {
 	check_links(view);
 	check_bounds(view);
 	check_appearance_and_overflow(view);
+	check_labelled_bodies(view);
 	std::cout << "markdown-body-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

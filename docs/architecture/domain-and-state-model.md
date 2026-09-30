@@ -277,6 +277,20 @@ helpers before the store records them. `encode_suggestion_wire` carries both
 sides as base64 with their lengths and SHA-256 and refuses any mismatch on
 the way back.
 
+A note's body is the author's raw Markdown and stays authoritative
+(BPR-1154). Conventional Comments labels are text inside it: cycles store,
+render and disclose every label, Plain and malformed prefixes byte for byte,
+and no label implies a suggestion, a severity, a permission, a lifecycle or a
+verification. Recognizing labels is the shared RFC-BPR-0047 recognizer's
+(BPR-1076, not yet built under the owner's start hold for RFC-BPR-0044–0051);
+when it lands it reads the same bytes, and cycles add no label field or
+cycle-only label set. `bpr/core/review_cycle_disclosure.hpp` decides what one
+note may carry out of the cycle: by default only its current wording (the
+latest revision of its first turn); replies, pasted or observed answers,
+superseded wordings, private references and adapter, provider, model and
+effort details stay private until named, and derivation and reply links
+never travel. A pasted answer that names a model stays `self_reported`.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

@@ -3,6 +3,7 @@
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
+#include "bpr/core/review_cycle_disclosure.hpp"
 #include "bpr/core/sha256.hpp"
 #include "cycle_course.hpp"
 #include "cycle_session.hpp"
@@ -262,6 +263,65 @@ namespace {
 		std::cout << "NATIVE: 70 threads and 74 revisions paged within bounds after reopen\n";
 	}
 
+	/// Labels are authored text: they survive edits, undo and restart exactly
+	/// and leave a note's suggestion bytes alone (BPR-1154).
+	void keeps_labels_through_edits_undo_and_restart(const std::filesystem::path& aScratch)
+	{
+		auto       source = adapters::workspace::make_local_workspace_source();
+		const auto root   = aScratch / "labels";
+		write_file(root / "src" / "parser.cpp", parser_r1);
+		auto cycle = course{ *source, root };
+		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "R1");
+		const auto labelled = std::vector<std::string>{
+			"praise: a",
+			"nitpick: b",
+			"suggestion: c",
+			"issue (blocking): d",
+			"todo: e",
+			"question: f",
+			"thought: g",
+			"chore: h",
+			"note: i",
+			"typo: j",
+			"polish: k",
+			"quibble: l",
+			"Plain body.",
+			"Suggestion (BLOCKING):malformed",
+			"> nitpick: quoted",
+		};
+		auto thread = core::cycle_feedback_item_ref{ };
+		{
+			auto notes = session{ cycle.StoreRoot.path(), cycle.Subject };
+			for (const auto& body : labelled) {
+				expect(notes.begin({ .Primary = core::cycle_whole_target{ }, .Body = body }).has_value(), "labelled note");
+			}
+			const auto begun = notes.begin({ .Primary = notes.anchor(1, "src/parser.cpp", "check(aText)"), .Body = "suggestion: Validate once." });
+			thread           = item(cycle.Subject, begun->Allocated);
+			const auto added = notes.run<application::cycle_write_receipt>([&](auto aDone) {
+				return notes.Runtime.add_suggestion_selected(session_operation(notes.NextOperation++), thread, 1, { .Selection = notes.anchor(1, "src/parser.cpp", "check(aText)"), .Replacement = "validate(aText)" }, std::move(aDone));
+			});
+			expect(added && added->Revision == 2, "suggestion on the note");
+			const auto relabel = notes.change(thread, 2, core::edit_feedback_turn{ .Latest = core::private_review_turn_revision_id{ 1 }, .Body = "issue (blocking): Validate once." });
+			const auto undo    = notes.change(thread, 3, core::edit_feedback_turn{ .Latest = core::private_review_turn_revision_id{ 2 }, .Body = "suggestion: Validate once." });
+			expect(relabel && undo && undo->Allocated == 3, "relabel, then undo as a new revision");
+		}
+		auto       notes   = session{ cycle.StoreRoot.path(), cycle.Subject };
+		const auto threads = notes.threads();
+		expect(threads.Threads.size() == labelled.size() + 1U, "every note after restart");
+		for (std::size_t index = 0; index < labelled.size(); ++index) {
+			const auto history = notes.revisions(threads.Threads[index].Id);
+			expect(history.Revisions.size() == 1 && history.Revisions[0].Body == labelled[index], "label bytes exact after restart");
+		}
+		const auto history = notes.revisions(thread);
+		expect(history.Revisions.size() == 3 && history.Revisions[1].Body == "issue (blocking): Validate once." && history.Revisions[2].Body == "suggestion: Validate once.", "edit history exact");
+		expect(history.Revisions[2].Predecessor == history.Revisions[1].Identity && history.Revisions[2].EditDerivation == core::private_derivation_kind::edited_from, "undo is recorded lineage");
+		const auto kept = notes.run<std::vector<core::cycle_suggestion>>([&](auto aDone) { return notes.Runtime.suggestions_selected(thread, std::move(aDone)); });
+		expect(kept && kept->size() == 1 && kept->front().Original == "check(aText)" && kept->front().Replacement == "validate(aText)" && kept->front().Revision == 1, "suggestion bytes untouched by relabelling");
+		const auto disclosed = core::disclose_feedback(threads.Threads.back(), history.Revisions, { });
+		expect(disclosed && disclosed->Revisions.size() == 1 && disclosed->Revisions[0].Body == "suggestion: Validate once.", "current wording discloses exactly");
+		std::cout << "NATIVE: labelled bodies, relabel and undo survive restart exactly; suggestion bytes untouched\n";
+	}
+
 	void refuses_a_pull_request_selection(const std::filesystem::path& aScratch)
 	{
 		auto       source = adapters::workspace::make_local_workspace_source();
@@ -283,6 +343,7 @@ try {
 	authors_notes_on_retained_material(scratch.path());
 	observes_correspondence_and_rebinds(scratch.path());
 	pages_and_reopens(scratch.path());
+	keeps_labels_through_edits_undo_and_restart(scratch.path());
 	refuses_a_pull_request_selection(scratch.path());
 	std::cout << "review-cycle-feedback-tests:pass\n";
 	return EXIT_SUCCESS;
