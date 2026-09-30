@@ -10708,8 +10708,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aChanges.PrivateRecords) {
 				// A sibling may be reading a different file or epoch. Reload
 				// accepted records without correlating or persisting that view;
-				// the reload republishes the overview.
-				reload_private_records(false);
+				// the reload republishes the overview. [[BPR-1238]]: this
+				// window's own write reloads them too, and they are correlated
+				// again with its comparison, as opening does. Adopting the durable
+				// records as they are would drop an availability this window
+				// correlated but could not persist, and its next defect gesture
+				// would write that stale availability back.
+				reload_private_records(own);
 				return;
 			}
 			// Conversation read state is not an overview input; changed
@@ -24327,6 +24332,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		probe.Evidence.MultiDefectNavigation
 			= card->shown_defect().has_value() && card->shown_defect()->Id != before;
+		// [[BPR-1238]]. The shared follow-up is a new root comment, which only a
+		// right-side line takes ([[BPR-0587]]). The comparison keeps the first
+		// thread's left-side line selected, so the reviewer picks a right-side
+		// line, as they would before writing one.
+		auto rightLineSelected = false;
+		for (auto line = std::uint32_t{ 0U }; line < 64U && !rightLineSelected; ++line) {
+			rightLineSelected = window->comparison_surface()->select_conversation_line(core::diff_side::right, line);
+		}
+		if (!rightLineSelected) {
+			return fail();
+		}
 		return advance(state_type::phase::awaiting_shared_ready);
 	}
 

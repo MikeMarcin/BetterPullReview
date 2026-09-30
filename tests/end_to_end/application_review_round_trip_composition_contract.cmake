@@ -472,6 +472,13 @@ endfunction()
 # No grant, target, provider or publication path changes; the mutation-branch
 # pin is unchanged. The ReviewMutationEffects member check now tolerates
 # alignment. Full review is recorded on BPR-1228.
+# BPR-1238 reseal: 46e0d07b..this candidate; no intervening pinned-scope commit.
+# A window's own private-record write now reloads its defects correlated with
+# its own comparison (as opening does) instead of adopting the durable records
+# as they are; siblings still reload without correlating. Correlation persists
+# only a changed history through the existing ledger lane. The defect probe
+# (BPR_BUILD_TESTING) selects a right-side line before its shared follow-up.
+# No grant, provider or publication path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -490,7 +497,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d51a5fafb27bb2d230d3a36ac1cc8d5ef02996f2231db462a8a71f7cf7eba5a6"
+		"4a7b8e38debc4d97f61282b81c551dd605985b5c68dee1742daa2049a8a4184e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -676,7 +683,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "fa7f069c0c83325b0e1e660c32b75b710ee3adde1987b98ac35a4ad22bcd9805"
+        "e0e582df6e09b7932acc988a434e886e5b67c50ca25a579c327ec8464cd14e1b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
