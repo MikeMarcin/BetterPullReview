@@ -215,7 +215,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # first two at "catalog", the workbench at "opened without an account,
     # provider or agent", the desktop course at "Open Project offered signed
     # out"). review_cycle_round, review_cycle_export, review_cycle_bundle and
-    # review_cycle_attach are not yet measured contained.
+    # review_cycle_attach, measured the same day, pass uncontained and fail
+    # contained with exit 3 (review_cycle_bundle at "catalog").
     "review_cycle_feedback": "dos-volume-name",
     "review_cycle_suggestion": "dos-volume-name",
     "review_cycle_round": "dos-volume-name",

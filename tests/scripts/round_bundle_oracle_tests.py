@@ -11,7 +11,9 @@ from __future__ import annotations
 import pathlib
 import subprocess
 import sys
-import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def main() -> int:
@@ -19,7 +21,9 @@ def main() -> int:
     sys.path.insert(0, str(pack / "scripts"))
     import reference_contract  # noqa: E402  (the retained pack oracle)
 
-    with tempfile.TemporaryDirectory(prefix="bpr-bundle-oracle-") as scratch:
+    # A `tempfile` root is owner-only on Windows, which the AppContainer cannot
+    # use; see scripts/contained_temporary_support.py.
+    with contained_temporary_directory(prefix="bpr-bundle-oracle-") as scratch:
         rebuilt = pathlib.Path(scratch) / "rebuilt.bpr-review.zip"
         subprocess.run([binary, str(pack / "examples"), str(rebuilt)], check=True)
         members = reference_contract.validate_bundle(rebuilt.read_bytes())
