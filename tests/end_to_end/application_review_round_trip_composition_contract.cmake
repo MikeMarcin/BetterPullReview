@@ -455,6 +455,23 @@ endfunction()
 # existing production provider. Grant, target, source admission and journal
 # decisions are unchanged. The app manifest also includes the reviewed6526f525
 # exact profile selector. Three owning digests are recomputed from those bytes.
+# BPR-1228 reseal: reviewed aa8826e5..e9e65eab. Pinned-scope commits, all in
+# github_application.cpp, github_application.hpp or profile_desktop.cpp:
+# 27dbeef51 adds the tour owner endpoint beside activation, bound to the
+# runtime lease and polled one step at a time on the desktop effect lane;
+# 637cd41df routes a forwarded tour command to the window's live draft on the
+# decision lane (store otherwise, 5 s durable wait, editor_busy on preedit) and
+# records the draft's target in the local tour catalog; eca094604 serves assist
+# tickets with the owner's own clock and hook revision; bf7a96367 and 52fa4a06c
+# change only BPR_BUILD_TESTING probes; 9ad03a828 (reviewed on BPR-1211) moves
+# every ledger read and write to the ReviewLedgerEffects lane behind generation-
+# guarded answers; acebc2089 composes the local review-cycle desktop and joins
+# its shutdown and quiescence. The new composition sources tour_owner_service,
+# tour_assist, tour_cli_types and review_cycle_desktop enter the tree inventory
+# only: local store, workspace and Qt, no provider, credential or transport.
+# No grant, target, provider or publication path changes; the mutation-branch
+# pin is unchanged. The ReviewMutationEffects member check now tolerates
+# alignment. Full review is recorded on BPR-1228.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -473,7 +490,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fa135765d0db82b976eca4b3a770f61f2614de9456bb35cfc7c1e039e7265e6f"
+		"d51a5fafb27bb2d230d3a36ac1cc8d5ef02996f2231db462a8a71f7cf7eba5a6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -597,6 +614,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
         "src/release_update_desktop.cpp"
+		"src/review_cycle_desktop.cpp"
+		"src/review_cycle_desktop.hpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -606,15 +625,20 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
+		"src/tour_assist.cpp"
+		"src/tour_assist.hpp"
 		"src/tour_cancellation.cpp"
 		"src/tour_cancellation.hpp"
 		"src/tour_cli.cpp"
 		"src/tour_cli.hpp"
+		"src/tour_cli_types.hpp"
 		"src/tour_decisions.hpp"
 		"src/tour_editor.cpp"
 		"src/tour_editor.hpp"
 		"src/tour_main.cpp"
 		"src/tour_observation.hpp"
+		"src/tour_owner_service.cpp"
+		"src/tour_owner_service.hpp"
 		"src/tour_publication_plan.cpp"
 		"src/tour_publication_plan.hpp"
 		"src/tour_remote.cpp"
@@ -652,7 +676,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f2410e626eeb6a044f8f5d883d1ab619642e54fbb33b78da1529d8c15367af09"
+        "fa7f069c0c83325b0e1e660c32b75b710ee3adde1987b98ac35a4ad22bcd9805"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -737,7 +761,6 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         "ReviewMutationHost = std::make_unique<"
         "application::review_mutation_application_host>("
         "std::move(LiveReviewMutationGrant)"
-        "worker_executor                                         ReviewMutationEffects;"
         "std::unique_ptr<application::review_mutation_application_host>"
     )
         string(FIND "${bpr_async_mutation_source}" "${required}" found)
@@ -747,6 +770,19 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
             )
         endif()
     endforeach()
+    # [[BPR-1228]]. The member is found by its type and name; the run of
+    # spaces between them is clang-format's alignment, not the contract.
+    string(REGEX MATCH
+        "worker_executor[ \t]+ReviewMutationEffects;"
+        bpr_mutation_effects_member
+        "${bpr_async_mutation_source}"
+    )
+    if(bpr_mutation_effects_member STREQUAL "")
+        message(FATAL_ERROR
+            "asynchronous mutation-host inventory omitted worker_executor "
+            "ReviewMutationEffects;"
+        )
+    endif()
     bpr_require_literal_count(
         bpr_async_mutation_source
         "application::detail::review_mutation_user_authority_issuer::issue("

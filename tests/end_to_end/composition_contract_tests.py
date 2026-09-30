@@ -231,6 +231,45 @@ def strip_cxx_comments(source: str) -> str:
     return "".join(result)
 
 
+def ninja_build_edges(build_graph: str) -> list[str]:
+    """Return the `build` statements that make or consume build products.
+
+    The diagnostic build identity (`src/adapters/logging/CMakeLists.txt`)
+    hashes every file under `src/`, so each one is a configure dependency: the
+    generator names it in the `RERUN_CMAKE` statement and in the `phony`
+    statement that declares those dependencies. Neither compiles, links or
+    runs anything. Every other statement is kept, `$` line continuations
+    joined, so a file that feeds a compile, link or custom command is found
+    ([[BPR-1228]]).
+    """
+    statements: list[str] = []
+    current = ""
+    for line in build_graph.splitlines():
+        if current:
+            current += " " + line.strip()
+        elif line.startswith("build "):
+            current = line
+        else:
+            continue
+        if current.endswith("$"):
+            current = current[:-1]
+            continue
+        statements.append(current)
+        current = ""
+    edges: list[str] = []
+    for statement in statements:
+        rule_and_inputs = re.split(r"(?<!\$):", statement, maxsplit=1)
+        if len(rule_and_inputs) != 2:
+            edges.append(statement)
+            continue
+        words = rule_and_inputs[1].split()
+        rule = words[0] if words else ""
+        if rule == "RERUN_CMAKE" or (rule == "phony" and len(words) == 1):
+            continue
+        edges.append(statement)
+    return edges
+
+
 # [[BPR-0797]] moved both GitHub CLI consent gates from the preprocessor to
 # one run-time question. What the contract protects did not move: a macOS
 # graph that can reach the configured `gh` shows the reader's trust warning and
@@ -616,12 +655,17 @@ class CompositionContractTests(unittest.TestCase):
                 'bpr::application::review_submission_execution_grant>);\n'
                 'int main() { return 0; }\n')
             self.assertEqual(baseline.returncode, 0, baseline.stdout + baseline.stderr)
+            # Both testing overloads, each named by its typed third argument: a
+            # braced `{}` there is ambiguous between the request and the staged plan.
+            factory_calls = (
+                'auto fixture() { return bpr::application::make_review_submission_testing_grant('
+                '{}, {}, bpr::application::review_submission_request{}); }\n'
+                'auto staged() { return bpr::application::make_review_submission_testing_grant('
+                '{}, {}, bpr::application::staged_review_plan{}); }\n')
             testing = compile_snippet(root, "whole-review-test-declaration",
-                '#define BPR_APPLICATION_TESTING 1\n' + header +
-                'auto fixture() { return bpr::application::make_review_submission_testing_grant({}, {}, {}); }\n')
+                '#define BPR_APPLICATION_TESTING 1\n' + header + factory_calls)
             self.assertEqual(testing.returncode, 0, testing.stdout + testing.stderr)
-            forbidden_factory = compile_snippet(root, "whole-review-forbidden-test-factory", header +
-                'auto fixture() { return bpr::application::make_review_submission_testing_grant({}, {}, {}); }\n')
+            forbidden_factory = compile_snippet(root, "whole-review-forbidden-test-factory", header + factory_calls)
             self.assert_language_sealed(forbidden_factory, "make_review_submission_testing_grant", UNDECLARED)
             private_header = (REPOSITORY_ROOT / "src/application/src/review_submission_execution_authority.hpp").as_posix()
             construction = compile_snippet(root, "whole-review-forbidden-construction",
@@ -629,6 +673,44 @@ class CompositionContractTests(unittest.TestCase):
                 'auto fixture() { return new bpr::application::review_submission_execution_authority{'
                 '{}, {}, {}, std::chrono::steady_clock::time_point{}}; }\n')
             self.assert_language_sealed(construction, "review_submission_execution_authority", ACCESS_CONTROLLED)
+
+    def test_build_edges_keep_compiles_and_drop_only_regeneration(self) -> None:
+        """A fixture named by a compile edge must still be found.
+
+        Only the regeneration statements are dropped; a compile, link or
+        custom command that names a file is an edge ([[BPR-1228]]).
+        """
+        graph = (
+            "rule CXX_COMPILER\n"
+            "build src/a.o: CXX_COMPILER /s/src/app/src/github_application.cpp || x $\n"
+            "    y\n"
+            "  FLAGS = -O2\n"
+            "build src/f.o: CXX_COMPILER /s/src/app/src/github_public_path_fixture.cpp\n"
+            "build lib.a: LINK src/a.o\n"
+            "build build.ninja: RERUN_CMAKE | /s/src/app/src/github_public_path_fixture.cpp $\n"
+            "    /s/CMakeLists.txt\n"
+            "build /s/src/app/src/github_public_path_fixture.cpp /s/CMakeLists.txt: phony\n"
+            "build all: phony lib.a\n"
+        )
+        edges = ninja_build_edges(graph)
+        self.assertEqual(
+            [edge.split(":", 1)[0] for edge in edges],
+            ["build src/a.o", "build src/f.o", "build lib.a", "build all"],
+        )
+        self.assertIn("y", edges[0])
+        self.assertTrue(
+            any("github_public_path_fixture.cpp" in edge for edge in edges)
+        )
+        regeneration_only = "\n".join(
+            line for line in graph.splitlines() if "src/f.o" not in line
+        )
+        self.assertFalse(
+            [
+                edge
+                for edge in ninja_build_edges(regeneration_only)
+                if "github_public_path_fixture.cpp" in edge
+            ]
+        )
 
     def test_language_seal_assertion_rejects_what_does_not_prove_a_seal(
         self,
@@ -1274,8 +1356,19 @@ class CompositionContractTests(unittest.TestCase):
             self.assertNotIn("BPR_BUILD_TESTING", compile_invocations)
             self.assertNotIn("BPR_NATIVE_HTTPS_TESTING", compile_invocations)
 
-            build_graph = read_from(build_directory / "build.ninja")
-            self.assertNotIn("github_public_path_fixture.cpp", build_graph)
+            build_edges = ninja_build_edges(
+                read_from(build_directory / "build.ninja")
+            )
+            self.assertTrue(
+                any("github_application.cpp" in edge for edge in build_edges)
+            )
+            self.assertFalse(
+                [
+                    edge
+                    for edge in build_edges
+                    if "github_public_path_fixture.cpp" in edge
+                ]
+            )
 
             built = subprocess.run(
                 [
