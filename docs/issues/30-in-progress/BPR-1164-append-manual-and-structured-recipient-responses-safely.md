@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1164"
 title: "Append manual and structured recipient responses safely"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0057"]
 depends_on: ["BPR-1158", "BPR-1162"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "manual-iteration", "acceptance": ["RC57-04", "RC57-05", "RC57-08", "RC57-10"], "pack_alias": "PACK-CYCLE-22", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
