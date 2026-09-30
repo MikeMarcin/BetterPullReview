@@ -673,3 +673,10 @@ target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE B
 bpr_enable_hardening(test_better_pull_review_review_cycle_round_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_round_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_round COMMAND test_better_pull_review_review_cycle_round_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
+
+# [[BPR-1159]]. The readable round document: the pack's review.md, hostile Markdown and budgets.
+bpr_add_executable(test_better_pull_review_review_cycle_round_markdown_tests review_cycle_round_markdown_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_round_markdown_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_round_markdown_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_round_markdown_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_round_markdown COMMAND test_better_pull_review_review_cycle_round_markdown_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")

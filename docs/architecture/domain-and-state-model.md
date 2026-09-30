@@ -338,6 +338,25 @@ draft revision, installs the payload and commits the round naming it
 object, the same draft revision reuses its round, and an edit is a new draft
 revision and a new round.
 
+The readable form of a round (`bpr/core/review_cycle_round_markdown.hpp`,
+BPR-1159) is one Markdown document rendered from the canonical payload alone:
+the assignment, every item in order with its raw body, locations, relations
+and suggestions' exact bytes, then the selected source. It reproduces the
+pack's example `review.md` byte for byte. Fences outgrow every backtick run
+they hold; a body whose own Markdown would change the document's structure
+(an unclosed fence, a level-one or level-two heading, an HTML comment or raw
+block) is shown verbatim in a fence; bytes a fence cannot carry exactly (CR,
+NUL and other controls, invalid UTF-8, trailing spaces, no final line break)
+are labelled and given as base64. Copy to Clipboard and Save to File emit
+these same bytes; a document over its channel's budget is refused with its
+size, never shortened. `application::save_round_document` writes one file the
+reviewer chose through `cycle_export_destination`
+(`bpr/adapters/workspace/local_export_destination.hpp`, a separate
+`AdapterExport` library beside the read-only workspace source): a flushed
+temporary file moved into place without replacing anything, an identical
+file left untouched, and other bytes replaced only when the reviewer confirmed
+exactly those bytes and they are still there.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

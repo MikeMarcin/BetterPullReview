@@ -12,6 +12,7 @@
 #include "cycle_course.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -135,6 +136,63 @@ namespace bpr::tests::workspace_contract {
 		}
 	};
 
+	/// A round draft of the session's cycle, driven through the runtime.
+	struct round_drafts
+	{
+		session&                    Notes;
+		core::cycle_round_draft_ref Draft;
+		std::uint64_t               Revision = 1;
+
+		auto save(const core::cycle_round_selection& aSelection) -> application::cycle_write_receipt
+		{
+			const auto saved = Notes.run<application::cycle_write_receipt>([&](auto aDone) {
+				return Notes.Runtime.save_round_selected(session_operation(Notes.NextOperation++), Draft, Revision, aSelection, std::move(aDone));
+			});
+			expect(saved.has_value(), "draft saved");
+			Revision = saved->Revision;
+			return *saved;
+		}
+
+		auto freeze(const core::cycle_draft_editor_state& aEditor, const std::optional<application::cycle_operation_id> aOperation = std::nullopt)
+			-> application::cycle_round_freeze_result
+		{
+			const auto request = application::cycle_round_freeze_request{
+				.Operation             = aOperation.value_or(session_operation(Notes.NextOperation++)),
+				.Draft                 = Draft,
+				.ExpectedDraftRevision = Revision,
+				.Editor                = aEditor,
+			};
+			const auto result = Notes.run<application::cycle_round_freeze_result>([&](auto aDone) { return Notes.Runtime.freeze_round_selected(request, std::move(aDone)); });
+			expect(result.has_value(), "freeze decided");
+			return *result;
+		}
+
+		auto flushed() const -> core::cycle_draft_editor_state
+		{
+			return { .ShownRevision = Revision };
+		}
+
+		auto read(const std::uint64_t aRound) -> application::cycle_frozen_round
+		{
+			const auto read = Notes.run<application::cycle_frozen_round>([&](auto aDone) { return Notes.Runtime.read_round_selected(core::cycle_round_id{ aRound }, std::move(aDone)); });
+			expect(read.has_value(), "round read");
+			return *read;
+		}
+
+		auto count() -> std::size_t
+		{
+			const auto page = Notes.run<application::cycle_round_page>([&](auto aDone) { return Notes.Runtime.rounds_selected(std::nullopt, std::move(aDone)); });
+			expect(page.has_value(), "round page");
+			return page->Rounds.size();
+		}
+	};
+	/// Begins a round draft on the session's cycle.
+	inline auto begin_round(session& aNotes) -> round_drafts
+	{
+		const auto begun = aNotes.run<application::cycle_write_receipt>([&](auto aDone) { return aNotes.Runtime.begin_round_selected(session_operation(aNotes.NextOperation++), aNotes.state().Revision, std::move(aDone)); });
+		expect(begun.has_value(), "round draft begun");
+		return { .Notes = aNotes, .Draft = { .Cycle = aNotes.state().Subject.Cycle, .Id = core::cycle_round_draft_id{ begun->Allocated } } };
+	}
 }
 
 #endif

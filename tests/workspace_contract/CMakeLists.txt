@@ -107,3 +107,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_round)
 bpr_add_network_isolated_test(NAME review_cycle_round WINDOWS_UNCONTAINED COMMAND test_review_cycle_round)
+
+# [[BPR-1159]]. Copy and Save of a frozen round to a chosen file, with conflicts refused.
+bpr_add_executable(test_review_cycle_export review_cycle_export_tests.cpp)
+target_link_libraries(test_review_cycle_export PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_export)
+if(WIN32)
+    target_link_libraries(test_review_cycle_export PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_export)
+bpr_add_network_isolated_test(NAME review_cycle_export WINDOWS_UNCONTAINED COMMAND test_review_cycle_export)
