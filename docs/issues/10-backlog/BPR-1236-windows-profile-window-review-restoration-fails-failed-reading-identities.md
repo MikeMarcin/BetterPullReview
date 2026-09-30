@@ -83,3 +83,9 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `application_profile_window_review_restoration_public_path` fails on Linux the same way as on Windows: `unavailable-anchor failed (1)`, then `FAILED: failed reading restoration preserves exact recorded identities and sibling`, after 63.9 s. So the defect is not Windows-only, and the owner's question above, whether the restore or the recording is wrong, applies on Linux too. Nothing was changed.
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## macOS — red-test backlog milestone, 2026-09-30
+
+macOS 26 (Darwin 25.6) arm64, Apple clang, Qt 6.11.2 offscreen, `build/dev` (Debug, `-Werror`) at `69493e235`, which contains the Windows fix.
+
+`application_profile_window_review_restoration_public_path` **passes** on macOS through `ctest`, 615.46 s (run beside five other rows). So the failure reproduces on Windows (4 of 4) and Linux (1 of 1) but not in this one Mac run. Nothing was changed; the owner's question above stands. Whether the Mac differs by timing (the Mac run is ten times slower than Linux's under load) or by platform was not investigated here.
