@@ -8,6 +8,7 @@
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
@@ -21,7 +22,9 @@
 #include <QListView>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -293,8 +296,22 @@ namespace {
 		put_number(aFields, aPrefix + ".line", aLine.Line);
 	}
 
+	/// \brief The private run the positive course asks for from Private history.
+	///
+	/// \details [[BPR-1245]]. Since RFC-BPR-0023 (BPR-0587) an agent reads
+	/// private text only as exact immutable sources a reviewer selected, so the
+	/// course expects its one selected revision and question, and no note or
+	/// draft, however many the review holds.
+	struct private_run_expectation
+	{
+		std::string                    Question;
+		core::private_source_selection Source;
+		std::string                    Body;
+	};
+
 	[[nodiscard]] auto expected_context_fields(
-		const app::detail::agent_invocation_context_evidence& aEvidence)
+		const app::detail::agent_invocation_context_evidence& aEvidence,
+		const private_run_expectation&                        aRun)
 		-> context_fields
 	{
 		auto fields = context_fields{ };
@@ -309,12 +326,12 @@ namespace {
 		put_number(fields, "pull_request", aEvidence.Binding.PullRequest.value());
 		fields.emplace("pull_request_url", aEvidence.PullRequestUrl);
 		// BPR-0517: the supplement carries the side-chat message in one position
-		// after the pull request URL; an invocation from the launch panel sends
-		// none, so the field is present and empty.
-		fields.emplace("chat_message", std::string{ });
+		// after the pull request URL. [[BPR-1245]]: a private run carries the
+		// reviewer's question there.
+		fields.emplace("chat_message", aRun.Question);
 		// BPR-0533: and the workshop operation in the one position after it.
-		// An invocation from the launch panel is not a workshop request, so
-		// the field is present and empty.
+		// A private question is not a workshop request, so the field is
+		// present and empty.
 		fields.emplace("workshop_operation", std::string{ });
 		fields.emplace("base", std::string{ core::canonical_hex(aEvidence.Binding.BaseOid).view() });
 		fields.emplace("head", std::string{ core::canonical_hex(aEvidence.Binding.HeadOid).view() });
@@ -469,22 +486,19 @@ namespace {
 					fields, prefix + ".replaced_right", group.ReplacedRightLines);
 			}
 		}
-		const auto selectedNote = std::ranges::find(
-			aEvidence.Private.Notes,
-			application::local_note_id{ 246U },
-			&application::local_note_record::Id);
-		if (selectedNote == aEvidence.Private.Notes.end()
-			|| !aEvidence.CurrentDraft.has_value()) {
+		put_number(fields, "note.count", 0);
+		put_number(fields, "draft.count", 0);
+		const auto* const turn = std::get_if<core::private_turn_source>(&aRun.Source.Source.Key);
+		if (turn == nullptr) {
 			return { };
 		}
-		put_number(fields, "note.count", 1);
-		put_optional_identity(fields, "note.0.file", std::optional<core::file_identity>{ });
-		put_number(fields, "note.0.comparison.present", 0);
-		fields.emplace("note.0.text", selectedNote->Note.Text);
-		put_number(fields, "draft.count", 1);
-		put_number(fields, "draft.0.anchor.present", 1);
-		put_source_line(fields, "draft.0.anchor", aEvidence.CurrentDraft->Draft.Anchor);
-		fields.emplace("draft.0.text", aEvidence.CurrentDraft->Draft.Body);
+		put_number(fields, "private.count", 1);
+		put_number(fields, "private.0.kind", aRun.Source.Source.Key.index());
+		put_number(fields, "private.0.thread", turn->Thread.value());
+		put_number(fields, "private.0.turn", turn->Turn.value());
+		put_number(fields, "private.0.revision", turn->Revision.value());
+		fields.emplace("private.0.digest", identity_hex(aRun.Source.Source.Digest));
+		fields.emplace("private.0.body", aRun.Body);
 		return fields;
 	}
 
@@ -553,8 +567,15 @@ auto main(int argc, char** argv) -> int
 		  "BPR_CREDENTIAL_CANARY_0250";
 	constexpr std::string_view selectedDraft
 		= "BPR_SELECTED_DRAFT_0250 would a bounded retry be safer?";
+	// [[BPR-1245]]. The private-history revision the positive course selects,
+	// and the question it asks about it.
+	constexpr std::string_view selectedSource
+		= "BPR_SELECTED_SOURCE_1245 retries stop after the third attempt";
+	constexpr std::string_view privateQuestion
+		= "BPR_PRIVATE_QUESTION_1245 is the retry bound reported?";
 	auto expectedContext
 		= std::optional<app::detail::agent_invocation_context_evidence>{ };
+	auto       expectedRun  = std::optional<private_run_expectation>{ };
 	const auto externalRoot = crashMaterializing || (argc == 4 && !workspaceDiagnostic);
 	auto       data         = externalRoot ? nullptr : std::make_unique<QTemporaryDir>();
 	if (data && !data->isValid()) {
@@ -1012,6 +1033,79 @@ auto main(int argc, char** argv) -> int
 				|| expectedContext->Selection->Groups.empty()) {
 				return fail(*application, "independent-context-evidence");
 			}
+
+			// [[BPR-1245]]. RFC-BPR-0023 (BPR-0587): the launch panel's
+			// mutable note and draft fields are refused with directions to
+			// Private history, and nothing starts.
+			panel->start_button()->click();
+			auto refused = wait_terms{ };
+			if (!wait_until_reporting(refused, [panel, &application](wait_terms& aTerms) {
+					aTerms.note_identifier("status", panel->status_text().toStdString());
+					return aTerms.require("directed-to-private-history", panel->status_text().contains(QStringLiteral("Choose immutable revisions or findings in Private history")))
+						&& aTerms.require("nothing-started", app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts == 0U);
+				})) {
+				return fail(*application, "mutable-context-refused", refused.render());
+			}
+			for (auto row = 0; row < panel->note_selector()->count(); ++row) {
+				panel->note_selector()->item(row)->setCheckState(Qt::Unchecked);
+			}
+			panel->draft_selector()->setChecked(false);
+
+			// The accepted flow: one reviewer revision in Private history,
+			// selected as the only source, and a question asked about it.
+			auto* const privatePanel = window.private_review();
+			auto* const notesPages   = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+			auto* const privatePages = privatePanel == nullptr ? nullptr : privatePanel->findChild<QTabWidget*>(QStringLiteral("privateReviewPages"));
+			auto* const composer     = privatePanel == nullptr ? nullptr : privatePanel->findChild<QPlainTextEdit*>(QStringLiteral("privateReviewerText"));
+			auto* const turns        = privatePanel == nullptr ? nullptr : privatePanel->findChild<QListView*>(QStringLiteral("privateTurnList"));
+			auto* const profiles     = privatePanel == nullptr ? nullptr : privatePanel->findChild<QComboBox*>(QStringLiteral("privateAgentProfile"));
+			const auto  press        = [privatePanel](const char* aName) {
+				auto* const button = privatePanel->findChild<QPushButton*>(QString::fromLatin1(aName));
+				if (button == nullptr || !button->isEnabled()) {
+					return false;
+				}
+				button->click();
+				return true;
+			};
+			if (notesPages == nullptr || privatePages == nullptr || composer == nullptr || turns == nullptr || profiles == nullptr) {
+				return fail(*application, "private-history-controls");
+			}
+			window.tray_tabs()->setCurrentIndex(1);
+			for (auto page = 0; page < notesPages->count(); ++page) {
+				if (notesPages->widget(page)->isAncestorOf(privatePanel)) {
+					notesPages->setCurrentIndex(page);
+				}
+			}
+			privatePages->setCurrentIndex(2);
+			composer->setPlainText(QString::fromUtf8(selectedSource.data(), static_cast<qsizetype>(selectedSource.size())));
+			auto ready = wait_terms{ };
+			if (!wait_until_reporting(ready, [privatePanel](wait_terms& aTerms) {
+					return aTerms.require("private-history-ready", privatePanel->isEnabled());
+				})
+				|| !press("privateCreatePr")) {
+				return fail(*application, "private-history-ready", ready.render());
+			}
+			auto created = wait_terms{ };
+			if (!wait_until_reporting(created, [privatePanel](wait_terms& aTerms) {
+					return aTerms.require("reviewer-turn", privatePanel->turn_model()->rowCount() == 1 && privatePanel->isEnabled());
+				})) {
+				return fail(*application, "private-reviewer-turn", created.render());
+			}
+			turns->setCurrentIndex(privatePanel->turn_model()->index(0));
+			if (!press("privateSelectSource") || privatePanel->selected_sources().size() != 1U) {
+				return fail(*application, "private-source-selection");
+			}
+			profiles->setCurrentIndex(profiles->findData(QVariant::fromValue<qulonglong>(core::external_terminal_profile_id.value())));
+			composer->setPlainText(QString::fromUtf8(privateQuestion.data(), static_cast<qsizetype>(privateQuestion.size())));
+			expectedRun = private_run_expectation{
+				.Question = std::string{ privateQuestion },
+				.Source   = privatePanel->selected_sources().front(),
+				.Body     = std::string{ selectedSource },
+			};
+			expectedContext = app::detail::github_application_fixture_access::agent_invocation_context(*application);
+			if (!expectedContext.has_value() || !press("privateAskAgent")) {
+				return fail(*application, "private-ask-agent");
+			}
 		}
 	}
 
@@ -1032,8 +1126,10 @@ auto main(int argc, char** argv) -> int
 		}
 		QApplication::processEvents();
 		workspaceFailureDif = window.dif();
+		// [[BPR-1245]]. The corner Dif is one status row, 28 pixels
+		// (8790cdc7b); the 40-pixel corner was rejected.
 		if (workspaceFailureDif == nullptr || !window.dif_corner_slot()->isVisible()
-			|| workspaceFailureDif->parentWidget() != &window || workspaceFailureDif->size() != QSize{ 40, 40 }) {
+			|| workspaceFailureDif->parentWidget() != &window || workspaceFailureDif->size() != QSize{ 28, 28 }) {
 			return fail(*application, "workspace-diagnostic-dif");
 		}
 		auto marker = std::ofstream{
@@ -1053,7 +1149,10 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "materialization-marker");
 		}
 	}
-	panel->start_button()->click();
+	// [[BPR-1245]]. The positive courses asked from Private history above.
+	if (!expectedRun.has_value()) {
+		panel->start_button()->click();
+	}
 	if (crashMaterializing) {
 		auto checkpoint = wait_terms{ };
 		if (!wait_until_reporting(checkpoint, [&dataRoot](wait_terms& aTerms) {
@@ -1589,9 +1688,18 @@ auto main(int argc, char** argv) -> int
 		actualFields = parse_context_fields(
 			std::string_view{ *decodedInput }.substr(contextHeader.size()));
 	}
-	const auto expectedFields = expectedContext.has_value()
-		? std::optional{ expected_context_fields(*expectedContext) }
+	auto expectedFields = expectedContext.has_value() && expectedRun.has_value()
+		? std::optional{ expected_context_fields(*expectedContext, *expectedRun) }
 		: std::optional<context_fields>{ };
+	// The run identity and its selection digest are allocated at admission;
+	// the course requires them present and takes their values as sent.
+	if (expectedFields.has_value() && actualFields.has_value()) {
+		for (const auto* const name : { "private.run", "private.selection_digest" }) {
+			if (const auto found = actualFields->find(name); found != actualFields->end()) {
+				expectedFields->emplace(name, found->second);
+			}
+		}
+	}
 	// [[BPR-0826]]. Since BPR-0705 each window session owns an application
 	// session distinct from the profile runtime's ("Profile and window
 	// ownership", docs/architecture/system-architecture.md). The expected session
@@ -1661,12 +1769,16 @@ auto main(int argc, char** argv) -> int
 		&& actualFields->at("selection.present") == "1"
 		&& actualFields->at("selection.mapping_confidence") == "0"
 		&& actualFields->at("selection.source_text.present") == "0"
-		&& actualFields->at("note.count") == "1"
-		&& actualFields->at("note.0.text") == selectedNote
-		&& actualFields->at("draft.count") == "1"
-		&& actualFields->at("draft.0.text") == selectedDraft
+		&& actualFields->at("note.count") == "0"
+		&& actualFields->at("draft.count") == "0"
+		&& actualFields->contains("private.run")
+		&& actualFields->contains("private.selection_digest")
+		&& actualFields->at("private.0.body") == selectedSource
+		&& actualFields->at("chat_message") == privateQuestion
 		&& !containsForbiddenContext
 		&& decodedInput->find(unselectedNoteCanary) == std::string::npos
+		&& decodedInput->find(selectedNote) == std::string::npos
+		&& decodedInput->find(selectedDraft) == std::string::npos
 		&& output.find("GITHUB_TOKEN") == std::string::npos
 		&& output.find("BPR_CREDENTIAL_CANARY_0250") == std::string::npos;
 	if (!exact) {

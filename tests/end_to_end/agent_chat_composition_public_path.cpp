@@ -32,6 +32,7 @@
 
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
+#include "right_side_change.hpp"
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
@@ -352,6 +353,11 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "semantic-selection", semantic.render());
 	}
+	// [[BPR-1245]]. The course promotes the reply into Comment's draft, which
+	// needs a right-side line ([[BPR-0587]]); the first change is a deletion.
+	if (!e2e::select_right_side_of_change(*surface)) {
+		return fail(*application, "right-side-selection");
+	}
 
 	auto* const chat
 		= app::detail::github_application_fixture_access::side_chat_panel(
@@ -491,13 +497,16 @@ auto main(int argc, char** argv) -> int
 	const auto oneLaunchPath = !source.empty()
 		&& occurrences(source, "AgentHost->dispatch(") == 1U
 		&& occurrences(source, "application::agent_chat_session_host>(") == 1U
-		// One declaration and exactly three call sites: the launch panel's
-		// start gesture, the chat host's turn dispatcher, and BPR-0533's
-		// comment-workshop press. Three gestures, one launch path — which is
-		// what `AgentHost->dispatch(` being pinned at one above already says,
-		// and what this count guards from the other side: a gesture that grew
-		// its own launch would not appear here at all.
-		&& occurrences(source, "dispatch_agent_invocation(") == 4U
+		// One declaration and exactly six call sites: the launch panel's
+		// start gesture, the chat host's turn dispatcher, BPR-0533's
+		// comment-workshop press, RFC-BPR-0023's private run from selected
+		// sources (f55e39e72), and the tour writing hook and its saved-hook
+		// test (9b71342a0, 1d84e59c2; writing-only, no private context).
+		// [[BPR-1245]] reviewed the last three. Six gestures, one launch path —
+		// which is what `AgentHost->dispatch(` being pinned at one above
+		// already says, and what this count guards from the other side: a
+		// gesture that grew its own launch would not appear here at all.
+		&& occurrences(source, "dispatch_agent_invocation(") == 7U
 		&& source.find("ChatHost->deliver(") != std::string::npos;
 
 	const auto positive = afterSend.ChatHostComposed
@@ -539,11 +548,18 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "chat-reply-promotion-target");
 		}
 		chat->promote_action()->trigger();
-		QApplication::processEvents();
-		const auto* editor         = window.review_editor();
-		const auto  afterPromotion = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
-		if (!editor->shown_draft() || editor->shown_draft()->Body != finding.QueuedClaim || !editor->body_editor()->isVisible()
-			|| window.tray_tabs()->currentIndex() != 0 || chat->replies_list()->count() != 1 || chat->replies_list()->item(0)->data(Qt::UserRole) != replyId
+		const auto* editor = window.review_editor();
+		// [[BPR-1245]]. The promoted draft is accepted on the private review's
+		// answer, so the course waits for it to be shown.
+		auto promoted = wait_terms{ };
+		if (!wait_until_reporting(promoted, [editor, &window, &finding](wait_terms& aTerms) {
+				return aTerms.require("draft-is-reply", editor->shown_draft().has_value() && editor->shown_draft()->Body == finding.QueuedClaim)
+					&& aTerms.require("comments-shown", editor->body_editor()->isVisible() && window.tray_tabs()->currentIndex() == 0);
+			})) {
+			return fail(*application, "chat-reply-promotion", promoted.render());
+		}
+		const auto afterPromotion = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		if (chat->replies_list()->count() != 1 || chat->replies_list()->item(0)->data(Qt::UserRole) != replyId
 			|| afterPromotion.Submissions != 0U || afterPromotion.StoredComments != 0U || afterPromotion.Replies != 0U) {
 			return fail(*application, "chat-reply-promotion-preserves-source-and-privacy");
 		}

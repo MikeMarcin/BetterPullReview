@@ -11,6 +11,7 @@
 
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
+#include "right_side_change.hpp"
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
@@ -435,6 +436,11 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "semantic-selection", semantic.render());
 	}
+	// [[BPR-1245]]. The first change is a deletion, left-side only, and a new
+	// draft needs a right-side line ([[BPR-0587]]).
+	if (!e2e::select_right_side_of_change(*surface)) {
+		return fail(*application, "right-side-selection");
+	}
 	if (!window.read_action()->isEnabled()) {
 		return fail(*application, "receipt-action");
 	}
@@ -490,11 +496,13 @@ auto main(int argc, char** argv) -> int
 			window.ai_tools_action()->trigger();
 		}
 		auto placement = wait_terms{ };
+		// [[BPR-1245]]. The corner Dif is one status row, 28 pixels
+		// (8790cdc7b); the 40-pixel corner was rejected.
 		if (!wait_until_reporting(placement, [&window, &dif](wait_terms& aTerms) {
 				dif = window.dif();
 				return aTerms.require("dif-created", dif != nullptr)
 					&& aTerms.require(
-						"dif-corner", window.dif_corner_slot()->isVisible() && dif->parentWidget() == &window && dif->size() == QSize{ 40, 40 })
+						"dif-corner", window.dif_corner_slot()->isVisible() && dif->parentWidget() == &window && dif->size() == QSize{ 28, 28 })
 					&& aTerms.require(
 						"dif-visible", dif != nullptr && dif->isVisible());
 			})) {
@@ -721,9 +729,14 @@ auto main(int argc, char** argv) -> int
 		}
 		QApplication::processEvents();
 	}
+	// [[BPR-1245]]. Dif acknowledges when the draft is accepted, which with
+	// private review is on the private review's answer ([[BPR-0587]]), so the
+	// course waits for it rather than reading the frame at once.
+	auto       acknowledged   = wait_terms{ };
 	const auto difAcknowledge = dif != nullptr
-		&& dif->current_frame().Clip
-			== qt::dif_index(qt::dif_clip_id::acknowledge);
+		&& wait_until_reporting(acknowledged, [dif](wait_terms& aTerms) {
+									return aTerms.require("acknowledge", dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::acknowledge));
+								});
 	const auto acceptedMatchesDraft = draftBeforeConversion.has_value()
 		&& editor->shown_draft().has_value()
 		&& editor->shown_draft()->Id == draftBeforeConversion->Id;
