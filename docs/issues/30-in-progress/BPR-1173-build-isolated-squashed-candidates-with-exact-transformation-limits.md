@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1173"
 title: "Build isolated squashed candidates with exact transformation limits"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1172", "BPR-1150"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-02", "RC59-04"], "pack_alias": "PACK-CYCLE-31", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
