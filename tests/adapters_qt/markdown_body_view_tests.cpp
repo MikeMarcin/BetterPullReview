@@ -26,6 +26,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -176,11 +177,60 @@ Final content: Ω 日本語 😀
 		expect(aView.original_body().empty() && reader->toPlainText().isEmpty(), "clear invalidates both retained bodies");
 	}
 
+	/// \brief The resource course's scratch directory, at a random name that
+	/// nothing had, removed by the course.
+	/// \details [[BPR-1232]]. `QTemporaryDir` makes it owner-only. On Windows that
+	/// is a protected DACL with no entry for the AppContainer the row runs in, so
+	/// the contained process could neither write in the directory nor remove it.
+	/// There, the directory is made without a mode and inherits the temporary
+	/// directory's entries, the container's grant among them, as
+	/// `scripts/contained_temporary_support.py` does for Python.
+	class resource_directory final
+	{
+	public:
+		resource_directory()
+		{
+#if defined(_WIN32)
+			std::random_device random;
+			for (auto attempt = 0; attempt < 16 && Path.isEmpty(); ++attempt) {
+				const auto candidate = QDir::temp().filePath(QStringLiteral("better_pull_review_markdown_body_view_tests-%1").arg(random(), 8, 16, QLatin1Char('0')));
+				// `mkdir` fails when anything is already at the name.
+				if (QDir{ }.mkdir(candidate)) {
+					Path = candidate;
+				}
+			}
+#else
+			if (Temporary.isValid()) {
+				Path = Temporary.path();
+			}
+#endif
+		}
+		~resource_directory()
+		{
+#if defined(_WIN32)
+			if (!Path.isEmpty()) {
+				QDir{ Path }.removeRecursively();
+			}
+#endif
+		}
+		resource_directory(const resource_directory&)                    = delete;
+		auto operator=(const resource_directory&) -> resource_directory& = delete;
+
+		[[nodiscard]] auto valid() const noexcept -> bool { return !Path.isEmpty(); }
+		[[nodiscard]] auto file(const QString& aName) const -> QString { return QDir{ Path }.filePath(aName); }
+
+	private:
+#if !defined(_WIN32)
+		QTemporaryDir Temporary;
+#endif
+		QString Path;
+	};
+
 	void check_resources(qt::markdown_body_view& aView)
 	{
-		QTemporaryDir directory;
-		expect(directory.isValid(), "temporary resource directory");
-		const auto path = directory.filePath(QStringLiteral("canary.png"));
+		const resource_directory directory;
+		expect(directory.valid(), "temporary resource directory");
+		const auto path = directory.file(QStringLiteral("canary.png"));
 		QImage     image{ 2, 2, QImage::Format_ARGB32 };
 		image.fill(Qt::magenta);
 		expect(image.save(path), "write designated canary image");
