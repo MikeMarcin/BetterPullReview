@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1241"
 title: "Compose review and the tour editor's retarget both claim Alt+R"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded as pre-existing under BPR-1157 (RFC-BPR-0053-0061 ledger); filed by the main stabilization milestone on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1157","BPR-1129","BPR-1135"]}
