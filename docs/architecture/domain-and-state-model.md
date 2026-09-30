@@ -547,6 +547,15 @@ again only after a fresh confirmation), only others' (foreign) or several
 again by number, and a head, base branch or base head other than the plan's
 is recorded on the link as drift.
 
+GitHub.com has run this sequence live on the owner-designated disposable
+repository (RC59-10, BPR-1176): the commit endpoint keeps non-zero author and
+committer offsets, so the server names exactly the locally computed commit; a
+deletion sent as a null identity yields the local tree; draft and ready pull
+requests, lost branch and pull request answers recovered by reading, a branch
+another client pushed, and a branch and a pull request taken between the read
+and the write all behave as described above. GHES is still refused as
+`unsupported_host` and has no live evidence.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |
