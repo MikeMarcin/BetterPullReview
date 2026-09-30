@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1175"
 title: "Publish exact Git objects and a new branch through native REST"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1173", "BPR-1174", "BPR-1147"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-04", "RC59-05"], "pack_alias": "PACK-CYCLE-33", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
