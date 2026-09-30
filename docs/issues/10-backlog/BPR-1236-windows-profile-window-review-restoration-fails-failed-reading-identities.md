@@ -49,3 +49,29 @@ rerun or traced. Many sources this course composes changed from 2026-09-26 to
 
 - The row passes on Windows.
 - macOS and Linux still pass.
+
+## Traced on Windows (bpr-main-win, 2026-09-30)
+
+At `e9e65eab` and later `main`, `build/windows-dev`. The row failed in 4 of 4
+runs, always at the final check, `failed reading restoration preserves exact
+recorded identities and sibling`. The phase that fails varies: three runs
+reported `unavailable-anchor failed (1)` and one `unavailable-file failed (1)`.
+
+A probe, not committed, compared the retained records with the ones the
+course planted before the phase. It showed the same difference every time:
+
+- Record 0, the window whose reading cannot be restored, is unchanged: window,
+  destination, position and tabs are all equal.
+- Record 1, the sibling that the course resumes and restores, keeps its
+  window, destination and position. But its tabs differ. There is one tab
+  both before and after, `Active` is 0 on both, and the window comparison is
+  equal. The tab's comparison and file are equal. But the tab now has a
+  `Selection`, and the recorded tab had none (`hasSelA=1 hasSelB=0`).
+
+So restoring the sibling's reading writes a selection into its active tab that
+the recorded tab did not carry. It is not yet known which side is wrong. The
+restore may write a selection it should not, or the recording may save the tab
+before its selection arrived. The first is a restoration defect. The second
+means the recorded state was already inconsistent. That is the owner's call.
+Nothing was changed. Whether macOS and Linux fail the same way at this
+revision is still to be run.
