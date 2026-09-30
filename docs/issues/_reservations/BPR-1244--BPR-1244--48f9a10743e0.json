@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1244"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows: a new symbolic link is left out of the publication preview silently",
+  "created": "2026-09-30T07:03:41.500526+00:00",
+  "base": "bbef54d6929e0cc17699557a8655c98cc7025148"
+}
