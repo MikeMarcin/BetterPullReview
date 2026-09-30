@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1240"
 title: "The scoped writing agent fixture compiles as C++98 because its target declares no standard"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded by the BPR-1211 implementer on 2026-09-29; filed by the main stabilization milestone","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1211"]}
+acceptance: [{"criterion":"scoped_writing_agent.cpp compiles as C++23 and the dev build completes","outcome":"pass","revision":"790bc57cf","evidence":{"kind":"command","detail":"compile_commands.json shows -std=c++23; cmake --build --preset dev -- -k 0 exit 0 on macOS arm64 (Apple clang)."}},{"criterion":"application_review_tour_writing passes on macOS","outcome":"pass","revision":"790bc57cf","evidence":{"kind":"command","detail":"Full ctest --test-dir build/dev run: application_review_tour_writing Passed 27.38 s."}},{"criterion":"Documentation gate","outcome":"pass","revision":"790bc57cf","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . -> DOCUMENTATION_OK"}}]
 ---
 
 # BPR-1240: The scoped writing agent fixture compiles as C++98 because its target declares no standard
@@ -36,3 +37,13 @@ executable in that file, so it compiles the same way on every configure.
   the configured `build/dev`, and `cmake --build --preset dev` completes.
 - `application_review_tour_writing` passes on macOS.
 - `python3 scripts/verify_documentation.py --root .` passes.
+
+## Resolution (macOS arm64, 2026-09-29)
+
+`790bc57cf` adds `target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)`.
+After it, `build/dev/compile_commands.json` compiles `scoped_writing_agent.cpp`
+with `-std=c++23`, `cmake --build --preset dev -- -k 0` completes with no
+failed step, and `application_review_tour_writing` passes in the full dev run
+(27.4 s). Windows and Linux compile the file under their own presets; the
+declaration makes the level explicit there too, and was not run on those
+stations by this card.
