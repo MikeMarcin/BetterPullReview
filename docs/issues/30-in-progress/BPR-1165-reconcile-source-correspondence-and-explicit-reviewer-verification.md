@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1165"
 title: "Reconcile source correspondence and explicit reviewer verification"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0057"]
 depends_on: ["BPR-1153", "BPR-1163", "BPR-1164"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "manual-iteration", "acceptance": ["RC57-03", "RC57-06", "RC57-07"], "pack_alias": "PACK-CYCLE-23", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
