@@ -158,3 +158,17 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_verification)
 bpr_add_network_isolated_test(NAME review_cycle_verification WINDOWS_UNCONTAINED COMMAND test_review_cycle_verification)
+
+# [[BPR-1172]]. Planning outgoing content over an explicit Git base. Unlike the
+# rows above, the product runs Git here: the installed-Git publication catalog
+# reads P and T through its own private store, never the checkout's repository.
+if(TARGET Git::Git)
+    bpr_add_executable(test_review_cycle_outgoing review_cycle_outgoing_tests.cpp)
+    target_link_libraries(test_review_cycle_outgoing PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    bpr_enable_hardening(test_review_cycle_outgoing)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_outgoing PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_review_cycle_outgoing)
+    bpr_add_network_isolated_test(NAME review_cycle_outgoing WINDOWS_UNCONTAINED COMMAND test_review_cycle_outgoing ${bpr_workspace_git_arguments})
+endif()

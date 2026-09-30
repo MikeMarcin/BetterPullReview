@@ -1,5 +1,6 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
+#include "bpr/adapters/git/installed_git_publication.hpp"
 #include "windows_sharing_retry.hpp"
 #include <glaze/json.hpp>
 
@@ -23,6 +24,8 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -124,6 +127,9 @@ namespace bpr::adapters::git {
 			bool                                                       AllowExitOne          = false;
 			failed_output_summarizer                                   SummarizeFailedOutput = nullptr;
 			std::optional<application::agent_workspace_lifetime_guard> WorkspaceGuard;
+			/// Variables added to the fixed environment for this one command.
+			/// Only the publication catalog sets any, from a closed list.
+			std::vector<std::pair<std::string, std::string>> Environment;
 		};
 
 		[[nodiscard]] auto path_text(
@@ -2437,7 +2443,16 @@ namespace bpr::adapters::git {
 			QString     executable;
 			QString     workingDirectory;
 			QStringList arguments;
-			const auto  environment = process_environment(aConfiguration);
+			auto        environment = process_environment(aConfiguration);
+			for (const auto& [name, value] : aRequest.Environment) {
+				QString decodedName;
+				QString decodedValue;
+				if (!decode_text(name, decodedName) || !decode_text(value, decodedValue) || environment.contains(decodedName)) {
+					environment = QProcessEnvironment{ };
+					break;
+				}
+				environment.insert(decodedName, decodedValue);
+			}
 			if (
 				!decode_text(path_text(aConfiguration.Executable), executable)
 				|| !decode_text(
@@ -2518,7 +2533,7 @@ namespace bpr::adapters::git {
 					Qt::DirectConnection);
 
 				std::string standardOutput;
-				standardOutput.reserve(aRequest.StandardOutputLimit);
+				standardOutput.reserve(std::min<std::size_t>(aRequest.StandardOutputLimit, 64U * 1024U));
 				std::string standardError;
 				std::size_t standardOutputBytes = 0U;
 				std::size_t standardErrorBytes  = 0U;
@@ -6853,6 +6868,477 @@ namespace bpr::adapters::git {
 				.WindowsSystemRoot = aWindowsSystemRoot,
 			};
 		}
+
+		/// [[BPR-1172]]. The publication catalog's own store: one BPR-owned
+		/// bare repository per object format. The bound checkout's objects are
+		/// read through `GIT_ALTERNATE_OBJECT_DIRECTORIES` for one command at a
+		/// time, so its configuration, hooks, refs and index are never
+		/// consulted and nothing is written there; the store never records the
+		/// checkout either.
+		class installed_git_publication final
+			: public application::publication_candidate_port
+		{
+		public:
+			installed_git_publication(
+				std::filesystem::path           aIsolationRoot,
+				std::unique_ptr<process_worker> aWorker)
+				: IsolationRoot{ std::move(aIsolationRoot) }
+				, PublicationRoot{ IsolationRoot / "publication" / "v1" }
+				, TemplatesRoot{ IsolationRoot / "templates" }
+				, HooksRoot{ IsolationRoot / "hooks" }
+				, Worker{ std::move(aWorker) }
+			{
+			}
+
+			[[nodiscard]] auto list_commit(
+				const application::publication_repository& aRepository,
+				const core::git_commit_oid&                aCommit,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<application::publication_commit_listing> override
+			{
+				if (!aCommit.valid() || aCommit.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				const auto commit = std::string{ core::canonical_hex(aCommit).view() };
+				auto       type   = run(*context, { "cat-file", "-t", commit }, standard_output_limit, aStop);
+				if (!type) {
+					return std::unexpected{ missing_or(type.error()) };
+				}
+				if (*type != "commit\n") {
+					return failure(application::publication_git_failure::object_unavailable);
+				}
+				auto object = run(*context, { "cat-file", "commit", commit }, maximum_commit_object_bytes, aStop);
+				if (!object) {
+					return std::unexpected{ missing_or(object.error()) };
+				}
+				const auto text   = std::string_view{ *object };
+				const auto length = aCommit.byte_count() * 2U;
+				if (!text.starts_with("tree ") || text.size() < 6U + length || text[5U + length] != '\n') {
+					return failure(application::publication_git_failure::malformed);
+				}
+				const auto tree = core::parse_git_tree_oid(text.substr(5U, length));
+				if (!tree || tree->algorithm() != aCommit.algorithm()) {
+					return failure(application::publication_git_failure::malformed);
+				}
+				auto entries = list_tree(*context, *tree, aStop);
+				if (!entries) {
+					return std::unexpected{ entries.error() };
+				}
+				return application::publication_commit_listing{
+					.CommitObject = std::vector<std::uint8_t>(object->begin(), object->end()),
+					.Tree         = *tree,
+					.Entries      = std::move(*entries),
+				};
+			}
+
+		private:
+			static constexpr std::size_t maximum_commit_object_bytes = 1024U * 1024U;
+			static constexpr std::size_t maximum_listing_bytes       = 64U * 1024U * 1024U;
+
+			struct command_context
+			{
+				std::filesystem::path Store;
+				std::string           SourceObjects;
+			};
+
+			[[nodiscard]] static auto failure(
+				const application::publication_git_failure aFailure,
+				std::string                                aDetail = { })
+				-> std::unexpected<application::publication_git_error>
+			{
+				return std::unexpected{ application::publication_git_error{ .Failure = aFailure, .Detail = std::move(aDetail) } };
+			}
+
+			[[nodiscard]] static auto translate(const git_process_error& aError) -> application::publication_git_error
+			{
+				switch (aError.Code) {
+				case git_process_failure::cancelled:
+					return { .Failure = application::publication_git_failure::cancelled };
+				case git_process_failure::standard_output_limit:
+					return { .Failure = application::publication_git_failure::bounds };
+				case git_process_failure::object_unavailable:
+					return { .Failure = application::publication_git_failure::object_unavailable, .Detail = aError.Detail };
+				case git_process_failure::malformed_output:
+					return { .Failure = application::publication_git_failure::malformed, .Detail = aError.Detail };
+				default:
+					return { .Failure = application::publication_git_failure::unavailable, .Detail = aError.Detail };
+				}
+			}
+
+			/// A command that failed on a missing object says so; anything
+			/// else keeps its own category.
+			[[nodiscard]] static auto missing_or(const application::publication_git_error& aError) -> application::publication_git_error
+			{
+				if (aError.Failure == application::publication_git_failure::unavailable && aError.Detail.find("ot a valid object name") != std::string::npos) {
+					return { .Failure = application::publication_git_failure::object_unavailable, .Detail = aError.Detail };
+				}
+				return aError;
+			}
+
+			/// Runs one plumbing command in the private store with the
+			/// checkout's objects as a read-only alternate.
+			[[nodiscard]] auto run(
+				const command_context&                        aContext,
+				const std::initializer_list<std::string_view> aArguments,
+				const std::size_t                             aOutputLimit,
+				const std::stop_token                         aStop,
+				std::string                                   aInput = { })
+				-> application::publication_git_result<std::string>
+			{
+				auto arguments = common_git_arguments(aContext.Store, HooksRoot);
+				for (const auto argument : aArguments) {
+					arguments.emplace_back(argument);
+				}
+				if (!empty_private_directory(TemplatesRoot) || !empty_private_directory(HooksRoot)) {
+					return failure(application::publication_git_failure::unavailable);
+				}
+				auto result = Worker->submit(
+					process_request{
+						.Arguments           = std::move(arguments),
+						.Input               = memory_input{ std::move(aInput) },
+						.Timeout             = pack_process_timeout,
+						.StandardOutputLimit = aOutputLimit,
+						.Environment         = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", aContext.SourceObjects } },
+					},
+					aStop);
+				if (!result) {
+					return std::unexpected{ translate(result.error()) };
+				}
+				return std::move(result->StandardOutput);
+			}
+
+			/// Resolves the checkout's shared object directory from its `.git`
+			/// directory or `gitdir:` file, without reading its configuration.
+			[[nodiscard]] static auto source_objects(const std::string& aCheckout) -> std::optional<std::filesystem::path>
+			{
+				const auto root = resolve_canonical_existing(path_from_text(aCheckout));
+				if (!root) {
+					return std::nullopt;
+				}
+				const auto small = [](const std::filesystem::path& aPath) -> std::optional<std::string> {
+					std::error_code error;
+					if (!std::filesystem::is_regular_file(aPath, error) || error || std::filesystem::file_size(aPath, error) > 4096U || error) {
+						return std::nullopt;
+					}
+					std::ifstream input{ aPath, std::ios::binary };
+					auto          text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+					while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+						text.pop_back();
+					}
+					return input.bad() ? std::nullopt : std::optional{ std::move(text) };
+				};
+				const auto relative = [](const std::filesystem::path& aBase, const std::string& aText) {
+					const auto path = path_from_text(aText);
+					return path.is_absolute() ? path : aBase / path;
+				};
+				std::error_code error;
+				auto            gitDirectory = *root / ".git";
+				if (std::filesystem::is_regular_file(gitDirectory, error) && !error) {
+					const auto pointer = small(gitDirectory);
+					if (!pointer || !pointer->starts_with("gitdir: ")) {
+						return std::nullopt;
+					}
+					gitDirectory = relative(*root, pointer->substr(8U));
+				}
+				auto common = resolve_canonical_existing(gitDirectory);
+				if (!common) {
+					return std::nullopt;
+				}
+				if (const auto shared = small(*common / "commondir")) {
+					common = resolve_canonical_existing(relative(*common, *shared));
+					if (!common) {
+						return std::nullopt;
+					}
+				}
+				const auto objects = resolve_canonical_existing(*common / "objects");
+				if (!objects || !std::filesystem::is_directory(*objects, error) || error) {
+					return std::nullopt;
+				}
+				// The alternates list is separator-delimited; a quoted or
+				// multi-entry form is never produced.
+				const auto text = path_text(*objects);
+#if defined(Q_OS_WIN)
+				constexpr auto separator = ';';
+#else
+				constexpr auto separator = ':';
+#endif
+				if (text.find(separator) != std::string::npos || text.find_first_of("\"\n\r") != std::string::npos) {
+					return std::nullopt;
+				}
+				return objects;
+			}
+
+			[[nodiscard]] auto prepare(
+				const application::publication_repository& aRepository,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<command_context>
+			{
+				if (aRepository.Algorithm != core::git_hash_algorithm::sha1 && aRepository.Algorithm != core::git_hash_algorithm::sha256) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto objects = source_objects(aRepository.Checkout);
+				if (!objects) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto algorithm = aRepository.Algorithm == core::git_hash_algorithm::sha1 ? git_hash_algorithm::sha1 : git_hash_algorithm::sha256;
+				const auto store     = PublicationRoot / (algorithm == git_hash_algorithm::sha1 ? "sha1.git" : "sha256.git");
+				if (!valid_store(store, algorithm)) {
+					auto boundary = process_boundary_lock{ IsolationRoot, aStop };
+					if (!boundary.valid()) {
+						return failure(aStop.stop_requested() ? application::publication_git_failure::cancelled : application::publication_git_failure::unavailable);
+					}
+					if (!valid_store(store, algorithm) && !initialize_store(store, algorithm, aStop)) {
+						return failure(aStop.stop_requested() ? application::publication_git_failure::cancelled : application::publication_git_failure::unavailable);
+					}
+				}
+				return command_context{ .Store = store, .SourceObjects = path_text(*objects) };
+			}
+
+			[[nodiscard]] auto valid_store(const std::filesystem::path& aStore, const git_hash_algorithm aAlgorithm) const -> bool
+			{
+				std::error_code error;
+				return private_directory(aStore) && private_directory(aStore / "objects") && private_directory(aStore / "refs")
+					&& read_exact_file(aStore / "config", repository_config(aAlgorithm)) && read_exact_file(aStore / "HEAD", "ref: refs/heads/main\n")
+					&& !std::filesystem::exists(aStore / "objects" / "info" / "alternates", error) && !error
+					&& !std::filesystem::exists(aStore / "objects" / "info" / "http-alternates", error) && !error
+					&& !std::filesystem::exists(aStore / "info" / "grafts", error) && !error && !std::filesystem::exists(aStore / "shallow", error) && !error;
+			}
+
+			[[nodiscard]] auto initialize_store(const std::filesystem::path& aStore, const git_hash_algorithm aAlgorithm, const std::stop_token aStop) -> bool
+			{
+				if (!make_private_directory(IsolationRoot / "publication") || !make_private_directory(PublicationRoot)) {
+					return false;
+				}
+				std::error_code error;
+				if (std::filesystem::exists(aStore, error) || error || !make_private_directory(aStore)) {
+					return false;
+				}
+				const auto initialized = Worker->submit(
+					process_request{
+						.Arguments = {
+							"init",
+							"--bare",
+							"--quiet",
+							"--initial-branch=main",
+							aAlgorithm == git_hash_algorithm::sha1 ? "--object-format=sha1" : "--object-format=sha256",
+							"--template=" + path_text(TemplatesRoot),
+							path_text(aStore),
+						},
+						.Input   = memory_input{ },
+						.Timeout = process_timeout,
+					},
+					aStop);
+				return initialized.has_value() && initialized->StandardOutput.empty() && write_private_file(aStore / "config", repository_config(aAlgorithm))
+					&& write_private_file(aStore / "HEAD", "ref: refs/heads/main\n") && valid_store(aStore, aAlgorithm);
+			}
+
+			[[nodiscard]] auto list_tree(
+				const command_context&    aContext,
+				const core::git_tree_oid& aTree,
+				const std::stop_token     aStop)
+				-> application::publication_git_result<std::vector<core::git_tree_entry>>
+			{
+				const auto tree   = std::string{ core::canonical_hex(aTree).view() };
+				auto       output = run(aContext, { "ls-tree", "-r", "-z", "--full-tree", tree }, maximum_listing_bytes, aStop);
+				if (!output) {
+					return std::unexpected{ missing_or(output.error()) };
+				}
+				auto entries = std::vector<core::git_tree_entry>{ };
+				auto rest    = std::string_view{ *output };
+				while (!rest.empty()) {
+					const auto end = rest.find('\0');
+					if (end == std::string_view::npos) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					const auto record = rest.substr(0U, end);
+					rest.remove_prefix(end + 1U);
+					const auto tab    = record.find('\t');
+					const auto first  = record.find(' ');
+					const auto second = first == std::string_view::npos ? std::string_view::npos : record.find(' ', first + 1U);
+					if (tab == std::string_view::npos || second == std::string_view::npos || second > tab) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					const auto modeText = record.substr(0U, first);
+					const auto type     = record.substr(first + 1U, second - first - 1U);
+					const auto object   = core::parse_git_entry_oid(record.substr(second + 1U, tab - second - 1U));
+					auto       mode     = std::uint32_t{ 0 };
+					const auto parsed   = std::from_chars(modeText.data(), modeText.data() + modeText.size(), mode, 8);
+					if (parsed.ec != std::errc{ } || parsed.ptr != modeText.data() + modeText.size() || !object || object->algorithm() != aTree.algorithm()
+						|| (type != "blob" && type != "commit") || (type == "commit") != (mode == core::git_mode_gitlink)) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					if (entries.size() == core::maximum_git_tree_entries) {
+						return failure(application::publication_git_failure::bounds);
+					}
+					entries.push_back({ .Path = std::string{ record.substr(tab + 1U) }, .Mode = mode, .Object = *object });
+				}
+				return entries;
+			}
+
+			std::filesystem::path           IsolationRoot;
+			std::filesystem::path           PublicationRoot;
+			std::filesystem::path           TemplatesRoot;
+			std::filesystem::path           HooksRoot;
+			std::unique_ptr<process_worker> Worker;
+		};
+
+		struct bootstrapped_git
+		{
+			application::git_installation   Installation;
+			std::filesystem::path           Isolation;
+			std::unique_ptr<process_worker> Worker;
+		};
+
+		/// Prepares the isolation root, resolves the installed Git through its
+		/// own exec path and admits its version: what every installed-Git
+		/// catalog needs before its first command.
+		[[nodiscard]] auto bootstrap_installed_git(
+			const std::filesystem::path&                aGitExecutable,
+			const std::filesystem::path&                aIsolationRoot,
+			const std::optional<std::filesystem::path>& aWindowsSystemRoot,
+			const std::stop_token                       aStop)
+			-> std::expected<bootstrapped_git, application::git_process_error>
+		{
+			const auto isolation = canonical_existing(aIsolationRoot);
+			const auto candidate = canonical_existing(aGitExecutable);
+			if (
+				!isolation.has_value() || !candidate.has_value()
+				|| !private_directory(*isolation)
+				|| !regular_executable(*candidate)
+				|| !prepare_isolation(*isolation)) {
+				return std::unexpected{
+					application::git_process_failure::
+						invalid_configuration
+				};
+			}
+#if defined(Q_OS_WIN)
+			const auto systemRoot = aWindowsSystemRoot.has_value()
+				? canonical_existing(*aWindowsSystemRoot)
+				: std::nullopt;
+			if (!systemRoot.has_value()) {
+				return std::unexpected{
+					application::git_process_failure::
+						invalid_configuration
+				};
+			}
+#else
+			static_cast<void>(aWindowsSystemRoot);
+			const auto systemRoot = std::optional<std::filesystem::path>{ };
+#endif
+
+			auto bootstrap = process_worker{
+				runner_config(
+					*candidate,
+					*isolation,
+					std::nullopt,
+					systemRoot)
+			};
+			const auto execPathResult = bootstrap.submit(
+				process_request{
+					.Arguments = { "--exec-path" },
+					.Input     = memory_input{ },
+					.Timeout   = process_timeout,
+				},
+				aStop);
+			if (!execPathResult.has_value()) {
+				return std::unexpected{ std::move(execPathResult.error()) };
+			}
+			if (
+				execPathResult->StandardOutput.empty()
+				|| execPathResult->StandardOutput.back() != '\n') {
+				return std::unexpected{
+					application::git_process_failure::unsupported_git
+				};
+			}
+			const auto execPathText = std::string_view{ execPathResult->StandardOutput }.substr(
+				0U,
+				execPathResult->StandardOutput.size() - 1U);
+			if (
+				execPathText.empty()
+				|| execPathText.find('\n') != std::string_view::npos
+				|| execPathText.find('\r') != std::string_view::npos) {
+				return std::unexpected{
+					application::git_process_failure::standard_output_limit
+				};
+			}
+			const auto execPath = canonical_existing(
+				path_from_text(execPathText));
+			if (!execPath.has_value()) {
+				return std::unexpected{
+					application::git_process_failure::invalid_configuration
+				};
+			}
+			const auto resolvedGit = resolve_canonical_existing(
+				*execPath
+#if defined(Q_OS_WIN)
+				/ "git.exe"
+#else
+				/ "git"
+#endif
+			);
+			if (
+				!resolvedGit.has_value()
+				|| !regular_executable(*resolvedGit)) {
+				return std::unexpected{
+					application::git_process_failure::unsupported_git
+				};
+			}
+
+			auto worker = std::make_unique<process_worker>(
+				runner_config(
+					*resolvedGit,
+					*isolation,
+					execPath,
+					systemRoot));
+			const auto matchingExecPath = worker->submit(
+				process_request{
+					.Arguments = { "--exec-path" },
+					.Input     = memory_input{ },
+					.Timeout   = process_timeout,
+				},
+				aStop);
+			const auto versionResult = worker->submit(
+				process_request{
+					.Arguments = { "--version" },
+					.Input     = memory_input{ },
+					.Timeout   = process_timeout,
+				},
+				aStop);
+			const auto expectedExecPath = path_text(*execPath) + "\n";
+			if (!matchingExecPath.has_value()) {
+				return std::unexpected{ std::move(matchingExecPath.error()) };
+			}
+			if (!versionResult.has_value()) {
+				return std::unexpected{ std::move(versionResult.error()) };
+			}
+			if (
+				matchingExecPath->StandardOutput
+				!= expectedExecPath) {
+				return std::unexpected{
+					application::git_process_failure::unsupported_git
+				};
+			}
+			const auto version = parse_version(versionResult->StandardOutput);
+			if (!version.has_value() || !supported_version(*version)) {
+				return std::unexpected{
+					application::git_process_failure::unsupported_git
+				};
+			}
+
+			return bootstrapped_git{
+				.Installation = {
+					.VersionMajor = (*version)[0],
+					.VersionMinor = (*version)[1],
+					.VersionPatch = (*version)[2],
+				},
+				.Isolation = *isolation,
+				.Worker    = std::move(worker),
+			};
+		}
 	}
 
 	auto recover_installed_agent_workspaces(
@@ -7042,139 +7528,14 @@ namespace bpr::adapters::git {
 					application::git_process_failure::cancelled
 				};
 			}
-			const auto isolation = canonical_existing(aConfiguration.IsolationRoot);
-			const auto candidate = canonical_existing(aConfiguration.GitExecutable);
-			if (
-				!isolation.has_value() || !candidate.has_value()
-				|| !private_directory(*isolation)
-				|| !regular_executable(*candidate)
-				|| !prepare_isolation(*isolation)) {
-				return std::unexpected{
-					application::git_process_failure::
-						invalid_configuration
-				};
+			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop);
+			if (!bootstrapped) {
+				return std::unexpected{ std::move(bootstrapped.error()) };
 			}
-#if defined(Q_OS_WIN)
-			const auto systemRoot = aConfiguration.WindowsSystemRoot.has_value()
-				? canonical_existing(*aConfiguration.WindowsSystemRoot)
-				: std::nullopt;
-			if (!systemRoot.has_value()) {
-				return std::unexpected{
-					application::git_process_failure::
-						invalid_configuration
-				};
-			}
-#else
-			const auto systemRoot = std::optional<std::filesystem::path>{ };
-#endif
-
-			auto bootstrap = process_worker{
-				runner_config(
-					*candidate,
-					*isolation,
-					std::nullopt,
-					systemRoot)
-			};
-			const auto execPathResult = bootstrap.submit(
-				process_request{
-					.Arguments = { "--exec-path" },
-					.Input     = memory_input{ },
-					.Timeout   = process_timeout,
-				},
-				aStop);
-			if (!execPathResult.has_value()) {
-				return std::unexpected{ std::move(execPathResult.error()) };
-			}
-			if (
-				execPathResult->StandardOutput.empty()
-				|| execPathResult->StandardOutput.back() != '\n') {
-				return std::unexpected{
-					application::git_process_failure::unsupported_git
-				};
-			}
-			const auto execPathText = std::string_view{ execPathResult->StandardOutput }.substr(
-				0U,
-				execPathResult->StandardOutput.size() - 1U);
-			if (
-				execPathText.empty()
-				|| execPathText.find('\n') != std::string_view::npos
-				|| execPathText.find('\r') != std::string_view::npos) {
-				return std::unexpected{
-					application::git_process_failure::standard_output_limit
-				};
-			}
-			const auto execPath = canonical_existing(
-				path_from_text(execPathText));
-			if (!execPath.has_value()) {
-				return std::unexpected{
-					application::git_process_failure::invalid_configuration
-				};
-			}
-			const auto resolvedGit = resolve_canonical_existing(
-				*execPath
-#if defined(Q_OS_WIN)
-				/ "git.exe"
-#else
-				/ "git"
-#endif
-			);
-			if (
-				!resolvedGit.has_value()
-				|| !regular_executable(*resolvedGit)) {
-				return std::unexpected{
-					application::git_process_failure::unsupported_git
-				};
-			}
-
-			auto worker = std::make_unique<process_worker>(
-				runner_config(
-					*resolvedGit,
-					*isolation,
-					execPath,
-					systemRoot));
-			const auto matchingExecPath = worker->submit(
-				process_request{
-					.Arguments = { "--exec-path" },
-					.Input     = memory_input{ },
-					.Timeout   = process_timeout,
-				},
-				aStop);
-			const auto versionResult = worker->submit(
-				process_request{
-					.Arguments = { "--version" },
-					.Input     = memory_input{ },
-					.Timeout   = process_timeout,
-				},
-				aStop);
-			const auto expectedExecPath = path_text(*execPath) + "\n";
-			if (!matchingExecPath.has_value()) {
-				return std::unexpected{ std::move(matchingExecPath.error()) };
-			}
-			if (!versionResult.has_value()) {
-				return std::unexpected{ std::move(versionResult.error()) };
-			}
-			if (
-				matchingExecPath->StandardOutput
-				!= expectedExecPath) {
-				return std::unexpected{
-					application::git_process_failure::unsupported_git
-				};
-			}
-			const auto version = parse_version(versionResult->StandardOutput);
-			if (!version.has_value() || !supported_version(*version)) {
-				return std::unexpected{
-					application::git_process_failure::unsupported_git
-				};
-			}
-
 			auto implementation = std::make_unique<installed_git_process>(
-				application::git_installation{
-					.VersionMajor = (*version)[0],
-					.VersionMinor = (*version)[1],
-					.VersionPatch = (*version)[2],
-				},
-				*isolation,
-				std::move(worker), aConfiguration.WorkspaceOwnershipRegistry);
+				bootstrapped->Installation,
+				bootstrapped->Isolation,
+				std::move(bootstrapped->Worker), aConfiguration.WorkspaceOwnershipRegistry);
 			const auto probe = implementation->capability_probe(aStop);
 			if (!probe.has_value()) {
 				if (
@@ -7202,6 +7563,29 @@ namespace bpr::adapters::git {
 			return std::unexpected{
 				application::git_process_failure::invalid_configuration
 			};
+		}
+	}
+
+	auto make_installed_git_publication(
+		const installed_git_publication_configuration& aConfiguration,
+		const std::stop_token                          aStop)
+		-> std::expected<
+			std::unique_ptr<application::publication_candidate_port>,
+			application::git_process_error>
+	{
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_process_failure::cancelled };
+			}
+			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop);
+			if (!bootstrapped) {
+				return std::unexpected{ std::move(bootstrapped.error()) };
+			}
+			return std::unique_ptr<application::publication_candidate_port>{
+				std::make_unique<installed_git_publication>(bootstrapped->Isolation, std::move(bootstrapped->Worker))
+			};
+		} catch (...) {
+			return std::unexpected{ application::git_process_failure::invalid_configuration };
 		}
 	}
 }

@@ -17,6 +17,7 @@ add_library(
         src/review_cycle_views.cpp
         src/review_cycle_response.cpp
         src/review_cycle_verification.cpp
+        src/review_cycle_outgoing.cpp
         src/review_cycle_export.cpp
         src/review_cycle_import.cpp
         src/review_cycle_workbench.cpp

@@ -228,6 +228,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # "catalog".
     "review_cycle_response": "dos-volume-name",
     "review_cycle_verification": "dos-volume-name",
+    # [[BPR-1172]]. The same scratch-root store course, with the build's Git
+    # both making fixtures and serving as the product's installed Git; not yet
+    # measured contained.
+    "review_cycle_outgoing": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",

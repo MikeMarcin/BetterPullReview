@@ -688,6 +688,20 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_verification_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_verification_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_verification COMMAND test_better_pull_review_review_cycle_verification_tests)
 
+# [[BPR-1172]]. Canonical Git blob, tree and commit identities in both object formats.
+bpr_add_executable(test_better_pull_review_git_objects_tests git_objects_tests.cpp)
+target_link_libraries(test_better_pull_review_git_objects_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_git_objects_tests)
+bpr_enable_warnings(test_better_pull_review_git_objects_tests)
+bpr_add_network_isolated_test(NAME core_git_objects COMMAND test_better_pull_review_git_objects_tests)
+
+# [[BPR-1172]]. Selected outgoing content over an explicit Git base: R0, Rn, P and T.
+bpr_add_executable(test_better_pull_review_review_cycle_outgoing_tests review_cycle_outgoing_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_outgoing_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_outgoing_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_outgoing_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_outgoing COMMAND test_better_pull_review_review_cycle_outgoing_tests)
+
 # [[BPR-1158]]. Canonical round payloads, the pack's golden round and assembly.
 bpr_add_executable(test_better_pull_review_review_cycle_round_tests review_cycle_round_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE BetterPullReview::Core)

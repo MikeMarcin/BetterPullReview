@@ -40,6 +40,8 @@ add_library(
         src/review_cycle_views.cpp
         src/review_cycle_response.cpp
         src/review_cycle_verification.cpp
+        src/review_cycle_outgoing.cpp
+        src/git_objects.cpp
         src/suggestion_text_editing.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp
@@ -71,6 +73,7 @@ add_library(
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/review_submission.cpp
+        src/sha1.cpp
         src/sha256.cpp
         src/theme_exchange.cpp
         src/pull_request_location.cpp

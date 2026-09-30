@@ -455,6 +455,29 @@ wording and suggestion revisions, adds open notes no round carried, and
 leaves out resolved and archived notes, replies and context; it is saved as an
 ordinary draft, and nothing is frozen, copied or sent.
 
+Publication keeps three baselines apart (BPR-1172,
+`bpr/core/review_cycle_outgoing.hpp`): `R0`, the first capture, which may be
+dirty or partial; `Rn`, the selected final capture; and `P`, an exact Git
+commit whose complete tree the outgoing candidate starts from, observed with a
+target branch `T`. P and T are named by the reviewer and read as data from the
+checkout's `HEAD`, loose references and `packed-refs`; P's listing comes from
+the installed-Git publication catalog (`publication_candidate_port`), which
+reads the checkout's objects as a per-command alternate of a BPR-owned store
+and is admitted only when the commit's own bytes hash to P and name the tree
+listed, and the listing rebuilds exactly that tree (`bpr/core/git_objects.hpp`
+computes Git blob, tree and commit identities in both object formats). Every
+changed path is listed with its starting work (`P -> R0`), improvement
+(`R0 -> Rn`) and outgoing change (`P -> C`); a path a capture did not read,
+left out or excluded keeps P's entry, so a module-only capture never deletes
+the rest of the repository. The two starting choices never propose starting
+work nothing in the cycle touched or named; under "only the improvements" an
+improvement to a path whose starting work is omitted waits for the reviewer's
+explicit choice. A change outside the starting capture has no known origin
+and is not proposed; filter-managed and submodule paths and file/folder
+collisions cannot be built natively; a candidate equal to P is "no change";
+and a target that moved past P is shown with the selected paths it changed.
+Planning writes nothing, anywhere.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |
