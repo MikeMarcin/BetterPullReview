@@ -519,6 +519,13 @@ namespace {
 			"an unsupported context schema is refused rather than guessed");
 	}
 
+#if defined(__GNUC__) && !defined(__clang__)
+	// GCC 15's -Wdangling-pointer reports the braced event lists below as
+	// dangling at the function's end. Every event owns its strings; nothing
+	// outlives its list.
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wdangling-pointer"
+#endif
 	void test_every_protocol_decoder_handles_partial_frames()
 	{
 		auto escapedText = std::string{ "one/two \" " };
@@ -860,6 +867,10 @@ namespace {
 					== application::agent_protocol_failure::malformed_frame,
 			"a refused decoder restates the generic cause rather than the exact one");
 	}
+
+#if defined(__GNUC__) && !defined(__clang__)
+	#pragma GCC diagnostic pop
+#endif
 
 	void test_process_and_staleness_outcomes_remain_distinct()
 	{

@@ -1675,13 +1675,13 @@ namespace {
 			gh_cli_transport            transport{ *profile, *configuration, process };
 			const auto                  base    = mutation_request_for(*profile);
 			const auto                  binding = *std::get<application::review_mutation_request>(base.Wire.Semantic).LiveBinding;
-			for (const auto& [operation, method] : rows) {
-				application::staged_review_request semantic{ .Binding = { binding.Target, binding.ActingIdentity }, .Operation = operation };
+			for (const auto& [staged, method] : rows) {
+				application::staged_review_request semantic{ .Binding = { binding.Target, binding.ActingIdentity }, .Operation = staged };
 				const std::string                  text = "Literal `$(touch /nope)`; & \"quoted\"\nsecond line";
-				if (operation == operation::read_review || operation == operation::list_comments || operation == operation::update_summary || operation == operation::submit_comment || operation == operation::discard_pending) {
+				if (staged == operation::read_review || staged == operation::list_comments || staged == operation::update_summary || staged == operation::submit_comment || staged == operation::discard_pending) {
 					semantic.Review = application::review_database_id{ 18446744073709551615ULL };
 				}
-				if (operation == operation::update_comment || operation == operation::update_issue_comment) {
+				if (staged == operation::update_comment || staged == operation::update_issue_comment) {
 					semantic.Comment = 18446744073709551614ULL;
 				}
 				const bool write = std::string_view{ method } != "GET";
@@ -1689,7 +1689,7 @@ namespace {
 				if (body) {
 					semantic.Body = text;
 				}
-				if (operation == operation::create_pending) {
+				if (staged == operation::create_pending) {
 					semantic.Lines.push_back({ { .Commit = binding.Target.Semantic.ExpectedHead, .Path = "file.cpp", .FirstLine = 2, .LastLine = 4 }, text });
 				}
 				const auto compiled = compile_staged_review_request(semantic);
