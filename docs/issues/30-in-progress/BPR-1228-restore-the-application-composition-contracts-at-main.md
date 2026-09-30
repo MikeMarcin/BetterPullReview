@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1228"
 title: "Restore the application composition contracts at main"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"reported red at baseline by the BPR-1211 implementer; diagnosed at main 22d184166 by the Review Cycles intake session on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1228--BPR-1228--e74f102785c8.json"}
