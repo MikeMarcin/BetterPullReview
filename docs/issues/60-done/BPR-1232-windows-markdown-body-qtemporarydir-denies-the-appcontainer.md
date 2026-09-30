@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1232"
 title: "Windows: qt_markdown_body rows fail contained because their QTemporaryDir denies the AppContainer, and leave it behind"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1121"]}
+acceptance: [{"criterion":"The three rows pass on Windows and leave nothing in the AppContainer's temporary directory","outcome":"pass","revision":"491c682f","evidence":{"kind":"observation","detail":"bpr-main-win station, Windows 11 10.0.26200, MSVC 19.51: qt_markdown_body_1_0/_1_25/_2_0 pass contained (2.38, 2.58, 3.42 s); no better_pull_review_markdown_body_view_tests- entry added to the AppContainer temporary directory. Recorded on the card."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"dfef04a68","evidence":{"kind":"command","detail":"Linux (bpr-main-linux, e9e65eab2): three rows pass, /tmp unchanged. macOS arm64 (dfef04a68): three rows pass contained; direct runs at 1.0/1.25/2.0 with a fresh TMPDIR print markdown-body-view-tests:pass and leave it empty."}}]
 ---
 
 # BPR-1232: Windows: qt_markdown_body rows fail contained because their QTemporaryDir denies the AppContainer, and leave it behind
@@ -84,3 +85,17 @@ Ubuntu 26.04 on WSL2, GCC 15.2, Qt 6.11.2 offscreen, `build/dev` Debug at
 listing of `/tmp` taken before and after, added no entry to `/tmp`. That is
 the Linux half of "macOS and Linux still pass". The logs are in
 `build/logs/bpr-station-publication/` and are not committed.
+
+## macOS, the POSIX `QTemporaryDir` path (main stabilization milestone, 2026-09-30)
+
+macOS arm64 (Darwin 25.6), Apple clang, Qt 6.11.2, `build/dev` Debug at
+`dfef04a68`, which contains `491c682f`. Registered, the three rows pass
+contained: `qt_markdown_body_1_0`, `_1_25` and `_2_0` in 0.58, 0.53 and
+0.65 s. The macOS runner gives each row its own `TMPDIR` and removes it, so
+the leftover check ran the course directly: `better_pull_review_markdown_body_view_tests`
+at `QT_SCALE_FACTOR` 1.0, 1.25 and 2.0 with `QT_QPA_PLATFORM=offscreen` and
+`TMPDIR` set to a fresh empty directory. Each run printed
+`markdown-body-view-tests:pass` and left the directory empty.
+
+With the Windows run at `491c682f` and the Linux run above, the acceptance
+is met on all three platforms.
