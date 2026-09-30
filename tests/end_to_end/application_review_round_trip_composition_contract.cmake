@@ -492,6 +492,13 @@ endfunction()
 # promotion it had in fact made. Draft commands still go through the same
 # private review and shared-draft owners. No grant, provider or publication
 # path changes; mutation pin unchanged.
+# BPR-1243 Windows reseal: 68599e10..this candidate; no intervening pinned-
+# scope commit. clang-format 22 (Windows, Linux) and 23 (macOS) align the short
+# case statements in dispatch_tour_action differently, so coding_format_check
+# was red on Windows. Four of them now take one statement per line, which
+# neither version aligns. Formatting only: the same actions in the same order;
+# no grant, target, provider or publication path changes; mutation pin
+# unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -510,7 +517,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d1559f4666936e992878c87263a3151a4206ccad02dec95254b8f503e7276c9c"
+		"36365883de939bbfe6849b144f844086ef2876f84f803fd3c6df4e4cfef32967"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -696,7 +703,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "95863ec6f2aece2ffa5538db1b2687676aa47cc3e79119012db74749cef89eef"
+        "661d70c02971a625ee4b5e45f567155226f6eb415c8d1a5bc2172f1ae0000ec5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

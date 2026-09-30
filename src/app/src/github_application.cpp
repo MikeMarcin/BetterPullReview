@@ -9290,7 +9290,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
 				}
 				return;
-			case qt::tour_editor_action::insert_outline:        insert_tour_outline(); return;
+			case qt::tour_editor_action::insert_outline:
+				insert_tour_outline();
+				return;
 			case qt::tour_editor_action::preview_publication:
 			case qt::tour_editor_action::publish_publication:
 			case qt::tour_editor_action::resume_publication:
@@ -9300,9 +9302,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					TourPublication->dispatch(aAction);
 				}
 				return;
-			case qt::tour_editor_action::import_selected:     TourHost->import_selected(Window->tour_editor()->import_choice()); return;
-			case qt::tour_editor_action::retry_save:          TourHost->retry_save(); return;
-			case qt::tour_editor_action::use_saved_copy:      TourHost->use_saved_copy(); return;
+			// Each on its own lines: clang-format 22 and 23 align short case
+			// statements across label-only groups differently ([[BPR-1243]]).
+			case qt::tour_editor_action::import_selected:
+				TourHost->import_selected(Window->tour_editor()->import_choice());
+				return;
+			case qt::tour_editor_action::retry_save:
+				TourHost->retry_save();
+				return;
+			case qt::tour_editor_action::use_saved_copy:
+				TourHost->use_saved_copy();
+				return;
 			case qt::tour_editor_action::keep_local_conflict:
 			case qt::tour_editor_action::use_remote_conflict:
 				if (const auto draft = Window->tour_editor()->shown().Draft) {
