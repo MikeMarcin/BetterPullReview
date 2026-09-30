@@ -58,7 +58,10 @@ def main():
                 child.wait(timeout=3)
             os.close(master)
     with contained_temporary_directory(prefix="bpr-tour-publication-") as directory:
-        parent = Path(directory)
+        # BPR-1249: the stores accept only a root whose canonical spelling is
+        # its own, and outside the test runner macOS's temporary folder is
+        # under /var, a link to /private/var.
+        parent = Path(directory).resolve()
         parent.chmod(0o700)
         for mode, answer, concurrent, expected in [("publish", b"publish\n", None, 0), ("cancel", b"\n", None, 130), ("yes", b"yes\n", None, 130), ("stale", b"publish\n", "edit", 4), ("unqualified", b"publish\n", None, 5)]:
             root = parent / mode

@@ -133,7 +133,16 @@ namespace bpr::app {
 		if (!configured) {
 			return std::unexpected(configured.error());
 		}
-		QTemporaryDir directory{ QDir::tempPath() + "/bpr-tour-edit-XXXXXX" };
+		// [[BPR-1249]]. The projection's folder is checked again after editing
+		// with `create_storage_root_owner_private`, which accepts only a path
+		// whose canonical spelling is its own. macOS's per-user temporary folder
+		// is under /var, a link to /private/var, so a folder made under the
+		// spelling Qt reports failed that check after every edit.
+		const auto temporary = QFileInfo{ QDir::tempPath() }.canonicalFilePath();
+		if (temporary.isEmpty()) {
+			return refuse("editor_unavailable", "The temporary folder for the editor projection is unavailable.", 7);
+		}
+		QTemporaryDir directory{ temporary + "/bpr-tour-edit-XXXXXX" };
 		if (!directory.isValid() || !adapters::sqlite::make_storage_root_owner_private(native_filesystem_path(directory.path()))) {
 			return refuse("editor_unavailable", "Could not create an owner-private editor projection.", 7);
 		}
