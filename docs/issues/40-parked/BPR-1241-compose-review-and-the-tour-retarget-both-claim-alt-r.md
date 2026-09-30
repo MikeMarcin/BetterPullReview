@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1241"
 title: "Compose review and the tour editor's retarget both claim Alt+R"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded as pre-existing under BPR-1157 (RFC-BPR-0053-0061 ledger); filed by the main stabilization milestone on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1157","BPR-1129","BPR-1135"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"The six scale rows pass on macOS","outcome":"pass","revision":"ddecba284","evidence":{"kind":"command","detail":"qt_document_tabs_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200} pass on macOS arm64 offscreen."}},{"criterion":"application_review_tour_publication_public_path still retargets through the action","outcome":"pass","revision":"ddecba284","evidence":{"kind":"command","detail":"application_review_tour_publication_native and _compat pass after the app and course were rebuilt."}},{"criterion":"Owner judgment of the proposed retarget key","outcome":"pending","revision":"ddecba284","evidence":{"kind":"freeform","detail":"Attended item BPR-1241-retarget-key-v001, session cbd48b91000b00f1e72e1ad62c7c384c, ready and protected; no server started."}},{"criterion":"Documentation gate","outcome":"pass","revision":"ddecba284","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . -> DOCUMENTATION_OK"}}]
 ---
 
 # BPR-1241: Compose review and the tour editor's retarget both claim Alt+R
@@ -41,3 +43,18 @@ proposal.
   action.
 - Owner judgment: the proposed retarget key (attended item `BPR-1241-retarget-key-v001`).
 - `python3 scripts/verify_documentation.py --root .` passes.
+
+## Candidate (macOS arm64, 2026-09-29)
+
+`ddecba284` moves `tourRetarget` to `Alt+Shift+U` (Option-Shift-U), which no
+other action in the assembled window claims; Compose review keeps Option-R.
+
+| Check | Result |
+|---|---|
+| `qt_document_tabs_scale_{100,125,200}`, `qt_workbench_focus_order_scale_{100,125,200}` | Pass (they failed at the duplicate key before) |
+| `application_review_tour_publication_{native,compat}`, which trigger `tourRetarget` | Pass |
+| Tour editor Qt rows | Pass |
+
+Owner judgment is parked as attended item `BPR-1241-retarget-key-v001` in
+session `cbd48b91000b00f1e72e1ad62c7c384c` (prepared and protected, no server
+started): Accept keeps Option-Shift-U; Reject names another key in the note.
