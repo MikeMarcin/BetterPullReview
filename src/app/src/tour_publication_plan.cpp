@@ -32,8 +32,18 @@ namespace bpr::app {
 																																																															: "Publication is unavailable for these destinations on this host and transport. Keep preparing locally; operation qualification is still required.";
 			return result;
 		}
-		application::review_submission_request submission{ .Proposal = { .Draft = core::review_submission_draft_id{ draft.Id.value() }, .Attempt = core::review_submission_attempt_id{ draft.Revision }, .Target = aBinding.Target.Semantic, .ActingAccount = aBinding.ActingIdentity.Account, .Body = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution, .Disposition = core::review_disposition::comment }, .IdempotencyKey = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision), .LiveBinding = aBinding };
-		application::staged_review_plan        value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
+		// Filled member by member: GCC 15 at -O3 reads the nested designated
+		// aggregate as leaving the proposal's body uninitialized.
+		application::review_submission_request submission{ };
+		submission.Proposal.Draft         = core::review_submission_draft_id{ draft.Id.value() };
+		submission.Proposal.Attempt       = core::review_submission_attempt_id{ draft.Revision };
+		submission.Proposal.Target        = aBinding.Target.Semantic;
+		submission.Proposal.ActingAccount = aBinding.ActingIdentity.Account;
+		submission.Proposal.Body          = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution;
+		submission.Proposal.Disposition   = core::review_disposition::comment;
+		submission.IdempotencyKey         = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision);
+		submission.LiveBinding            = aBinding;
+		application::staged_review_plan value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
 		if (draft.Remote) {
 			value.Update = draft;
 			std::erase_if(value.Stops, [&](const auto& aStop) {const auto found=std::ranges::find(draft.Stops,aStop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
