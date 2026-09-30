@@ -1,7 +1,10 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
+#include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_cycle_runtime.hpp"
+#include "bpr/core/review_cycle_response.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "review_cycle_desktop.hpp"
@@ -11,6 +14,7 @@
 #include <QDir>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -21,10 +25,13 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
 
 /// \file
@@ -68,6 +75,44 @@ namespace {
 			}
 		}
 		return files;
+	}
+
+	/// Freezes F1 over the cycle's first note through the production runtime,
+	/// beside the desktop, and returns the round.
+	auto freeze_first_note(const std::filesystem::path& aProfileRoot, const core::local_cycle_subject& aSubject) -> core::cycle_decoded_round
+	{
+		auto lanes   = application::manual_executor{ };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), lanes, lanes };
+		runtime.select(aSubject);
+		auto operation = [](const std::uint8_t aIndex) {
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			bytes[0]   = 0xD5;
+			bytes[1]   = aIndex;
+			return application::cycle_operation_id{ bytes };
+		};
+		auto state = std::optional<application::cycle_store_result<std::optional<core::review_cycle_state>>>{ };
+		runtime.load_selected([&](auto aValue) { state = std::move(aValue); });
+		lanes.drain();
+		expect(state && *state && **state, "cycle state");
+		auto begun = std::optional<application::cycle_store_result<application::cycle_write_receipt>>{ };
+		runtime.begin_round_selected(operation(1), (**state)->Revision, [&](auto aValue) { begun = std::move(aValue); });
+		lanes.drain();
+		expect(begun && *begun, "draft");
+		const auto draft = core::cycle_round_draft_ref{ .Cycle = aSubject.Cycle, .Id = core::cycle_round_draft_id{ (*begun)->Allocated } };
+		auto       saved = std::optional<application::cycle_store_result<application::cycle_write_receipt>>{ };
+		runtime.save_round_selected(operation(2), draft, 1, { .Source = core::cycle_source_revision_id{ 1 }, .Goal = "Rename check.", .Items = { { .Item = core::cycle_feedback_item_id{ 1 }, .Wording = core::private_review_turn_revision_id{ 1 } } } },
+									[&](auto aValue) { saved = std::move(aValue); });
+		lanes.drain();
+		expect(saved && *saved, "draft saved");
+		auto frozen = std::optional<application::cycle_store_result<application::cycle_round_freeze_result>>{ };
+		runtime.freeze_round_selected({ .Operation = operation(3), .Draft = draft, .ExpectedDraftRevision = (*saved)->Revision, .Editor = { .ShownRevision = (*saved)->Revision } },
+									  [&](auto aValue) { frozen = std::move(aValue); });
+		lanes.drain();
+		expect(frozen && *frozen && (*frozen)->Frozen, "F1 frozen");
+		auto content = (*frozen)->Frozen->Content;
+		runtime.shutdown();
+		lanes.drain();
+		return content;
 	}
 
 	auto identity_text(qt::workbench_window& aWindow) -> QString
@@ -208,6 +253,42 @@ try {
 	settle(lanes);
 	expect(page->projection().Revisions.size() == 2U && page->updates_line()->text().contains(QStringLiteral("No change since R2")), "an unchanged capture says so");
 	capture(window, QStringLiteral("desktop-cycle-compare"));
+
+	// BPR-1164: a round frozen in this profile; what comes back is recorded
+	// as claims, by hand or from a response file, and changes nothing else.
+	const auto round   = freeze_first_note(profile.path(), page->projection().Cycle->Subject);
+	const auto written = snapshot(project);
+	desktop.open_project(project.string());
+	settle(lanes);
+	expect(page->projection().Facts.Rounds.size() == 1U && page->projection().Revisions.size() == 2U, "the frozen round is known; nothing captured on reopening");
+	page->notes()->setCurrentRow(0);
+	auto* const replies = page->reply_button()->menu();
+	emit        replies->aboutToShow();
+	replies->actions()[0]->trigger();
+	page->reply_from()->setText(QStringLiteral("Dana (chat)"));
+	page->reply_editor()->setPlainText(QStringLiteral("Kept check(); it validates too."));
+	page->findChild<QPushButton*>(QStringLiteral("cycleReplySave"))->click();
+	settle(lanes);
+	expect(page->notes()->item(0)->text().contains(QStringLiteral("F1 reply · Dana (chat), entered by hand replied: Kept check(); it validates too.")), "a pasted reply beside its note");
+	const auto responseFile = scratch.path() / "response.json";
+	write_file(responseFile, *core::encode_response_document({
+								 .ResponseId    = "RESP-1",
+								 .CycleId       = round.Payload.CycleId,
+								 .RoundId       = round.Payload.RoundId,
+								 .RoundDigest   = round.Digest,
+								 .ClaimedAuthor = { .DisplayName = "Harness", .Kind = core::cycle_claimed_author_kind::agent, .Model = "Claude Opus" },
+								 .Entries       = { { .Item = "I1", .ItemRevision = 1, .Disposition = core::cycle_response_disposition::addressed, .Body = "Renamed to validate.", .Evidence = { { .Kind = core::cycle_evidence_kind::test_report, .Value = "tests passed" } } } },
+							 }));
+	desktop.host().import_response(core::cycle_round_id{ 1 }, responseFile.string());
+	settle(lanes);
+	expect(page->projection().Responses.size() == 2U && page->notes()->item(0)->text().contains(QStringLiteral("Harness (claims agent Claude Opus), response file says addressed: Renamed to validate.")),
+		   "a response file's statement beside its note, as a claim");
+	desktop.host().import_response(core::cycle_round_id{ 1 }, responseFile.string());
+	settle(lanes);
+	expect(page->projection().Responses.size() == 2U && page->updates_line()->text().contains(QStringLiteral("already added")), "the same file again adds nothing");
+	expect(snapshot(project) == written && page->projection().Revisions.size() == 2U && page->projection().Facts.LastReview && page->projection().Facts.LastReview->Revision == core::cycle_source_revision_id{ 2 },
+		   "replies wrote no source, captured nothing and moved no review mark");
+	capture(window, QStringLiteral("desktop-cycle-replies"));
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");

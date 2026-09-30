@@ -474,6 +474,49 @@ namespace bpr::application {
 														  std::move(aDone));
 	}
 
+	auto review_cycle_runtime::import_response_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, cycle_response_file_reader aRead, completion<cycle_response_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_response_result>([subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_response_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			auto bytes = read(aStop);
+			if (aStop.stop_requested()) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::cancelled });
+			}
+			if (!bytes) {
+				return cycle_response_result{ .Read = bytes.error() };
+			}
+			return import_cycle_response(aStore, *subject, aRound, *bytes, aOperation, aStop);
+		},
+															 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::attach_reply_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, core::cycle_manual_reply aReply, completion<cycle_response_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_response_result>([subject, aOperation, aRound, reply = std::move(aReply)](review_cycle_store& aStore, std::stop_token aStop) mutable -> cycle_store_result<cycle_response_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return attach_manual_reply(aStore, *subject, aRound, std::move(reply), aOperation, aStop);
+		},
+															 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::responses_selected(completion<cycle_response_entries> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_response_entries>([subject](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_response_entries> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_cycle_responses(aStore, *subject, aStop);
+		},
+															  std::move(aDone));
+	}
+
 	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

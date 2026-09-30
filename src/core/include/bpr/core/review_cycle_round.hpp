@@ -227,6 +227,8 @@ namespace bpr::core {
 	[[nodiscard]] auto cycle_wire_name(cycle_feedback_item_id aItem) -> std::string;
 	[[nodiscard]] auto cycle_wire_name(const cycle_suggestion_ref& aSuggestion) -> std::string;
 	[[nodiscard]] auto cycle_wire_project(const local_cycle_subject& aSubject) -> std::string;
+	/// \brief The wire identifier pattern `^[A-Za-z][A-Za-z0-9._:-]{0,127}$`.
+	[[nodiscard]] auto valid_cycle_wire_identifier(std::string_view aText) noexcept -> bool;
 
 	/// \brief Why a selection cannot be frozen as it stands.
 	enum class cycle_round_problem : std::uint8_t {

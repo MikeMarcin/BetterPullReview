@@ -13,6 +13,8 @@
 #include <string>
 
 class QAction;
+class QCheckBox;
+class QLineEdit;
 class QLabel;
 class QListWidget;
 class QMenu;
@@ -38,6 +40,9 @@ namespace bpr::qt {
 		std::function<void()>                                FullSource;
 		std::function<void()>                                Refresh;
 		std::function<void()>                                MarkReviewed;
+		/// BPR-1164: choose a response file for a round; add a hand-entered reply.
+		std::function<void(core::cycle_round_id)>                           ChooseResponse;
+		std::function<void(core::cycle_round_id, core::cycle_manual_reply)> Reply;
 	};
 
 	/// \brief A local Review Cycle's review surface (RFC-BPR-0061, BPR-1157).
@@ -87,6 +92,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto refresh_action() const noexcept -> QAction*;
 		/// \brief The comparison pane: the active tab's rows, when it shows a comparison.
 		[[nodiscard]] auto comparison() const noexcept -> QPlainTextEdit*;
+		/// \brief The notes tray's Add reply button and its reply editor (BPR-1164).
+		[[nodiscard]] auto reply_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto reply_editor() const noexcept -> QPlainTextEdit*;
+		[[nodiscard]] auto reply_from() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto reply_about_note() const noexcept -> QCheckBox*;
+		/// \brief Opens the reply editor for round `aRound`.
+		void begin_reply(core::cycle_round_id aRound);
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -98,6 +110,8 @@ namespace bpr::qt {
 		void               refresh_actions();
 		void               step_file(int aDirection);
 		void               rebuild_view_menu();
+		void               rebuild_reply_menu();
+		void               save_reply();
 		void               present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
 		[[nodiscard]] auto source_offset(int aPosition) const -> std::optional<std::uint64_t>;
 
@@ -136,7 +150,16 @@ namespace bpr::qt {
 		QAction*                                   MarkReviewed  = nullptr;
 		QAction*                                   RefreshAction = nullptr;
 		QPlainTextEdit*                            Comparison    = nullptr;
-		bool                                       Presenting    = false;
+		QToolButton*                               ReplyButton   = nullptr;
+		QMenu*                                     ReplyMenu     = nullptr;
+		QWidget*                                   ReplyPage     = nullptr;
+		QLabel*                                    ReplyTarget   = nullptr;
+		QLineEdit*                                 ReplyFrom     = nullptr;
+		QCheckBox*                                 ReplyAbout    = nullptr;
+		QPlainTextEdit*                            ReplyEditor   = nullptr;
+		std::optional<core::cycle_round_id>        ReplyRound;
+		std::optional<std::string>                 ReplyItem;
+		bool                                       Presenting = false;
 	};
 }
 

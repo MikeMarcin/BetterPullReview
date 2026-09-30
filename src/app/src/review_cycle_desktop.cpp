@@ -1,6 +1,7 @@
 #include "review_cycle_desktop.hpp"
 
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
+#include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -10,6 +11,8 @@
 #include <QRandomGenerator>
 
 #include <array>
+#include <filesystem>
+#include <string>
 
 namespace bpr::app {
 	namespace {
@@ -45,6 +48,19 @@ namespace bpr::app {
 			.FullSource   = [this] { Host->full_source(); },
 			.Refresh      = [this] { Host->refresh_view(); },
 			.MarkReviewed = [this] { Host->mark_reviewed(); },
+			.ChooseResponse =
+				[this](const core::cycle_round_id aRound) {
+					const auto chosen = QFileDialog::getOpenFileName(&Window, QStringLiteral("Open a response file"), { }, QStringLiteral("Review responses (*.json);;All files (*)"));
+					if (!chosen.isEmpty()) {
+						Host->import_response(aRound, chosen.toStdString());
+					}
+				},
+			.Reply = [this](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { Host->attach_reply(aRound, std::move(aReply)); },
+		});
+		// A chosen response file is read on the effect lane, never through a link.
+		Host->set_file_reader([](const std::string& aPath, const std::uint64_t aMaximum, std::stop_token aStop) {
+			// The path is UTF-8 on every platform, so it is not read in a code page.
+			return adapters::workspace::read_chosen_file(std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } }, aMaximum, std::move(aStop));
 		});
 		Window.set_local_cycle_entry_dispatch(
 			[this] {

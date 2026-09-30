@@ -1430,3 +1430,13 @@ attachment that does not match the canonical payload. Only a bundle that
 passes every check is admitted, as content-addressed objects in the
 profile-private store with the sender's identities kept as sent; no member is
 written to a named file, no source is changed and nothing is run.
+
+A recipient's response (BPR-1164) is untrusted data too. The response file the
+reviewer chose is read without following a link and within 16 MiB, parsed
+strictly with exact field sets (a `verified`, `approved` or trust field is a
+refusal, not an ignored extra), and admitted only when it names this cycle,
+the round it is attached to, that round's digest and exact item revisions.
+Claimed authors, models, results and evidence are stored and shown as claims;
+evidence text, paths, URLs and test reports are never opened, resolved or run,
+and appending a response or a pasted reply grants no capability, verification
+or publication and changes no source.

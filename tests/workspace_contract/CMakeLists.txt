@@ -138,3 +138,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_attach)
 bpr_add_network_isolated_test(NAME review_cycle_attach WINDOWS_UNCONTAINED COMMAND test_review_cycle_attach)
+
+# [[BPR-1164]]. Recipient statements appended to frozen rounds through the runtime and store.
+bpr_add_executable(test_review_cycle_response review_cycle_response_tests.cpp)
+target_link_libraries(test_review_cycle_response PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_response)
+if(WIN32)
+    target_link_libraries(test_review_cycle_response PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_response)
+bpr_add_network_isolated_test(NAME review_cycle_response WINDOWS_UNCONTAINED COMMAND test_review_cycle_response)

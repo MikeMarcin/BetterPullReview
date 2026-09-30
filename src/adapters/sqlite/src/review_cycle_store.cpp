@@ -52,6 +52,7 @@ namespace bpr::adapters::sqlite {
 			table{ "import_objects", "CREATE TABLE import_objects(import INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),size INTEGER NOT NULL,PRIMARY KEY(import,digest)) STRICT" },
 			table{ "import_forks", "CREATE TABLE import_forks(import INTEGER NOT NULL,foreign_item TEXT NOT NULL,cycle INTEGER NOT NULL,item INTEGER NOT NULL,PRIMARY KEY(import,foreign_item)) STRICT" },
 			table{ "checkpoints", "CREATE TABLE checkpoints(cycle INTEGER NOT NULL,ordinal INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(cycle,ordinal)) STRICT" },
+			table{ "responses", "CREATE TABLE responses(cycle INTEGER NOT NULL,response INTEGER NOT NULL,round INTEGER NOT NULL,round_digest BLOB NOT NULL CHECK(length(round_digest)=32),channel INTEGER NOT NULL,foreign_id TEXT NOT NULL,content BLOB NOT NULL CHECK(length(content)=32),size INTEGER NOT NULL,PRIMARY KEY(cycle,response)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
 		/// content pins, and neither the first nor the second had feedback or
@@ -62,14 +63,15 @@ namespace bpr::adapters::sqlite {
 		constexpr auto added_in_v4 = std::array<std::string_view, 1>{ "views" };
 		/// The fifth added quarantined imported rounds and their forks.
 		constexpr auto added_in_v5 = std::array<std::string_view, 3>{ "imports", "import_objects", "import_forks" };
-		/// The sixth added the reviewer's review checkpoints (BPR-1163).
-		constexpr auto added_in_v6 = std::array<std::string_view, 1>{ "checkpoints" };
+		/// The sixth added the reviewer's review checkpoints (BPR-1163) and
+		/// recipient statements (BPR-1164).
+		constexpr auto added_in_v6 = std::array<std::string_view, 2>{ "checkpoints", "responses" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
 		constexpr std::string_view revisions_v1 = "CREATE TABLE revisions(cycle INTEGER NOT NULL,revision INTEGER NOT NULL,parent INTEGER,scope_version INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),entries INTEGER NOT NULL,deletions INTEGER NOT NULL,unavailable INTEGER NOT NULL,coverage INTEGER NOT NULL,quality INTEGER NOT NULL,manifest_size INTEGER NOT NULL,PRIMARY KEY(cycle,revision)) STRICT";
 		/// Objects some catalog row references. Everything else is reclaimable.
-		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM revision_objects UNION SELECT digest FROM rounds UNION SELECT digest FROM imports UNION SELECT digest FROM import_objects";
+		constexpr std::string_view referenced_objects = "SELECT material AS digest FROM revisions UNION SELECT digest FROM revision_objects UNION SELECT digest FROM rounds UNION SELECT digest FROM imports UNION SELECT digest FROM import_objects UNION SELECT content FROM responses";
 
 		auto fail(const cycle_store_failure aFailure) -> std::unexpected<cycle_store_error>
 		{
@@ -1722,6 +1724,113 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto append_response(const application::cycle_operation_id& aOperation, const application::cycle_response_commit& aCommit, std::stop_token aStop)
+				-> cycle_store_result<cycle_write_receipt> override
+			{
+				auto request = request_writer{ };
+				request.u8(17).subject(aCommit.Subject).u64(aCommit.Round.value()).bytes(aCommit.RoundDigest.bytes()).u8(static_cast<std::uint8_t>(aCommit.Channel)).text(aCommit.ForeignId);
+				request.bytes(aCommit.Content.Digest.bytes()).u64(aCommit.Content.Size);
+				const auto structured = aCommit.Channel == core::cycle_response_channel::response_file;
+				if (structured != !aCommit.ForeignId.empty() || !core::valid_cycle_id(aCommit.Round)) {
+					return fail(cycle_store_failure::bounds);
+				}
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aCommit.Subject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					// The round must be this cycle's, frozen with exactly that digest.
+					auto round = query{ aDatabase, "SELECT digest FROM rounds WHERE cycle=?1 AND round=?2" };
+					round.id(1, aCommit.Subject.Cycle.value()).id(2, aCommit.Round.value());
+					const auto found = round.step();
+					if (found != SQLITE_ROW) {
+						return found == SQLITE_DONE ? refuse(core::cycle_refusal::invalid_target) : fail(cycle_store_failure::unavailable);
+					}
+					if (!std::ranges::equal(round.column_blob(0), aCommit.RoundDigest.bytes())) {
+						return refuse(core::cycle_refusal::invalid_target);
+					}
+					if (structured) {
+						auto prior = query{ aDatabase, "SELECT response,content FROM responses WHERE cycle=?1 AND channel=?2 AND foreign_id=?3" };
+						prior.id(1, aCommit.Subject.Cycle.value()).integer(2, static_cast<std::int64_t>(aCommit.Channel)).text(3, aCommit.ForeignId);
+						const auto seen = prior.step();
+						if (seen == SQLITE_ROW) {
+							if (!std::ranges::equal(prior.column_blob(1), aCommit.Content.Digest.bytes())) {
+								return fail(cycle_store_failure::conflict);
+							}
+							const auto existing = stored_id(prior.column_integer(0));
+							if (!existing) {
+								return fail(cycle_store_failure::corrupt);
+							}
+							return cycle_write_receipt{ .Cycle = aCommit.Subject.Cycle, .Revision = current->Revision, .Allocated = *existing, .Changed = false };
+						}
+						if (seen != SQLITE_DONE) {
+							return fail(cycle_store_failure::unavailable);
+						}
+					}
+					const auto state = stored_state(aDatabase, aCommit.Content);
+					if (!state) {
+						return std::unexpected(state.error());
+					}
+					if (*state != object_state::intact) {
+						return fail(cycle_store_failure::object_unavailable);
+					}
+					const auto allocated = current->Next.Response;
+					if (allocated == 0U || allocated > core::maximum_cycle_identity) {
+						return fail(cycle_store_failure::refused);
+					}
+					auto row = query{ aDatabase, "INSERT INTO responses(cycle,response,round,round_digest,channel,foreign_id,content,size) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)" };
+					row.id(1, aCommit.Subject.Cycle.value()).id(2, allocated).id(3, aCommit.Round.value()).blob(4, aCommit.RoundDigest.bytes());
+					row.integer(5, static_cast<std::int64_t>(aCommit.Channel)).text(6, aCommit.ForeignId).blob(7, aCommit.Content.Digest.bytes()).id(8, aCommit.Content.Size);
+					auto counter = query{ aDatabase, "UPDATE cycles SET next_response=?2 WHERE cycle=?1" };
+					if (!row.done() || !counter.id(1, aCommit.Subject.Cycle.value()).id(2, allocated + 1U).done()) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aCommit.Subject.Cycle, .Revision = current->Revision, .Allocated = allocated, .Changed = true };
+				});
+			}
+
+			auto responses(const core::local_cycle_subject& aSubject, const std::optional<core::cycle_response_id> aAfter, std::stop_token aStop)
+				-> cycle_store_result<application::cycle_response_page> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<application::cycle_response_page> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto rows = query{ aDatabase, "SELECT response,round,round_digest,channel,foreign_id,content,size FROM responses WHERE cycle=?1 AND response>?2 ORDER BY response LIMIT ?3" };
+					rows.id(1, aSubject.Cycle.value()).integer(2, static_cast<std::int64_t>(aAfter ? aAfter->value() : 0U)).integer(3, static_cast<std::int64_t>(application::maximum_cycle_page_entries) + 1);
+					auto page   = application::cycle_response_page{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						if (page.Responses.size() == application::maximum_cycle_page_entries) {
+							page.Next = page.Responses.back().Id.Id;
+							break;
+						}
+						const auto id      = stored_id(rows.column_integer(0));
+						const auto round   = stored_id(rows.column_integer(1));
+						const auto digest  = digest_from<core::cycle_round_digest>(rows.column_blob(2));
+						const auto channel = rows.column_integer(3);
+						const auto content = digest_from<core::cycle_material_digest>(rows.column_blob(5));
+						const auto size    = rows.column_integer(6);
+						if (!id || !round || !digest || !content || size < 0 || channel < 0 || channel > 1) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						page.Responses.push_back({
+							.Id          = { .Cycle = aSubject.Cycle, .Id = core::cycle_response_id{ *id } },
+							.Round       = core::cycle_round_id{ *round },
+							.RoundDigest = *digest,
+							.Channel     = static_cast<core::cycle_response_channel>(channel),
+							.ForeignId   = std::string{ rows.column_text(4) },
+							.Content     = *content,
+							.Size        = static_cast<std::uint64_t>(size),
+						});
+					}
+					if (status != SQLITE_ROW && status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return page;
+				});
+			}
+
 			auto last_review(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_review_checkpoint>> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::optional<core::cycle_review_checkpoint>> {
@@ -1796,7 +1905,7 @@ namespace bpr::adapters::sqlite {
 					}
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
 											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1", "DELETE FROM views WHERE cycle=?1",
-											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);

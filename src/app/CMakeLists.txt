@@ -84,6 +84,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterGit
             BetterPullReview::AdapterSQLite
             BetterPullReview::AdapterWorkspace
+            BetterPullReview::AdapterExport
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI

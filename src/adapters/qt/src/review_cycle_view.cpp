@@ -4,10 +4,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QColor>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
@@ -132,6 +134,34 @@ namespace bpr::qt {
 				parts.append(QStringLiteral("partial"));
 			}
 			return parts.isEmpty() ? revision_text(aEntry.Revision) : QStringLiteral("%1 (%2)").arg(revision_text(aEntry.Revision), parts.join(QStringLiteral("; ")));
+		}
+
+		auto disposition_text(const core::cycle_response_disposition aDisposition) -> QString
+		{
+			switch (aDisposition) {
+			case core::cycle_response_disposition::addressed:           return QStringLiteral("says addressed");
+			case core::cycle_response_disposition::partially_addressed: return QStringLiteral("says partly addressed");
+			case core::cycle_response_disposition::disputed:            return QStringLiteral("disputes it");
+			case core::cycle_response_disposition::blocked:             return QStringLiteral("says blocked");
+			case core::cycle_response_disposition::discussion_only:     return QStringLiteral("discusses it");
+			}
+			return { };
+		}
+
+		/// Who a statement is from, with any claim marked as a claim.
+		auto sender_text(const std::string& aFrom, const std::optional<core::cycle_claimed_author>& aClaimed, const core::cycle_response_channel aChannel) -> QString
+		{
+			auto who = aFrom.empty() ? QStringLiteral("someone") : text_of(aFrom);
+			if (aClaimed && aClaimed->Kind == core::cycle_claimed_author_kind::agent) {
+				auto model = aClaimed->Model ? text_of(*aClaimed->Model) : QString{ };
+				who += model.isEmpty() ? QStringLiteral(" (claims to be an agent)") : QStringLiteral(" (claims agent %1)").arg(model);
+			}
+			return who + (aChannel == core::cycle_response_channel::response_file ? QStringLiteral(", response file") : QStringLiteral(", entered by hand"));
+		}
+
+		auto first_line(const std::string& aBody) -> QString
+		{
+			return text_of(aBody).section(QLatin1Char('\n'), 0, 0).trimmed().left(160);
 		}
 
 		auto ending_size(const core::text_line_ending aEnding) -> std::uint64_t
@@ -306,6 +336,17 @@ namespace bpr::qt {
 		cycleNote->setText(QStringLiteral("Note on the cycle"));
 		cycleNote->setAutoRaise(true);
 		trayHeader->addWidget(cycleNote);
+		// BPR-1164: what a recipient said back, entered by hand or from a response file.
+		ReplyButton = new QToolButton{ tray };
+		ReplyButton->setObjectName(QStringLiteral("cycleAddReply"));
+		ReplyButton->setText(QStringLiteral("Add reply"));
+		ReplyButton->setToolTip(QStringLiteral("Record what someone said back about a round: paste their words, or open a response file"));
+		ReplyButton->setAutoRaise(true);
+		ReplyButton->setPopupMode(QToolButton::InstantPopup);
+		ReplyMenu = new QMenu{ ReplyButton };
+		ReplyMenu->setObjectName(QStringLiteral("cycleReplyMenu"));
+		ReplyButton->setMenu(ReplyMenu);
+		trayHeader->addWidget(ReplyButton);
 		trayColumn->addLayout(trayHeader);
 		Notes = new QListWidget{ tray };
 		Notes->setObjectName(QStringLiteral("cycleNotes"));
@@ -349,6 +390,45 @@ namespace bpr::qt {
 		commentButtons->addWidget(saveComment);
 		commentColumn->addLayout(commentButtons);
 		TrayComposer->addWidget(commentPage);
+		ReplyPage               = new QWidget{ TrayComposer };
+		auto* const replyColumn = new QVBoxLayout{ ReplyPage };
+		replyColumn->setContentsMargins(0, 0, 0, 0);
+		ReplyTarget = new QLabel{ ReplyPage };
+		ReplyTarget->setObjectName(QStringLiteral("cycleReplyTarget"));
+		ReplyTarget->setTextFormat(Qt::PlainText);
+		ReplyTarget->setWordWrap(true);
+		replyColumn->addWidget(ReplyTarget);
+		ReplyFrom = new QLineEdit{ ReplyPage };
+		ReplyFrom->setObjectName(QStringLiteral("cycleReplyFrom"));
+		ReplyFrom->setAccessibleName(QStringLiteral("Reply from"));
+		ReplyFrom->setPlaceholderText(QStringLiteral("From (as you know them)"));
+		replyColumn->addWidget(ReplyFrom);
+		ReplyAbout = new QCheckBox{ QStringLiteral("About the selected note"), ReplyPage };
+		ReplyAbout->setObjectName(QStringLiteral("cycleReplyAboutNote"));
+		replyColumn->addWidget(ReplyAbout);
+		ReplyEditor = new QPlainTextEdit{ ReplyPage };
+		ReplyEditor->setObjectName(QStringLiteral("cycleReplyEditor"));
+		ReplyEditor->setAccessibleName(QStringLiteral("Reply"));
+		ReplyEditor->setPlaceholderText(QStringLiteral("Paste or write what they said"));
+		ReplyEditor->setTabChangesFocus(true);
+		replyColumn->addWidget(ReplyEditor);
+		auto* const replyButtons = new QHBoxLayout{ };
+		replyButtons->addStretch(1);
+		auto* const cancelReply = new QPushButton{ QStringLiteral("Cancel"), ReplyPage };
+		cancelReply->setObjectName(QStringLiteral("cycleReplyCancel"));
+		auto* const saveReply = new QPushButton{ QStringLiteral("Save reply"), ReplyPage };
+		saveReply->setObjectName(QStringLiteral("cycleReplySave"));
+		replyButtons->addWidget(cancelReply);
+		replyButtons->addWidget(saveReply);
+		replyColumn->addLayout(replyButtons);
+		TrayComposer->addWidget(ReplyPage);
+		connect(saveReply, &QPushButton::clicked, this, [this] { save_reply(); });
+		connect(cancelReply, &QPushButton::clicked, this, [this] {
+			ReplyEditor->clear();
+			ReplyRound.reset();
+			TrayComposer->setCurrentIndex(0);
+		});
+		connect(ReplyMenu, &QMenu::aboutToShow, this, [this] { rebuild_reply_menu(); });
 		Composer = new suggestion_composer{ TrayComposer };
 		TrayComposer->addWidget(Composer);
 		TrayComposer->setCurrentIndex(0);
@@ -623,8 +703,36 @@ namespace bpr::qt {
 			if (!note.Related.empty()) {
 				lines.append(QStringLiteral("Related locations · %1").arg(note.Related.size()));
 			}
+			// What recipients said: claims, never a verification.
+			for (const auto& statement : note.Statements) {
+				const auto said = statement.Disposition ? disposition_text(*statement.Disposition) : QStringLiteral("replied");
+				lines.append(QStringLiteral("F%1 reply · %2 %3: %4").arg(statement.Round.value()).arg(sender_text(statement.From, statement.ClaimedAuthor, statement.Channel), said, first_line(statement.Body)));
+				if (!statement.Evidence.empty()) {
+					lines.append(QStringLiteral("Evidence reported, not run by BPR · %1").arg(statement.Evidence.size()));
+				}
+			}
 			auto* const item = new QListWidgetItem{ lines.join(QLatin1Char('\n')), Notes };
 			item->setData(Qt::AccessibleTextRole, lines.join(QStringLiteral(". ")));
+		}
+		// Statements about a round as a whole, and structured responses, after the notes.
+		for (const auto& response : Projection.Responses) {
+			auto lines = QStringList{ };
+			if (response.Channel == core::cycle_response_channel::response_file) {
+				lines.append(QStringLiteral("Response %1 to F%2 · %3").arg(text_of(response.ForeignId)).arg(response.Round.value()).arg(sender_text(response.From, response.ClaimedAuthor, response.Channel)));
+				lines.append(QStringLiteral("Speaks to %1 item(s); items it does not name have no response").arg(response.Items));
+				if (response.ClaimedResult) {
+					lines.append(response.CapturedResult ? QStringLiteral("Says the result is %1 (captured)").arg(revision_text(*response.CapturedResult))
+														 : QStringLiteral("Says the result is %1 (not captured here)").arg(text_of(*response.ClaimedResult)));
+				}
+			} else if (response.Items == 0U) {
+				lines.append(QStringLiteral("F%1 reply · %2").arg(response.Round.value()).arg(sender_text(response.From, std::nullopt, response.Channel)));
+				lines.append(text_of(response.Body));
+			} else {
+				continue;
+			}
+			auto* const item = new QListWidgetItem{ lines.join(QLatin1Char('\n')), Notes };
+			item->setData(Qt::AccessibleTextRole, lines.join(QStringLiteral(". ")));
+			item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
 		}
 		// A later capture never moves an open composer: it states newer material.
 		if (TrayComposer->currentWidget() == Composer && latest && Projection.Source && Projection.Source->Revision != *latest) {
@@ -736,6 +844,59 @@ namespace bpr::qt {
 		}
 	}
 
+	void review_cycle_view::rebuild_reply_menu()
+	{
+		ReplyMenu->clear();
+		if (Projection.Facts.Rounds.empty()) {
+			ReplyMenu->addAction(QStringLiteral("No round has been frozen yet"))->setEnabled(false);
+			return;
+		}
+		for (const auto& round : Projection.Facts.Rounds) {
+			const auto id = round.Round;
+			ReplyMenu->addAction(QStringLiteral("Paste a reply to F%1…").arg(id.value()), this, [this, id] { begin_reply(id); });
+			ReplyMenu->addAction(QStringLiteral("Open a response file for F%1…").arg(id.value()), this, [this, id] {
+				if (Dispatch.ChooseResponse) {
+					Dispatch.ChooseResponse(id);
+				}
+			});
+		}
+	}
+
+	void review_cycle_view::begin_reply(const core::cycle_round_id aRound)
+	{
+		ReplyRound = aRound;
+		ReplyItem.reset();
+		ReplyTarget->setText(QStringLiteral("Reply to F%1").arg(aRound.value()));
+		const auto row = Notes->currentRow();
+		if (row >= 0 && static_cast<std::size_t>(row) < Projection.Notes.size()) {
+			// Kept now: a projection arriving while the reply is written resets the list.
+			ReplyItem = core::cycle_wire_name(Projection.Notes[static_cast<std::size_t>(row)].Item.Id);
+		}
+		ReplyAbout->setEnabled(ReplyItem.has_value());
+		ReplyAbout->setChecked(ReplyItem.has_value());
+		ReplyAbout->setText(ReplyItem ? QStringLiteral("About the selected note (%1)").arg(text_of(*ReplyItem)) : QStringLiteral("About the selected note"));
+		TrayComposer->setCurrentWidget(ReplyPage);
+		ReplyEditor->setFocus(Qt::OtherFocusReason);
+	}
+
+	void review_cycle_view::save_reply()
+	{
+		if (!ReplyRound) {
+			return;
+		}
+		auto reply = core::cycle_manual_reply{ .From = utf8(ReplyFrom->text()), .Body = utf8(ReplyEditor->toPlainText()) };
+		if (ReplyItem && ReplyAbout->isChecked()) {
+			reply.Items.push_back(*ReplyItem);
+		}
+		const auto round = *ReplyRound;
+		ReplyEditor->clear();
+		ReplyRound.reset();
+		TrayComposer->setCurrentIndex(0);
+		if (Dispatch.Reply) {
+			Dispatch.Reply(round, std::move(reply));
+		}
+	}
+
 	auto review_cycle_view::source_offset(const int aPosition) const -> std::optional<std::uint64_t>
 	{
 		if (!Projection.Source) {
@@ -839,6 +1000,7 @@ namespace bpr::qt {
 		CaptureAgain->setEnabled(bound && !Projection.Revisions.empty());
 		MarkReviewed->setEnabled(open && !Projection.Revisions.empty());
 		ViewButton->setEnabled(open && !Projection.Revisions.empty());
+		ReplyButton->setEnabled(open);
 	}
 
 	void review_cycle_view::step_file(const int aDirection)
@@ -933,6 +1095,22 @@ namespace bpr::qt {
 	auto review_cycle_view::comparison() const noexcept -> QPlainTextEdit*
 	{
 		return Comparison;
+	}
+	auto review_cycle_view::reply_button() const noexcept -> QToolButton*
+	{
+		return ReplyButton;
+	}
+	auto review_cycle_view::reply_editor() const noexcept -> QPlainTextEdit*
+	{
+		return ReplyEditor;
+	}
+	auto review_cycle_view::reply_from() const noexcept -> QLineEdit*
+	{
+		return ReplyFrom;
+	}
+	auto review_cycle_view::reply_about_note() const noexcept -> QCheckBox*
+	{
+		return ReplyAbout;
 	}
 	auto review_cycle_view::projection() const noexcept -> const application::review_cycle_workbench_projection&
 	{

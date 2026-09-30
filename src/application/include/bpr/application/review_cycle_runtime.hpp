@@ -6,6 +6,7 @@
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_feedback.hpp"
 #include "bpr/application/review_cycle_import.hpp"
+#include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_cycle_views.hpp"
@@ -88,6 +89,16 @@ namespace bpr::application {
 		auto view_facts_selected(completion<core::cycle_view_facts> aDone) -> bool;
 		/// \brief One page of the selected cycle's revision history.
 		auto history_selected(std::optional<core::cycle_source_revision_id> aAfter, std::size_t aLimit, completion<cycle_history_page> aDone) -> bool;
+
+		/// \brief Reads a chosen response file with `aRead` on the effect lane
+		/// and appends it to round `aRound` of the selected cycle (BPR-1164).
+		/// Output arriving after the selection changed completes `cancelled`
+		/// and appends nothing.
+		auto import_response_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, cycle_response_file_reader aRead, completion<cycle_response_result> aDone) -> bool;
+		/// \brief Appends a reply the reviewer entered for round `aRound`.
+		auto attach_reply_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, core::cycle_manual_reply aReply, completion<cycle_response_result> aDone) -> bool;
+		/// \brief Every statement appended to the selected cycle, with its content.
+		auto responses_selected(completion<cycle_response_entries> aDone) -> bool;
 
 		/// \brief Starts a note on the selected cycle after verifying each
 		/// target against its revision's retained bytes.

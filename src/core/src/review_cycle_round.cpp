@@ -244,16 +244,7 @@ namespace bpr::core {
 
 		auto wire_identifier(const std::string_view aText) noexcept -> bool
 		{
-			if (aText.empty() || aText.size() > 128U) {
-				return false;
-			}
-			const auto letter = [](const char aSymbol) { return (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= 'a' && aSymbol <= 'z'); };
-			if (!letter(aText.front())) {
-				return false;
-			}
-			return std::ranges::all_of(aText, [&](const char aSymbol) {
-				return letter(aSymbol) || (aSymbol >= '0' && aSymbol <= '9') || aSymbol == '.' || aSymbol == '_' || aSymbol == ':' || aSymbol == '-';
-			});
+			return valid_cycle_wire_identifier(aText);
 		}
 
 		auto wire_revision(const std::string_view aText) noexcept -> std::optional<std::uint64_t>
@@ -1428,5 +1419,19 @@ namespace bpr::core {
 			return std::unexpected(cycle_round_decode_error{ .Problem = cycle_round_decode_problem::noncanonical });
 		}
 		return decoded;
+	}
+
+	auto valid_cycle_wire_identifier(const std::string_view aText) noexcept -> bool
+	{
+		if (aText.empty() || aText.size() > 128U) {
+			return false;
+		}
+		const auto letter = [](const char aSymbol) { return (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= 'a' && aSymbol <= 'z'); };
+		if (!letter(aText.front())) {
+			return false;
+		}
+		return std::ranges::all_of(aText, [&](const char aSymbol) {
+			return letter(aSymbol) || (aSymbol >= '0' && aSymbol <= '9') || aSymbol == '.' || aSymbol == '_' || aSymbol == ':' || aSymbol == '-';
+		});
 	}
 }

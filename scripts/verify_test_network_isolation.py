@@ -223,6 +223,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_export": "dos-volume-name",
     "review_cycle_bundle": "dos-volume-name",
     "review_cycle_attach": "dos-volume-name",
+    # [[BPR-1164]]. The same scratch-root store course; not yet measured contained.
+    "review_cycle_response": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",

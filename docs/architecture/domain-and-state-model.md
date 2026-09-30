@@ -414,6 +414,25 @@ keeps local capture order, the checkout head each capture's manifest recorded
 a detached head) and sender revisions mapped by an attached round apart; a
 cycle observes no provider upload order and never infers one.
 
+What recipients say back is appended, never merged (BPR-1164,
+`bpr/core/review_cycle_response.hpp`). A structured response
+(`bpr.cycle.response.v1`) is read as untrusted data with exact field sets, so
+no field can verify, approve, publish, grant or rank its own trust; it must
+name this cycle, the round it is attached to, that round's canonical digest
+and each item's exact revision. A reply the reviewer pastes or types
+(`cycle_manual_reply`) needs no JSON, identifier or protocol and may speak
+about one item or the round as a whole. Both are stored as canonical objects
+under schema 6's `responses` table with the channel this profile observed
+(`response_file` or `manual_entry`), separate from the author, model and
+result they claim. The same response again changes nothing; its identifier
+with other content is refused. A partial response leaves the items it does not
+name without a response, which is not "not attempted"; several recipients'
+statements about one item sit side by side. Evidence is inert text that
+nothing opens or runs, a claimed result revision resolves only once this
+profile captured it, and appending a statement writes no source, captures no
+revision, changes no note, suggestion or round and records no reviewer
+decision. Output completing after the selection changed is dropped.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

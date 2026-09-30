@@ -61,6 +61,29 @@ namespace bpr::application {
 			return { };
 		}
 
+		auto response_words(const cycle_response_result& aResult) -> std::string
+		{
+			if (aResult.Read) {
+				return "The chosen file could not be read; nothing was added.";
+			}
+			if (aResult.Decode) {
+				return "The file is not a response this build reads (" + std::string{ core::stable_name(aResult.Decode->Problem) } + "); nothing was added.";
+			}
+			if (!aResult.Refusal) {
+				return { };
+			}
+			switch (aResult.Refusal->Problem) {
+			case core::cycle_response_problem::wrong_cycle:       return "The response is for another cycle; nothing was added.";
+			case core::cycle_response_problem::wrong_round:       return "The response is for another round; nothing was added.";
+			case core::cycle_response_problem::wrong_digest:      return "The response names this round with other content than was frozen; nothing was added.";
+			case core::cycle_response_problem::unknown_item:      return "The reply names an item this round does not hold; nothing was added.";
+			case core::cycle_response_problem::stale_item:        return "The response answers another revision of an item; nothing was added.";
+			case core::cycle_response_problem::empty:             return "A reply needs some text.";
+			case core::cycle_response_problem::reused_identifier: return "A different response with the same identifier was already added; nothing was added.";
+			}
+			return { };
+		}
+
 		auto revision_name(const core::cycle_source_revision_id aRevision) -> std::string
 		{
 			// The name the surface and the round's wire form use.
@@ -108,7 +131,10 @@ namespace bpr::application {
 		std::uint64_t SourceLoad = 0;
 		bool          Closing    = false;
 		/// After a capture, new tabs take the new revision once the reload completes.
-		bool AdvanceNewTabs = false;
+		bool                                AdvanceNewTabs = false;
+		review_cycle_workbench::file_reader Reader;
+		/// Recipient statements, kept to describe notes as they reload.
+		cycle_response_entries Responses;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -521,8 +547,7 @@ namespace bpr::application {
 		{
 			if (aIndex >= aThreads.size()) {
 				View.Notes = std::move(aNotes);
-				observe_notes();
-				publish();
+				load_responses();
 				return;
 			}
 			const auto item = aThreads[aIndex].Id;
@@ -564,6 +589,58 @@ namespace bpr::application {
 														aHost.describe_threads(std::move(pending), aIndex + 1U, std::move(listed));
 													}));
 												}));
+		}
+
+		/// What recipients said, beside each note and in the list of replies.
+		void load_responses()
+		{
+			Runtime.responses_selected(guarded<cycle_response_entries>([](implementation& aSelf, cycle_response_entries aEntries) {
+				aSelf.Responses = std::move(aEntries);
+				aSelf.describe_responses();
+				aSelf.observe_notes();
+				aSelf.publish();
+			}));
+		}
+
+		void describe_responses()
+		{
+			for (auto& note : View.Notes) {
+				note.Statements = core::item_statements(Responses, core::cycle_wire_name(note.Item.Id));
+			}
+			View.Responses.clear();
+			for (const auto& [record, content] : Responses) {
+				auto entry = review_cycle_response_entry{ .Id = record.Id, .Round = record.Round, .Channel = record.Channel, .ForeignId = record.ForeignId };
+				if (const auto* document = std::get_if<core::cycle_response_document>(&content)) {
+					entry.From          = document->ClaimedAuthor.DisplayName;
+					entry.ClaimedAuthor = document->ClaimedAuthor;
+					entry.Items         = document->Entries.size();
+					entry.ClaimedResult = document->ResultRevision;
+					if (Cycle) {
+						entry.CapturedResult = core::resolve_claimed_result(*Cycle, document->ResultRevision);
+					}
+				} else {
+					const auto& reply = std::get<core::cycle_manual_reply>(content);
+					entry.From        = reply.From;
+					entry.Items       = reply.Items.size();
+					if (reply.Items.empty()) {
+						entry.Body = reply.Body;
+					}
+				}
+				View.Responses.push_back(std::move(entry));
+			}
+		}
+
+		void response_done(const cycle_response_result& aResult)
+		{
+			View.Activity    = review_cycle_activity::idle;
+			const auto words = response_words(aResult);
+			if (!words.empty()) {
+				fail(words);
+				return;
+			}
+			View.Message.clear();
+			View.Notice = aResult.Receipt && !aResult.Receipt->Changed ? "That response was already added; nothing changed." : std::string{ };
+			load_responses();
 		}
 
 		/// Observes, for notes on the active tab's file from another revision,
@@ -821,6 +898,34 @@ namespace bpr::application {
 			aSelf.publish_tabs();
 			aSelf.publish();
 		}));
+	}
+
+	void review_cycle_workbench::set_file_reader(file_reader aReader)
+	{
+		Implementation->Reader = std::move(aReader);
+	}
+
+	void review_cycle_workbench::import_response(const core::cycle_round_id aRound, std::string aPath)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || !self.Reader) {
+			return;
+		}
+		self.View.Activity = review_cycle_activity::saving;
+		self.publish();
+		auto read = [reader = self.Reader, path = std::move(aPath)](std::stop_token aStop) { return reader(path, core::maximum_response_document_bytes, std::move(aStop)); };
+		self.Runtime.import_response_selected(self.operation(), aRound, std::move(read), self.guarded<cycle_response_result>([](implementation& aSelf, cycle_response_result aResult) { aSelf.response_done(aResult); }));
+	}
+
+	void review_cycle_workbench::attach_reply(const core::cycle_round_id aRound, core::cycle_manual_reply aReply)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle) {
+			return;
+		}
+		self.View.Activity = review_cycle_activity::saving;
+		self.publish();
+		self.Runtime.attach_reply_selected(self.operation(), aRound, std::move(aReply), self.guarded<cycle_response_result>([](implementation& aSelf, cycle_response_result aResult) { aSelf.response_done(aResult); }));
 	}
 
 	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&

@@ -4,6 +4,7 @@
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_material.hpp"
+#include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_views.hpp"
@@ -43,7 +44,30 @@ namespace bpr::application {
 		/// The thread version a change must name.
 		std::uint64_t                                    Version = 0;
 		std::optional<core::cycle_target_correspondence> Correspondence;
-		auto                                             operator<=>(const review_cycle_note_entry&) const = default;
+		/// What recipients said about this note, in append order (BPR-1164).
+		std::vector<core::cycle_item_statement> Statements;
+		auto                                    operator<=>(const review_cycle_note_entry&) const = default;
+	};
+
+	/// \brief One appended statement as the surface lists it: how it arrived,
+	/// who it claims to be from and what it covers (BPR-1164).
+	struct review_cycle_response_entry
+	{
+		core::cycle_response_ref     Id;
+		core::cycle_round_id         Round;
+		core::cycle_response_channel Channel = core::cycle_response_channel::manual_entry;
+		std::string                  ForeignId;
+		std::string                  From;
+		/// The author a structured response claims; absent for prose.
+		std::optional<core::cycle_claimed_author> ClaimedAuthor;
+		/// Items it speaks about; zero for a reply about the round as a whole.
+		std::size_t Items = 0;
+		/// The body of a reply about the round as a whole.
+		std::string Body;
+		/// The result revision it names, and whether this cycle captured it.
+		std::optional<std::string>                    ClaimedResult;
+		std::optional<core::cycle_source_revision_id> CapturedResult;
+		auto                                          operator<=>(const review_cycle_response_entry&) const = default;
 	};
 
 	/// \brief The active tab's exact retained bytes, read on their own.
@@ -106,7 +130,9 @@ namespace bpr::application {
 		/// Captures in local order, with their Git and imported chronologies.
 		std::optional<core::cycle_history>   History;
 		std::vector<review_cycle_note_entry> Notes;
-		review_cycle_activity                Activity = review_cycle_activity::idle;
+		/// Every statement recipients sent back, in append order.
+		std::vector<review_cycle_response_entry> Responses;
+		review_cycle_activity                    Activity = review_cycle_activity::idle;
 		/// Plain words about the last refusal or failure; empty otherwise.
 		std::string Message;
 		/// Plain words about the last capture when it recorded nothing new.

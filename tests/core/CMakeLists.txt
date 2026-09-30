@@ -674,6 +674,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_views_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_views_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_views COMMAND test_better_pull_review_review_cycle_views_tests)
 
+# [[BPR-1164]]. Recipient responses and manual replies: the pack's response, forged authority and correlation.
+bpr_add_executable(test_better_pull_review_review_cycle_response_tests review_cycle_response_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_response_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_response_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_response_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_response COMMAND test_better_pull_review_review_cycle_response_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
+
 # [[BPR-1158]]. Canonical round payloads, the pack's golden round and assembly.
 bpr_add_executable(test_better_pull_review_review_cycle_round_tests review_cycle_round_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE BetterPullReview::Core)

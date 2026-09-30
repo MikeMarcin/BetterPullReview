@@ -3,14 +3,18 @@
 
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
+#include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <vector>
 
@@ -74,6 +78,15 @@ namespace bpr::application {
 		/// \brief Marks the active tab's right revision (or the latest capture)
 		/// as reviewed: the checkpoint "Since my last review" starts from.
 		void mark_reviewed();
+
+		/// \brief How a chosen file is read (BPR-1164): on the effect lane,
+		/// within the bound, never following a link. Set by the composition.
+		using file_reader = std::function<std::expected<std::vector<std::uint8_t>, cycle_export_failure>(const std::string&, std::uint64_t, std::stop_token)>;
+		void set_file_reader(file_reader aReader);
+		/// \brief Appends the structured response in the chosen file to round `aRound`.
+		void import_response(core::cycle_round_id aRound, std::string aPath);
+		/// \brief Appends a reply the reviewer entered for round `aRound`.
+		void attach_reply(core::cycle_round_id aRound, core::cycle_manual_reply aReply);
 
 		[[nodiscard]] auto projection() const noexcept -> const review_cycle_workbench_projection&;
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;

@@ -4,9 +4,11 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDir>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
@@ -19,6 +21,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 /// \file
@@ -266,6 +269,56 @@ namespace {
 		expect(aView.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"))->text().contains(QStringLiteral("no change is claimed")), "an unknown side claims no change");
 	}
 
+	struct reply_gestures
+	{
+		std::vector<core::cycle_round_id>                                      Chosen;
+		std::vector<std::pair<core::cycle_round_id, core::cycle_manual_reply>> Replies;
+	};
+
+	/// BPR-1164: replies entered by hand, response files chosen, and what was
+	/// said shown beside each note as claims.
+	void records_replies(qt::review_cycle_view& aView, const reply_gestures& aGestures)
+	{
+		auto view                = projection(1);
+		view.Facts.Rounds        = { { .Round = core::cycle_round_id{ 1 }, .Start = core::cycle_source_revision_id{ 1 } } };
+		view.Notes[0].Statements = {
+			{ .Response = core::cycle_response_id{ 1 }, .Round = core::cycle_round_id{ 1 }, .Channel = core::cycle_response_channel::response_file, .From = "Harness", .ClaimedAuthor = core::cycle_claimed_author{ .DisplayName = "Harness", .Kind = core::cycle_claimed_author_kind::agent, .Model = "Claude Opus (verified)" }, .Disposition = core::cycle_response_disposition::addressed, .Body = "Renamed.\nDetails follow.", .Evidence = { { .Kind = core::cycle_evidence_kind::test_report, .Value = "all passed" } } },
+			{ .Response = core::cycle_response_id{ 2 }, .Round = core::cycle_round_id{ 1 }, .Channel = core::cycle_response_channel::manual_entry, .From = "Dana (chat)", .Body = "I would keep the name." },
+		};
+		view.Responses = {
+			{ .Id = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_response_id{ 1 } }, .Round = core::cycle_round_id{ 1 }, .Channel = core::cycle_response_channel::response_file, .ForeignId = "RESP-A", .From = "Harness", .ClaimedAuthor = core::cycle_claimed_author{ .DisplayName = "Harness", .Kind = core::cycle_claimed_author_kind::agent, .Model = "Claude Opus (verified)" }, .Items = 1, .ClaimedResult = "R2" },
+			{ .Id = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_response_id{ 3 } }, .Round = core::cycle_round_id{ 1 }, .Channel = core::cycle_response_channel::manual_entry, .From = "Lee (email)", .Body = "Looks fine overall." },
+		};
+		aView.present(view);
+		settle();
+		const auto note = aView.notes()->item(0)->text();
+		expect(note.contains(QStringLiteral("F1 reply · Harness (claims agent Claude Opus (verified)), response file says addressed: Renamed.")), "a structured statement shown as a claim");
+		expect(note.contains(QStringLiteral("Evidence reported, not run by BPR · 1")) && note.contains(QStringLiteral("F1 reply · Dana (chat), entered by hand replied: I would keep the name.")), "evidence reported; prose beside it");
+		expect(aView.notes()->count() == 4 && aView.notes()->item(2)->text().contains(QStringLiteral("Says the result is R2 (not captured here)"))
+				   && aView.notes()->item(2)->text().contains(QStringLiteral("items it does not name have no response")),
+			   "the response's coverage and claimed result");
+		expect(aView.notes()->item(3)->text().contains(QStringLiteral("Lee (email), entered by hand")), "a reply about the round as a whole");
+
+		// Paste a reply about the selected note.
+		aView.notes()->setCurrentRow(0);
+		auto* const menu = aView.reply_button()->menu();
+		emit        menu->aboutToShow();
+		expect(menu->actions().size() == 2 && menu->actions()[0]->text() == QStringLiteral("Paste a reply to F1…"), "a reply per frozen round");
+		menu->actions()[0]->trigger();
+		settle();
+		expect(aView.reply_editor()->isVisible() && aView.reply_about_note()->isChecked() && aView.reply_about_note()->text().contains(QStringLiteral("I1")), "the reply editor, about the selected note");
+		aView.reply_from()->setText(QStringLiteral("Sam"));
+		aView.reply_editor()->setPlainText(QStringLiteral("Done, but not tested."));
+		capture(aView, QStringLiteral("cycle-reply"));
+		aView.findChild<QPushButton*>(QStringLiteral("cycleReplySave"))->click();
+		expect(aGestures.Replies.size() == 1U && aGestures.Replies[0].first == core::cycle_round_id{ 1 } && aGestures.Replies[0].second.From == "Sam"
+				   && aGestures.Replies[0].second.Items == std::vector<std::string>{ "I1" } && aGestures.Replies[0].second.Body == "Done, but not tested.",
+			   "the reply handed over as entered");
+		emit menu->aboutToShow();
+		menu->actions()[1]->trigger();
+		expect(aGestures.Chosen == std::vector<core::cycle_round_id>{ core::cycle_round_id{ 1 } }, "a response file chosen for F1");
+	}
+
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
 	{
 		aView.findChild<QAction*>(QStringLiteral("cyclePreviousFile"))->trigger();
@@ -285,18 +338,21 @@ try {
 	auto         suggested = application::review_cycle_suggestion_request{ };
 	auto         opened    = std::string{ };
 	auto         gestures  = view_gestures{ };
+	auto         replies   = reply_gestures{ };
 	view.set_dispatch({
-		.OpenFile     = [&](const std::string& aPath, bool) { opened = aPath; },
-		.Tab          = [](const core::document_tab_intent&) { },
-		.ObserveLine  = [](core::document_tab_id, std::uint64_t) { },
-		.Comment      = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
-		.Suggest      = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
-		.Relate       = { },
-		.Capture      = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
-		.Compare      = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
-		.FullSource   = [&] { ++gestures.FullSource; },
-		.Refresh      = [&] { ++gestures.Refreshed; },
-		.MarkReviewed = [&] { ++gestures.MarkedReview; },
+		.OpenFile       = [&](const std::string& aPath, bool) { opened = aPath; },
+		.Tab            = [](const core::document_tab_intent&) { },
+		.ObserveLine    = [](core::document_tab_id, std::uint64_t) { },
+		.Comment        = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
+		.Suggest        = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
+		.Relate         = { },
+		.Capture        = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
+		.Compare        = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
+		.FullSource     = [&] { ++gestures.FullSource; },
+		.Refresh        = [&] { ++gestures.Refreshed; },
+		.MarkReviewed   = [&] { ++gestures.MarkedReview; },
+		.ChooseResponse = [&](const core::cycle_round_id aRound) { replies.Chosen.push_back(aRound); },
+		.Reply          = [&](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { replies.Replies.emplace_back(aRound, std::move(aReply)); },
 	});
 	view.resize(1280, 760);
 	view.show();
@@ -306,6 +362,7 @@ try {
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);
 	captures_and_compares(view, gestures);
+	records_replies(view, replies);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();

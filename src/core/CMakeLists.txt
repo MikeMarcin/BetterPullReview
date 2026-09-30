@@ -38,6 +38,7 @@ add_library(
         src/review_cycle_suggestion.cpp
         src/review_cycle_tabs.cpp
         src/review_cycle_views.cpp
+        src/review_cycle_response.cpp
         src/suggestion_text_editing.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp

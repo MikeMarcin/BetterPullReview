@@ -4,6 +4,7 @@
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_import.hpp"
+#include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_views.hpp"
@@ -211,6 +212,24 @@ namespace bpr::application {
 		std::optional<core::cycle_import_id> Next;
 	};
 
+	/// \brief One recipient statement to append (BPR-1164). The content object
+	/// (the canonical response or manual reply) must already be installed.
+	struct cycle_response_commit
+	{
+		core::local_cycle_subject    Subject;
+		core::cycle_round_id         Round;
+		core::cycle_round_digest     RoundDigest;
+		core::cycle_response_channel Channel = core::cycle_response_channel::manual_entry;
+		/// The response's own identifier; empty for a manual reply.
+		std::string      ForeignId;
+		cycle_object_ref Content;
+	};
+	struct cycle_response_page
+	{
+		std::vector<core::cycle_response_record> Responses;
+		std::optional<core::cycle_response_id>   Next;
+	};
+
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
 	/// are not recoverable from GitHub or from exported rounds.
 	struct cycle_removal_preview
@@ -340,6 +359,16 @@ namespace bpr::application {
 		virtual auto mark_reviewed(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, core::cycle_source_revision_id aRevision, std::stop_token aStop)
 			-> cycle_store_result<cycle_write_receipt>                                                                                                                 = 0;
 		virtual auto last_review(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_review_checkpoint>> = 0;
+
+		/// \brief Appends one recipient statement to a frozen round of the cycle
+		/// (BPR-1164), pinning its content. A structured response already
+		/// appended under the same identifier with the same content changes
+		/// nothing and returns its record; other content under that identifier
+		/// is a conflict. Nothing else in the cycle changes: no revision, note,
+		/// suggestion, decision or round. `Allocated` is the response.
+		virtual auto append_response(const cycle_operation_id& aOperation, const cycle_response_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The cycle's statements in append order.
+		virtual auto responses(const core::local_cycle_subject& aSubject, std::optional<core::cycle_response_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_response_page> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.
