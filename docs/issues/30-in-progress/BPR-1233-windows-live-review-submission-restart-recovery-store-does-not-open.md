@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1233"
 title: "Windows: live_review_submission_restart_recovery fails at its first kill boundary because the submission store does not open"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
