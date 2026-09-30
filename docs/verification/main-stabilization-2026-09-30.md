@@ -99,3 +99,28 @@ offscreen, `build/dev` at `69493e235` (with the Windows station's `0dd1eb53f`).
     failure as Windows (BPR-1236).
 - `application_agent_finding_mcp_construction_cut_contract` fails as BPR-1245
   records.
+
+## Windows station — bpr-main-win, 2026-09-30
+
+Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscreen, `build/windows-dev` Debug with warnings as errors, at `69493e23`. The build needed no source change.
+
+| Row | Windows | Card |
+|---|---|---|
+| `application_defect_composition_contract` | pass, 33.19 s | BPR-1238 |
+| `application_review_round_trip_composition_contract` | pass, 11.51 s; again after `fd05277e`'s reseal, 11.02 s | BPR-1228 |
+| `application_composition_contract` | timed out at 600 s through `ctest`. Run directly in the same environment, all 8 cases pass in 822.8 s. `0f8b9ebe` gives it 1,800 s on Windows only | BPR-1228 |
+| `application_review_tour_writing` | contained, exit 1 with no line. Uncontained it passes, and `test_scoped_writing_agent` builds. `0f8b9ebe` makes it `WINDOWS_UNCONTAINED` with that pin. Then it passes, 22.79 s | BPR-1240 |
+| `qt_composed_github_scale_{100,125,200}` | pass, 75.67, 59.43 and 63.81 s | BPR-1242 |
+| `qt_workbench_focus_order_scale_{100,125,200}` | pass | BPR-1242 |
+| `qt_document_tabs_scale_{100,125,200}` | **fail**: one 220-pixel tab in a 200-pixel strip, so the active tab cannot be shown whole | [[BPR-1251]] |
+| `qt_workbench_window_scale_{100,125,200}` | **fail**: the title gives way, then returns at 1,099 pixels | [[BPR-1251]] |
+| `coding_format_check` | failed: clang-format 22 and 23 align `dispatch_tour_action`'s short cases differently. `fd05277e` writes four of them one statement per line, which neither version aligns, with a reviewed reseal on top of BPR-1246's. Then it passes, 32.32 s | BPR-1243 |
+| `dependency_modernization_contract` | pass, 127.13 s | BPR-1243 |
+| `contained_temporary_usage_contract` | pass, 4.66 s | BPR-1243 |
+
+`test_network_isolation_manifest` still fails for the same 47 older rows
+([[BPR-1237]]). It names neither changed row. The document-tab and title rows
+are filed as `11deadba` ([[BPR-1251]]), with the probe's measurements. Nothing
+in them was changed. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`stab.log`,
+`st2.log`, `composition-timed.log`), and are not committed.

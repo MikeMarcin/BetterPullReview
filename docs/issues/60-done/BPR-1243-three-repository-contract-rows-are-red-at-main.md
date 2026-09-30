@@ -73,3 +73,10 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `dependency_modernization_contract` and `contained_temporary_usage_contract` pass. `coding_format_check` fails on Linux with clang-format 22.1.8, and only on `src/app/src/github_application.cpp:9292`, `:9302`, `:9303` and `:9304`, the tour-editor `case … : …; return;` lines. clang-format 22 aligns those short case bodies to the longest label in each block. The 23.1.1 used on the Mac accepts the wider alignment. It is a formatter-version disagreement, not a new violation. Changing the lines would reseal the composition pin, so they were left. The station should have clang-format 23, or the gate should name one version.
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-30
+
+Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscreen, `build/windows-dev` Debug with warnings as errors, at `69493e23`.
+
+`coding_format_check` failed: clang-format 22.1.8 and 23 align the short cases in `dispatch_tour_action` differently. `fd05277e` writes four of them one statement per line, which both versions accept. It carries a reviewed reseal on top of BPR-1246's. Then the check passes, 32.32 s. `dependency_modernization_contract` passes, 127.13 s, and `contained_temporary_usage_contract` passes, 4.66 s.
+The details are in [main stabilization](../../verification/main-stabilization-2026-09-30.md).

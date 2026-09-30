@@ -91,3 +91,10 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `application_defect_composition_contract` passes, and so does `application_review_round_trip_composition_contract`.
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-30
+
+Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscreen, `build/windows-dev` Debug with warnings as errors, at `69493e23`.
+
+`application_defect_composition_contract` passes, 33.19 s, and again at the recheck, 32.51 s.
+The details are in [main stabilization](../../verification/main-stabilization-2026-09-30.md).

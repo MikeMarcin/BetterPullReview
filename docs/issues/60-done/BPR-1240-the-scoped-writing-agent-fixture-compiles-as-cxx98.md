@@ -55,3 +55,10 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 The full dev build compiles `test_scoped_writing_agent`, and `application_review_tour_writing` passes. The same full build first needed two GCC-only test fixes, in `754502ff7`: `-Wdangling-pointer` in `agent_launch_tests.cpp` and `-Wshadow=local` in `gh_cli_transport_tests.cpp`.
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-30
+
+Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscreen, `build/windows-dev` Debug with warnings as errors, at `69493e23`.
+
+`test_scoped_writing_agent` builds as C++23 under MSVC. `application_review_tour_writing` exited 1 contained, with no line, and passed uncontained. `0f8b9ebe` makes the row `WINDOWS_UNCONTAINED`, pinned with that measurement. Then it passes, 22.79 s.
+The details are in [main stabilization](../../verification/main-stabilization-2026-09-30.md).

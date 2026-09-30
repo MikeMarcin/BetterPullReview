@@ -63,3 +63,10 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, clang-format 22.1.8 at `/usr/
 `qt_composed_github_scale_{100,125,200}` pass. `qt_workbench_window_scale_{100,125,200}` fail on Linux at `no review-bar control folds into an overflow menu at any width`. A temporary trace, reverted and never committed, measured the doubled review-bar font (DejaVu Sans 18 pt) at a 982 px window. The dates and the position words had both already yielded (`dates=0 words=0`), and the bar still wanted 983 px, so Qt showed `qt_toolbar_ext_button`. The widest items were the comparing button (360 px), the updates button (137 px) and the change-position label (111 px). This depends on the font and was not seen on the Mac. It is a layout decision, so nothing was changed.
 
 The logs are station records in `build/logs/bpr-station-stabilization/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-30
+
+Windows 11 Home 10.0.26200, MSVC 19.51, clang-format 22.1.8, Qt 6.11.2, offscreen, `build/windows-dev` Debug with warnings as errors, at `69493e23`.
+
+`qt_composed_github_scale_*` and `qt_workbench_focus_order_scale_*` pass, 6 of 6. `qt_document_tabs_scale_*` and `qt_workbench_window_scale_*` fail on Windows for layout reasons, recorded with measurements on [[BPR-1251]] (`11deadba`).
+The details are in [main stabilization](../../verification/main-stabilization-2026-09-30.md).
