@@ -165,7 +165,7 @@ namespace {
 		const auto blob = oid<core::git_blob_oid>(50U);
 		return {
 			.Target     = target(),
-			.Endpoint   = application::make_workbench_selected_diff_endpoint_for_testing(request, core::diff_side::right, blob, aPath),
+			.Endpoint   = application::make_workbench_selected_diff_endpoint_for_testing(request, core::diff_side::right, blob, std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } }),
 			.Comparison = { .Authority = context.Authority, .Repository = context.Authority.Repository, .PullRequest = context.Authority.PullRequest, .LeftAnchor = context.Comparison.Left.Identity, .RightAnchor = context.Comparison.Right.Identity, .LeftBlob = oid<core::git_blob_oid>(40U), .RightBlob = blob, .File = request.File.File, .Options = context.OptionsDigest, .Algorithm = context.Algorithm },
 			.LineCount  = 100U,
 		};
@@ -360,7 +360,12 @@ namespace {
 		expect(!parse_review_permalink_body(source, "<" + canonical), "angle-wrapped link is not the bare grammar");
 		expect(!parse_review_permalink_body(source, canonical + "\n" + canonical), "second code link is ambiguous");
 		expect(!parse_review_permalink_body(source, std::string(maximum_review_mutation_body_bytes + 1U, 'x')), "oversized body returns no anchor");
-		for (const auto& path : std::vector<std::string>{ "/absolute.cpp", "../escape.cpp", "dir/./file.cpp", "dir/../file.cpp", "dir/back\\slash.cpp", "dir/control\n.cpp", std::string(4097U, 'x'), std::string{ "dir/bad\xFF" } }) {
+		auto unsafe = std::vector<std::string>{ "/absolute.cpp", "../escape.cpp", "dir/./file.cpp", "dir/../file.cpp", "dir/back\\slash.cpp", "dir/control\n.cpp", std::string(4097U, 'x') };
+#if !defined(_WIN32)
+		// A Windows path is UTF-16, so bytes that are not UTF-8 cannot become one.
+		unsafe.emplace_back("dir/bad\xFF");
+#endif
+		for (const auto& path : unsafe) {
 			const auto invalid = permalink_source(path);
 			expect(!compile_review_permalink_body(invalid, permalink_anchor(invalid), "Prose"), "unsafe source path cannot compile");
 		}

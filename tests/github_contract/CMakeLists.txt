@@ -1304,6 +1304,7 @@ endif()
 bpr_enable_warnings(test_better_pull_review_review_comment_permalink_tests)
 bpr_add_network_isolated_test(
     NAME github_review_comment_permalink
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_review_comment_permalink_tests
 )
 

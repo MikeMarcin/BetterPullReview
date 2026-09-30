@@ -45,6 +45,11 @@ namespace bpr::adapters::github::detail {
 		{
 			auto utf8 = std::u8string{ };
 			try {
+				// A backslash is a name byte, refused below; on Windows the generic
+				// form would turn it into a separator first.
+				if (aPath.u8string().find(u8'\\') != std::u8string::npos) {
+					return std::nullopt;
+				}
 				utf8 = aPath.generic_u8string();
 			} catch (const std::filesystem::filesystem_error&) {
 				return std::nullopt;
@@ -91,7 +96,8 @@ namespace bpr::adapters::github::detail {
 				return { };
 			}
 
-			const auto path = encoded_path(std::filesystem::path{ aSource.Path });
+			// The destination path is UTF-8; a `std::string` path is the ANSI code page on Windows.
+			const auto path = encoded_path(std::filesystem::path{ std::u8string{ aSource.Path.begin(), aSource.Path.end() } });
 			if (!path) {
 				return std::nullopt;
 			}
@@ -135,7 +141,9 @@ namespace bpr::adapters::github::detail {
 				|| request.Diff.Comparison.Right.Availability != core::anchor_availability::available) {
 				return std::nullopt;
 			}
-			const auto bytes = endpoint.path().generic_u8string();
+			// The repository path as given: its separators are already `/`, and a
+			// backslash in it is a name byte that `encoded_path` refuses.
+			const auto bytes = endpoint.path().u8string();
 			return code_url_prefix({ std::string{ aSource.Target.Hostname.value() }, aSource.Target.Repository },
 								   { .Commit = commit, .Blob = endpoint.blob(), .Path = std::string{ bytes.begin(), bytes.end() } });
 		}

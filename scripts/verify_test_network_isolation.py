@@ -196,6 +196,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_review_cycle_storage": "dos-volume-name",
     "sqlite_review_cycle_runtime": "dos-volume-name",
     "sqlite_review_tour_storage": "dos-volume-name",
+    # [[BPR-1230]]. Measured on JaegAW 2026-09-29: passes uncontained; contained
+    # it stops at "publication SQLite journal opens" under its scratch root.
+    "github_review_comment_permalink": "dos-volume-name",
     # [[BPR-1148]], [[BPR-1149]]. The product opens a chosen root and resolves it
     # with GetFinalPathNameByHandleW(VOLUME_NAME_DOS), the rows keep their stores
     # under a scratch root, and they build fixtures with Git; each is the obstacle
@@ -229,8 +232,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_response": "dos-volume-name",
     "review_cycle_verification": "dos-volume-name",
     # [[BPR-1172]]. The same scratch-root store course, with the build's Git
-    # both making fixtures and serving as the product's installed Git; not yet
-    # measured contained.
+    # both making fixtures and serving as the product's installed Git. Measured
+    # on JaegAW 2026-09-29: review_cycle_outgoing, _candidate, _publication and
+    # _publisher run uncontained, and contained each stops at `canonical: Access
+    # is denied.` on the Git executable, the BPR-0812 shape.
     "review_cycle_outgoing": "dos-volume-name",
     # [[BPR-1173]]. The same course shape as review_cycle_outgoing.
     "review_cycle_candidate": "dos-volume-name",
