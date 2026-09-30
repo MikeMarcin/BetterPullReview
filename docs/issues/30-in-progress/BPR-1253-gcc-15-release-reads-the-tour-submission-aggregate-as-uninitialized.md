@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1253"
 title: "GCC 15 Release reads the tour submission aggregate as uninitialized"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"reported by the Linux station (bpr-main-linux) on BPR-1228, 2026-09-30; filed by the live target qualification milestone","reservation":"docs/issues/_reservations/BPR-1253--BPR-1253--4f092f240678.json","related_cards":["BPR-1228"]}
