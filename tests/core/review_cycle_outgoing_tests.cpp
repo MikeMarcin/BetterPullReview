@@ -316,6 +316,54 @@ namespace {
 		const auto again = whole_request(outgoing_selection_mode::starting_work_and_improvements);
 		expect(plan_outgoing(again) == plan_outgoing(again), "deterministic");
 	}
+
+	/// [[BPR-1244]]. A path the final capture saw but could not read is listed
+	/// with its reason and counted; it is never silently absent from the
+	/// candidate and the preview.
+	void unread_final_paths()
+	{
+		const auto with = [](cycle_manifest aManifest, manifest_entry aEntry) {
+			std::erase_if(aManifest.Entries, [&aEntry](const manifest_entry& aKnown) { return aKnown.Path == aEntry.Path; });
+			aManifest.Entries.push_back(std::move(aEntry));
+			std::ranges::sort(aManifest.Entries, { }, &manifest_entry::Path);
+			return aManifest;
+		};
+		const auto unread = [](std::string aPath, const manifest_entry_kind aKind, const manifest_availability aWhy) {
+			return manifest_entry{ .Path = std::move(aPath), .Kind = aKind, .Origin = manifest_origin::untracked, .Availability = aWhy };
+		};
+
+		// A link added in the cycle whose target this platform cannot read.
+		auto request     = whole_request(outgoing_selection_mode::starting_work_and_improvements);
+		request.Final    = with(request.Final, unread("docs-link", manifest_entry_kind::symlink, manifest_availability::link_target_unsupported));
+		auto        plan = plan_outgoing(request);
+		const auto* link = plan ? row(*plan, "docs-link") : nullptr;
+		expect(link && link->Gap == outgoing_gap::final_unavailable && !link->Selected && link->Final.State == outgoing_state::unavailable
+				   && link->Final.Unread == manifest_availability::link_target_unsupported && candidate_lacks(*plan, "docs-link"),
+			   "a link the final capture could not read is listed, not silently absent");
+		expect(plan->Unread == 1U && plan->buildable(), "it is counted, and the rest still builds");
+		auto preview = render_outgoing_preview(*plan);
+		expect(preview.find("1 path the final capture could not read is not in the candidate as captured.") != std::string::npos
+				   && preview.find("the final capture saw it but could not read it (this platform cannot read its link target); it is not in the candidate:  docs-link")
+					   != std::string::npos,
+			   "the preview says so, with the reason, before anything is published");
+
+		// An improvement the final capture could not read keeps P's entry, and says why.
+		request           = whole_request(outgoing_selection_mode::starting_work_and_improvements);
+		request.Final     = with(request.Final, unread("src/c.cpp", manifest_entry_kind::file, manifest_availability::too_large));
+		plan              = plan_outgoing(request);
+		const auto* large = plan ? row(*plan, "src/c.cpp") : nullptr;
+		expect(large && large->Gap == outgoing_gap::final_unavailable && !large->Selected && candidate_has(*plan, "src/c.cpp", "C0") && plan->Unread == 1U,
+			   "a file grown past the capture budget keeps P's entry and is listed");
+		preview = render_outgoing_preview(*plan);
+		expect(preview.find("the final capture saw it but could not read it (too large to read); P's entry stays:  src/c.cpp") != std::string::npos, "with its reason");
+
+		// Unread by both captures and in P: nothing is known to have changed.
+		request.Start = with(request.Start, unread("src/c.cpp", manifest_entry_kind::file, manifest_availability::sparse));
+		request.Final = with(request.Final, unread("src/c.cpp", manifest_entry_kind::file, manifest_availability::sparse));
+		plan          = plan_outgoing(request);
+		expect(plan && row(*plan, "src/c.cpp") == nullptr && plan->Unread == 0U && candidate_has(*plan, "src/c.cpp", "C0"),
+			   "a path neither capture read and P has is not listed");
+	}
 }
 
 auto main() -> int
@@ -325,6 +373,7 @@ auto main() -> int
 	module_scope_and_extension();
 	empty_and_drift();
 	limits_and_refusals();
+	unread_final_paths();
 	std::cout << "review-cycle-outgoing-tests:pass\n";
 	return EXIT_SUCCESS;
 }

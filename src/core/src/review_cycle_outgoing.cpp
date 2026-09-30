@@ -44,7 +44,7 @@ namespace bpr::core {
 				if (const auto* entry = find_entry(Manifest, aPath); entry != nullptr) {
 					if (entry->Availability != manifest_availability::captured || !entry->Content
 						|| (entry->Kind != manifest_entry_kind::file && entry->Kind != manifest_entry_kind::symlink)) {
-						return outgoing_side{ .State = outgoing_state::unavailable, .Mode = entry->Mode };
+						return outgoing_side{ .State = outgoing_state::unavailable, .Mode = entry->Mode, .Unread = entry->Availability };
 					}
 					const auto identity = std::ranges::lower_bound(Identities, *entry->Content, { }, &outgoing_identity::Content);
 					if (identity == Identities.end() || identity->Content != *entry->Content || !identity->Raw.valid()) {
@@ -267,6 +267,35 @@ namespace bpr::core {
 			}
 			return text;
 		}
+
+		/// Why a capture saw a path and did not read it, in the preview's words.
+		[[nodiscard]] auto unread_reason(const std::optional<manifest_availability> aReason) -> std::string_view
+		{
+			if (!aReason) {
+				return "not read";
+			}
+			switch (*aReason) {
+			case manifest_availability::too_large:
+				return "too large to read";
+			case manifest_availability::sparse:
+				return "left out by sparse checkout";
+			case manifest_availability::unreadable:
+				return "the read was refused";
+			case manifest_availability::unsupported_kind:
+				return "not a file or link";
+			case manifest_availability::outside_root:
+				return "behind a link or on another volume";
+			case manifest_availability::link_target_unsupported:
+				return "this platform cannot read its link target";
+			case manifest_availability::missing_scope:
+				return "it names nothing";
+			case manifest_availability::not_materialized:
+				return "a submodule's content";
+			case manifest_availability::captured:
+				break;
+			}
+			return "not read";
+		}
 	}
 
 	auto name(const outgoing_refusal aRefusal) noexcept -> std::string_view
@@ -301,6 +330,8 @@ namespace bpr::core {
 			return "unknown_start";
 		case outgoing_gap::final_unknown:
 			return "final_unknown";
+		case outgoing_gap::final_unavailable:
+			return "final_unavailable";
 		case outgoing_gap::filter_managed:
 			return "filter_managed";
 		case outgoing_gap::gitlink:
@@ -431,7 +462,11 @@ namespace bpr::core {
 			const auto gitlink      = row.Base.Mode == git_mode_gitlink;
 
 			if (!finalKnown) {
-				if (startChanged) {
+				// [[BPR-1244]]. Seen and not read: listed unless neither capture read
+				// a path P has, where nothing is known to have changed.
+				if (row.Final.Unread && (row.Base.State != outgoing_state::present || known(row.Start.State))) {
+					row.Gap = outgoing_gap::final_unavailable;
+				} else if (startChanged) {
 					row.Gap = outgoing_gap::final_unknown;
 				}
 			} else if (differs) {
@@ -520,6 +555,7 @@ namespace bpr::core {
 		for (const auto& row : plan.Rows) {
 			plan.Undecided += row.Gap == outgoing_gap::depends_on_starting_work && !row.Choice ? 1U : 0U;
 			plan.Blocked += row.Selected && (row.Gap == outgoing_gap::filter_managed || row.Gap == outgoing_gap::gitlink || row.Gap == outgoing_gap::path_conflict) ? 1U : 0U;
+			plan.Unread += row.Gap == outgoing_gap::final_unavailable ? 1U : 0U;
 		}
 		if (const auto built = build_git_trees(plan.Candidate, algorithm); built) {
 			plan.CandidateTree = built->Root;
@@ -553,6 +589,10 @@ namespace bpr::core {
 		} else if (aPlan.CandidateTree.valid()) {
 			line("Candidate tree: " + std::string{ canonical_hex(aPlan.CandidateTree).view() } + ".");
 		}
+		if (aPlan.Unread != 0U) {
+			line(std::to_string(aPlan.Unread) + (aPlan.Unread == 1U ? " path the final capture could not read is" : " paths the final capture could not read are")
+				 + " not in the candidate as captured. See Not included.");
+		}
 		auto section = [&](const std::string_view aTitle, auto aSelect, auto aDescribe) {
 			auto first = true;
 			for (const auto& row : aPlan.Rows) {
@@ -581,6 +621,9 @@ namespace bpr::core {
 						return std::string{ "changed where the starting capture did not look; origin unknown:" };
 					case outgoing_gap::final_unknown:
 						return std::string{ "the final capture did not read it; P's entry stays:" };
+					case outgoing_gap::final_unavailable:
+						return "the final capture saw it but could not read it (" + std::string{ unread_reason(aRow.Final.Unread) } + ")"
+							 + (aRow.Base.State == outgoing_state::present ? "; P's entry stays:" : "; it is not in the candidate:");
 					case outgoing_gap::filter_managed:
 						return std::string{ "managed by a Git filter:" };
 					case outgoing_gap::gitlink:

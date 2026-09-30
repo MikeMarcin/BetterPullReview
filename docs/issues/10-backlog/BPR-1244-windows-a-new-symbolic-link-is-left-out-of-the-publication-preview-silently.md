@@ -58,3 +58,37 @@ On macOS and Linux the link is read with `readlinkat`. The row passes there.
 - `review_cycle_candidate` passes on Windows, with the link case asserting
   whichever behaviour was chosen.
 - macOS and Linux still pass.
+
+## Cross-platform half: report (red-test backlog milestone, macOS arm64, 2026-09-30)
+
+The report part of the scope is done on every platform; reading the link on
+Windows is left to the Windows station.
+
+Why the row was silent: the added link's final side is `unavailable`, which is
+not a known state, so its improvement over the starting capture is `unknown`
+and not a change. With no gap, `plan_outgoing` never listed the row.
+
+Now `outgoing_side::Unread` keeps the manifest's reason for a path the capture
+saw and did not read. A final side seen and not read gets the new gap
+`final_unavailable`, unless neither capture read a path that P has, where
+nothing is known to have changed and a sparse checkout would otherwise list
+every path it leaves out. `outgoing_plan::Unread` counts these rows. The
+preview says, after the candidate tree, "N path(s) the final capture could not
+read ... not in the candidate as captured", and lists each under Not included
+with its reason: for this card, "the final capture saw it but could not read
+it (this platform cannot read its link target); it is not in the candidate".
+The candidate still carries P's entry (none, for a new link) and stays
+buildable; nothing is silently omitted.
+
+Checks on macOS arm64 (dev preset): `core_review_cycle_outgoing` adds
+`unread_final_paths` (an unreadable new link, a file grown past the capture
+budget, and a path neither capture read); with the new branch disabled the
+first case fails, as a control. `review_cycle_outgoing`, `review_cycle_candidate`
+and the other review-cycle rows pass (48 rows with the menu rows).
+
+Still for the Windows station:
+
+- Read `IO_REPARSE_TAG_SYMLINK` data in `local_workspace_source.cpp`, or keep
+  the limitation and assert the reported row in `review_cycle_candidate`'s link
+  case. Either way that row's link assertion on Windows needs the station.
+- Windows and Linux runs of `core_review_cycle_outgoing`.

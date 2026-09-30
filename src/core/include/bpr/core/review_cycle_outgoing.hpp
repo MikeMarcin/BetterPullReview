@@ -141,8 +141,11 @@ namespace bpr::core {
 		/// Tracked by the checkout's index (captures only).
 		bool Tracked = false;
 		/// A Git filter (such as LFS) turns these bytes into the committed object.
-		bool FilterManaged                           = false;
-		auto operator<=>(const outgoing_side&) const = default;
+		bool FilterManaged = false;
+		/// [[BPR-1244]]. Why the capture saw this path and did not read it;
+		/// absent when it was read, or not seen at all.
+		std::optional<manifest_availability> Unread;
+		auto                                 operator<=>(const outgoing_side&) const = default;
 	};
 
 	enum class outgoing_change : std::uint8_t {
@@ -167,6 +170,9 @@ namespace bpr::core {
 		unknown_start,
 		/// The final capture did not read the path; P's entry stays.
 		final_unknown,
+		/// [[BPR-1244]]. The final capture saw the path but could not read it
+		/// (the side's `Unread` says why); P's entry, or its absence, stays.
+		final_unavailable,
 		/// A filter such as LFS makes the committed object; not built here.
 		filter_managed,
 		/// A submodule boundary changed; not built here.
@@ -230,7 +236,10 @@ namespace bpr::core {
 		/// Rows whose gap asks for an explicit choice and have none.
 		std::size_t Undecided = 0;
 		/// Selected rows this build cannot turn into objects natively.
-		std::size_t Blocked                                 = 0;
+		std::size_t Blocked = 0;
+		/// [[BPR-1244]]. Rows the final capture saw but could not read: they
+		/// are listed, and the candidate carries P's entry for them.
+		std::size_t Unread                                  = 0;
 		auto        operator<=>(const outgoing_plan&) const = default;
 
 		/// \brief True when a native candidate may be built from the plan.
