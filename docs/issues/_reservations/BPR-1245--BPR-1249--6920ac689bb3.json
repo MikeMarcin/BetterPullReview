@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1245",
+    "BPR-1246",
+    "BPR-1247",
+    "BPR-1248",
+    "BPR-1249"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "main stabilization triage: baseline reds without a card",
+  "created": "2026-09-30T07:19:39.398251+00:00",
+  "base": "94250ab9c305c3a1cf483bae76b8e463437dfee7"
+}
