@@ -223,7 +223,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_export": "dos-volume-name",
     "review_cycle_bundle": "dos-volume-name",
     "review_cycle_attach": "dos-volume-name",
-    # [[BPR-1164]], [[BPR-1165]]. The same scratch-root store course; not yet measured contained.
+    # [[BPR-1164]], [[BPR-1165]]. The same scratch-root store course. Measured on
+    # JaegAW 2026-09-29: both pass uncontained, and contained each exits 3 at
+    # "catalog".
     "review_cycle_response": "dos-volume-name",
     "review_cycle_verification": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
