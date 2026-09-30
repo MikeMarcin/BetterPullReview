@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1242"
 title: "The Notes layout rows predate the Private history page and inspect the hidden Agent tools page"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded as pre-existing under BPR-1157 (RFC-BPR-0053-0061 ledger); filed by the main stabilization milestone on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1157","BPR-0585","BPR-1134"]}
