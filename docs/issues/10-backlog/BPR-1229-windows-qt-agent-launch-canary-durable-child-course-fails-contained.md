@@ -1,0 +1,55 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-1229"
+title: "Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer"
+status: "Backlog"
+rfcs: []
+depends_on: []
+priority: "P2"
+platforms: ["win"]
+metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1128","BPR-1139"]}
+---
+
+# BPR-1229: Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer
+
+Found by bpr-main-win on 2026-09-29: Windows 11 Home 10.0.26200, MSVC 19.51,
+Qt 6.11.2, `build/windows-dev` Debug with warnings as errors, at `22d18416`
+with `537f718d`'s build fixes and again at later `main`. The station logs
+are in `C:\Users\mikem\bpr-main-helpers\run\station-0929\` and are not committed.
+
+## Observation
+
+`qt_agent_launch_canary` fails on Windows in 0.05 s, contained:
+`FAILED: open durable child course` (`tests/adapters_qt/agent_launch_canary_tests.cpp:281`).
+The course `test_durable_private_input_crosses_only_after_admission` came with
+RFC-BPR-0023 (`8e20e9e8`, 2026-09-27). It makes a `scratch_root` and opens a
+private SQLite review store under it with `make_private_review_store`. It runs
+before any canary launch, so the row stops before the courses it had before.
+
+Other new rows that open a private store under a scratch root fail the same
+way contained and pass run directly: `sqlite_review_tour_storage`,
+`sqlite_review_cycle_storage` and `sqlite_review_cycle_runtime` (made
+uncontained in `532cffaf`), and the five snapshot workspace rows.
+
+This row blocks the Windows halves of [[BPR-1128]] (AC4) and [[BPR-1139]] (AC5).
+
+## The decision, which is the owner's
+
+The row launches the canary as an agent. Whether it may leave the AppContainer
+is a containment decision, so this card does not make it. Two options:
+
+1. **Uncontain the row on Windows.** Mark it `WINDOWS_UNCONTAINED` and pin it
+   in `scripts/verify_test_network_isolation.py` with the measured cause. This
+   is the smallest change. The cost is that the canary's launch courses no
+   longer run under the Windows network boundary.
+2. **Keep the row contained, and move the durable course.** Move
+   `test_durable_private_input_crosses_only_after_admission` into its own
+   executable and row, and uncontain only that row. The launch courses keep
+   their boundary. The cost is a new row and a split source.
+
+## Acceptance
+
+- The owner's choice is recorded on this card.
+- `qt_agent_launch_canary` passes on Windows, and the durable course runs
+  somewhere on Windows.
+- `test_network_isolation_manifest` names no row this card changes.

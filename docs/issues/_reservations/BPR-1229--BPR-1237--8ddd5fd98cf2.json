@@ -1,0 +1,18 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1229",
+    "BPR-1230",
+    "BPR-1231",
+    "BPR-1232",
+    "BPR-1233",
+    "BPR-1234",
+    "BPR-1235",
+    "BPR-1236",
+    "BPR-1237"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows station failures found 2026-09-29 at 22d18416..46725457",
+  "created": "2026-09-30T00:19:54.340259+00:00",
+  "base": "6533bd11fd565211fcf64f8da6311f328c8cf850"
+}
