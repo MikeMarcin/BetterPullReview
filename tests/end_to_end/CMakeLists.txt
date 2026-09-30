@@ -3075,12 +3075,17 @@ target_compile_definitions(test_profile_activation_public_path PRIVATE BPR_BUILD
 target_compile_features(test_profile_activation_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_activation_public_path)
 bpr_enable_warnings(test_profile_activation_public_path)
+# [[BPR-1234]]. Without `app_bpr` the pair is absent, not two empty arguments,
+# which the script refuses.
+set(bpr_activation_tour_arguments "")
+if(TARGET app_bpr)
+    set(bpr_activation_tour_arguments --tour-application $<TARGET_FILE:app_bpr>)
+endif()
 bpr_add_network_isolated_test(NAME application_profile_activation_public_path WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_activation_contract.py"
     --application $<TARGET_FILE:test_profile_activation_public_path>
     --desktop-application $<TARGET_FILE:app_better_pull_review>
-    $<$<TARGET_EXISTS:app_bpr>:--tour-application>
-    $<$<TARGET_EXISTS:app_bpr>:$<TARGET_FILE:app_bpr>>)
+    ${bpr_activation_tour_arguments})
 set_tests_properties(application_profile_activation_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 260)
 target_link_libraries(test_profile_owner_admission_public_path PRIVATE BetterPullReview::Composition)
