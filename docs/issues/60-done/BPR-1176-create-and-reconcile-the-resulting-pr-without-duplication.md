@@ -105,3 +105,21 @@ share of RC59-10 is not started.
 
 Owed, not gating: the same driver on the Linux and Windows stations with a
 `gh` sign-in that can push to BPR-Test (command in the ledger).
+
+## Windows RC59-10 live run: owed (bpr-main-win, 2026-09-30)
+
+Not run. The coordinator relayed the owner's designation of
+`MikeMarcin/BPR-Test`. But this station's session was started with "no remote
+GitHub mutations", and it takes live mutations only on its own operator's
+direct word. So the Windows live course on `MikeMarcin/BPR-Test`, with the
+`.exe` tool and Git for Windows as
+[live target qualification](../../verification/live-target-qualification-2026-09-30.md)
+describes, is still owed. The macOS run at `4ce2d0529` is unaffected.
+
+The Windows prerequisites the course relies on were checked earlier on this
+station. They are recorded above:
+
+- `review_cycle_publisher` and `review_cycle_publication` pass.
+- `git_process_contract` and `github_publication_contract` pass.
+- The `;` alternates separator is right.
+- The publication rows' uncontained pins are measured.
