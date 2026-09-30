@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1251"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows: document tab strip and title row layout under Windows metrics",
+  "created": "2026-09-30T08:56:28.275501+00:00",
+  "base": "69493e23593e2e5b9728192f6784d755b731e8bb"
+}
