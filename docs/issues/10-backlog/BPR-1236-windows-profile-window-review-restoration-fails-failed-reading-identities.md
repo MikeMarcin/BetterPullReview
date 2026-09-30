@@ -89,3 +89,13 @@ The logs are station records in `build/logs/bpr-station-stabilization/` and are 
 macOS 26 (Darwin 25.6) arm64, Apple clang, Qt 6.11.2 offscreen, `build/dev` (Debug, `-Werror`) at `69493e235`, which contains the Windows fix.
 
 `application_profile_window_review_restoration_public_path` **passes** on macOS through `ctest`, 615.46 s (run beside five other rows). So the failure reproduces on Windows (4 of 4) and Linux (1 of 1) but not in this one Mac run. Nothing was changed; the owner's question above stands. Whether the Mac differs by timing (the Mac run is ten times slower than Linux's under load) or by platform was not investigated here.
+
+### macOS again, at `f79d5a97d` (red-test backlog integration pass)
+
+The row **fails** on macOS twice at `f79d5a97d`: in the full `-j 8` run
+(631 s) and alone (456 s). Alone it reports `unavailable-file failed (1)`, then
+`FAILED: failed reading restoration preserves exact recorded identities and
+sibling`, the same final check as Windows and Linux. So macOS passed 1 of 3
+runs, and the failure is shared by all three platforms. Whether the single Mac
+pass at `69493e235` came from timing or from the revision was not investigated.
+Nothing was changed; the owner's question above stands.
