@@ -510,7 +510,12 @@ namespace bpr::application {
 		if (aLog.size() > release_diagnostic_input_limit || aCapture.Recent.size() > 512U) {
 			return std::unexpected(reason::limit_exceeded);
 		}
-		export_builder builder{ .Document = { { .Revision = aRevision, .Options = aOptions }, { } }, .Namespace = std::string{ aNamespace } };
+		// Filled member by member: GCC 15 at -O3 reads the nested designated
+		// aggregate as leaving the document's strings uninitialized.
+		export_builder builder{ };
+		builder.Document.Descriptor.Revision = aRevision;
+		builder.Document.Descriptor.Options  = aOptions;
+		builder.Namespace                    = std::string{ aNamespace };
 		if (!builder.collect(aLog, false, aCapture)) {
 			return std::unexpected(reason::limit_exceeded);
 		}

@@ -481,7 +481,12 @@ namespace bpr::adapters::sqlite::detail {
 				current.NoteRevision = scopes.integer(1);
 				auto notes           = db.sql("SELECT note_id,file_identity,comparison_id,note_text,revision FROM local_note WHERE scope_id=?1 ORDER BY note_id", db.Scope);
 				while (notes.row()) {
-					local_note_record note{ .Id = local_note_id{ notes.integer(0) }, .Note = { .Text = notes.text(3) }, .Revision = local_note_revision{ notes.integer(4) } };
+					// Filled member by member: GCC 15 at -O3 reads the designated
+					// aggregate as leaving the note's text uninitialized.
+					local_note_record note{ };
+					note.Id        = local_note_id{ notes.integer(0) };
+					note.Note.Text = notes.text(3);
+					note.Revision  = local_note_revision{ notes.integer(4) };
 					if (!notes.null(1)) {
 						note.Attachment = local_note_attachment{ notes.digest<file_identity>(1), notes.digest<file_comparison_digest>(2) };
 					}

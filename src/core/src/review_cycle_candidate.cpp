@@ -119,7 +119,12 @@ namespace bpr::core {
 		if (aRequest.Requirements.SigningRequired) {
 			return refuse(candidate_limit::signing_required);
 		}
-		auto candidate = publication_candidate{ .Format = aPlan.BaseCommit.algorithm(), .Parent = aPlan.BaseCommit, .Entries = aPlan.Candidate };
+		// Filled member by member: GCC 15 at -O3 reads the designated
+		// aggregate as leaving Content's strings uninitialized.
+		auto candidate    = publication_candidate{ };
+		candidate.Format  = aPlan.BaseCommit.algorithm();
+		candidate.Parent  = aPlan.BaseCommit;
+		candidate.Entries = aPlan.Candidate;
 		if (!changes(aPlan, candidate.Blobs, candidate.Deleted)) {
 			return refuse(candidate_limit::no_change);
 		}

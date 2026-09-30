@@ -72,7 +72,9 @@ namespace bpr::adapters::mcp {
 		inline auto write_terminal_record(void* aContext) -> void*
 		{
 			auto& write = *static_cast<terminal_write*>(aContext);
-			static_cast<void>(::write(STDERR_FILENO, write.Text.data(), write.Text.size()));
+			// A diagnostic write never retries; GCC does not let a void cast
+			// discard glibc's warn_unused_result under _FORTIFY_SOURCE.
+			[[maybe_unused]] const auto written = ::write(STDERR_FILENO, write.Text.data(), write.Text.size());
 			write.Complete.store(true, std::memory_order_release);
 			return nullptr;
 		}

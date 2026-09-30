@@ -41,7 +41,10 @@ namespace bpr::core {
 			return std::unexpected{ cycle_refusal::missing_source };
 		}
 
-		auto disclosed = cycle_disclosed_feedback{ .Item = aThread.Id, .Primary = aThread.Primary };
+		// Primary is assigned, not designated: GCC 15 at -O3 reports the
+		// variant copy inside the aggregate as reading uninitialized strings.
+		auto disclosed    = cycle_disclosed_feedback{ .Item = aThread.Id };
+		disclosed.Primary = aThread.Primary;
 		for (std::size_t index = 0; index < aThread.Related.size(); ++index) {
 			const auto& reference = aThread.Related[index];
 			if (reference.Disclosure == cycle_reference_disclosure::included
