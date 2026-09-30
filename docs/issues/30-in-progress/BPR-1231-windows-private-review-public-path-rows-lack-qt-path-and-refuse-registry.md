@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1231"
 title: "Windows: application_private_review_native, _file and _retry cannot start the application (no Qt PATH), then refuse startup at the registry"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
