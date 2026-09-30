@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1232"
 title: "Windows: qt_markdown_body rows fail contained because their QTemporaryDir denies the AppContainer, and leave it behind"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
