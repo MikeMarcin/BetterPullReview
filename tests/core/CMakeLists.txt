@@ -667,6 +667,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_tabs_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_tabs_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_tabs COMMAND test_better_pull_review_review_cycle_tabs_tests)
 
+# [[BPR-1163]]. Named comparison views, reviewer checkpoints, pinned tabs and revision chronologies.
+bpr_add_executable(test_better_pull_review_review_cycle_views_tests review_cycle_views_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_views_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_views_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_views_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_views COMMAND test_better_pull_review_review_cycle_views_tests)
+
 # [[BPR-1158]]. Canonical round payloads, the pack's golden round and assembly.
 bpr_add_executable(test_better_pull_review_review_cycle_round_tests review_cycle_round_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE BetterPullReview::Core)

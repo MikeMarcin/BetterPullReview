@@ -12,6 +12,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -19,6 +20,7 @@
 #include <QTextCursor>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -178,6 +180,34 @@ try {
 	expect(window.showing_local_cycle() && identity_text(window).contains(QStringLiteral("Local cycle")) && page->notes()->count() == 2, "and back to the cycle");
 
 	expect(snapshot(project) == before, "the chosen folder was only read");
+
+	// BPR-1163: someone edits the folder with ordinary tools and sends nothing
+	// back; Capture revision is the reviewer's way back, with no callback.
+	emit page->files()->itemActivated(page->files()->item(1));
+	settle(lanes);
+	write_file(project / "src" / "parser.cpp", "int parse(const char* aText)\r\n{\r\n\treturn aText ? check(aText) : 0;\r\n}\r\n");
+	expect(page->capture_action()->isEnabled() && page->projection().Revisions.size() == 1U, "Capture revision offered; nothing captured by itself");
+	page->capture_action()->trigger();
+	settle(lanes);
+	expect(page->projection().Revisions.size() == 2U && page->projection().Source && page->projection().Source->Revision == core::cycle_source_revision_id{ 1 }, "R1 captured; the open tab keeps R0");
+	expect(page->refresh_action()->isVisible(), "newer material is offered, not shown by itself");
+	auto* const menu = page->view_button()->menu();
+	emit        menu->aboutToShow();
+	const auto  actions = menu->actions();
+	const auto  all     = std::ranges::find_if(actions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("All cycle changes"); });
+	expect(all != actions.end() && (*all)->isEnabled(), "All cycle changes in the view chooser");
+	(*all)->trigger();
+	settle(lanes);
+	expect(page->projection().Comparison && page->comparison()->isVisible() && page->comparison()->toPlainText().contains(QStringLiteral("+ \treturn aText ? check(aText) : 0;")),
+		   "the comparison pane shows the shared engine's rows");
+	expect(page->findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("All cycle changes · R1 → R2"), "the review bar names the view and its pair");
+	page->mark_reviewed_action()->trigger();
+	settle(lanes);
+	expect(page->projection().Facts.LastReview && page->projection().Facts.LastReview->Revision == core::cycle_source_revision_id{ 2 }, "reviewed through R1");
+	page->capture_action()->trigger();
+	settle(lanes);
+	expect(page->projection().Revisions.size() == 2U && page->updates_line()->text().contains(QStringLiteral("No change since R2")), "an unchanged capture says so");
+	capture(window, QStringLiteral("desktop-cycle-compare"));
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");

@@ -6,6 +6,7 @@
 #include "bpr/core/review_cycle_import.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
+#include "bpr/core/review_cycle_views.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -331,6 +332,14 @@ namespace bpr::application {
 		virtual auto fork_import(const cycle_operation_id& aOperation, core::cycle_import_id aImport, const core::local_cycle_subject& aSubject, std::uint64_t aExpectedRevision,
 								 const std::vector<std::pair<std::string, core::begin_cycle_feedback>>& aNotes, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
 		virtual auto import_forks(core::cycle_import_id aImport, std::stop_token aStop) -> cycle_store_result<std::vector<stored_import_fork>>                                    = 0;
+
+		/// \brief Records the reviewer's explicit review checkpoint
+		/// (BPR-1163): "reviewed through this captured revision". Marking the
+		/// revision the latest checkpoint names changes nothing. `Allocated`
+		/// is the checkpoint's ordinal. Checkpoints are append-only.
+		virtual auto mark_reviewed(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, core::cycle_source_revision_id aRevision, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt>                                                                                                                 = 0;
+		virtual auto last_review(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_review_checkpoint>> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

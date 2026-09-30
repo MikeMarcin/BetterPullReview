@@ -59,6 +59,22 @@ namespace bpr::application {
 		/// \brief Links another location to a note; the note's own location stays.
 		void relate(const core::cycle_feedback_item_ref& aItem, std::uint64_t aVersion, core::cycle_related_reference aReference);
 
+		/// \brief Capture revision (BPR-1163): reads the bound folder now, on
+		/// the reviewer's gesture only. Identical bytes record nothing unless
+		/// `aDeliberate` asks for another observation. Open tabs keep their
+		/// revisions; new tabs take the new capture.
+		void capture_revision(bool aDeliberate = false);
+		/// \brief Shows a named comparison of the active tab's file.
+		void compare(const core::cycle_view_request& aRequest);
+		/// \brief Returns the active tab to full source.
+		void full_source();
+		/// \brief The explicit refresh: a semantic view re-resolves, full
+		/// source moves to the latest capture; a chosen pair never moves.
+		void refresh_view();
+		/// \brief Marks the active tab's right revision (or the latest capture)
+		/// as reviewed: the checkpoint "Since my last review" starts from.
+		void mark_reviewed();
+
 		[[nodiscard]] auto projection() const noexcept -> const review_cycle_workbench_projection&;
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;
 		void               shutdown();

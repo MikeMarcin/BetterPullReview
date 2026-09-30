@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <functional>
 #include <iterator>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -49,6 +50,23 @@ namespace bpr::application {
 			return { };
 		}
 
+		auto view_words(const core::cycle_view_problem aProblem) -> std::string
+		{
+			switch (aProblem) {
+			case core::cycle_view_problem::uncaptured:           return "Nothing is captured yet.";
+			case core::cycle_view_problem::unknown_revision:     return "That revision was never captured here; nothing else is shown in its place.";
+			case core::cycle_view_problem::no_review_checkpoint: return "No review is marked yet. Mark reviewed to compare since it.";
+			case core::cycle_view_problem::unknown_round:        return "That is not a frozen round of this cycle.";
+			}
+			return { };
+		}
+
+		auto revision_name(const core::cycle_source_revision_id aRevision) -> std::string
+		{
+			// The name the surface and the round's wire form use.
+			return "R" + std::to_string(aRevision.value());
+		}
+
 		/// An intelligible default title: the chosen folder's or file's name.
 		auto default_title(const std::string& aLocation) -> std::string
 		{
@@ -89,6 +107,8 @@ namespace bpr::application {
 		std::uint64_t Generation = 0;
 		std::uint64_t SourceLoad = 0;
 		bool          Closing    = false;
+		/// After a capture, new tabs take the new revision once the reload completes.
+		bool AdvanceNewTabs = false;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -249,17 +269,25 @@ namespace bpr::application {
 			Runtime.select(aSubject);
 		}
 
-		void capture()
+		void capture(const bool aDeliberate = false)
 		{
 			View.Activity = review_cycle_activity::capturing;
+			View.Notice.clear();
 			publish();
-			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision };
+			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision, .Deliberate = aDeliberate };
 			Runtime.capture_workspace(Source, std::move(request), guarded<cycle_capture_outcome>([](implementation& aSelf, cycle_capture_outcome aOutcome) {
 										  if (aOutcome.Status != cycle_capture_status::captured) {
 											  aSelf.fail(capture_words(aOutcome));
 											  return;
 										  }
-										  aSelf.View.Quality = aOutcome.Diagnostics.Explanation;
+										  aSelf.View.Message.clear();
+										  if (aOutcome.Receipt && !aOutcome.Receipt->Changed && aSelf.Cycle && aSelf.Cycle->Latest) {
+											  // Identical bytes: no revision, and the reviewer is told so.
+											  aSelf.View.Notice = "No change since " + revision_name(aSelf.Cycle->Latest->Id.Id) + "; nothing new was recorded.";
+										  } else {
+											  aSelf.View.Quality   = aOutcome.Diagnostics.Explanation;
+											  aSelf.AdvanceNewTabs = true;
+										  }
 										  aSelf.load(false);
 									  }));
 		}
@@ -327,6 +355,31 @@ namespace bpr::application {
 										 }
 										 aSelf.View.FilesTruncated = full && aPage.Page->Next.has_value();
 										 aSelf.View.Files          = std::move(found);
+										 aSelf.load_facts();
+									 }));
+		}
+
+		/// The reviewer's checkpoint and the rounds' bound revisions, then the history.
+		void load_facts()
+		{
+			Runtime.view_facts_selected(guarded<core::cycle_view_facts>([](implementation& aSelf, core::cycle_view_facts aFacts) {
+				aSelf.View.Facts = std::move(aFacts);
+				aSelf.load_history(std::nullopt, { });
+			}));
+		}
+
+		static constexpr std::size_t maximum_history_entries = 256U;
+
+		void load_history(const std::optional<core::cycle_source_revision_id> aAfter, core::cycle_history aFound)
+		{
+			Runtime.history_selected(aAfter, maximum_cycle_history_page, guarded<cycle_history_page>([found = std::move(aFound)](implementation& aSelf, cycle_history_page aPage) mutable {
+										 std::ranges::move(aPage.History.Entries, std::back_inserter(found.Entries));
+										 found.Unlisted += aPage.History.Unlisted;
+										 if (aPage.Next && found.Entries.size() < maximum_history_entries) {
+											 aSelf.load_history(aPage.Next, std::move(found));
+											 return;
+										 }
+										 aSelf.View.History = std::move(found);
 										 aSelf.load_tabs();
 									 }));
 		}
@@ -338,8 +391,13 @@ namespace bpr::application {
 				if (aRecord) {
 					restored = core::restore(aSelf.Tabs, *aSelf.Cycle, *aRecord).Reason == core::document_tab_reason::none;
 				}
-				if (!restored || !aSelf.Tabs.Revision) {
+				if (!restored || !aSelf.Tabs.Revision || aSelf.AdvanceNewTabs) {
+					// Open tabs keep their revisions; only new tabs take the new capture.
 					aSelf.Tabs.Revision = aSelf.Cycle->Latest->Id.Id;
+					if (aSelf.AdvanceNewTabs) {
+						aSelf.AdvanceNewTabs = false;
+						aSelf.save_tabs();
+					}
 				}
 				// Full source first: the first readable file opens in one pane.
 				if (aSelf.Tabs.Tabs.empty()) {
@@ -358,8 +416,18 @@ namespace bpr::application {
 
 		void publish_tabs()
 		{
-			View.Tabs      = Tabs.Tabs;
-			View.ActiveTab = Tabs.Active;
+			View.Tabs           = Tabs.Tabs;
+			View.ActiveTab      = Tabs.Active;
+			View.NewerAvailable = false;
+			const auto* tab     = core::active_tab(Tabs);
+			if (tab == nullptr || !Cycle || !Cycle->Latest) {
+				return;
+			}
+			if (tab->View.Comparison) {
+				View.NewerAvailable = core::view_newer_available(*Cycle, View.Facts, tab->View.Comparison->Request, core::shown_pair(*Subject, tab->View));
+			} else {
+				View.NewerAvailable = tab->View.Revision != Cycle->Latest->Id.Id;
+			}
 		}
 
 		void save_tabs()
@@ -378,12 +446,17 @@ namespace bpr::application {
 			}
 			const auto request = ++SourceLoad;
 			const auto view    = *tab;
-			const auto pair    = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = { .Cycle = Subject->Cycle, .Id = view.View.Revision } };
+			if (view.View.Comparison) {
+				load_comparison(request, view);
+				return;
+			}
+			const auto pair = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = { .Cycle = Subject->Cycle, .Id = view.View.Revision } };
 			Runtime.compare_file_selected(pair, view.View.Path, { }, guarded<cycle_file_observation>([request, view](implementation& aSelf, cycle_file_observation aFile) {
 											  // A newer tab gesture's load wins; this one is dropped.
 											  if (request != aSelf.SourceLoad) {
 												  return;
 											  }
+											  aSelf.View.Comparison.reset();
 											  aSelf.View.Source = review_cycle_source_view{
 												  .Tab      = view.Id,
 												  .Revision = view.View.Revision,
@@ -395,6 +468,34 @@ namespace bpr::application {
 											  };
 											  aSelf.View.Activity = review_cycle_activity::idle;
 											  aSelf.observe_notes();
+											  aSelf.publish();
+										  }));
+		}
+
+		/// The active tab's comparison of its file through the shared engine.
+		void load_comparison(const std::uint64_t aRequest, const core::cycle_tab aTab)
+		{
+			const auto pair = core::shown_pair(*Subject, aTab.View);
+			Runtime.compare_file_selected(pair, aTab.View.Path, { }, guarded<cycle_file_observation>([aRequest, aTab, pair](implementation& aSelf, cycle_file_observation aFile) {
+											  if (aRequest != aSelf.SourceLoad) {
+												  return;
+											  }
+											  auto shown = review_cycle_comparison_view{
+												  .Tab     = aTab.Id,
+												  .Request = aTab.View.Comparison->Request,
+												  .Pair    = pair,
+												  .Path    = aTab.View.Path,
+												  .Pinned  = core::pinned(aTab.View.Comparison->Request),
+												  .Status  = aFile.Status,
+												  .File    = std::move(aFile.Path),
+												  .Reason  = aFile.Reason,
+											  };
+											  if (aFile.Diff) {
+												  shown.Rows = core::diff_rows(*aFile.Diff);
+											  }
+											  aSelf.View.Source.reset();
+											  aSelf.View.Comparison = std::move(shown);
+											  aSelf.View.Activity   = review_cycle_activity::idle;
 											  aSelf.publish();
 										  }));
 		}
@@ -641,6 +742,85 @@ namespace bpr::application {
 												  aSelf.View.Message.clear();
 												  aSelf.load_notes();
 											  }));
+	}
+
+	void review_cycle_workbench::capture_revision(const bool aDeliberate)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle) {
+			return;
+		}
+		if (!self.Cycle->Workspace) {
+			self.fail("The cycle has no folder to capture.");
+			return;
+		}
+		self.capture(aDeliberate);
+	}
+
+	void review_cycle_workbench::compare(const core::cycle_view_request& aRequest)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || core::active_tab(self.Tabs) == nullptr) {
+			return;
+		}
+		const auto resolved = core::resolve_view(*self.Cycle, self.View.Facts, aRequest);
+		if (!resolved) {
+			self.fail(view_words(resolved.error()));
+			return;
+		}
+		self.View.Message.clear();
+		self.tab_changed(core::show_comparison(self.Tabs, aRequest, *resolved));
+	}
+
+	void review_cycle_workbench::full_source()
+	{
+		auto& self = *Implementation;
+		if (self.Cycle) {
+			self.tab_changed(core::show_full_source(self.Tabs));
+		}
+	}
+
+	void review_cycle_workbench::refresh_view()
+	{
+		auto&       self = *Implementation;
+		const auto* tab  = core::active_tab(self.Tabs);
+		if (!self.Cycle || !self.Cycle->Latest || tab == nullptr) {
+			return;
+		}
+		auto pair = std::optional<core::cycle_comparison_pair>{ };
+		if (tab->View.Comparison) {
+			if (core::pinned(tab->View.Comparison->Request)) {
+				self.fail("Chosen revisions never move. Choose revisions again to see the newer capture.");
+				return;
+			}
+			const auto resolved = core::resolve_view(*self.Cycle, self.View.Facts, tab->View.Comparison->Request);
+			if (!resolved) {
+				self.fail(view_words(resolved.error()));
+				return;
+			}
+			pair = *resolved;
+		}
+		self.View.Message.clear();
+		self.tab_changed(core::refresh_active(self.Tabs, pair, self.Cycle->Latest->Id.Id));
+	}
+
+	void review_cycle_workbench::mark_reviewed()
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || !self.Cycle->Latest) {
+			return;
+		}
+		const auto* tab      = core::active_tab(self.Tabs);
+		const auto  revision = tab != nullptr ? tab->View.Revision : self.Cycle->Latest->Id.Id;
+		self.View.Activity   = review_cycle_activity::saving;
+		self.publish();
+		self.Runtime.mark_reviewed_selected(self.operation(), revision, self.guarded<cycle_write_receipt>([revision](implementation& aSelf, cycle_write_receipt aReceipt) {
+			aSelf.View.Facts.LastReview = core::cycle_review_checkpoint{ .Ordinal = aReceipt.Allocated, .Revision = revision };
+			aSelf.View.Activity         = review_cycle_activity::idle;
+			aSelf.View.Message.clear();
+			aSelf.publish_tabs();
+			aSelf.publish();
+		}));
 	}
 
 	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&

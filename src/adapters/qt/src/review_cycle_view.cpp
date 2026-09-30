@@ -4,6 +4,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QColor>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -87,6 +88,52 @@ namespace bpr::qt {
 			return aSpan.First == aSpan.Last ? QStringLiteral("line %1").arg(aSpan.First) : QStringLiteral("lines %1–%2").arg(aSpan.First).arg(aSpan.Last);
 		}
 
+		auto pair_text(const core::cycle_comparison_pair& aPair) -> QString
+		{
+			return aPair.Left ? QStringLiteral("%1 → %2").arg(revision_text(aPair.Left->Id), revision_text(aPair.Right.Id)) : revision_text(aPair.Right.Id);
+		}
+
+		/// What the reviewer asked for, in the words the view chooser uses.
+		auto request_text(const core::cycle_view_request& aRequest) -> QString
+		{
+			if (const auto* round = std::get_if<core::this_round_request>(&aRequest)) {
+				return QStringLiteral("This round · F%1").arg(round->Round.value());
+			}
+			if (std::holds_alternative<core::since_last_review_request>(aRequest)) {
+				return QStringLiteral("Since my last review");
+			}
+			if (std::holds_alternative<core::all_cycle_request>(aRequest)) {
+				return QStringLiteral("All cycle changes");
+			}
+			return QStringLiteral("Chosen revisions");
+		}
+
+		auto step_text(const core::cycle_history_entry& aEntry) -> QString
+		{
+			auto parts = QStringList{ };
+			switch (aEntry.Step) {
+			case core::cycle_revision_step::initial:
+			case core::cycle_revision_step::same_head:
+			case core::cycle_revision_step::no_repository:     break;
+			case core::cycle_revision_step::head_moved:        parts.append(QStringLiteral("head moved; commits between not captured")); break;
+			case core::cycle_revision_step::branch_changed:    parts.append(aEntry.HeadReference ? QStringLiteral("other branch %1").arg(text_of(*aEntry.HeadReference).section(QLatin1Char('/'), 2)) : QStringLiteral("detached head")); break;
+			case core::cycle_revision_step::previous_unlisted: parts.append(QStringLiteral("capture before it not listed")); break;
+			}
+			if (aEntry.SameMaterial) {
+				parts.append(QStringLiteral("same bytes"));
+			}
+			if (aEntry.ParentGap) {
+				parts.append(QStringLiteral("recorded parent %1").arg(aEntry.Parent ? revision_text(*aEntry.Parent) : QStringLiteral("none")));
+			}
+			for (const auto& imported : aEntry.Imported) {
+				parts.append(QStringLiteral("%1 of %2/%3").arg(text_of(imported.ForeignRevision), text_of(imported.ForeignCycle), text_of(imported.ForeignRound)));
+			}
+			if (aEntry.Coverage == core::cycle_capture_coverage::partial) {
+				parts.append(QStringLiteral("partial"));
+			}
+			return parts.isEmpty() ? revision_text(aEntry.Revision) : QStringLiteral("%1 (%2)").arg(revision_text(aEntry.Revision), parts.join(QStringLiteral("; ")));
+		}
+
 		auto ending_size(const core::text_line_ending aEnding) -> std::uint64_t
 		{
 			switch (aEnding) {
@@ -126,6 +173,22 @@ namespace bpr::qt {
 		RevisionLabel->setAccessibleName(QStringLiteral("Shown revision"));
 		RevisionLabel->setContentsMargins(6, 0, 6, 0);
 		ReviewBar->addWidget(RevisionLabel);
+		// BPR-1163: which material the active tab shows, chosen here.
+		ViewButton = new QToolButton{ ReviewBar };
+		ViewButton->setObjectName(QStringLiteral("cycleViewButton"));
+		ViewButton->setText(QStringLiteral("View"));
+		ViewButton->setAccessibleName(QStringLiteral("Choose what to compare"));
+		ViewButton->setToolTip(QStringLiteral("Full source, this round, since my last review, all cycle changes or chosen revisions"));
+		ViewButton->setPopupMode(QToolButton::InstantPopup);
+		ViewButton->setAutoRaise(true);
+		ViewMenu = new QMenu{ ViewButton };
+		ViewMenu->setObjectName(QStringLiteral("cycleViewMenu"));
+		ViewButton->setMenu(ViewMenu);
+		ReviewBar->addWidget(ViewButton);
+		RefreshAction = new QAction{ QStringLiteral("Show newer"), this };
+		RefreshAction->setObjectName(QStringLiteral("cycleRefreshAction"));
+		RefreshAction->setToolTip(QStringLiteral("A newer capture exists; move this view to it"));
+		ReviewBar->addAction(RefreshAction);
 		ReviewBar->addWidget(new strip_divider{ ReviewBar });
 		PreviousFile = new QAction{ strip_icon(strip_glyph::previous_file, palette()), QStringLiteral("Previous file"), this };
 		PreviousFile->setObjectName(QStringLiteral("cyclePreviousFile"));
@@ -140,6 +203,23 @@ namespace bpr::qt {
 		auto* const spacer = new QWidget{ ReviewBar };
 		spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		ReviewBar->addWidget(spacer);
+		// Capture revision: the independent way back after someone else worked.
+		CaptureAction = new QAction{ QStringLiteral("Capture revision"), this };
+		CaptureAction->setObjectName(QStringLiteral("cycleCaptureAction"));
+		CaptureAction->setToolTip(QStringLiteral("Read the project folder now and keep its bytes as the next revision"));
+		CaptureAgain = new QAction{ QStringLiteral("Record another observation of the same bytes"), this };
+		CaptureAgain->setObjectName(QStringLiteral("cycleCaptureAgain"));
+		auto* const captureMenu = new QMenu{ this };
+		captureMenu->addAction(CaptureAgain);
+		CaptureAction->setMenu(captureMenu);
+		ReviewBar->addAction(CaptureAction);
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CaptureAction))) {
+			button->setPopupMode(QToolButton::MenuButtonPopup);
+		}
+		MarkReviewed = new QAction{ QStringLiteral("Mark reviewed"), this };
+		MarkReviewed->setObjectName(QStringLiteral("cycleMarkReviewed"));
+		MarkReviewed->setToolTip(QStringLiteral("Record that you reviewed through the revision shown; \"Since my last review\" starts here"));
+		ReviewBar->addAction(MarkReviewed);
 		CommentAction = new QAction{ strip_icon(strip_glyph::comment, palette()), QStringLiteral("Comment"), this };
 		CommentAction->setObjectName(QStringLiteral("cycleCommentAction"));
 		CommentAction->setToolTip(QStringLiteral("Comment on the selection, or on the file when nothing is selected"));
@@ -203,8 +283,15 @@ namespace bpr::qt {
 		SourceNotice->setAlignment(Qt::AlignCenter);
 		SourceNotice->setWordWrap(true);
 		SourceNotice->setTextFormat(Qt::PlainText);
+		Comparison = new QPlainTextEdit{ Centre };
+		Comparison->setObjectName(QStringLiteral("cycleComparison"));
+		Comparison->setAccessibleName(QStringLiteral("Comparison"));
+		Comparison->setReadOnly(true);
+		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
+		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
+		Centre->addWidget(Comparison);
 
 		auto* const tray       = new QWidget{ Body };
 		auto* const trayColumn = new QVBoxLayout{ tray };
@@ -280,6 +367,27 @@ namespace bpr::qt {
 		connect(NotesToggle, &QAction::toggled, tray, &QWidget::setVisible);
 		connect(PreviousFile, &QAction::triggered, this, [this] { step_file(-1); });
 		connect(NextFile, &QAction::triggered, this, [this] { step_file(1); });
+		connect(CaptureAction, &QAction::triggered, this, [this] {
+			if (Dispatch.Capture) {
+				Dispatch.Capture(false);
+			}
+		});
+		connect(CaptureAgain, &QAction::triggered, this, [this] {
+			if (Dispatch.Capture) {
+				Dispatch.Capture(true);
+			}
+		});
+		connect(MarkReviewed, &QAction::triggered, this, [this] {
+			if (Dispatch.MarkReviewed) {
+				Dispatch.MarkReviewed();
+			}
+		});
+		connect(RefreshAction, &QAction::triggered, this, [this] {
+			if (Dispatch.Refresh) {
+				Dispatch.Refresh();
+			}
+		});
+		connect(ViewMenu, &QMenu::aboutToShow, this, [this] { rebuild_view_menu(); });
 		connect(CommentAction, &QAction::triggered, this, [this] { begin_comment(); });
 		connect(SuggestAction, &QAction::triggered, this, [this] { begin_suggestion(); });
 		connect(cycleNote, &QToolButton::clicked, this, [this] {
@@ -365,8 +473,11 @@ namespace bpr::qt {
 
 	void review_cycle_view::set_code_font(const QFont& aFont)
 	{
+		const auto tab = QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width;
 		Source->setFont(aFont);
-		Source->setTabStopDistance(QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width);
+		Source->setTabStopDistance(tab);
+		Comparison->setFont(aFont);
+		Comparison->setTabStopDistance(tab);
 		Composer->set_code_font(aFont);
 	}
 
@@ -378,14 +489,23 @@ namespace bpr::qt {
 
 		// The review bar and the Updates line.
 		const auto latest = Projection.Revisions.empty() ? std::nullopt : std::optional{ Projection.Revisions.back() };
-		if (Projection.Source) {
+		if (Projection.Comparison) {
+			const auto& shown = *Projection.Comparison;
+			RevisionLabel->setText(QStringLiteral("%1 · %2%3").arg(request_text(shown.Request), pair_text(shown.Pair), shown.Pinned ? QStringLiteral(" (pinned)") : QString{ }));
+		} else if (Projection.Source) {
 			RevisionLabel->setText(QStringLiteral("Full source · %1").arg(revision_text(Projection.Source->Revision)));
 		} else {
 			RevisionLabel->setText(latest ? QStringLiteral("Full source · %1").arg(revision_text(*latest)) : QStringLiteral("Not captured yet"));
 		}
 		auto updates = QStringList{ };
-		for (const auto revision : Projection.Revisions) {
-			updates.append(revision_text(revision));
+		if (Projection.History && !Projection.History->Entries.empty()) {
+			for (const auto& entry : Projection.History->Entries) {
+				updates.append(step_text(entry));
+			}
+		} else {
+			for (const auto revision : Projection.Revisions) {
+				updates.append(revision_text(revision));
+			}
 		}
 		auto line = updates.isEmpty() ? QStringLiteral("No revision captured") : QStringLiteral("Captured: %1").arg(updates.join(QStringLiteral(", ")));
 		line += QStringLiteral(" · %1 files").arg(Projection.Files.size());
@@ -398,10 +518,17 @@ namespace bpr::qt {
 		} else {
 			UpdatesToggle->set_history_marked(false);
 		}
+		if (Projection.Facts.LastReview) {
+			line += QStringLiteral(" · reviewed through %1").arg(revision_text(Projection.Facts.LastReview->Revision));
+		}
+		if (!Projection.Notice.empty()) {
+			line += QStringLiteral(" · ") + text_of(Projection.Notice);
+		}
 		if (!Projection.Message.empty()) {
 			line += QStringLiteral(" · ") + text_of(Projection.Message);
 		}
 		UpdatesLine->setText(line);
+		RefreshAction->setVisible(Projection.NewerAvailable && !(Projection.Comparison && Projection.Comparison->Pinned));
 
 		// The files drawer, rebuilt only when the list changed.
 		if (previous.Files != Projection.Files) {
@@ -415,16 +542,18 @@ namespace bpr::qt {
 		// Tabs: a tab on an older revision than the latest names it in its pill.
 		auto tabs = std::vector<document_tab_presentation>{ };
 		for (const auto& tab : Projection.Tabs) {
-			const auto path = text_of(tab.View.Path);
-			const auto own  = latest && tab.View.Revision != *latest;
+			const auto path     = text_of(tab.View.Path);
+			const auto compared = tab.View.Comparison.has_value();
+			const auto own      = compared || (latest && tab.View.Revision != *latest);
+			const auto pair     = compared ? QStringLiteral("%1→%2").arg(revision_text(tab.View.Comparison->Left), revision_text(tab.View.Revision)) : revision_text(tab.View.Revision);
+			const auto ready    = (Projection.Source && Projection.Source->Tab == tab.Id) || (Projection.Comparison && Projection.Comparison->Tab == tab.Id);
 			tabs.push_back({
 				.Id            = tab.Id,
 				.Name          = path.section(QLatin1Char('/'), -1),
 				.Path          = path,
-				.OwnPair       = own ? revision_text(tab.View.Revision) : QString{ },
-				.Pair          = revision_text(tab.View.Revision),
-				.State         = Projection.ActiveTab == tab.Id ? (Projection.Source && Projection.Source->Tab == tab.Id ? core::document_tab_view_state::ready : core::document_tab_view_state::loading)
-																: core::document_tab_view_state::idle,
+				.OwnPair       = own ? pair : QString{ },
+				.Pair          = pair,
+				.State         = Projection.ActiveTab == tab.Id ? (ready ? core::document_tab_view_state::ready : core::document_tab_view_state::loading) : core::document_tab_view_state::idle,
 				.Active        = Projection.ActiveTab == tab.Id,
 				.OwnComparison = own,
 			});
@@ -435,7 +564,9 @@ namespace bpr::qt {
 		const auto& source  = Projection.Source;
 		const auto  changed = !previous.Source || !source || previous.Source->Tab != source->Tab || previous.Source->Revision != source->Revision
 			|| previous.Source->Path != source->Path || previous.Source->Bytes != source->Bytes;
-		if (!source) {
+		if (Projection.Comparison) {
+			present_comparison(*Projection.Comparison, !previous.Comparison || *previous.Comparison != *Projection.Comparison);
+		} else if (!source) {
 			SourceNotice->setText(Projection.Cycle ? QStringLiteral("Choose a file to read its captured source.") : QStringLiteral("Open a project to review it locally."));
 			Centre->setCurrentWidget(SourceNotice);
 		} else if (source->Status != application::review_material_status::available) {
@@ -451,7 +582,9 @@ namespace bpr::qt {
 			}
 			Centre->setCurrentWidget(Source);
 		}
-		const auto active = source ? std::ranges::find(Projection.Files, source->Path, &application::review_cycle_file_entry::Path) : Projection.Files.end();
+		const auto shownPath = source ? std::optional{ source->Path } : Projection.Comparison ? std::optional{ Projection.Comparison->Path }
+																							  : std::nullopt;
+		const auto active    = shownPath ? std::ranges::find(Projection.Files, *shownPath, &application::review_cycle_file_entry::Path) : Projection.Files.end();
 		FilePosition->setText(active != Projection.Files.end() ? QStringLiteral("File %1 of %2").arg(active - Projection.Files.begin() + 1).arg(Projection.Files.size()) : QStringLiteral("File"));
 
 		// Notes: current wording, where each attaches and what newer material says.
@@ -499,6 +632,108 @@ namespace bpr::qt {
 		}
 		refresh_actions();
 		Presenting = false;
+	}
+
+	void review_cycle_view::present_comparison(const application::review_cycle_comparison_view& aComparison, const bool aChanged)
+	{
+		const auto path = text_of(aComparison.Path);
+		if (aComparison.Status != application::review_material_status::available && aComparison.Rows.empty()) {
+			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(path, pair_text(aComparison.Pair)));
+			Centre->setCurrentWidget(SourceNotice);
+			return;
+		}
+		if (aComparison.File && aComparison.File->Change == core::cycle_path_change::unknown) {
+			SourceNotice->setText(QStringLiteral("%1 is not known on one side of %2 (outside the scope or not captured); no change is claimed.").arg(path, pair_text(aComparison.Pair)));
+			Centre->setCurrentWidget(SourceNotice);
+			return;
+		}
+		if (aComparison.Rows.empty()) {
+			const auto unchanged = aComparison.File && !aComparison.File->changed();
+			SourceNotice->setText(unchanged ? QStringLiteral("%1 is unchanged from %2.").arg(path, pair_text(aComparison.Pair))
+											: QStringLiteral("%1 has no text comparison in %2 (binary, not UTF-8 or too large).").arg(path, pair_text(aComparison.Pair)));
+			Centre->setCurrentWidget(SourceNotice);
+			return;
+		}
+		if (aChanged) {
+			auto lines = QStringList{ };
+			lines.reserve(static_cast<qsizetype>(aComparison.Rows.size()));
+			auto marks = QList<QTextEdit::ExtraSelection>{ };
+			for (const auto& row : aComparison.Rows) {
+				const auto sign  = row.Kind == core::cycle_diff_row_kind::added ? QLatin1Char('+') : row.Kind == core::cycle_diff_row_kind::removed ? QLatin1Char('-')
+																																					: QLatin1Char(' ');
+				const auto left  = row.LeftLine ? QString::number(*row.LeftLine) : QString{ };
+				const auto right = row.RightLine ? QString::number(*row.RightLine) : QString{ };
+				lines.append(QStringLiteral("%1 %2 %3 %4").arg(left, 5).arg(right, 5).arg(sign).arg(text_of(row.Text)));
+			}
+			Comparison->setPlainText(lines.join(QLatin1Char('\n')));
+			auto block = Comparison->document()->firstBlock();
+			for (const auto& row : aComparison.Rows) {
+				if (row.Kind != core::cycle_diff_row_kind::context && block.isValid()) {
+					auto mark = QTextEdit::ExtraSelection{ };
+					mark.format.setBackground(row.Kind == core::cycle_diff_row_kind::added ? QColor{ 0x2E, 0xA0, 0x43, 0x40 } : QColor{ 0xCF, 0x22, 0x2E, 0x40 });
+					mark.format.setProperty(QTextFormat::FullWidthSelection, true);
+					mark.cursor = QTextCursor{ block };
+					marks.append(mark);
+				}
+				block = block.next();
+			}
+			Comparison->setExtraSelections(marks);
+		}
+		Centre->setCurrentWidget(Comparison);
+	}
+
+	void review_cycle_view::rebuild_view_menu()
+	{
+		ViewMenu->clear();
+		const auto captured = !Projection.Revisions.empty() && Projection.ActiveTab.has_value();
+		auto*      full     = ViewMenu->addAction(QStringLiteral("Full source"), this, [this] {
+			if (Dispatch.FullSource) {
+				Dispatch.FullSource();
+			}
+		});
+		full->setEnabled(captured && Projection.Comparison.has_value());
+		auto* const rounds = ViewMenu->addMenu(QStringLiteral("This round"));
+		rounds->setEnabled(captured && !Projection.Facts.Rounds.empty());
+		for (const auto& round : Projection.Facts.Rounds) {
+			const auto id = round.Round;
+			rounds->addAction(QStringLiteral("F%1 · since %2").arg(id.value()).arg(revision_text(round.Start)), this, [this, id] {
+				if (Dispatch.Compare) {
+					Dispatch.Compare(core::this_round_request{ .Round = id });
+				}
+			});
+		}
+		auto* const since = ViewMenu->addAction(Projection.Facts.LastReview ? QStringLiteral("Since my last review (%1)").arg(revision_text(Projection.Facts.LastReview->Revision)) : QStringLiteral("Since my last review"), this, [this] {
+			if (Dispatch.Compare) {
+				Dispatch.Compare(core::since_last_review_request{ });
+			}
+		});
+		since->setEnabled(captured && Projection.Facts.LastReview.has_value());
+		if (!Projection.Facts.LastReview) {
+			since->setToolTip(QStringLiteral("Mark reviewed first; opening files never counts as a review"));
+		}
+		ViewMenu->addAction(QStringLiteral("All cycle changes"), this, [this] {
+					if (Dispatch.Compare) {
+						Dispatch.Compare(core::all_cycle_request{ });
+					}
+				})
+			->setEnabled(captured);
+		// Choose revisions: an exact pair that never moves. The most recent
+		// captures are offered; each left side lists the later ones.
+		auto* const chosen = ViewMenu->addMenu(QStringLiteral("Choose revisions"));
+		chosen->setEnabled(captured && Projection.Revisions.size() > 1U);
+		constexpr auto offered = std::size_t{ 12 };
+		const auto     first   = Projection.Revisions.size() > offered ? Projection.Revisions.size() - offered : std::size_t{ 0 };
+		for (auto left = first; left + 1U < Projection.Revisions.size(); ++left) {
+			auto* const from = chosen->addMenu(QStringLiteral("From %1").arg(revision_text(Projection.Revisions[left])));
+			for (auto right = left + 1U; right < Projection.Revisions.size(); ++right) {
+				const auto request = core::chosen_pair_request{ .Left = Projection.Revisions[left], .Right = Projection.Revisions[right] };
+				from->addAction(QStringLiteral("to %1").arg(revision_text(request.Right)), this, [this, request] {
+					if (Dispatch.Compare) {
+						Dispatch.Compare(request);
+					}
+				});
+			}
+		}
 	}
 
 	auto review_cycle_view::source_offset(const int aPosition) const -> std::optional<std::uint64_t>
@@ -599,6 +834,11 @@ namespace bpr::qt {
 		NextFile->setEnabled(active != Projection.Files.end() && active + 1 != Projection.Files.end());
 		const auto row = Notes->currentRow();
 		RelateButton->setEnabled(open && shown && selected && row >= 0 && static_cast<std::size_t>(row) < Projection.Notes.size());
+		const auto bound = open && Projection.Activity == application::review_cycle_activity::idle;
+		CaptureAction->setEnabled(bound);
+		CaptureAgain->setEnabled(bound && !Projection.Revisions.empty());
+		MarkReviewed->setEnabled(open && !Projection.Revisions.empty());
+		ViewButton->setEnabled(open && !Projection.Revisions.empty());
 	}
 
 	void review_cycle_view::step_file(const int aDirection)
@@ -669,6 +909,30 @@ namespace bpr::qt {
 	auto review_cycle_view::relate_button() const noexcept -> QPushButton*
 	{
 		return RelateButton;
+	}
+	auto review_cycle_view::capture_action() const noexcept -> QAction*
+	{
+		return CaptureAction;
+	}
+	auto review_cycle_view::capture_again_action() const noexcept -> QAction*
+	{
+		return CaptureAgain;
+	}
+	auto review_cycle_view::view_button() const noexcept -> QToolButton*
+	{
+		return ViewButton;
+	}
+	auto review_cycle_view::mark_reviewed_action() const noexcept -> QAction*
+	{
+		return MarkReviewed;
+	}
+	auto review_cycle_view::refresh_action() const noexcept -> QAction*
+	{
+		return RefreshAction;
+	}
+	auto review_cycle_view::comparison() const noexcept -> QPlainTextEdit*
+	{
+		return Comparison;
 	}
 	auto review_cycle_view::projection() const noexcept -> const application::review_cycle_workbench_projection&
 	{

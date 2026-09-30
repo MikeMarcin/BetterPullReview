@@ -298,7 +298,7 @@ active cycle already bound to that root object or create one titled after it,
 bind it and capture R0, then show full source. Its tabs are the RFC-BPR-0052
 tab gestures over `core::cycle_tabs_state` (`review_cycle_tabs.hpp`): each tab
 is one exact revision, path and reading line, keeps its revision when newer
-material is captured, refuses comparison gestures (full source only), and is
+material is captured, refuses the pull-request comparison gestures, and is
 kept in the cycle store's `views` table (schema 4) so a restart restores it.
 The Qt page (`bpr/qt/review_cycle_view.hpp`) takes the review surface's place
 in the window with its own review bar, folding Updates line, tabs, files
@@ -392,6 +392,27 @@ revisions and the sender's round never changes. Nothing is applied to any
 source. Prose replies need no protocol: a pasted answer is a turn of
 `unknown` or `self_reported` provenance, and the next capture needs no
 structured response.
+
+Iteration is manual (RFC-BPR-0057, BPR-1163). Capture revision
+(`review_cycle_workbench::capture_revision`) is the only way back after
+someone else worked: no receipt, response, agent, commit or callback is
+waited for, and nothing is captured by itself. Identical bytes record nothing
+and say so; a deliberate capture records another handoff observation of the
+same bytes. Open tabs keep their revisions; new tabs take the new capture. A
+tab may show a named comparison (`bpr/core/review_cycle_views.hpp`): This
+round (a frozen round's bound revision, read from its payload, against a named
+result or the latest capture), Since my last review (the reviewer's latest
+explicit checkpoint, kept in schema 6's append-only `checkpoints` table and
+never inferred from files opened or responses read), All cycle changes and
+Choose revisions. A chosen pair, and a round with a named result, are pinned
+and never move; the other views re-resolve only on the reviewer's refresh and
+meanwhile say that newer material exists. Tab records keep the view and its
+left revision as a trailer, so records written before comparisons read as full
+source. The history (`describe_history`, `application::load_cycle_history`)
+keeps local capture order, the checkout head each capture's manifest recorded
+(same head, head moved with the commits between unobserved, another branch or
+a detached head) and sender revisions mapped by an attached round apart; a
+cycle observes no provider upload order and never infers one.
 
 ## Authority by state category
 

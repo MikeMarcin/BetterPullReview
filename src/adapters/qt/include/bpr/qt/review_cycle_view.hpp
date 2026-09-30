@@ -15,6 +15,7 @@
 class QAction;
 class QLabel;
 class QListWidget;
+class QMenu;
 class QPlainTextEdit;
 class QPushButton;
 class QSplitter;
@@ -31,6 +32,12 @@ namespace bpr::qt {
 		std::function<void(core::begin_cycle_feedback)>                                                         Comment;
 		std::function<void(application::review_cycle_suggestion_request)>                                       Suggest;
 		std::function<void(const core::cycle_feedback_item_ref&, std::uint64_t, core::cycle_related_reference)> Relate;
+		/// BPR-1163: Capture revision, deliberately when the bytes may be unchanged.
+		std::function<void(bool)>                            Capture;
+		std::function<void(const core::cycle_view_request&)> Compare;
+		std::function<void()>                                FullSource;
+		std::function<void()>                                Refresh;
+		std::function<void()>                                MarkReviewed;
 	};
 
 	/// \brief A local Review Cycle's review surface (RFC-BPR-0061, BPR-1157).
@@ -42,8 +49,12 @@ namespace bpr::qt {
 	/// of captured revisions, the document tabs, and the files drawer, one
 	/// full-source pane and the notes tray. It adds no permanent row. The
 	/// source pane shows the active tab's exact retained bytes; a selection
-	/// becomes an exact byte anchor. It decides nothing and performs no
-	/// effect: gestures leave through `review_cycle_dispatch`.
+	/// becomes an exact byte anchor. BPR-1163 adds to the same review bar
+	/// Capture revision, the view chooser (full source, this round, since my
+	/// last review, all cycle changes, chosen revisions), Mark reviewed and a
+	/// refresh that appears only when newer material exists; a comparison
+	/// shows the shared engine's rows in the same pane. It decides nothing and
+	/// performs no effect: gestures leave through `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
 	public:
@@ -68,6 +79,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto updates_toggle() const noexcept -> updates_disclosure*;
 		/// \brief Links the source selection to the selected note as a related location.
 		[[nodiscard]] auto relate_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto capture_action() const noexcept -> QAction*;
+		/// \brief Records another observation even when the bytes are unchanged.
+		[[nodiscard]] auto capture_again_action() const noexcept -> QAction*;
+		[[nodiscard]] auto view_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto mark_reviewed_action() const noexcept -> QAction*;
+		[[nodiscard]] auto refresh_action() const noexcept -> QAction*;
+		/// \brief The comparison pane: the active tab's rows, when it shows a comparison.
+		[[nodiscard]] auto comparison() const noexcept -> QPlainTextEdit*;
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -78,6 +97,8 @@ namespace bpr::qt {
 		void               save_comment();
 		void               refresh_actions();
 		void               step_file(int aDirection);
+		void               rebuild_view_menu();
+		void               present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
 		[[nodiscard]] auto source_offset(int aPosition) const -> std::optional<std::uint64_t>;
 
 		review_cycle_dispatch                          Dispatch;
@@ -108,6 +129,13 @@ namespace bpr::qt {
 		QAction*                                   FilesToggle   = nullptr;
 		QAction*                                   NotesToggle   = nullptr;
 		QPushButton*                               RelateButton  = nullptr;
+		QAction*                                   CaptureAction = nullptr;
+		QAction*                                   CaptureAgain  = nullptr;
+		QToolButton*                               ViewButton    = nullptr;
+		QMenu*                                     ViewMenu      = nullptr;
+		QAction*                                   MarkReviewed  = nullptr;
+		QAction*                                   RefreshAction = nullptr;
+		QPlainTextEdit*                            Comparison    = nullptr;
 		bool                                       Presenting    = false;
 	};
 }

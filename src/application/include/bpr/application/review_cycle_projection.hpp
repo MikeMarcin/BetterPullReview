@@ -6,6 +6,7 @@
 #include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
+#include "bpr/core/review_cycle_views.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,22 @@ namespace bpr::application {
 		auto                           operator<=>(const review_cycle_source_view&) const = default;
 	};
 
+	/// \brief The active tab's named comparison of one file (BPR-1163): what
+	/// was asked, the exact pair it shows and the shared engine's rows.
+	struct review_cycle_comparison_view
+	{
+		core::document_tab_id                      Tab;
+		core::cycle_view_request                   Request;
+		core::cycle_comparison_pair                Pair;
+		std::string                                Path;
+		bool                                       Pinned = false;
+		review_material_status                     Status = review_material_status::failure;
+		std::optional<core::cycle_path_comparison> File;
+		std::vector<core::cycle_diff_row>          Rows;
+		core::diff_reason_code                     Reason                                                 = core::diff_reason_code::none;
+		auto                                       operator<=>(const review_cycle_comparison_view&) const = default;
+	};
+
 	enum class review_cycle_activity : std::uint8_t {
 		idle,
 		opening,
@@ -79,10 +96,21 @@ namespace bpr::application {
 		std::vector<core::cycle_tab>            Tabs;
 		std::optional<core::document_tab_id>    ActiveTab;
 		std::optional<review_cycle_source_view> Source;
-		std::vector<review_cycle_note_entry>    Notes;
-		review_cycle_activity                   Activity = review_cycle_activity::idle;
+		/// Present instead of `Source` when the active tab shows a comparison.
+		std::optional<review_cycle_comparison_view> Comparison;
+		/// A refresh of the active tab would show newer material; the tab
+		/// itself never moves without that gesture.
+		bool NewerAvailable = false;
+		/// The reviewer's latest checkpoint and each round's bound revision.
+		core::cycle_view_facts Facts;
+		/// Captures in local order, with their Git and imported chronologies.
+		std::optional<core::cycle_history>   History;
+		std::vector<review_cycle_note_entry> Notes;
+		review_cycle_activity                Activity = review_cycle_activity::idle;
 		/// Plain words about the last refusal or failure; empty otherwise.
 		std::string Message;
+		/// Plain words about the last capture when it recorded nothing new.
+		std::string Notice;
 		auto        operator<=>(const review_cycle_workbench_projection&) const = default;
 	};
 

@@ -437,6 +437,43 @@ namespace bpr::application {
 														  std::move(aDone));
 	}
 
+	auto review_cycle_runtime::mark_reviewed_selected(cycle_operation_id aOperation, const core::cycle_source_revision_id aRevision, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_write_receipt>([subject, aOperation, aRevision](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.mark_reviewed(aOperation, *subject, aRevision, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::view_facts_selected(completion<core::cycle_view_facts> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<core::cycle_view_facts>([subject](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<core::cycle_view_facts> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return load_view_facts(aStore, *subject, aStop);
+		},
+															  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::history_selected(const std::optional<core::cycle_source_revision_id> aAfter, const std::size_t aLimit, completion<cycle_history_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_history_page>([subject, host, aAfter, aLimit](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_history_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return load_cycle_history(aStore, *host, *subject, aAfter, aLimit, aStop);
+		},
+														  std::move(aDone));
+	}
+
 	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

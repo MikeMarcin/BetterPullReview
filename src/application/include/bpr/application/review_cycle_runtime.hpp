@@ -8,6 +8,7 @@
 #include "bpr/application/review_cycle_import.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
+#include "bpr/application/review_cycle_views.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 
 #include <cstddef>
@@ -79,6 +80,14 @@ namespace bpr::application {
 							  completion<cycle_comparison_page_observation> aDone) -> bool;
 		/// \brief One file of a resolved pair (or full source) of the selected cycle.
 		auto compare_file_selected(core::cycle_comparison_pair aPair, std::string aPath, core::diff_options aOptions, completion<cycle_file_observation> aDone) -> bool;
+
+		/// \brief Records the reviewer's explicit checkpoint on the selected
+		/// cycle (BPR-1163). `Allocated` is its ordinal.
+		auto mark_reviewed_selected(cycle_operation_id aOperation, core::cycle_source_revision_id aRevision, completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief What the selected cycle's named views resolve from.
+		auto view_facts_selected(completion<core::cycle_view_facts> aDone) -> bool;
+		/// \brief One page of the selected cycle's revision history.
+		auto history_selected(std::optional<core::cycle_source_revision_id> aAfter, std::size_t aLimit, completion<cycle_history_page> aDone) -> bool;
 
 		/// \brief Starts a note on the selected cycle after verifying each
 		/// target against its revision's retained bytes.

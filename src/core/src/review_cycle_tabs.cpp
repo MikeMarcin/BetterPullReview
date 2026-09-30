@@ -46,7 +46,7 @@ namespace bpr::core {
 			if (view.Path == aPath) {
 				return { };
 			}
-			// The active tab keeps its own revision and shows the other file.
+			// The active tab keeps its own revision, or comparison, and shows the other file.
 			view.Path = std::string{ aPath };
 			view.Line = 0;
 			return { .Changed = true };
@@ -165,6 +165,76 @@ namespace bpr::core {
 		return found == aState.Tabs.end() ? nullptr : &*found;
 	}
 
+	auto shown_pair(const local_cycle_subject& aSubject, const cycle_tab_view& aView) -> cycle_comparison_pair
+	{
+		auto pair = cycle_comparison_pair{ .Right = { .Cycle = aSubject.Cycle, .Id = aView.Revision } };
+		if (aView.Comparison) {
+			pair.Left = cycle_source_revision_ref{ .Cycle = aSubject.Cycle, .Id = aView.Comparison->Left };
+		}
+		return pair;
+	}
+
+	auto show_comparison(cycle_tabs_state& aState, const cycle_view_request& aRequest, const cycle_comparison_pair& aPair) -> cycle_tabs_output
+	{
+		const auto at = aState.Active ? position_of(aState, *aState.Active) : std::nullopt;
+		if (!at) {
+			return { .Reason = document_tab_reason::no_active_tab };
+		}
+		if (!aPair.Left) {
+			return { .Reason = document_tab_reason::invalid_comparison };
+		}
+		auto& view = aState.Tabs[*at].View;
+		auto  next = cycle_tab_comparison{ .Request = aRequest, .Left = aPair.Left->Id };
+		if (view.Comparison == next && view.Revision == aPair.Right.Id) {
+			return { };
+		}
+		view.Comparison = std::move(next);
+		view.Revision   = aPair.Right.Id;
+		return { .Changed = true };
+	}
+
+	auto show_full_source(cycle_tabs_state& aState) -> cycle_tabs_output
+	{
+		const auto at = aState.Active ? position_of(aState, *aState.Active) : std::nullopt;
+		if (!at) {
+			return { .Reason = document_tab_reason::no_active_tab };
+		}
+		auto& view = aState.Tabs[*at].View;
+		if (!view.Comparison) {
+			return { };
+		}
+		view.Comparison.reset();
+		return { .Changed = true };
+	}
+
+	auto refresh_active(cycle_tabs_state& aState, const std::optional<cycle_comparison_pair>& aPair, const cycle_source_revision_id aLatest) -> cycle_tabs_output
+	{
+		const auto at = aState.Active ? position_of(aState, *aState.Active) : std::nullopt;
+		if (!at) {
+			return { .Reason = document_tab_reason::no_active_tab };
+		}
+		auto& view = aState.Tabs[*at].View;
+		if (!view.Comparison) {
+			if (view.Revision == aLatest) {
+				return { };
+			}
+			view.Revision = aLatest;
+			return { .Changed = true };
+		}
+		if (pinned(view.Comparison->Request)) {
+			return { .Reason = document_tab_reason::invalid_comparison };
+		}
+		if (!aPair || !aPair->Left) {
+			return { .Reason = document_tab_reason::invalid_comparison };
+		}
+		if (view.Comparison->Left == aPair->Left->Id && view.Revision == aPair->Right.Id) {
+			return { };
+		}
+		view.Comparison->Left = aPair->Left->Id;
+		view.Revision         = aPair->Right.Id;
+		return { .Changed = true };
+	}
+
 	auto persisted(const cycle_tabs_state& aState) -> cycle_tabs_record
 	{
 		auto record = cycle_tabs_record{ .Revision = aState.Revision };
@@ -182,9 +252,20 @@ namespace bpr::core {
 		const auto allocated = [&](const cycle_source_revision_id aRevision) {
 			return valid_cycle_id(aRevision) && aRevision.value() < aCycle.Next.SourceRevision;
 		};
+		const auto comparison = [&](const cycle_tab_comparison& aComparison) {
+			if (const auto* round = std::get_if<this_round_request>(&aComparison.Request)) {
+				return valid_cycle_id(round->Round) && round->Round.value() < aCycle.Next.Round && (!round->Result || allocated(*round->Result));
+			}
+			if (const auto* chosen = std::get_if<chosen_pair_request>(&aComparison.Request)) {
+				return allocated(chosen->Left) && allocated(chosen->Right);
+			}
+			return true;
+		};
+		const auto validView = [&](const cycle_tab_view& aView) {
+			return allocated(aView.Revision) && valid_cycle_path(aView.Path) && (!aView.Comparison || (allocated(aView.Comparison->Left) && comparison(*aView.Comparison)));
+		};
 		if (aRecord.Views.size() > maximum_cycle_tabs || (aRecord.Revision && !allocated(*aRecord.Revision))
-			|| (aRecord.Active && *aRecord.Active >= aRecord.Views.size())
-			|| !std::ranges::all_of(aRecord.Views, [&](const cycle_tab_view& aView) { return allocated(aView.Revision) && valid_cycle_path(aView.Path); })) {
+			|| (aRecord.Active && *aRecord.Active >= aRecord.Views.size()) || !std::ranges::all_of(aRecord.Views, validView)) {
 			return { .Reason = document_tab_reason::invalid_restoration };
 		}
 		auto state = cycle_tabs_state{ .Revision = aRecord.Revision, .LastTab = aState.LastTab };

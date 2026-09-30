@@ -34,12 +34,17 @@ namespace bpr::app {
 		View = new qt::review_cycle_view{ };
 		Window.adopt_local_cycle(View);
 		View->set_dispatch({
-			.OpenFile    = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
-			.Tab         = [this](const core::document_tab_intent& aIntent) { Host->tab(aIntent); },
-			.ObserveLine = [this](const core::document_tab_id aTab, const std::uint64_t aLine) { Host->observe_line(aTab, aLine); },
-			.Comment     = [this](core::begin_cycle_feedback aNote) { Host->comment(std::move(aNote)); },
-			.Suggest     = [this](application::review_cycle_suggestion_request aRequest) { Host->suggest(std::move(aRequest)); },
-			.Relate      = [this](const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference) { Host->relate(aItem, aVersion, std::move(aReference)); },
+			.OpenFile     = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
+			.Tab          = [this](const core::document_tab_intent& aIntent) { Host->tab(aIntent); },
+			.ObserveLine  = [this](const core::document_tab_id aTab, const std::uint64_t aLine) { Host->observe_line(aTab, aLine); },
+			.Comment      = [this](core::begin_cycle_feedback aNote) { Host->comment(std::move(aNote)); },
+			.Suggest      = [this](application::review_cycle_suggestion_request aRequest) { Host->suggest(std::move(aRequest)); },
+			.Relate       = [this](const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference) { Host->relate(aItem, aVersion, std::move(aReference)); },
+			.Capture      = [this](const bool aDeliberate) { Host->capture_revision(aDeliberate); },
+			.Compare      = [this](const core::cycle_view_request& aRequest) { Host->compare(aRequest); },
+			.FullSource   = [this] { Host->full_source(); },
+			.Refresh      = [this] { Host->refresh_view(); },
+			.MarkReviewed = [this] { Host->mark_reviewed(); },
 		});
 		Window.set_local_cycle_entry_dispatch(
 			[this] {

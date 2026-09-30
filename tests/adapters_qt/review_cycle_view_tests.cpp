@@ -8,20 +8,25 @@
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
 #include <QTextCursor>
+#include <QToolButton>
 
 #include <array>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
 
 /// \file
 /// \brief The local cycle page (BPR-1157) presented from a projection:
 /// review bar, Updates line, tabs, one full-source pane, notes, and exact byte
-/// anchors from native selections, through real Qt events.
+/// anchors from native selections, through real Qt events. BPR-1163: Capture
+/// revision, the view chooser, Mark reviewed, the newer-material refresh and
+/// the comparison pane, in the same review bar and pane.
 
 namespace {
 	using namespace bpr;
@@ -159,6 +164,108 @@ namespace {
 		capture(aView, QStringLiteral("cycle-newer-material"));
 	}
 
+	struct view_gestures
+	{
+		std::vector<bool>                     Captures;
+		std::vector<core::cycle_view_request> Compared;
+		int                                   FullSource   = 0;
+		int                                   Refreshed    = 0;
+		int                                   MarkedReview = 0;
+	};
+
+	auto menu_action(QMenu* aMenu, const QString& aText) -> QAction*
+	{
+		for (auto* const action : aMenu->actions()) {
+			if (action->text() == aText) {
+				return action;
+			}
+		}
+		return nullptr;
+	}
+
+	void captures_and_compares(qt::review_cycle_view& aView, const view_gestures& aGestures)
+	{
+		auto view           = projection(3);
+		view.Facts.Rounds   = { { .Round = core::cycle_round_id{ 1 }, .Start = core::cycle_source_revision_id{ 1 } } };
+		view.History        = core::cycle_history{ .Entries = {
+													   { .Revision = core::cycle_source_revision_id{ 1 }, .Step = core::cycle_revision_step::initial, .Coverage = core::cycle_capture_coverage::complete },
+													   { .Revision = core::cycle_source_revision_id{ 2 }, .Parent = core::cycle_source_revision_id{ 1 }, .Step = core::cycle_revision_step::head_moved, .Coverage = core::cycle_capture_coverage::complete },
+													   { .Revision = core::cycle_source_revision_id{ 3 }, .Parent = core::cycle_source_revision_id{ 2 }, .Step = core::cycle_revision_step::branch_changed, .HeadReference = "refs/heads/feature", .SameMaterial = true, .Coverage = core::cycle_capture_coverage::complete },
+												   } };
+		view.NewerAvailable = true;
+		aView.present(view);
+		settle();
+		expect(aView.capture_action()->isEnabled() && aView.mark_reviewed_action()->isEnabled() && aView.view_button()->isEnabled(), "capture, mark reviewed and the view chooser offered");
+		expect(aView.refresh_action()->isVisible(), "newer material offered on an older full-source tab");
+		aView.capture_action()->trigger();
+		aView.capture_again_action()->trigger();
+		expect(aGestures.Captures == std::vector<bool>{ false, true }, "capture, and a deliberate observation of the same bytes");
+		aView.updates_toggle()->click();
+		expect(aView.updates_line()->text().contains(QStringLiteral("R2 (head moved; commits between not captured)")) && aView.updates_line()->text().contains(QStringLiteral("R3 (other branch feature; same bytes)")),
+			   "the Updates line keeps the chronologies explicit");
+		aView.updates_toggle()->click();
+
+		// The chooser: since my last review needs a checkpoint first.
+		auto* const menu = aView.view_button()->menu();
+		emit        menu->aboutToShow();
+		expect(!menu_action(menu, QStringLiteral("Since my last review"))->isEnabled(), "no checkpoint, no since-my-last-review");
+		expect(!menu_action(menu, QStringLiteral("Full source"))->isEnabled(), "already full source");
+		menu_action(menu, QStringLiteral("All cycle changes"))->trigger();
+		auto* const round = menu_action(menu, QStringLiteral("This round"))->menu();
+		round->actions().front()->trigger();
+		auto* const chosen = menu_action(menu, QStringLiteral("Choose revisions"))->menu();
+		chosen->actions().front()->menu()->actions().back()->trigger();
+		expect(aGestures.Compared.size() == 3U && std::holds_alternative<core::all_cycle_request>(aGestures.Compared[0]) && std::get<core::this_round_request>(aGestures.Compared[1]).Round == core::cycle_round_id{ 1 }
+				   && std::get<core::chosen_pair_request>(aGestures.Compared[2]) == core::chosen_pair_request{ .Left = core::cycle_source_revision_id{ 1 }, .Right = core::cycle_source_revision_id{ 3 } },
+			   "the chooser dispatches each named view");
+		aView.mark_reviewed_action()->trigger();
+		expect(aGestures.MarkedReview == 1, "mark reviewed");
+
+		// A pinned comparison: rows in the same pane, no refresh offered.
+		view.Facts.LastReview = core::cycle_review_checkpoint{ .Ordinal = 1, .Revision = core::cycle_source_revision_id{ 2 } };
+		view.Tabs[0].View     = { .Revision = core::cycle_source_revision_id{ 2 }, .Path = "src/parser.cpp", .Comparison = core::cycle_tab_comparison{ .Request = core::chosen_pair_request{ .Left = core::cycle_source_revision_id{ 1 }, .Right = core::cycle_source_revision_id{ 2 } }, .Left = core::cycle_source_revision_id{ 1 } } };
+		view.Source.reset();
+		view.Comparison = application::review_cycle_comparison_view{
+			.Tab     = core::document_tab_id{ 1 },
+			.Request = core::chosen_pair_request{ .Left = core::cycle_source_revision_id{ 1 }, .Right = core::cycle_source_revision_id{ 2 } },
+			.Pair    = { .Left = core::cycle_source_revision_ref{ .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_source_revision_id{ 1 } }, .Right = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_source_revision_id{ 2 } } },
+			.Path    = "src/parser.cpp",
+			.Pinned  = true,
+			.Status  = application::review_material_status::available,
+			.File    = core::cycle_path_comparison{ .Path = "src/parser.cpp", .Change = core::cycle_path_change::modified },
+			.Rows    = { { .Kind = core::cycle_diff_row_kind::context, .LeftLine = 1U, .RightLine = 1U, .Text = "int f()" },
+						 { .Kind = core::cycle_diff_row_kind::removed, .LeftLine = 3U, .Text = "\treturn caf\xC3\xA9(1);" },
+						 { .Kind = core::cycle_diff_row_kind::added, .RightLine = 3U, .Text = "\treturn coffee(1);" } },
+		};
+		aView.present(view);
+		settle();
+		expect(aView.comparison()->isVisible() && aView.comparison()->toPlainText() == QStringLiteral("    1     1   int f()\n    3       - \treturn café(1);\n          3 + \treturn coffee(1);"), "rows with both line numbers and signs");
+		expect(aView.comparison()->extraSelections().size() == 2, "added and removed rows marked");
+		expect(aView.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("Chosen revisions · R1 → R2 (pinned)"), "the pinned pair named");
+		expect(!aView.refresh_action()->isVisible(), "a pinned pair offers no refresh");
+		expect(aView.tabs()->tabs()[0].OwnPair == QStringLiteral("R1→R2"), "the tab names its pair");
+		expect(!aView.comment_action()->isEnabled(), "notes are made in full source");
+		emit menu->aboutToShow();
+		expect(menu_action(menu, QStringLiteral("Since my last review (R2)"))->isEnabled(), "since my last review once marked");
+		menu_action(menu, QStringLiteral("Full source"))->trigger();
+		expect(aGestures.FullSource == 1, "back to full source");
+		capture(aView, QStringLiteral("cycle-comparison"));
+
+		// A semantic view with newer material offers the refresh.
+		view.Comparison->Request = core::all_cycle_request{ };
+		view.Comparison->Pinned  = false;
+		aView.present(view);
+		settle();
+		expect(aView.refresh_action()->isVisible(), "a semantic view with newer material offers the refresh");
+		aView.refresh_action()->trigger();
+		expect(aGestures.Refreshed == 1, "refresh dispatched");
+		view.Comparison->File = core::cycle_path_comparison{ .Path = "src/parser.cpp", .Change = core::cycle_path_change::unknown };
+		view.Comparison->Rows.clear();
+		aView.present(view);
+		settle();
+		expect(aView.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"))->text().contains(QStringLiteral("no change is claimed")), "an unknown side claims no change");
+	}
+
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
 	{
 		aView.findChild<QAction*>(QStringLiteral("cyclePreviousFile"))->trigger();
@@ -177,12 +284,19 @@ try {
 	auto         noted     = core::begin_cycle_feedback{ };
 	auto         suggested = application::review_cycle_suggestion_request{ };
 	auto         opened    = std::string{ };
+	auto         gestures  = view_gestures{ };
 	view.set_dispatch({
-		.OpenFile    = [&](const std::string& aPath, bool) { opened = aPath; },
-		.Tab         = [](const core::document_tab_intent&) { },
-		.ObserveLine = [](core::document_tab_id, std::uint64_t) { },
-		.Comment     = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
-		.Suggest     = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
+		.OpenFile     = [&](const std::string& aPath, bool) { opened = aPath; },
+		.Tab          = [](const core::document_tab_intent&) { },
+		.ObserveLine  = [](core::document_tab_id, std::uint64_t) { },
+		.Comment      = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
+		.Suggest      = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
+		.Relate       = { },
+		.Capture      = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
+		.Compare      = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
+		.FullSource   = [&] { ++gestures.FullSource; },
+		.Refresh      = [&] { ++gestures.Refreshed; },
+		.MarkReviewed = [&] { ++gestures.MarkedReview; },
 	});
 	view.resize(1280, 760);
 	view.show();
@@ -191,6 +305,7 @@ try {
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);
+	captures_and_compares(view, gestures);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();

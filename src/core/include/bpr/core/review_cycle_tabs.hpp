@@ -3,6 +3,7 @@
 
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/core/review_cycle.hpp"
+#include "bpr/core/review_cycle_views.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -17,20 +18,36 @@
 /// `document_tab_intent`), over the cycle's own exact views: a file of one
 /// captured revision, read as full source, and a reading line. A tab keeps
 /// its revision when newer material is captured; only an explicit gesture
-/// moves it. Comparison gestures belong to the comparison views of a later
-/// card and are refused here, so no tab ever shows an invented baseline.
+/// moves it. A tab may instead show a named comparison (BPR-1163): the view
+/// the reviewer asked for and the exact pair it resolved to, which a pinned
+/// view never leaves and a semantic view leaves only on refresh. The shared
+/// pull-request comparison gestures stay refused here, so no tab ever shows
+/// an invented baseline.
 namespace bpr::core {
 	inline constexpr std::size_t maximum_cycle_tabs = 64U;
 
+	/// \brief A named comparison a tab shows: what was asked and the left
+	/// revision it resolved to. The right revision is the tab's own.
+	struct cycle_tab_comparison
+	{
+		cycle_view_request       Request;
+		cycle_source_revision_id Left;
+		auto                     operator<=>(const cycle_tab_comparison&) const = default;
+	};
 	/// \brief One cycle tab's exact view.
 	struct cycle_tab_view
 	{
+		/// Full source: the revision read. A comparison: its right side.
 		cycle_source_revision_id Revision;
 		std::string              Path;
 		/// Zero-based first visible line, as the view last reported it.
-		std::uint64_t Line                                     = 0;
-		auto          operator<=>(const cycle_tab_view&) const = default;
+		std::uint64_t Line = 0;
+		/// Absent for full source.
+		std::optional<cycle_tab_comparison> Comparison;
+		auto                                operator<=>(const cycle_tab_view&) const = default;
 	};
+	/// \brief The exact pair a tab shows.
+	[[nodiscard]] auto shown_pair(const local_cycle_subject& aSubject, const cycle_tab_view& aView) -> cycle_comparison_pair;
 	struct cycle_tab
 	{
 		document_tab_id Id;
@@ -68,6 +85,16 @@ namespace bpr::core {
 	[[nodiscard]] auto open_path(cycle_tabs_state& aState, std::string_view aPath, bool aNewTab) -> cycle_tabs_output;
 	[[nodiscard]] auto active_tab(const cycle_tabs_state& aState) noexcept -> const cycle_tab*;
 
+	/// \brief Shows a named comparison of the active tab's file: `aPair`, the
+	/// pair the view resolved to now. The same view and pair again changes nothing.
+	[[nodiscard]] auto show_comparison(cycle_tabs_state& aState, const cycle_view_request& aRequest, const cycle_comparison_pair& aPair) -> cycle_tabs_output;
+	/// \brief Returns the active tab to full source at the revision it showed on its right.
+	[[nodiscard]] auto show_full_source(cycle_tabs_state& aState) -> cycle_tabs_output;
+	/// \brief The reviewer's explicit refresh of the active tab: a semantic
+	/// comparison takes `aPair`, the pair it resolves to now; full source
+	/// moves to `aLatest`. A pinned comparison never moves.
+	[[nodiscard]] auto refresh_active(cycle_tabs_state& aState, const std::optional<cycle_comparison_pair>& aPair, cycle_source_revision_id aLatest) -> cycle_tabs_output;
+
 	/// \brief The persisted form: views in order and the active position.
 	struct cycle_tabs_record
 	{
@@ -78,8 +105,8 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto persisted(const cycle_tabs_state& aState) -> cycle_tabs_record;
 	/// \brief Restores a record, minting fresh identities; views naming a
-	/// revision the cycle never allocated, an invalid path or too many tabs
-	/// are refused whole.
+	/// revision the cycle never allocated (on either side of a comparison, or
+	/// in its request), an invalid path or too many tabs are refused whole.
 	[[nodiscard]] auto restore(cycle_tabs_state& aState, const review_cycle_state& aCycle, const cycle_tabs_record& aRecord) -> cycle_tabs_output;
 }
 
