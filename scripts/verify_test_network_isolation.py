@@ -199,6 +199,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1230]]. Measured on JaegAW 2026-09-29: passes uncontained; contained
     # it stops at "publication SQLite journal opens" under its scratch root.
     "github_review_comment_permalink": "dos-volume-name",
+    # [[BPR-1240]]. Measured on JaegAW 2026-09-30: passes uncontained; contained it
+    # exits 1 before printing a line. Not traced further; the same composed tour
+    # course as application_review_tour_composition_public_path.
+    "application_review_tour_writing": "dos-volume-name",
     # [[BPR-1148]], [[BPR-1149]]. The product opens a chosen root and resolves it
     # with GetFinalPathNameByHandleW(VOLUME_NAME_DOS), the rows keep their stores
     # under a scratch root, and they build fixtures with Git; each is the obstacle

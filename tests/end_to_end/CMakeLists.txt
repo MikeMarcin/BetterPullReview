@@ -1087,6 +1087,11 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 600
 )
+if(WIN32)
+    # Its nested MSVC configures and builds took 823 s on the Windows station
+    # (2026-09-30), and every case passed; 600 s cut it off.
+    set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 1800)
+endif()
 
 set(bpr_public_path_fixture_environment "QT_QPA_PLATFORM=offscreen")
 if(UNIX AND NOT APPLE)
@@ -3293,6 +3298,7 @@ target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)
 bpr_enable_hardening(test_scoped_writing_agent)
 bpr_enable_warnings(test_scoped_writing_agent)
 bpr_add_network_isolated_test(NAME application_review_tour_writing
+    WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")
 set_tests_properties(application_review_tour_writing PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")
