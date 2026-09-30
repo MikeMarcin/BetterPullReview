@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1172"
 title: "Plan selected outgoing content over an explicit Git base"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1163", "BPR-1165"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-01", "RC59-03"], "pack_alias": "PACK-CYCLE-30", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
