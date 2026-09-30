@@ -36,3 +36,15 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 `core_review_cycle_material` and `review_cycle_capture` pass (after the GCC fix recorded on [[BPR-1149]]). Native row: the byte corpus, modes, links, FIFO, gitlink and LFS were preserved without transformation, with index version 4.
 
 The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `46725457`, `build/windows-dev` (MSVC 19.51) builds with no warning and
+no source change, including the workspace adapter's Win32 branch.
+`workspace_source`, `review_cycle_capture`, `review_cycle_comparison`,
+`review_cycle_scale`, `review_cycle_recovery`, the six `core_review_cycle`
+rows and `sqlite_review_cycle_storage` pass. Contained, the five workspace
+rows each fail before their first course completes, so their
+`WINDOWS_UNCONTAINED` pins are confirmed. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, snapshots".

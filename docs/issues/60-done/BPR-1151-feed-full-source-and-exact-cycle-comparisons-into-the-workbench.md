@@ -36,3 +36,15 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 `core_review_cycle_comparison`, `review_cycle_comparison` and `workspace_source` pass. `review_cycle_scale --files 2000` (the row's default size, in a Debug dev build) passes: initial capture 561 ms, unchanged recapture 364 ms, changed recapture 386 ms, comparison page p50 1.16 / p95 1.27 ms, file diff p50 7.97 / p95 11.5 ms, peak RSS 8.4 MiB. These are observations, not budgets, and are not comparable with the 100,000-file Release macOS figures.
 
 The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `46725457`, `build/windows-dev` (MSVC 19.51) builds with no warning and
+no source change, including the workspace adapter's Win32 branch.
+`workspace_source`, `review_cycle_capture`, `review_cycle_comparison`,
+`review_cycle_scale`, `review_cycle_recovery`, the six `core_review_cycle`
+rows and `sqlite_review_cycle_storage` pass. Contained, the five workspace
+rows each fail before their first course completes, so their
+`WINDOWS_UNCONTAINED` pins are confirmed. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, snapshots".

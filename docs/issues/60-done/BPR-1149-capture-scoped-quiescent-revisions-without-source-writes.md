@@ -36,3 +36,15 @@ Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror
 At `467254573` `review_cycle_capture` did not build with GCC: `-Wdangling-reference` read `entry(manifest, "path")` in `cycle_course.hpp` as possibly returning into the temporary `std::string`, which `-Werror` refuses (four call sites). Apple clang does not warn. The reference is into the manifest. `5303ab394` makes the helper take `std::string_view`, as `core::find_entry` already does, and changes nothing else. After it, `review_cycle_capture`, `workspace_source` and `core_review_cycle` pass. The hostile hooks, filters, textconv, fsmonitor and promisor rows, and the scope, exclusion, sparse and deletion rows, ran natively; none of the hostile configuration ran and the tree bytes were unchanged. The retry and cancellation rows also pass.
 
 The logs are station records in `build/logs/bpr-station-snapshots/` and are not committed.
+
+## Windows — bpr-main-win, 2026-09-29
+
+At `46725457`, `build/windows-dev` (MSVC 19.51) builds with no warning and
+no source change, including the workspace adapter's Win32 branch.
+`workspace_source`, `review_cycle_capture`, `review_cycle_comparison`,
+`review_cycle_scale`, `review_cycle_recovery`, the six `core_review_cycle`
+rows and `sqlite_review_cycle_storage` pass. Contained, the five workspace
+rows each fail before their first course completes, so their
+`WINDOWS_UNCONTAINED` pins are confirmed. The details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md), under
+"Windows station, snapshots".
