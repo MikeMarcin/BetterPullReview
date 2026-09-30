@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1156"
 title: "Deliver the native focused suggestion editor"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit. Owner judgment pending: attended item BPR-1156-editor-gestures-v001 on the frozen candidate (revision c2a0df54a)."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes: composer prefilled with exact selection, before/after in context, newer-material stated without moving; related location added from a native selection in another file with the primary kept; ambiguous/deleted/unmapped correspondence stated. Owner judgment pending: BPR-1156-composer-layout-v001."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
