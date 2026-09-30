@@ -26,7 +26,7 @@ Triaged and filed, not fixed here:
 (2 large-review rows),
 [BPR-1248](../issues/30-in-progress/BPR-1248-rfc0016-capture-read-only-route-inventory-drifted.md)
 (RFC-0016 capture pin),
-[BPR-1249](../issues/20-ready/BPR-1249-tour-cli-terminal-courses-fail-on-macos.md)
+[BPR-1249](../issues/30-in-progress/BPR-1249-tour-cli-terminal-courses-fail-on-macos.md)
 (two tour CLI courses outside the dev preset) and
 [BPR-1250](../issues/20-ready/BPR-1250-the-windowless-macos-menu-bar-drops-help.md)
 (windowless Help).

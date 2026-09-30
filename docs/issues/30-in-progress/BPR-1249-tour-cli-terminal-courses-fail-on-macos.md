@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1249"
 title: "Two tour CLI terminal courses fail on macOS in a BPR_BUILD_TOUR_CLI build"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"found by the main stabilization milestone while checking BPR-1243's script changes, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-1243"]}
