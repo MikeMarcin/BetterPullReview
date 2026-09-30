@@ -69,3 +69,23 @@ The owner requires local verification and no paid CI. Before proposing any live
 review or comment operation, inspect the designated target's relevant workflow
 triggers; do not execute an operation that would start GitHub Actions. Do not push
 or dispatch a workflow. The local fixtures require neither credentials nor CI.
+
+## Owner designation of BPR-Test — 2026-09-30
+
+On 2026-09-30 the owner wrote: "You can do anything you need to with the
+MikeMarcin/BPR-Test github repo". That supplies the repository and the
+authority to open a disposable PR there. BPR-Test has no workflow files on any
+branch (checked 2026-09-30), so a review there starts no Actions.
+
+It does not supply the missing input. GitHub refuses Approve and Request
+Changes from a pull request's author, and `MikeMarcin` is the only account
+available, so every PR on BPR-Test that this account can open is one it
+cannot approve or request changes on. Two of the three required dispositions
+need either a second account as the reviewer, or a PR on BPR-Test authored by
+another account with `MikeMarcin` reviewing it. The Comment disposition alone
+would not satisfy the card, and the card's course is the attended one through
+the built application.
+
+The card stays Parked on `awaiting-live-github`. Next: the owner names a
+second GitHub account (as author or reviewer) for BPR-Test. No live object
+was made for it.

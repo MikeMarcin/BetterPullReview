@@ -87,3 +87,26 @@ because its current URL was disallowed. No action ran and no alternate route
 was attempted. Approval is complete; this card now parks on live execution.
 Revalidate the exact identities when a permitted course becomes available.
 Continue independent whole-review implementation meanwhile.
+
+## Owner designation of BPR-Test — 2026-09-30
+
+On 2026-09-30 the owner wrote: "You can do anything you need to with the
+MikeMarcin/BPR-Test github repo". That covers the repository and the remote
+actions this card needs (the four approved test actions on the existing
+BPR-Test#1 thread, and the wider edits, deletion and resolve/reopen). A
+second client is also available: the website or `gh api` under the same
+account suffices, as the card says.
+
+The live target qualification milestone did not run it. What is still
+missing is the observation: each required result is what the **shipped
+application shows after Refresh while the workbench is open** under the
+remembered sign-in, and the database-loss course reopens that application.
+That is an attended course (the prepared [operator packet](../../verification/reviews/mixed-client-thread-state-v001/operator-packet.md)),
+and the earlier attempt stopped at a browser-control boundary, not at
+authority. No unattended check reads the workbench's projection in its place,
+and reading BPR's own store back would not be the evidence the card asks for.
+
+The card stays Parked on `awaiting-live-github`. Next: an attended session
+that revalidates BPR-Test#1's identities, performs the four approved actions
+from a second client, and records the workbench after each Refresh. No live
+object was made for it.

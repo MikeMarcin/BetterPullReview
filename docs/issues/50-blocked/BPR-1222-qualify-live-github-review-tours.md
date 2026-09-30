@@ -33,3 +33,25 @@ These original criteria require the direct evidence described above for this car
 ## Completion evidence
 
 Record exact candidate, environment/host/provider identities, command or observed action, result and relevant human verdict. Unsupported/not-run rows retain their limitations; do not generalize fixture or historical evidence. This card starts with no passing qualification record.
+
+## Owner designation of BPR-Test — 2026-09-30
+
+On 2026-09-30 the owner wrote: "You can do anything you need to with the
+MikeMarcin/BPR-Test github repo". That supplies the disposable GitHub.com
+repository, and with it the authority to create the draft PR, push, and later
+advance or force-push its test branch, as the [manual course](../../verification/RFC-BPR-0039-0043.manual-course.md)
+asks. The live target qualification milestone inspected the course and did
+not run it, because it still needs two things the designation does not give:
+
+- **A reviewer account.** Only `MikeMarcin` is signed in on the Mac. Step 3
+  needs a browser with "only the reviewer account" to follow the tour and
+  reply, and AC40-07 and AC42-08 are about that website-only reviewer. The
+  author and reviewer must be different accounts.
+- **An attended session.** Steps 1–8 drive the shipped application's tour
+  gestures and the website by hand and record what a person sees: pending
+  versus submitted visibility, website navigation and replies, B/L/R conflict
+  choices, Stop and Resume. No unattended harness substitutes for them.
+
+The card stays Blocked on `safe-github-tour-target`. Its next step is the
+owner naming a second GitHub account for the reviewer role and scheduling an
+attended course on BPR-Test. No live object was made for it.

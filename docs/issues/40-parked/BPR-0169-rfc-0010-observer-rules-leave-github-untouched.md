@@ -70,3 +70,22 @@ Preserve remembered sign-in; no new token or GitHub write is required by this
 observation. A missing subscription fact remains a limitation. The
 [r4 mandate](../../rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md) grants no
 live operation, publication, message, push or Actions authority.
+
+## Owner designation of BPR-Test — 2026-09-30
+
+On 2026-09-30 the owner wrote: "You can do anything you need to with the
+MikeMarcin/BPR-Test github repo". That supplies a repository, and `gh api`
+under the Mac's sign-in is an independent client that can read the reviewer,
+requested-reviewer and label fields.
+
+It does not supply the missing input. The card needs a pull request whose
+author and reviewers do not include `MikeMarcin`, and `MikeMarcin` is the only
+account available: any PR it opens on BPR-Test is its own, like BPR-Test#1.
+A PR authored by a bot would need Dependabot or another automation, which
+runs on GitHub Actions, and the r4 mandate grants no Actions. The
+subscription fact is also not readable for another user through REST, which
+stays a recorded limitation.
+
+The card stays Parked on `awaiting-live-github`. Next: a PR on BPR-Test
+authored by a second account with `MikeMarcin` neither author nor reviewer,
+then the before-and-after reads the card lists. No live object was made for it.
