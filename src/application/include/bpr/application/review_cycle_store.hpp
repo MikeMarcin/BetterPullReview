@@ -13,6 +13,8 @@
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <string>
+#include <utility>
 #include <vector>
 
 /// \file
@@ -185,13 +187,22 @@ namespace bpr::application {
 		cycle_object_ref              Payload;
 		std::vector<cycle_object_ref> Objects;
 	};
-	/// \brief One quarantined imported round.
+	/// \brief One quarantined imported round, and the local cycle it was
+	/// explicitly associated with, if any (BPR-1162).
 	struct stored_cycle_import
 	{
-		core::cycle_import_summary    Summary;
-		cycle_object_ref              Payload;
-		std::vector<cycle_object_ref> Objects;
-		auto                          operator<=>(const stored_cycle_import&) const = default;
+		core::cycle_import_summary                    Summary;
+		cycle_object_ref                              Payload;
+		std::vector<cycle_object_ref>                 Objects;
+		std::optional<core::cycle_import_association> Association;
+		auto                                          operator<=>(const stored_cycle_import&) const = default;
+	};
+	/// \brief A local note a fork started, by the sender's item name.
+	struct stored_import_fork
+	{
+		std::string                   ForeignItem;
+		core::cycle_feedback_item_ref Item;
+		auto                          operator<=>(const stored_import_fork&) const = default;
 	};
 	struct cycle_import_page
 	{
@@ -307,6 +318,19 @@ namespace bpr::application {
 		virtual auto admit_import(const cycle_operation_id& aOperation, const cycle_import_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
 		virtual auto imports(std::optional<core::cycle_import_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_import_page>                                     = 0;
 		virtual auto load_import(core::cycle_import_id aImport, std::stop_token aStop) -> cycle_store_result<std::optional<stored_cycle_import>>                              = 0;
+		/// \brief Records an import's association with one active local cycle
+		/// (BPR-1162); every mapped revision must be captured. The same
+		/// association again changes nothing; a different one is a conflict.
+		/// The imported record and payload never change. `Allocated` is the import.
+		virtual auto associate_import(const cycle_operation_id& aOperation, core::cycle_import_id aImport, const core::cycle_import_association& aAssociation, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief Starts the fork's local notes in the associated cycle in one
+		/// transaction, each recorded against the sender's item name. A second
+		/// fork of the same import changes nothing. `Allocated` is the number
+		/// of notes; `Revision` the cycle revision after the write.
+		virtual auto fork_import(const cycle_operation_id& aOperation, core::cycle_import_id aImport, const core::local_cycle_subject& aSubject, std::uint64_t aExpectedRevision,
+								 const std::vector<std::pair<std::string, core::begin_cycle_feedback>>& aNotes, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		virtual auto import_forks(core::cycle_import_id aImport, std::stop_token aStop) -> cycle_store_result<std::vector<stored_import_fork>>                                    = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

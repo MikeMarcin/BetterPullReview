@@ -126,6 +126,11 @@ namespace bpr::application {
 		auto imports(std::optional<core::cycle_import_id> aAfter, completion<cycle_import_page> aDone) -> bool;
 		/// \brief One quarantined round, verified against its digest.
 		auto read_import(core::cycle_import_id aImport, completion<cycle_imported_round> aDone) -> bool;
+		/// \brief Associates a quarantined round with the selected cycle from
+		/// explicit mappings only (BPR-1162).
+		auto attach_import_selected(cycle_import_attach_request aRequest, completion<cycle_import_attach_result> aDone) -> bool;
+		/// \brief Forks an associated round into the selected cycle's notes.
+		auto fork_import_selected(cycle_operation_id aOperation, core::cycle_import_id aImport, completion<cycle_import_fork_result> aDone) -> bool;
 
 		/// \brief Observes a deliberately chosen root on the effect lane:
 		/// identity only, nothing captured. `aSource` must stay alive until the

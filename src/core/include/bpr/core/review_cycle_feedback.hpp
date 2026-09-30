@@ -180,11 +180,15 @@ namespace bpr::core {
 
 	/// \brief Starts a note. The reviewer writes it; no title, label,
 	/// severity, recipient or model is asked for.
+	/// \details `Provenance` is `human` for a note the reviewer types, or
+	/// `unknown` for text taken from a round someone else sent (BPR-1162),
+	/// whose author this profile never observed.
 	struct begin_cycle_feedback
 	{
 		cycle_feedback_target                Primary;
 		std::vector<cycle_related_reference> Related;
 		std::string                          Body;
+		authored_provenance                  Provenance = authored_provenance::human;
 	};
 	struct begun_cycle_feedback
 	{

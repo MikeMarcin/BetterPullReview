@@ -127,3 +127,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_bundle)
 bpr_add_network_isolated_test(NAME review_cycle_bundle WINDOWS_UNCONTAINED COMMAND test_review_cycle_bundle "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
+
+# [[BPR-1162]]. Imported rounds attached through explicit mappings, forked, and prose-only replies.
+bpr_add_executable(test_review_cycle_attach review_cycle_attach_tests.cpp)
+target_link_libraries(test_review_cycle_attach PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_attach)
+if(WIN32)
+    target_link_libraries(test_review_cycle_attach PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_attach)
+bpr_add_network_isolated_test(NAME review_cycle_attach WINDOWS_UNCONTAINED COMMAND test_review_cycle_attach)

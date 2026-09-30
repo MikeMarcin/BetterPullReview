@@ -473,6 +473,32 @@ namespace bpr::application {
 															std::move(aDone));
 	}
 
+	auto review_cycle_runtime::attach_import_selected(cycle_import_attach_request aRequest, completion<cycle_import_attach_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_import_attach_result>([subject, host, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_attach_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return attach_imported_round(aStore, *host, *subject, request, aStop);
+		},
+																  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::fork_import_selected(cycle_operation_id aOperation, const core::cycle_import_id aImport, completion<cycle_import_fork_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_import_fork_result>([subject, host, aOperation, aImport](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_fork_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return fork_imported_round(aStore, *host, *subject, aOperation, aImport, aStop);
+		},
+																std::move(aDone));
+	}
+
 	auto review_cycle_runtime::preview_suggestion_selected(core::cycle_suggestion aSuggestion, completion<cycle_suggestion_preview_observation> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

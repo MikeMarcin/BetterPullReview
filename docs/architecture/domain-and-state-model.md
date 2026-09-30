@@ -375,6 +375,24 @@ restart, finds that record; a refused bundle installs nothing; an interrupted
 import leaves only unreferenced objects. Schema 5 migrates schemas 1 to 4 in
 place.
 
+A quarantined round is associated with a local cycle only explicitly
+(`associate_import` in `bpr/core/review_cycle_import.hpp`, BPR-1162): the
+sender's project name must map to the cycle's project through a
+`workspace_import_mapping` keyed by `imported_project_key` (never a label,
+path or folder name), every sender revision the round names must map to a
+captured local revision, and every file the round names by bytes must be
+exactly those bytes in its mapped revision as retained. The association is
+kept beside the immutable record; repeating it changes nothing, another one is
+refused, and removing the cycle releases it. Forking an associated round
+(`plan_import_fork`, `application::fork_imported_round`) starts one local note
+per item at its mapped locations, with the exact body and `unknown`
+provenance (`begin_cycle_feedback::Provenance`), recorded in `import_forks`
+against the sender's item name; the reviewer's edits are ordinary successor
+revisions and the sender's round never changes. Nothing is applied to any
+source. Prose replies need no protocol: a pasted answer is a turn of
+`unknown` or `self_reported` provenance, and the next capture needs no
+structured response.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

@@ -697,3 +697,10 @@ if(TARGET Python3::Interpreter)
             "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1"
     )
 endif()
+
+# [[BPR-1162]]. Attaching imported rounds through explicit project and revision mappings.
+bpr_add_executable(test_better_pull_review_review_cycle_import_tests review_cycle_import_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_import_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_import_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_import_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_import COMMAND test_better_pull_review_review_cycle_import_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")

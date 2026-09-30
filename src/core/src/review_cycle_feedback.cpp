@@ -358,7 +358,10 @@ namespace bpr::core {
 		if (aCycle.Lifecycle == cycle_lifecycle::archived) {
 			return std::unexpected{ cycle_refusal::archived };
 		}
-		if (aCommand.Related.size() > maximum_cycle_related_references || aCommand.Body.size() > private_body_limit(authored_provenance::human)) {
+		if (aCommand.Provenance != authored_provenance::human && aCommand.Provenance != authored_provenance::unknown) {
+			return std::unexpected{ cycle_refusal::invalid_author };
+		}
+		if (aCommand.Related.size() > maximum_cycle_related_references || aCommand.Body.size() > private_body_limit(aCommand.Provenance)) {
 			return std::unexpected{ cycle_refusal::bounds };
 		}
 		if (!valid_target(aCycle, aCommand.Primary)) {
@@ -385,7 +388,7 @@ namespace bpr::core {
 		};
 		auto revision = cycle_feedback_revision{
 			.Identity = { .Item = id, .Position = { private_review_turn_id{ 1 }, private_review_turn_revision_id{ 1 }, private_vertex_order{ 1 } }, .Digest = private_digest(aCommand.Body) },
-			.Author   = { },
+			.Author   = { .Provenance = aCommand.Provenance },
 			.Body     = aCommand.Body,
 		};
 		return begun_cycle_feedback{ .Cycle = std::move(cycle), .Thread = std::move(thread), .Revision = std::move(revision) };
