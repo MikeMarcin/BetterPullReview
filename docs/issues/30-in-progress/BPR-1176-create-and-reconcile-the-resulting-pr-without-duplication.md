@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1176"
 title: "Create and reconcile the resulting PR without duplication"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1175"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-05", "RC59-07", "RC59-10"], "pack_alias": "PACK-CYCLE-34", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
