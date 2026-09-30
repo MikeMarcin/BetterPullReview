@@ -157,9 +157,11 @@ namespace {
 			expect(resumed.Cycle && resumed.Cycle->Subject.Cycle == core::review_cycle_id{ 1 } && resumed.Revisions.size() == 1U, "same cycle, no second capture");
 			expect(resumed.Tabs.size() == 2U && resumed.Tabs[0].View.Path == "src/parser.cpp" && resumed.Tabs[0].View.Line == 2U && resumed.Source && resumed.Source->Path == "src/parser.cpp", "tabs and reading line restored");
 			expect(resumed.Notes.size() == 3U, "notes restored");
+			// `resumed` is the live projection, which close() empties.
+			const auto subject = resumed.Cycle->Subject;
 			desk2.Host->close();
 			expect(!desk2.view().Cycle && desk2.view().Tabs.empty(), "closed");
-			desk2.Host->resume(resumed.Cycle->Subject);
+			desk2.Host->resume(subject);
 			expect(desk2.view().Cycle && desk2.view().Notes.size() == 3U, "resumed from recents");
 		}
 
