@@ -4,7 +4,12 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-import tempfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# [[BPR-1231]]. The data root's descriptor, and the contained temporary root.
+from bpr_narrow_owner_private import make_root_private  # noqa: E402
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def main():
@@ -17,11 +22,11 @@ def main():
     parser.add_argument('--theme', choices=('system', 'light', 'dark', 'high-contrast-light', 'high-contrast-dark'), default='system')
     parser.add_argument('--lose-first-result', action='store_true')
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix='bpr-private-review-') as temporary:
+    with contained_temporary_directory(prefix='bpr-private-review-') as temporary:
         parent = Path(temporary).resolve()
-        parent.chmod(0o700)
+        make_root_private(parent)
         root = parent / 'data'
-        root.mkdir(mode=0o700)
+        make_root_private(root)
         for phase in ('seed', 'compose', 'publish'):
             env = os.environ.copy()
             env.setdefault('QT_QPA_PLATFORM', 'offscreen')
