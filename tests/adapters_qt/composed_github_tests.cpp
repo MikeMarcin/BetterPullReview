@@ -56,6 +56,7 @@
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyleOptionViewItem>
+#include <QTabWidget>
 #include <QTextEdit>
 #include <QToolButton>
 #include <QTreeView>
@@ -91,6 +92,18 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+
+	/// [[BPR-1242]]. RFC-BPR-0023 gave the Notes tab two pages, Private
+	/// history first and Agent tools second; the agent surfaces are on the
+	/// second, so a course that inspects them opens it as a reviewer would.
+	void show_agent_tools(qt::workbench_window& aWindow)
+	{
+		auto* const pages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+		expect(pages != nullptr && pages->indexOf(aWindow.findings_tab_scroll()) >= 0,
+			   "the Notes tab offers its Agent tools page");
+		pages->setCurrentWidget(aWindow.findings_tab_scroll());
+		QApplication::processEvents();
 	}
 
 	template <typename Widget>
@@ -3605,13 +3618,12 @@ namespace {
 			},
 		});
 		QApplication::processEvents();
-		expect(!window.showing_home() && window.overview_page()->isVisible()
-				   && !window.overview_page()->presented()
-				   && required_child<QLabel>(window, "overviewTitle")->text().contains(QStringLiteral("Loading"))
-				   && window.home_open_details_button()->isHidden()
-				   && required_child<QStackedWidget>(window, "githubViewState")->isHidden()
-				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral("Loading")),
-			   "a first load opens the provisional Overview immediately, with explicit loading and no accepted content");
+		// [[BPR-1200]]. A first read keeps Home until GitHub has answered it, and
+		// says so under the bar; a refused read never passes through the workbench.
+		expect(window.showing_home() && !window.home_open_notice()->isHidden()
+				   && window.home_open_notice()->text() == QStringLiteral("Loading the pull request.")
+				   && window.home_open_details_button()->isHidden(),
+			   "a first load stays on Home and says under the bar that it is loading");
 		publish_session_ready(window);
 		QApplication::processEvents();
 		expect(window.home_open_notice()->isHidden(),
@@ -4323,6 +4335,7 @@ namespace {
 		// [[BPR-1134]]. The agent surfaces are the Findings tab's.
 		window.ai_tools_action()->setChecked(true);
 		QApplication::processEvents();
+		show_agent_tools(window);
 
 		const auto named = [drawer](const QString& aName) -> QWidget* {
 			for (auto* const widget : drawer->findChildren<QWidget*>()) {
@@ -4675,6 +4688,7 @@ namespace {
 		// navigation is in Comments and verdicts belong to the thread menu.
 		window.ai_tools_action()->setChecked(true);
 		QApplication::processEvents();
+		show_agent_tools(window);
 		auto* const column = window.findings_tab_scroll();
 		expect(
 			column != nullptr && column->isVisible() && column->viewport() != nullptr
@@ -4828,6 +4842,7 @@ namespace {
 			"the open drawer's Comments tab shows the review-thread availability sentence");
 		window.tray_tabs()->setCurrentIndex(1);
 		QApplication::processEvents();
+		show_agent_tools(window);
 		expect(!offered(QStringLiteral("showReviewThreadsAction")),
 			   "the conversation drawer has no focus-only reveal action below its availability sentence");
 		expect(

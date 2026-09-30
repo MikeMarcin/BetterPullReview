@@ -65,6 +65,7 @@
 #include <QStyleFactory>
 #include <QSysInfo>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QThread>
@@ -115,6 +116,18 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+
+	/// [[BPR-1242]]. RFC-BPR-0023 gave the Notes tab two pages, Private
+	/// history first and Agent tools second; the agent surfaces are on the
+	/// second, so a course that inspects them opens it as a reviewer would.
+	void show_agent_tools(qt::workbench_window& aWindow)
+	{
+		auto* const pages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+		expect(pages != nullptr && pages->indexOf(aWindow.findings_tab_scroll()) >= 0,
+			   "the Notes tab offers its Agent tools page");
+		pages->setCurrentWidget(aWindow.findings_tab_scroll());
+		QApplication::processEvents();
 	}
 
 	void test_settings_collection_limit_keeps_accepted_models_and_recovery_actions()
@@ -2612,8 +2625,13 @@ namespace {
 	[[nodiscard]] auto every_control_is_reachable(const qt::workbench_window& aWindow) -> bool
 	{
 		auto* const drawer = aWindow.conversations_drawer();
-		// [[BPR-1134]]. The column of the tray's tab that is showing.
-		auto* const scroll = aWindow.tray_tabs()->currentIndex() == 0 ? aWindow.comments_tab_scroll() : aWindow.findings_tab_scroll();
+		// [[BPR-1134]]. The column of the tray's tab that is showing. [[BPR-1242]]:
+		// RFC-BPR-0023 gave Notes two pages, Private history and Agent tools, each
+		// its own column; the one showing is the Notes tab's column.
+		auto* const notesPages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+		auto* const scroll     = aWindow.tray_tabs()->currentIndex() == 0
+			? aWindow.comments_tab_scroll()
+			: (notesPages == nullptr ? nullptr : qobject_cast<QScrollArea*>(notesPages->currentWidget()));
 		if (scroll == nullptr || scroll->widget() == nullptr) {
 			std::cerr << "the conversations drawer has no content scroll area\n";
 			return false;
@@ -2689,6 +2707,15 @@ namespace {
 		process_events();
 		expect(every_control_is_reachable(window),
 			   "no Notes tab control is clipped at 200 pixels; the column scrolls");
+		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+		expect(notesPages != nullptr && notesPages->count() == 2,
+			   "the Notes tab has its Private history and Agent tools pages");
+		notesPages->setCurrentWidget(window.findings_tab_scroll());
+		process_events();
+		expect(every_control_is_reachable(window),
+			   "no Agent tools control is clipped at 200 pixels; the column scrolls");
+		notesPages->setCurrentIndex(0);
+		process_events();
 		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
@@ -7528,11 +7555,15 @@ namespace {
 		const auto selected = view->currentIndex();
 		tabs->setCurrentIndex(1);
 		process_events();
+		show_agent_tools(window);
 		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
 				   && window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible() && below(window.agent_panel())
 				   && !window.conversation_panel()->isVisible(),
 			   "the Notes tab shows only its own tools, beneath the tabs, and checks the AI tools action");
-		expect(purpose->isVisible() && purpose->width() <= findings->width()
+		// [[BPR-1242]]. The purpose sits above the Notes pages' tab widget, whose
+		// frame is wider than the Agent tools column inside it.
+		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+		expect(purpose->isVisible() && notesPages != nullptr && purpose->width() <= notesPages->width()
 				   && purpose->height() >= purpose->heightForWidth(purpose->width()),
 			   "the private purpose wraps within the visible Notes page");
 		save(QStringLiteral("tray-notes"));
