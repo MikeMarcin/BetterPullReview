@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1233"
 title: "Windows: live_review_submission_restart_recovery fails at its first kill boundary because the submission store does not open"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
+acceptance: [{"criterion":"The row passes on Windows","outcome":"pass","revision":"c52aa0e8","evidence":{"kind":"observation","detail":"bpr-main-win: live_review_submission_restart_recovery passes, 1.08 s, all five kill boundaries recover; recorded on the card."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"69493e235","evidence":{"kind":"command","detail":"Linux (bpr-main-linux, 69493e235): passes, 0.20 s. macOS arm64 (69493e235): passes through ctest, 0.58 s. Recorded on the card."}}]
 ---
 
 # BPR-1233: Windows: live_review_submission_restart_recovery fails at its first kill boundary because the submission store does not open
