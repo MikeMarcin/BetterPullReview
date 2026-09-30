@@ -70,3 +70,23 @@ Windows, where `app_bpr` is not built, the row passes: 17.19 s.
 Still open: a run on macOS or Linux, where `app_bpr` exists, to show the
 pair is still passed. And the row's uncontained pin is still unmeasured on
 Windows. The card stays in Backlog until both are recorded.
+
+## Linux, with and without `app_bpr` (bpr-main-linux, 2026-09-29)
+
+Ubuntu 26.04 on WSL2, GCC 15.2, `build/dev` Debug, at `bfc02529a` (which
+contains `ab9d3fd7`).
+
+- **Without `app_bpr`** (the dev preset's `BPR_BUILD_TOUR_CLI=OFF`): the
+  registered command ends at `--desktop-application …/better_pull_review`,
+  with no empty arguments. `application_profile_activation_public_path`
+  passes in 3.34 s.
+- **With `app_bpr`** (the same tree reconfigured with
+  `-DBPR_BUILD_TOUR_CLI=ON`, then built with `app_bpr`): the registration adds
+  `--tour-application …/src/app/bpr`. The row passes in 4.00 s, and on POSIX
+  the script's `tour_owner_course` runs whenever that argument is present.
+  The tree was then reconfigured back to `OFF`.
+
+This is the Linux half of "macOS and Linux still pass", with `app_bpr` both
+present and absent. The Windows uncontained pin is not a Linux question and
+remains open. The logs are in `build/logs/bpr-station-rounds/` and are not
+committed.

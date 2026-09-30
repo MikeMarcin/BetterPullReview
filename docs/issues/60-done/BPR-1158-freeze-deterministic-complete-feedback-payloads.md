@@ -35,3 +35,11 @@ Passed on macOS arm64 at `09e3ce3c3`. Owed on the Linux station (GCC 15, `build/
 `ctest --test-dir build/dev -R "^core_review_cycle_round$|^review_cycle_round$|^core_review_cycle_suggestion$|^review_cycle_suggestion$|^sqlite_review_cycle_storage$" --output-on-failure`.
 Owed on the Windows station (MSVC, `build\dev`): the same selector plus
 `|^test_network_isolation_manifest$` for the new `review_cycle_round` pin.
+
+## Linux — bpr-main-linux, 2026-09-29
+
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2 with the dev preset's `-Werror` (Debug), Qt 6.11.2, `build/dev` freshly configured at `bfc02529a`.
+
+`core_review_cycle_round`, `core_review_cycle_suggestion`, `review_cycle_round`, `review_cycle_suggestion` and `sqlite_review_cycle_storage` pass.
+
+The build is clean under GCC with no warnings, and no source change was needed. The logs are station records in `build/logs/bpr-station-rounds/` and are not committed.
