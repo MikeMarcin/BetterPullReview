@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1231"
 title: "Windows: application_private_review_native, _file and _retry cannot start the application (no Qt PATH), then refuse startup at the registry"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
+acceptance: [{"criterion":"The three rows pass on Windows, and print PRIVATE_REVIEW_PUBLIC_PATH_OK","outcome":"pass","revision":"e175008d","evidence":{"kind":"observation","detail":"bpr-main-win: application_private_review_native, _file and _retry pass, 23.89, 24.20 and 22.13 s; recorded on the card."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"69493e235","evidence":{"kind":"command","detail":"Linux (bpr-main-linux, 69493e235): the three rows pass, 4.27, 4.50 and 4.01 s. macOS arm64 (69493e235): the three rows pass through ctest, 28.30, 25.76 and 25.09 s. Recorded on the card."}}]
 ---
 
 # BPR-1231: Windows: application_private_review_native, _file and _retry cannot start the application (no Qt PATH), then refuse startup at the registry
