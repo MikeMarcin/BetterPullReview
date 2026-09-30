@@ -90,3 +90,5 @@ f44c95dd7's Release cost (11 ms of the 250 ms limit) is not recovered here.
 The owner's Accept or Reject of the Debug scoping is attended item
 `BPR-1247-debug-limits-v001` in session `cbd48b91000b00f1e72e1ad62c7c384c`
 (no server started).
+
+Published: `git pull --rebase` renamed the candidate. `a8174f743` above is `d3f05b94b` on main; the attended item names `d3f05b94b`.

@@ -92,3 +92,5 @@ exempted the press was tried and withdrawn: it would need the host's
 admission invariant relaxed, which is RFC-BPR-0023's provenance rule, not a
 course detail. The owner question is attended item `BPR-1245-workshop-v001`
 in session `cbd48b91000b00f1e72e1ad62c7c384c` (no server started).
+
+Published: `git pull --rebase` renamed the milestone commits. `b2fd518bd` above is `db162ddbd` on main and `1dbf9d5ca` is `68599e10c`; the attended item now names `db162ddbd`.

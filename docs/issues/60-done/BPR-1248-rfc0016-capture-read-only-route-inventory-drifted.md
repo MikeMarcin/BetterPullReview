@@ -75,3 +75,5 @@ new attended capture. The provider's extended query is unchanged.
 |---|---|
 | `ctest --test-dir build/dev -R '^rfc0016_'` | 7 of 7 pass, including `rfc0016_device_capture_security` (39 cases) |
 | `python3 tests/scripts/verify_rfc0016_production_identity_tests.py` | 122 pass |
+
+Published: `git pull --rebase` renamed the fix. `b6208f07f` is `708426196` on main.

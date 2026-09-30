@@ -72,3 +72,5 @@ Which commands a windowless Help should offer was left as a UX choice on this
 card. The disabled mirror is the candidate; the owner's Accept or Reject is
 attended item `BPR-1250-help-v001` in session
 `cbd48b91000b00f1e72e1ad62c7c384c` (no server started).
+
+Published: `git pull --rebase` renamed the candidate. `5db77be71` above is `9605cb7da` on main; the attended item names `9605cb7da`.

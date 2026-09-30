@@ -57,3 +57,5 @@ promotion ([[BPR-1245]]) met the same defect once it reached a right-side line.
 `application_review_round_trip_composition_contract` pins
 `github_application.cpp`; the reseal comment records the change (no grant,
 provider or publication path; the mutation pin is unchanged).
+
+Published: `git pull --rebase` renamed the milestone commits. `1dbf9d5ca` above is `68599e10c` on main and `b2fd518bd` is `db162ddbd`.
