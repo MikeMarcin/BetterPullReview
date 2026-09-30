@@ -9,6 +9,7 @@
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
+#include "bpr/application/review_cycle_verification.hpp"
 #include "bpr/application/review_cycle_views.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 
@@ -99,6 +100,14 @@ namespace bpr::application {
 		auto attach_reply_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, core::cycle_manual_reply aReply, completion<cycle_response_result> aDone) -> bool;
 		/// \brief Every statement appended to the selected cycle, with its content.
 		auto responses_selected(completion<cycle_response_entries> aDone) -> bool;
+
+		/// \brief Records the reviewer's decision about a note of the selected
+		/// cycle against the checked revision's retained material (BPR-1165).
+		auto decide_selected(cycle_operation_id aOperation, cycle_decision_request aRequest, completion<cycle_decision_result> aDone) -> bool;
+		/// \brief Every note of the selected cycle reconciled against `aAgainst`.
+		auto reconcile_selected(core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone) -> bool;
+		/// \brief Saves the next round's draft, planned from the latest frozen round.
+		auto prepare_next_round_selected(cycle_operation_id aBegin, cycle_operation_id aSave, completion<cycle_next_round_result> aDone) -> bool;
 
 		/// \brief Starts a note on the selected cycle after verifying each
 		/// target against its revision's retained bytes.

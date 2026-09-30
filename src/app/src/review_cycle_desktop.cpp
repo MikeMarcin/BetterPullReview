@@ -55,7 +55,9 @@ namespace bpr::app {
 						Host->import_response(aRound, chosen.toStdString());
 					}
 				},
-			.Reply = [this](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { Host->attach_reply(aRound, std::move(aReply)); },
+			.Reply            = [this](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { Host->attach_reply(aRound, std::move(aReply)); },
+			.Decide           = [this](const core::cycle_feedback_item_ref& aItem, const std::optional<core::cycle_reviewer_decision> aDecision) { Host->decide(aItem, aDecision); },
+			.PrepareNextRound = [this] { Host->prepare_next_round(); },
 		});
 		// A chosen response file is read on the effect lane, never through a link.
 		Host->set_file_reader([](const std::string& aPath, const std::uint64_t aMaximum, std::stop_token aStop) {

@@ -7,6 +7,7 @@
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
+#include "bpr/core/review_cycle_verification.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
 #include <cstddef>
@@ -46,7 +47,9 @@ namespace bpr::application {
 		std::optional<core::cycle_target_correspondence> Correspondence;
 		/// What recipients said about this note, in append order (BPR-1164).
 		std::vector<core::cycle_item_statement> Statements;
-		auto                                    operator<=>(const review_cycle_note_entry&) const = default;
+		/// Where it stands against the latest capture, each fact kept apart (BPR-1165).
+		std::optional<core::cycle_item_reconciliation> Reconciliation;
+		auto                                           operator<=>(const review_cycle_note_entry&) const = default;
 	};
 
 	/// \brief One appended statement as the surface lists it: how it arrived,
@@ -99,6 +102,18 @@ namespace bpr::application {
 		auto                                       operator<=>(const review_cycle_comparison_view&) const = default;
 	};
 
+	/// \brief The next round's draft the reviewer prepared (BPR-1165).
+	struct review_cycle_next_round
+	{
+		core::cycle_round_draft_ref Draft;
+		core::cycle_round_id        From;
+		std::size_t                 Carried                                           = 0;
+		std::size_t                 Added                                             = 0;
+		std::size_t                 Resolved                                          = 0;
+		std::size_t                 Archived                                          = 0;
+		auto                        operator<=>(const review_cycle_next_round&) const = default;
+	};
+
 	enum class review_cycle_activity : std::uint8_t {
 		idle,
 		opening,
@@ -132,7 +147,9 @@ namespace bpr::application {
 		std::vector<review_cycle_note_entry> Notes;
 		/// Every statement recipients sent back, in append order.
 		std::vector<review_cycle_response_entry> Responses;
-		review_cycle_activity                    Activity = review_cycle_activity::idle;
+		/// The draft prepared for the next round, when one was prepared here.
+		std::optional<review_cycle_next_round> NextRound;
+		review_cycle_activity                  Activity = review_cycle_activity::idle;
 		/// Plain words about the last refusal or failure; empty otherwise.
 		std::string Message;
 		/// Plain words about the last capture when it recorded nothing new.

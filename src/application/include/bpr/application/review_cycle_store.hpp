@@ -7,6 +7,7 @@
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
+#include "bpr/core/review_cycle_verification.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
 #include <cstddef>
@@ -230,6 +231,12 @@ namespace bpr::application {
 		std::optional<core::cycle_response_id>   Next;
 	};
 
+	struct cycle_verification_page
+	{
+		std::vector<core::cycle_verification_record> Verifications;
+		std::optional<core::cycle_verification_id>   Next;
+	};
+
 	/// \brief What removing a cycle would irrecoverably delete. Local cycles
 	/// are not recoverable from GitHub or from exported rounds.
 	struct cycle_removal_preview
@@ -369,6 +376,17 @@ namespace bpr::application {
 		virtual auto append_response(const cycle_operation_id& aOperation, const cycle_response_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
 		/// \brief The cycle's statements in append order.
 		virtual auto responses(const core::local_cycle_subject& aSubject, std::optional<core::cycle_response_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_response_page> = 0;
+
+		/// \brief Appends one reviewer decision about a note (BPR-1165): the
+		/// wording and captured revision it checked and that material's digest.
+		/// The note must exist and the revision be captured; the wording and
+		/// material are checked against retained records before this is called.
+		/// Decisions are append-only; a new one supersedes, never rewrites.
+		/// `Allocated` is the decision; the record's `Id` is ignored.
+		virtual auto record_verification(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_verification_record& aRecord, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The cycle's decisions in append order.
+		virtual auto verifications(const core::local_cycle_subject& aSubject, std::optional<core::cycle_verification_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_verification_page> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

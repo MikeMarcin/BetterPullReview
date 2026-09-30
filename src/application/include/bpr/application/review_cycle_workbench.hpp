@@ -88,6 +88,14 @@ namespace bpr::application {
 		/// \brief Appends a reply the reviewer entered for round `aRound`.
 		void attach_reply(core::cycle_round_id aRound, core::cycle_manual_reply aReply);
 
+		/// \brief The reviewer's decision about a note (BPR-1165), checked
+		/// against the revision the active tab shows on its right (or the
+		/// latest capture); absent clears the earlier decision.
+		void decide(const core::cycle_feedback_item_ref& aItem, std::optional<core::cycle_reviewer_decision> aDecision);
+		/// \brief Saves the next round's draft from the latest frozen round and
+		/// the notes still open. Nothing is frozen, copied or sent.
+		void prepare_next_round();
+
 		[[nodiscard]] auto projection() const noexcept -> const review_cycle_workbench_projection&;
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;
 		void               shutdown();

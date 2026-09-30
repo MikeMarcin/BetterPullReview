@@ -319,6 +319,57 @@ namespace {
 		expect(aGestures.Chosen == std::vector<core::cycle_round_id>{ core::cycle_round_id{ 1 } }, "a response file chosen for F1");
 	}
 
+	struct decision_gestures
+	{
+		std::vector<std::pair<core::cycle_feedback_item_ref, std::optional<core::cycle_reviewer_decision>>> Decisions;
+		int                                                                                                 Prepared = 0;
+	};
+
+	/// BPR-1165: each fact about a note in its own words; decisions only by the reviewer.
+	void decides_explicitly(qt::review_cycle_view& aView, const decision_gestures& aGestures)
+	{
+		auto view         = projection(3);
+		view.Facts.Rounds = { { .Round = core::cycle_round_id{ 1 }, .Start = core::cycle_source_revision_id{ 1 } } };
+		const auto item   = view.Notes[0].Item;
+		auto       state  = core::cycle_item_reconciliation{
+			.Item        = item.Id,
+			.Against     = core::cycle_source_revision_id{ 3 },
+			.Primary     = core::cycle_target_correspondence{ .Kind = core::cycle_correspondence::unmapped, .Against = core::cycle_source_revision_id{ 3 } },
+			.Suggestions = { { .Suggestion = core::cycle_suggestion_id{ 1 }, .Observation = core::cycle_application_observation::already_applied } },
+			.Claim       = core::cycle_response_disposition::addressed,
+			.Status      = core::cycle_item_status::needs_verification,
+		};
+		view.Notes[0].Correspondence.reset();
+		view.Notes[0].Reconciliation = state;
+		aView.present(view);
+		settle();
+		auto text = aView.notes()->item(0)->text();
+		expect(text.contains(QStringLiteral("Original code: Changed in R3; original kept")) && text.contains(QStringLiteral("Suggested result present in R3 (not a verification)"))
+				   && text.contains(QStringLiteral("Recipient says addressed; needs your verification")),
+			   "code gone, suggestion present and a claim: still only needs verification");
+		auto* const menu = aView.decision_menu(0);
+		expect(menu != nullptr && menu->actions().size() == 5 && menu->actions()[0]->text() == QStringLiteral("Verified in R1"), "decisions offered against the revision shown");
+		menu->actions()[0]->trigger();
+		menu->actions()[4]->trigger();
+		expect(aGestures.Decisions.size() == 2U && aGestures.Decisions[0].first == item && aGestures.Decisions[0].second == core::cycle_reviewer_decision::verified && !aGestures.Decisions[1].second,
+			   "verify and clear dispatched");
+		state.Status                 = core::cycle_item_status::recheck_needed;
+		state.Currency               = core::cycle_verification_currency::material_changed;
+		state.Decision               = core::cycle_verification_record{ .Item = item.Id, .Wording = core::private_review_turn_revision_id{ 1 }, .Checked = core::cycle_source_revision_id{ 2 }, .Decision = core::cycle_reviewer_decision::verified };
+		view.Notes[0].Reconciliation = state;
+		view.NextRound               = application::review_cycle_next_round{ .From = core::cycle_round_id{ 1 }, .Carried = 3, .Added = 1, .Resolved = 1 };
+		aView.present(view);
+		settle();
+		expect(aView.notes()->item(0)->text().contains(QStringLiteral("Verified by you in R2; its code changed since, check again")), "a verification that became history");
+		expect(aView.next_round_button()->isEnabled(), "next round offered once a round was frozen");
+		aView.next_round_button()->click();
+		expect(aGestures.Prepared == 1, "next round prepared on the reviewer's gesture");
+		aView.updates_toggle()->click();
+		expect(aView.updates_line()->text().contains(QStringLiteral("next round draft saved from F1: 3 carried, 1 new, 1 resolved left out")), "the draft summarized");
+		aView.updates_toggle()->click();
+		capture(aView, QStringLiteral("cycle-verification"));
+	}
+
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
 	{
 		aView.findChild<QAction*>(QStringLiteral("cyclePreviousFile"))->trigger();
@@ -339,20 +390,23 @@ try {
 	auto         opened    = std::string{ };
 	auto         gestures  = view_gestures{ };
 	auto         replies   = reply_gestures{ };
+	auto         decisions = decision_gestures{ };
 	view.set_dispatch({
-		.OpenFile       = [&](const std::string& aPath, bool) { opened = aPath; },
-		.Tab            = [](const core::document_tab_intent&) { },
-		.ObserveLine    = [](core::document_tab_id, std::uint64_t) { },
-		.Comment        = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
-		.Suggest        = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
-		.Relate         = { },
-		.Capture        = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
-		.Compare        = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
-		.FullSource     = [&] { ++gestures.FullSource; },
-		.Refresh        = [&] { ++gestures.Refreshed; },
-		.MarkReviewed   = [&] { ++gestures.MarkedReview; },
-		.ChooseResponse = [&](const core::cycle_round_id aRound) { replies.Chosen.push_back(aRound); },
-		.Reply          = [&](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { replies.Replies.emplace_back(aRound, std::move(aReply)); },
+		.OpenFile         = [&](const std::string& aPath, bool) { opened = aPath; },
+		.Tab              = [](const core::document_tab_intent&) { },
+		.ObserveLine      = [](core::document_tab_id, std::uint64_t) { },
+		.Comment          = [&](core::begin_cycle_feedback aNote) { noted = std::move(aNote); },
+		.Suggest          = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
+		.Relate           = { },
+		.Capture          = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
+		.Compare          = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
+		.FullSource       = [&] { ++gestures.FullSource; },
+		.Refresh          = [&] { ++gestures.Refreshed; },
+		.MarkReviewed     = [&] { ++gestures.MarkedReview; },
+		.ChooseResponse   = [&](const core::cycle_round_id aRound) { replies.Chosen.push_back(aRound); },
+		.Reply            = [&](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { replies.Replies.emplace_back(aRound, std::move(aReply)); },
+		.Decide           = [&](const core::cycle_feedback_item_ref& aItem, const std::optional<core::cycle_reviewer_decision> aDecision) { decisions.Decisions.emplace_back(aItem, aDecision); },
+		.PrepareNextRound = [&] { ++decisions.Prepared; },
 	});
 	view.resize(1280, 760);
 	view.show();
@@ -363,6 +417,7 @@ try {
 	opens_files_and_steps(view, opened);
 	captures_and_compares(view, gestures);
 	records_replies(view, replies);
+	decides_explicitly(view, decisions);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();

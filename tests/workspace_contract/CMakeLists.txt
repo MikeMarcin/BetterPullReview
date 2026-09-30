@@ -148,3 +148,13 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_response)
 bpr_add_network_isolated_test(NAME review_cycle_response WINDOWS_UNCONTAINED COMMAND test_review_cycle_response)
+
+# [[BPR-1165]]. Reconciliation, explicit verification and the next round's draft through the runtime and store.
+bpr_add_executable(test_review_cycle_verification review_cycle_verification_tests.cpp)
+target_link_libraries(test_review_cycle_verification PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_verification)
+if(WIN32)
+    target_link_libraries(test_review_cycle_verification PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_verification)
+bpr_add_network_isolated_test(NAME review_cycle_verification WINDOWS_UNCONTAINED COMMAND test_review_cycle_verification)

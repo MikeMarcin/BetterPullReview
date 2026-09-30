@@ -517,6 +517,45 @@ namespace bpr::application {
 															  std::move(aDone));
 	}
 
+	auto review_cycle_runtime::decide_selected(cycle_operation_id aOperation, cycle_decision_request aRequest, completion<cycle_decision_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_decision_result>([subject, host, aOperation, aRequest](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_decision_result> {
+			if (!subject || aRequest.Item.Cycle != subject->Cycle) {
+				return std::unexpected(refused_selection());
+			}
+			return record_item_decision(aStore, *host, *subject, aRequest, aOperation, aStop);
+		},
+															 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::reconcile_selected(const core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<std::vector<core::cycle_item_reconciliation>>([subject, host, aAgainst](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return reconcile_cycle_items(aStore, *host, *subject, aAgainst, aStop);
+		},
+																					std::move(aDone));
+	}
+
+	auto review_cycle_runtime::prepare_next_round_selected(cycle_operation_id aBegin, cycle_operation_id aSave, completion<cycle_next_round_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_next_round_result>([subject, host, aBegin, aSave](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_next_round_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return prepare_next_round(aStore, *host, *subject, aBegin, aSave, aStop);
+		},
+															   std::move(aDone));
+	}
+
 	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

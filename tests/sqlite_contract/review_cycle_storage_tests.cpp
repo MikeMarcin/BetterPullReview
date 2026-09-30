@@ -359,7 +359,7 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
-			"DROP TABLE checkpoints; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+			"DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
@@ -389,7 +389,7 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
@@ -417,7 +417,7 @@ namespace {
 			expect(note.has_value(), "feedback before downgrade");
 		}
 		// The third published shape had everything but the tab views.
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE views; PRAGMA user_version=3;");
 		auto       store = open(scratch.path());
 		const auto page  = store.Store->feedback(subject, std::nullopt, { });
@@ -536,7 +536,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v4 manifest", 1).has_value(), "capture before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
+		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v4 cycle reads unchanged");
 
@@ -585,7 +585,7 @@ namespace {
 			expect(store.capture(2, subject, "v5 manifest", 1).has_value(), "capture before downgrade");
 			expect(store.Store->save_tabs(subject, plain, { }).has_value(), "a full-source record before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE responses; PRAGMA user_version=5;");
+		sql(database_path(scratch.path()), "DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v5 cycle reads unchanged");
 		const auto old = store.Store->load_tabs(subject, { });

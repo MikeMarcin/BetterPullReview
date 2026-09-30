@@ -289,6 +289,20 @@ try {
 	expect(snapshot(project) == written && page->projection().Revisions.size() == 2U && page->projection().Facts.LastReview && page->projection().Facts.LastReview->Revision == core::cycle_source_revision_id{ 2 },
 		   "replies wrote no source, captured nothing and moved no review mark");
 	capture(window, QStringLiteral("desktop-cycle-replies"));
+
+	// BPR-1165: the claim asks for verification; only the reviewer's decision gives it.
+	expect(page->notes()->item(0)->text().contains(QStringLiteral("Recipient says addressed; needs your verification")), "addressed asks for verification");
+	auto* const decisions = page->decision_menu(0);
+	expect(decisions != nullptr && decisions->actions()[0]->text() == QStringLiteral("Verified in R2"), "verify against the revision shown");
+	decisions->actions()[0]->trigger();
+	settle(lanes);
+	expect(page->notes()->item(0)->text().contains(QStringLiteral("Verified by you in R2")), "verified by the reviewer");
+	page->next_round_button()->click();
+	settle(lanes);
+	expect(page->projection().NextRound && page->projection().NextRound->Resolved == 1U && page->projection().NextRound->Added == 1U && page->projection().NextRound->Carried == 0U,
+		   "the next round's draft: the verified note left out, the other note added");
+	expect(snapshot(project) == written && page->projection().Revisions.size() == 2U, "deciding and preparing wrote no source");
+	capture(window, QStringLiteral("desktop-cycle-verified"));
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");

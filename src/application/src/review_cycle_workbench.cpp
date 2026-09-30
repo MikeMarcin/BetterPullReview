@@ -597,9 +597,27 @@ namespace bpr::application {
 			Runtime.responses_selected(guarded<cycle_response_entries>([](implementation& aSelf, cycle_response_entries aEntries) {
 				aSelf.Responses = std::move(aEntries);
 				aSelf.describe_responses();
-				aSelf.observe_notes();
-				aSelf.publish();
+				aSelf.load_reconciliation();
 			}));
+		}
+
+		/// Each note against the latest capture: correspondence, suggestion
+		/// results, claims and the reviewer's decisions, kept apart.
+		void load_reconciliation()
+		{
+			if (!Cycle || !Cycle->Latest) {
+				observe_notes();
+				publish();
+				return;
+			}
+			Runtime.reconcile_selected(Cycle->Latest->Id.Id, guarded<std::vector<core::cycle_item_reconciliation>>([](implementation& aSelf, std::vector<core::cycle_item_reconciliation> aItems) {
+										   for (auto& note : aSelf.View.Notes) {
+											   const auto found    = std::ranges::find(aItems, note.Item.Id, &core::cycle_item_reconciliation::Item);
+											   note.Reconciliation = found != aItems.end() ? std::optional{ *found } : std::nullopt;
+										   }
+										   aSelf.observe_notes();
+										   aSelf.publish();
+									   }));
 		}
 
 		void describe_responses()
@@ -926,6 +944,56 @@ namespace bpr::application {
 		self.View.Activity = review_cycle_activity::saving;
 		self.publish();
 		self.Runtime.attach_reply_selected(self.operation(), aRound, std::move(aReply), self.guarded<cycle_response_result>([](implementation& aSelf, cycle_response_result aResult) { aSelf.response_done(aResult); }));
+	}
+
+	void review_cycle_workbench::decide(const core::cycle_feedback_item_ref& aItem, const std::optional<core::cycle_reviewer_decision> aDecision)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || !self.Cycle->Latest) {
+			return;
+		}
+		const auto* tab     = core::active_tab(self.Tabs);
+		const auto  checked = tab != nullptr ? tab->View.Revision : self.Cycle->Latest->Id.Id;
+		self.View.Activity  = review_cycle_activity::saving;
+		self.publish();
+		self.Runtime.decide_selected(self.operation(), { .Item = aItem, .Decision = aDecision, .Checked = checked }, self.guarded<cycle_decision_result>([](implementation& aSelf, cycle_decision_result aResult) {
+			if (aResult.Refusal) {
+				aSelf.fail("That decision could not be recorded: the note or the revision is not what is shown.");
+				return;
+			}
+			aSelf.View.Activity = review_cycle_activity::idle;
+			aSelf.View.Message.clear();
+			aSelf.load_reconciliation();
+		}));
+	}
+
+	void review_cycle_workbench::prepare_next_round()
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle) {
+			return;
+		}
+		self.View.Activity = review_cycle_activity::saving;
+		self.publish();
+		const auto begin = self.operation();
+		const auto save  = self.operation();
+		self.Runtime.prepare_next_round_selected(begin, save, self.guarded<cycle_next_round_result>([](implementation& aSelf, cycle_next_round_result aResult) {
+			if (!aResult.Draft || !aResult.From) {
+				aSelf.fail("No round has been frozen yet, so there is nothing to carry forward.");
+				return;
+			}
+			aSelf.View.NextRound = review_cycle_next_round{
+				.Draft    = *aResult.Draft,
+				.From     = *aResult.From,
+				.Carried  = aResult.Plan.Carried.size(),
+				.Added    = aResult.Plan.Added.size(),
+				.Resolved = aResult.Plan.Resolved.size(),
+				.Archived = aResult.Plan.Archived.size(),
+			};
+			aSelf.View.Activity = review_cycle_activity::idle;
+			aSelf.View.Message.clear();
+			aSelf.publish();
+		}));
 	}
 
 	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&

@@ -52,6 +52,7 @@ namespace bpr::adapters::sqlite {
 			table{ "import_objects", "CREATE TABLE import_objects(import INTEGER NOT NULL,digest BLOB NOT NULL CHECK(length(digest)=32),size INTEGER NOT NULL,PRIMARY KEY(import,digest)) STRICT" },
 			table{ "import_forks", "CREATE TABLE import_forks(import INTEGER NOT NULL,foreign_item TEXT NOT NULL,cycle INTEGER NOT NULL,item INTEGER NOT NULL,PRIMARY KEY(import,foreign_item)) STRICT" },
 			table{ "checkpoints", "CREATE TABLE checkpoints(cycle INTEGER NOT NULL,ordinal INTEGER NOT NULL,revision INTEGER NOT NULL,PRIMARY KEY(cycle,ordinal)) STRICT" },
+			table{ "verifications", "CREATE TABLE verifications(cycle INTEGER NOT NULL,verification INTEGER NOT NULL,item INTEGER NOT NULL,wording INTEGER NOT NULL,checked INTEGER NOT NULL,material BLOB NOT NULL CHECK(length(material)=32),decision INTEGER NOT NULL,PRIMARY KEY(cycle,verification)) STRICT" },
 			table{ "responses", "CREATE TABLE responses(cycle INTEGER NOT NULL,response INTEGER NOT NULL,round INTEGER NOT NULL,round_digest BLOB NOT NULL CHECK(length(round_digest)=32),channel INTEGER NOT NULL,foreign_id TEXT NOT NULL,content BLOB NOT NULL CHECK(length(content)=32),size INTEGER NOT NULL,PRIMARY KEY(cycle,response)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
@@ -63,9 +64,9 @@ namespace bpr::adapters::sqlite {
 		constexpr auto added_in_v4 = std::array<std::string_view, 1>{ "views" };
 		/// The fifth added quarantined imported rounds and their forks.
 		constexpr auto added_in_v5 = std::array<std::string_view, 3>{ "imports", "import_objects", "import_forks" };
-		/// The sixth added the reviewer's review checkpoints (BPR-1163) and
-		/// recipient statements (BPR-1164).
-		constexpr auto added_in_v6 = std::array<std::string_view, 2>{ "checkpoints", "responses" };
+		/// The sixth added the reviewer's review checkpoints (BPR-1163),
+		/// reviewer decisions (BPR-1165) and recipient statements (BPR-1164).
+		constexpr auto added_in_v6 = std::array<std::string_view, 3>{ "checkpoints", "verifications", "responses" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
@@ -1789,6 +1790,82 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto record_verification(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_verification_record& aRecord,
+									 std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> override
+			{
+				// Zero is an explicit clearing; the four decisions follow.
+				const auto decision = aRecord.Decision ? static_cast<std::int64_t>(*aRecord.Decision) + 1 : 0;
+				auto       request  = request_writer{ };
+				request.u8(18).subject(aSubject).u64(aRecord.Item.value()).u64(aRecord.Wording.value()).u64(aRecord.Checked.value()).bytes(aRecord.Material.bytes()).u8(static_cast<std::uint8_t>(decision));
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aSubject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					auto item = query{ aDatabase, "SELECT 1 FROM feedback WHERE cycle=?1 AND item=?2" };
+					item.id(1, aSubject.Cycle.value()).id(2, aRecord.Item.value());
+					const auto found = item.step();
+					if (found != SQLITE_ROW) {
+						return found == SQLITE_DONE ? refuse(core::cycle_refusal::invalid_identity) : fail(cycle_store_failure::unavailable);
+					}
+					if (!current->Latest || !core::valid_cycle_id(aRecord.Checked) || aRecord.Checked.value() > current->Latest->Id.Id.value() || !core::valid_cycle_id(aRecord.Wording)) {
+						return refuse(core::cycle_refusal::invalid_target);
+					}
+					const auto allocated = current->Next.Verification;
+					if (allocated == 0U || allocated > core::maximum_cycle_identity) {
+						return fail(cycle_store_failure::refused);
+					}
+					auto row = query{ aDatabase, "INSERT INTO verifications(cycle,verification,item,wording,checked,material,decision) VALUES(?1,?2,?3,?4,?5,?6,?7)" };
+					row.id(1, aSubject.Cycle.value()).id(2, allocated).id(3, aRecord.Item.value()).id(4, aRecord.Wording.value()).id(5, aRecord.Checked.value()).blob(6, aRecord.Material.bytes()).integer(7, decision);
+					auto counter = query{ aDatabase, "UPDATE cycles SET next_verification=?2 WHERE cycle=?1" };
+					if (!row.done() || !counter.id(1, aSubject.Cycle.value()).id(2, allocated + 1U).done()) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = current->Revision, .Allocated = allocated, .Changed = true };
+				});
+			}
+
+			auto verifications(const core::local_cycle_subject& aSubject, const std::optional<core::cycle_verification_id> aAfter, std::stop_token aStop)
+				-> cycle_store_result<application::cycle_verification_page> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<application::cycle_verification_page> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto rows = query{ aDatabase, "SELECT verification,item,wording,checked,material,decision FROM verifications WHERE cycle=?1 AND verification>?2 ORDER BY verification LIMIT ?3" };
+					rows.id(1, aSubject.Cycle.value()).integer(2, static_cast<std::int64_t>(aAfter ? aAfter->value() : 0U)).integer(3, static_cast<std::int64_t>(application::maximum_cycle_page_entries) + 1);
+					auto page   = application::cycle_verification_page{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						if (page.Verifications.size() == application::maximum_cycle_page_entries) {
+							page.Next = page.Verifications.back().Id.Id;
+							break;
+						}
+						const auto id       = stored_id(rows.column_integer(0));
+						const auto item     = stored_id(rows.column_integer(1));
+						const auto wording  = stored_id(rows.column_integer(2));
+						const auto checked  = stored_id(rows.column_integer(3));
+						const auto material = digest_from<core::cycle_material_digest>(rows.column_blob(4));
+						const auto decision = rows.column_integer(5);
+						if (!id || !item || !wording || !checked || !material || decision < 0 || decision > 4) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						page.Verifications.push_back({
+							.Id       = { .Cycle = aSubject.Cycle, .Id = core::cycle_verification_id{ *id } },
+							.Item     = core::cycle_feedback_item_id{ *item },
+							.Wording  = core::private_review_turn_revision_id{ *wording },
+							.Checked  = core::cycle_source_revision_id{ *checked },
+							.Material = *material,
+							.Decision = decision == 0 ? std::nullopt : std::optional{ static_cast<core::cycle_reviewer_decision>(decision - 1) },
+						});
+					}
+					if (status != SQLITE_ROW && status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return page;
+				});
+			}
+
 			auto responses(const core::local_cycle_subject& aSubject, const std::optional<core::cycle_response_id> aAfter, std::stop_token aStop)
 				-> cycle_store_result<application::cycle_response_page> override
 			{
@@ -1905,7 +1982,7 @@ namespace bpr::adapters::sqlite {
 					}
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
 											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1", "DELETE FROM views WHERE cycle=?1",
-											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
+											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM verifications WHERE cycle=?1", "DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
 							return fail(cycle_store_failure::unavailable);

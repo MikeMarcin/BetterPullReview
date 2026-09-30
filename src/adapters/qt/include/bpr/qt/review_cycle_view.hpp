@@ -43,6 +43,9 @@ namespace bpr::qt {
 		/// BPR-1164: choose a response file for a round; add a hand-entered reply.
 		std::function<void(core::cycle_round_id)>                           ChooseResponse;
 		std::function<void(core::cycle_round_id, core::cycle_manual_reply)> Reply;
+		/// BPR-1165: the reviewer's decision about a note, and the next round's draft.
+		std::function<void(const core::cycle_feedback_item_ref&, std::optional<core::cycle_reviewer_decision>)> Decide;
+		std::function<void()>                                                                                   PrepareNextRound;
 	};
 
 	/// \brief A local Review Cycle's review surface (RFC-BPR-0061, BPR-1157).
@@ -99,6 +102,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto reply_about_note() const noexcept -> QCheckBox*;
 		/// \brief Opens the reply editor for round `aRound`.
 		void begin_reply(core::cycle_round_id aRound);
+		/// \brief The decisions offered for the note at `aRow` (BPR-1165).
+		[[nodiscard]] auto decision_menu(int aRow) -> QMenu*;
+		[[nodiscard]] auto next_round_button() const noexcept -> QToolButton*;
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -151,6 +157,7 @@ namespace bpr::qt {
 		QAction*                                   RefreshAction = nullptr;
 		QPlainTextEdit*                            Comparison    = nullptr;
 		QToolButton*                               ReplyButton   = nullptr;
+		QToolButton*                               NextRound     = nullptr;
 		QMenu*                                     ReplyMenu     = nullptr;
 		QWidget*                                   ReplyPage     = nullptr;
 		QLabel*                                    ReplyTarget   = nullptr;

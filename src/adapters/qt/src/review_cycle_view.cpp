@@ -159,6 +159,26 @@ namespace bpr::qt {
 			return who + (aChannel == core::cycle_response_channel::response_file ? QStringLiteral(", response file") : QStringLiteral(", entered by hand"));
 		}
 
+		/// Where a note stands, from the reviewer's own decision or else from
+		/// what was said; never from code that moved or disappeared.
+		auto status_text(const core::cycle_item_reconciliation& aItem) -> QString
+		{
+			const auto checked = aItem.Decision ? revision_text(aItem.Decision->Checked) : QString{ };
+			switch (aItem.Status) {
+			case core::cycle_item_status::open:               return { };
+			case core::cycle_item_status::reported:           return QStringLiteral("A recipient replied; nothing is verified");
+			case core::cycle_item_status::needs_verification: return aItem.Claim == core::cycle_response_disposition::partially_addressed ? QStringLiteral("Recipient says partly addressed; needs your verification") : QStringLiteral("Recipient says addressed; needs your verification");
+			case core::cycle_item_status::verified:           return QStringLiteral("Verified by you in %1").arg(checked);
+			case core::cycle_item_status::recheck_needed:
+				return aItem.Currency == core::cycle_verification_currency::item_amended ? QStringLiteral("Verified by you in %1; the note changed since, check again").arg(checked)
+																						 : QStringLiteral("Verified by you in %1; its code changed since, check again").arg(checked);
+			case core::cycle_item_status::needs_work: return QStringLiteral("Needs work (your decision in %1)").arg(checked);
+			case core::cycle_item_status::withdrawn:  return QStringLiteral("Withdrawn by you");
+			case core::cycle_item_status::deferred:   return QStringLiteral("Deferred by you");
+			}
+			return { };
+		}
+
 		auto first_line(const std::string& aBody) -> QString
 		{
 			return text_of(aBody).section(QLatin1Char('\n'), 0, 0).trimmed().left(160);
@@ -347,6 +367,17 @@ namespace bpr::qt {
 		ReplyMenu->setObjectName(QStringLiteral("cycleReplyMenu"));
 		ReplyButton->setMenu(ReplyMenu);
 		trayHeader->addWidget(ReplyButton);
+		NextRound = new QToolButton{ tray };
+		NextRound->setObjectName(QStringLiteral("cycleNextRound"));
+		NextRound->setText(QStringLiteral("Next round"));
+		NextRound->setToolTip(QStringLiteral("Prepare the next round's draft from the last round's assignment and the notes still open; nothing is sent"));
+		NextRound->setAutoRaise(true);
+		trayHeader->addWidget(NextRound);
+		connect(NextRound, &QToolButton::clicked, this, [this] {
+			if (Dispatch.PrepareNextRound) {
+				Dispatch.PrepareNextRound();
+			}
+		});
 		trayColumn->addLayout(trayHeader);
 		Notes = new QListWidget{ tray };
 		Notes->setObjectName(QStringLiteral("cycleNotes"));
@@ -355,6 +386,12 @@ namespace bpr::qt {
 		Notes->setTextElideMode(Qt::ElideNone);
 		Notes->setSpacing(4);
 		Notes->setAlternatingRowColors(true);
+		Notes->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(Notes, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) {
+			if (auto* const menu = decision_menu(Notes->indexAt(aAt).row())) {
+				menu->popup(Notes->viewport()->mapToGlobal(aAt));
+			}
+		});
 		trayColumn->addWidget(Notes, 1);
 		// One discussion across files: the selection becomes a related location
 		// of the chosen note, which keeps its own.
@@ -604,6 +641,10 @@ namespace bpr::qt {
 		if (!Projection.Notice.empty()) {
 			line += QStringLiteral(" · ") + text_of(Projection.Notice);
 		}
+		if (Projection.NextRound) {
+			const auto& next = *Projection.NextRound;
+			line += QStringLiteral(" · next round draft saved from F%1: %2 carried, %3 new, %4 resolved left out").arg(next.From.value()).arg(next.Carried).arg(next.Added).arg(next.Resolved);
+		}
 		if (!Projection.Message.empty()) {
 			line += QStringLiteral(" · ") + text_of(Projection.Message);
 		}
@@ -702,6 +743,20 @@ namespace bpr::qt {
 			}
 			if (!note.Related.empty()) {
 				lines.append(QStringLiteral("Related locations · %1").arg(note.Related.size()));
+			}
+			if (note.Reconciliation) {
+				const auto& item = *note.Reconciliation;
+				if (!note.Correspondence && item.Primary && item.Primary->Kind != core::cycle_correspondence::exact_material) {
+					lines.append(QStringLiteral("Original code: %1").arg(correspondence_text(*item.Primary)));
+				}
+				for (const auto& suggestion : item.Suggestions) {
+					if (suggestion.Observation == core::cycle_application_observation::already_applied) {
+						lines.append(QStringLiteral("Suggested result present in %1 (not a verification)").arg(revision_text(item.Against)));
+					}
+				}
+				if (const auto words = status_text(item); !words.isEmpty()) {
+					lines.append(words);
+				}
 			}
 			// What recipients said: claims, never a verification.
 			for (const auto& statement : note.Statements) {
@@ -842,6 +897,32 @@ namespace bpr::qt {
 				});
 			}
 		}
+	}
+
+	auto review_cycle_view::decision_menu(const int aRow) -> QMenu*
+	{
+		if (aRow < 0 || static_cast<std::size_t>(aRow) >= Projection.Notes.size() || Projection.Revisions.empty()) {
+			return nullptr;
+		}
+		const auto item    = Projection.Notes[static_cast<std::size_t>(aRow)].Item;
+		const auto checked = Projection.Comparison ? Projection.Comparison->Pair.Right.Id : Projection.Source ? Projection.Source->Revision
+																											  : Projection.Revisions.back();
+		auto*      menu    = new QMenu{ Notes };
+		menu->setObjectName(QStringLiteral("cycleDecisionMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		const auto offer = [this, menu, item](const QString& aText, const std::optional<core::cycle_reviewer_decision> aDecision) {
+			menu->addAction(aText, this, [this, item, aDecision] {
+				if (Dispatch.Decide) {
+					Dispatch.Decide(item, aDecision);
+				}
+			});
+		};
+		offer(QStringLiteral("Verified in %1").arg(revision_text(checked)), core::cycle_reviewer_decision::verified);
+		offer(QStringLiteral("Needs work"), core::cycle_reviewer_decision::needs_work);
+		offer(QStringLiteral("Withdraw"), core::cycle_reviewer_decision::withdrawn);
+		offer(QStringLiteral("Defer"), core::cycle_reviewer_decision::deferred);
+		offer(QStringLiteral("Clear my decision"), std::nullopt);
+		return menu;
 	}
 
 	void review_cycle_view::rebuild_reply_menu()
@@ -1001,6 +1082,7 @@ namespace bpr::qt {
 		MarkReviewed->setEnabled(open && !Projection.Revisions.empty());
 		ViewButton->setEnabled(open && !Projection.Revisions.empty());
 		ReplyButton->setEnabled(open);
+		NextRound->setEnabled(open && !Projection.Facts.Rounds.empty() && Projection.Activity == application::review_cycle_activity::idle);
 	}
 
 	void review_cycle_view::step_file(const int aDirection)
@@ -1095,6 +1177,10 @@ namespace bpr::qt {
 	auto review_cycle_view::comparison() const noexcept -> QPlainTextEdit*
 	{
 		return Comparison;
+	}
+	auto review_cycle_view::next_round_button() const noexcept -> QToolButton*
+	{
+		return NextRound;
 	}
 	auto review_cycle_view::reply_button() const noexcept -> QToolButton*
 	{

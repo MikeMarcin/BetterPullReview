@@ -433,6 +433,28 @@ profile captured it, and appending a statement writes no source, captures no
 revision, changes no note, suggestion or round and records no reviewer
 decision. Output completing after the selection changed is dropped.
 
+Verification is the reviewer's alone (BPR-1165,
+`bpr/core/review_cycle_verification.hpp`). Reconciling a note against a
+revision keeps four facts apart: where its original attachment stands
+(exact, mapped, ambiguous, deleted, unmapped or unavailable), whether each
+exact suggestion's whole-file result is now present (an illustrative one never
+is), what recipients claimed, and the reviewer's decisions. Its status comes
+only from the latest decision, or else from the claims ("addressed" asks for
+verification); code that moved, disappeared or matches a suggestion never
+resolves a note. A decision (`verified`, `needs_work`, `withdrawn`,
+`deferred`, or an explicit clearing) is appended to schema 6's
+`verifications` table with the note's current wording, the checked revision
+and the digest of the material its locations held there (each named file's
+blob or absence, or the whole manifest for a module or whole-cycle note).
+When that material or the wording changes, the decision stays as history and
+the note asks to be checked again. The next round's draft
+(`plan_next_round`, `application::prepare_next_round`) reads the latest
+frozen round's assignment back from its payload, carries its action, goal,
+constraints and write scope and its still-unresolved items at their current
+wording and suggestion revisions, adds open notes no round carried, and
+leaves out resolved and archived notes, replies and context; it is saved as an
+ordinary draft, and nothing is frozen, copied or sent.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |
