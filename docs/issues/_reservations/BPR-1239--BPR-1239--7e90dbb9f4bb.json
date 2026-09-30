@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1239"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Save to file on Windows: specific reason and bounded retry",
+  "created": "2026-09-30T03:59:20.582889+00:00",
+  "base": "52f28dd1b1a56f505646e1777e0505b8f9445f59"
+}
