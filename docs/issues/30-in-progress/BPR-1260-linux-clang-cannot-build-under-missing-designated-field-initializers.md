@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1260"
 title: "Linux Clang cannot build the dev graph or the fuzz path: -Werror turns -Wmissing-designated-field-initializers into errors"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
