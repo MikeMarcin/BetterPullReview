@@ -103,3 +103,28 @@ view", needs that room.
 The change is portable, so it probably also clears this card's Windows tab
 rows. That has not been run. The Windows `qt_workbench_window_scale_*` failure
 ("the title yields once") is a different check, and it is still this card's.
+
+## Windows after the Linux fix (bpr-main-win, 2026-10-01)
+
+At `6e56ebe17`, which carries `42e536f67`: Windows 11 Home 10.0.26200,
+Visual Studio 18, Qt 6.11.2, offscreen, `build/windows-dev` Debug.
+`cmake --build --preset windows-dev` printed no `warning C` line. The six
+rows ran serially:
+
+```powershell
+ctest --preset windows-dev -j1 --output-on-failure -R "^qt_(document_tabs|workbench_window)_scale_(100|125|200)$"
+```
+
+| Row | Result |
+|---|---|
+| `qt_document_tabs_scale_100` | Pass, 7.66 s |
+| `qt_document_tabs_scale_125` | Pass, 8.81 s |
+| `qt_document_tabs_scale_200` | Pass, 13.66 s |
+| `qt_workbench_window_scale_100` | Fail, 25.98 s: `the title yields once and does not return at a narrower width` |
+| `qt_workbench_window_scale_125` | Fail, 27.59 s: the same check |
+| `qt_workbench_window_scale_200` | Fail, 29.24 s: the same check |
+
+So `42e536f67` clears the tab half on Windows too. The title half has the
+signature this card first recorded and is still open. It is not
+[[BPR-1255]]'s check: on Windows these rows stop at the title rule before they
+reach the review-bar overflow check. The card stays open for the title row.
