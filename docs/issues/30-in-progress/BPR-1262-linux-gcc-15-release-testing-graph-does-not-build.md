@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1262"
 title: "Linux: the GCC 15 Release graph with BUILD_TESTING=ON does not build (warn_unused_result and -O3 maybe-uninitialized)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
