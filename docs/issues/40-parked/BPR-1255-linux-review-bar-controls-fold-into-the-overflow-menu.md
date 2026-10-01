@@ -102,7 +102,7 @@ than the platform's default. Each way out changes something the owner chose:
    becomes icon-only, after the position numbers. This changes the owner's
    yield order (hand-back 49).
 3. **Bound the course's font.** The course enlarges the font by a factor that
-   fits the floor in every platform's default face (on Linux, about 1.8),
+   fits the floor in every platform's default face (on Linux it is below 2×; the exact factor was not measured),
    and the specification says the rule holds up to that factor. No product
    change. The cost is a weaker statement for larger fonts.
 
