@@ -288,3 +288,27 @@ On POSIX the helper's `make_scratch_directory` still uses `mkdtemp`. The
 cross-platform `create_directory_only_if_absent` and
 `make_directory_at_random_name`, which `scratch_root.hpp` now takes, compile and
 run there. AC5's macOS half is the Mac station's.
+
+## AC5 on Linux again — bpr-main-linux, 2026-10-01
+
+Run by bpr-main-linux at `1b66d0487` (main, after `8fe4eafad`). WSL2, kernel
+6.18.33.2, 20 cores, GCC 15.2, Qt 6.11.2, `build/dev` Debug.
+
+- `cmake --preset dev && cmake --build --preset dev` exited 0, and the
+  teed log `build/logs/bpr-station-rounds/1138-build.log` (not committed)
+  has no `warning:` line.
+- The coordinator's full 37-row selection ran with `ctest --preset dev -j1
+  --output-on-failure`: **37 of 37 pass**, 231.94 s. Load average was 9.4
+  at the start, from the build just finished, and 0.7 at the end. The selection
+  covered the ten `sqlite_*` storage rows, `contained_catalog_probe`, the
+  seven `git_*` rows, the three `epoch_*` rows, `qt_agent_launch_canary`,
+  `agent_parent_death`, the eight `application_agent_invocation_*_contract`
+  rows, both crash-recovery rows, `application_agent_finding_protocol`,
+  `syntax_classification_contract`, `architecture_boundaries`,
+  `coding_format_check` and `msvc_secure_crt_contract`.
+- `/tmp` listed before the build and after the rows: no new `bpr*` entry.
+  The 12 `bpr*` entries already present (`bpr-cycle-workbench-*` from
+  2026-09-29, `bpr-run-*` runtime directories, and `bpr0905-four.log`)
+  predate this run and are unchanged.
+
+AC5's Linux half holds at this revision.
