@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0970"
 title: "Cover custom parser and mapping boundaries with fuzzing"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
