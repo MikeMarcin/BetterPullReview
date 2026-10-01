@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1263"
 title: "Windows: staged_review_restart's roots carry CPython's owner-only ACL, and the staged journal refuses them"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
