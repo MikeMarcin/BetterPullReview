@@ -6,7 +6,8 @@ Writes one compact UTF-8 JSON object, to FILE or standard output: the host, sour
 configuration; for every report the course rows wrote under
 BUILD_ROOT/tests/end_to_end, its SHA-256, size and the fields a per-platform
 budget is derived from; and, from each CTest output log given, every
-large-review row's result and duration plus the timing control's heap-control
+large-review row's result and duration, failed rows included, keyed by log
+file name, plus the timing control's heap-control
 line. Repeated phases (`epoch_refresh_2` … `epoch_refresh_32`, twenty
 `held_provider_input`) are condensed to their count, median and maximum, and
 numbered resource samples to their maxima. `--brief` keeps, per report, only
@@ -48,7 +49,9 @@ REPORTS = (
     "first-tab-comparison.json",
 )
 MIB = 1024 * 1024
-ROW = re.compile(r"Test\s+#\d+:\s+(\S+)\s+\.+\s*(?:\*\*\*)?(.+?)\s+([\d.]+)\s+sec")
+# A failing row's status can span lines: CTest prints a PASS_REGULAR_EXPRESSION
+# that ends in a newline inside "Regex=[...]", so its time is on a later line.
+ROW = re.compile(r"Test\s+#\d+:\s+(\S+)\s+\.+\s*(?:\*\*\*)?((?:(?!Test\s+#).)*?)\s*(?<![\w.])(\d+\.\d+)\s+sec\b", re.S)
 
 
 def rounded(value, places=3):
@@ -172,6 +175,7 @@ def course(report):
             "AcceptedMetadataRenderMs", "MainToFirstSourceRenderMs", "ProviderHeldInputs",
             "ProviderHeldMs", "ProviderCancelAckMs", "ProviderExitMs", "ProviderStopped",
             "BudgetsEnforced", "UnenforcedLimitMisses", "MemoryMethod", "Failure",
+            "WaitExpiry", "LimitBasis", "KnownInputMisses", "CourseClockScale",
         )
         if key in extended
     }
@@ -221,11 +225,13 @@ def phases(measured):
 def logs(paths):
     rows, controls = {}, []
     for path in paths:
-        for line in Path(path).read_text(errors="replace").splitlines():
-            match = ROW.search(line)
-            if match and ("large_review" in match.group(1) or match.group(1).startswith(
-                    ("application_unavailable", "application_approximate", "application_first_tab"))):
-                rows[match.group(1)] = [match.group(2).strip(), float(match.group(3))]
+        text = Path(path).read_text(errors="replace")
+        found = rows.setdefault(Path(path).name, {})
+        for match in ROW.finditer(text):
+            if "large_review" in match.group(1) or match.group(1).startswith(
+                    ("application_unavailable", "application_approximate", "application_first_tab")):
+                found[match.group(1)] = [" ".join(match.group(2).split()), float(match.group(3))]
+        for line in text.splitlines():
             for marker in ("heap-control:", "timing-controls:"):
                 if marker in line:
                     payload = line[line.index(marker) + len(marker):]
@@ -264,7 +270,8 @@ def main():
                 for key in ("CompletionBudgets", "Phases", "Resources", "Extended", "Heap", "ActiveInputs"):
                     entry.pop(key, None)
                 extended = report.get("Extended", {})
-                entry.update({key: extended[key] for key in ("BudgetsEnforced", "UnenforcedLimitMisses", "Failure") if key in extended})
+                kept = ("BudgetsEnforced", "UnenforcedLimitMisses", "Failure", "WaitExpiry", "CourseClockScale")
+                entry.update({key: extended[key] for key in kept if key in extended})
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             entry["unreadable"] = repr(error)
         summary["reports"][name] = entry

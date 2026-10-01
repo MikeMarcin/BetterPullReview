@@ -48,6 +48,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -59,23 +60,74 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::e2e::large_review {
 	using namespace bpr;
 	using access = app::detail::github_application_fixture_access;
 
-	/// [[BPR-0967]]. Every numeric resource and latency limit below is
-	/// justified by optimized measurements on one platform: the M4 Pro Mac.
-	/// Elsewhere each is measured and reported, never enforced, until that
-	/// platform's own optimized measurements justify a limit for it. Exact
-	/// source, cache, eviction, release and lifecycle assertions are enforced
-	/// on every platform.
+	/// [[BPR-0967]]. The numeric limits each platform enforces, every one
+	/// justified by that platform's optimized measurements. The Mac basis is
+	/// the M4 Pro report; Windows and Linux are the i9-10900KF station runs
+	/// (docs/verification/BPR-0967-station). A Mac limit is kept where the
+	/// platform's highest optimized observation is at most two thirds of it
+	/// (memory: at most 1/1.1 of it); otherwise the platform's limit is that
+	/// observation plus half (memory: plus a tenth, rounded up to 8 MiB).
+	/// The 100 ms input target is the same everywhere. A phase measured at or
+	/// above 90 ms of it on a platform is named in KnownInputMisses: reported
+	/// in every report and in InputBudgetFailures when over, not enforced,
+	/// and owned by a follow-up card. No limit is raised to absorb a miss.
+	///
+	/// A Debug build enforces nothing it lacks a Debug justification for:
+	/// on macOS the historical Debug limits ([[BPR-1247]]), elsewhere none.
+	/// Exact source, cache, eviction, release and lifecycle assertions are
+	/// enforced on every platform and configuration.
+	inline constexpr bool          OptimizedBuild = std::string_view{ BPR_BENCH_BUILD_CONFIGURATION } != "Debug";
+	inline constexpr std::uint64_t MiB            = 1024U * 1024U;
 #if defined(__APPLE__)
-	inline constexpr bool PlatformBudgetsJustified = true;
+	inline constexpr bool                            PlatformBudgetsEnforced                    = true;
+	inline constexpr std::string_view                PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
+	inline constexpr std::uint64_t                   PlatformFootprintGrowthLimitBytes          = 160U * MiB;
+	inline constexpr std::uint64_t                   PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
+	inline constexpr double                          PlatformActiveCloseQuiescenceLimitMs       = 100.0;
+	inline constexpr std::array<std::string_view, 0> PlatformKnownInputMisses{ };
+	inline constexpr int                             RunBudgetScale = 1;
+#elif defined(_WIN32)
+	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
+	inline constexpr std::string_view PlatformLimitBasis      = "Windows 11 x64 i9-10900KF 128 GiB, Qt 6.11.2, MSVC 19.51 /O2 Release at 682ea1392";
+	// Private commit growth: 120.9 MiB lifetime peak in resources and
+	// loaded-close keeps 160; the byte course's 185.43 MiB peak gives 208.
+	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 160U * MiB;
+	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 208U * MiB;
+	// Public close reached quiescence in 98.854 ms: 150.
+	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 150.0;
+	// Observed: large_file_selection 94.1-130.5, large_source_revisit_render
+	// 105.8-106.5, shutdown 93.4-105.8, files_drawer_open 98.2 (whole phase),
+	// active_window_close 93.2, paged_review_and_git_load 98.2.
+	inline constexpr std::array<std::string_view, 6> PlatformKnownInputMisses{
+		"large_file_selection", "large_source_revisit_render", "shutdown", "files_drawer_open", "active_window_close", "paged_review_and_git_load"
+	};
+	// Windows Debug runs the courses several times slower than Release; the
+	// resources course outran its 90 s course clock (105.94 s row).
+	inline constexpr int RunBudgetScale = OptimizedBuild ? 1 : 2;
 #else
-	inline constexpr bool PlatformBudgetsJustified = false;
+	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
+	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a";
+	// Resident-set growth: 147.04 MiB in loaded-close gives 168; the byte
+	// course's 196.01 MiB high-water mark gives 216.
+	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 168U * MiB;
+	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 216U * MiB;
+	inline constexpr double        PlatformActiveCloseQuiescenceLimitMs       = 100.0;
+	// Observed: large_file_selection 97.2-100.2, large_source_revisit_render 92.2.
+	inline constexpr std::array<std::string_view, 2> PlatformKnownInputMisses{ "large_file_selection", "large_source_revisit_render" };
+	inline constexpr int                             RunBudgetScale = 1;
 #endif
+
+	[[nodiscard]] auto known_input_miss(std::string_view aPhase) -> bool
+	{
+		return std::ranges::find(PlatformKnownInputMisses, aPhase) != PlatformKnownInputMisses.end();
+	}
 
 	struct fixture_blob
 	{
@@ -180,12 +232,16 @@ namespace bpr::e2e::large_review {
 		double                ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
 		bool                  PathologicalCourse = false, ExactGeneratedSource = false;
 		// [[BPR-0967]]. BudgetsEnforced is false where no numeric limit is
-		// justified for this platform; each limit missed there is named in
-		// UnenforcedLimitMisses. Failure is the exception that ended the course.
-		// (benchmark_report is at glaze's reflected-member limit.)
-		bool                     BudgetsEnforced = PlatformBudgetsJustified;
+		// justified for this platform and configuration; each limit missed
+		// there is named in UnenforcedLimitMisses. KnownInputMisses names the
+		// platform's phases at or over 90 ms of the 100 ms target. Failure is
+		// the exception that ended the course; WaitExpiry says which wait ended
+		// unready and why. (benchmark_report is at glaze's reflected-member limit.)
+		bool                     BudgetsEnforced = PlatformBudgetsEnforced;
 		std::vector<std::string> UnenforcedLimitMisses;
-		std::string              MemoryMethod = native_memory_method(), Failure;
+		std::vector<std::string> KnownInputMisses{ PlatformKnownInputMisses.begin(), PlatformKnownInputMisses.end() };
+		std::string              MemoryMethod     = native_memory_method(), LimitBasis{ PlatformLimitBasis }, Failure, WaitExpiry;
+		int                      CourseClockScale = RunBudgetScale;
 	};
 
 	struct benchmark_report
@@ -243,8 +299,9 @@ namespace bpr::e2e::large_review {
 		// before the change, and 168-172 under Qt 6.10.3, when it already failed
 		// 160), so it has its own bound: 184 MiB, 10% above its peak, the rule
 		// BPR-0893 used for the single 224 MiB bound these two replace.
-		std::uint64_t SampledFootprintGrowthLimitBytes   = 160U * 1024U * 1024U;
-		std::uint64_t CacheByteFootprintGrowthLimitBytes = 184U * 1024U * 1024U;
+		// [[BPR-0967]]: other platforms' values are in the platform table above.
+		std::uint64_t SampledFootprintGrowthLimitBytes   = PlatformFootprintGrowthLimitBytes;
+		std::uint64_t CacheByteFootprintGrowthLimitBytes = PlatformCacheByteFootprintGrowthLimitBytes;
 		// Cleanup bounds the live heap (bytes malloc has in use), not the
 		// footprint. The allocator keeps freed pages dirty, so after cleanup
 		// the footprint stays at 99-107 MiB while the live heap is back to
@@ -313,10 +370,11 @@ namespace bpr::e2e::large_review {
 	}
 
 	/// The 100 ms input target and every enforced completion limit. Where no
-	/// limit is justified, InputBudgetFailures and the misses stay reported.
+	/// limit is justified, InputBudgetFailures and the misses stay reported;
+	/// a platform's KnownInputMisses are reported, not enforced.
 	[[nodiscard]] auto budgets_met(const benchmark_report& aReport) -> bool
 	{
-		return (aReport.InputBudgetFailures.empty() || !aReport.Extended.BudgetsEnforced)
+		return (!aReport.Extended.BudgetsEnforced || std::ranges::all_of(aReport.InputBudgetFailures, [](const std::string& aPhase) { return known_input_miss(aPhase); }))
 			&& std::ranges::all_of(aReport.CompletionBudgets, budget_met);
 	}
 
@@ -369,16 +427,16 @@ namespace bpr::e2e::large_review {
 			const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
 																: aReport.SampledFootprintGrowthLimitBytes;
 			require_limit(aReport, aReport.Extended.AllocationProfile || sample.FootprintGrowthBytes <= footprintLimit,
-						  "sampled Mac fixture footprint growth exceeded its budget");
+						  "sampled fixture footprint growth exceeded its platform budget");
 			require_limit(aReport, aReport.Extended.AllocationProfile || sample.LifetimePeakGrowthBytes <= footprintLimit,
-						  "Mac fixture lifetime peak footprint growth exceeded its budget");
+						  "fixture lifetime peak footprint growth exceeded its platform budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
 				const auto cleanupLimit = sample.Phase == "application_destroyed"
 					? aReport.DestroyedLiveHeapGrowthLimitBytes
 					: aReport.CleanupLiveHeapGrowthLimitBytes;
 				require_limit(aReport, aReport.Extended.AllocationProfile || sample.LiveHeapGrowthBytes <= cleanupLimit,
-							  std::string{ "Mac cleanup left live heap growth above its budget at " } + aPhase);
+							  std::string{ "cleanup left live heap growth above its platform budget at " } + aPhase);
 				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
 							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
 						"completed cleanup retains derived cache or outstanding work");
@@ -420,6 +478,12 @@ namespace bpr::e2e::large_review {
 	{
 		phase_measurement phase;
 		phase.Name = aName;
+		// The course clock: a run budget for the whole course, not a
+		// performance limit. [[BPR-0967]] scales it in Windows Debug.
+		const qint64 courseClockMs = qint64{ aReport.Extended.CourseClockScale }
+			* (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
+				   : aReport.CacheEntryCourse                            ? 180'000
+																		 : 90'000);
 		QElapsedTimer elapsed;
 		elapsed.start();
 		QEventLoop loop;
@@ -446,9 +510,7 @@ namespace bpr::e2e::large_review {
 			const auto epochStatus      = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
 			const auto byteCourseFailed = aReport.CacheByteCourse
 				&& (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled);
-			if (ready || byteCourseFailed || aBudget.elapsed() >= (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
-																	   : aReport.CacheEntryCourse                            ? 180'000
-																															 : 90'000)) {
+			if (ready || byteCourseFailed || aBudget.elapsed() >= courseClockMs) {
 				loop.quit();
 			}
 		});
@@ -456,9 +518,7 @@ namespace bpr::e2e::large_review {
 		aAction();
 		phase.ActionMs = static_cast<double>(elapsed.nsecsElapsed()) / 1'000'000.0;
 		ready          = aReady();
-		if (!ready && aBudget.elapsed() < (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
-											   : aReport.CacheEntryCourse                            ? 180'000
-																									 : 90'000)) {
+		if (!ready && aBudget.elapsed() < courseClockMs) {
 			readiness.start();
 			loop.exec();
 		}
@@ -480,6 +540,11 @@ namespace bpr::e2e::large_review {
 			const auto evidence = access::evidence(aApplication);
 			const auto work     = access::diff_work_evidence(aApplication);
 			const auto status   = aApplication.status();
+			// [[BPR-0967]]. Which wait ended unready, and whether the course
+			// clock or the epoch's own terminal ended it.
+			aReport.Extended.WaitExpiry = std::string{ aName } + ": course_clock_ms=" + std::to_string(courseClockMs)
+				+ " elapsed_ms=" + std::to_string(aBudget.elapsed()) + " epoch_status=" + std::to_string(static_cast<int>(status.EpochStatus))
+				+ " clock_expired=" + (aBudget.elapsed() >= courseClockMs ? "1" : "0");
 			std::cerr << "large-review wait: " << aName << " status=" << aApplication.window().github_status_text()
 					  << " account_reads=" << evidence.AccountReadCount << " replay_failure=" << evidence.RecordingFailure
 					  << " diff=" << aApplication.window().comparison_surface()->status_text().toStdString()
@@ -776,10 +841,10 @@ namespace bpr::e2e::large_review {
 		for (const auto& phase : aReport.Phases) {
 			if (phase.Name.starts_with("epoch_refresh_")) {
 				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistoryRefreshLimitMs,
-							  "epoch refresh exceeded the provisional measured Mac budget");
+							  "epoch refresh exceeded its measured platform budget");
 			} else if (phase.Name.starts_with("epoch_source_selection_")) {
 				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistorySourceSelectionLimitMs,
-							  "epoch source selection exceeded the provisional measured Mac budget");
+							  "epoch source selection exceeded its measured platform budget");
 			}
 		}
 	}
@@ -1155,12 +1220,12 @@ namespace bpr::e2e::large_review {
 		// Overview and repeated conversation-label measurement repairs.
 		for (const auto* name : { "paged_review_and_git_load", "large_file_selection", "large_source_revisit_render", "generated_source_render" }) {
 			const auto found = std::ranges::find(aReport.Phases, name, &phase_measurement::Name);
-			record(std::string{ name } + "_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
+			record(std::string{ name } + "_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
 		phase("rapid_selection_supersession", 10'000.0);
 		record("supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
 		for (const auto* name : { "read_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "appearance_settings_open", "theme_light", "theme_dark" }) {
-			phase(name, aReport.InputIntervalLimitMs);
+			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
 		require(!aReport.ChangeActionMs.empty() && aReport.InputsDuringMeasurement != 0U && aReport.WheelEvents == 1000U,
 				"responsiveness budgets lack real navigation and input observations");
@@ -1180,8 +1245,8 @@ namespace bpr::e2e::large_review {
 					&& std::ranges::any_of(aReport.ActiveInputs, [](const auto& aInput) { return aInput.DiffAtPost != 0U && aInput.DiffAtDelivery != 0U && aInput.PendingAtDelivery; })
 					&& aReport.ActiveCloseDiffJobs != 0U && aReport.ActiveFinalHeldExact && aReport.ActiveCloseDrained,
 				"active-work course lacks delivered input or public close during observed pending work");
-		const auto record = [&](const std::string& aName, double aMeasured, double aLimit) {
-			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aReport.Extended.BudgetsEnforced });
+		const auto record = [&](const std::string& aName, double aMeasured, double aLimit, bool aEnforced = true) {
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced && aReport.Extended.BudgetsEnforced });
 		};
 		const auto phase = [&](const char* aName) -> const phase_measurement& {
 			const auto found = std::ranges::find(aReport.Phases, aName, &phase_measurement::Name);
@@ -1189,8 +1254,8 @@ namespace bpr::e2e::large_review {
 			return *found;
 		};
 		const auto& inputs = phase("active_queued_selection_supersession");
-		record("active_selection_input_gap", inputs.MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
-		record("active_close_input_gap", phase("active_window_close").MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
+		record("active_selection_input_gap", inputs.MaxPulseIntervalMs, aReport.InputIntervalLimitMs, !known_input_miss("active_queued_selection_supersession"));
+		record("active_close_input_gap", phase("active_window_close").MaxPulseIntervalMs, aReport.InputIntervalLimitMs, !known_input_miss("active_window_close"));
 		record("active_queued_key_delivery", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::DeliveredAfterMs).DeliveredAfterMs, aReport.InputIntervalLimitMs);
 		record("active_queued_key_applied", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::AppliedAfterMs).AppliedAfterMs, aReport.InputIntervalLimitMs);
 		record("active_close_dispatch", aReport.ActiveCloseDispatchMs, aReport.InputIntervalLimitMs);
@@ -1198,7 +1263,7 @@ namespace bpr::e2e::large_review {
 		// close-to-quiescence limits; these are not universal I/O bounds.
 		record("active_selection_completion", inputs.ElapsedMs, 10'000.0);
 		record("active_supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
-		record("active_close_quiescence", aReport.ActiveCloseDrainMs, 100.0);
+		record("active_close_quiescence", aReport.ActiveCloseDrainMs, PlatformActiveCloseQuiescenceLimitMs);
 		require(budgets_met(aReport), "Mac active-work input or drain budget exceeded");
 	}
 
@@ -1471,11 +1536,11 @@ namespace bpr::e2e::large_review {
 					&& access::diff_work_evidence(aApplication).CacheEntries == 0U
 					&& !access::large_review_snapshot(aApplication).has_value(),
 				"cancelled provider published state or retained resources");
-		const auto record = [&](const std::string& aName, double aMeasured) {
-			aReport.CompletionBudgets.push_back({ aName, aMeasured, 100.0, aMeasured <= 100.0, aReport.Extended.BudgetsEnforced });
+		const auto record = [&](const std::string& aName, double aMeasured, bool aEnforced = true) {
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, 100.0, aMeasured <= 100.0, aEnforced && aReport.Extended.BudgetsEnforced });
 		};
 		for (const auto& phase : aReport.Phases) {
-			record(phase.Name + "_input_gap", phase.MaxPulseIntervalMs);
+			record(phase.Name + "_input_gap", phase.MaxPulseIntervalMs, !known_input_miss(phase.Name));
 		}
 		record("provider_cancel_ack", aReport.Extended.ProviderCancelAckMs);
 		record("provider_cancel_exit", aReport.Extended.ProviderExitMs);
@@ -2091,7 +2156,7 @@ namespace bpr::e2e::large_review {
 					: report.SampledFootprintGrowthLimitBytes;
 				require(report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
 				require_limit(report, report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes,
-							  "sampled live-heap peak growth exceeded the Mac fixture ceiling");
+							  "sampled live-heap peak growth exceeded the platform fixture ceiling");
 			}
 			if (report.Extended.PathologicalCourse) {
 				for (const auto* name : { "unavailable_file_selection", "binary_file_selection", "supported_file_recovery" }) {

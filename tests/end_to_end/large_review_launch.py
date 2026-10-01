@@ -5,8 +5,10 @@ scheduling. These are conservative observed marker-arrival times, not an OS exec
 timestamp, compositor presentation, or the packaged application's launch time.
 The CTest row invokes this observer inside the existing network-denial boundary.
 
-The limits are justified by optimized Mac measurements alone (BPR-0967). On
-another platform they are reported with Enforced false and never fail the row.
+The first argument, --enforce=1 or --enforce=0, says whether the limits gate
+the row. The CTest row passes 1 on macOS and in optimized builds elsewhere: the
+limits hold on each platform's optimized measurements (BPR-0967), and a Debug
+build off macOS has no justification for them, so it only reports them.
 """
 
 import json
@@ -17,7 +19,9 @@ import time
 
 
 def main():
-    report_path, *command = sys.argv[1:]
+    enforce, report_path, *command = sys.argv[1:]
+    if enforce not in ("--enforce=1", "--enforce=0"):
+        raise SystemExit("usage: large_review_launch.py --enforce=1|0 REPORT COMMAND...")
     markers = {
         "LARGE_REVIEW_MAIN_ENTERED": "ProcessToMainMarkerMs",
         "LARGE_REVIEW_HOME_RENDERED": "ProcessToHomeMarkerMs",
@@ -40,7 +44,7 @@ def main():
         0 <= observation.get(name, float("inf")) <= limit
         for name, limit in observation["LimitsMs"].items()
     )
-    observation["Enforced"] = sys.platform == "darwin"
+    observation["Enforced"] = enforce == "--enforce=1"
     Path(report_path).write_text(json.dumps(observation, indent=2) + "\n")
     if code or not all(name in observation for name in markers.values()):
         return 1

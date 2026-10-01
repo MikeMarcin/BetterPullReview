@@ -1211,6 +1211,7 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         NAME application_large_review_launch
         WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_launch.py"
+            "--enforce=$<IF:$<OR:$<PLATFORM_ID:Darwin>,$<NOT:$<CONFIG:Debug>>>,1,0>"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-launch.json"
             $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
@@ -1316,6 +1317,39 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCES_OK")
 endif()
 
+# [[BPR-0967]]. Windows row timeouts for the large-review courses. A Windows
+# Debug build doubles each course clock (the benchmark's run budget: 90 s, or
+# 180 s for cache entries, 540 s for history, 840 s for byte pressure), because
+# the Debug resources course outran 90 s there (bpr-main-win, 682ea1392,
+# i9-10900KF, MSVC 19.51, Qt 6.11.2, load 3-10%). Each timeout keeps
+# clock + 30 s reserve <= 0.75 * TIMEOUT, rounded up to a minute, and is at
+# least three times the row's measured Debug completion: responsiveness 52.4 s,
+# launch 52.8, active work 36.6, loaded close 93.8, cache entries 61.6, history
+# 187.5, first tab 25.9, benchmark 34.7. The Debug resources and byte-pressure
+# rows have no measured completion yet (they failed at 105.9 s and 323.5 s), and
+# Release byte pressure took 280.7 s. macOS and Linux keep the timeouts above:
+# every Linux Debug row finishes in under a third of them (byte pressure 65.6 s,
+# history 46.7 s, all others under 9 s).
+if(WIN32)
+    set_tests_properties(
+        application_large_review_benchmark
+        application_large_review_timing_control
+        application_unavailable_diff_public_path
+        application_approximate_diff_public_path
+        application_first_tab_comparison
+        application_large_review_responsiveness
+        application_large_review_launch
+        application_large_review_active_work
+        application_large_review_pathological
+        application_large_review_provider_cancel
+        application_large_review_loaded_close
+        application_large_review_resources
+        PROPERTIES TIMEOUT 300)
+    set_tests_properties(application_large_review_cache_entries PROPERTIES TIMEOUT 540)
+    set_tests_properties(application_large_review_history PROPERTIES TIMEOUT 1500)
+    set_tests_properties(application_large_review_cache_bytes PROPERTIES TIMEOUT 2280)
+endif()
+
 bpr_add_executable(test_better_pull_review_large_review_replay large_review_replay_tests.cpp)
 target_link_libraries(test_better_pull_review_large_review_replay PRIVATE BetterPullReview::AdapterGitHub glaze::glaze)
 target_include_directories(test_better_pull_review_large_review_replay PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
@@ -1326,6 +1360,13 @@ bpr_enable_hardening(test_better_pull_review_large_review_replay)
 bpr_enable_warnings(test_better_pull_review_large_review_replay)
 bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>)
 set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 30)
+if(WIN32)
+    # [[BPR-0967]]. On bpr-main-win (Debug, 682ea1392) the row ran into its
+    # 30 s bound alone (30.03 s) and in the full suite (30.04 s): a lower bound,
+    # not a completion. 120 s is four times that bound until the confirmation
+    # run measures a completion.
+    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 120)
+endif()
 
 bpr_add_executable(
     test_better_pull_review_git_diagnostic_wrapper
