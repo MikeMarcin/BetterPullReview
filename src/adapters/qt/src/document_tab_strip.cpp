@@ -195,6 +195,7 @@ namespace bpr::qt {
 		Status->hide();
 		layout->addWidget(Status);
 		layout->addWidget(NewTab);
+		setMinimumWidth(minimumSizeHint().width());
 
 		connect(Bar, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			if (Rebuilding) {
@@ -313,7 +314,11 @@ namespace bpr::qt {
 
 	auto document_tab_strip::minimumSizeHint() const -> QSize
 	{
-		return QSize{ 0, height_pixels };
+		// [[BPR-1251]]. Activating a tab brings all of it into view, so the
+		// strip keeps room for one tab at its minimum beside the plus. The
+		// strip's horizontal policy is Ignored, which makes a layout read the
+		// explicit minimum width, so this is also what the strip sets.
+		return QSize{ minimum_tab_width + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
 	}
 
 	void document_tab_strip::resizeEvent(QResizeEvent* const aEvent)
@@ -326,6 +331,7 @@ namespace bpr::qt {
 	{
 		QWidget::changeEvent(aEvent);
 		if (Bar != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange)) {
+			setMinimumWidth(minimumSizeHint().width());
 			rebuild();
 		}
 	}

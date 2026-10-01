@@ -68,3 +68,38 @@ checkout and again in a serial rerun, 0.15 s each. So this card's Linux half
 is real, and "still pass on Linux" does not hold at this revision. On Linux
 the `qt_workbench_window_scale_*` rows fail at a different check, which
 [[BPR-1255]] owns.
+
+### Linux half: measured and fixed (bpr-main-linux, 2026-10-01)
+
+A probe, not committed, at the failing check printed:
+
+```
+count=1 width=1100 strip=205 viewport=179 plus=26 tab=220
+workbenchCentralSplitter sizes=256,256,205,371 (repositories, files, centre, conversations)
+workbenchCentralSurface minimumSizeHint=194
+```
+
+With all three drawers open at their Linux metric widths, the splitter gives
+the centre 205 pixels. That is less than one 220-pixel tab plus the 26-pixel
+plus button. The strip reported a minimum of 0 and used an `Ignored`
+horizontal policy, so nothing kept room for the tab. On Windows the same
+shape appears as viewport 200.
+
+**Fix (the commit after `abe151700`, in `src/adapters/qt/src/document_tab_strip.cpp`).**
+The strip's minimum is one tab at `minimum_tab_width` plus the plus button's
+size hint. The strip sets it as its minimum width (an `Ignored` policy makes
+layouts read that), and resets it on a font or style change. The splitter
+now takes the room from the drawers rather than from the centre. The drawers'
+own minimums are 61, 154 and 125 pixels, so the 900-pixel floor still fits.
+The workbench specification's rule, "Activating a tab brings all of it into
+view", needs that room.
+
+| Check (Linux) | Result |
+|---|---|
+| `qt_document_tabs_scale_{100,125,200}` | Pass, 0.78, 1.08 and 1.98 s |
+| `ctest --preset dev -R '^(qt_\|application_)' -E '^application_composition_contract$' -j10` | 306 of 314 pass. The failures are [[BPR-1255]]'s six and the known [[BPR-1245]] and [[BPR-1236]] rows. |
+| clang-format 22.1.8; `tidy.py --paths` on the file | Clean |
+
+The change is portable, so it probably also clears this card's Windows tab
+rows. That has not been run. The Windows `qt_workbench_window_scale_*` failure
+("the title yields once") is a different check, and it is still this card's.
