@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1138"
 title: "One scratch-directory helper with a Windows branch, for the Windows roots and markers that BPR-1128 and BPR-1139 left as they were"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
