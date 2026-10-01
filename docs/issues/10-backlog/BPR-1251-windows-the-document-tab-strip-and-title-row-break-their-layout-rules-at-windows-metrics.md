@@ -128,3 +128,54 @@ So `42e536f67` clears the tab half on Windows too. The title half has the
 signature this card first recorded and is still open. It is not
 [[BPR-1255]]'s check: on Windows these rows stop at the title rule before they
 reach the review-bar overflow check. The card stays open for the title row.
+
+## The title row, measured on Windows (bpr-main-win, 2026-10-01)
+
+At `27a0bf89e`, `qt_workbench_window_scale_100`. A probe, not committed, in
+the narrowing loop of `test_strip_identity_stays_at_every_width` printed, at
+each width, whether the identity label still carries the title, the label's
+width, and the modality's width and form:
+
+| Width | Title | Label | Modality | Text |
+|---:|:-:|---:|---|---|
+| 1,102 | yes | 231 | 411, full | `microsoft/terminal  #20607 Fix the Scre…` |
+| 1,101 | **no** | 152 | 411, full | `microsoft/terminal  #20607` |
+| 1,100 | no | 152 | 411, full | `microsoft/terminal  #20607` |
+| 1,099 | **yes** | 383 | 255, compact | `microsoft/terminal  #20607 Fix the ScreenBufferTests suite so that e…` |
+
+**Cause.** The title row makes two decisions independently
+(`src/adapters/qt/src/workbench_window.cpp`):
+
+- `apply_strip_width` makes the modality compact at a fixed width,
+  `available < 1'100`.
+- `update_strip_identity` keeps the title while the identity's room is at
+  least the `owner/repository  #number` advance plus `identity_title_minimum`
+  (80). That width depends on font metrics.
+
+At Windows metrics, the title's give-up width (1,101) lands two pixels above
+the fixed compaction width. Compaction then frees 156 pixels, and the title
+comes back, which breaks RFC-BPR-0028's "the title yields once". Where the
+title's give-up width falls below 1,100, compaction happens while the title is
+still shown, and the title yields later for good. Every other step of the
+narrowing passed on Windows up to this check.
+
+This is not [[BPR-1255]]'s floor. That is the review bar overflowing at a
+doubled font; this is two title-row thresholds racing at the default font.
+
+**Ways to fix it, in the layout:**
+
+1. **Decide the title from the room with the full modality.** The title shows
+   only when it would fit with the modality's shortcuts shown. That rule is
+   monotone in width, so the title cannot return. It is also the order the code's own
+   comment states ("the name's title and owner, then the modality's
+   shortcuts"). Compaction's freed room still goes to the other forms of the
+   name. Cost: on any platform where the title now survives below 1,100 with
+   a compact modality, it yields earlier, at the width where the full-modality
+   room runs out. That may include macOS, and was not measured there.
+2. **Compact before the title would yield.** Compaction also fires when the
+   full-modality room is too small for the title. The title then keeps its
+   place longer, and the shortcuts go first. Cost: it reverses the stated
+   order near the threshold.
+
+Neither is applied yet. Option 1 keeps the stated order. Both change where the
+title yields on macOS and Linux, so the rows there need a rerun.
