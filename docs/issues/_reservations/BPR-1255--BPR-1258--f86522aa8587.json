@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1255",
+    "BPR-1256",
+    "BPR-1257",
+    "BPR-1258"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "BPR-0905 Linux triage: review-bar overflow, comparison splitter 0, epoch-catalog flock self-deadlock, composition contract budget",
+  "created": "2026-10-01T19:03:36.028083+00:00",
+  "base": "aac225a4e5e90a602c4543e1f584c7301a9f5ba2"
+}
