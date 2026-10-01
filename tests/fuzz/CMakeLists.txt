@@ -102,7 +102,19 @@ bpr_add_fuzz_target(github_api MAX_LEN 262144
 # The rendered Markdown view exists only in a Qt graph.
 if(TARGET better_pull_review_adapter_qt)
     bpr_add_fuzz_target(markdown_view MAX_LEN 70000 LIBRARIES BetterPullReview::AdapterQt)
-    set_tests_properties(fuzz_markdown_view_corpus PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    if(UNIX AND NOT APPLE)
+        # [[BPR-1260]]. Linux runs LeakSanitizer with AddressSanitizer, and
+        # Qt's font caches outlive the process; see the suppression file.
+        set_tests_properties(fuzz_markdown_view_corpus PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/markdown_view_lsan.supp:print_suppressions=0")
+    else()
+        set_tests_properties(fuzz_markdown_view_corpus PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()
 
 add_custom_target(parser-fuzzers DEPENDS ${bpr_fuzz_targets})
+# [[BPR-1260]]. On Linux each corpus row runs under the network sandbox tool,
+# so the documented build-then-ctest sequence needs it built as well.
+if(TARGET tool_better_pull_review_network_sandbox)
+    add_dependencies(parser-fuzzers tool_better_pull_review_network_sandbox)
+endif()

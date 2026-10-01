@@ -1,3 +1,16 @@
+# [[BPR-1260]]. A designated initializer may leave a field to its default
+# member initializer: GCC's -Wmissing-field-initializers is off below, and
+# tidy.py passes -Wno-missing-designated-field-initializers to clang-tidy.
+# Ubuntu clang 21 reports that case under -Wextra and stopped the build on it. Turn it off where the compiler knows it: an older Apple clang
+# would refuse an unknown -Wno- option under -Werror.
+include(CheckCXXCompilerFlag)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    check_cxx_compiler_flag(
+        -Wmissing-designated-field-initializers
+        BPR_CXX_HAS_MISSING_DESIGNATED_FIELD_INITIALIZERS
+    )
+endif()
+
 function(bpr_enable_warnings target)
     if(MSVC)
         target_compile_options("${target}" PRIVATE /W4 /permissive- /WX)
@@ -27,4 +40,11 @@ function(bpr_enable_warnings target)
             -Werror
             $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-missing-field-initializers>
     )
+    if(BPR_CXX_HAS_MISSING_DESIGNATED_FIELD_INITIALIZERS)
+        target_compile_options(
+            "${target}"
+            PRIVATE
+                $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-missing-designated-field-initializers>
+        )
+    endif()
 endfunction()

@@ -27,6 +27,8 @@ extern "C" char** environ;
 
 namespace bpr::adapters::mcp {
 	namespace {
+		struct json_member;
+
 		/// \brief One decoded JSON value, bounded in depth by the reader.
 		struct json_node
 		{
@@ -39,24 +41,37 @@ namespace bpr::adapters::mcp {
 				object,
 			};
 
-			kind                                           Kind    = kind::null;
-			bool                                           Boolean = false;
-			double                                         Number  = 0.0;
-			std::string                                    Text;
-			std::vector<json_node>                         Array;
-			std::vector<std::pair<std::string, json_node>> Object;
+			kind                     Kind    = kind::null;
+			bool                     Boolean = false;
+			double                   Number  = 0.0;
+			std::string              Text;
+			std::vector<json_node>   Array;
+			std::vector<json_member> Object;
 
-			[[nodiscard]] auto member(const std::string_view aName) const
-				-> const json_node*
-			{
-				for (const auto& entry : Object) {
-					if (entry.first == aName) {
-						return &entry.second;
-					}
-				}
-				return nullptr;
-			}
+			[[nodiscard]] auto member(std::string_view aName) const
+				-> const json_node*;
 		};
+
+		/// [[BPR-1260]]. A named member rather than `std::pair`: the pair's
+		/// default constructor asks whether `json_node` is implicitly default
+		/// constructible while `json_node` is still being defined, which Clang
+		/// with libstdc++ 15 refuses as an incomplete type.
+		struct json_member
+		{
+			std::string Name;
+			json_node   Value;
+		};
+
+		auto json_node::member(const std::string_view aName) const
+			-> const json_node*
+		{
+			for (const auto& entry : Object) {
+				if (entry.Name == aName) {
+					return &entry.Value;
+				}
+			}
+			return nullptr;
+		}
 
 		/// \brief Decodes one bounded JSON document with no external library.
 		class json_reader final
@@ -370,7 +385,7 @@ namespace bpr::adapters::mcp {
 					if (!value) {
 						return std::nullopt;
 					}
-					node.Object.emplace_back(std::move(*key), std::move(*value));
+					node.Object.push_back(json_member{ .Name = std::move(*key), .Value = std::move(*value) });
 					skip_whitespace();
 					if (peek() == ',') {
 						++Index;

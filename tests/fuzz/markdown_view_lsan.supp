@@ -1,0 +1,9 @@
+# [[BPR-1260]]. LeakSanitizer is on by default with AddressSanitizer on Linux.
+# At exit it reports the font caches Qt Gui, FreeType and HarfBuzz keep for the
+# life of the process (about 440 KB in 152 records on the seed corpus). Every
+# record's stack is inside these libraries; only the allocator interceptor is
+# in the fuzz target. A leak allocated by first-party code is still reported.
+leak:libQt6Gui.so
+leak:libQt6Core.so
+leak:libfreetype.so
+leak:libharfbuzz.so

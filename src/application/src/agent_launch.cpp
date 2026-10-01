@@ -180,19 +180,31 @@ namespace bpr::application {
 			null_value,
 		};
 
+		struct json_member;
+
 		struct json_value
 		{
-			json_kind                                       Kind = json_kind::null_value;
-			std::string                                     Text;
-			std::vector<std::pair<std::string, json_value>> Members;
-			std::vector<json_value>                         Elements;
-			bool                                            Boolean = false;
+			json_kind                Kind = json_kind::null_value;
+			std::string              Text;
+			std::vector<json_member> Members;
+			std::vector<json_value>  Elements;
+			bool                     Boolean = false;
 			/// The half-open byte range this value occupied in its own input.
 			/// Recorded so a payload can be lifted out of a frame exactly as it
 			/// was written, rather than re-serialized into something the agent
 			/// never sent.
 			std::size_t Begin = 0U;
 			std::size_t End   = 0U;
+		};
+
+		/// [[BPR-1260]]. A named member rather than `std::pair`: the pair's
+		/// default constructor asks whether `json_value` is implicitly default
+		/// constructible while `json_value` is still being defined, which
+		/// Clang with libstdc++ 15 refuses as an incomplete type.
+		struct json_member
+		{
+			std::string Name;
+			json_value  Value;
 		};
 
 		class bounded_json_parser final
@@ -301,7 +313,7 @@ namespace bpr::application {
 						|| std::ranges::find_if(
 							   result.Members,
 							   [&name](const auto& aMember) {
-								   return aMember.first == *name;
+								   return aMember.Name == *name;
 							   })
 							!= result.Members.end()) {
 						return malformed();
@@ -315,7 +327,7 @@ namespace bpr::application {
 					if (!value) {
 						return malformed();
 					}
-					result.Members.emplace_back(std::move(*name), std::move(*value));
+					result.Members.push_back(json_member{ .Name = std::move(*name), .Value = std::move(*value) });
 					skip_space();
 					if (Position == Input.size()) {
 						return malformed();
@@ -619,8 +631,8 @@ namespace bpr::application {
 			}
 			const auto found = std::ranges::find_if(
 				aObject.Members,
-				[aName](const auto& aMember) { return aMember.first == aName; });
-			return found == aObject.Members.end() ? nullptr : &found->second;
+				[aName](const auto& aMember) { return aMember.Name == aName; });
+			return found == aObject.Members.end() ? nullptr : &found->Value;
 		}
 
 		[[nodiscard]] auto string_member(
