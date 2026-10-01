@@ -8,7 +8,7 @@
   "branch": "main",
   "promotion_commit": "b724d3613",
   "claim_commit": "245bc9b5f",
-  "code_candidate": "568d45ca3e91e50e706c2ed3a43ea94932f430aa",
+  "code_candidate": "cef11b982cc430db0f4abae49859f73202d02648",
   "source_inputs": {
     "tests/end_to_end/large_review_benchmark.cpp": "d433f3547ea2c7c5470ac0f9543d50adba0fad84c1720063d5d03d58db4f764d",
     "tests/end_to_end/large_review_native_memory.cpp": "e3f6870d111a1e3ca38f273a1ca2adbd491e582a0223262b50cfb1093a3508c2",
@@ -19,10 +19,10 @@
   },
   "mac_verification": {
     "station": "Apple M4 Pro, 48 GiB, 14 logical processors, macOS 26.6.2; Apple clang 21.0.0; Qt 6.11.2; build/bpr0967-release (Release -O3 -DNDEBUG, arm64, macOS 13.0)",
-    "integration": "16/16 large-review rows pass serially in 175.77 s (build/bpr0967-station/mac-release-integration.log sha256 c71d9ffa9ac45c7507ae49795aa7b97300e1a3e4e7df0dfc9776bb976b5bd77b; summary 021870760b5817b9a5526afef9a1db3e8293f93b6d358bb097d4199dbf9351a0). Every report: BudgetsEnforced true, Failure empty, no limit misses. heap-control: Samples 35, peak 66482752 over baseline 32928192, final 32928224.",
-    "observation": "The resources course records large_file_selection in InputBudgetFailures (that course does not gate input; its 1 ms sampler runs). Unchanged behavior, noted for the station comparison.",
+    "integration": "At HEAD 5d1549b3e (code identical to cef11b982, clean tree): 16/16 large-review rows pass serially in 120.53 s (build/bpr0967-station/mac-release-integration-cef11b982.log sha256 d83de85c5e1835e1515a7400ced2d2a27e2ae8e4a8e83bf719ef5636a9362f2a; summary 324078b11506e8cf2e28de78910e2091d8c366be1c4543bcc1dc597c667b6c92). Every report: BudgetsEnforced true, Failure empty, no limit misses, no InputBudgetFailures. heap-control: Samples 41, peak 66482848 over baseline 32928288, final 32928320. Before the push rebase, the same change as local commit 568d45ca3 (identical benchmark inputs, older main) passed 16/16 in 175.77 s (log sha256 c71d9ffa9ac45c7507ae49795aa7b97300e1a3e4e7df0dfc9776bb976b5bd77b); the rebase brought in BPR-1260/1261/0903 warning-policy, MCP, agent-launch, fuzz and script changes.",
+    "observation": "The pre-rebase resources course recorded large_file_selection in InputBudgetFailures (that course does not gate input; its 1 ms sampler runs); the rerun recorded none.",
     "speed_context": "paged_review_and_git_load now takes 1.1-1.4 s on this Mac against about 10 s at 5a26d6b1; the cause is product change since then and is not attributed here.",
-    "controls": "Temporary, source restored to sha256 d433f3547ea2c7c5470ac0f9543d50adba0fad84c1720063d5d03d58db4f764d and rebuilt before the integration run. (A) Mac marked unjustified, footprint limit 1 MiB, input limit 1 ms: loaded_close and responsiveness pass; loaded-close names 3 limit misses, responsiveness 16 input failures and 14 unenforced completion misses. (B) Mac justified, same limits: both fail ('sampled Mac fixture footprint growth exceeded its budget', 'Mac fixture responsiveness budget exceeded') and each writes its partial report with Extended.Failure.",
+    "controls": "Temporary, at the pre-rebase tree, source restored to sha256 d433f3547ea2c7c5470ac0f9543d50adba0fad84c1720063d5d03d58db4f764d and rebuilt before the integration run. (A) Mac marked unjustified, footprint limit 1 MiB, input limit 1 ms: loaded_close and responsiveness pass; loaded-close names 3 limit misses, responsiveness 16 input failures and 14 unenforced completion misses. (B) Mac justified, same limits: both fail ('sampled Mac fixture footprint growth exceeded its budget', 'Mac fixture responsiveness budget exceeded') and each writes its partial report with Extended.Failure.",
     "architecture_boundaries": "passes (24.0 s)",
     "format": "clang-format 23.1.1 --dry-run --Werror clean on the three changed C++ files",
     "tidy": "large_review_native_memory.cpp clean; large_review_benchmark.cpp reports 23 findings, all on lines this change did not touch (pre-existing naming, endl, static-through-instance, widening-cast)",
@@ -34,8 +34,8 @@
       "Preconditions: the station runs nothing else (no build, test or agent work) from step 1 to step 6; a vcvars64 PowerShell; Smart App Control off as for every station course.",
       "1. git -C C:\\code\\git\\BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
       "   git -C C:\\code\\git\\BetterPullReview fetch origin",
-      "   git -C C:\\code\\git\\BetterPullReview switch --detach 568d45ca3e91e50e706c2ed3a43ea94932f430aa",
-      "   git -C C:\\code\\git\\BetterPullReview rev-parse HEAD   (must print 568d45ca3e91e50e706c2ed3a43ea94932f430aa)",
+      "   git -C C:\\code\\git\\BetterPullReview switch --detach cef11b982cc430db0f4abae49859f73202d02648",
+      "   git -C C:\\code\\git\\BetterPullReview rev-parse HEAD   (must print cef11b982cc430db0f4abae49859f73202d02648)",
       "   New-Item -ItemType Directory -Force C:\\code\\git\\BetterPullReview\\build\\bpr0967-station | Out-Null",
       "   (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (record as load before)",
       "2. Set-Location C:\\code\\git\\BetterPullReview",
@@ -57,8 +57,8 @@
       "Preconditions: the station runs nothing else (no build, test or agent work) from step 1 to step 6.",
       "1. git -C /home/mmarcin/BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
       "   git -C /home/mmarcin/BetterPullReview fetch origin",
-      "   git -C /home/mmarcin/BetterPullReview switch --detach 568d45ca3e91e50e706c2ed3a43ea94932f430aa",
-      "   git -C /home/mmarcin/BetterPullReview rev-parse HEAD   (must print 568d45ca3e91e50e706c2ed3a43ea94932f430aa)",
+      "   git -C /home/mmarcin/BetterPullReview switch --detach cef11b982cc430db0f4abae49859f73202d02648",
+      "   git -C /home/mmarcin/BetterPullReview rev-parse HEAD   (must print cef11b982cc430db0f4abae49859f73202d02648)",
       "   mkdir -p /home/mmarcin/BetterPullReview/build/bpr0967-station",
       "   uptime   (record as load before)",
       "2. cd /home/mmarcin/BetterPullReview && cmake --preset app-release -B /home/mmarcin/BetterPullReview/build/bpr0967-release -DBUILD_TESTING=ON -DBPR_DEPENDENCY_OFFLINE=ON",
@@ -104,5 +104,6 @@
     "writer": "this implementer in /Users/jaeger/Documents/GitHub/BetterPullReview on main; another writer committed on main concurrently (BPR-1234 finish, BPR-1260/1261 allocations) and was not touched",
     "commands": "all task-owned builds and ctest runs completed; no server, watcher or background command remains",
     "temporary": "build/bpr0967-station (logs, summaries, the original-source copy used for the controls) and build/bpr0967-release are ignored build output kept for audit"
-  }
+  },
+  "code_candidate_note": "568d45ca3 was the local pre-rebase commit and was never pushed; cef11b982 is the pushed code candidate."
 }
