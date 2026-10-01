@@ -149,3 +149,24 @@ committed.
 `dev` graph has no `app_bpr`: the row's command carries no `--tour-application`
 pair. So this is the run without `app_bpr`, the fixed path, on Linux. The run
 with `app_bpr` stays on the platforms that build it.
+
+## Windows, with `app_bpr` — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, Visual Studio 18 (MSVC 14.51), Qt 6.11.2, Debug,
+at `f84babe27`, which contains `ab9d3fd7`. A separate tree was used:
+
+```powershell
+cmake --preset windows-dev -B C:/code/git/BetterPullReview/build/windows-bpr1234-tour -DBPR_BUILD_TOUR_CLI=ON
+cmake --build C:/code/git/BetterPullReview/build/windows-bpr1234-tour --config Debug --target app_bpr app_better_pull_review test_profile_activation_public_path
+ctest --test-dir C:/code/git/BetterPullReview/build/windows-bpr1234-tour -C Debug -R "^application_profile_activation_public_path$" -V
+```
+
+The configure, the build and the run each exited 0. The build printed no
+`warning C` line. CTest's registered command ends
+`--tour-application C:/code/git/BetterPullReview/build/windows-bpr1234-tour/src/app/Debug/bpr.exe`.
+The row passes in 17.44 s with `PROFILE_ACTIVATION_OK`, and it prints no
+`PROFILE_TOUR_FORWARDING_OK`, because that course is POSIX-only. So the pair
+parses on Windows when `app_bpr` exists.
+
+With the run without `app_bpr` at `ab9d3fd7` above, the first criterion is met
+on Windows. The macOS and Linux entries meet the second.
