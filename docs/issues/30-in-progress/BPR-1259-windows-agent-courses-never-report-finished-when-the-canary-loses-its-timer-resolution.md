@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1259"
 title: "Windows: agent courses never report finished when the canary loses its timer resolution"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
