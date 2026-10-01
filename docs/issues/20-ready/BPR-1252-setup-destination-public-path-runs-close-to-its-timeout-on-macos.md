@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1252"
 title: "application_setup_destination_public_path takes 50 s of its 60 s timeout on macOS and times out in a full parallel run"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"found by the red-test backlog milestone integration pass, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1252--BPR-1252--d84fbad1d11b.json","related_cards":["BPR-1200","BPR-1213"]}
