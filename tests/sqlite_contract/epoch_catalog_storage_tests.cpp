@@ -20,6 +20,12 @@
 #include <utility>
 #include <vector>
 
+#if defined(__linux__)
+	#include <fcntl.h>
+	#include <sys/file.h>
+	#include <unistd.h>
+#endif
+
 namespace {
 	namespace app           = bpr::application;
 	namespace core          = bpr::core;
@@ -401,6 +407,24 @@ namespace {
 		};
 	}
 
+#if defined(__linux__)
+	// BPR-1257. On Linux a catalog keeps `state/v1` open, and its `flock`, for
+	// as long as the catalog or any session lives, so reopening the root while
+	// one is alive waits on this process forever. The probe does not block, so
+	// a session left alive fails by name here rather than at the row's timeout.
+	auto catalog_root_released(const std::filesystem::path& aRoot) -> bool
+	{
+		const auto version = aRoot / "state" / "v1";
+		const auto handle  = ::open(version.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+		if (handle < 0) {
+			return false;
+		}
+		const auto released = ::flock(handle, LOCK_EX | LOCK_NB) == 0;
+		(void)::close(handle);
+		return released;
+	}
+#endif
+
 	void bootstrap_authority_and_storage_contract()
 	{
 		temporary_root root{
@@ -619,9 +643,15 @@ namespace {
 		secondRepository.reset();
 		secondPr.reset();
 		same.reset();
+		historical->reset();
 		first.reset();
 		port.reset();
 
+#if defined(__linux__)
+		expect(
+			catalog_root_released(root.path()),
+			"every catalog and session on the root is released before it reopens");
+#endif
 		auto reopenedPortResult = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
 		expect(reopenedPortResult.has_value(), "WAL catalog reopens");
 		auto reopenedPort   = std::move(*reopenedPortResult);
