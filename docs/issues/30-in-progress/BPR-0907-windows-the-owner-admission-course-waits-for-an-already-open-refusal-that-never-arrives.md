@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0907"
 title: "Windows: the owner-admission course's Windows-only branch waits for an 'already open' refusal presentation that never arrives"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
