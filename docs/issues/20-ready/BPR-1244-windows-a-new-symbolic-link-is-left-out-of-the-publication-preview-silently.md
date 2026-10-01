@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1244"
 title: "Windows: a new symbolic link in a Review Cycle is left out of the publication candidate and preview without a word"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
