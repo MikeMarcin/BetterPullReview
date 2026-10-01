@@ -112,3 +112,13 @@ The C++ changes are portable: a designated-initializer `push_back` and an
 out-of-class member function. The flag is guarded by a compile check.
 
 Published: `git pull --rebase` renamed the fix commit. `92144e838`, named above and in the acceptance records, is `24a7cd7fe` on main.
+
+## macOS (bpr-main-mac, 2026-10-01)
+
+Apple clang, `dev` preset, clean worktree at `0c6b5ea5b`: the build exits 0.
+The only two `warning:` lines come from the vendored libarchive under
+`build/.cpm-cache`; no project source warns, including `agent_launch.cpp`,
+`mcp_context_helper.cpp` and the `Warnings.cmake` change.
+`ctest -j6 -R '^(application_agent_|application_mcp_context_helper)'`:
+31 of 32 pass. The failure is `application_agent_finding_workshop_press_contract`,
+owned by [[BPR-1245]].
