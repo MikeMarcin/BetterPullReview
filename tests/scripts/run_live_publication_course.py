@@ -35,8 +35,10 @@ import shutil
 import stat
 import subprocess
 import sys
-import tempfile
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 if sys.version_info < (3, 10):
     sys.exit(f"Python 3.10 or newer is required; found {sys.version.split()[0]} at {sys.executable}")
@@ -102,7 +104,7 @@ def main() -> int:
     login, account = viewer["login"], viewer["id"]
     git_executable = run(["which", options.git]).strip() if os.sep not in options.git else options.git
 
-    work = pathlib.Path(tempfile.mkdtemp(prefix="bpr-rc59-10-")).resolve()
+    work = make_contained_temporary_directory(prefix="bpr-rc59-10-").resolve()
     checkout = work / REPOSITORY
     run(["git", "clone", "--quiet", REMOTE, str(checkout)])
     base = f"{prefix}/base"
