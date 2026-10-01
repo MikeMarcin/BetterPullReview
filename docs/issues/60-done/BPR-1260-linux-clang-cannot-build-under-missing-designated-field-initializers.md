@@ -110,3 +110,5 @@ the fix has four parts:
 **Not run here.** Apple clang on macOS, a full Apple-clang build, and MSVC.
 The C++ changes are portable: a designated-initializer `push_back` and an
 out-of-class member function. The flag is guarded by a compile check.
+
+Published: `git pull --rebase` renamed the fix commit. `92144e838`, named above and in the acceptance records, is `24a7cd7fe` on main.
