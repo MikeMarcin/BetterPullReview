@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0900"
 title: "The harness and the product claim to write the same owner-private descriptor, and nothing pins that claim"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
