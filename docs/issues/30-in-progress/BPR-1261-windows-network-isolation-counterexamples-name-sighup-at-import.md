@@ -68,3 +68,20 @@ That card should check whether its probe still proves the denial before it
 treats them as fixed.
 
 The Linux run is bpr-main-linux's.
+
+## Linux: bpr-main-linux, 2026-10-01
+
+At `24068e2ee`, which includes `24068e2ee`, on WSL2 with GCC 15.2 and `build/dev`:
+`ctest --preset dev -j1 --output-on-failure -R "^test_network_isolation_"`
+passes **8 of 8**. The result is the same as the baseline taken at `0c6b5ea5b`
+before this change:
+
+- the same eight rows pass, at the same durations (0.03 to 1.10 s);
+- `NETWORK_ISOLATION_RUNTIME_WINDOW_LEFT` appears in neither run;
+- `signal:1` (SIGHUP), `signal:2` and `signal:15` are each tried once, so
+  the Linux tuple still includes SIGHUP;
+- `test_network_isolation_external` prints
+  `NETWORK_ISOLATION_EXTERNAL_DENIED:101` (ENETUNREACH), and `_child` prints
+  `NETWORK_ISOLATION_CHILD_DENIED`.
+
+Linux is unchanged.
