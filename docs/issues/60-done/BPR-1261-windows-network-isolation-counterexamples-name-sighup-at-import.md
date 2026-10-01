@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1261"
 title: "Windows: the network isolation counterexamples name SIGHUP at import, and four rows fail before they start"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "linux"]
 metadata: {"found_by":"bpr-main-win BPR-0905 Windows full suite, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1261--BPR-1261--9d2038aba170.json","related_cards":["BPR-0905","BPR-1113","BPR-0903","BPR-1237"]}
+acceptance: [{"criterion":"The four rows get past import on Windows","outcome":"pass","revision":"24068e2ee","evidence":{"kind":"command","detail":"bpr-main-win, ctest --preset windows-dev -j1 --output-on-failure -R ^test_network_isolation_: test_network_isolation_external (0.10 s), _child (0.17 s), _loopback (0.13 s) and _concurrent_launch (0.94 s) pass where each had stopped at AttributeError: module 'signal' has no attribute 'SIGHUP'. The manifest row still fails on BPR-1237's unpinned rows."}},{"criterion":"Linux is unchanged","outcome":"pass","revision":"24068e2ee","evidence":{"kind":"command","detail":"bpr-main-linux, ctest --preset dev -j1 -R ^test_network_isolation_ at 24068e2ee: 8 of 8 pass, as in its baseline, with each leak-window signal still tried once (recorded in 732177ce2)."}}]
 ---
 
 # BPR-1261: Windows: the network isolation counterexamples name SIGHUP at import, and four rows fail before they start
