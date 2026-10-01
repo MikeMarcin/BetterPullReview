@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1257"
 title: "Linux: sqlite_epoch_catalog_storage_contract deadlocks on its own flock of state/v1"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
