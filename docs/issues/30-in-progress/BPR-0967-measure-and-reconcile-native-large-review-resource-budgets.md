@@ -408,3 +408,62 @@ AC3 now has optimized Windows and Linux measurements and enforced limits,
 pending the confirmation run at `f61340e17`. Packaged launch, compositor
 presentation and physical-input latency on every platform remain human/native
 obligations.
+
+## Windows confirmation at `f61340e17` (bpr-main-win, 2026-10-01)
+
+Steps 1–6 of `handoff-stations-confirm.json`, with the station otherwise idle.
+The tracked tree was clean, and the checkout was detached at
+`f61340e17d0c7480de14b2908276166d75b47102` and then switched back to main.
+The summaries are `docs/verification/BPR-0967-station/windows-confirm-release-summary.json`
+and `windows-confirm-debug-summary.json`. Both name `source_revision`
+`f61340e17…` with 0 tracked changes. They are LF copies; the station's CRLF
+originals hash `DF08C5CA…` (Release) and `7D7305AE…` (Debug).
+
+- **Load.** The mean `LoadPercentage` read 100 at 15:32:52-07:00. That was a
+  single instantaneous sample taken as step 1 began. It read 3 at
+  16:23:45-07:00.
+- **Builds.** `build/bpr0967-release` and `build/windows-dev` each built the
+  three targets and exited 0. There was no `warning C` or `error C`/`LNK` line
+  in either. Both compiled BPR-1262's
+  `src/application/src/designated_review_authority_bootstrap.cpp`, so that
+  change builds clean under MSVC. The only warnings were CMake's
+  "uninitialized" notices from Qt's own config files: 111 in the Release log
+  and 112 in the Debug log.
+- **Release.** ctest ran from 15:35:01.2281232 to 15:42:25.6332927-07:00 and
+  exited 0: 17 of 17 pass, in 444.37 s. Every report has `BudgetsEnforced`
+  true, an empty `Failure`, empty `UnenforcedLimitMisses` and
+  `CourseClockScale` 1. `LimitBasis` names this station: "Windows 11 x64
+  i9-10900KF 128 GiB, Qt 6.11.2, MSVC…". The launch report has `Enforced`
+  true. No limit failed. `large_review_replay_contract` passes in 2.56 s.
+  heap-control: baseline 33,146,296, peak 66,705,365, final 33,146,328,
+  5 samples.
+- **Debug.** ctest ran from 15:44:25.3017012 to 16:23:44.3223778-07:00 and
+  exited 0: 17 of 17 pass, in 2,358.98 s, with `BudgetsEnforced` false and
+  `CourseClockScale` 2 throughout.
+  - `application_large_review_resources` now passes, in 110.80 s.
+  - `application_large_review_cache_bytes` passes in 1,626.01 s against its
+    2,280 s `TIMEOUT` (1.40x), with no wait expiry. Its unenforced misses are
+    "sampled fixture footprint growth exceeded its platform budget" and
+    "fixture lifetime peak footprint growth exceeded its platform budget".
+  - `application_large_review_history` names "epoch source selection
+    exceeded its measured platform budget" and "epoch refresh exceeded its
+    measured platform budget".
+  - `large_review_replay_contract` passes in 33.23 s against its 120 s
+    `TIMEOUT` (3.61x).
+  - heap-control: baseline 37,730,004, peak 71,294,102, final 37,730,088.
+- **Search.** The step 6 `Select-String` for `large-review-benchmark-failed:`,
+  `large-review wait:`, `***Failed` and `***Timeout` matched no line in either
+  log.
+
+SHA-256 of the station files:
+
+| File | SHA-256 |
+|---|---|
+| `windows-confirm-debug-build.txt` | `CF03DD794DF5D98E68CC3F4054ECAA9E6A7A61C371E8E347F5F0EE2586EC6FF3` |
+| `windows-confirm-debug-console.txt` | `EA23398A5D5C150F56665813BD59CD252194C091C27B4B70956403CB0FA481D0` |
+| `windows-confirm-debug-ctest.log` | `C2ED89BDFDB5A675A284E8B4D330454266A3E8B79C16949990723745289D36CD` |
+| `windows-confirm-debug-summary.json` | `7D7305AE6CAAF493A074A0093B9299A763FC9C17A7EE30E44F0A1EA9D3DCFAEB` |
+| `windows-confirm-release-build.txt` | `114152AB0DAB3CA69CD5FE6BADE2EE18B80C37296446B195F89B3726C89C9933` |
+| `windows-confirm-release-console.txt` | `DFD3958727003F72F44E137A3F5D9A8E2118191DCEE3B9EC3B116C2E386F6C7D` |
+| `windows-confirm-release-ctest.log` | `B95D6464E41BF0B9447DE66F597D93FB1A76891B85864B2668F6C3548B41F426` |
+| `windows-confirm-release-summary.json` | `DF08C5CA73EAD0201581093801C0AE1A0E629D0B60207B2E91BDD510BF001D42` |
