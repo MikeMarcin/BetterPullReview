@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
+platforms: ["mac", "win", "linux"]
 metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0967-mac-responsiveness","path":"docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json"}}
 ---
 
