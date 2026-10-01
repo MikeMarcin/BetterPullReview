@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr0970-parser-fuzzing",
+  "scope": {
+    "issues": [
+      "BPR-0970"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "parser-mapping-fuzzing",
+      "outcome": "Inventory every custom parser and mapping boundary in the seven transferred families, register bounded real-production fuzz targets and corpora, and record sanitizer campaign evidence without overstating finite coverage.",
+      "work": [
+        {
+          "issue": "BPR-0970"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Every custom entry point in the seven families has a source-bound inventory row naming deterministic registrations and uncovered trust boundaries.",
+        "Bounded runnable fuzz targets and representative hostile corpora exercise all uncovered custom parsers and mappings without production backdoors.",
+        "Sanitizer-backed campaigns retain reproducible input, work, memory, seed, duration and findings; concrete defects receive regression cases."
+      ],
+      "boundary": "Standalone BPR-0970; origin RFC0013 r4 amendment is unchanged. Source base 97a7564b. Synthetic data, macOS only. No live effects, release, remote stations or primary-checkout writes. Partial coverage remains unfinished on this card."
+    }
+  ],
+  "unplanned_work": []
+}
