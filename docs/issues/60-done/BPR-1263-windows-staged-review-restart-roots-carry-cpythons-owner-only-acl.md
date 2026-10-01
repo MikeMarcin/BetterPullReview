@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1263"
 title: "Windows: staged_review_restart's roots carry CPython's owner-only ACL, and the staged journal refuses them"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win BPR-0905 Windows full suite and red triage, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1263--BPR-1263--3bcc890db10d.json","related_cards":["BPR-0905","BPR-1233","BPR-0834","BPR-1237"]}
+acceptance: [{"criterion":"staged_review_restart passes on Windows, every kill point included","outcome":"pass","revision":"e86dafa19","evidence":{"kind":"command","detail":"bpr-main-win, ctest --preset windows-dev -j1 -V -R ^staged_review_restart$ with this change: passes in 6.24 s and prints all 24 markers, 15 staged-kill:<step>:<boundary>:pass and 9 maintenance-kill:<step>:<boundary>:pass; staged_review_session passes in 3.06 s. Before, it failed alone in 0.13 s at 'FAILED: production staged journal opens'."}},{"criterion":"POSIX behavior is unchanged","outcome":"pass","revision":"e86dafa19","evidence":{"kind":"observation","detail":"make_root_private's POSIX branch is root.mkdir(mode=0o700, exist_ok=True), the call it replaces; each root is a fresh name under a new contained temporary directory, so exist_ok never applies."}}]
 ---
 
 # BPR-1263: Windows: staged_review_restart's roots carry CPython's owner-only ACL, and the staged journal refuses them

@@ -6,6 +6,10 @@ import sqlite3
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "end_to_end"))
+# [[BPR-1263]]. On Windows `mkdir(mode=0o700)` writes CPython's owner-only
+# descriptor, which the staged journal refuses; this writes the stores' own.
+from bpr_narrow_owner_private import make_root_private
 from process_kill_support import kill_at_checkpoint, run
 
 def main():
@@ -16,7 +20,7 @@ def main():
         for step in range(5):
             for boundary in ("prepared", "witnessed", "applied"):
                 root = Path(raw) / f"{step}-{boundary}"
-                root.mkdir(mode=0o700)
+                make_root_private(root)
                 kill_at_checkpoint(executable, f"--kill-{step}-{boundary}", root)
                 trace = root / "server-writes"
                 before = trace.read_bytes() if trace.exists() else b""
@@ -40,7 +44,7 @@ def main():
         for step in range(3):
             for boundary in ("prepared", "witnessed", "applied"):
                 root = Path(raw) / f"update-{step}-{boundary}"
-                root.mkdir(mode=0o700)
+                make_root_private(root)
                 run(executable, "--init-update", root)
                 kill_at_checkpoint(executable, f"--update-kill-{step}-{boundary}", root)
                 trace = root / "server-writes"
