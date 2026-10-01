@@ -122,3 +122,10 @@ The only two `warning:` lines come from the vendored libarchive under
 `ctest -j6 -R '^(application_agent_|application_mcp_context_helper)'`:
 31 of 32 pass. The failure is `application_agent_finding_workshop_press_contract`,
 owned by [[BPR-1245]].
+
+## Windows, MSVC — bpr-main-win, 2026-10-01
+
+At `24068e2ee`, which contains `24a7cd7fe`: `cmake --build --preset
+windows-dev` (Visual Studio 18, MSVC 14.51, Debug) exited 0, compiled
+`src/application/src/agent_launch.cpp` and
+`src/adapters/mcp/src/mcp_context_helper.cpp`, and printed no warning.
