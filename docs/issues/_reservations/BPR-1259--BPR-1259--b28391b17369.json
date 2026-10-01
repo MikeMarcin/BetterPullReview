@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1259"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows agent courses never report finished at db021262a (8 rows)",
+  "created": "2026-10-01T19:36:05.316858+00:00",
+  "base": "9da45816af6bb79cb27cb684183cc4e689f67ca4"
+}
