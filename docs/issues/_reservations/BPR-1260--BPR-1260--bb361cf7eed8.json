@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1260"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "Linux Clang dev build fails -Wmissing-designated-field-initializers (fuzz path)",
+  "created": "2026-10-01T20:24:12.933874+00:00",
+  "base": "e96b1e4400c2b38c8394d04eec4dda7533d8029f"
+}
