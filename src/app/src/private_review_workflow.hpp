@@ -17,13 +17,15 @@ namespace bpr::app {
 	};
 	/// Composes private storage on the mutation effect lane and returns typed results to decisions.
 	/// Keep alive until the invocation host, mutation providers and pending operations are quiescent.
+	/// Every store operation holds the profile's review-ledger file exclusion, the one its ledger
+	/// store tasks hold, because both open and use the same SQLite file ([[BPR-1254]]).
 	class private_review_workflow final : public application::private_agent_run_port, public application::review_publication_lineage_port
 	{
 	public:
 		using draft_sink       = std::function<void(const application::durable_draft_commit&, bool)>;
 		using run_sink         = std::function<bool(core::agent_profile_id, application::private_run_intent, core::agent_setting_facts, std::string)>;
 		using draft_completion = std::function<void(application::private_run_result<application::durable_draft_commit>)>;
-		private_review_workflow(application::effect_executor&, application::decision_executor&, private_review_recovery_registry&, qt::private_review_panel&, QWidget*, draft_sink, run_sink);
+		private_review_workflow(application::effect_executor&, application::decision_executor&, std::mutex& aLedgerFile, private_review_recovery_registry&, qt::private_review_panel&, QWidget*, draft_sink, run_sink);
 		~private_review_workflow();
 		void open(adapters::sqlite::private_review_configuration, std::function<void()>);
 		void observe(core::private_review_binding, std::shared_ptr<const core::diff_semantic_index>, std::optional<core::source_line_ref>);
@@ -63,7 +65,7 @@ namespace bpr::app {
 		QPointer<qt::private_composition_editor>                    Editor;
 		draft_sink                                                  Drafts;
 		run_sink                                                    Launch;
-		std::mutex                                                  Gate;
+		std::mutex&                                                 Gate;
 		std::vector<std::shared_ptr<context>>                       Contexts;
 		std::shared_ptr<context>                                    Current;
 		std::optional<core::private_review_binding>                 Binding;

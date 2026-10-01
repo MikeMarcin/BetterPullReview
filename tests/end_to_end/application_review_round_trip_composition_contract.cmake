@@ -499,6 +499,15 @@ endfunction()
 # neither version aligns. Formatting only: the same actions in the same order;
 # no grant, target, provider or publication path changes; mutation pin
 # unchanged.
+# BPR-1254 reseal: fd05277e..this candidate; no intervening pinned-scope commit
+# (4169e097 and c3df92bf touch only unpinned tour sources). The profile gains
+# one review-ledger file mutex; every window's ledger host gets the
+# review-ledger lane through exclusive_file_effect_executor, which runs each
+# task under it, and private_review_workflow takes it as its gate instead of a
+# mutex of its own, so a reopen's preflight never sees a private read or write
+# of the same file. Two BPR_BUILD_TESTING probes report the ledger's opening
+# and the exclusion. No grant, target, provider or publication path changes;
+# mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -517,7 +526,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"36365883de939bbfe6849b144f844086ef2876f84f803fd3c6df4e4cfef32967"
+		"ec5ac66a92d918ba4d9535882ba844a4af2a12a4a0f573ab40933cf0a0510b1e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -703,7 +712,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "661d70c02971a625ee4b5e45f567155226f6eb415c8d1a5bc2172f1ae0000ec5"
+        "b08ec815440f69c918352959c987bf7e2568f6fd3b7558cb52ba27ce3a7587a4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1511,9 +1511,23 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "descendant-start");
 			}
 			panel->cancel_action()->trigger();
-		} else if (!app::detail::github_application_fixture_access::
-					   reaccept_fixture_revision(*application, true)) {
-			return fail(*application, "stale-revision");
+		} else {
+			// [[BPR-1254]]. Moving the head reopens the review ledger while this
+			// run's private store can still read or write the same file. Opening
+			// refuses a file that changed while it was validated, so the ledger
+			// store and the private store take turns with the file.
+			const auto excluded = app::detail::github_application_fixture_access::
+				review_ledger_file_exclusive(*application);
+			if (excluded != std::optional{ true }) {
+				auto exclusion = wait_terms{ };
+				exclusion.note("answered", excluded.has_value());
+				exclusion.note("waited", excluded.value_or(false));
+				return fail(*application, "ledger-file-exclusion", exclusion.render());
+			}
+			if (!app::detail::github_application_fixture_access::
+					reaccept_fixture_revision(*application, true)) {
+				return fail(*application, "stale-revision");
+			}
 		}
 		const auto expectedTerminal = course == "cancellation"
 			? QStringLiteral("Finished: cancelled")
@@ -1565,6 +1579,31 @@ auto main(int argc, char** argv) -> int
 			terminal.note_identifier("cleaned", terminalCleaned.failing_term());
 			return fail(
 				*application, "typed-terminal-cleanup", terminal.render());
+		}
+		if (course == "staleness") {
+			// [[BPR-1254]]. The moved head's review ledger answered its opening as
+			// available, so the session catalog read for the new head refused
+			// nothing and the panel still shows the stale terminal.
+			auto reopened = wait_terms{ };
+			if (!wait_until_reporting(
+					reopened,
+					[&application, panel, &expectedTerminal](wait_terms& aTerms) {
+						const auto available = app::detail::github_application_fixture_access::
+							review_ledger_available(*application);
+						aTerms.note("ledger-answered", available.has_value());
+						aTerms.note_identifier("status", panel->status_text().toStdString());
+						return aTerms.require(
+								   "ledger-settled",
+								   app::detail::github_application_fixture_access::
+									   review_ledger_settled(*application))
+							&& aTerms.require(
+								"ledger-available", available == std::optional{ true })
+							&& aTerms.require(
+								"status-is-expected-terminal",
+								panel->status_text() == expectedTerminal);
+					})) {
+				return fail(*application, "ledger-reopened", reopened.render());
+			}
 		}
 		if (course == "cancellation") {
 			if (!descendantMarker.has_value()) {

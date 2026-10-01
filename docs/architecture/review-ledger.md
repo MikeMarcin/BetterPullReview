@@ -63,7 +63,7 @@ the decision lane, and only then is anything retained or published. A host
 holds at most 64 operations; a gesture beyond that is refused `unavailable` and
 presented, rather than growing a queue behind slow storage.
 
-No lock is held across storage. Reads answer from what the host has already
+No host lock is held across storage. Reads answer from what the host has already
 loaded or committed and never touch the store: the retained receipt, durable
 receipts, conversation receipts and the private observation. A cache miss is an
 explicit asynchronous load that republishes when it answers. The overview reads
@@ -82,6 +82,17 @@ sessions and promoted agent notes go through the same host, and their answers
 arrive later on the decision lane. The private review store opens the same file
 after this ledger's opening has answered, as it did when that opening was
 synchronous.
+
+[[BPR-1254]]. The ledger is one file per profile, and it is not this lane's
+alone: every window's private review store reads and writes it too, from the
+mutation lane and from agent turns. Opening validates a copy of the file and
+refuses the file as `unavailable` if its main, WAL or SHM bytes changed
+meanwhile, so a private read or write during a reopen (a moved head reopens the
+ledger) refused an ordinary opening, and the agent's session-catalog read after
+it. The profile therefore holds one review-ledger file exclusion. Every task on
+the review-ledger lane runs under it, and so does every private review store
+operation, so only one of them touches the file at a time. This is the one lock
+held across storage, and no product path takes it on the decision lane.
 
 The core holds no part of the ledger and takes no SQLite dependency; its
 receipt policy builds and runs under the `core-only` preset, which links

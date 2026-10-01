@@ -76,7 +76,7 @@ namespace bpr::app {
 		bool                                                        OpenDraft              = false;
 		bool                                                        Refresh                = true;
 	};
-	private_review_workflow::private_review_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, private_review_recovery_registry& aRecovery, qt::private_review_panel& aPanel, QWidget* aParent, draft_sink aDrafts, run_sink aLaunch)
+	private_review_workflow::private_review_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, std::mutex& aLedgerFile, private_review_recovery_registry& aRecovery, qt::private_review_panel& aPanel, QWidget* aParent, draft_sink aDrafts, run_sink aLaunch)
 		: Effects(aEffects)
 		, Decisions(aDecisions)
 		, Recovery(aRecovery)
@@ -84,6 +84,7 @@ namespace bpr::app {
 		, Editor(new qt::private_composition_editor(aParent))
 		, Drafts(std::move(aDrafts))
 		, Launch(std::move(aLaunch))
+		, Gate(aLedgerFile)
 	{
 		Panel.set_dispatch([this](auto aIntent) { dispatch(std::move(aIntent)); });
 		Editor->set_dispatch([this](auto aIntent) { compose(std::move(aIntent)); });

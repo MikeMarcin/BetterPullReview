@@ -193,6 +193,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -3632,6 +3633,39 @@ namespace bpr::app {
 		std::optional<core::bpr_window_context> Origin;
 	};
 
+	/// \brief [[BPR-1254]]. Runs each task of one lane while holding the
+	/// exclusion that every other in-process user of the same file holds too.
+	///
+	/// \details The profile's review ledger is one SQLite file. Each window's
+	/// ledger host reaches it through this lane, and each window's private
+	/// review store reaches it from the mutation lane and from agent turns.
+	/// Opening it validates a copy of the file and then refuses the file if it
+	/// changed meanwhile, so a read or write by another connection during that
+	/// window turned an ordinary reopen into `unavailable`. Holding one
+	/// exclusion around every task here, and around every private store
+	/// operation, means only one of them touches the file at a time.
+	class exclusive_file_effect_executor final : public application::effect_executor
+	{
+	public:
+		exclusive_file_effect_executor(application::effect_executor& aLane, std::mutex& aFile) noexcept
+			: Lane{ aLane }
+			, File{ aFile }
+		{
+		}
+
+		void post(std::function<void()> aTask) override
+		{
+			Lane.post([&file = File, task = std::move(aTask)] {
+				const auto lock = std::scoped_lock{ file };
+				task();
+			});
+		}
+
+	private:
+		application::effect_executor& Lane;
+		std::mutex&                   File;
+	};
+
 	class github_profile_runtime final : public std::enable_shared_from_this<github_profile_runtime>, public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port, public application::window_review_restoration_projection_port
 	{
 	public:
@@ -3663,8 +3697,15 @@ namespace bpr::app {
 		worker_executor                  AppearanceEffects;
 		worker_executor                  QueueEffects;
 		worker_executor                  ReviewMutationEffects;
+		/// [[BPR-1254]]. Held by whatever touches the profile's review-ledger
+		/// file: a ledger store task, or a private review store operation.
+		/// Declared before the lane so it outlives the lane's last task.
+		std::mutex ReviewLedgerFile;
 		/// [[BPR-1211]]. Every window's review-ledger storage, off the decision lane.
-		worker_executor                                     ReviewLedgerEffects;
+		worker_executor ReviewLedgerEffects;
+		/// [[BPR-1254]]. The lane above, each task under `ReviewLedgerFile`;
+		/// the one every ledger host is given.
+		exclusive_file_effect_executor                      ReviewLedgerStoreEffects{ ReviewLedgerEffects, ReviewLedgerFile };
 		private_review_recovery_registry                    PrivateRecovery;
 		worker_executor                                     ReviewSubmissionEffects;
 		qt::event_loop_executor                             DecisionLane;
@@ -6692,7 +6733,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
-			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
+			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
 					if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
 						return false;
 					}
@@ -10663,7 +10704,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
 			++ReviewLedgerGeneration;
 			ReviewLedgerHost = std::make_unique<application::review_ledger_application_host>(
-				std::move(open), *this, ReviewLedgerEffects, DecisionLane,
+				std::move(open), *this, ReviewLedgerStoreEffects, DecisionLane,
 				ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
 					open_private_review(std::move(privateReview));
 					review_ledger_opened(aOpened.has_value());
@@ -14931,13 +14972,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
 
-		decltype(github_profile_runtime::Profiles)&                Profiles                = Profile->Profiles;
-		decltype(github_profile_runtime::ProfileOptions)&          ProfileOptions          = Profile->ProfileOptions;
-		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
-		decltype(github_profile_runtime::VaultEffects)&            VaultEffects            = Profile->VaultEffects;
-		decltype(github_profile_runtime::ReviewMutationEffects)&   ReviewMutationEffects   = Profile->ReviewMutationEffects;
-		decltype(github_profile_runtime::ReviewLedgerEffects)&     ReviewLedgerEffects     = Profile->ReviewLedgerEffects;
-		decltype(github_profile_runtime::ReviewSubmissionEffects)& ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
+		decltype(github_profile_runtime::Profiles)&                 Profiles                 = Profile->Profiles;
+		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions           = Profile->ProfileOptions;
+		decltype(github_profile_runtime::ProviderEffects)&          ProviderEffects          = Profile->ProviderEffects;
+		decltype(github_profile_runtime::VaultEffects)&             VaultEffects             = Profile->VaultEffects;
+		decltype(github_profile_runtime::ReviewMutationEffects)&    ReviewMutationEffects    = Profile->ReviewMutationEffects;
+		decltype(github_profile_runtime::ReviewLedgerEffects)&      ReviewLedgerEffects      = Profile->ReviewLedgerEffects;
+		decltype(github_profile_runtime::ReviewLedgerStoreEffects)& ReviewLedgerStoreEffects = Profile->ReviewLedgerStoreEffects;
+		decltype(github_profile_runtime::ReviewLedgerFile)&         ReviewLedgerFile         = Profile->ReviewLedgerFile;
+		decltype(github_profile_runtime::ReviewSubmissionEffects)&  ReviewSubmissionEffects  = Profile->ReviewSubmissionEffects;
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
@@ -24478,6 +24521,93 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			held->Changed.notify_all();
 		};
+	}
+
+	auto detail::github_application_fixture_access::review_ledger_available(
+		github_application& aApplication) -> std::optional<bool>
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ReviewLedgerHost == nullptr) {
+			return std::nullopt;
+		}
+		return implementation->ReviewLedgerHost->available();
+	}
+
+	auto detail::github_application_fixture_access::review_ledger_file_exclusive(
+		github_application& aApplication) -> std::optional<bool>
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->ReviewLedgerHost == nullptr
+			|| implementation->PrivateReview == nullptr || !implementation->AgentReview.has_value()) {
+			return std::nullopt;
+		}
+		const auto laneIdle = [implementation] {
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 10 };
+			while (!implementation->ReviewLedgerEffects.idle()) {
+				if (std::chrono::steady_clock::now() >= deadline) {
+					return false;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+			}
+			return true;
+		};
+		if (!laneIdle()) {
+			return std::nullopt;
+		}
+
+		// A ledger store task running keeps the private store waiting.
+		struct held_task
+		{
+			std::mutex              Mutex;
+			std::condition_variable Changed;
+			bool                    Started  = false;
+			bool                    Released = false;
+		};
+		auto held = std::make_shared<held_task>();
+		implementation->ReviewLedgerStoreEffects.post([held] {
+			auto lock     = std::unique_lock{ held->Mutex };
+			held->Started = true;
+			held->Changed.notify_all();
+			static_cast<void>(held->Changed.wait_for(lock, std::chrono::seconds{ 10 }, [&held] { return held->Released; }));
+		});
+		const auto release = [&held] {
+			{
+				const auto lock = std::scoped_lock{ held->Mutex };
+				held->Released  = true;
+			}
+			held->Changed.notify_all();
+		};
+		{
+			auto lock = std::unique_lock{ held->Mutex };
+			if (!held->Changed.wait_for(lock, std::chrono::seconds{ 10 }, [&held] { return held->Started; })) {
+				lock.unlock();
+				release();
+				return std::nullopt;
+			}
+		}
+		const auto& review        = *implementation->AgentReview;
+		auto        answer        = std::async(std::launch::async, [workflow = implementation->PrivateReview, target = core::review_mutation_target{ .Host = review.Host, .Repository = review.Repository, .PullRequest = review.PullRequest }, actor = review.Account] {
+			static_cast<void>(workflow->pending(target, actor));
+		});
+		const auto  privateWaited = answer.wait_for(std::chrono::milliseconds{ 250 }) != std::future_status::ready;
+		release();
+		if (answer.wait_for(std::chrono::seconds{ 10 }) != std::future_status::ready || !laneIdle()) {
+			return std::nullopt;
+		}
+
+		// The file exclusion held keeps a ledger store task from finishing.
+		auto ledgerWaited = false;
+		{
+			const auto file = std::scoped_lock{ implementation->ReviewLedgerFile };
+			implementation->ReviewLedgerHost->session_catalog([](const auto&) { });
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 250 });
+			ledgerWaited = !implementation->ReviewLedgerEffects.idle();
+		}
+		if (!laneIdle()) {
+			return std::nullopt;
+		}
+		return privateWaited && ledgerWaited;
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_round_trip(

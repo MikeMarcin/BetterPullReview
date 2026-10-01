@@ -1027,6 +1027,21 @@ namespace bpr::app::detail {
 		/// function releases it, or thirty seconds pass.
 		[[nodiscard]] static auto hold_review_ledger_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-1254]]. Whether this window's review ledger answered
+		/// its latest opening as available; empty while it has not answered.
+		[[nodiscard]] static auto review_ledger_available(
+			github_application& aApplication) -> std::optional<bool>;
+		/// \brief [[BPR-1254]]. Whether this window's review ledger store and
+		/// private review store take turns with the review-ledger file.
+		///
+		/// \details Two directions. A task held on the ledger's store lane keeps
+		/// a private store question, asked from another thread, unanswered until
+		/// the task is let go. The file exclusion held here keeps a ledger
+		/// session-catalog read from finishing on its lane until it is let go.
+		/// Empty when the window has no ledger or private review to ask, or a
+		/// step did not finish within its bound.
+		[[nodiscard]] static auto review_ledger_file_exclusive(
+			github_application& aApplication) -> std::optional<bool>;
 		/// \brief Selects a different appearance mode through the composed host.
 		///
 		/// \details Exists so a probe can measure what a theme change costs.
