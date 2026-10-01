@@ -215,3 +215,18 @@ So this card's title half is fixed on Windows. The six rows now share
 [[BPR-1255]]'s parked overflow check, which [[BPR-1255]] had expected to pass
 on Windows. The card stays open until the Mac and Linux reruns confirm the
 title check there and [[BPR-1255]] is decided.
+
+### Linux after `facf69d53` (bpr-main-linux, 2026-10-01)
+
+At `facf69d53`, which includes `facf69d53`, on WSL2 with GCC 15.2, `build/dev` Debug
+and offscreen. The dev build has no warnings.
+
+- `ctest --preset dev -j6 -R '^qt_workbench_(window|title_row)_scale_(100|125|200)$'`:
+  all six fail, each only at [[BPR-1255]]'s `no review-bar control folds into
+  an overflow menu at any width`. None reports `the title yields once and does
+  not return at a narrower width`.
+- A row stops at its first failed expectation, so I also ran the six with that
+  one overflow expectation bypassed in a local build, not committed and then
+  reverted. **All six pass**: title row in 3.0, 4.1 and 5.8 s, window in 25.9,
+  27.3 and 30.9 s. So on Linux the title-yield rule holds at every scale,
+  and only [[BPR-1255]]'s owner decision keeps these rows red.
