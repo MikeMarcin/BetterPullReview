@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1263"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "staged_review_restart_tests.py mkdir(mode=0o700) roots refused on Windows",
+  "created": "2026-10-01T21:06:41.556411+00:00",
+  "base": "682ea1392293b6e3482941301c75c95655d6b74b"
+}
