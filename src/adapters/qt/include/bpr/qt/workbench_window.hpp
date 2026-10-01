@@ -51,6 +51,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -1468,6 +1469,7 @@ namespace bpr::qt {
 		QString                                  IdentityOwner;
 		QString                                  IdentityRepository;
 		QString                                  IdentityNumber;
+		int                                      IdentityTitleBudget  = std::numeric_limits<int>::max();
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QMenu*                                   ProfilesMenu         = nullptr;

@@ -7171,7 +7171,11 @@ namespace bpr::qt {
 			const auto owned  = QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) + number;
 			const auto titled = metrics.horizontalAdvance(owned) + identity_title_minimum;
 			const auto bare   = IdentityRepository + number;
-			if (room >= titled) {
+			// [[BPR-1251]]. The title also needs the room it would have beside
+			// the whole modality (apply_strip_width), or it could yield and
+			// then return when the shortcuts go.
+			const auto titleRoom = IdentityTitleBudget - margins.left() - margins.right();
+			if (room >= titled && titleRoom >= titled) {
 				text = metrics.elidedText(IdentityText, Qt::ElideRight, room);
 			} else if (room >= metrics.horizontalAdvance(owned)) {
 				text = owned;
@@ -9497,6 +9501,13 @@ namespace bpr::qt {
 			// [[BPR-1129]]. The title row holds no navigation now, so the
 			// shortcuts stay down to the width the old strip needed for them.
 			Modality->set_abbreviated(false);
+			// [[BPR-1251]]. The title yields before the shortcuts, so whether it
+			// shows is decided from the room it has beside the whole modality.
+			// That room only shrinks as the window narrows, so the room a
+			// compact modality frees can never bring the title back.
+			Modality->set_compact(false);
+			remeasure();
+			IdentityTitleBudget = strip_identity_budget();
 			Modality->set_compact(available < 1'100);
 			remeasure();
 			if (identityShort()) {

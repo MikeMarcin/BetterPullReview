@@ -179,3 +179,39 @@ doubled font; this is two title-row thresholds racing at the default font.
 
 Neither is applied yet. Option 1 keeps the stated order. Both change where the
 title yields on macOS and Linux, so the rows there need a rerun.
+
+## Option 1 applied (bpr-main-win, 2026-10-01)
+
+The coordinator chose option 1. In `apply_strip_width`, the identity's room
+is measured once with the modality in its whole form, before compaction is
+decided, and kept as `IdentityTitleBudget`. In `update_strip_identity`, the
+title shows only while both the current room and that room hold it. The room
+beside the whole modality depends only on the window's width, so it only
+shrinks as the window narrows. The title therefore yields once, as the code's
+stated order says, and the room a compact modality frees goes to the name's
+other forms. The narrowing loop's existing check, "the title yields once and
+does not return at a narrower width", is the pin: on Windows it failed without
+this change.
+
+Windows 11 Home 10.0.26200, Visual Studio 18 (MSVC 14.51), Qt 6.11.2,
+`build/windows-dev` Debug, at `50870a833` plus this change. The build printed
+no warning, and `clang-format --dry-run --Werror` is clean on both files.
+
+```powershell
+ctest --preset windows-dev -j1 --output-on-failure -R "^(qt_workbench_window_scale_(100|125|200)|qt_workbench_title_row_scale_(100|125|200)|qt_document_tabs_scale_(100|125|200)|application_windows_title_row|architecture_boundaries)$"
+```
+
+- `qt_document_tabs_scale_{100,125,200}` pass (7.51, 8.67 and 12.21 s), and
+  so does `architecture_boundaries` (25.28 s).
+- All six `qt_workbench_window_scale_*` and `qt_workbench_title_row_scale_*`
+  rows now pass the title check and the rest of the narrowing course. Each
+  stops later, at the review-bar course's `no review-bar control folds into an
+  overflow menu at any width`. That is [[BPR-1255]]'s check, which these rows
+  had not reached on Windows before.
+- `application_windows_title_row` still fails with its earlier headline,
+  `a published review replaces Home with the review surface` ([[BPR-0653]]).
+
+So this card's title half is fixed on Windows. The six rows now share
+[[BPR-1255]]'s parked overflow check, which [[BPR-1255]] had expected to pass
+on Windows. The card stays open until the Mac and Linux reruns confirm the
+title check there and [[BPR-1255]] is decided.
