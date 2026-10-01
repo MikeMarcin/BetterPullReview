@@ -85,3 +85,5 @@ that passes no longer leaves them.
 The design alternative, building the nested graph with more than two jobs, was
 not taken. The rule settles the bound, and the parallelism is a choice about
 the row's cost on a shared host.
+
+Published: `git pull --rebase` renamed the change commit. `b6d8a1247`, named above and in the acceptance records, is `f91b477f6` on main.
