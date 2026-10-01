@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1262"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "GCC 15 Release+BUILD_TESTING fails -Werror=unused-result (linkat) on Linux",
+  "created": "2026-10-01T20:51:38.260977+00:00",
+  "base": "019f9510850dd86897987e07bb8e8b7205ca5e3e"
+}
