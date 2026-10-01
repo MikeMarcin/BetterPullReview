@@ -1091,6 +1091,13 @@ if(WIN32)
     # Its nested MSVC configures and builds took 823 s on the Windows station
     # (2026-09-30), and every case passed; 600 s cut it off.
     set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 1800)
+elseif(UNIX AND NOT APPLE)
+    # [[BPR-1258]]. Alone on Linux (bpr-main-linux: WSL2, 20 cores, GCC 15.2,
+    # load about 2, its own build, 2026-10-01) the eight cases passed in 700.4 s,
+    # about 658 s of it the nested tests-disabled Release configure and
+    # `--parallel 2` build; 600 s cut it off. Three times that, rounded up to a
+    # minute, per the run-budget rule in docs/development/build-and-test.md.
+    set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 2160)
 endif()
 
 set(bpr_public_path_fixture_environment "QT_QPA_PLATFORM=offscreen")
