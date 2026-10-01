@@ -223,3 +223,41 @@ after. Neither gained a `bpr-` entry.
   pass.
 
 The card stays In Progress.
+
+## macOS, AC5 and AC6 — bpr-main-mac, 2026-10-01
+
+macOS 26.6.2 (25G83) on Apple Silicon, Apple clang 21.0.0, Qt 6.11.2,
+`build/dev` Debug with warnings as errors, at `2ef17fd5`, which contains
+Part A (`aba89bae`).
+
+**The build.** Every source Part A changed was touched and the tree rebuilt:
+91 steps, including both shared headers' includers, with no `warning:` line.
+
+**The rows.** [[BPR-1128]]'s and [[BPR-1139]]'s macOS selectors together,
+with the `scratch_root` users this card lists and the three gates, serially
+and offscreen:
+
+```sh
+ctest --preset dev -j1 --output-on-failure -R '^(sqlite_(review_mutation_recovery_storage|profile_storage_root|profile_registry_storage|window_review_restoration_storage|private_store_open|device_binding_storage|review_ledger_storage|queue_enrollment_storage|workbench_settings_storage|appearance_settings_storage)|contained_catalog_probe|git_(anonymous_public_read|cache_contract|process_contract|haves_trimmed_pack_(update|missing-object|unconnected))|epoch_(maintenance_integration|kill_recovery|transaction_kill_recovery)|qt_agent_launch_canary|agent_parent_death|application_agent_invocation_(composition|construction_cut|launcher_construction_cut|gesture_cut|cancellation|staleness|cleanup_retry|workspace_diagnostic)_contract|application_agent_(materialization_)?crash_recovery|application_agent_finding_protocol|syntax_classification_contract|architecture_boundaries|coding_format_check|msvc_secure_crt_contract)$'
+```
+
+37 of 37 pass in 347.09 s, `qt_agent_launch_canary` among them (89.44 s).
+The user's `TMPDIR` was listed before and after. It gained no entry with a
+`bpr-` prefix. The only churn was the system's own `att-*-postings-*.bin`
+files, which come and go without a run.
+
+**AC6 on macOS.** `_coding-standard/scripts/tidy.py` with Homebrew
+clang-tidy 23.1.1 over `build/dev`'s compilation database, on the ten `.cpp`
+files Part A changed, reports eight findings. None is on a line Part A
+changed. Blame puts each in an older commit:
+`epoch_catalog_legacy_fixture.hpp:1` (`21255d9c`), `git_cache_contract_tests.cpp:1339`
+(`654235fe`), `haves_trimmed_pack_integration_tests.cpp:106` (`bbdf8cc0`) and
+`:667` (`9c1c9447`, four naming findings), and
+`review_mutation_recovery_storage_tests.cpp:304` (`d9ce7daf`). There are no
+findings in the two shared headers. `git diff --check` on `aba89bae` is clean,
+and `coding_format_check`, `architecture_boundaries` and
+`msvc_secure_crt_contract` pass in the run above.
+
+**What this leaves.** AC5's macOS half and AC6's `tidy.py` are met. AC5 still
+needs the Linux build and rows. AC4 waits on [[BPR-1229]]. The card stays
+In Progress.
