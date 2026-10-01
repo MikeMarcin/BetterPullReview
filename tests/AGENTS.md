@@ -25,8 +25,9 @@ Tests are direct evidence, not naming evidence.
 - A scratch root in the system temporary directory is made by the test at a
   random name, only if nothing is at that name, owner-private, and removed
   only by the test that made it: `mkdtemp`, `QTemporaryDir`, the SQLite
-  contracts' `tests/sqlite_contract/scratch_root.hpp`, or, on POSIX,
-  `bpr::tests::make_scratch_directory` in `tests/support/scratch_directory.hpp`.
+  contracts' `tests/sqlite_contract/scratch_root.hpp`, or
+  `bpr::tests::make_scratch_directory` in `tests/support/scratch_directory.hpp`,
+  whose Windows branch both share (BPR-1138).
   Never remove a fixed or predictable temporary path before creating it
   (BPR-1126). Never name a root from the clock, a counter or the process id
   and then use whatever is already at that name. A file that a child process

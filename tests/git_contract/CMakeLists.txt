@@ -259,6 +259,11 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     )
 endif()
 bpr_enable_hardening(test_better_pull_review_haves_trimmed_pack_integration_tests)
+if(WIN32)
+    # [[BPR-1138]]. tests/support/scratch_directory.hpp makes a Windows root
+    # with the platform target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_haves_trimmed_pack_integration_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_haves_trimmed_pack_integration_tests)
 
 foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source)

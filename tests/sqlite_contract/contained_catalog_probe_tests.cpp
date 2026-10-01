@@ -28,27 +28,10 @@ namespace {
 int main()
 try {
 	namespace sqlite_adapter = bpr::adapters::sqlite;
-#if defined(_WIN32)
-	// [[BPR-1128]]. Windows keeps its root as it was until it has a helper of
-	// its own. This row runs inside the AppContainer, and the root inherits the
-	// container's own temporary directory's access.
-	std::error_code error;
-	const auto      base = std::filesystem::temp_directory_path(error);
-	expect(!error, "temporary directory is available");
-	const auto root = base
-		/ ("bpr-contained-catalog-probe-"
-		   + std::to_string(
-			   std::chrono::steady_clock::now().time_since_epoch().count()));
-	std::filesystem::create_directories(root, error);
-	// [[BPR-1121]]. Owned from here, so every way out removes it.
-	const bpr::tests::scratch_guard owned{ root };
-	expect(!error, "probe root creates");
-#else
-	// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation, and
+	// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation, and
 	// owned from here, so every way out removes it.
 	const auto                      root = bpr::tests::make_scratch_directory("bpr-contained-catalog-probe");
 	const bpr::tests::scratch_guard owned{ root };
-#endif
 
 	const auto started = std::chrono::steady_clock::now();
 	auto       typed   = false;

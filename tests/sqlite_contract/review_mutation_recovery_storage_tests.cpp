@@ -33,21 +33,13 @@ namespace {
 	public:
 		temporary_directory()
 		{
+			// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation.
+			Path = bpr::tests::make_scratch_directory("bpr-mutation-recovery");
 #if defined(_WIN32)
-			// [[BPR-1128]]. Windows keeps its root as it was until it has a
-			// helper of its own.
-			auto seed = std::to_string(reinterpret_cast<std::uintptr_t>(this));
-			Path      = std::filesystem::temp_directory_path()
-				/ ("bpr-mutation-recovery-" + seed);
-			std::filesystem::create_directory(Path);
-			// There was no Windows arm here at all, so the root was never made
-			// owner-private and the store refused it — correctly, and in a way
-			// that read like a product defect. `0700` has no Win32 equivalent
-			// that `chmod` can express; the suite's own helper writes the DACL.
+			// The store's own rule for the root's descriptor, written by the suite's
+			// helper; `0700` has no Win32 equivalent that `chmod` can express.
 			Private = test_platform::make_owner_private(Path, true);
 #else
-			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
-			Path    = bpr::tests::make_scratch_directory("bpr-mutation-recovery");
 			Private = ::chmod(Path.c_str(), 0700) == 0;
 #endif
 		}

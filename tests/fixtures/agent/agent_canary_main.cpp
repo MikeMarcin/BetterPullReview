@@ -564,17 +564,13 @@ namespace {
 		if (executable_mode(aArguments, "crash-descendant-wait")) {
 			return (std::filesystem::current_path() / ".bpr-crash-heartbeat").string();
 		}
-#if defined(_WIN32)
-		// [[BPR-1139]]. Windows keeps its marker as it was until the canary is
-		// known to have access to the course's root there.
-		return (std::filesystem::temp_directory_path() / ("bpr-agent-descendant-" + std::to_string(::_getpid()))).string();
-#else
+		// [[BPR-1138]]. Windows too: the launched canary can write in the course's
+		// root there, which its cancellation contract measures.
 		const auto executable = std::filesystem::path{ aArguments[0] };
 		if (!executable.is_absolute()) {
 			return { };
 		}
 		return (executable.parent_path() / ".bpr-descendant-heartbeat").string();
-#endif
 	}
 } // namespace
 

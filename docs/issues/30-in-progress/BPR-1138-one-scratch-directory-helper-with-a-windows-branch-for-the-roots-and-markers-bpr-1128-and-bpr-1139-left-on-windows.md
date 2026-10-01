@@ -129,3 +129,97 @@ container.
   [[BPR-1229]]'s, not this card's.
 - Trial plants only at names checked absent, holding only sentinel data, and
   removed by exact name afterwards.
+
+## Part A — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, `build/windows-dev` Debug
+with warnings as errors, at `02837c09`, with `main` later at `3ee80cb3`.
+Part B is untouched and waits on [[BPR-1229]].
+
+### The change
+
+- **One helper.** `tests/support/scratch_directory.hpp`'s
+  `make_scratch_directory` now has a Windows branch. It picks a random name,
+  `<stem>-` and 16 hex digits, and makes it with `create_directory_only_if_absent`,
+  which fails rather than reuse a taken name. The directory carries the
+  platform's owner-private descriptor from creation: the token user's grant,
+  and the AppContainer's when contained. A `scratch_guard` owns it from
+  creation. It is resolved with `canonical`, or kept as made inside a
+  container, which may not ask for the DOS form.
+  - The stem stays a path, because `string()` is the ANSI code page on Windows.
+    `sqlite_private_store_open`'s Unicode root (`bpr-0883-日本語-😀`) threw
+    until it did.
+  - POSIX keeps `mkdtemp`.
+- **Shared with the SQLite contracts.** `tests/sqlite_contract/scratch_root.hpp`
+  now takes `create_directory_only_if_absent`, `make_directory_at_random_name`
+  and the resolution from the shared header. It keeps the stores' own check,
+  `make_storage_root_owner_private`, and its label shape. The helper needs no
+  SQLite adapter: its token functions come from
+  `tests/sqlite_contract/platform_test_support.hpp`, which uses only system
+  headers.
+- **The eight Part A sites** drop their `#if defined(_WIN32)` branches and call
+  the helper. They are rows 1, 5, 7, 8, 9, 10, 11 and 12. Mutation recovery
+  keeps a Windows narrowing call, because its POSIX branch uses `chmod`.
+  `grep -rn 'Windows keeps' tests` now finds only Part B's site, and a Python
+  docstring that is not one.
+- **[[BPR-1139]]'s marker.** `default_descendant_marker` now puts it beside the
+  canary's own executable on Windows too, in the course's owner-private data
+  root.
+- **Build.** The four targets the helper newly reaches link
+  `BetterPullReview::Platform` under `if(WIN32)`: haves, the catalog probe,
+  mutation recovery and private-store-open. No row is registered or changed.
+- `tests/AGENTS.md` names the one helper.
+
+### AC2: plants at the name
+
+A hook, never committed, pinned a name the trial knew. On the change side it
+pinned the helper's first random draw, and printed whether that name was
+taken. On the base side it put `HEAD`'s Windows branch back in three sources,
+with the clock or address seed fixed. Before each run, the trial checked the
+name was absent and planted one of two things there: a sentinel directory
+holding `sentinel.txt`, or a directory junction to a sentinel directory the
+trial owned.
+
+| Row (root's name source at base) | Plant | Base (`HEAD`'s branch) | With the change |
+|---|---|---|---|
+| `git_cache_contract` (clock) | directory | **used and removed** | name reported `taken` 3 times; plant unchanged; row passes |
+| | junction | **worked through it: the trial's sentinel target was deleted** | `taken`; junction and target unchanged; passes |
+| `sqlite_review_mutation_recovery_storage` (address) | directory | **used and removed** | `taken` 10 times; unchanged; passes |
+| | junction | **junction removed** | `taken`; unchanged; passes |
+| `contained_catalog_probe` (clock, contained) | directory | **used and removed** | `taken` (inside the container's temporary directory); unchanged; passes |
+| | junction | **junction removed** | `taken`; unchanged; passes |
+
+AC2 was shown at these three sites, not all eight. They cover the clock, the
+address and the contained case. Every changed site now goes through the one
+helper, which the change side exercised. The hooks were removed:
+`scratch_directory.hpp` is back to its pre-hook digest, and no `TRIAL` text
+remains. Every plant and sentinel was removed by exact name.
+
+### AC3: the rows
+
+After the restore and a full rebuild, 28 of 28 pass, serially, in 449.45 s:
+
+- the Part A rows: rows 1, 5 and 7 (the probe contained), the three Git
+  contracts, the three haves rows, the epoch maintenance row and both epoch
+  kill rows;
+- all eight `application_agent_invocation_*_contract` rows. The cancellation
+  contract finds its marker in the course's root;
+- the `scratch_root` users: the ledger, queue, workbench and appearance
+  storage rows, and `syntax_classification_contract`;
+- `architecture_boundaries`, `coding_format_check` and
+  `msvc_secure_crt_contract`.
+
+The user's temporary directory and the AppContainer's were listed before and
+after. Neither gained a `bpr-` entry.
+
+### Still owed
+
+- **AC4,** after [[BPR-1229]].
+- **AC5:** a macOS and a Linux build of the changed sources, and
+  [[BPR-1128]]'s and [[BPR-1139]]'s rows there. The POSIX paths are
+  unchanged apart from the shared header's new cross-platform functions, which
+  `scratch_root.hpp` compiles there.
+- **AC6's** `tidy.py` on the changed lines; clang-format and `git diff --check`
+  pass.
+
+The card stays In Progress.

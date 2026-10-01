@@ -109,6 +109,11 @@ target_link_libraries(
 bpr_enable_hardening(
     test_better_pull_review_review_mutation_recovery_storage_tests
 )
+if(WIN32)
+    # [[BPR-1138]]. tests/support/scratch_directory.hpp makes a Windows root
+    # with the platform target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_review_mutation_recovery_storage_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(
     test_better_pull_review_review_mutation_recovery_storage_tests
 )
@@ -345,6 +350,11 @@ target_link_libraries(
         BetterPullReview::AdapterSQLite
 )
 bpr_enable_hardening(test_better_pull_review_contained_catalog_probe_tests)
+if(WIN32)
+    # [[BPR-1138]]. tests/support/scratch_directory.hpp makes a Windows root
+    # with the platform target's owner-private descriptor.
+    target_link_libraries(test_better_pull_review_contained_catalog_probe_tests PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_better_pull_review_contained_catalog_probe_tests)
 
 # BPR-0427's deliberate contained probe: the two catalog contracts run
@@ -410,6 +420,11 @@ bpr_add_executable(test_private_store_open private_store_open_tests.cpp)
 target_link_libraries(test_private_store_open PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 target_compile_definitions(test_private_store_open PRIVATE BPR_SQLITE_TESTING=1)
 bpr_enable_hardening(test_private_store_open)
+if(WIN32)
+    # [[BPR-1138]]. tests/support/scratch_directory.hpp makes a Windows root
+    # with the platform target's owner-private descriptor.
+    target_link_libraries(test_private_store_open PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_warnings(test_private_store_open)
 bpr_add_network_isolated_test(NAME sqlite_private_store_open WINDOWS_UNCONTAINED COMMAND test_private_store_open)
 set_tests_properties(sqlite_private_store_open PROPERTIES TIMEOUT 60 PASS_REGULAR_EXPRESSION "private-store-open-tests:pass")

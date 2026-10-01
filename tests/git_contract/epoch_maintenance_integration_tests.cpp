@@ -565,16 +565,6 @@ namespace {
 		explicit temporary_root(const std::string_view aLabel, std::optional<std::filesystem::path> aExisting = { })
 			: Owned{ !aExisting }
 		{
-#if defined(_WIN32)
-			// [[BPR-1128]]. Windows keeps its root as it was until it has a
-			// helper of its own.
-			Path = aExisting ? *aExisting : std::filesystem::temp_directory_path() / (std::string{ "bpr-maintenance-" } + std::string{ aLabel } + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-			std::filesystem::create_directories(Path / "git");
-			std::filesystem::create_directories(Path / "catalog");
-			// [[BPR-1121]]. A root made here is removed again if the rest of
-			// construction fails; an existing one is left, as its owner is.
-			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
-#else
 			// [[BPR-1128]]. A root made here is made at a name nothing had, mode
 			// `0700` from creation, and owned from then, so a failure below
 			// removes it. An existing one is left, as its owner is.
@@ -582,7 +572,6 @@ namespace {
 			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
 			std::filesystem::create_directories(Path / "git");
 			std::filesystem::create_directories(Path / "catalog");
-#endif
 			std::filesystem::permissions(Path,
 										 std::filesystem::perms::owner_all,
 										 std::filesystem::perm_options::replace);

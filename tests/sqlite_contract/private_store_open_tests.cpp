@@ -69,16 +69,8 @@ namespace {
 	public:
 		explicit scratch_root(std::filesystem::path aName)
 		{
-#if defined(_WIN32)
-			// [[BPR-1128]]. Windows keeps its root as it was until it has a
-			// helper of its own.
-			aName += "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-			Path = std::filesystem::canonical(std::filesystem::temp_directory_path()) / aName;
-			std::filesystem::create_directory(Path);
-#else
-			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation.
 			Path = bpr::tests::make_scratch_directory(aName);
-#endif
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "scratch root is owner-private");

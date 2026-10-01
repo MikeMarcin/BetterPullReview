@@ -333,20 +333,8 @@ namespace {
 	public:
 		temporary_root()
 		{
-#if defined(_WIN32)
-			// [[BPR-1128]]. Windows keeps its root as it was until it has a
-			// helper of its own.
-			const auto seed = std::to_string(
-				std::chrono::steady_clock::now()
-					.time_since_epoch()
-					.count());
-			Path = std::filesystem::temp_directory_path()
-				/ ("bpr-git-cache-" + seed);
-			std::filesystem::create_directories(Path);
-#else
-			// [[BPR-1128]]. Made at a name nothing had, mode `0700` from creation.
+			// [[BPR-1128]], [[BPR-1138]]. Made at a name nothing had, owner-private from creation.
 			Path = bpr::tests::make_scratch_directory("bpr-git-cache");
-#endif
 			// [[BPR-1121]]. Removed again if the rest of construction fails.
 			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(
