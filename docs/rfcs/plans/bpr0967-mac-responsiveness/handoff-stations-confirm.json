@@ -1,0 +1,83 @@
+{
+  "schema": "bpr0967.station-handoff.v1",
+  "round": "2: enforcement and confirmation request",
+  "mandate_revision": "unattended-milestones-20261001-stations",
+  "milestone": "mac-full-remaining (amended 2026-10-01)",
+  "status": "Windows/Linux limits derived and enforced in optimized builds at the code candidate; confirmation run requested; card In Progress",
+  "code_candidate": "f61340e17d0c7480de14b2908276166d75b47102",
+  "measured_inputs": {
+    "windows": "682ea1392 summaries docs/verification/BPR-0967-station/windows-*.json (LF; CRLF originals 14452A36... Release, E97685BD... Debug)",
+    "linux": "e257b236a summaries docs/verification/BPR-0967-station/linux-*.json"
+  },
+  "record": "docs/verification/BPR-0967-station-budgets-2026-10-01.md",
+  "decisions": {
+    "limits": "Mac limit kept when the platform's highest optimized observation is <= 2/3 of it (memory <= 1/1.1); else observation x1.5 (memory x1.1, up to 8 MiB). Windows byte footprint 208 MiB; Linux footprint 168 / 216 MiB; Windows active close quiescence 150 ms.",
+    "input_target": "100 ms unchanged. Gated phases observed >= 90 ms named per platform (Windows 6, Linux 2), reported, not enforced; BPR-1264.",
+    "debug": "Off macOS a Debug build enforces no numeric limit. Windows Debug doubles course clocks (resources outran 90 s). Byte-pressure Debug ended at 323 s of 840 s: not the clock; named failure, BPR-1265; WaitExpiry added.",
+    "timeouts": "Windows: 300 s (90 s-clock rows), 540 cache entries, 1500 history, 2280 byte pressure, 120 replay contract (provisional, lower bound 30 s). macOS and Linux unchanged (Linux Debug completions under a third).",
+    "heap_control": "The floor is the 32 MiB allocation; Windows +4,637, Linux +4,096, Mac +128 bytes over it is allocator bookkeeping, not a weak margin. Windows sampler interval ~16 ms (15.6 ms tick), up to 46 ms with 35.5 ms HeapSummary cost in the byte course."
+  },
+  "mac_verification": "Mac Release at f61340e17's code: 16 large-review rows, architecture_boundaries and replay contract pass (log fc140822d0c3ad96af9aab1a9f1cddabcf952e4cbdb13b77f5da737d67971956; summary 708b17080f911918fe29a009de255dd6358b98fa794572568317b3f5734f8d9a). Controls at a 60 ms target: naming both over-target phases passes; naming one fails on the other. Source restored byte-for-byte. clang-format clean; tidy reports only the 23 pre-existing findings.",
+  "confirmation_request": {
+    "rows_regex": "^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$",
+    "windows_bpr_main_win": [
+      "Preconditions: the station runs nothing else from step 1 to step 6; vcvars64 PowerShell.",
+      "1. git -C C:\\code\\git\\BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C C:\\code\\git\\BetterPullReview fetch origin",
+      "   git -C C:\\code\\git\\BetterPullReview switch --detach f61340e17d0c7480de14b2908276166d75b47102",
+      "   git -C C:\\code\\git\\BetterPullReview rev-parse HEAD   (must print f61340e17d0c7480de14b2908276166d75b47102)",
+      "   (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (load before)",
+      "2. Set-Location C:\\code\\git\\BetterPullReview",
+      "   cmake --build C:\\code\\git\\BetterPullReview\\build\\bpr0967-release --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox   (the existing Release tree; CMake reconfigures itself)",
+      "3. Get-Date -Format o; ctest --test-dir C:\\code\\git\\BetterPullReview\\build\\bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-release-ctest.log *> C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-release-console.txt; \"exit=$LASTEXITCODE\"; Get-Date -Format o",
+      "4. py -3 C:\\code\\git\\BetterPullReview\\tests\\end_to_end\\large_review_summary.py C:\\code\\git\\BetterPullReview\\build\\bpr0967-release C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-release-ctest.log --output C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-release-summary.json",
+      "5. cmake --build --preset windows-dev --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox",
+      "   Get-Date -Format o; ctest --test-dir C:\\code\\git\\BetterPullReview\\build\\windows-dev -C Debug -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-debug-ctest.log *> C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-debug-console.txt; \"exit=$LASTEXITCODE\"; Get-Date -Format o",
+      "   py -3 C:\\code\\git\\BetterPullReview\\tests\\end_to_end\\large_review_summary.py C:\\code\\git\\BetterPullReview\\build\\windows-dev C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-debug-ctest.log --brief --output C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-debug-summary.json",
+      "6. (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (load after)",
+      "   Get-FileHash -Algorithm SHA256 C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-*",
+      "   Select-String -Path C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-confirm-*-ctest.log -Pattern 'large-review-benchmark-failed:','large-review wait:','\\*\\*\\*Failed','\\*\\*\\*Timeout'",
+      "   git -C C:\\code\\git\\BetterPullReview switch main"
+    ],
+    "linux_bpr_main_linux": [
+      "Preconditions: the station runs nothing else from step 1 to step 6.",
+      "1. git -C /home/mmarcin/BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C /home/mmarcin/BetterPullReview fetch origin",
+      "   git -C /home/mmarcin/BetterPullReview switch --detach f61340e17d0c7480de14b2908276166d75b47102",
+      "   git -C /home/mmarcin/BetterPullReview rev-parse HEAD   (must print f61340e17d0c7480de14b2908276166d75b47102)",
+      "   uptime   (load before)",
+      "2. cmake --build /home/mmarcin/BetterPullReview/build/bpr0967-release --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox   (the existing Release tree)",
+      "3. date -Is; ctest --test-dir /home/mmarcin/BetterPullReview/build/bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-release-ctest.log > /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-release-console.txt 2>&1; echo exit=$?; date -Is",
+      "4. python3 /home/mmarcin/BetterPullReview/tests/end_to_end/large_review_summary.py /home/mmarcin/BetterPullReview/build/bpr0967-release /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-release-ctest.log --output /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-release-summary.json",
+      "5. cd /home/mmarcin/BetterPullReview && cmake --build --preset dev --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox",
+      "   date -Is; ctest --test-dir /home/mmarcin/BetterPullReview/build/dev -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-debug-ctest.log > /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-debug-console.txt 2>&1; echo exit=$?; date -Is",
+      "   python3 /home/mmarcin/BetterPullReview/tests/end_to_end/large_review_summary.py /home/mmarcin/BetterPullReview/build/dev /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-debug-ctest.log --brief --output /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-debug-summary.json",
+      "6. uptime   (load after)",
+      "   sha256sum /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-*",
+      "   grep -h -e 'large-review-benchmark-failed:' -e 'large-review wait:' -e '\\*\\*\\*Failed' -e '\\*\\*\\*Timeout' /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-confirm-*-ctest.log",
+      "   git -C /home/mmarcin/BetterPullReview switch main"
+    ],
+    "expected": [
+      "Release: 17/17 pass (16 large-review rows plus large_review_replay_contract); every report shows BudgetsEnforced true, empty Failure and UnenforcedLimitMisses, LimitBasis naming that platform's station run, KnownInputMisses as listed; launch report Enforced true.",
+      "A Release row failing on a limit is a real finding: return its Failure, the measured value and the limit; do not rerun.",
+      "Windows Debug: resources now completes under the doubled clock; cache_bytes may still fail (BPR-1265): return its WaitExpiry and 'large-review wait:' line. Debug reports show BudgetsEnforced false and CourseClockScale 2 on Windows, 1 on Linux.",
+      "large_review_replay_contract completes on Windows Debug; return its time (it sets the 120 s timeout's 3x check).",
+      "Linux Debug: 17/17 pass."
+    ],
+    "return": [
+      "Both summary JSON files per station, exit codes, the four timestamps, load before/after, the SHA-256 list and every line step 6 prints.",
+      "Commit nothing; switch back to main."
+    ]
+  },
+  "next": "On a clean confirmation: finish BPR-0967's unattended scope, then park it on human-review for the packaged-launch, compositor and physical-input endpoints (all platforms). On a limit failure: reconcile the limit or the miss with the evidence, without raising a limit to absorb a miss.",
+  "pending_obligations": [
+    "Confirmation run at f61340e17 on both stations.",
+    "BPR-1264 (named input-target phases) and BPR-1265 (Windows Debug byte course), Backlog.",
+    "Packaged launch, compositor presentation, physical input on all platforms: need a person.",
+    "Mac items from handoff-full-mac.json: full heap-only peak, production-limit pathological workloads, further active-operation stages."
+  ],
+  "ownership": {
+    "commands": "all task-owned builds and ctest runs finished; none running",
+    "temporary": "build/bpr0967-station and build/bpr0967-release ignored, kept for audit"
+  }
+}

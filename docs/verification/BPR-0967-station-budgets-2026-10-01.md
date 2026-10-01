@@ -1,0 +1,137 @@
+# BPR-0967 Windows and Linux large-review budgets — 2026-10-01
+
+Optimized station measurements, the limits they justify, and the decisions
+for the Debug rows. The station summaries are in
+[`BPR-0967-station/`](BPR-0967-station/). The committed Windows files have LF
+line endings; the station's CRLF originals hashed `14452A36…` (Release) and
+`E97685BD…` (Debug), and their content is otherwise identical. The Linux files
+are byte-for-byte copies.
+
+## Stations
+
+| | Windows (bpr-main-win) | Linux (bpr-main-linux) |
+|---|---|---|
+| Candidate | `682ea1392` (`cef11b982` plus the `windows.h`-before-`psapi.h` build fix) | `e257b236a` (BPR-1262, which made the GCC 15 tests-on Release graph build) |
+| Host | i9-10900KF, 20 logical, 128 GiB, Windows 11 25H2 10.0.26200 | i9-10900KF, 20 logical, WSL2 |
+| Toolchain | MSVC 19.51.36257, `/O2 /Ob2 /DNDEBUG` (windows-app-release, tests on) | GCC 15.2, `-O3 -DNDEBUG` (app-release, tests on) |
+| Qt, style | 6.11.2, Fusion, DPR 1, offscreen | 6.11.2, Windows style override, offscreen |
+| Release | 16/16 in 564.92 s, load 10% → 3% | 16/16 in 93.37 s |
+| Debug | 14/16 in 1030.49 s | 16/16 in 179.27 s |
+
+Each platform ran the same 16 large-review rows in an optimized tree and in
+its ordinary Debug tree. These are fixture compositions, not packaged
+launches, compositor presentation or physical input.
+
+## Memory counters
+
+The Windows report pairs private commit with `PeakPagefileUsage`. Linux pairs
+`VmRSS` with `VmHWM`; its resident figure includes file-backed pages, so Linux
+growth is not comparable with the Mac physical footprint. Live heap is
+`HeapSummary` of the process heap on Windows and `mallinfo2` on Linux.
+
+The timing control's held-allocation check passes on both. Its floor is the
+32 MiB allocation itself, so a correct sampler clears it by only the
+allocator's bookkeeping: Windows +4,637 bytes in Release, Linux +4,096 bytes,
+the Mac +128 bytes. The margin is not a weakness of the sampler. The Windows
+sampler, though, ticks at the 15.6 ms system timer (16.2 ms largest interval
+in the control, five samples in a 50 ms hold), and `HeapSummary` costs up to
+35.5 ms under the byte course's heap: its largest interval there is 46.0 ms.
+Windows sampled heap peaks are lower bounds with that resolution.
+
+## Limits
+
+Rule: a Mac limit is kept when the platform's highest optimized observation is
+at most two thirds of it; otherwise the platform's limit is that observation
+plus half, rounded up. For memory the margin is a tenth: kept when the
+observation is at most 1/1.1 of the limit, otherwise the observation plus a
+tenth, rounded up to 8 MiB (BPR-0893's rule). One run per platform; the
+confirmation run tests the margins.
+
+Changed limits:
+
+| Limit | Mac | Windows | Linux |
+|---|---:|---:|---:|
+| Footprint growth, resources / loaded close / cache entries | 160 MiB | 160 (observed 120.95) | **168** (observed 147.04) |
+| Footprint growth, byte pressure | 184 MiB | **208** (observed 185.43, the miss the Release report named) | **216** (observed 196.01) |
+| Active close to quiescence | 100 ms | **150** (observed 98.85) | 100 (observed 11.63) |
+
+The sampled live-heap peak reuses each course's footprint allowance, as on the
+Mac. Every other limit holds with the margin the rule requires and is kept.
+The closest are Windows: accepted metadata 130.8 of 250 ms, main to Home 615 of
+1,000, revisit 514 of 1,000, launch to Home 558 of 1,000, cleanup live heap
+71.96 of 84 MiB, and sampled heap peak 164.15 of 184 MiB in the byte course.
+
+## The 100 ms input target
+
+The target is unchanged. Gated phases measured at or over 90 ms on a platform
+are named in that platform's `PlatformKnownInputMisses`. They are reported in
+`Extended.KnownInputMisses`, and in `InputBudgetFailures` when they go over,
+but they are not enforced. Every other phase gates.
+
+- **Windows:** `large_file_selection` (94.1–130.5 ms),
+  `large_source_revisit_render` (105.8–106.5), `shutdown` (93.4–105.8),
+  `files_drawer_open` (98.2 for the whole phase), `active_window_close` (93.2),
+  `paged_review_and_git_load` (98.2).
+- **Linux:** `large_file_selection` (97.2–100.2),
+  `large_source_revisit_render` (92.2).
+
+[[BPR-1264]] owns attributing and repairing them. The resource and history
+courses do not gate input; their larger Windows gaps (`paged_review_and_git_load`
+208–315 ms while the heap sampler runs) are recorded, not limits.
+
+## Debug rows
+
+A Debug build off macOS enforces no numeric limit. None was justified by a
+Debug measurement, the same principle as [[BPR-1247]]. macOS keeps its
+BPR-1247 behavior. `large_review_launch.py` now takes `--enforce` from CMake:
+1 on macOS and in optimized builds elsewhere.
+
+The two Windows Debug failures have different causes:
+
+- **`application_large_review_resources`, `public prune timed out` at
+  105.94 s.** This is the course clock: 90 s for the whole course, and the
+  Debug loaded-close course already took 93.83 s. Windows Debug now doubles
+  every course clock. A clock is a run budget, not a performance limit.
+- **`application_large_review_cache_bytes`, `byte-pressure stored head refresh
+  timed out` at 323.46 s.** Its clock was 840 s, so the clock did not end it.
+  The byte course's wait also stops on a failed, unavailable or cancelled epoch.
+  It is not scaled away; it stays a named Debug failure, and [[BPR-1265]] owns
+  it. Each report now records `Extended.WaitExpiry`: the wait, its clock,
+  elapsed time, epoch status and whether the clock expired.
+
+## Row timeouts
+
+Windows timeouts keep the doubled clock plus a 30 s reserve within 0.75 of the
+timeout, and stay at least three times each measured Debug completion:
+
+- 300 s for the 90 s-clock rows (largest Debug completion 93.83 s);
+- 540 s for cache entries (61.63 s);
+- 1,500 s for history (187.47 s);
+- 2,280 s for byte pressure (Release 280.70 s; no Debug completion yet).
+
+The Debug resources completion is not yet measured. `large_review_replay_contract`
+reached its 30 s bound on Windows alone and in the suite, which is a lower bound
+only. It gets 120 s there until the confirmation run measures it; macOS
+Release runs it in 2.03 s.
+
+macOS and Linux keep their timeouts. Every Linux Debug row finishes in under
+a third of its timeout: byte pressure 65.63 s of 900, history 46.68 of 600, and
+the rest under 9 s.
+
+## Mac verification
+
+Mac Release (M4 Pro, Qt 6.11.2), at the code committed as `f61340e17`:
+
+- The 16 large-review rows, `architecture_boundaries` and the replay contract
+  pass. Every Mac limit is enforced with no miss and no input failure; the run
+  log's SHA-256 is `fc140822…1956`.
+- Two temporary controls at a 60 ms target, with the source restored
+  byte-for-byte afterwards:
+  - With `large_file_selection` and `large_source_revisit_render` named, the
+    responsiveness course passes and reports both.
+  - With only `large_file_selection` named, it fails, with
+    `large_source_revisit_render_input_gap` enforced.
+
+`large_review_summary.py` now keeps failed and timed-out rows, whose CTest
+status can wrap across lines. A synthetic log with a wrapped failure, a timeout
+and a pass is parsed correctly. Rows are keyed by log file.

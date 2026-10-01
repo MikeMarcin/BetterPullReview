@@ -374,3 +374,37 @@ With the fix (MSVC 14.51), both trees build
 `build/bpr0967-release` (windows-app-release, Release) and
 `build/windows-dev` (Debug). `coding-format-check` passes. The Windows
 measurement is rerun at the fix commit.
+
+## Windows and Linux limits from the station runs — 2026-10-01
+
+Both stations ran the sixteen rows in an optimized tree and in their Debug
+tree. Windows ran at `682ea1392`, which adds the station's
+`windows.h`-before-`psapi.h` build fix, and Linux at `e257b236a`
+([[BPR-1262]] made its tests-on Release graph build). Release passed 16/16 on
+both. Debug passed 16/16 on Linux and 14/16 on Windows.
+
+The [station budget record](../../verification/BPR-0967-station-budgets-2026-10-01.md)
+derives each platform's limits from these runs. From code `f61340e17` they are
+enforced in optimized builds:
+
+- Windows byte-pressure footprint growth 208 MiB;
+- Linux footprint growth 168 MiB, and 216 MiB for byte pressure;
+- Windows active close-to-quiescence 150 ms;
+- every other Mac limit kept, with its margin.
+
+The 100 ms input target is unchanged. The phases at or over 90 ms of it are
+named per platform, reported and not enforced, and [[BPR-1264]] owns them.
+
+Debug off macOS reports and enforces no numeric limit. On Windows, Debug
+doubles the course clocks, because the resources course outran 90 s. The Debug
+byte-pressure failure ended at 323 s of an 840 s clock, so the clock was not
+the cause. It stays a named failure for [[BPR-1265]], and a new
+`Extended.WaitExpiry` field records which wait ended a course unready, and why.
+Windows row timeouts are sized from the Debug completions and the doubled
+clocks; macOS and Linux timeouts already cover three times every measured
+completion.
+
+AC3 now has optimized Windows and Linux measurements and enforced limits,
+pending the confirmation run at `f61340e17`. Packaged launch, compositor
+presentation and physical-input latency on every platform remain human/native
+obligations.

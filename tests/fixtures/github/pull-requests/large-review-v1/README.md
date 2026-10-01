@@ -230,11 +230,17 @@ pairs `VmRSS` with `VmHWM` and samples glibc's in-use arena and mmapped bytes.
 The timing control's held 32 MiB allocation checks the live-heap sampler on all
 three platforms.
 
-Every numeric limit in the benchmark and `large_review_launch.py` is justified
-by optimized Mac measurements alone. On Windows and Linux a report therefore
-says `BudgetsEnforced: false`, marks its completion budgets not enforced, and
-names each limit it would have missed in `UnenforcedLimitMisses`; exact source,
-cache, eviction, release and lifecycle assertions still fail the row. A failed
+Each platform enforces numeric limits justified by its own optimized
+measurements. The benchmark's platform table records them and their basis, in
+`Extended.LimitBasis`: the M4 Pro Mac, and the Windows and Linux station runs in
+the [station budget record](../../../../../docs/verification/BPR-0967-station-budgets-2026-10-01.md).
+The 100 ms input target is the same everywhere. Phases measured at or over
+90 ms of it on a platform are named in `Extended.KnownInputMisses`, reported
+and not enforced. A Debug build off macOS enforces no numeric limit
+(`BudgetsEnforced: false`) and names what it would have missed in
+`UnenforcedLimitMisses`. Windows Debug doubles every course clock. Exact source,
+cache, eviction, release and lifecycle assertions fail the row everywhere.
+`Extended.WaitExpiry` names the wait that ended a course unready, and why. A failed
 course writes its partial report, with `Failure`, to the report path.
 `tests/end_to_end/large_review_summary.py BUILD_ROOT [CTEST_LOG ...]` condenses
 one tree's reports, with their digests, for a station return.
